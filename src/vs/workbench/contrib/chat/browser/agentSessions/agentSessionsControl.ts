@@ -56,7 +56,6 @@ export interface IAgentSessionsControlOptions {
 	readonly repositoryGroupLimit?: number;
 	readonly hideSectionCount?: boolean;
 	readonly hideSessionBadge?: boolean;
-	readonly useStatusOnlyIcons?: boolean;
 	readonly compactShowMore?: boolean;
 	readonly itemHeight?: number;
 	readonly sectionHeight?: number;
@@ -117,6 +116,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	private focusedAgentSessionReadContextKey: IContextKey<boolean>;
 	private focusedAgentSessionTypeContextKey: IContextKey<string>;
 	private focusedAgentSessionChildContextKey: IContextKey<boolean>;
+	private focusedAgentSessionChildCanArchiveContextKey: IContextKey<boolean>;
 	private hasMultipleAgentSessionsSelectedContextKey: IContextKey<boolean>;
 
 	constructor(
@@ -141,6 +141,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.focusedAgentSessionReadContextKey = ChatContextKeys.isReadAgentSession.bindTo(this.contextKeyService);
 		this.focusedAgentSessionTypeContextKey = ChatContextKeys.agentSessionType.bindTo(this.contextKeyService);
 		this.focusedAgentSessionChildContextKey = ChatContextKeys.isAgentSessionChild.bindTo(this.contextKeyService);
+		this.focusedAgentSessionChildCanArchiveContextKey = ChatContextKeys.agentSessionChildCanArchive.bindTo(this.contextKeyService);
 		this.hasMultipleAgentSessionsSelectedContextKey = ChatContextKeys.hasMultipleAgentSessionsSelected.bindTo(this.contextKeyService);
 		this.collapsedSessionResources = this.loadCollapsedSessionResources();
 
@@ -363,7 +364,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				overrideStyles: this.options.overrideStyles,
 				twistieAdditionalCssClass: (element: unknown) => isAgentSession(element) && element.children?.length ? 'agent-session-chat-twistie' : 'force-no-twistie',
 				collapseByDefault: (element: unknown) => collapseByDefault(element),
-				expandOnlyOnTwistieClick: true,
+				expandOnlyOnTwistieClick: (element: unknown) => isAgentSession(element),
 				renderIndentGuides: RenderIndentGuides.None,
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore>;
@@ -637,6 +638,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				this.focusedAgentSessionReadContextKey.set(focused.isRead());
 				this.focusedAgentSessionTypeContextKey.set(focused.providerType);
 				this.focusedAgentSessionChildContextKey.set(isAgentSessionChild(focused));
+				this.focusedAgentSessionChildCanArchiveContextKey.set(focused.canArchive === true);
 				activeSessionResource.set(focused.resource, undefined);
 			} else {
 				this.focusedAgentSessionArchivedContextKey.reset();
@@ -644,6 +646,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				this.focusedAgentSessionReadContextKey.reset();
 				this.focusedAgentSessionTypeContextKey.reset();
 				this.focusedAgentSessionChildContextKey.reset();
+				this.focusedAgentSessionChildCanArchiveContextKey.reset();
 				activeSessionResource.set(undefined, undefined);
 			}
 
@@ -781,6 +784,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		contextOverlay.push([ChatContextKeys.isReadAgentSession.key, session.isRead()]);
 		contextOverlay.push([ChatContextKeys.agentSessionType.key, session.providerType]);
 		contextOverlay.push([ChatContextKeys.isAgentSessionChild.key, isAgentSessionChild(session)]);
+		contextOverlay.push([ChatContextKeys.agentSessionChildCanArchive.key, session.canArchive === true]);
 		contextOverlay.push([ChatContextKeys.agentSessionPullRequest.key, getAgentSessionPullRequestContextValue(session)]);
 
 		const menu = this.menuService.createMenu(isAgentSessionChild(session) ? AgentSessionChatContextMenu : MenuId.AgentSessionsContext, this.contextKeyService.createOverlay(contextOverlay));
@@ -956,6 +960,10 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		const focused = this.sessionsList?.getFocus() ?? [];
 
 		return focused.filter(e => isAgentSession(e));
+	}
+
+	getSelectedSessions(): IAgentSession[] {
+		return this.sessionsList?.getSelection().filter(isAgentSession) ?? [];
 	}
 
 	/** Temporarily reveals a row through filters and collapsed sections, without opening its chat. */

@@ -11,6 +11,7 @@ mod install;
 mod invocation;
 mod legacy;
 mod model;
+mod policy;
 mod runtime;
 mod setup;
 #[cfg(any(windows, test))]

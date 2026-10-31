@@ -1130,6 +1130,26 @@ export async function waitForFixtureCondition(condition: () => boolean, message:
 	throw new Error(message);
 }
 
+/**
+ * Resolves once `condition` holds, re-checking it after each DOM mutation under `root`.
+ * A condition that never holds fails the render at the explorer's fixture timeout.
+ */
+export function waitForFixtureDomCondition(root: Node, condition: () => boolean, store: DisposableStore): Promise<void> {
+	if (condition()) {
+		return Promise.resolve();
+	}
+	return new Promise<void>(resolve => {
+		const observer = new MutationObserver(() => {
+			if (condition()) {
+				observer.disconnect();
+				resolve();
+			}
+		});
+		store.add(toDisposable(() => observer.disconnect()));
+		observer.observe(root, { attributes: true, characterData: true, childList: true, subtree: true });
+	});
+}
+
 const logOutsideTime = false;
 if (logOutsideTime) {
 	const loggingTimeApi = createLoggingTimeApi(realTimeApi, (name, stack, handler) => {
@@ -1215,6 +1235,14 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			);
 			const virtualTimeApi = createVirtualTimeApi(clock, { fakeRequestAnimationFrame: true });
 			const teardownDrainMs = options.virtualTime?.teardownDrainMs ?? 1100;
+			// Installed while the render is pending. A render that outlives the explorer's
+			// timeout must not keep its virtual clock global, or the explorer's dispose and the
+			// next fixture would schedule work on a clock that nothing advances.
+			let renderTimeApi: IDisposable | undefined;
+			const uninstallRenderTimeApi = () => {
+				renderTimeApi?.dispose();
+				renderTimeApi = undefined;
+			};
 
 			// Single async dispose orchestrates teardown order:
 			//   1. dispose user disposables (synchronous part)
@@ -1231,6 +1259,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 					// land in `p` and can be drained below. Render unpushes
 					// virtual time when it completes (so screenshot capture
 					// etc. can use real timers), so we have to push again.
+					uninstallRenderTimeApi();
 					let teardownTimeApi: IDisposable | undefined;
 					if (virtualTimeEnabled) {
 						teardownTimeApi = pushGlobalTimeApi(virtualTimeApi);
@@ -1290,7 +1319,6 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 					onDidChangeEnableAnimations.fire(enabled);
 				});
 
-				let renderTimeApi: IDisposable | undefined;
 				if (virtualTimeEnabled) {
 					renderTimeApi = pushGlobalTimeApi(virtualTimeApi);
 
@@ -1351,7 +1379,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 				} finally {
 					// Unpush virtual time so the post-render flow (screenshot
 					// capture, stability checks, …) runs with real timers.
-					renderTimeApi?.dispose();
+					uninstallRenderTimeApi();
 				}
 			}
 

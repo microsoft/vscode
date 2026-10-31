@@ -59,7 +59,7 @@ export class OpenBrowserToolNonAgentic implements IToolImpl {
 		const params = invocation.parameters as IOpenBrowserToolParams;
 
 		if (!params.forceNew) {
-			const existingPages = findExistingPagesByHost(this.browserViewService, params.url!, { activeSessionId: invocation.context?.sessionResource.toString() });
+			const existingPages = findExistingPagesByHost(this.browserViewService, params.url!, this.browserViewService.resolveNetwork({ type: 'user' }), { activeSessionId: invocation.context?.sessionResource.toString() });
 			const existingResult = await getExistingPagesResult(this.editorService, existingPages, { excludeIds: true });
 			if (existingResult) {
 				return existingResult;

@@ -117,4 +117,49 @@ suite('ChatUtilityModelService', () => {
 			clock.restore();
 		}
 	});
+
+	test('rechecks title relevance after waiting behind the background limiter', async () => {
+		for (const prompt of ['b1', 'b2', 'b3']) {
+			held.set(prompt, new DeferredPromise());
+		}
+		const started = ['b1', 'b2', 'b3'].map(prompt => service.sendRequest(request(prompt, { background: true }), CancellationToken.None));
+		let visible = true;
+		const queued = service.sendRequest(request('offscreen title', { background: true, isRelevant: () => visible }), CancellationToken.None);
+		visible = false;
+		for (const deferred of held.values()) {
+			deferred.complete();
+		}
+		await Promise.all(started);
+		assert.deepStrictEqual({ result: await queued, sent: sent.map(request => request.prompt) }, { result: undefined, sent: ['b1', 'b2', 'b3'] });
+	});
+
+	test('cancels a started visibility-limited title when its last caller leaves', async () => {
+		const completion = new DeferredPromise<void>();
+		held.set('title', completion);
+		const cancellation = store.add(new CancellationTokenSource());
+		const result = service.sendRequest(request('title', { background: true, isRelevant: () => true }), cancellation.token);
+		await timeout(0);
+		cancellation.cancel();
+		const cancelled = await result;
+		completion.complete();
+		assert.deepStrictEqual({ cancelled, sent: sent.map(request => request.prompt) }, { cancelled: undefined, sent: ['title'] });
+	});
+
+	test('a second visible caller keeps a shared queued title relevant', async () => {
+		for (const prompt of ['b1', 'b2', 'b3']) {
+			held.set(prompt, new DeferredPromise());
+		}
+		const started = ['b1', 'b2', 'b3'].map(prompt => service.sendRequest(request(prompt, { background: true }), CancellationToken.None));
+		const cancellation = store.add(new CancellationTokenSource());
+		const first = service.sendRequest(request('shared title', { background: true, key: 'title', isRelevant: () => false }), cancellation.token);
+		const second = service.sendRequest(request('shared title', { background: true, key: 'title', isRelevant: () => true }), CancellationToken.None);
+		cancellation.cancel();
+		for (const deferred of held.values()) {
+			deferred.complete();
+		}
+		await Promise.all(started);
+		assert.deepStrictEqual({ results: await Promise.all([first, second]), sent: sent.map(request => request.prompt) }, {
+			results: ['Answer to shared title', 'Answer to shared title'], sent: ['b1', 'b2', 'b3', 'shared title'],
+		});
+	});
 });

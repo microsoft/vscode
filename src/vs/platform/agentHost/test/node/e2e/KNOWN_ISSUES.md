@@ -16,6 +16,35 @@ When a valid E2E scenario exposes a gap:
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
+### Copilot empty-mode native plugin agent selection
+
+A user selects an agent supplied by a plugin for a chat backed by the SDK's `empty` client mode. This mode is used by storage-scoped Copilot clients. The native plugin agent is absent from the session catalog even when its directory is supplied and configuration discovery is enabled, so the requested agent cannot be selected. Retrying as the default agent would silently change the user's request.
+
+- Tests: `empty create`, `empty resume`, and `empty recover` in `../copilotSdkNativeAgents.integrationTest.ts`.
+- Scope: bundled SDK `1.0.27-unstable.40031404408.gba6c003`; reproduced locally on macOS without credentials or model requests. Cross-platform Azure validation remains required before merge.
+- Expected: construct without an initial agent, await `agent.list()`, select the native SDK ID, and retain existing history on resume.
+- Observed: `copilot-cli` supports this sequence; `empty` reports `Custom agent 'review-native:reviewer' not found`. An explicit `customAgentsLocalOnly: false` also failed in the isolated SDK reproduction.
+- Gate: the empty-mode cases currently assert explicit launch rejection, not successful support. When the SDK supports native plugin catalogs in this mode, replace these assertions with the same success contract as `copilot-cli`. The PR remains blocked meanwhile; no client-mode or discovery-ownership workaround is applied.
+- Tracking: [microsoft/vscode#344780](https://github.com/microsoft/vscode/pull/344780#issuecomment-6477591086).
+- Reproduce: `./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/copilotSdkNativeAgents.integrationTest.ts`.
+
+### Copilot sandboxed MCP servers restart at the start of the first turn
+
+A user with the sandbox enabled starts a session that has a stdio MCP server, then sends a first message. The server should start once inside the sandbox. Instead, the runtime first starts it with the settings it had before the sandbox update, then cancels it and starts it again inside the sandbox while the first turn is being prepared. Users with several MCP servers see the turn wait for every server to start twice, one after another, before the first response.
+
+- Test: `runtime MCP: first turn does not restart MCP servers` in `suites/copilotRuntimeMcpSuite.ts`.
+- Scope: Copilot provider with the sandbox enabled and `sandboxMcpServers` on, all platforms. Observed with bundled runtime `1.0.99-2`, and live with `1.0.99-1`.
+- Expected: one probe process start, and no `stopped` or `starting` state for the server after it first reports `Ready`.
+- Observed: two or three process starts. Runtime log: `mcp graph load: ensure_loaded (first load)`, then `apply_session_settings {"sandbox_changed":false}`, then `apply_session_settings {"sandbox_changed":true}`, then `serve finished {"quit_reason":"Cancelled"}`, then `sandbox_spawn sandbox launch directory`. The host sends exactly one `options.update({ sandboxConfig })` after `createSession` and no other sandbox, MCP, or agent-selection requests before the restart. The recording run passed once, so the outcome is timing-dependent.
+- Gate: only this test is skipped. It asserts the desired contract. Remove the skip after the runtime starts sandboxed MCP servers once.
+- Reproduce: temporarily replace this test's `test.skip` with `test`, then repeat:
+
+  ```bash
+  ./scripts/test-integration.sh \
+    --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "first turn does not restart MCP servers"
+  ```
+
 ### Copilot strict managed-model resume is nondeterministic
 
 An SDK client can opt into mandatory model-option locks. If an administrator changes the required effort after a conversation was saved with another effort, resuming should apply the new lock and retain the conversation history. The runtime intermittently rejects that resume instead. VS Code's current integration deliberately omits the strict opt-in, and its default-only resume tests remain enabled.
@@ -39,10 +68,10 @@ An SDK client can opt into mandatory model-option locks. If an administrator cha
 An administrator can disable identity capture while the runtime inherits an explicit `user.name` resource attribute. The native runtime removes `process.user.name` and `host.name`, but the inherited `user.name` still reaches the managed collector. This scenario concerns native Copilot export, not the separate Agent Host metadata pipeline.
 
 - Test: `managed identity denial removes inherited identity from native spans`.
-- Scope: Copilot runtime `1.0.95-0`; reproduced in local strict replay on macOS. The expected-failure marker remains enabled on all platforms.
+- Scope: Copilot SDK `1.0.26` / runtime `1.0.103`; reproduced in local strict replay on macOS. The expected-failure marker remains enabled on all platforms.
 - Expected: managed `telemetry.capture.identity=false` removes all three identity attributes from native spans and events despite local opt-in and inherited resource attributes.
-- Observed: native spans still retain `user.name=synthetic-account` with SDK `1.0.19-preview.0` / runtime `1.0.95-0`. The runtime's identity-resource predicate still includes only `process.user.name` and `host.name`.
-- Tracking: the [bundled runtime's identity-resource predicate](https://github.com/github/copilot-agent-runtime/blob/94f375f0098b266c43f7772797bc5f7b4ea12626/src/runtime/src/otel/sdk.rs#L2003) includes only `process.user.name` and `host.name`. Stephen Toub introduced this predicate on September 14, 2026, in [github/copilot-agent-runtime#19723](https://github.com/github/copilot-agent-runtime/pull/19723). No upstream issue was filed by this task.
+- Observed: native spans still retain `user.name=synthetic-account`. The runtime's identity-resource predicate still includes only `process.user.name` and `host.name`.
+- Tracking: the [bundled runtime's identity-resource predicate](https://github.com/github/copilot-agent-runtime/blob/131fc866123af5df4451497f183cadef4ddf20f2/src/runtime/src/otel/sdk.rs#L2546) includes only `process.user.name` and `host.name`. Stephen Toub introduced this predicate on September 14, 2026, in [github/copilot-agent-runtime#19723](https://github.com/github/copilot-agent-runtime/pull/19723). No upstream issue was filed by this task.
 - Gate: a strict expected-failure marker accepts only the identity-redaction assertion. An unexpected pass fails and requires removing the marker. Recording skips the case to preserve its complete existing fixture.
 - Reproduce:
 
@@ -90,7 +119,6 @@ An MCP application can call a tool that returns ordered text, an image, embedded
 The new `regression coverage:` history and fork scenarios exercise cold resume, completed tool pairing, peer isolation, and selected-turn fork boundaries. They retain the existing provider limitations rather than treating recorded assistant text as proof of correct restoration.
 
 - Copilot Windows: cold tool-history, peer, and resumed-fork variants use the existing provider-session restart gate described under [Copilot provider sessions can disappear across a Windows host restart](#copilot-provider-sessions-can-disappear-across-a-windows-host-restart). Ordered text and identical-prompt resume checks remain enabled.
-- Claude: the four provider-backed selected-turn fork variants retain the existing `supportsChatForkE2E` gate described under [Claude provider-context fork](#claude-provider-context-fork); ordinary cold history and peer restoration remain enabled.
 - Recording does not bypass these known unsupported paths by default. Reevaluate the gates using the same actual tool/result and provider-bound history assertions when the underlying provider fixes are bundled.
 - Focused reproduction: use `--grep "regression coverage:"` with the affected provider's E2E entrypoint; the individual history/fork test titles identify the requested boundary.
 
@@ -112,6 +140,15 @@ Starting two Codex chats in the same empty workspace can fail before the first p
   ```
 
 - Host mitigation: on Linux, `CodexAgent` runs `thread/start`, `thread/resume`, and `thread/fork` one at a time per workspace root ([codexThreadCreationSequencer.ts](../../../node/codex/codexThreadCreationSequencer.ts)), so chats starting together in one workspace no longer fail their first message. Sandboxed shell commands that two chats run at the same moment in one workspace can still race, and so can several Agent Host processes sharing a workspace; that remains upstream. No upstream Codex issue tracks it yet. The defect: in [`bwrap.rs`](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/linux-sandbox/src/bwrap.rs), readable roots are bound whenever they exist, with no check for another setup's transient mount targets (writable roots have one); it is unchanged on Codex `main`.
+
+### Codex Linux sandbox helpers orphaned mid-session
+
+An Agent Host E2E job on Linux can pass every suite and still fail the step, because the test tmpfs cannot be unmounted: `umount: <tmpfs>: target is busy`. Between 2026-10-07 and 2026-10-17 this failed 13 PR runs (about 1 in 217). The holder is a `bwrap ... --argv0 codex-linux-sandbox ... --codex-run-as-fs-helper` process whose parent is PID 1. It still has its pre-exec `bwrap` command line and its launcher's process group, and it holds files inherited from the Agent Host server.
+
+- Mechanism: Codex runs each filesystem helper as a `codex-linux-sandbox` launcher. The launcher forks `bwrap --die-with-parent` into its own process group, and when Codex drops the helper it kills only that launcher ([`fs_sandbox.rs`](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/exec-server/src/fs_sandbox.rs), [`linux_run_main.rs`](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/linux-sandbox/src/linux_run_main.rs)). The outer bwrap then dies with the launcher. If that happens right after bwrap clones its sandbox child, the child blocks forever on an eventfd that never reports the outer bwrap's death; it binds its own lifetime to its parent only after that wait ([`bubblewrap.c`](https://github.com/containers/bubblewrap/blob/main/bubblewrap.c)).
+- Timing: the holder's age dates its clone while its Agent Host server and app-server were still running, several seconds before that server shut down. It is orphaned mid-session, outside the app-server's process tree, so killing the app-server's tree at teardown does not reach it.
+- Upstream: [openai/codex#54877](https://github.com/openai/codex/issues/54877) and [containers/bubblewrap#633](https://github.com/containers/bubblewrap/issues/633).
+- Test mitigation: on an unmount failure, [tmpfs.sh](../../../../../../../test/integration/agentHost/tmpfs.sh) checks every holder. If all of them are orphaned Codex filesystem helpers (parent PID 1 and `--codex-run-as-fs-helper` on the command line), it describes each one, kills it, reports a GitHub Actions warning, and retries the unmount. Any other holder, or an unmount that still fails, remains fatal with the same holder diagnostics. Remove this mitigation once a fixed Codex or bubblewrap ships.
 
 ### Codex context snapshot flake
 
@@ -579,26 +616,10 @@ Each elision is load-bearing, and all four were established by running the asser
 - **Filesystem paths** have too many per-machine spellings to compare literally: separator (`\` vs `/`), drive letter, 8.3 short names, `/var` vs `/private/var`, whether the recorder's `${workdir}` / `${homedir}` substitution matched at all, and whether the value is a file or the workspace directory itself. Two rounds of Windows CI failures came from exactly these, none a real regression. What file an operation actually touched is asserted directly against the filesystem by the tests that care, which is a stronger oracle than the prompt text.
 - **The model id** tracks the provider default and the model catalog rather than anything the host composes, so asserting it would break every capture on an unrelated catalog bump. Captures still record it for review.
 
-When this was first switched on it found seven stale captures: four whose prompt text had been edited without re-recording, one that had captured a one-off ordering of two parallel `tool_result` blocks, one Codex capture still holding the pre-pinned `pwd` prompt, and the Claude side-chat capture below. All but the last were re-recorded.
+When this was first switched on it found seven stale captures: four whose prompt text had been edited without re-recording, one that had captured a one-off ordering of two parallel `tool_result` blocks, one Codex capture still holding the pre-pinned `pwd` prompt, and one Claude side-chat capture. All seven now pass request comparison without exceptions.
 
 A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXCEPTIONS` in `agentHostE2ETestHarness.ts`, which keeps the exceptions countable in one place and requires an entry here.
 
-### Claude side-chat capture cannot be refreshed
-
-- Test: `side chat receives bounded source context without copied history`.
-- Scope: Claude.
-- Expected: re-recording the capture drives a real side chat and stores the request the host now sends.
-- Observed: recording does not reproduce the committed capture, because the side chat is anchored on a source turn and therefore hits the same anchor-resolution defect that gates `supportsChatForkE2E` — the side chat falls back to an injected `<side-chat-context>` preamble instead of a provider fork. See [Claude provider-context fork](#claude-provider-context-fork).
-- Consequence: the committed capture predates the host's `<side-chat-context>` preamble, so its recorded request no longer matches the live one. The test still replays correctly — only the request comparison is disabled, via `STALE_RECORDED_REQUEST_EXCEPTIONS`.
-- Reproduce:
-
-  ```bash
-  AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
-    --grep "side chat receives bounded source context"
-  ```
-
-  Remove the entry from `STALE_RECORDED_REQUEST_EXCEPTIONS` and re-record once the fork defect is fixed.
 ## Suspected product bugs
 
 ### Copilot compacted history is not restored on Windows
@@ -661,7 +682,7 @@ A user can create a session, start a peer chat in a selected folder, and leave t
 A user can fork a peer chat that uses one folder of a multi-root session. The fork should keep that source folder, rather than inherit every folder from the session. The new chat instead has no explicit folder selection in host state, so its advertised workspace can disagree with the provider's actual working directory.
 
 - Test: `workspace lifecycle: a fork retains the source chat folder instead of the requested override`.
-- Scope: observed on macOS with Copilot and Codex; gated for all platforms pending a fix. Claude remains outside this scenario under its existing provider-context fork limitation.
+- Scope: observed on macOS with Copilot and Codex; gated for all providers and platforms pending a fix.
 - Expected: the fork retains the source peer's folder, ignores the requested override as specified by `createChat`, and executes relative file operations in that folder.
 - Observed: Codex executes in the source folder but returns no `workingDirectories` in the fork's chat state; Copilot does not create the expected file in the source folder.
 - Gate: `context.runKnownIssueTests` and the existing `supportsChatForkE2E` capability.
@@ -848,35 +869,6 @@ AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
   --grep "server tool: (get_session_context full|delete_session removes|send_message refuses)"
 ```
 
-### Claude provider-context fork
-
-- Tests:
-  - `forked peer chat inherits source history through the provider`
-  - `unknown-turn fork does not inherit source provider context`
-- Scope: Claude.
-- Expected: a provider-backed fork continues from the requested source history.
-- Observed: the forked chat's AHP transcript is seeded, but its model request has no source history. The model cannot recall the source conversation, and no error reaches the client.
-- Cause confirmed by investigation: `resolveForkAnchorUuid` matches the client-assigned AHP turn id against Claude SDK envelope UUIDs. When it cannot resolve the anchor, `_forkChat` returns `undefined` and chat creation silently continues with fresh provider context.
-- Gate: `supportsChatForkE2E: false`.
-- Issue: [#328104](https://github.com/microsoft/vscode/issues/328104).
-- Reproduce:
-
-  ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
-    --grep "forked peer chat inherits source history through the provider"
-  ```
-
-  Temporarily enable `supportsChatForkE2E`.
-
-The same defect prevents refreshing Claude's `side chat receives bounded source context without copied history` capture. The side chat falls back to an injected `<side-chat-context>` preamble instead of a provider fork, so its pre-defect fixture is listed in `STALE_RECORDED_REQUEST_EXCEPTIONS`. After fixing the fork, remove that exception and re-record:
-
-```bash
-AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
-  src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
-  --grep "side chat receives bounded source context"
-```
-
 ## Platform and deterministic-replay limitations
 
 ### Copilot prompt and skill-budget tests on Windows
@@ -965,6 +957,10 @@ A user can ask Claude to delete a file from the workspace through its shell tool
   ```bat
   scripts\test-integration.bat --run src\vs\platform\agentHost\test\node\e2e\providers\claudeAgentHostE2E.integrationTest.ts --grep "deletes a workspace file"
   ```
+
+### Codex turn-diff shell fixture uses Bash
+
+The `shell-intercepted patches use the same turn-diff tracking` provider-integration fixture is separately POSIX-only because it sends a Bash heredoc through Codex's shell. Native patch tracking, checkpoint, steering, subagent, and restart coverage in [codexTurnDiff.integrationTest.ts](../providerIntegration/codexTurnDiff.integrationTest.ts) stays enabled on Windows.
 
 ### Codex file creation replay on Windows
 
@@ -1058,7 +1054,6 @@ A test that checks only its final dispatch can miss an earlier action that was e
 
 | Capability | Gate | Provider(s) skipped | Effect |
 |---|---|---|---|
-| Provider-backed fork parity | `supportsChatForkE2E` | Claude | Fork capability remains advertised; model-backed fork-context assertions skip. |
 | Subagents | `supportsSubagents` | Codex | Subagent routing and reopen scenarios skip. |
 | Streaming file creation | `streamingFileCreateToolName` | Codex | Argument-delta coverage requires a native file-creation tool; shell-backed file behavior is covered separately. |
 | Freeform input | `textInputPrompt` | Codex | Codex `request_user_input` requires non-empty options, so a freeform answer cannot be requested through that tool. |
@@ -1074,3 +1069,11 @@ The entire Claude or Codex suite also skips when its bundled SDK package is unav
 2. Reevaluate broad provider gates one title at a time and check whether a capture exists.
 3. Re-record narrowly after SDK/CLI behavior changes and review every generated artifact.
 4. Remove fixed gates, entries, comments, and orphaned captures together.
+
+### Chats with different agents in one session are not covered for Codex
+
+A session whose default chat runs in Codex and which also has a chat in the Copilot agent sends model requests in two wire formats (Responses and Anthropic). A capture holds a single `dialect`, so this mix cannot be replayed.
+
+- Tests: `chats of one session run turns in their own agent`, `a fork stays on its source chat's agent and rejects another provider` and `chats keep their own agent across a host restart` in `suites/multipleChatProvidersSuite.ts`.
+- Scope: the Codex parity run. They run for Claude, whose session and the Copilot agent both use the Anthropic dialect.
+- Gate: the suite registers them for `claude` only.

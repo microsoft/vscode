@@ -132,6 +132,16 @@ function writeChatResponse(response: ServerResponse, model: string, stream: bool
 	response.end('data: [DONE]\n\n');
 }
 
+/** Answers with `text` as a complete (non-streaming) Responses API response. */
+function writeResponsesResponse(response: ServerResponse, model: string, text: string): void {
+	response.writeHead(200, { 'content-type': 'application/json' });
+	response.end(JSON.stringify({
+		id: 'resp_test', object: 'response', created_at: 0, model, status: 'completed', error: null,
+		output: [{ type: 'message', id: 'msg_test', status: 'completed', role: 'assistant', content: [{ type: 'output_text', text, annotations: [] }] }],
+		usage: { input_tokens: USAGE.prompt_tokens, output_tokens: USAGE.completion_tokens, total_tokens: USAGE.total_tokens },
+	}));
+}
+
 function isStreaming(body: string): boolean {
 	try {
 		return (JSON.parse(body) as { stream?: unknown }).stream === true;
@@ -236,6 +246,8 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 	let serving: FakeServingAccess;
 	/** `capabilities.supports.reasoning_effort` of the cloud fallback `/auto` returns. */
 	let fallbackReasoningEfforts: string[] | undefined;
+	/** `supported_endpoints` of the cloud fallback `/auto` returns, when not the catalog's. */
+	let fallbackEndpoints: string[] | undefined;
 
 	const reportTool = defineTool('report_value', {
 		description: 'Reports a numeric value to the test.',
@@ -270,6 +282,7 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 		llamaContextOverflows = 0;
 		llamaPromptProgress = undefined;
 		fallbackReasoningEfforts = undefined;
+		fallbackEndpoints = undefined;
 		localResponses = [];
 		localStreams = [];
 		directWaits = [];
@@ -293,6 +306,7 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 				const routing = JSON.parse(body) as { local_models?: unknown };
 				autoRequests.push(routing);
 				const declared = Array.isArray(routing.local_models) && routing.local_models.includes(LOCAL_CAPI_ID);
+				const fallback = withReasoningEfforts(catalog.data.find(model => model.id === FALLBACK_MODEL), fallbackReasoningEfforts);
 				json({
 					session_token: ROUTE_TOKEN,
 					expires_at: Math.floor(Date.now() / 1000) + 3600,
@@ -305,10 +319,12 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 						supported_endpoints: ['/chat/completions'],
 						capabilities: { type: 'chat', family: LOCAL_CAPI_ID, object: 'model_capabilities', limits: {}, supports: {} },
 					} : catalog.data.find(model => model.id === FALLBACK_MODEL),
-					...(declared ? { cloud_fallback_model: withReasoningEfforts(catalog.data.find(model => model.id === FALLBACK_MODEL), fallbackReasoningEfforts) } : {}),
+					...(declared ? { cloud_fallback_model: fallbackEndpoints ? { ...fallback, supported_endpoints: fallbackEndpoints } : fallback } : {}),
 				});
 			} else if (path === '/chat/completions' && request.method === 'POST' && parseModel(body) === FALLBACK_MODEL) {
 				writeChatResponse(response, FALLBACK_MODEL, isStreaming(body), { kind: 'text', text: 'CLOUD FALLBACK OK' });
+			} else if (path === '/responses' && request.method === 'POST' && parseModel(body) === FALLBACK_MODEL) {
+				writeResponsesResponse(response, FALLBACK_MODEL, 'CLOUD RESPONSES FALLBACK OK');
 			} else {
 				const stub = getAncillaryStub(request.method ?? 'GET', path, body);
 				if (stub) {
@@ -513,6 +529,31 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 		assertSecurityInvariants();
 	});
 
+	test('routes a local pick whose cloud fallback serves only the Responses API, and falls back through it', async () => {
+		fallbackEndpoints = ['/responses', 'ws:/responses'];
+		llamaDiesBeforeOutput = true;
+		const session = await client.createSession({ ...sessionOptions, model: 'auto', ...withLocalModelSessionConfig({}, provider.contributeSessionConfig()) });
+		const turn = await runTurn(session, 'Say hello.');
+		await session.disconnect();
+
+		const fallbackRequests = capiRequests.filter(request => parseModel(request.body) === FALLBACK_MODEL && request.path !== '/auto');
+		assert.deepStrictEqual({
+			turn,
+			// The local pick was kept (not re-issued cloud-only) and served on the device first.
+			declared: autoRequests.map(request => request.local_models),
+			localRequests: llamaRequests.length,
+			fallback: fallbackRequests.map(request => ({ path: request.path, token: request.headers['copilot-session-token'], stream: isStreaming(request.body), store: parseJson(request.body)?.store })),
+			routes: routes.map(route => `${route.selection}:${route.reason}`),
+		}, {
+			turn: { reply: 'CLOUD RESPONSES FALLBACK OK', usageMeta: { 'vscode.localModel': { execution: 'fallback', fallbackReason: 'localError', fallbackModel: FALLBACK_MODEL, familyId: MAI_ROW.familyId } } },
+			declared: [[LOCAL_CAPI_ID]],
+			localRequests: 1,
+			fallback: [{ path: '/responses', token: ROUTE_TOKEN, stream: false, store: false }],
+			routes: ['fallback:localError'],
+		});
+		assertSecurityInvariants();
+	});
+
 	test('serves the direct sentinel row at create, at resume and after provider.sync', async () => {
 		const contribution = provider.contributeSessionConfig();
 		/** A turn of one phase (create, resume, after `provider.sync`): what answered, and which endpoints the runtime used for it. */
@@ -614,7 +655,7 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 		assertSecurityInvariants();
 	});
 
-	test('passes the chat\'s thinking level to llama-server as chat_template_kwargs, for the direct row and for Auto', async () => {
+	test('passes direct thinking choices and Auto routed effort to llama-server as chat_template_kwargs', async () => {
 		const ready = serving.active;
 		assert.ok(ready);
 		const sessionConfig = withLocalModelSessionConfig({}, buildLocalModelSessionConfig([THINKING_ROW]));
@@ -640,10 +681,10 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 		await toggleSession.disconnect();
 		const toggle = { turn: toggleTurn.reply, runtime: sentToSentinel(), llama: llamaThinking() };
 
-		// Auto: the patched local pick declares the fallback's efforts, so the runtime sends the chat's level.
+		// Auto has no session-level effort; its routed model supplies the effort.
 		serving.active = { ...ready, thinking: THINKING_ROW.thinking };
 		fallbackReasoningEfforts = ['low', 'medium', 'high'];
-		const autoSession = await client.createSession({ ...sessionOptions, model: 'auto', reasoningEffort: 'low', ...sessionConfig });
+		const autoSession = await client.createSession({ ...sessionOptions, model: 'auto', ...sessionConfig });
 		const autoTurn = await runTurn(autoSession, 'Say hello.');
 		await autoSession.disconnect();
 		const auto = { turn: autoTurn.reply, runtime: sentToSentinel(), llama: llamaThinking() };
@@ -651,8 +692,17 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 		assert.deepStrictEqual({ effort, toggle, auto }, {
 			effort: { turn: 'LOCAL OK', runtime: ['high'], llama: [{ reasoningEffort: undefined, kwargs: { reasoning_effort: 'high' } }] },
 			toggle: { turn: 'LOCAL OK', runtime: ['minimal'], llama: [{ reasoningEffort: undefined, kwargs: { enable_thinking: false } }] },
-			auto: { turn: 'LOCAL OK', runtime: ['low'], llama: [{ reasoningEffort: undefined, kwargs: { reasoning_effort: 'low' } }] },
+			auto: { turn: 'LOCAL OK', runtime: ['medium'], llama: [{ reasoningEffort: undefined, kwargs: { reasoning_effort: 'medium' } }] },
 		});
+		assertSecurityInvariants();
+	});
+
+	test('Auto rejects a session-level reasoning effort before local routing', async () => {
+		await assert.rejects(client.createSession({
+			...sessionOptions, model: 'auto', reasoningEffort: 'low',
+			...withLocalModelSessionConfig({}, buildLocalModelSessionConfig([THINKING_ROW])),
+		}), /Reasoning effort is not supported when using the "auto" model/);
+		assert.deepStrictEqual({ autoRequests, localRequests: llamaRequests.length }, { autoRequests: [], localRequests: 0 });
 		assertSecurityInvariants();
 	});
 

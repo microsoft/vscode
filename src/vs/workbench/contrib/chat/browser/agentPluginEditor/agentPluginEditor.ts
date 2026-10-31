@@ -25,6 +25,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IRequestService, asText } from '../../../../../platform/request/common/request.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -43,7 +44,7 @@ import { AgentPluginEditorInput } from './agentPluginEditorInput.js';
 import { AgentPluginItemKind, findInstalledPlugin, IAgentPluginItem, IInstalledPluginItem } from './agentPluginItems.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { EnablementStatusWidget, pluginEnablementLabels } from '../enablementStatusWidget.js';
-import { InstallPluginAction, createUninstallPluginAction, createEnablePluginDropDown, createDisablePluginDropDown, createPolicyManagedEnablementAction, getPluginPolicyEnablement, EnablementDropDownAction, EnablementDropdownActionViewItem } from '../agentPluginActions.js';
+import { InstallPluginAction, createUninstallPluginAction, createEnablePluginDropDown, createDisablePluginDropDown, createPolicyManagedEnablementAction, getPluginPolicyEnablement, EnablementDropDownAction, EnablementDropdownActionViewItem, OrganizationRequiredUninstallActionViewItem, UninstallPluginAction } from '../agentPluginActions.js';
 import './media/agentPluginEditor.css';
 
 interface IAgentPluginEditorTemplate {
@@ -103,6 +104,7 @@ export class AgentPluginEditor extends EditorPane {
 		@ILabelService private readonly labelService: ILabelService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(AgentPluginEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -131,6 +133,9 @@ export class AgentPluginEditor extends EditorPane {
 		const actionsAndStatusContainer = append(details, $('.actions-status-container'));
 		const actionBar = this._register(new ActionBar(actionsAndStatusContainer, {
 			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
+				if (action instanceof UninstallPluginAction && action.requiredByOrganization) {
+					return new OrganizationRequiredUninstallActionViewItem(action, options, this.hoverService);
+				}
 				if (action instanceof EnablementDropDownAction) {
 					return new EnablementDropdownActionViewItem(
 						action,

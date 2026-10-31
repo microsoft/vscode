@@ -160,19 +160,23 @@ suite('GitHub bootstrap clients', () => {
 	});
 
 	test('bootstrap reads participate in the same origin concurrency limit', async () => {
-		const gate = new DeferredPromise<Response>();
+		const gate = new DeferredPromise<void>();
 		const requests: string[] = [];
 		const service = create(async input => {
 			requests.push(String(input));
-			return requests.length === 1 ? gate.p : Response.json({});
+			await gate.p;
+			return Response.json({});
 		});
 		const first = store.add(service.acquireBootstrapClient({ apiBaseUri, token: 'first' })).object;
 		const second = store.add(service.acquireBootstrapClient({ apiBaseUri, token: 'second' })).object;
-		const reads = [first.get('/first', signal()), second.get('/second', signal())];
+		const paths = Array.from({ length: 12 }, (_, index) => `/request-${index}`);
+		const reads = paths.map((path, index) => (index % 2 ? first : second).get(path, signal(), { caller: `caller-${index % 2}` }));
 		await timeout(0);
-		assert.strictEqual(requests.length, 1);
-		await gate.complete(Response.json({}));
+		const initiallyStarted = requests.length;
+		await gate.complete();
 		await Promise.all(reads);
-		assert.deepStrictEqual(requests, [`${apiBaseUri}/first`, `${apiBaseUri}/second`]);
+		assert.deepStrictEqual({ initiallyStarted, requests: requests.sort() }, {
+			initiallyStarted: 10, requests: paths.map(path => `${apiBaseUri}${path}`).sort(),
+		});
 	});
 });

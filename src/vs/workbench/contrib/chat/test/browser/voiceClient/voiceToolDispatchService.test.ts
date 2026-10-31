@@ -5,9 +5,10 @@
 
 import assert from 'assert';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastDeepPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSessionStatus, IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
@@ -18,7 +19,7 @@ import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chat
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { AskQuestionsToolId } from '../../../common/tools/builtinTools/askQuestionsTool.js';
-import { derivePendingId, IVoiceToolCall } from '../../../common/voiceClient/voiceClientService.js';
+import { derivePendingId, getVoiceRecentTurns, IVoiceToolCall } from '../../../common/voiceClient/voiceClientService.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { VoiceLiveInputRouter } from '../../../common/voiceClient/voiceLiveInputRouter.js';
 
@@ -57,6 +58,37 @@ suite('VoiceToolDispatchService - model selection', () => {
 
 suite('VoiceToolDispatchService - session actions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('bounds recent turns and excludes unfinished assistant text only when requested', () => {
+		const model = upcastDeepPartial<IChatModel>({
+			getRequests: () => Array.from({ length: 5 }, (_, index) => ({
+				message: { text: `${index}`.repeat(500) },
+				response: {
+					isComplete: index !== 4,
+					isCanceled: index === 3,
+					response: { value: [{ kind: 'markdownContent', content: new MarkdownString('a'.repeat(1000)) }] },
+				},
+			})),
+		});
+		assert.deepStrictEqual({
+			briefing: getVoiceRecentTurns(model, 3, true),
+			thread: getVoiceRecentTurns(model, 1),
+		}, {
+			briefing: [
+				{ user: '2'.repeat(400), assistant: 'a'.repeat(600) },
+				{ user: '3'.repeat(400), assistant: '' },
+				{ user: '4'.repeat(400), assistant: '' },
+			],
+			thread: [{ user: '4'.repeat(400), assistant: 'a'.repeat(600) }],
+		});
+	});
+
+	test('treats missing user text as empty when reading recent turns', () => {
+		const model = upcastDeepPartial<IChatModel>({
+			getRequests: () => [{ message: {} }],
+		});
+		assert.deepStrictEqual(getVoiceRecentTurns(model, 3), [{ user: '', assistant: '' }]);
+	});
 
 	interface IActionHarnessOptions {
 		readonly currentResource?: URI;

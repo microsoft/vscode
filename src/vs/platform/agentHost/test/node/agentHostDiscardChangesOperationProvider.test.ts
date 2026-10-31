@@ -57,7 +57,7 @@ suite('AgentHostDiscardChangesOperationContribution', () => {
 			[{
 				id: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
 				label: 'Discard Changes',
-				confirmation: 'Are you sure you want to discard the session\'s changes to \'{0}\'? Changes made outside of the session will be kept. This action cannot be undone.',
+				confirmation: 'Are you sure you want to discard the session\'s changes to \'{0}\'? Changes made outside of the session will be kept, except in a file the session created, which is deleted along with any later changes to it. This action cannot be undone.',
 				icon: 'discard',
 				scopes: [ChangesetOperationScope.Resource],
 				status: ChangesetOperationStatus.Idle,

@@ -6,15 +6,27 @@
 import { ApiRequestOptions, ApiResponse } from '../client/request.js';
 import { pathSegment, withQuery } from '../client/routing.js';
 import { parse, SchemaError } from '../client/schema.js';
-import { AdvertisedEncryptionKey, ClientTokenResponse, ConnectEnvironmentOptions, Environment, EnvironmentConnectionOptions, EnvironmentConnectResult, IEnvironmentsClient, ListEnvironmentsOptions, WakingResponse } from './environments.js';
+import { AdvertisedEncryptionKey, ClientTokenResponse, ConnectEnvironmentOptions, Environment, EnvironmentConnectionOptions, EnvironmentConnectResult, EnvironmentIdentityToken, IEnvironmentsClient, ListEnvironmentsOptions, WakingResponse } from './environments.js';
 import { MissionControlClient, parseActivationContext, parseEnvironmentKind } from './missionControlClient.js';
 
 export class EnvironmentsClient implements IEnvironmentsClient {
 	constructor(private readonly _client: MissionControlClient) { }
 
+	mintIdentityToken(signal: AbortSignal, options?: ApiRequestOptions): Promise<EnvironmentIdentityToken> {
+		return this._client.request({
+			domain: 'environments', method: 'POST', path: '/environments/tokens', body: {}, expectedStatus: 200,
+			policy: { credential: true }, options,
+		}, signal, response => parse.object<EnvironmentIdentityToken>({
+			token: parse.nonEmptyString,
+			expires_at: parse.optional(parse.dateTime),
+			expires_in: parse.optional(parse.nonNegativeInteger),
+		})(response.data));
+	}
+
 	list(signal: AbortSignal, options?: ListEnvironmentsOptions): Promise<readonly Environment[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.request({
+			domain: 'environments',
 			method: 'GET',
 			path: withQuery('/environments', { ...query }),
 			expectedStatus: 200,
@@ -25,6 +37,7 @@ export class EnvironmentsClient implements IEnvironmentsClient {
 
 	get(environmentId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Environment> {
 		return this._client.request({
+			domain: 'environments',
 			method: 'GET',
 			path: environmentPath(environmentId),
 			expectedStatus: 200,
@@ -42,6 +55,7 @@ export class EnvironmentsClient implements IEnvironmentsClient {
 	connect(environmentId: string, signal: AbortSignal, options?: ConnectEnvironmentOptions): Promise<EnvironmentConnectResult> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.request({
+			domain: 'environments',
 			method: 'GET',
 			path: withQuery(`${environmentPath(environmentId)}/connect`, { ...query }),
 			expectedStatus: [200, 202],
@@ -53,6 +67,7 @@ export class EnvironmentsClient implements IEnvironmentsClient {
 	reconnect(environmentId: string, clientId: string, signal: AbortSignal, options?: EnvironmentConnectionOptions): Promise<EnvironmentConnectResult> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.request({
+			domain: 'environments',
 			method: 'GET',
 			path: withQuery(`${environmentPath(environmentId)}/reconnect`, { ...query, client_id: clientId }),
 			expectedStatus: [200, 202],

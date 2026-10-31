@@ -72,6 +72,14 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 		return result;
 	}
 
+	async setAssistantResponseParts(...args: Parameters<ISessionDatabase['setAssistantResponseParts']>): ReturnType<ISessionDatabase['setAssistantResponseParts']> {
+		return this.raw.setAssistantResponseParts(...args);
+	}
+
+	async getAssistantResponseParts(): ReturnType<ISessionDatabase['getAssistantResponseParts']> {
+		return this.raw.getAssistantResponseParts();
+	}
+
 	async getTurnDelegations(...[]: Parameters<ISessionDatabase['getTurnDelegations']>): ReturnType<ISessionDatabase['getTurnDelegations']> {
 		const result = await this.raw.getTurnDelegations();
 		return new Map([...result].map(([key, value]) => [key, this.identity.metadata('agentHost.turnDelegation', value, 'runtime')!]));
@@ -130,6 +138,10 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 	async deleteAllTurns(...[]: Parameters<ISessionDatabase['deleteAllTurns']>): ReturnType<ISessionDatabase['deleteAllTurns']> {
 		const result = await this.raw.deleteAllTurns();
 		return result;
+	}
+
+	async deleteProviderTurns(...[providerTurnIds, afterHostTurnId]: Parameters<ISessionDatabase['deleteProviderTurns']>): ReturnType<ISessionDatabase['deleteProviderTurns']> {
+		return this.raw.deleteProviderTurns(providerTurnIds, afterHostTurnId);
 	}
 
 	async insertPersistedTurn(...[record]: Parameters<ISessionDatabase['insertPersistedTurn']>): ReturnType<ISessionDatabase['insertPersistedTurn']> {
@@ -223,6 +235,11 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 
 	async getTerminalOutputSize(...[toolCallId]: Parameters<ISessionDatabase['getTerminalOutputSize']>): ReturnType<ISessionDatabase['getTerminalOutputSize']> {
 		const result = await this.raw.getTerminalOutputSize(toolCallId);
+		return result;
+	}
+
+	async getTerminalOutputSizes(...[toolCallIds]: Parameters<ISessionDatabase['getTerminalOutputSizes']>): ReturnType<ISessionDatabase['getTerminalOutputSizes']> {
+		const result = await this.raw.getTerminalOutputSizes(toolCallIds);
 		return result;
 	}
 

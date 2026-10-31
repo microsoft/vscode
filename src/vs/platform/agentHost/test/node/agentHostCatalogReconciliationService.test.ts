@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as sinon from 'sinon';
 import { Event } from '../../../../base/common/event.js';
 import { toDisposable, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -12,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import type { AgentProvider } from '../../common/agent.js';
 import type { ISessionDataService } from '../../common/sessionDataService.js';
-import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, CATALOG_VERIFICATION_VERSION, IAgentHostCatalogReconciliationOptions } from '../../node/agentHostCatalogReconciliationService.js';
+import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, CATALOG_VERIFICATION_VERSION, IAgentHostCatalogReconciliationOptions } from '../../node/agentHostCatalogReconciliationService.js';
 import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { AgentHostCatalogData, AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
@@ -169,6 +170,7 @@ class TestScheduler {
 
 interface ITestHarness {
 	readonly central: RecordingCatalogDatabase;
+	readonly logService: NullLogService;
 	readonly locals: Map<string, TestSessionDatabase>;
 	readonly sync: AgentHostCatalogSyncService;
 	readonly getDatabaseOpenAttempts: () => number;
@@ -177,6 +179,8 @@ interface ITestHarness {
 
 suite('AgentHostCatalogReconciliationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
 
 	async function createHarness(names: readonly string[], missing: ReadonlySet<string> = new Set(), providerOf?: (name: string) => AgentProvider): Promise<ITestHarness> {
 		const central = store.add(new RecordingCatalogDatabase());
@@ -212,6 +216,7 @@ suite('AgentHostCatalogReconciliationService', () => {
 			whenIdle: async () => { },
 		};
 		const storage = new TestStorageService();
+		const logService = new NullLogService();
 		const stateDatabase = new AgentHostDatabase(':memory:');
 		store.add(toDisposable(() => { void stateDatabase.close(); }));
 		const sync = new AgentHostCatalogSyncService(sessionDataService, central, createTestSessionStateStore(stateDatabase, {
@@ -224,6 +229,7 @@ suite('AgentHostCatalogReconciliationService', () => {
 		}), new NullLogService());
 		return {
 			central,
+			logService,
 			locals,
 			sync,
 			getDatabaseOpenAttempts: () => databaseOpenAttempts,
@@ -236,7 +242,7 @@ suite('AgentHostCatalogReconciliationService', () => {
 				storageOverride ?? storage,
 				async () => sessions,
 				resolveSource,
-				new NullLogService(),
+				logService,
 				options,
 			)),
 		};
@@ -879,6 +885,31 @@ suite('AgentHostCatalogReconciliationService', () => {
 		});
 	});
 
+	test('an upgraded verification version repairs clean catalogs once and persists the new version', async () => {
+		const harness = await createHarness(['one']);
+		const session = registered('one');
+		await harness.sync.synchronize(session.session, { data: catalogData('one'), legacyMetadata: { customTitle: 'one' } });
+		const storage = new TestStorageService();
+		storage.set(AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION - 1);
+		const resolveSource = async (): Promise<AgentHostCatalogReconciliationSourceResult> => ({
+			status: 'available',
+			request: { data: { ...catalogData('one'), isArchived: true }, legacyMetadata: { customTitle: 'one', isArchived: 'true' } },
+		});
+		const upgraded = harness.createService(resolveSource, undefined, storage);
+		await upgraded.runPass();
+		const restarted = harness.createService(resolveSource, undefined, storage);
+		const afterRestart = await restarted.runPass();
+		const row = await harness.central.getSessionV2(session.session.toString());
+		assert.deepStrictEqual({
+			archived: row && JSON.parse(row.payload).data.isArchived,
+			markAllCalls: harness.central.markAllCalls,
+			verificationVersion: storage.get(AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY),
+			afterRestart: afterRestart.outcomes,
+		}, {
+			archived: true, markAllCalls: 1, verificationVersion: CATALOG_VERIFICATION_VERSION, afterRestart: [],
+		});
+	});
+
 	test('reconciles when verification state cannot be persisted', async () => {
 		const harness = await createHarness(['one']);
 		const unavailableStorage: IAgentHostStorageService = {
@@ -1160,6 +1191,50 @@ suite('AgentHostCatalogReconciliationService', () => {
 			summary: 'concurrent',
 			payloadDirty: 3,
 		});
+	});
+
+	for (const reason of ['providerUnavailable', 'sourceUnresolvable'] as const) {
+		test(`logs ${reason} parking at trace level only`, async () => {
+			const harness = await createHarness(['one', 'two']);
+			const trace = sinon.spy(harness.logService, 'trace');
+			const info = sinon.spy(harness.logService, 'info');
+			const warn = sinon.spy(harness.logService, 'warn');
+			const error = sinon.spy(harness.logService, 'error');
+			const service = harness.createService(async () => ({ status: reason }));
+
+			service.start();
+			await service.whenIdle();
+			service.start();
+			await service.whenIdle();
+
+			assert.deepStrictEqual({
+				trace: trace.args,
+				info: info.args,
+				warn: warn.args,
+				error: error.args,
+			}, {
+				trace: [
+					[`[AgentHostCatalogReconciliation] agenthost:one parked: ${reason}`],
+					[`[AgentHostCatalogReconciliation] agenthost:two parked: ${reason}`],
+				],
+				info: [],
+				warn: [],
+				error: [],
+			});
+		});
+	}
+
+	test('keeps reconciliation failures at warning level', async () => {
+		const harness = await createHarness(['one']);
+		const warn = sinon.spy(harness.logService, 'warn');
+		const service = harness.createService(async () => {
+			throw new Error('source failed');
+		});
+
+		service.start();
+		await service.whenIdle();
+
+		assert.ok(warn.calledWith('[AgentHostCatalogReconciliation] agenthost:one failed: unexpected (source failed)'));
 	});
 
 	test('parks a provider-unavailable session with its payload dirty, without evicting the cached row', async () => {

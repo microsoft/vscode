@@ -161,7 +161,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this.element.appendChild(this._floatingToolbar.element);
 
 		this._register(autorun(reader => {
-			this._standaloneView.read(reader);
+			this._contentContainer.classList.toggle('standalone-chat', !!this._standaloneView.read(reader));
 			this._preparationView.read(reader);
 			this._updateStandaloneSessionActivityBar();
 		}));
@@ -271,9 +271,14 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 			this._showSessionGroups(session, options);
 		} else {
 			this._groupsView.setSession(undefined, options);
-			const view = this._chatViewFactory.createNewChatView(false, options, this._scopedInstantiationService);
-			this._standaloneView.set(view, undefined);
-			this._contentContainer.replaceChildren(view.element);
+			let view = this._standaloneView.get();
+			if (!view?.preserveOnSessionClear) {
+				view = this._chatViewFactory.createNewChatView(false, options, this._scopedInstantiationService);
+				this._standaloneView.set(view, undefined);
+			}
+			if (view.element.parentElement !== this._contentContainer) {
+				this._contentContainer.replaceChildren(view.element);
+			}
 			view.setActive(this._isActive);
 			view.setVisible(this._isVisible);
 		}
@@ -336,7 +341,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		const contentHeight = Math.max(0, height - barHeight);
 		const contentTop = top + barHeight;
 		this._standaloneSessionActivityBar?.layout(barHeight, contentHeight);
-		const contentInset = this._standaloneSessionActivityBar?.reservedWidth.get() ?? 0;
+		const columnWidth = this._standaloneSessionActivityBar?.reservedWidth.get() ?? 0;
 		const previous = this._lastContentLayout;
 		if (previous?.view === view && previous.width === width && previous.height === contentHeight && previous.top === contentTop && previous.left === left && previous.gap === gap) {
 			return;
@@ -351,7 +356,8 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		if (view === this._groupsView) {
 			view.layout(width, contentHeight, contentTop, left, gap);
 		} else {
-			view.layout(width, contentHeight, contentTop, left, contentInset);
+			// To the left of the column the Session Activity Bar takes at the right edge.
+			view.layout(Math.max(0, width - columnWidth), contentHeight, contentTop, left);
 		}
 	}
 
@@ -370,6 +376,26 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 
 	focusHarnessPicker(): void {
 		this._visibleStandaloneView?.focusHarnessPicker();
+	}
+
+	focusEnvironmentPicker(): void {
+		this._visibleStandaloneView?.focusEnvironmentPicker();
+	}
+
+	focusBranchPicker(): void {
+		this._visibleStandaloneView?.focusBranchPicker();
+	}
+
+	focusWorktreePicker(): void {
+		this._visibleStandaloneView?.focusWorktreePicker();
+	}
+
+	focusSyncAction(): void {
+		this._visibleStandaloneView?.focusSyncAction();
+	}
+
+	openModelComparison(): void {
+		this._visibleStandaloneView?.openModelComparison();
 	}
 
 	/**
@@ -507,6 +533,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 			}));
 			this._lastContentLayout = undefined;
 		}
+		this._standaloneSessionActivityBar?.setChatActions(standaloneView?.activityBarActions);
 		this._standaloneSessionActivityBar?.setActive(this._isActive && this._isVisible && !!standaloneView);
 	}
 

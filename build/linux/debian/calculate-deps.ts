@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawnSync } from 'child_process';
-import { constants, statSync } from 'fs';
+import { constants, mkdtempSync, statSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
-import manifests from '../../../cgmanifest.json' with { type: 'json' };
+import { downloadChromiumFile } from '../../lib/chromiumSource.ts';
 import { additionalDeps } from './dep-lists.ts';
 import type { DebianArchString } from './types.ts';
 
@@ -16,6 +16,18 @@ export function generatePackageDeps(files: string[], arch: DebianArchString, chr
 	const additionalDepsSet = new Set(additionalDeps);
 	dependencies.push(additionalDepsSet);
 	return dependencies;
+}
+
+let dpkgShlibdepsScript: string | undefined;
+
+// Get the Chromium dpkg-shlibdeps file once per process.
+function getDpkgShlibdepsScript(): string {
+	if (!dpkgShlibdepsScript) {
+		const location = path.join(mkdtempSync(path.join(tmpdir(), 'dpkg-shlibdeps-')), 'dpkg-shlibdeps.pl');
+		downloadChromiumFile('third_party/dpkg-shlibdeps/dpkg-shlibdeps.pl', location);
+		dpkgShlibdepsScript = location;
+	}
+	return dpkgShlibdepsScript;
 }
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/debian/calculate_package_deps.py.
@@ -29,16 +41,7 @@ function calculatePackageDeps(binaryPath: string, arch: DebianArchString, chromi
 		console.error('Tried to stat ' + binaryPath + ' but failed.');
 	}
 
-	// Get the Chromium dpkg-shlibdeps file.
-	const chromiumManifest = manifests.registrations.filter(registration => {
-		return registration.component.type === 'git' && registration.component.git!.name === 'chromium';
-	});
-	const dpkgShlibdepsUrl = `https://raw.githubusercontent.com/chromium/chromium/${chromiumManifest[0].version}/third_party/dpkg-shlibdeps/dpkg-shlibdeps.pl`;
-	const dpkgShlibdepsScriptLocation = `${tmpdir()}/dpkg-shlibdeps.pl`;
-	const result = spawnSync('curl', [dpkgShlibdepsUrl, '-o', dpkgShlibdepsScriptLocation]);
-	if (result.status !== 0) {
-		throw new Error('Cannot retrieve dpkg-shlibdeps. Stderr:\n' + result.stderr);
-	}
+	const dpkgShlibdepsScriptLocation = getDpkgShlibdepsScript();
 	const cmd = [dpkgShlibdepsScriptLocation, '--ignore-weak-undefined', '--ignore-missing-info'];
 	switch (arch) {
 		case 'amd64':

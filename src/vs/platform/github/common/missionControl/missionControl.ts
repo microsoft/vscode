@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { MissionControlErrorMetadata } from './missionControlError.js';
+
 /** A user reference returned by Mission Control. */
 export interface User {
 	/** The unique numeric identifier of the user. */
@@ -50,6 +52,10 @@ export interface ApiErrorDetail {
 
 /** A structured error response following the REST API error conventions. */
 export interface ApiErrorResponse {
+	/** Stable service classification, independent of the HTTP status. */
+	readonly error_code?: string;
+	/** The resource whose rate limit was reached. */
+	readonly limited_resource?: string;
 	/** A summary of the request failure. */
 	readonly message: string;
 	/** The URL of the relevant API documentation. */
@@ -62,6 +68,10 @@ export interface ApiErrorResponse {
 
 /** An API failure with a stable machine-readable code. */
 export interface CodedApiErrorResponse {
+	/** Stable service classification, preferred over the legacy connect code. */
+	readonly error_code?: string;
+	/** The resource whose rate limit was reached. */
+	readonly limited_resource?: string;
 	/** The human-readable summary of the failure. */
 	readonly message: string;
 	/** The stable machine-readable error code. */
@@ -72,8 +82,8 @@ export interface CodedApiErrorResponse {
 	readonly activation_context?: ActivationContext;
 }
 
-/** An HTTP failure with structured diagnostics and server-directed retry metadata. */
-export interface ApiError extends Error {
+/** An HTTP failure retaining structured diagnostics and server-directed retry metadata. */
+export interface ApiError extends Error, MissionControlErrorMetadata {
 	/** The HTTP status code returned by the service. */
 	readonly statusCode: number;
 	/** Structured error details, omitted for sensitive responses. */

@@ -5,7 +5,6 @@
 import assert from 'assert';
 import * as path from 'path';
 import type * as vscode from 'vscode';
-import { Intent } from '../../src/extension/common/constants';
 import { CopilotInteractiveEditorResponse, InteractionOutcome, InteractionOutcomeComputer } from '../../src/extension/inlineChat/node/promptCraftingTypes';
 import { ICopilotChatResult } from '../../src/extension/prompt/common/conversation';
 import { ChatParticipantRequestHandler, IChatAgentArgs } from '../../src/extension/prompt/node/chatParticipantRequestHandler';
@@ -18,11 +17,8 @@ import { TestEditFileTool } from '../../src/extension/tools/node/test/testTools'
 import { TestToolsService } from '../../src/extension/tools/node/test/testToolsService';
 import { editorAgentName, getChatParticipantIdFromName } from '../../src/platform/chat/common/chatAgents';
 import { IChatMLFetcher } from '../../src/platform/chat/common/chatMLFetcher';
-import { ILanguageDiagnosticsService } from '../../src/platform/languages/common/languageDiagnosticsService';
 import { ILanguageFeaturesService } from '../../src/platform/languages/common/languageFeaturesService';
 import { ITabsAndEditorsService } from '../../src/platform/tabs/common/tabsAndEditorsService';
-import { isInExtensionHost } from '../../src/platform/test/node/isInExtensionHost';
-import { IDeserializedWorkspaceState } from '../../src/platform/test/node/promptContextModel';
 import { ITestingServicesAccessor, TestingServiceCollection } from '../../src/platform/test/node/services';
 import { IFile, isNotebook, SimulationWorkspace } from '../../src/platform/test/node/simulationWorkspace';
 import { ChatResponseStreamImpl } from '../../src/util/common/chatResponseStreamImpl';
@@ -37,28 +33,22 @@ import { commonPrefixLength, commonSuffixLength } from '../../src/util/vs/base/c
 import { URI } from '../../src/util/vs/base/common/uri';
 import { SyncDescriptor } from '../../src/util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../src/util/vs/platform/instantiation/common/instantiation';
-import { ChatLocation, ChatReferenceDiagnostic, ChatRequest, ChatRequestEditorData, ChatResponseMarkdownPart, ChatResponseNotebookEditPart, ChatResponseTextEditPart, Diagnostic, DiagnosticRelatedInformation, LanguageModelToolResult, Location, NotebookRange, Range, Selection, TextEdit, Uri, WorkspaceEdit } from '../../src/vscodeTypes';
-import { SimulationExtHostToolsService } from '../base/extHostContext/simulationExtHostToolsService';
-import { SimulationWorkspaceExtHost } from '../base/extHostContext/simulationWorkspaceExtHost';
+import { ChatLocation, ChatRequest, ChatRequestEditorData, ChatResponseMarkdownPart, ChatResponseNotebookEditPart, ChatResponseTextEditPart, Diagnostic, DiagnosticRelatedInformation, LanguageModelToolResult, Location, NotebookRange, Range, Selection, TextEdit, Uri, WorkspaceEdit } from '../../src/vscodeTypes';
 import { SpyingChatMLFetcher } from '../base/spyingChatMLFetcher';
-import { ISimulationTestRuntime, NonExtensionConfiguration } from '../base/stest';
+import { ISimulationTestRuntime } from '../base/stest';
 import { createWorkingSetFileVariable, parseQueryForTest } from '../e2e/testHelper';
 import { readBuiltinIntents } from '../intent/intentTest';
 import { getDiagnostics } from './diagnosticProviders';
 import { convertTestToVSCodeDiagnostics } from './diagnosticProviders/utils';
 import { SimulationLanguageFeaturesService } from './language/simulationLanguageFeatureService';
 import { IDiagnostic, IDiagnosticComparison, INLINE_CHANGED_DOC_TAG, INLINE_INITIAL_DOC_TAG, INLINE_STATE_TAG, IRange, IWorkspaceState, IWorkspaceStateFile } from './shared/sharedTypes';
-import { DiagnosticProviderId, EditTestStrategy, IDeserializedWorkspaceStateBasedScenario, IInlineEdit, IOutcome, IScenario, IScenarioDiagnostic, IScenarioQuery, OutcomeAnnotation } from './types';
+import { DiagnosticProviderId, IInlineEdit, IOutcome, IScenario, IScenarioDiagnostic, IScenarioQuery, OutcomeAnnotation } from './types';
 
-export type SimulationWorkspaceInput = { files: IFile[]; workspaceFolders?: Uri[] } | { workspaceState: IDeserializedWorkspaceState };
+export type SimulationWorkspaceInput = { files: IFile[]; workspaceFolders?: Uri[] };
 
 export function setupSimulationWorkspace(testingServiceCollection: TestingServiceCollection, input: SimulationWorkspaceInput): SimulationWorkspace {
-	const workspace = isInExtensionHost ? new SimulationWorkspaceExtHost() : new SimulationWorkspace();
-	if ('workspaceState' in input) {
-		workspace.resetFromDeserializedWorkspaceState(input.workspaceState);
-	} else {
-		workspace.resetFromFiles(input.files, input.workspaceFolders);
-	}
+	const workspace = new SimulationWorkspace();
+	workspace.resetFromFiles(input.files, input.workspaceFolders);
 	workspace.setupServices(testingServiceCollection);
 	testingServiceCollection.define(ILanguageFeaturesService, new SyncDescriptor(SimulationLanguageFeaturesService, [workspace]));
 	return workspace;
@@ -70,19 +60,6 @@ export async function teardownSimulationWorkspace(accessor: ITestingServicesAcce
 		await ls.teardown();
 	}
 	workbench.dispose();
-}
-
-function isDeserializedWorkspaceStateBasedScenario(scenario: IScenario): scenario is IDeserializedWorkspaceStateBasedScenario {
-	return 'workspaceState' in scenario;
-}
-
-export function simulateInlineChatWithStrategy(strategy: EditTestStrategy, testingServiceCollection: TestingServiceCollection, scenario: IScenario) {
-
-	if (strategy === EditTestStrategy.InlineChatIntent) {
-		return simulateInlineChatIntent(testingServiceCollection, scenario);
-	} else {
-		return simulateInlineChat(testingServiceCollection, scenario);
-	}
 }
 
 export async function simulateInlineChat(
@@ -102,71 +79,6 @@ export async function simulateInlineChat(
 		}
 	};
 	return simulateEditingScenario(testingServiceCollection, scenario, host);
-}
-
-class ChatReferenceDiagnostic2 extends ChatReferenceDiagnostic {
-	constructor(uri: Uri, d: Diagnostic) {
-		super([[uri, [d]]]);
-	}
-}
-
-export async function simulateInlineChatIntent(
-	testingServiceCollection: TestingServiceCollection,
-	scenario: IScenario
-): Promise<void> {
-
-	const overrideCommand = `/${Intent.InlineChat}`;
-
-	const ensureSlashEdit = (query: string) => {
-		return query.startsWith(overrideCommand) ? query : `${overrideCommand} ${query}`;
-	};
-	const prependEditToUserQueries = (queries: IScenarioQuery[]) => {
-		return queries.map(scenarioQuery => {
-			return {
-				...scenarioQuery,
-				query: ensureSlashEdit(scenarioQuery.query),
-			};
-		});
-	};
-
-	const massagedScenario = { ...scenario, queries: prependEditToUserQueries(scenario.queries) };
-
-	const host: EditingSimulationHost = {
-		prepareChatRequestLocation: (accessor: ITestingServicesAccessor, wholeRange?: Range) => {
-			const editor = accessor.get(ITabsAndEditorsService).activeTextEditor;
-			if (!editor) {
-				throw new Error(`No active editor`);
-			}
-			return {
-				location: ChatLocation.Editor,
-				location2: new ChatRequestEditorData(editor, editor.document, editor.selection, wholeRange ?? editor.selection),
-			};
-		},
-		contributeAdditionalReferences(accessor, existingReferences) {
-			const diagnosticService = accessor.get(ILanguageDiagnosticsService);
-			const editor = accessor.get(ITabsAndEditorsService).activeTextEditor;
-			if (!editor) {
-				return existingReferences.slice();
-			}
-
-			const result = existingReferences.slice();
-
-			const diagnostics = diagnosticService.getDiagnostics(editor.document.uri);
-
-			for (const d of diagnostics) {
-				if (d.range.intersection(editor.selection)) {
-					result.push({
-						id: `diagnostic/${editor.document.uri}/${JSON.stringify(d)}`,
-						name: d.message,
-						value: new ChatReferenceDiagnostic2(editor.document.uri, d)
-					});
-				}
-			}
-
-			return result;
-		},
-	};
-	return simulateEditingScenario(testingServiceCollection, massagedScenario, host);
 }
 
 export type EditingSimulationHostResponseProcessor = {
@@ -191,7 +103,7 @@ export async function simulateEditingScenario(
 	host: EditingSimulationHost
 ): Promise<void> {
 	assert(scenario.queries.length > 0, `Cannot simulate scenario with no queries`);
-	assert(isDeserializedWorkspaceStateBasedScenario(scenario) || scenario.files.length > 0, `Cannot simulate scenario with no files`);
+	assert(scenario.files.length > 0, `Cannot simulate scenario with no files`);
 
 	const workspace = setupSimulationWorkspace(testingServiceCollection, scenario);
 
@@ -376,7 +288,7 @@ export async function simulateEditingScenario(
 				isParticipantDetected: false,
 				enableCommandDetection: true, // TODO@ulugbekna: add support for disabling intent detection?
 				toolReferences,
-				toolInvocationToken: (isInExtensionHost ? undefined : {}) as never,
+				toolInvocationToken: {} as never,
 				model: null!, // https://github.com/microsoft/vscode-copilot/issues/9475
 				tools: new Map(),
 				id: '1',
@@ -704,7 +616,7 @@ export async function simulateEditingScenario(
 }
 
 function setupTools(stream: vscode.ChatResponseStream, request: ChatRequest, accessor: ITestingServicesAccessor) {
-	const toolsService = accessor.get(IToolsService) as TestToolsService | SimulationExtHostToolsService;
+	const toolsService = accessor.get(IToolsService) as TestToolsService;
 	const instaService = accessor.get(IInstantiationService);
 	const editTool = instaService.createInstance(TestEditFileTool, stream);
 	toolsService.addTestToolOverride(
@@ -841,13 +753,4 @@ export function toRange(range: [number, number] | [number, number, number, numbe
 	} else {
 		return new Range(range[0], range[1], range[2], range[3]);
 	}
-}
-
-
-export function forInlineChatIntent(callback: (strategy: EditTestStrategy, configurations: NonExtensionConfiguration[] | undefined, suffix: string) => void): void {
-	callback(EditTestStrategy.InlineChatIntent, [['chat.agent.autoFix', false]], '-InlineChatIntent');
-}
-
-export function forInline(callback: (strategy: EditTestStrategy, configurations: NonExtensionConfiguration[] | undefined, suffix: string) => void): void {
-	callback(EditTestStrategy.Inline, undefined, '');
 }

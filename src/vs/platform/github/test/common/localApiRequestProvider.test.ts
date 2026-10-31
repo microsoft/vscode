@@ -30,7 +30,7 @@ import { IGitHubCredentials } from '../../common/githubCredentialService.js';
 import { GitHubService } from '../../common/githubService.js';
 import { GitHubTransport, GitHubTransportOptions } from '../../common/githubTransport.js';
 import { GitHubRequestError, IGitHubCredentialProvider, MissingCommitError } from '../../common/githubTypes.js';
-import { RequestFetch, RequestPriority } from '../../common/types.js';
+import { gitHubRequestDomains, RequestFetch, RequestPriority } from '../../common/types.js';
 import { getGitHubClientInternals } from './githubClientTestUtils.js';
 
 suite('LocalApiRequestProvider', () => {
@@ -49,6 +49,21 @@ suite('LocalApiRequestProvider', () => {
 		assert.deepStrictEqual(priorities.map(priority => parseRequest({ ...read, options: { priority } }).options?.priority), priorities);
 		for (const priority of [null, '', 'urgent', 1]) {
 			assert.throws(() => parseRequest({ ...read, options: { priority } }), SchemaError);
+		}
+	});
+
+	test('validates the noCache policy without changing its default', () => {
+		const policies = [undefined, false, true];
+		assert.deepStrictEqual(policies.map(noCache => parseRequest({ ...read, options: { noCache } }).options?.noCache), policies);
+		for (const noCache of [null, '', 'true', 0]) {
+			assert.throws(() => parseRequest({ ...read, options: { noCache } }), SchemaError);
+		}
+	});
+
+	test('accepts only fixed API domains in request metadata', () => {
+		assert.deepStrictEqual([undefined, ...gitHubRequestDomains].map(domain => parseRequest({ ...read, domain }).domain), [undefined, ...gitHubRequestDomains]);
+		for (const domain of [null, '', 1, 'private-owner/private-repository', 'content/private', 'https://private.example']) {
+			assert.throws(() => parseRequest({ ...read, domain }), SchemaError);
 		}
 	});
 
@@ -76,6 +91,75 @@ suite('LocalApiRequestProvider', () => {
 		return new LocalApiRequestProvider(target === 'graphql' ? `${apiBaseUri}/graphql` : apiBaseUri, getGitHubClientInternals(client).transport, client.credentials, target);
 	}
 
+	for (const authenticatedRequest of [false, true]) {
+		test(`noCache bypasses stored responses without retaining or replacing them (authenticated=${authenticatedRequest})`, async () => {
+			const validators: (string | null)[] = [];
+			let version = 0;
+			const fetch: RequestFetch = async (_input, init) => {
+				const etag = new Headers(init?.headers).get('If-None-Match');
+				validators.push(etag);
+				return etag ? new Response(null, { status: 304 })
+					: Response.json({ value: ++version }, { headers: { etag: `"${version}"` } });
+			};
+			const provider = authenticatedRequest ? authenticated(fetch) : anonymous(fetch);
+			const values: number[] = [];
+			for (const noCache of [true, undefined, false, true, undefined]) {
+				values.push((await provider.request({ ...read, options: { noCache } }, signal(), parseValue)).data.value);
+			}
+			assert.deepStrictEqual({ values, validators }, {
+				values: [1, 2, 2, 3, 2], validators: [null, null, '"2"', null, '"2"'],
+			});
+		});
+
+		test(`downloads eight typed blobs concurrently through the real queue (authenticated=${authenticatedRequest})`, async () => {
+			const release = new DeferredPromise<void>();
+			let active = 0;
+			let maximumActive = 0;
+			const fetch: RequestFetch = async input => {
+				maximumActive = Math.max(maximumActive, ++active);
+				await release.p;
+				active--;
+				return Response.json({
+					sha: new URL(String(input)).pathname.split('/').pop(),
+					node_id: 'blob',
+					url: String(input),
+					size: 1,
+					encoding: 'base64',
+					content: 'AA==',
+				});
+			};
+			const client = new ContentClient(authenticatedRequest ? authenticated(fetch) : anonymous(fetch));
+			const shas = Array.from({ length: 20 }, (_, index) => index.toString(16).padStart(40, '0'));
+			const requests = shas.map(sha => client.getBlob({ owner: 'o', repo: 'r' }, sha, signal(), { caller: 'pluginGit.blob' }));
+			await timeout(0);
+			const beforeRelease = active;
+			await release.complete();
+			const blobs = await Promise.all(requests);
+			assert.deepStrictEqual({ beforeRelease, maximumActive, shas: blobs.map(blob => blob.sha) }, {
+				beforeRelease: 8, maximumActive: 8, shas,
+			});
+		});
+	}
+
+	test('noCache requests share only with other noCache requests', async () => {
+		const release = new DeferredPromise<void>();
+		let calls = 0;
+		const provider = anonymous(async () => {
+			calls++;
+			await release.p;
+			return Response.json({ value: 1 }, { headers: { etag: '"shared"' } });
+		});
+		const noCache: ApiRequest = { ...read, options: { noCache: true } };
+		const pending = [noCache, noCache, read].map(request => provider.request(request, signal(), parseValue));
+		await timeout(0);
+		const beforeRelease = calls;
+		await release.complete();
+		const responses = await Promise.all(pending);
+		assert.deepStrictEqual({ beforeRelease, calls, values: responses.map(response => response.data?.value) }, {
+			beforeRelease: 2, calls: 2, values: [1, 1, 1],
+		});
+	});
+
 	for (const scenario of [
 		{ name: 'missing commit', body: '{"message":"No commit found for SHA: missing"}', status: 422, missing: true },
 		{ name: 'different validation failure', body: '{"message":"Validation Failed"}', status: 422, missing: false },
@@ -94,7 +178,7 @@ suite('LocalApiRequestProvider', () => {
 				return new Response(scenario.body, { status: scenario.status, headers: { 'X-GitHub-Request-Id': 'commit-lookup' } });
 			});
 			const client = new PullRequestsClient(new CoreClient(provider, provider));
-			await assert.rejects(client.listForCommit({ owner: 'o', name: 'r' }, 'missing', signal()), error => {
+			await assert.rejects(client.listForCommit({ owner: 'o', repo: 'r' }, 'missing', signal()), error => {
 				assert.ok(error instanceof GitHubRequestError);
 				assert.deepStrictEqual({
 					name: error.name,
@@ -118,7 +202,7 @@ suite('LocalApiRequestProvider', () => {
 			? Response.json([], { headers: { Link: '<https://api.github.com/repos/o/r/commits/head/pulls?page=2>; rel="next"' } })
 			: Response.json({ message: 'No commit found for SHA: head' }, { status: 422 }));
 		const client = new PullRequestsClient(new CoreClient(provider, provider));
-		await assert.rejects(client.listForCommit({ owner: 'o', name: 'r' }, 'head', signal(), {
+		await assert.rejects(client.listForCommit({ owner: 'o', repo: 'r' }, 'head', signal(), {
 			maxPages: 2, pageLimitBehavior: 'returnPartial',
 		}), MissingCommitError);
 		assert.strictEqual(calls, 2);
@@ -133,12 +217,12 @@ suite('LocalApiRequestProvider', () => {
 			};
 			const provider = authenticatedRequest ? authenticated(fetch) : anonymous(fetch);
 			const core = new CoreClient(provider, provider);
-			const repository = { owner: 'o', name: 'r' };
+			const repository = { owner: 'o', repo: 'r' };
 			await assert.rejects(new RepositoriesClient(core).getCommit(repository, 'head', signal()), MissingCommitError);
 			await assert.rejects(new PullRequestsClient(core).listForCommit(repository, 'head', signal()), MissingCommitError);
 			await assert.rejects(new ChecksClient(core).listRuns(repository, 'head', signal()), MissingCommitError);
 			await assert.rejects(new ChecksClient(core).listSuites(repository, 'head', signal()), MissingCommitError);
-			await assert.rejects(new ContentClient(provider).resolveRef('o', 'r', 'head', signal()), MissingCommitError);
+			await assert.rejects(new ContentClient(provider).resolveRef({ owner: 'o', repo: 'r' }, 'head', signal()), MissingCommitError);
 			assert.deepStrictEqual(requests, [
 				'/repos/o/r/commits/head', '/repos/o/r/commits/head/pulls',
 				'/repos/o/r/commits/head/check-runs', '/repos/o/r/commits/head/check-suites', '/repos/o/r/commits/head',
@@ -169,7 +253,7 @@ suite('LocalApiRequestProvider', () => {
 			protected override async execute(): Promise<never> { throw original; }
 		}();
 		const client = new PullRequestsClient(new CoreClient(provider, provider));
-		await assert.rejects(client.listForCommit({ owner: 'o', name: 'r' }, 'missing', signal()), error => {
+		await assert.rejects(client.listForCommit({ owner: 'o', repo: 'r' }, 'missing', signal()), error => {
 			assert.ok(error instanceof MissingCommitError);
 			assert.deepStrictEqual({
 				message: error.message, kind: error.kind, statusCode: error.statusCode, statusText: error.statusText,
@@ -196,7 +280,7 @@ suite('LocalApiRequestProvider', () => {
 				protected override async execute(): Promise<never> { throw failure; }
 			}();
 			const client = new PullRequestsClient(new CoreClient(provider, provider));
-			await assert.rejects(client.listForCommit({ owner: 'o', name: 'r' }, 'head', signal()), error => error === failure);
+			await assert.rejects(client.listForCommit({ owner: 'o', repo: 'r' }, 'head', signal()), error => error === failure);
 		}
 	});
 
@@ -212,7 +296,7 @@ suite('LocalApiRequestProvider', () => {
 				? new Response(commitSha)
 				: Response.json({ total_count: 0, incomplete_results: false, items: [] });
 		});
-		const content = await new ContentClient(provider).resolveRef('o', 'r', 'main', signal());
+		const content = await new ContentClient(provider).resolveRef({ owner: 'o', repo: 'r' }, 'main', signal());
 		const search = await new SearchClient(new CoreClient(provider, provider)).issues('repo:o/r', signal());
 
 		assert.deepStrictEqual({ content, search, requests }, {
@@ -264,8 +348,8 @@ suite('LocalApiRequestProvider', () => {
 		});
 		const client = new ActionsClient(new CoreClient(provider, provider));
 		assert.deepStrictEqual([
-			await client.getJobLogRedirect({ owner: 'o', name: 'r' }, 42, signal()),
-			await client.getRunLogRedirect({ owner: 'o', name: 'r' }, 42, signal()),
+			await client.getJobLogRedirect({ owner: 'o', repo: 'r' }, 42, signal()),
+			await client.getRunLogRedirect({ owner: 'o', repo: 'r' }, 42, signal()),
 		], [
 			{ url: 'https://objects.example.test/job.log?signature=opaque' },
 			{ url: 'https://objects.example.test/job.log?signature=opaque' },
@@ -280,7 +364,7 @@ suite('LocalApiRequestProvider', () => {
 			}));
 			const client = new ActionsClient(new CoreClient(provider, provider));
 			for (const method of ['getJobLogRedirect', 'getRunLogRedirect'] as const) {
-				await assert.rejects(client[method]({ owner: 'o', name: 'r' }, 42, signal()), {
+				await assert.rejects(client[method]({ owner: 'o', repo: 'r' }, 42, signal()), {
 					kind: location === undefined || location === 'https://[invalid' ? 'malformedResponse' : 'authorization',
 					statusCode: 302,
 				});
@@ -437,7 +521,32 @@ suite('LocalApiRequestProvider', () => {
 
 	test('raw file reads require a raw-content provider', async () => {
 		const content = new ContentClient(anonymous(async () => assert.fail('No fetch expected')));
-		await assert.rejects(content.getRawFile('o', 'r', 'a'.repeat(40), 'file.txt', signal()), { kind: 'validation' });
+		await assert.rejects(content.getRawFile({ owner: 'o', repo: 'r' }, 'a'.repeat(40), 'file.txt', signal()), { kind: 'validation' });
+	});
+
+	test('extra raw request options cannot override the URL, response limit, or timeout', async () => {
+		const requests: string[] = [];
+		let oversized = false;
+		const transport = store.add(new GitHubTransport(async input => {
+			requests.push(String(input));
+			return new Response(oversized ? 'x'.repeat(1024 * 1024 + 1) : 'contents');
+		}));
+		const baseUri = 'https://raw.githubusercontent.com';
+		const path = `/o/r/${'a'.repeat(40)}/file.txt`;
+		const options = {
+			caller: 'test.raw',
+			url: `${baseUri}/o/r/${'a'.repeat(40)}/other.txt`,
+			maximumBytes: 2 * 1024 * 1024,
+			timeout: 0,
+		};
+		const provider = new LocalApiRequestProvider(baseUri, transport, undefined, 'rawContent');
+		const request: ApiRequest = { method: 'GET', path, expectedStatus: 200, responseBody: 'text', options };
+		const result = await provider.request(request, signal(), parse.string);
+		oversized = true;
+		await assert.rejects(provider.request(request, signal(), parse.string), { kind: 'responseTooLarge' });
+		assert.deepStrictEqual({ contents: result.data, requests }, {
+			contents: 'contents', requests: [`${baseUri}${path}`, `${baseUri}${path}`],
+		});
 	});
 
 	test('rejects GET bodies before fetching', async () => {
@@ -585,7 +694,7 @@ suite('LocalApiRequestProvider', () => {
 			default_branch: 'main', clone_url: 'https://github.com/o/r.git', ssh_url: 'git@github.com:o/r.git',
 			archived: false, disabled: false, language: null, stargazers_count: 0,
 		};
-		const ref = { owner: 'o', name: 'r' };
+		const ref = { owner: 'o', repo: 'r' };
 
 		test('REST page collection is opt-in, counts the initial page, and does not probe beyond the limit', async () => {
 			const email = { email: 'user@example.test', primary: false, verified: true, visibility: null };
@@ -877,7 +986,7 @@ suite('LocalApiRequestProvider', () => {
 				return Response.json({ data: { viewer: { login: 'viewer' } } });
 			});
 			const core = new CoreClient(provider, provider);
-			const result = await core.graphql(query, { toJSON() { serializations++; return { name: 'value\n"quoted"' }; } }, signal(), parseViewer);
+			const result = await core.graphql('other', query, { toJSON() { serializations++; return { name: 'value\n"quoted"' }; } }, signal(), parseViewer);
 			assert.deepStrictEqual({ result, serializations, requests }, {
 				result: { viewer: { login: 'viewer' } }, serializations: 1,
 				requests: [{ url: `${apiBaseUri}/graphql`, body: JSON.stringify({ query, variables: { name: 'value\n"quoted"' } }), method: 'POST', authorization: true }],
@@ -903,7 +1012,7 @@ suite('LocalApiRequestProvider', () => {
 				let parses = 0;
 				let calls = 0;
 				const provider = graphql(async () => { calls++; return new Response(responseBody, { headers: { 'X-GitHub-Request-Id': 'graphql-request' } }); });
-				await assert.rejects(new CoreClient(provider, provider).graphql(query, {}, signal(), value => {
+				await assert.rejects(new CoreClient(provider, provider).graphql('other', query, {}, signal(), value => {
 					parses++;
 					return parseViewer(value);
 				}), (error: unknown) => {
@@ -920,14 +1029,14 @@ suite('LocalApiRequestProvider', () => {
 		test('classifies errors-only schema responses using extension codes', async () => {
 			const errors = [{ message: 'Unknown field', extensions: { code: 'undefinedField' } }];
 			const provider = graphql(async () => Response.json({ errors }));
-			await assert.rejects(new CoreClient(provider, provider).graphql(query, {}, signal(), parseViewer), {
+			await assert.rejects(new CoreClient(provider, provider).graphql('other', query, {}, signal(), parseViewer), {
 				kind: 'schema', statusCode: 200, graphQLErrors: errors,
 			});
 		});
 
 		test('preserves explicitly null data when the domain parser permits it', async () => {
 			const provider = graphql(async () => Response.json({ data: null }));
-			assert.deepStrictEqual(await new CoreClient(provider, provider).graphql(query, {}, signal(), parse.nullable(parseViewer)), null);
+			assert.deepStrictEqual(await new CoreClient(provider, provider).graphql('other', query, {}, signal(), parse.nullable(parseViewer)), null);
 		});
 
 		for (const body of [
@@ -938,7 +1047,7 @@ suite('LocalApiRequestProvider', () => {
 			test(`rejects malformed GraphQL envelopes without retry: ${body}`, async () => {
 				let calls = 0;
 				const provider = graphql(async () => { calls++; return new Response(body); });
-				await assert.rejects(new CoreClient(provider, provider).graphql(query, {}, signal(), parseViewer), { kind: 'malformedResponse', statusCode: 200 });
+				await assert.rejects(new CoreClient(provider, provider).graphql('other', query, {}, signal(), parseViewer), { kind: 'malformedResponse', statusCode: 200 });
 				assert.strictEqual(calls, 1);
 			});
 		}
@@ -947,8 +1056,8 @@ suite('LocalApiRequestProvider', () => {
 			let calls = 0;
 			const provider = graphql(async () => Response.json({ data: {} }, { status: ++calls === 1 ? 200 : 202 }));
 			const core = new CoreClient(provider, provider);
-			await assert.rejects(core.graphql(query, {}, signal(), parseViewer), error => error instanceof SchemaError);
-			await assert.rejects(core.graphql(query, {}, signal(), parseViewer), { kind: 'malformedResponse', statusCode: 202 });
+			await assert.rejects(core.graphql('other', query, {}, signal(), parseViewer), error => error instanceof SchemaError);
+			await assert.rejects(core.graphql('other', query, {}, signal(), parseViewer), { kind: 'malformedResponse', statusCode: 202 });
 			assert.strictEqual(calls, 2);
 		});
 
@@ -968,7 +1077,7 @@ suite('LocalApiRequestProvider', () => {
 							}
 							return Response.json({ data: { viewer: { login: 'viewer' } } });
 						});
-						const result = new CoreClient(provider, provider).graphql(operation, {}, signal(), parseViewer);
+						const result = new CoreClient(provider, provider).graphql('other', operation, {}, signal(), parseViewer);
 						if (operation === mutation) {
 							await assert.rejects(result, { kind: 'network' });
 						} else {
@@ -984,7 +1093,7 @@ suite('LocalApiRequestProvider', () => {
 			let calls = 0;
 			const provider = graphql(async () => { calls++; return Response.json({ data: {} }); });
 			const core = new CoreClient(provider, provider);
-			await Promise.all([core.graphql(mutation, {}, signal(), parse.object({})), core.graphql(mutation, {}, signal(), parse.object({}))]);
+			await Promise.all([core.graphql('other', mutation, {}, signal(), parse.object({})), core.graphql('other', mutation, {}, signal(), parse.object({}))]);
 			assert.strictEqual(calls, 2);
 		});
 

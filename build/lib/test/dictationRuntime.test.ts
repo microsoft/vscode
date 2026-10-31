@@ -15,17 +15,34 @@ import {
 	normalizeOrtLibraryName,
 	requiredDependencyLibraryNames,
 } from '../../dictation-runtime/nuget.ts';
+import { getRuntimeVersion, resolveSdkPackageRoot, SDK_PACKAGE_NAME } from '../../dictation-runtime/common.ts';
 
 const dependencies: IFoundryDependencyVersions = {
-	onnxruntime: { version: '1.30.0' },
-	'onnxruntime-genai': { version: '0.17.1' },
+	onnxruntime: { version: '1.31.0' },
+	'onnxruntime-genai': { version: '0.18.0' },
 };
 
 suite('dictation runtime', () => {
+	test('matches the installed SDK and its native dependencies to the packaged runtime', () => {
+		const sdkRoot = resolveSdkPackageRoot();
+		const sdkPackage = JSON.parse(fs.readFileSync(path.join(sdkRoot, 'package.json'), 'utf8'));
+		const sdkDependencies = JSON.parse(fs.readFileSync(path.join(sdkRoot, 'deps_versions.json'), 'utf8'));
+		const rootPackage = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, '../../../package.json'), 'utf8'));
+		assert.deepStrictEqual({
+			version: sdkPackage.version,
+			artifacts: getStandardArtifacts(sdkDependencies),
+			allowedInstallScript: rootPackage.allowScripts[`${SDK_PACKAGE_NAME}@${getRuntimeVersion()}`],
+		}, {
+			version: getRuntimeVersion(),
+			artifacts: getStandardArtifacts(dependencies),
+			allowedInstallScript: true,
+		});
+	});
+
 	test('uses the Foundry Local 2.x dependency artifact set', () => {
 		assert.deepStrictEqual(getStandardArtifacts(dependencies), [
-			{ name: 'Microsoft.ML.OnnxRuntime', version: '1.30.0' },
-			{ name: 'Microsoft.ML.OnnxRuntimeGenAI.Foundry', version: '0.17.1' },
+			{ name: 'Microsoft.ML.OnnxRuntime', version: '1.31.0' },
+			{ name: 'Microsoft.ML.OnnxRuntimeGenAI.Foundry', version: '0.18.0' },
 		]);
 	});
 
@@ -63,7 +80,7 @@ suite('dictation runtime', () => {
 				}
 				await assert.rejects(
 					fetchDependencyLibraries(target, getStandardArtifacts(dependencies), targetDirectory, { feeds: [] }),
-					/Failed to download Microsoft\.ML\.OnnxRuntime 1\.30\.0 from any feed/,
+					/Failed to download Microsoft\.ML\.OnnxRuntime 1\.31\.0 from any feed/,
 				);
 			}
 		} finally {

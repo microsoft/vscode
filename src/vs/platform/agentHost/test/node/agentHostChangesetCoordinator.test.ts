@@ -11,17 +11,18 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
-import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
+import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri, buildWorkingSetChangesetUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, ChangesetOperationScope, ChatOriginKind, ChangesetOperationStatus, SessionStatus, withSessionGitState, type ChangesetOperation, type ISessionFileDiff, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, ChangesetOperationScope, ChangesetStatus, ChatOriginKind, ChangesetOperationStatus, SessionStatus, withSessionGitState, type ChangesetOperation, type ISessionFileDiff, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChangesetCoordinator } from '../../node/agentHostChangesetCoordinator.js';
 import { resolveChangesetSubscriptions } from '../../node/agentHostChangesetSummary.js';
 import { ChangesetDiffStrategy, IAgentHostChangesetService, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
 import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
 import { AgentHostChangesetOperationService } from '../../node/agentHostChangesetOperationService.js';
+import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
@@ -51,7 +52,7 @@ suite('ChangesetSessionCoordinator', () => {
 			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 			defaultChat: buildDefaultChatUri(session),
 		}, { emitNotification });
-		stateManager.setSessionChangesets(session, buildDefaultChangesetCatalog(session, false));
+		stateManager.setSessionChangesets(session, buildDefaultChangesetCatalog(session, false, false));
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 	}
 
@@ -106,7 +107,7 @@ suite('ChangesetSessionCoordinator', () => {
 				super.scheduleOwnerOperationsUpdate(ownerKey);
 			}
 		}
-		const operationService = disposables.add(new RecordingOperationService(stateManager, gitStateService, subscriptions, configurationService, createTestChatOwnershipService(stateManager)));
+		const operationService = disposables.add(new RecordingOperationService(stateManager, gitStateService, subscriptions, configurationService, createTestChatOwnershipService(stateManager), disposables.add(new AgentHostFileEditCoordinator())));
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 			[ILogService, logService],
 			[IAgentHostStateManager, stateManager],
@@ -937,6 +938,38 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	});
 
+	test('subscribes, registers, and refreshes the session Working Set without watching files, and drops it on the last unsubscribe', async () => {
+		const session = AgentSession.uri('mock', 'session-working-set').toString();
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, 'file:///repo/worktree');
+		const changeset = buildWorkingSetChangesetUri(session);
+
+		const handled = await environment.coordinator.tryHandleSubscribe(URI.parse(changeset), async () => session);
+		environment.coordinator.onFirstSubscriber(URI.parse(changeset));
+		await tick();
+		const subscribed = {
+			handled,
+			registered: environment.stateManager.getChangesetState(changeset)?.status,
+			subscriptions: [...environment.subscriptions.getSessionSubscriptions(session)],
+			workingSetRefreshes: [...environment.changesets.workingSetRefreshes],
+			rootLookups: environment.gitService.rootLookupCalls,
+			acquisitions: environment.monitor.acquisitions,
+		};
+		environment.coordinator.onLastSubscriber(URI.parse(changeset));
+
+		assert.deepStrictEqual({ subscribed, afterUnsubscribe: [...environment.subscriptions.getSessionSubscriptions(session)] }, {
+			subscribed: {
+				handled: true,
+				registered: ChangesetStatus.Computing,
+				subscriptions: [changeset],
+				workingSetRefreshes: [session],
+				rootLookups: [],
+				acquisitions: [],
+			},
+			afterUnsubscribe: [],
+		});
+	});
+
 	test('does not attach root state when watcher acquisition fails', async () => {
 		const session = AgentSession.uri('mock', 'session-1').toString();
 		const environment = createEnvironment();
@@ -1351,6 +1384,117 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	});
 
+	test('the branch summary refreshes only the folders of chats in use, not those of archived chats or their subagents', () => {
+		const session = AgentSession.uri('mock', 'summary-in-use').toString();
+		const defaultChat = buildDefaultChatUri(session);
+		const visible = buildChatUri(session, 'visible');
+		const archived = buildChatUri(session, 'archived');
+		const subagent = buildChatUri(session, 'subagent');
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, 'file:///default');
+		const storage = creationTimeChatStorageResource(session, visible, defaultChat);
+		environment.stateManager.addChat(session, visible, storage, { workingDirectories: ['file:///visible'] });
+		environment.stateManager.addChat(session, archived, storage, { workingDirectories: ['file:///archived'] });
+		environment.stateManager.addChat(session, subagent, storage, { origin: { kind: ChatOriginKind.Tool, chat: archived, toolCallId: 'tool' }, workingDirectories: ['file:///deleted-worktree'] });
+		environment.stateManager.dispatchServerAction(archived, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+		environment.stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+
+		assert.deepStrictEqual([...new Set(environment.changesets.branchRefreshes)].sort(), [
+			buildBranchChangesetOwner(session, ['file:///default']),
+			buildBranchChangesetOwner(session, ['file:///visible']),
+		].sort());
+	});
+
+	for (const sideChat of [false, true]) {
+		test(`archiving a ${sideChat ? 'side' : 'peer'} chat releases its branch summary and unarchiving it subscribes again`, async () => {
+			const session = AgentSession.uri('mock', 'summary-archive-toggle').toString();
+			const defaultChat = buildDefaultChatUri(session);
+			const peer = buildChatUri(session, 'peer');
+			const defaultRoot = URI.file('/projects/default');
+			const peerRoot = URI.file('/projects/peer');
+			const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+				[defaultRoot.toString(), defaultRoot],
+				[peerRoot.toString(), peerRoot],
+			])));
+			createSession(environment.stateManager, session, defaultRoot.toString());
+			environment.stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, defaultChat), {
+				workingDirectories: [peerRoot.toString()],
+				origin: sideChat ? { kind: ChatOriginKind.SideChat, chat: defaultChat, turnId: 'turn' } : undefined,
+			});
+			environment.stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+			environment.coordinator.onFirstSubscriber(URI.parse(session));
+			await environment.monitor.waitForAcquisitions(2);
+			const peerOwner = buildBranchChangesetOwner(session, [peerRoot.toString()]);
+
+			environment.stateManager.dispatchServerAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+			await environment.monitor.waitForDisposals(1);
+			const archived = { removedOwners: [...environment.changesets.removedOwners], disposals: [...environment.monitor.disposals] };
+			environment.changesets.clearRefreshes();
+			environment.stateManager.dispatchServerAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: false });
+			await environment.monitor.waitForAcquisitions(3);
+
+			assert.deepStrictEqual({
+				archived,
+				restoredRefreshes: [...new Set(environment.changesets.branchRefreshes)],
+				acquisitions: environment.monitor.acquisitions.filter(root => root === peerRoot.toString()),
+			}, {
+				archived: { removedOwners: [peerOwner], disposals: [peerRoot.toString()] },
+				restoredRefreshes: [buildBranchChangesetOwner(session, [defaultRoot.toString()]), peerOwner],
+				acquisitions: [peerRoot.toString(), peerRoot.toString()],
+			});
+		});
+	}
+
+	test('detaching an archived summary-only side chat folder does not recreate its branch watcher', async () => {
+		const session = AgentSession.uri('mock', 'summary-only-archive').toString();
+		const defaultChat = buildDefaultChatUri(session);
+		const side = buildChatUri(session, 'side');
+		const defaultRoot = URI.file('/projects/default');
+		const sideRoot = URI.file('/projects/side');
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+			[defaultRoot.toString(), defaultRoot],
+			[sideRoot.toString(), sideRoot],
+		])));
+		createSession(environment.stateManager, session, defaultRoot.toString());
+		environment.stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatWorkingDirectorySet, directory: defaultRoot.toString() });
+		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: sideRoot.toString() });
+		environment.stateManager.registerRestoredChatSummary(session, side, {
+			storageResource: creationTimeChatStorageResource(session, side, defaultChat),
+			workingDirectories: [sideRoot.toString()],
+			origin: { kind: ChatOriginKind.SideChat, chat: defaultChat, turnId: 'turn' },
+		});
+		environment.stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		await environment.monitor.waitForAcquisitions(2);
+		const sideOwner = buildBranchChangesetOwner(session, [sideRoot.toString()]);
+
+		environment.stateManager.dispatchServerAction(side, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+		await environment.monitor.waitForDisposals(1);
+		environment.changesets.clearRefreshes();
+		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectoryRemoved, directory: sideRoot.toString() });
+		await tick();
+		const afterDetach = {
+			refreshed: [...new Set(environment.changesets.branchRefreshes)],
+			acquisitions: [...environment.monitor.acquisitions],
+			disposals: [...environment.monitor.disposals],
+			sideHydrated: environment.stateManager.getChatState(side) !== undefined,
+		};
+		environment.stateManager.dispatchServerAction(side, { type: ActionType.ChatIsArchivedChanged, isArchived: false });
+		await environment.monitor.waitForAcquisitions(3);
+
+		assert.deepStrictEqual({ afterDetach, removedOwners: environment.changesets.removedOwners }, {
+			afterDetach: {
+				refreshed: [buildBranchChangesetOwner(session, [defaultRoot.toString()])],
+				acquisitions: [defaultRoot.toString(), sideRoot.toString()],
+				disposals: [sideRoot.toString()],
+				sideHydrated: false,
+			},
+			removedOwners: [sideOwner],
+		});
+	});
+
 	test('moving a chat to another session keeps its own changesets', async () => {
 		const session = AgentSession.uri('mock', 'move-source').toString();
 		const target = AgentSession.uri('mock', 'move-target').toString();
@@ -1718,6 +1862,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	readonly uncommittedRefreshes: string[] = [];
 	readonly turnRefreshes: string[] = [];
 	readonly sessionRefreshes: string[] = [];
+	readonly workingSetRefreshes: string[] = [];
 	readonly chatSummaryRefreshes: string[] = [];
 	readonly workingDirectoryAvailable: string[] = [];
 	readonly recomputed: string[] = [];
@@ -1741,6 +1886,9 @@ class TestChangesetService implements IAgentHostChangesetService {
 	refreshSessionChangeset(session: string, strategy?: ChangesetDiffStrategy): void {
 		assert.strictEqual(strategy ?? 'fileEditTracker', 'fileEditTracker');
 		this.sessionRefreshes.push(session);
+	}
+	refreshWorkingSetChangeset(owner: string): void {
+		this.workingSetRefreshes.push(owner);
 	}
 	onWorkingDirectoryAvailable(session: string): void {
 		this.workingDirectoryAvailable.push(session);
@@ -1783,6 +1931,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	openTrackedTurnDatabase(): undefined { return undefined; }
 	openTrackedSessionDatabases() { return { sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }; }
 	onFileEditsDiscarded(): void { }
+	onFileEditsAccepted(): void { }
 	ensureChatChangesSummary(_chat: string): void { }
 	refreshChatChangesSummary(chat: string): void {
 		this.chatSummaryRefreshes.push(chat);
@@ -1796,6 +1945,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 		this.uncommittedRefreshes.length = 0;
 		this.turnRefreshes.length = 0;
 		this.sessionRefreshes.length = 0;
+		this.workingSetRefreshes.length = 0;
 		this.chatSummaryRefreshes.length = 0;
 		this.recomputed.length = 0;
 	}

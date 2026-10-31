@@ -9,21 +9,15 @@
  * One treatment — `.voice-glow-rim`, an interior rim built from a perimeter of
  * soft blobs, masked into a hairline ring plus a wider inner wash and a blurred
  * bloom — mounted as an absolutely-positioned overlay "slot" on the chat input
- * box (see `voiceGlowController.ts`). It takes two moods:
- *
- * - `.voice-glow-rim-cool` — the user is listening,
- * - `.voice-glow-rim-warm` — the agent is speaking.
- * - `.voice-glow-rim-warning` — a voice request needs confirmation.
- *
- * Both are audio-reactive. Every other voice state renders nothing, so the light
- * means "someone is talking" rather than "voice is on".
+ * box (see `voiceGlowController.ts`). The cool, audio-reactive rim stays visible
+ * while Voice Mode is connected, regardless of who is talking.
  *
  * Everything animated is a CSS custom property driven from JS, so the layers are
  * painted from one shared animation frame rather than a dozen CSS animations.
  *
  * High-contrast themes opt out of the whole soft-light language at the bottom of
  * this file: gradients and blur can't carry a guaranteed contrast ratio, so the
- * two states become solid lines instead.
+ * rim becomes a solid line instead.
  */
 
 .voice-glow-slot {
@@ -44,8 +38,7 @@
  * glow bleed into — so lift the toolbars back on top. Their background is
  * transparent, so the glow still reads through them.
  */
-.voice-active .chat-input-toolbars,
-.voice-active .sessions-chat-toolbar {
+.voice-active .chat-input-toolbars {
 	position: relative;
 	z-index: 12;
 }
@@ -221,8 +214,7 @@
 /*
  * Soft light is the wrong language here: a blurred, semi-transparent gradient
  * can't guarantee a contrast ratio, and the whole effect reads as smudge at high
- * contrast. So the two states collapse to a solid line — blue for the user,
- * purple for the agent. Motion goes too: the line is either there or it isn't.
+ * contrast. Use a solid blue line, without motion.
  */
 .hc-black .voice-glow-rim::before,
 .hc-black .voice-glow-rim::after,
@@ -242,20 +234,14 @@
 	border: var(--vscode-strokeThickness) solid;
 }
 
-.hc-black .voice-glow-rim-cool {
+.hc-black .voice-glow-rim-cool,
+.hc-black .voice-glow-rim-warm {
 	border-color: var(--vscode-charts-blue, #3794ff);
 }
 
-.hc-black .voice-glow-rim-warm {
-	border-color: var(--vscode-charts-purple, #b180d7);
-}
-
-.hc-light .voice-glow-rim-cool {
-	border-color: var(--vscode-charts-blue, #0f4a85);
-}
-
+.hc-light .voice-glow-rim-cool,
 .hc-light .voice-glow-rim-warm {
-	border-color: var(--vscode-charts-purple, #5c2d91);
+	border-color: var(--vscode-charts-blue, #0f4a85);
 }
 
 .hc-black .voice-glow-rim-warning,

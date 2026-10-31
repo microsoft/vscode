@@ -36,6 +36,8 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 		isWorkspaceless: session => this.value.sessionServerToolAccessor.isWorkspaceless(session),
 		canConvertWorkspace: session => this.value.sessionServerToolAccessor.canConvertWorkspace(session),
 		supportsChatWorkingDirectories: session => this.value.sessionServerToolAccessor.supportsChatWorkingDirectories(session),
+		getChatHarnesses: session => this.value.sessionServerToolAccessor.getChatHarnesses(session),
+		canCreateSessions: provider => this.value.sessionServerToolAccessor.canCreateSessions(provider),
 		listSessions: () => this.value.sessionServerToolAccessor.listSessions(),
 		getSession: session => this.value.sessionServerToolAccessor.getSession(session),
 		getWorktreeRoots: workspace => this.value.sessionServerToolAccessor.getWorktreeRoots(workspace),
@@ -47,10 +49,17 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 		prepareChatWorkingDirectory: (session, directory, options) => this.value.sessionServerToolAccessor.prepareChatWorkingDirectory(session, directory, options),
 		renameChat: (session, chat, title) => this.value.sessionServerToolAccessor.renameChat(session, chat, title),
 		reportToolError: (toolName, error) => this.value.sessionServerToolAccessor.reportToolError(toolName, error),
+		archiveSession: session => this.value.sessionServerToolAccessor.archiveSession(session),
+		archiveChat: chat => this.value.sessionServerToolAccessor.archiveChat(chat),
 		deleteSession: session => this.value.sessionServerToolAccessor.deleteSession(session),
 		getChatContext: (session, chatId) => this.value.sessionServerToolAccessor.getChatContext(session, chatId),
 		getSessionSpawnDepth: session => this.value.sessionServerToolAccessor.getSessionSpawnDepth(session),
 		setSessionSpawnDepth: (session, depth) => this.value.sessionServerToolAccessor.setSessionSpawnDepth(session, depth),
+		isChatMoveEnabled: () => this.value.sessionServerToolAccessor.isChatMoveEnabled(),
+		supportsChatMoves: session => this.value.sessionServerToolAccessor.supportsChatMoves(session),
+		checkChatMove: move => this.value.sessionServerToolAccessor.checkChatMove(move),
+		applyChatMove: move => this.value.sessionServerToolAccessor.applyChatMove(move),
+		isKnownSessionLink: (session, chatId) => this.value.sessionServerToolAccessor.isKnownSessionLink(session, chatId),
 	};
 
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor = {

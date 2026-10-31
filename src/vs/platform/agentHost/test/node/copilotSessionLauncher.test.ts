@@ -3,17 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotSession, PermissionHandler, PermissionRequest, ResumeSessionConfig, SessionConfig, Verbosity } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, PermissionHandler, PermissionRequest, ResumeSessionConfig, SessionConfig, Tool, Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
+import { hasKey } from '../../../../base/common/types.js';
+import { isDeepStrictEqual } from 'util';
 import { useFakeTimers } from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { isLinux } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
-import { mock } from '../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { PluginFormat, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
-import type { IFileService } from '../../../files/common/files.js';
+import { PluginFormat, toParsedAgent, type IMcpServerDefinition, type IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
+import { IFileService, type IFileContent } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, LogLevel, NullLogService } from '../../../log/common/log.js';
@@ -21,22 +25,23 @@ import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { type ITelemetryService, TelemetryConfiguration, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, type SchemaValues } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, type IAgentHostWorkspaceTrust, type SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
-import { readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
+import { withAgentToolFullReferenceName, withAgentToolOrigin } from '../../common/meta/agentToolDefinitionMeta.js';
+import { readChatSandboxState, readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
-import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
-import { autoModeTiers } from '../../common/autoModeTiers.js';
+import { autoModeTiers, isAutoAdvertisedAsFusion, setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CustomizationType, McpServerStatus, type ClientPluginCustomization, type ModelSelection } from '../../common/state/protocol/state.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
+import { COPILOT_DEFAULT_AVAILABLE_TOOLS } from '../../node/copilot/copilotBuiltinToolAllowlist.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
-import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
 import { resolveCopilotMcpServerInfo, type ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
@@ -46,36 +51,24 @@ import { CopilotManagedSettingsResolver } from '../../node/copilot/copilotManage
 import { buildCopilotBuiltinAgents } from '../../node/copilot/copilotBuiltinAgents.js';
 import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import type { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
+import { CopilotSessionSandbox } from '../../node/copilot/copilotSessionSandbox.js';
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
-import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAutoTier, getCopilotReasoningEffort, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { getSdkCustomAgentName } from '../../node/copilot/copilotPluginConverters.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
-import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
+import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 import { createSentinelContribution, FakeLocalModelProvider, MAI_ROW } from './localModelBridge/fakeLocalModelProvider.js';
 
-const testRuntime: ICopilotSessionRuntime = {
-	chatUri: URI.parse(buildDefaultChatUri('copilot:/sess-1')),
-	launchOwner: URI.parse('copilot:/sess-1'),
-	handlePermissionRequest: async () => { throw new Error('Unexpected permission request'); },
-	handleExitPlanModeRequest: async () => { throw new Error('Unexpected exit plan mode request'); },
-	handleUserInputRequest: async () => { throw new Error('Unexpected user input request'); },
-	handleElicitationRequest: async () => { throw new Error('Unexpected elicitation request'); },
-	setMcpServerDisplayNames: () => { },
-	handleMcpAuthRequest: async () => { throw new Error('Unexpected MCP auth request'); },
-	requestUnsandboxedCommandConfirmation: async () => false,
-	handlePreToolUse: async () => { },
-	handlePostToolUse: async () => { },
-	handleUserPromptSubmitted: () => undefined,
-	createClientSdkTools: () => [],
-	createServerSdkTools: () => [],
-	reloadExtensions: async () => { },
-};
+import { createTestLauncher, noopSessionOpenTelemetry, testRuntime } from './copilotSessionLauncherTestHelpers.js';
 
 const testWorkingDirectory = URI.file(process.cwd());
 const disabledWorkflowTools = ['builtin:run_dynamic_workflow', 'builtin:dynamic_workflows_manage'];
 const alwaysDisabledTools = [...disabledWorkflowTools, 'builtin:semantic_code_search'];
 const defaultDisabledTools = [...alwaysDisabledTools, 'builtin:search_code_subagent'];
-const catalogInstallationFeatureFlags = { CATALOG_SEARCH: true, AGENT_FINDER_SKILL_INSTALL: true };
+const catalogInstallationFeatureFlags = { CATALOG_SEARCH: true, AGENT_FINDER_PLUGIN_INSTALL: true, AGENT_FINDER_SKILL_INSTALL: true };
+const emptyAgentCatalog: Pick<CopilotSession['rpc']['agent'], 'list'> = { list: async () => ({ agents: [] }) };
 function reportManagedSettings(config: ResumeSessionConfig | undefined): void {
 	config?.onEvent?.({
 		id: 'policy', parentId: null, timestamp: '2026-01-01T00:00:00Z',
@@ -84,10 +77,10 @@ function reportManagedSettings(config: ResumeSessionConfig | undefined): void {
 	});
 }
 
-function returningSession(session: CopilotSession): CopilotClient {
+function returningSession(session: CopilotSession, onConfiguration?: (config: ResumeSessionConfig | undefined) => void): CopilotClient {
 	return {
-		createSession: async config => { reportManagedSettings(config); return session; },
-		resumeSession: async (_id, config) => { reportManagedSettings(config); return session; },
+		createSession: async config => { onConfiguration?.(config); reportManagedSettings(config); return session; },
+		resumeSession: async (_id, config) => { onConfiguration?.(config); reportManagedSettings(config); return session; },
 		rpc: { managedSettings: createUnmanagedCopilotSettings() },
 	} as CopilotClient;
 }
@@ -117,52 +110,6 @@ class CapturingLogService extends NullLogService {
 	override warn(message: string, ...args: unknown[]): void {
 		this.warnings.push({ message, args });
 	}
-}
-
-const noopSessionOpenTelemetry: IAgentHostSessionOpenTelemetry = {
-	_serviceBrand: undefined,
-	withSubscription: async (_resource, operation) => operation({
-		servedFromMemory: undefined,
-		setServedFromMemory: () => { },
-		restoreStarted: () => { },
-		restoreCompleted: () => { },
-		setSession: () => { },
-	}),
-	withSdkResume: async (_session, operation) => operation(),
-	sdkResumeFallbackCreated: () => { },
-};
-
-function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Record<string, unknown> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService, telemetryService?: ITelemetryService): CopilotSessionLauncher {
-	const configurationService = configuration ?? {
-		getRootValue: (_schema: unknown, key: string) => rootValues[key],
-		getRootConfigValues: () => rootValues,
-		getSessionConfigValues: () => undefined,
-		getChatConfigValues: () => undefined,
-		resolveConfigurationOwner: (session: string) => session,
-		getSessionSandboxPolicy: () => undefined,
-		getSessionSandboxEnabled: () => undefined,
-		getChatSandboxEnabled: () => undefined,
-		setSessionSandboxPolicy: () => { },
-		setChatSandboxEnabled: () => { },
-		rejectChatSandboxChange: () => { },
-	} as Partial<IAgentConfigurationService> as IAgentConfigurationService;
-	return new CopilotSessionLauncher(
-		configurationService,
-		{ permissions: managedSettingsPermissions ?? {} } as IAgentHostManagedSettingsService,
-		{} as IAgentHostTerminalManager,
-		logService,
-		{} as IFileService,
-		{ _serviceBrand: undefined, onDidCapTools: Event.None, start: async () => { throw new Error('Unexpected proxy start'); }, dispose: () => { } },
-		new ByokLmBridgeRegistry(),
-		{
-			_serviceBrand: undefined,
-			getSessionTraceContext: () => undefined,
-			releaseSessionTraceContext: () => { },
-			withTraceContext: <T>(_context: undefined, fn: () => T): T => fn(),
-		} as unknown as IAgentHostOTelService,
-		sessionOpenTelemetry,
-		telemetryService ?? ({ telemetryLevel: TelemetryLevel.USAGE } as ITelemetryService),
-	);
 }
 
 suite('CopilotSessionLauncher customization policy session', () => {
@@ -220,7 +167,6 @@ suite('CopilotSessionLauncher customization policy session', () => {
 			enableSessionStore: captured?.enableSessionStore,
 			infiniteSessions: captured?.infiniteSessions,
 			memory: captured?.memory,
-			remoteSession: captured?.remoteSession,
 			managedSettings: captured?.managedSettings,
 			featureFlags: captured?.featureFlags,
 			gitHubToken: captured?.gitHubToken,
@@ -238,7 +184,6 @@ suite('CopilotSessionLauncher customization policy session', () => {
 			enableSessionStore: false,
 			infiniteSessions: { enabled: false },
 			memory: { enabled: false },
-			remoteSession: 'off',
 			managedSettings: { permissions },
 			featureFlags: {
 				...catalogInstallationFeatureFlags,
@@ -399,6 +344,75 @@ suite('CopilotSessionLauncher customization policy session', () => {
 	});
 });
 
+suite('CopilotSessionLauncher agent catalog readiness', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const kind of ['create', 'resume'] as const) {
+		for (const fail of [false, true]) {
+			test(`${kind} ${fail ? 'disconnects and rejects failed discovery' : 'waits for discovery before exposing the session'}`, async () => {
+				const started = new DeferredPromise<void>();
+				const catalog = new DeferredPromise<{ agents: [] }>();
+				const calls: string[] = [];
+				const failure = new Error('Agent catalog unavailable');
+				const agent = new class extends mock<CopilotSession['rpc']['agent']>() {
+					override readonly list = async () => {
+						calls.push('catalog');
+						started.complete();
+						return catalog.p;
+					};
+				};
+				const options = new class extends mock<CopilotSession['rpc']['options']>() {
+					override readonly update = async () => {
+						calls.push('options');
+						return { success: true };
+					};
+				};
+				const session = new class extends mock<CopilotSession>() {
+					override readonly sessionId = 'catalog-readiness';
+					override get rpc() {
+						return new class extends mock<CopilotSession['rpc']>() {
+							override readonly agent = agent;
+							override readonly options = options;
+						};
+					}
+					override readonly on: CopilotSession['on'] = () => () => { };
+					override async disconnect() {
+						calls.push('disconnect');
+					}
+				};
+				const base = {
+					client: returningSession(session), sessionId: session.sessionId,
+					workingDirectory: testWorkingDirectory, resolvedAgentName: undefined,
+					snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+					activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+					githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
+				};
+				const plan: CopilotSessionLaunchPlan = kind === 'create'
+					? { ...base, kind, model: undefined }
+					: { ...base, kind, fallback: { model: undefined } };
+				const opening = createTestLauncher().launch(plan, testRuntime);
+				const outcome = fail ? assert.rejects(opening, failure) : opening.then(wrapper => store.add(wrapper));
+				try {
+					await started.p;
+					assert.deepStrictEqual(calls, ['catalog']);
+					if (fail) {
+						catalog.error(failure);
+					} else {
+						catalog.complete({ agents: [] });
+					}
+					await outcome;
+					assert.deepStrictEqual(calls, fail ? ['catalog', 'disconnect'] : ['catalog', 'options', 'options']);
+				} finally {
+					if (!catalog.isSettled) {
+						catalog.complete({ agents: [] });
+					}
+					await outcome;
+				}
+			});
+		}
+	}
+});
+
 suite('CopilotSessionLauncher sandbox policy', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -412,11 +426,19 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		let disconnected = false;
 		let captured: ResumeSessionConfig | undefined;
 		const updates: Array<{ sandboxConfig?: SandboxConfig }> = [];
+		const commands: string[] = [];
 		const raw = {
 			sessionId: 'sess-1',
 			on: () => () => { },
 			disconnect: async () => { disconnected = true; },
 			rpc: {
+				agent: emptyAgentCatalog,
+				commands: {
+					invoke: async ({ input }: { input: string }) => {
+						commands.push(input);
+						return { kind: 'text', text: '', sandboxSessionChange: input === 'enable session' ? 'restored' : 'disabled' };
+					},
+				},
 				options: {
 					update: async (options: { sandboxConfig?: SandboxConfig }) => {
 						if (options.sandboxConfig && sandboxUpdateError) {
@@ -463,7 +485,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		} as unknown as CopilotClient;
 		const shared = {
 			client, extensionSdkPath: '/copilot-sdk', sessionId: 'sess-1', workingDirectory: testWorkingDirectory,
-			resolvedAgentName: undefined, snapshot: { tools: [], plugins: [], mcpServers: {} },
+			resolvedAgentName: undefined, snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined, githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
 		};
 		const plan: CopilotSessionLaunchPlan = kind === 'create'
@@ -471,10 +493,402 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			: { ...shared, kind, fallback: { model: undefined } };
 		const logService = new CapturingLogService();
 		const launcher = createTestLauncher(undefined, {}, logService, noopSessionOpenTelemetry, configuration);
-		return { configuration, owner, updates, launcher, plan, logService, get sandboxState() { return readSessionSandboxState(manager.getSessionState(owner)); }, get disconnected() { return disconnected; }, get captured() { return captured; } };
+		let attachedSession: CopilotSession | undefined;
+		let sessionClosed = false;
+		const services = new ServiceCollection(
+			[IAgentConfigurationService, configuration],
+			[IAgentHostStateManager, manager],
+			[ILogService, logService],
+			[ISessionDataService, new class extends mock<ISessionDataService>() {
+				override getSessionDataDir(): URI { return URI.file('/session-data/sess-1'); }
+			}()],
+		);
+		const instantiationService = store.add(new InstantiationService(services));
+		const sandbox = store.add(instantiationService.createInstance(CopilotSessionSandbox, {
+			sessionId: 'sess-1',
+			ownerSession: URI.parse(owner),
+			chat: testRuntime.chatUri,
+			storage: URI.parse(owner),
+			getConfigWriteTarget: () => ({ session: owner, chat: testRuntime.chatUri.toString() }),
+			platform: process.platform,
+			getSession: () => attachedSession,
+			isSessionClosed: () => sessionClosed,
+			getHostSupport: async () => ({ supported: true, capabilities: [] }),
+			getCertificateStatus: async () => undefined,
+			installCertificate: async () => { },
+			rotateCertificate: async () => { },
+			removeCertificate: async () => { },
+			getShellInitDirectory: () => undefined,
+			getAppliedPluginDirectories: () => [],
+			getWorkingDirectory: () => undefined,
+			getAdditionalWorkingDirectories: () => [],
+			shellManager: undefined,
+		}));
+		const runtime: ICopilotSessionRuntime = {
+			...testRuntime,
+			getLaunchSandboxConfig: isResume => sandbox.getLaunchConfig(isResume),
+			applyLaunchSandbox: async (session, isResume) => {
+				await sandbox.applyLaunchConfig(session, isResume);
+				attachedSession = session;
+			},
+		};
+		return { manager, configuration, owner, updates, commands, launcher, plan, runtime, sandbox, raw, logService, set sessionClosed(value: boolean) { sessionClosed = value; }, set sandboxUpdateError(error: Error | undefined) { sandboxUpdateError = error; }, get sandboxState() { return readSessionSandboxState(manager.getSessionState(owner)); }, get disconnected() { return disconnected; }, get captured() { return captured; } };
 	}
 
+	test('a sandbox update failing after shutdown does not broadcast a policy conflict', async () => {
+		const fixture = setup('create');
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'on' });
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'off' });
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		fixture.raw.rpc.options.update = async () => {
+			started.complete();
+			await release.p;
+			throw new Error('Session not found');
+		};
+		const update = fixture.sandbox.applyConfig();
+		try {
+			await started.p;
+			fixture.sessionClosed = true;
+			release.complete();
+			await update;
+			assert.deepStrictEqual({
+				state: fixture.sandboxState,
+				warnings: fixture.logService.warnings,
+				errors: fixture.logService.errors,
+			}, { state: { enabled: true }, warnings: [], errors: [] });
+		} finally {
+			release.complete();
+			await update;
+		}
+	});
+
+	test('background sandbox conflicts are broadcast without disconnecting or claiming the rejected state', async () => {
+		const fixture = setup('create');
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'on' });
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+		fixture.sandboxUpdateError = Object.assign(new Error('Managed sandbox conflict'), { data: { code: 'managed_sandbox_policy_conflict' } });
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'off' });
+		const published: Array<{ enabled: boolean | undefined; message: string | undefined }> = [];
+		let previousState = readChatSandboxState(fixture.manager.getSessionState(fixture.owner), target.chat);
+		store.add(fixture.manager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.SessionMetaChanged) {
+				const state = readChatSandboxState(envelope.action, target.chat);
+				if (!isDeepStrictEqual(state, previousState)) {
+					previousState = state;
+					published.push({ enabled: state?.enabled, message: state?.error?.message });
+				}
+			}
+		}));
+
+		await fixture.sandbox.applyConfig();
+		await fixture.sandbox.applyConfig();
+		const failed = fixture.sandboxState;
+		fixture.sandboxUpdateError = undefined;
+		await fixture.sandbox.applyConfig();
+
+		assert.deepStrictEqual({
+			disconnected: fixture.disconnected,
+			published,
+			broadcast: failed?.error !== undefined && hasKey(failed.error, { id: true }),
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
+			recovered: fixture.sandboxState,
+		}, {
+			disconnected: false,
+			published: [{ enabled: true, message: 'Managed sandbox conflict' }, { enabled: false, message: undefined }],
+			broadcast: true,
+			selection: 'off',
+			applied: [true, false],
+			recovered: { enabled: false },
+		});
+	});
+
+	test('create broadcasts a sandbox conflict even before any enablement has been confirmed', async () => {
+		const error = Object.assign(new Error('Managed sandbox conflict'), { data: { code: 'managed_sandbox_policy_conflict' } });
+		const fixture = setup('create', true, false, false, undefined, error);
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+
+		assert.deepStrictEqual({
+			disconnected: fixture.disconnected,
+			enabled: fixture.sandboxState?.enabled,
+			message: fixture.sandboxState?.error?.message,
+			broadcast: fixture.sandboxState?.error !== undefined && hasKey(fixture.sandboxState.error, { id: true }),
+		}, { disconnected: false, enabled: undefined, message: error.message, broadcast: true });
+	});
+
+	test('resume preserves confirmed bypass with unchanged managed policy without changing sibling chats', async () => {
+		const fixture = setup('resume', true, true, true);
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		const sibling = { session: fixture.owner, chat: buildChatUri(fixture.owner, 'sibling') };
+		fixture.manager.addChat(fixture.owner, sibling.chat, creationTimeChatStorageResource(fixture.owner, sibling.chat, target.chat));
+		fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: true, allowBypass: true });
+		fixture.configuration.setChatSandboxEnabled(target, false);
+		fixture.configuration.setChatSandboxEnabled(sibling, false);
+		fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'off' });
+		const published: boolean[] = [];
+		store.add(fixture.manager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.SessionMetaChanged) {
+				const state = readChatSandboxState(envelope.action, target.chat);
+				if (state?.enabled !== undefined) {
+					published.push(state.enabled);
+				}
+			}
+		}));
+
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+		await fixture.sandbox.applyConfig();
+
+		assert.deepStrictEqual({
+			opened: fixture.captured?.sandboxConfig?.enabled,
+			applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			published,
+			state: fixture.sandboxState,
+			siblingSelection: fixture.configuration.getChatConfigValues(sibling)?.sandboxEnabled,
+			siblingState: fixture.configuration.getChatSandboxEnabled(sibling),
+			commands: fixture.commands,
+		}, {
+			opened: undefined,
+			applied: [],
+			selection: 'off',
+			published: [],
+			state: { enabled: false },
+			siblingSelection: 'off',
+			siblingState: false,
+			commands: ['disable session'],
+		});
+	});
+
+	test('resume preserves confirmed off when bypass is first allowed during open', async () => {
+		const fixture = setup('resume', true, true, true);
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.setChatSandboxEnabled(target, false);
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'off' });
+
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+
+		assert.deepStrictEqual({
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			state: fixture.sandboxState,
+			applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
+			commands: fixture.commands,
+		}, { selection: 'off', state: { enabled: false }, applied: [], commands: ['disable session'] });
+	});
+
+	test('resume enforces on when bypass is revoked during open', async () => {
+		const fixture = setup('resume', true, true, false);
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: true, allowBypass: true });
+		fixture.configuration.setChatSandboxEnabled(target, false);
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'off' });
+
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+
+		assert.deepStrictEqual({
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			state: fixture.sandboxState,
+			applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
+			commands: fixture.commands,
+		}, { selection: 'on', state: { enabled: true }, applied: [true], commands: [] });
+	});
+
+	test('resume honors a newer on selection over previously confirmed off metadata', async () => {
+		const fixture = setup('resume', true, true, true);
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: true, allowBypass: true });
+		fixture.configuration.setChatSandboxEnabled(target, false);
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'on' });
+
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+
+		assert.deepStrictEqual({
+			opened: fixture.captured?.sandboxConfig?.enabled,
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			state: fixture.sandboxState,
+		}, { opened: true, selection: 'on', state: { enabled: true } });
+	});
+
+	test('resume disconnects when the runtime rejects restoring confirmed bypass', async () => {
+		const error = new Error('Session sandbox bypass rejected');
+		const fixture = setup('resume', true, true, true);
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: true, allowBypass: true });
+		fixture.configuration.setChatSandboxEnabled(target, false);
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'off' });
+		const runtime: ICopilotSessionRuntime = {
+			...fixture.runtime,
+			applyLaunchSandbox: async (session, isResume) => {
+				session.rpc.commands.invoke = async () => ({ kind: 'text', text: error.message });
+				await fixture.runtime.applyLaunchSandbox(session, isResume);
+			},
+		};
+
+		await assert.rejects(() => fixture.launcher.launch(fixture.plan, runtime), error);
+
+		assert.deepStrictEqual({
+			disconnected: fixture.disconnected,
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			state: fixture.sandboxState,
+			applied: fixture.updates.filter(update => update.sandboxConfig),
+		}, { disconnected: true, selection: 'off', state: { enabled: false }, applied: [] });
+	});
+
+	test('resume does not overwrite a newer selection while applying the resolved sandbox', async () => {
+		const fixture = setup('resume', true, true, true);
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: true, allowBypass: true });
+		fixture.configuration.setChatSandboxEnabled(target, false);
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'off' });
+		const runtime: ICopilotSessionRuntime = {
+			...fixture.runtime,
+			applyLaunchSandbox: async (session, isResume) => {
+				const invoke = session.rpc.commands.invoke;
+				session.rpc.commands.invoke = async params => {
+					const result = await invoke(params);
+					fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'default' });
+					return result;
+				};
+				await fixture.runtime.applyLaunchSandbox(session, isResume);
+			},
+		};
+
+		store.add(await fixture.launcher.launch(fixture.plan, runtime));
+
+		assert.deepStrictEqual({
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			state: fixture.sandboxState,
+		}, { selection: 'default', state: { enabled: false } });
+	});
+
+	test('resume still honors a new pending bypass request', async () => {
+		const fixture = setup('resume', true, true, true);
+		fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: true, allowBypass: true });
+		fixture.configuration.setChatSandboxEnabled({ session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) }, true);
+		await fixture.sandbox.applyConfig(true, 'off');
+
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+
+		assert.deepStrictEqual({
+			commands: fixture.commands,
+			state: fixture.sandboxState,
+		}, { commands: ['disable session'], state: { enabled: false } });
+	});
+
+	test('sandbox config changes during launch apply to the launched session before attachment', async () => {
+		const fixture = setup('create', true, true, true);
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const runtime: ICopilotSessionRuntime = {
+			...fixture.runtime,
+			applyLaunchSandbox: async session => {
+				const update = session.rpc.options.update;
+				session.rpc.options.update = async options => {
+					const result = await update(options);
+					await started.complete();
+					await release.p;
+					return result;
+				};
+				const launchConfig = fixture.sandbox.applyLaunchConfig(session);
+				await started.p;
+				fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'off' });
+				const change = fixture.sandbox.applyConfig(true, 'off');
+				await release.complete();
+				await Promise.all([launchConfig, change]);
+			},
+		};
+
+		store.add(await fixture.launcher.launch(fixture.plan, runtime));
+
+		assert.deepStrictEqual(fixture.commands, ['disable session']);
+	});
+
+	test('sandbox selection before launch is applied with the session command', async () => {
+		const fixture = setup('create', true, true, true);
+		fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: true, allowBypass: true });
+		await fixture.sandbox.applyConfig(true, 'off');
+		await fixture.sandbox.applyConfig();
+
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+
+		assert.deepStrictEqual(fixture.commands, ['disable session']);
+	});
+
+	test('sandbox config changes before attachment are deferred and launch applies the latest config', async () => {
+		const fixture = setup('create');
+		await fixture.sandbox.prepareConfigChange().apply();
+		fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'on' });
+		await fixture.sandbox.prepareConfigChange().apply();
+		const updatesBeforeLaunch = [...fixture.updates];
+
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+		await fixture.sandbox.applyConfig();
+
+		assert.deepStrictEqual({
+			updatesBeforeLaunch,
+			applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig),
+		}, {
+			updatesBeforeLaunch: [],
+			applied: [{
+				enabled: true,
+				addCurrentWorkingDirectory: true,
+				auth: { git: true, gh: true },
+				userPolicy: { filesystem: { readonlyPaths: [URI.file('/session-data/sess-1/attachments').fsPath] } },
+			}],
+		});
+	});
+
 	for (const kind of ['create', 'resume'] as const) {
+		test(`${kind} passes the launch sandbox config when the SDK session opens and repeats it for older runtimes`, async () => {
+			const fixture = setup(kind);
+			fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'on' });
+
+			store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+
+			const opened = (fixture.captured as { sandboxConfig?: SandboxConfig } | undefined)?.sandboxConfig;
+			assert.deepStrictEqual({ opened, updates: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig) }, { opened: fixture.sandbox.getLaunchConfig(), updates: [opened] });
+		});
+
+		test(`${kind} reopens without the open-time sandbox config when managed policy rejects it`, async () => {
+			const fixture = setup(kind);
+			fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'on' });
+			const client = fixture.plan.client;
+			const attempts: boolean[] = [];
+			const reject = <T>(config: object | undefined, open: () => Promise<T>): Promise<T> => {
+				const sandboxConfig = (config as { sandboxConfig?: SandboxConfig } | undefined)?.sandboxConfig;
+				attempts.push(sandboxConfig !== undefined);
+				return sandboxConfig
+					? Promise.reject(Object.assign(new Error('conflict'), { data: { code: 'managed_sandbox_policy_conflict' } }))
+					: open();
+			};
+			const { createSession, resumeSession } = client;
+			client.createSession = config => reject(config, () => createSession.call(client, config));
+			client.resumeSession = (id, config) => reject(config, () => resumeSession.call(client, id, config));
+
+			store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+
+			assert.deepStrictEqual(attempts, [true, false]);
+		});
+
+		test(`${kind} applies attachment read roots at launch and does not resend them at the first turn`, async () => {
+			const fixture = setup(kind);
+			fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'on' });
+
+			store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+			await fixture.sandbox.applyConfig();
+
+			const expected: SandboxConfig = {
+				enabled: true,
+				addCurrentWorkingDirectory: true,
+				auth: { git: true, gh: true },
+				userPolicy: { filesystem: { readonlyPaths: [URI.file('/session-data/sess-1/attachments').fsPath] } },
+			};
+			assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig), [expected]);
+		});
+
 		test(`${kind} waits for slow managed settings before applying policy and starting the SDK session`, async () => {
 			const fixture = setup(kind);
 			const rpc = fixture.plan.client.rpc.managedSettings;
@@ -484,19 +898,21 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			rpc.resolve = () => { started.complete(); return gate.p; };
 			const resolver = store.add(new CopilotManagedSettingsResolver(new NullLogService()));
 			const policies: typeof result.resolved[] = [];
+			const activity: (string | undefined)[] = [];
 			const clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 			try {
 				const launch = fixture.launcher.launch({ ...fixture.plan, managedSettingsResolver: resolver }, {
 					...testRuntime,
 					setApprovalPolicy: resolved => policies.push(resolved),
+					reportManagedSettingsActivity: value => activity.push(value),
 				});
 				await started.p;
 				await clock.tickAsync(4000);
-				assert.deepStrictEqual({ captured: fixture.captured, policies }, { captured: undefined, policies: [] });
+				assert.deepStrictEqual({ captured: fixture.captured, policies, activity }, { captured: undefined, policies: [], activity: ['Loading your organization\'s managed settings'] });
 				const restricted = { ...result.resolved, settings: { permissions: { deny: ['Shell'] } } };
 				gate.complete({ ...result, resolved: restricted });
 				store.add(await launch);
-				assert.deepStrictEqual({ created: !!fixture.captured, policies }, { created: true, policies: [restricted] });
+				assert.deepStrictEqual({ created: !!fixture.captured, policies, activity }, { created: true, policies: [restricted], activity: ['Loading your organization\'s managed settings', undefined] });
 			} finally {
 				gate.complete(result);
 				clock.restore();
@@ -509,7 +925,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			const maskedCredentials = { envVars: { MY_API_TOKEN: { injectHosts: ['api.example.com'] } } };
 			for (const value of [maskedCredentials, {}]) {
 				fixture.configuration.updateRootConfig({ sandbox: { enabled: 'on', credentials: value } });
-				store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+				store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
 			}
 			assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.credentials), [
 				maskedCredentials,
@@ -522,7 +938,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			const fixture = setup(kind);
 			for (const restricted of [true, false]) {
 				fixture.configuration.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: restricted });
-				store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+				store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
 				results.push(fixture.captured?.managedSettings?.permissions);
 			}
 			assert.deepStrictEqual(results, [
@@ -533,7 +949,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		test(`${kind} exposes native events before the SDK session is returned without changing policy handling`, async () => {
 			const fixture = setup(kind);
 			const events: string[] = [];
-			store.add(await fixture.launcher.launch(fixture.plan, { ...testRuntime, onSessionEvent: event => events.push(event.type) }));
+			store.add(await fixture.launcher.launch(fixture.plan, { ...fixture.runtime, onSessionEvent: event => events.push(event.type) }));
 			fixture.captured?.onEvent?.({
 				id: 'title', parentId: null, timestamp: '2026-10-02T21:00:00Z',
 				type: 'session.title_changed', ephemeral: true, data: { title: 'Native title' },
@@ -547,7 +963,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		test(`${kind} applies managed denial of current working directory access`, async () => {
 			const fixture = setup(kind, true, true, false, undefined, undefined, { addCurrentWorkingDirectory: false });
 			fixture.configuration.updateRootConfig({ sandbox: { enabled: 'on', addCurrentWorkingDirectory: true } });
-			store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+			store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
 			assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.addCurrentWorkingDirectory), [false]);
 		});
 
@@ -563,7 +979,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 						...(localHosts ? { allowedNetworkDomains: localHosts, deniedNetworkDomains: localHosts } : {}),
 					}
 				});
-				store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+				store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
 				assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.userPolicy?.network), [{
 					allowOutbound: true,
 					allowLocalNetwork: true,
@@ -585,7 +1001,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 					deniedNetworkDomains: ['local.blocked'],
 				}
 			});
-			store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+			store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
 			assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.userPolicy?.network), [{
 				allowedHosts: ['api.example.com'],
 				blockedHosts: ['local.blocked', 'managed.blocked'],
@@ -601,7 +1017,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 					enabled: 'on', allowedNetworkDomains: ['local.example'],
 				}
 			});
-			store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+			store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
 			assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.userPolicy?.network), [{
 				allowedHosts: ['managed.example'], blockedHosts: [],
 			}]);
@@ -614,7 +1030,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 					enabled: 'on', allowNetwork: true, allowedNetworkDomains: ['local.example'],
 				}
 			});
-			store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+			store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
 			assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.userPolicy?.network), [{
 				allowOutbound: true,
 			}]);
@@ -629,7 +1045,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 					for (const managed of [undefined, false, true]) {
 						const fixture = setup(kind, true, true, false, undefined, undefined, { auth: { [field]: managed } });
 						fixture.configuration.updateRootConfig({ sandbox: { enabled: 'on', ...(local !== undefined ? { [key]: local } : {}) } });
-						store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+						store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
 						assert.deepStrictEqual({
 							applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.auth),
 							stored: fixture.configuration.getRootConfigValues()?.sandbox,
@@ -647,24 +1063,34 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			['message', new Error('Sandbox configuration update violates managed policy. Contact your administrator for more information.')],
 			['wrapped message', new Error('Request session.options.update failed with message: Sandbox configuration update violates managed policy. Contact your administrator for more information.')],
 		] as const) {
-			test(`${kind} logs a ${format} sandbox conflict without disconnecting or publishing the rejected state`, async () => {
+			test(`${kind} ${kind === 'resume' ? 'rejects' : 'tolerates'} a ${format} sandbox conflict without publishing the rejected state`, async () => {
 				const fixture = setup(kind, true, false, false, undefined, error);
 				fixture.configuration.setChatSandboxEnabled({ session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) }, true);
 
-				store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+				if (kind === 'resume') {
+					await assert.rejects(() => fixture.launcher.launch(fixture.plan, fixture.runtime), error);
+				} else {
+					store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+				}
 
 				assert.deepStrictEqual({
 					disconnected: fixture.disconnected,
-					published: fixture.sandboxState,
+					published: fixture.sandboxState?.enabled,
+					conflict: fixture.sandboxState?.error?.message,
+					broadcast: fixture.sandboxState?.error !== undefined && hasKey(fixture.sandboxState.error, { id: true }),
 					applied: fixture.updates.filter(update => update.sandboxConfig),
 					warnings: fixture.logService.warnings,
 					loggedSuccess: fixture.logService.infos.some(message => message.includes('Applied SDK sandboxConfig')),
 				}, {
-					disconnected: false,
-					published: { enabled: true },
+					disconnected: kind === 'resume',
+					published: true,
+					conflict: kind === 'resume' ? undefined : error.message,
+					broadcast: kind === 'create',
 					applied: [],
 					warnings: [{
-						message: '[Copilot:sess-1] SDK sandboxConfig update conflicts with managed policy; continuing with the runtime\'s existing sandbox configuration',
+						message: kind === 'resume'
+							? '[Copilot:sess-1] Failed to apply SDK sandboxConfig'
+							: '[Copilot:sess-1] SDK sandboxConfig update conflicts with managed policy; continuing with the runtime\'s existing sandbox configuration',
 						args: [error],
 					}],
 					loggedSuccess: false,
@@ -675,7 +1101,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		test(`${kind} still rejects unrelated sandbox update errors`, async () => {
 			const error = Object.assign(new Error('Sandbox update transport failed'), { data: { code: 'connection_closed' } });
 			const fixture = setup(kind, true, false, false, undefined, error);
-			await assert.rejects(() => fixture.launcher.launch(fixture.plan, testRuntime), error);
+			await assert.rejects(() => fixture.launcher.launch(fixture.plan, fixture.runtime), error);
 			assert.deepStrictEqual({ disconnected: fixture.disconnected, published: fixture.sandboxState }, {
 				disconnected: true, published: undefined,
 			});
@@ -684,7 +1110,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		test(`${kind} sends resolved outbound denial and preserves local bypass restrictions`, async () => {
 			const fixture = setup(kind, true, true, true, false);
 			fixture.configuration.updateRootConfig({ sandbox: { enabled: 'off', allowNetwork: true, allowUnsandboxedCommands: false } });
-			store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+			store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
 			fixture.captured?.onEvent?.({
 				id: 'enforced', parentId: null, timestamp: '2026-01-01T00:00:00Z', type: 'session.managed_settings_enforced', ephemeral: true,
 				data: { action: 'bypass_permissions_blocked', setting: 'sandbox.enabled', failClosed: false, message: 'Sandbox required' },
@@ -694,7 +1120,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				policy: fixture.configuration.getSessionSandboxPolicy(fixture.owner),
 				stored: fixture.configuration.getRootConfigValues()?.sandbox,
 			}, {
-				applied: [{ enabled: true, addCurrentWorkingDirectory: true, allowBypass: false, auth: { git: true, gh: true }, userPolicy: { network: { allowOutbound: false } } }],
+				applied: [{ enabled: true, addCurrentWorkingDirectory: true, allowBypass: false, auth: { git: true, gh: true }, userPolicy: { filesystem: { readonlyPaths: [URI.file('/session-data/sess-1/attachments').fsPath] }, network: { allowOutbound: false } } }],
 				policy: { enabled: true, allowBypass: false, allowOutbound: false },
 				stored: { enabled: 'off', allowNetwork: true, allowUnsandboxedCommands: false },
 			});
@@ -705,7 +1131,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				for (const managed of [undefined, false, true]) {
 					const fixture = setup(kind, true, true, false, undefined, undefined, undefined, managed);
 					fixture.configuration.updateRootConfig({ sandbox: { enabled: 'on', allowLocalNetwork: local } });
-					store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+					store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
 					assert.deepStrictEqual(
 						fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.userPolicy?.network?.allowLocalNetwork),
 						[managed === false ? false : local],
@@ -720,7 +1146,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 					for (const managed of [undefined, false, true]) {
 						const fixture = setup(kind, true, true, false, undefined, undefined, { [key]: managed });
 						fixture.configuration.updateRootConfig({ sandbox: { enabled: 'on', [key]: local } });
-						store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+						store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
 						assert.deepStrictEqual(
 							fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.[key]),
 							[managed === managedValue ? managedValue : local],
@@ -743,7 +1169,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 					override getOrCreateSandboxEngine(): TerminalSandboxEngine { return engine; }
 				}();
 
-				store.add(await fixture.launcher.launch({ ...fixture.plan, shellManager }, testRuntime));
+				store.add(await fixture.launcher.launch({ ...fixture.plan, shellManager }, fixture.runtime));
 
 				assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled), [selection === 'on']);
 				if (process.platform === 'win32') {
@@ -754,7 +1180,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 
 		test(`${kind} applies a persistent off selection after the authoritative startup snapshot`, async () => {
 			const fixture = setup(kind);
-			store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+			store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
 			assert.deepStrictEqual({
 				updates: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
 				published: fixture.sandboxState,
@@ -764,7 +1190,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		for (const allowBypass of [false, true]) {
 			test(`${kind} discards off before applying an org-managed floor with bypass ${allowBypass}`, async () => {
 				const fixture = setup(kind, true, true, allowBypass);
-				store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+				store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
 				fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: false, allowBypass: false });
 				assert.deepStrictEqual({
 					applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
@@ -783,7 +1209,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				} else if (available === 'policy') {
 					fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: true, allowBypass: false });
 				}
-				store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+				store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
 				assert.deepStrictEqual({
 					disconnected: fixture.disconnected,
 					applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
@@ -799,7 +1225,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 
 	test('runtime rejection discards an off attempt even when options RPC reports success', async () => {
 		const fixture = setup('create');
-		store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
 		fixture.captured?.onEvent?.({
 			id: 'enforced', parentId: null, timestamp: '2026-01-01T00:00:00Z', type: 'session.managed_settings_enforced', ephemeral: true,
 			data: { action: 'bypass_permissions_blocked', setting: 'sandbox.enabled', failClosed: false, message: 'Sandbox required' },
@@ -1176,11 +1602,11 @@ suite('CopilotSessionLauncher Connectors', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const scenario of ['create', 'resume', 'reconcileError', 'unsupported', 'noAccount', 'disabled'] as const) {
-		test(`uses session-owned Connector accounts: ${scenario}`, async () => {
+	for (const scenario of ['create', 'resume', 'reconcileError', 'malformedStatus', 'unsupported', 'noAccount', 'disabled'] as const) {
+		test(`uses session-owned Connector accounts without delaying launch: ${scenario}`, async () => {
 			const connectorCalls: string[] = [];
 			const logService = new CapturingLogService();
-			let connectorDisplayNames: ReadonlyMap<string, string> = new Map();
+			const reconcileReleased = new DeferredPromise<void>();
 			let featureFlags: Record<string, boolean> | undefined;
 			const connectorStatus = {
 				apiVersion: 1,
@@ -1198,6 +1624,7 @@ suite('CopilotSessionLauncher Connectors', () => {
 				on: () => () => { },
 				disconnect: async () => { },
 				rpc: {
+					agent: emptyAgentCatalog,
 					options: { update: async () => ({ success: true }) },
 					connectors: {
 						getCapabilities: async () => {
@@ -1220,8 +1647,13 @@ suite('CopilotSessionLauncher Connectors', () => {
 						},
 						reconcile: async (request: { accountId: string; refreshCatalog?: boolean }) => {
 							connectorCalls.push(`reconcile:${request.accountId}:${request.refreshCatalog === true}`);
+							// The runtime answers only after the Connector's MCP servers finish their remote handshake.
+							await reconcileReleased.p;
 							if (scenario === 'reconcileError') {
 								throw new Error('MCP server requires authentication');
+							}
+							if (scenario === 'malformedStatus') {
+								return { ...connectorStatus, catalog: { ...connectorStatus.catalog, connectors: [{ ...connectorStatus.catalog.connectors[0], displayName: undefined }] } };
 							}
 							return connectorStatus;
 						},
@@ -1257,33 +1689,40 @@ suite('CopilotSessionLauncher Connectors', () => {
 				sessionId: 'connector-session',
 				workingDirectory: testWorkingDirectory,
 				resolvedAgentName: undefined,
-				snapshot: { tools: [], plugins: [], mcpServers: {} },
+				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 				activeClientToolSet: new ActiveClientToolSet(),
 				shellManager: undefined,
 				githubCredentials: CopilotGitHubSessionCredentials.fromToken('connector-token'),
 			};
 
+			let launchConnectorReconcile: Parameters<ICopilotSessionRuntime['adoptLaunchConnectorReconcile']>[0] | undefined;
 			const launched = await launcher.launch(plan, {
 				...testRuntime,
-				setMcpServerDisplayNames: displayNames => connectorDisplayNames = new Map(displayNames),
+				adoptLaunchConnectorReconcile: reconcile => launchConnectorReconcile = reconcile,
 			});
 			try {
+				const adopted = launchConnectorReconcile !== undefined;
+				reconcileReleased.complete();
+				const connectorServers = await launchConnectorReconcile;
 				assert.deepStrictEqual({
+					adopted,
 					featureFlags,
 					connectorCalls,
-					connectorDisplayName: connectorDisplayNames.get('connector-mail'),
+					connectorDisplayName: connectorServers?.servers.get('connector-mail')?.displayName,
 					warnings: logService.warnings.map(warning => warning.message),
 				}, {
-					featureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: scenario !== 'disabled', TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, ...(scenario === 'disabled' ? {} : { MANAGED_MCP_SERVERS: true }) },
+					adopted: scenario !== 'disabled',
+					featureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: scenario !== 'disabled', TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, ...(scenario === 'disabled' ? {} : { MANAGED_MCP_SERVERS: true }) },
 					connectorCalls: scenario === 'disabled' ? []
 						: scenario === 'unsupported' ? ['capabilities']
 							: scenario === 'noAccount' ? ['capabilities', 'account']
 								: ['capabilities', 'account', 'reconcile:session-account:true', ...(scenario === 'reconcileError' ? ['status'] : [])],
-					connectorDisplayName: scenario === 'disabled' || scenario === 'unsupported' || scenario === 'noAccount' ? undefined : 'Work IQ Mail',
+					connectorDisplayName: scenario === 'disabled' || scenario === 'unsupported' || scenario === 'noAccount' || scenario === 'malformedStatus' ? undefined : 'Work IQ Mail',
 					warnings: scenario === 'unsupported' ? ['[Copilot:connector-session] Connector MCP reconciliation skipped because the runtime does not support session-owned Connector accounts']
 						: scenario === 'noAccount' ? ['[Copilot:connector-session] Connector MCP reconciliation skipped because the session account could not be resolved']
 							: scenario === 'reconcileError' ? ['[Copilot:connector-session] Connector MCP reconciliation failed; using the current Connector state when available: MCP server requires authentication']
-								: [],
+								: scenario === 'malformedStatus' ? ['[Copilot:connector-session] Connector MCP reconciliation failed unexpectedly']
+									: [],
 				});
 			} finally {
 				launched.dispose();
@@ -1293,16 +1732,171 @@ suite('CopilotSessionLauncher Connectors', () => {
 
 });
 
+suite('getCopilotAgentSelectionName', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('restores only unambiguous flat selections from the same materialized cache namespace', () => {
+		const root = URI.file('/cache/bundle/current');
+		const sourceUri = URI.parse('client-customizations:/bundle');
+		const uri = URI.joinPath(root, 'agents', 'solo.agent.md');
+		const old = URI.file('/cache/bundle/previous/agents/solo.agent.md').toString();
+		const plugin = {
+			format: PluginFormat.OpenPlugin, sourceUri, nonce: 'current', pluginDir: root,
+			agents: [
+				toParsedAgent({ uri: URI.joinPath(root, 'agents', 'Solo.agent.md'), name: 'Case-distinct Solo' }),
+				toParsedAgent({ uri, name: 'Solo' }),
+				...['first', 'second'].map(key => toParsedAgent({ uri: URI.joinPath(root, 'agents', key, 'reviewer.agent.md'), name: 'Reviewer' })),
+			],
+			skills: [], hooks: [], instructions: [], mcpServers: [],
+		};
+		const snapshot = { plugins: [plugin], discoveredAgents: [], additionalRootInstructions: [] };
+		const secondRoot = URI.file('/cache/bundle/another');
+		assert.deepStrictEqual({
+			restored: getCopilotAgentSelection(snapshot, old, true),
+			liveChange: getCopilotAgentSelectionName(snapshot, old),
+			anotherSource: getCopilotAgentSelectionName(snapshot, URI.file('/cache/other/previous/agents/solo.agent.md').toString(), true),
+			directHost: getCopilotAgentSelectionName({
+				...snapshot, plugins: [{ ...plugin, sourceUri: URI.parse('vscode-agent-host-file:/cache/bundle/current') }],
+			}, old, true),
+			ambiguousFile: getCopilotAgentSelectionName(snapshot, URI.file('/cache/bundle/previous/agents/reviewer.agent.md').toString(), true),
+			ambiguousRevision: getCopilotAgentSelectionName({
+				...snapshot,
+				plugins: [plugin, {
+					...plugin, nonce: 'another', pluginDir: secondRoot,
+					agents: [toParsedAgent({ uri: URI.joinPath(secondRoot, 'agents', 'solo.agent.md'), name: 'Solo' })],
+				}],
+			}, old, true),
+			outside: getCopilotAgentSelectionName(snapshot, URI.file('/cache/bundle/../agents/solo.agent.md').toString(), true),
+			opaqueHost: getCopilotAgentSelectionName(snapshot, 'other-host:/cache/bundle/previous/agents/solo.agent.md', true),
+		}, {
+			restored: { uri: uri.toString(), name: getSdkCustomAgentName(uri, plugin) },
+			liveChange: undefined, anotherSource: undefined, directHost: undefined, ambiguousFile: undefined, ambiguousRevision: undefined,
+			outside: undefined, opaqueHost: undefined,
+		});
+	});
+
+	test('maps forwarded URI selections to unique SDK names while preserving native SDK IDs', () => {
+		const uris = ['first', 'second'].map(source => URI.parse(`client-agent:/${source}`));
+		const nativeUri = URI.parse('sdk-native:/reviewer');
+		const customizations = {
+			plugins: [],
+			discoveredAgents: uris.map(uri => toParsedAgent({ uri, name: 'Friendly Reviewer' })),
+			nativeAgents: [{ type: CustomizationType.Agent, id: 'opaque-native-sdk-id', uri: nativeUri.toString(), name: 'Friendly Reviewer' } as const],
+			additionalRootInstructions: [],
+		};
+		assert.deepStrictEqual([...uris, nativeUri, URI.parse('client-agent:/missing')].map(uri =>
+			getCopilotAgentSelectionName(customizations, uri.toString())),
+			[...uris.map(uri => getSdkCustomAgentName(uri)), 'opaque-native-sdk-id', undefined]);
+	});
+
+	test('keeps plugin and standalone SDK identities stable across cache revisions', () => {
+		const sourceUri = URI.parse('client-plugin:/stable-source');
+		const expected = getSdkCustomAgentName(URI.joinPath(sourceUri, 'agents', 'shared.agent.md'));
+		const results = [false, true].flatMap(standalone => ['old', 'new'].map(revision => {
+			const root = URI.file(`/cache/${revision}`);
+			const uri = URI.joinPath(root, 'agents', 'shared.agent.md');
+			const customizations = {
+				plugins: [{
+					format: PluginFormat.OpenPlugin, sourceUri, nonce: revision,
+					pluginDir: standalone ? undefined : root,
+					resourceDir: standalone ? root : undefined,
+					agents: [toParsedAgent({ uri, name: 'Friendly Reviewer' })],
+					skills: [], hooks: [], instructions: [], mcpServers: [],
+				}],
+				discoveredAgents: [], additionalRootInstructions: [],
+			};
+			return {
+				registered: getCopilotCustomAgents(customizations)[0].sdkName,
+				selected: getCopilotAgentSelectionName(customizations, uri.toString()),
+			};
+		}));
+		assert.deepStrictEqual(results, Array.from({ length: 4 }, () => ({ registered: expected, selected: expected })));
+	});
+});
+
 suite('CopilotSessionLauncher shared session config', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const kind of ['create', 'resume', 'recover', 'recover-empty', 'create-selection-error', 'resume-selection-error'] as const) {
+		test(`${kind} selects native plugin agents without registering their definitions`, async () => {
+			let captured: ResumeSessionConfig | undefined;
+			const calls: string[] = [];
+			const selectionFails = kind.endsWith('-selection-error');
+			const planKind = kind.startsWith('create') ? 'create' : 'resume';
+			let disconnected = false;
+			const session = {
+				sessionId: 'native-agent', on: () => () => { }, disconnect: async () => { disconnected = true; },
+				rpc: {
+					agent: {
+						list: async () => { calls.push('list'); return { agents: [] }; },
+						select: async ({ name }: { name: string }) => {
+							calls.push(`select:${name}`);
+							if (selectionFails) {
+								throw Object.assign(new Error(`Custom agent '${name}' not found`), { code: -32603 });
+							}
+							return {};
+						},
+					},
+					options: { update: async () => ({ success: true }) },
+				},
+			} as unknown as CopilotSession;
+			const initialize = (config: ResumeSessionConfig | undefined) => {
+				captured = config;
+				assert.strictEqual(config?.agent, undefined);
+				reportManagedSettings(config);
+				return session;
+			};
+			const client = {
+				createSession: async (config: SessionConfig) => { calls.push('create'); return initialize(config); },
+				resumeSession: async (_id: string, config: ResumeSessionConfig | undefined) => {
+					calls.push('resume');
+					assert.strictEqual(config?.agent, undefined);
+					if (kind.startsWith('recover')) {
+						throw Object.assign(new Error(kind === 'recover-empty' ? 'Session has no events' : 'Session not found: native-agent'), { code: -32603 });
+					}
+					return initialize(config);
+				},
+				rpc: { managedSettings: createUnmanagedCopilotSettings() },
+			} as unknown as CopilotClient;
+			const nativeAgent = { type: CustomizationType.Agent, id: 'reviewer@shop:review', uri: URI.file('/plugins/reviewer/agents/review.agent.md').toString(), name: 'Review' } as const;
+			const shared = {
+				client, sessionId: 'native-agent', workingDirectory: testWorkingDirectory,
+				resolvedAgentName: nativeAgent.id,
+				snapshot: { discoveredAgents: [], nativeAgents: [nativeAgent], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+			};
+			const plan: CopilotSessionLaunchPlan = planKind === 'create'
+				? { ...shared, kind: planKind, model: undefined }
+				: { ...shared, kind: 'resume', fallback: { model: undefined } };
+			if (selectionFails) {
+				await assert.rejects(createTestLauncher().launch(plan, testRuntime), /Custom agent 'reviewer@shop:review' not found/);
+				assert.deepStrictEqual({ calls, disconnected }, { calls: [planKind, 'list', `select:${nativeAgent.id}`], disconnected: true });
+				return;
+			}
+			const wrapper = await createTestLauncher().launch(plan, testRuntime);
+			try {
+				assert.deepStrictEqual({
+					agent: captured?.agent,
+					nativeDefinitions: captured?.customAgents?.filter(agent => agent.name === nativeAgent.name || agent.name === nativeAgent.id),
+					calls,
+				}, {
+					agent: undefined, nativeDefinitions: [],
+					calls: [...(kind.startsWith('recover') ? ['resume', 'create'] : [kind]), 'list', `select:${nativeAgent.id}`],
+				});
+			} finally {
+				wrapper.dispose();
+			}
+		});
+	}
 
 	for (const scoped of [false, true]) {
 		test(`keeps configured tools and defaults with ${scoped ? 'client-owned' : 'legacy'} credentials`, async () => {
 			const configs: SessionConfig[] = [];
 			const session = {
 				sessionId: 'tool-profile', on: () => () => { }, disconnect: async () => { },
-				rpc: { options: { update: async () => ({ success: true }) } },
+				rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 			} as unknown as CopilotSession;
 			const client = {
 				createSession: async (config: SessionConfig) => { configs.push(config); reportManagedSettings(config); return session; },
@@ -1315,7 +1909,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			}, logService);
 			const wrapper = await launcher.launch({
 				kind: 'create', client, sessionId: 'tool-profile', model: undefined, workingDirectory: testWorkingDirectory,
-				resolvedAgentName: undefined, snapshot: { tools: [], plugins: [], mcpServers: {} },
+				resolvedAgentName: undefined, snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
 				githubCredentials: scoped
 					? CopilotGitHubSessionCredentials.fromCredential({ resource: 'https://api.github.com', token: 'scoped', expiresAt: undefined, revision: 1 })
@@ -1348,7 +1942,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			sessionId: 'scoped-session',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { options: { update: async () => ({ success: true }) } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 		} as unknown as CopilotSession;
 		const client = {
 			createSession: async (config: SessionConfig) => { configs.push(config); reportManagedSettings(config); return session; },
@@ -1356,13 +1950,15 @@ suite('CopilotSessionLauncher shared session config', () => {
 			rpc: { managedSettings: createUnmanagedCopilotSettings(), sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 		} as unknown as CopilotClient;
 		const permissions: IAgentHostManagedSettingsPermissions = { disableBypassPermissionsMode: 'disable', deny: ['Shell'] };
-		const launcher = createTestLauncher(permissions, { [AgentHostMcpConnectorsEnabledConfigKey]: true, [AgentHostByokModelsEnabledConfigKey]: true, [AgentHostSessionSyncEnabledConfigKey]: true });
+		const launcher = createTestLauncher(permissions, { [AgentHostMcpConnectorsEnabledConfigKey]: true, [AgentHostByokModelsEnabledConfigKey]: true });
 		let byokResolutions = 0;
 		launcher.resolveByokSessionConfig = async () => { byokResolutions++; return { providers: [], models: [] }; };
 		const pluginDirectory = URI.joinPath(testWorkingDirectory, 'scoped-plugin');
 		const basePlan = {
 			client, sessionId: 'scoped-session', workingDirectory: testWorkingDirectory, resolvedAgentName: undefined,
 			snapshot: {
+				discoveredAgents: [],
+				additionalRootInstructions: [],
 				tools: [],
 				plugins: [{
 					format: PluginFormat.Copilot, pluginDir: pluginDirectory, hooks: [], mcpServers: [], agents: [], skills: [], instructions: [],
@@ -1392,7 +1988,6 @@ suite('CopilotSessionLauncher shared session config', () => {
 			environment: config.systemMessage?.mode === 'customize' ? config.systemMessage.sections?.environment_context : undefined,
 			sessionStore: config.enableSessionStore,
 			oauthStorage: config.mcpOAuthTokenStorage,
-			remoteSession: config.remoteSession,
 			connectors: config.featureFlags?.CONNECTORS,
 			tools: config.availableTools, excludedTools: config.excludedTools,
 			providers: config.providers, models: config.models, managedSettings: config.managedSettings,
@@ -1403,8 +1998,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 			skipCustomInstructions: undefined, onDemandInstructions: undefined, hostGit: undefined, sessionTelemetry: undefined,
 			coauthor: undefined, builtinSkills: undefined, localAgents: undefined,
 			environment: undefined,
-			sessionStore: true, oauthStorage: 'in-memory', remoteSession: 'export',
-			tools: undefined,
+			sessionStore: true, oauthStorage: 'in-memory',
+			tools: [...COPILOT_DEFAULT_AVAILABLE_TOOLS],
 			excludedTools: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 			providers: [], models: [], managedSettings: { permissions },
 			pluginDirectories: [pluginDirectory.fsPath],
@@ -1467,7 +2062,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { options: { update: async () => ({ success: true }) } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 		} as unknown as CopilotSession;
 		const client = {
 			createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
@@ -1493,6 +2088,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 		const syntheticPluginDir = URI.file('/tmp/vscode-synced-customizations');
 		const skillUri = URI.joinPath(pluginDir, 'skills', 'user-skill', 'SKILL.md');
 		const instructionUri = URI.joinPath(pluginDir, 'rules', 'user.instructions.md');
+		const additionalInstructionUri = URI.file('/additional/.github/instructions/secondary.instructions.md');
 		const plugin: ICopilotPluginInfo = {
 			format: PluginFormat.Copilot,
 			hooks: [],
@@ -1552,7 +2148,17 @@ suite('CopilotSessionLauncher shared session config', () => {
 			sessionId: 'session-1',
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [plugin, syntheticPlugin], mcpServers: {} },
+			snapshot: {
+				tools: [],
+				plugins: [plugin, syntheticPlugin],
+				discoveredAgents: [],
+				additionalRootInstructions: [{
+					uri: additionalInstructionUri,
+					name: 'secondary',
+					customization: { type: CustomizationType.Rule, id: additionalInstructionUri.toString(), uri: additionalInstructionUri.toString(), name: 'secondary' },
+				} satisfies IParsedRule],
+				mcpServers: {},
+			},
 			disabledRootMcpServers: ['github', 'azure'],
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
@@ -1596,8 +2202,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 					return compatible.imageGeneration;
 				}),
 			}, {
-				createImage: [{ enabled: true }, { enabled: true }],
-				resumeImage: [{ enabled: true }],
+				createImage: [{ enabled: true, watermark: false }, { enabled: true, watermark: false }],
+				resumeImage: [{ enabled: true, watermark: false }],
 			});
 
 			assert.deepStrictEqual({
@@ -1626,6 +2232,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createExtensionSdkPath: createConfigs[0].extensionSdkPath?.replaceAll('\\', '/').endsWith('/copilot-sdk'),
 				createToolNames: createConfigs[0].tools?.map(tool => tool.name),
 				createExcludedTools: createConfigs[0].excludedTools,
+				createExcludedBuiltinAgents: createConfigs[0].excludedBuiltinAgents,
 				createMemory: createConfigs[0].memory,
 				createLocalMemoryStore: createConfigs[0].featureFlags?.copilot_swe_agent_memory_in_repo_store,
 				resumeClientName: resumeConfigs[0].clientName,
@@ -1653,6 +2260,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeExtensionSdkPath: resumeConfigs[0].extensionSdkPath?.replaceAll('\\', '/').endsWith('/copilot-sdk'),
 				resumeToolNames: resumeConfigs[0].tools?.map(tool => tool.name),
 				resumeExcludedTools: resumeConfigs[0].excludedTools,
+				resumeExcludedBuiltinAgents: resumeConfigs[0].excludedBuiltinAgents,
 				resumeMemory: resumeConfigs[0].memory,
 				resumeLocalMemoryStore: resumeConfigs[0].featureFlags?.copilot_swe_agent_memory_in_repo_store,
 				ephemeralMemory: createConfigs[1].memory,
@@ -1660,6 +2268,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				ephemeralImageGeneration: createConfigs[1].imageGeneration,
 				ephemeralCustomAgents: createConfigs[1].customAgents,
 				ephemeralAskUserVariant: createConfigs[1].askUserVariant,
+				ephemeralTgrep: createConfigs[1].featureFlags?.TGREP,
 				ephemeralDetachLongLivedServices: createConfigs[1].featureFlags?.DETACH_LONG_LIVED_SERVICES,
 				ephemeralLocalMemoryStore: createConfigs[1].featureFlags?.copilot_swe_agent_memory_in_repo_store,
 				ephemeralMcpServers: createConfigs[1].mcpServers,
@@ -1687,7 +2296,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			}, {
 				createClientName: 'vscode-agent-host',
 				createInteractiveUser: true,
-				createImageGeneration: { enabled: true },
+				createImageGeneration: { enabled: true, watermark: false },
 				createCustomAgents: buildCopilotBuiltinAgents(basePlan.snapshot.tools),
 				createGitHubMcpToolConfig: { disableFormDeferral: true },
 				createPluginDirectories: [pluginDir.fsPath, syntheticPluginDir.fsPath],
@@ -1701,7 +2310,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				},
 				createSkillDirectories: [],
 				createMcpOAuthTokenStorage: 'in-memory',
-				createInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
+				createInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath, URI.file('/additional/.github/instructions').fsPath],
 				createDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github'],
 				createHasExitPlanHandler: true,
 				createAskUserVariant: 'elicitation',
@@ -1709,7 +2318,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createLargeOutput: { maxSizeBytes: 8192 },
 				createManagedSettings: { permissions: managedSettingsPermissions },
 				createStrictModelEnforcement: undefined,
-				createFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: true },
+				createFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: true },
 				createStreaming: true,
 				createEnableSessionStore: true,
 				createRequestExtensions: true,
@@ -1717,11 +2326,12 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createExtensionSdkPath: true,
 				createToolNames: [CopilotExtensionsReloadToolName],
 				createExcludedTools: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+				createExcludedBuiltinAgents: [],
 				createMemory: { enabled: true },
 				createLocalMemoryStore: true,
 				resumeClientName: 'vscode-agent-host',
 				resumeInteractiveUser: true,
-				resumeImageGeneration: { enabled: true },
+				resumeImageGeneration: { enabled: true, watermark: false },
 				resumeCustomAgents: buildCopilotBuiltinAgents(basePlan.snapshot.tools),
 				resumeGitHubMcpToolConfig: { disableFormDeferral: true },
 				resumePluginDirectories: [pluginDir.fsPath, syntheticPluginDir.fsPath],
@@ -1735,7 +2345,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				},
 				resumeSkillDirectories: [],
 				resumeMcpOAuthTokenStorage: 'in-memory',
-				resumeInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
+				resumeInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath, URI.file('/additional/.github/instructions').fsPath],
 				resumeDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github'],
 				resumeHasExitPlanHandler: true,
 				resumeAskUserVariant: 'elicitation',
@@ -1743,7 +2353,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeLargeOutput: { maxSizeBytes: 8192 },
 				resumeManagedSettings: { permissions: managedSettingsPermissions },
 				resumeStrictModelEnforcement: undefined,
-				resumeFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: true },
+				resumeFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: true },
 				resumeStreaming: true,
 				resumeEnableSessionStore: true,
 				resumeRequestExtensions: true,
@@ -1751,13 +2361,15 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeExtensionSdkPath: true,
 				resumeToolNames: [CopilotExtensionsReloadToolName],
 				resumeExcludedTools: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+				resumeExcludedBuiltinAgents: [],
 				resumeMemory: { enabled: true },
 				resumeLocalMemoryStore: true,
 				ephemeralMemory: { enabled: false },
 				ephemeralInteractiveUser: true,
-				ephemeralImageGeneration: { enabled: true },
+				ephemeralImageGeneration: { enabled: true, watermark: false },
 				ephemeralCustomAgents: [],
 				ephemeralAskUserVariant: 'elicitation',
+				ephemeralTgrep: true,
 				ephemeralDetachLongLivedServices: true,
 				ephemeralLocalMemoryStore: false,
 				ephemeralMcpServers: {},
@@ -1805,15 +2417,20 @@ suite('CopilotSessionLauncher shared session config', () => {
 			configValues['vscode.imageGenerationEnabled'] = false;
 			for (const enabled of [undefined, false, true]) {
 				configValues[CopilotCliConfigKey.ImageGeneration] = enabled;
-				const createdWithSetting: CopilotSessionWrapper = sessions.add(await launcher.launch(createPlan, testRuntime));
-				const resumedWithSetting: CopilotSessionWrapper = sessions.add(await launcher.launch(resumePlan, testRuntime));
-				assert.deepStrictEqual({
-					launch: [createdWithSetting.launchImageGenerationEnabled, resumedWithSetting.launchImageGenerationEnabled],
-					config: [createConfigs.at(-1)?.imageGeneration, resumeConfigs.at(-1)?.imageGeneration],
-				}, {
-					launch: [enabled === true, enabled === true],
-					config: [{ enabled: enabled === true }, { enabled: enabled === true }],
-				});
+				for (const watermark of [undefined, false, true]) {
+					configValues[CopilotCliConfigKey.ImageGenerationWatermark] = watermark;
+					const createdWithSetting: CopilotSessionWrapper = sessions.add(await launcher.launch(createPlan, testRuntime));
+					const resumedWithSetting: CopilotSessionWrapper = sessions.add(await launcher.launch(resumePlan, testRuntime));
+					assert.deepStrictEqual({
+						launch: [createdWithSetting.launchImageGenerationEnabled, resumedWithSetting.launchImageGenerationEnabled],
+						watermark: [createdWithSetting.launchImageGenerationWatermark, resumedWithSetting.launchImageGenerationWatermark],
+						config: [createConfigs.at(-1)?.imageGeneration, resumeConfigs.at(-1)?.imageGeneration],
+					}, {
+						launch: [enabled === true, enabled === true],
+						watermark: [watermark === true, watermark === true],
+						config: [{ enabled: enabled === true, watermark: watermark === true }, { enabled: enabled === true, watermark: watermark === true }],
+					});
+				}
 			}
 		} finally {
 			sessions.dispose();
@@ -1827,6 +2444,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			on: () => () => { },
 			disconnect: async () => { },
 			rpc: {
+				agent: emptyAgentCatalog,
 				options: { update: async () => ({ success: true }) },
 				gitHubAuth: {
 					setCredentials: async () => ({ success: true, copilotUserResolved: true }),
@@ -1881,7 +2499,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				sessionId: 'session-1',
 				workingDirectory: testWorkingDirectory,
 				resolvedAgentName: undefined,
-				snapshot: { tools: [], plugins: [], mcpServers: {} },
+				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 				activeClientToolSet: new ActiveClientToolSet(),
 				shellManager: undefined,
 				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -1920,7 +2538,7 @@ suite('CopilotSessionLauncher local index', () => {
 				sessionId: 'session-1',
 				on: () => () => { },
 				disconnect: async () => { },
-				rpc: { options: { update: async () => ({ success: true }) } },
+				rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 			} as unknown as CopilotSession;
 			const client = new class extends mock<CopilotSessionLaunchPlan['client']>() {
 				override readonly rpc = { ...new class extends mock<CopilotSessionLaunchPlan['client']['rpc']>() { }(), managedSettings: createUnmanagedCopilotSettings() };
@@ -1942,7 +2560,7 @@ suite('CopilotSessionLauncher local index', () => {
 				sessionId: 'session-1',
 				workingDirectory: testWorkingDirectory,
 				resolvedAgentName: undefined,
-				snapshot: { tools: [], plugins: [], mcpServers: {} },
+				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 				activeClientToolSet: new ActiveClientToolSet(),
 				shellManager: undefined,
 				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -1970,7 +2588,7 @@ suite('CopilotSessionLauncher ExP assignment context', () => {
 				sessionId: 'session-1',
 				on: () => () => { },
 				disconnect: async () => { },
-				rpc: { options: { update: async () => ({ success: true }) } },
+				rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 			} as unknown as CopilotSession;
 			const client = new class extends mock<CopilotSessionLaunchPlan['client']>() {
 				override readonly rpc = { ...new class extends mock<CopilotSessionLaunchPlan['client']['rpc']>() { }(), managedSettings: createUnmanagedCopilotSettings() };
@@ -1992,7 +2610,7 @@ suite('CopilotSessionLauncher ExP assignment context', () => {
 				sessionId: 'session-1',
 				workingDirectory: testWorkingDirectory,
 				resolvedAgentName: undefined,
-				snapshot: { tools: [], plugins: [], mcpServers: {} },
+				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 				activeClientToolSet: new ActiveClientToolSet(),
 				shellManager: undefined,
 				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -2018,13 +2636,13 @@ suite('CopilotSessionLauncher canvas config', () => {
 				sessionId: 'session-1',
 				on: () => () => { },
 				disconnect: async () => { },
-				rpc: { options: { update: async () => ({ success: true }) } },
+				rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 			} as unknown as CopilotSession),
 			sessionId: 'session-1',
 			model: undefined,
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -2039,7 +2657,7 @@ suite('CopilotSessionLauncher canvas config', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { options: { update: async () => ({ success: true }) } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 		} as unknown as CopilotSession;
 		const client = {
 			createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
@@ -2058,7 +2676,7 @@ suite('CopilotSessionLauncher canvas config', () => {
 			model: undefined,
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -2090,7 +2708,7 @@ suite('CopilotSessionLauncher canvas config', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { options: { update: async () => ({ success: true }) } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 		} as unknown as CopilotSession;
 		const client = {
 			createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
@@ -2108,7 +2726,7 @@ suite('CopilotSessionLauncher canvas config', () => {
 			model: undefined,
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -2152,7 +2770,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { options: { update: async () => ({ success: true }) } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 		} as unknown as CopilotSession;
 		const client = {
 			createSession: async (config: ResumeSessionConfig) => {
@@ -2175,7 +2793,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 				sessionId: 'session-1',
 				workingDirectory: testWorkingDirectory,
 				resolvedAgentName: undefined,
-				snapshot: { tools: [], plugins: [], mcpServers: {} },
+				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 				activeClientToolSet: new ActiveClientToolSet(),
 				shellManager: undefined,
 				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -2198,6 +2816,19 @@ suite('CopilotSessionLauncher resume fallback', () => {
 			sessions.dispose();
 			await launcher.disposeByokProxyHandle();
 		}
+	});
+
+	test('does not clear a requested native selection after a resume agent-not-found error', async () => {
+		const { launcher, plan, getCreateSessionCalls, interactiveUserOptions } = createResumeFailingLaunch('Custom agent \'native:reviewer\' not found');
+		const nativeAgent = {
+			type: CustomizationType.Agent, id: 'native:reviewer',
+			name: 'Reviewer', uri: URI.file('/plugin/agents/reviewer.agent.md').toString(),
+		} as const;
+		await assert.rejects(launcher.launch({
+			...plan, resolvedAgentName: nativeAgent.id,
+			snapshot: { ...plan.snapshot, nativeAgents: [nativeAgent] },
+		}, testRuntime), /Custom agent 'native:reviewer' not found/);
+		assert.deepStrictEqual({ creates: getCreateSessionCalls(), interactiveUserOptions }, { creates: 0, interactiveUserOptions: [true] });
 	});
 
 	test('reports SDK resume failure and fallback creation milestones', async () => {
@@ -2309,6 +2940,8 @@ suite('CopilotSessionLauncher execution subagent', () => {
 		const logService = new CapturingLogService();
 		let descriptorRequests = 0;
 		let disconnects = 0;
+		let clientToolConfiguration: ICopilotClientToolConfiguration | undefined;
+		const launchConfigurations: (ResumeSessionConfig | undefined)[] = [];
 		const session = {
 			sessionId: 'execution-session',
 			on: () => () => { },
@@ -2320,6 +2953,7 @@ suite('CopilotSessionLauncher execution subagent', () => {
 				toolUpdates.push(tools.map(tool => tool.name));
 			},
 			rpc: {
+				agent: emptyAgentCatalog,
 				options: { update: async () => ({ success: true }) },
 				tools: {
 					getBuiltinDescriptors: async () => {
@@ -2339,12 +2973,12 @@ suite('CopilotSessionLauncher execution subagent', () => {
 			},
 		}, logService);
 		const base = {
-			client: returningSession(session),
+			client: returningSession(session, configuration => launchConfigurations.push(configuration)),
 			extensionSdkPath: '/copilot-sdk',
 			sessionId: session.sessionId,
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: hasClientTool ? [{ name: 'executionSubagent' }, { name: 'clientRead' }] : [], plugins: [], mcpServers: {} },
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: hasClientTool ? [{ name: 'executionSubagent' }, { name: 'clientRead' }] : [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
@@ -2354,16 +2988,47 @@ suite('CopilotSessionLauncher execution subagent', () => {
 			: { ...base, kind, fallback: { model: undefined } };
 		const runtime: ICopilotSessionRuntime = {
 			...testRuntime,
+			configureClientTools: configuration => { clientToolConfiguration = configuration; },
 			createClientSdkTools: () => base.snapshot.tools.map(tool => ({
 				name: tool.name,
 				description: tool.name,
 				handler: () => 'done',
 			})),
 		};
-		return { launch: () => launcher.launch(plan, runtime), toolUpdates, logService, descriptorRequests: () => descriptorRequests, disconnects: () => disconnects };
+		return {
+			launch: () => launcher.launch(plan, runtime), toolUpdates, logService,
+			descriptorRequests: () => descriptorRequests, disconnects: () => disconnects,
+			launchConfigurations, initialDefinitions: base.snapshot.tools,
+			configuration: () => clientToolConfiguration,
+			replaceTools: async (tools: Tool[]) => {
+				assert.ok(clientToolConfiguration);
+				await clientToolConfiguration.replaceTools(session, clientToolConfiguration.resolve(tools.map(tool => ({ name: tool.name })), tools).tools);
+			},
+		};
 	}
 
 	for (const kind of ['create', 'resume'] as const) {
+		test(`${kind}: SDK initialization uses the exact tool configuration compared during reconciliation`, async () => {
+			const fixture = setup(kind, true, false);
+			const launched = await fixture.launch();
+			try {
+				const configuration = fixture.configuration();
+				const actual = fixture.launchConfigurations[0];
+				assert.ok(configuration);
+				assert.ok(actual);
+				const keys = Object.keys(configuration.sessionConfig) as (keyof typeof configuration.sessionConfig)[];
+				assert.deepStrictEqual({
+					actual: Object.fromEntries(keys.map(key => [key, actual[key]])),
+					desired: configuration.resolve(fixture.initialDefinitions).sessionConfig,
+				}, {
+					actual: configuration.sessionConfig,
+					desired: configuration.sessionConfig,
+				});
+			} finally {
+				launched.dispose();
+			}
+		});
+
 		for (const defaultEnabled of [false, true]) {
 			for (const runtimeAvailable of [false, true]) {
 				test(`${kind}: runtime execution availability=${runtimeAvailable} controls client tool suppression with VS Code default=${defaultEnabled}`, async () => {
@@ -2422,6 +3087,22 @@ suite('CopilotSessionLauncher execution subagent', () => {
 		}
 	});
 
+	for (const initiallyPresent of [false, true]) {
+		test(`live replacement keeps the extension execution tool suppressed when initially present=${initiallyPresent}`, async () => {
+			const fixture = setup('create', true, true, initiallyPresent);
+			const launched = await fixture.launch();
+			try {
+				await fixture.replaceTools([{ name: 'executionSubagent', handler: () => 'done' }, { name: 'newClient', handler: () => 'done' }]);
+				assert.deepStrictEqual({ requests: fixture.descriptorRequests(), updates: fixture.toolUpdates }, {
+					requests: 1,
+					updates: [...(initiallyPresent ? [['clientRead']] : []), ['newClient']],
+				});
+			} finally {
+				launched.dispose();
+			}
+		});
+	}
+
 	test('disconnects and surfaces a failure to remove the competing extension execution tool', async () => {
 		const error = new Error('setTools failed');
 		const fixture = setup('resume', false, true, true, error);
@@ -2469,7 +3150,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { options: { update: async (options: unknown) => { updates.push(options); return { success: true }; } } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async (options: unknown) => { updates.push(options); return { success: true }; } } },
 		} as unknown as CopilotSession;
 		// Enablement is required for every session regardless of managed rules, so
 		// anything short of success would fail the launch — the success path is what
@@ -2482,7 +3163,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			sessionId: 'session-1',
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -2504,7 +3185,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { disconnected = true; },
-			rpc: { options: { update: async () => ({ success: false }) } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: false }) } },
 		} as unknown as CopilotSession;
 		const launcher = createTestLauncher({ deny: ['Shell(rm -rf *)'] });
 		const plan: CopilotSessionLaunchPlan = {
@@ -2514,7 +3195,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			sessionId: 'session-1',
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -2532,7 +3213,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { disconnected = true; },
-			rpc: { options: { update: async () => ({ success: false }) } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: false }) } },
 		} as unknown as CopilotSession;
 		// No client-bridged rules. `IAgentHostManagedSettingsService` only carries the
 		// legacy VS Code settings bridge, so an enterprise session governed solely by
@@ -2545,7 +3226,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			sessionId: 'session-1',
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -2566,7 +3247,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { disconnected = true; },
-			rpc: { options: { update: async () => { throw new Error('connection closed'); } } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => { throw new Error('connection closed'); } } },
 		} as unknown as CopilotSession;
 		const launcher = createTestLauncher();
 		const plan: CopilotSessionLaunchPlan = {
@@ -2576,7 +3257,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			sessionId: 'session-1',
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -2595,7 +3276,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 				sessionId: 'session-1',
 				on: () => () => { },
 				disconnect: async () => { },
-				rpc: { options: { update: async (options: unknown) => { updates.push(options); return { success: true }; } } },
+				rpc: { agent: emptyAgentCatalog, options: { update: async (options: unknown) => { updates.push(options); return { success: true }; } } },
 			} as unknown as CopilotSession;
 			const launcher = createTestLauncher();
 			const model: ModelSelection = { id: 'gpt-5.6-sol', config: {} };
@@ -2605,7 +3286,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 				sessionId: 'session-1',
 				workingDirectory: testWorkingDirectory,
 				resolvedAgentName: undefined,
-				snapshot: { tools: [], plugins: [], mcpServers: {} },
+				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 				activeClientToolSet: new ActiveClientToolSet(),
 				shellManager: undefined,
 				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -2783,6 +3464,90 @@ suite('getCopilotAutoTier', () => {
 		);
 	});
 
+	test('accepts exactly the provider-advertised tiers while the provider sends Auto metadata', () => {
+		const tiersOf = () => ['balance', 'hydrafusion', 'efficiency', 'premium-v2'].map(tier => getCopilotAutoTier({ id: 'auto', config: { tier } }));
+		let advertised, noneRunnable;
+		try {
+			setAdvertisedAutoModeTiers(['balance', 'hydrafusion', 'premium-v2']);
+			advertised = tiersOf();
+			setAdvertisedAutoModeTiers([]);
+			noneRunnable = tiersOf();
+		} finally {
+			setAdvertisedAutoModeTiers(undefined);
+		}
+		assert.deepStrictEqual({ advertised, noneRunnable, noMetadata: tiersOf() }, {
+			advertised: ['balance', 'hydrafusion', undefined, 'premium-v2'],
+			noneRunnable: [undefined, undefined, undefined, undefined],
+			noMetadata: ['balance', undefined, 'efficiency', undefined],
+		});
+	});
+
+	test('under Fusion, runs Efficiency as Balance only while the provider accepts Balance', () => {
+		const log = new NullLogService();
+		const configurationService = { getRootValue: () => undefined } as Parameters<typeof resolveCopilotAutoTier>[1];
+		const resolve = () => resolveCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }, configurationService, log, 'session');
+		let withBalance, withoutBalance;
+		try {
+			setAdvertisedAutoModeTiers(['efficiency', 'balance', 'hydrafusion'], true);
+			withBalance = resolve();
+			setAdvertisedAutoModeTiers(['efficiency', 'hydrafusion'], true);
+			withoutBalance = resolve();
+		} finally {
+			setAdvertisedAutoModeTiers(undefined);
+		}
+		// Without provider tiers that present Auto as Fusion, Efficiency stays Efficiency.
+		assert.deepStrictEqual({ withBalance, withoutBalance, builtIn: resolve() }, { withBalance: 'balance', withoutBalance: undefined, builtIn: 'efficiency' });
+	});
+
+	test('under Fusion, an Efficiency override the provider cannot run as Balance still takes precedence over the picker', () => {
+		const configurationService = {
+			getRootValue: (_schema: unknown, key: string) => key === CopilotCliConfigKey.AutoModeTierOverride ? 'efficiency' : undefined,
+		} as Parameters<typeof resolveCopilotAutoTier>[1];
+		let tier;
+		try {
+			setAdvertisedAutoModeTiers(['efficiency', 'hydrafusion'], true);
+			tier = resolveCopilotAutoTier({ id: 'auto', config: { tier: 'hydrafusion' } }, configurationService, new NullLogService(), 'session');
+		} finally {
+			setAdvertisedAutoModeTiers(undefined);
+		}
+		assert.strictEqual(tier, undefined);
+	});
+
+	test('pins inline chat on Fusion to the fast tier, whatever effort level the picker holds', () => {
+		const log = new NullLogService();
+		const configOf = (override?: string) => ({
+			getRootValue: (_schema: unknown, key: string) => key === CopilotCliConfigKey.AutoModeTierOverride ? override : undefined,
+		}) as Parameters<typeof resolveCopilotAutoTier>[1];
+		const resolve = (model: ModelSelection, isInlineChat: boolean, override?: string) => resolveCopilotAutoTier(model, configOf(override), log, 'session', isInlineChat);
+		const fusion: ModelSelection = { id: 'auto', config: { tier: 'hydrafusion' } };
+		let result;
+		try {
+			setAdvertisedAutoModeTiers(['balance', 'hydrafusion', 'fast'], true);
+			const fusionTiers = {
+				inline: resolve(fusion, true),
+				inlineWithoutPreference: resolve({ id: 'auto' }, true),
+				inlineConcreteModel: resolve({ id: 'gpt-5', config: { tier: 'hydrafusion' } }, true),
+				inlineWithOverride: resolve(fusion, true, 'balance'),
+				panel: resolve(fusion, false),
+			};
+			setAdvertisedAutoModeTiers(['balance', 'hydrafusion'], true);
+			const fastNotAccepted = resolve(fusion, true);
+			setAdvertisedAutoModeTiers(['efficiency', 'balance', 'fast']);
+			result = { ...fusionTiers, fastNotAccepted, inlineNotFusion: resolve({ id: 'auto', config: { tier: 'efficiency' } }, true) };
+		} finally {
+			setAdvertisedAutoModeTiers(undefined);
+		}
+		assert.deepStrictEqual(result, {
+			inline: 'fast',
+			inlineWithoutPreference: 'fast',
+			inlineConcreteModel: undefined,
+			inlineWithOverride: 'balance',
+			panel: 'hydrafusion',
+			fastNotAccepted: 'hydrafusion',
+			inlineNotFusion: 'efficiency',
+		});
+	});
+
 	test('resolves the override before picker preferences', () => {
 		const log = new NullLogService();
 		const model: ModelSelection = { id: 'auto', config: { tier: 'efficiency' } };
@@ -2806,24 +3571,46 @@ suite('getCopilotAutoTier', () => {
 		);
 	});
 
-	test('resolves an Efficiency preference or override to Balance under Fusion', () => {
+	test('resolves an Efficiency preference or override to Balance only when the provider\'s tiers present Auto as Fusion', () => {
 		const log = new NullLogService();
-		const configOf = (fusion: boolean, autoModeTierOverride?: string): Pick<IAgentConfigurationService, 'getRootValue'> => ({
+		const configOf = (autoModeTierOverride?: string): Pick<IAgentConfigurationService, 'getRootValue'> => ({
 			getRootValue: (schema, key) => {
-				const value = copilotCliConfigSchema.values({ [CopilotCliConfigKey.Fusion]: fusion, autoModeTierOverride })[key];
+				const value = copilotCliConfigSchema.values({ autoModeTierOverride })[key];
 				return schema.validate(key, value) ? value : undefined;
 			},
 		});
-		assert.deepStrictEqual(
-			[
-				resolveCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }, configOf(true), log, 's1'),
-				resolveCopilotAutoTier({ id: 'auto', config: { tier: 'intelligence' } }, configOf(true), log, 's1'),
-				resolveCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }, configOf(false), log, 's1'),
-				resolveCopilotAutoTier({ id: 'auto' }, configOf(true, 'efficiency'), log, 's1'),
-				resolveCopilotAutoTier({ id: 'auto' }, configOf(false, 'efficiency'), log, 's1'),
-			],
-			['balance', 'intelligence', 'efficiency', 'balance', 'efficiency']
-		);
+		const resolveAll = (providerTiers: string[] | undefined, fusion: boolean) => {
+			try {
+				setAdvertisedAutoModeTiers(providerTiers, fusion);
+				return [
+					resolveCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }, configOf(), log, 's1'),
+					resolveCopilotAutoTier({ id: 'auto', config: { tier: 'intelligence' } }, configOf(), log, 's1'),
+					resolveCopilotAutoTier({ id: 'auto' }, configOf('efficiency'), log, 's1'),
+				];
+			} finally {
+				setAdvertisedAutoModeTiers(undefined);
+			}
+		};
+		const isAutoAdvertisedAsFusionWith = (providerTiers: string[], fusion: boolean) => {
+			try {
+				setAdvertisedAutoModeTiers(providerTiers, fusion);
+				return isAutoAdvertisedAsFusion();
+			} finally {
+				setAdvertisedAutoModeTiers(undefined);
+			}
+		};
+		const providerTiers = ['efficiency', 'balance', 'intelligence'];
+		assert.deepStrictEqual({
+			fusion: resolveAll(providerTiers, true),
+			providerTiersWithoutFusion: resolveAll(providerTiers, false),
+			noProviderTiers: resolveAll(undefined, true),
+			noRunnableProviderTiers: isAutoAdvertisedAsFusionWith([], true),
+		}, {
+			fusion: ['balance', 'intelligence', 'balance'],
+			providerTiersWithoutFusion: ['efficiency', 'intelligence', 'efficiency'],
+			noProviderTiers: ['efficiency', 'intelligence', 'efficiency'],
+			noRunnableProviderTiers: false,
+		});
 	});
 });
 
@@ -2943,7 +3730,7 @@ suite('CopilotSessionLauncher resume config', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** Builds a launcher over a config service stubbed with a fixed root-value bag. */
-	function createLauncher(store: DisposableStore, values: SchemaValues<typeof copilotCliConfigSchema.definition> & Record<string, unknown>): CopilotSessionLauncher {
+	function createLauncher(store: DisposableStore, values: SchemaValues<typeof copilotCliConfigSchema.definition> & Record<string, unknown>, fileContents?: string | (() => string)): CopilotSessionLauncher {
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
 		services.set(IByokLmBridgeRegistry, new ByokLmBridgeRegistry());
@@ -2952,6 +3739,11 @@ suite('CopilotSessionLauncher resume config', () => {
 			_serviceBrand: undefined,
 			getRootValue: (_schema: unknown, key: string) => values[key as keyof typeof values],
 		} as unknown as IAgentConfigurationService);
+		if (fileContents !== undefined) {
+			services.set(IFileService, upcastPartial<IFileService>({
+				readFile: async () => upcastPartial<IFileContent>({ value: VSBuffer.fromString(typeof fileContents === 'function' ? fileContents() : fileContents) }),
+			}));
+		}
 		// The launcher's other dependencies are unused by this path and resolve
 		// to `undefined` under the non-strict InstantiationService.
 		const instantiationService = store.add(new InstantiationService(services));
@@ -2962,9 +3754,10 @@ suite('CopilotSessionLauncher resume config', () => {
 	async function buildResumeConfig(
 		launcher: CopilotSessionLauncher,
 		model: ModelSelection | undefined,
-		snapshot: CopilotSessionLaunchPlan['snapshot'] = { tools: [], plugins: [], mcpServers: {} },
+		snapshot: CopilotSessionLaunchPlan['snapshot'] = { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 		createClientSdkTools: ICopilotSessionRuntime['createClientSdkTools'] = () => [],
-	): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean>; memory?: { enabled: boolean } }> {
+		runtimeOverrides: Partial<ICopilotSessionRuntime> = {},
+	): Promise<ResumeSessionConfig> {
 		const plan = {
 			kind: 'resume',
 			client: { rpc: { managedSettings: createUnmanagedCopilotSettings() }, createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
@@ -2978,8 +3771,8 @@ suite('CopilotSessionLauncher resume config', () => {
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
 			fallback: { model },
 		};
-		const runtime = { createClientSdkTools, createServerSdkTools: () => [] };
-		return (await (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ config: { model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean>; memory?: { enabled: boolean } } }> })._buildSessionConfig(plan, runtime, () => { })).config;
+		const runtime = { createClientSdkTools, createServerSdkTools: () => [], ...runtimeOverrides };
+		return (await (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ config: ResumeSessionConfig }> })._buildSessionConfig(plan, runtime, () => { })).config;
 	}
 
 	test('excludes native dynamic workflow tools even when explicitly allowlisted', async () => {
@@ -2996,6 +3789,114 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
+	test('live client tools retain host tools and launch-time description overrides', async () => {
+		const store = disposables.add(new DisposableStore());
+		let configuration: ICopilotClientToolConfiguration | undefined;
+		const tool = (name: string): Tool => ({ name, description: name, handler: () => 'done' });
+		await buildResumeConfig(createLauncher(store, {
+			[AgentHostCanvasesEnabledConfigKey]: true,
+			modelCapabilityOverrides: {
+				'*': { promptOverrideString: 'toolDescriptions:\n  replacement:\n    description: Launch override' },
+			},
+		}), { id: 'gpt-5' }, undefined, () => [tool('original')], {
+			createServerSdkTools: () => [tool('server')],
+			createComputerUseActivationTools: async () => [tool('computer')],
+			configureClientTools: value => { configuration = value; },
+		});
+		assert.ok(configuration);
+		const replacements: Array<{ name: string; description?: string }[]> = [];
+		await configuration.replaceTools({
+			setTools: async tools => { replacements.push(tools.map(({ name, description }) => ({ name, description }))); },
+		} as Pick<CopilotSession, 'setTools'> as CopilotSession, configuration.resolve([{ name: 'replacement' }], [tool('replacement')]).tools);
+		assert.deepStrictEqual({
+			hostNames: [...configuration.hostToolNames].sort(),
+			replacements: replacements.map(tools => tools.filter(tool => tool.name !== CopilotExtensionsReloadToolName)),
+			extensionRetained: replacements[0].some(tool => tool.name === CopilotExtensionsReloadToolName),
+		}, {
+			hostNames: ['computer', CopilotExtensionsReloadToolName, 'server'].sort(),
+			replacements: [[{ name: 'replacement', description: 'Launch override' }, { name: 'server', description: 'server' }, { name: 'computer', description: 'computer' }]],
+			extensionRetained: true,
+		});
+	});
+
+	test('only launch-owned tool projections require restarting after client tool changes', async () => {
+		const store = disposables.add(new DisposableStore());
+		let configuration: ICopilotClientToolConfiguration | undefined;
+		const definitions = [{ name: 'original' }];
+		await buildResumeConfig(createLauncher(store, {
+			toolSearchEnabled: true,
+			modelCapabilityOverrides: { '*': { availableTools: ['custom:*'] } },
+		}), { id: 'gpt-6-luna' }, { discoveredAgents: [], additionalRootInstructions: [], tools: definitions, plugins: [], mcpServers: {} }, undefined, {
+			configureClientTools: value => { configuration = value; },
+		});
+		assert.ok(configuration);
+		const appliedConfiguration = configuration;
+		const changes: CopilotSessionLaunchPlan['snapshot']['tools'][] = [
+			[{ name: 'replacement', description: 'New schema', inputSchema: { type: 'object' } }],
+			[],
+			[{ name: 'original', annotations: { readOnlyHint: true } }],
+			[...definitions, { name: CLIENT_TOOL_SEARCH_REFERENCE_NAME }],
+			[...definitions, { name: SEMANTIC_SEARCH_TOOL_NAME }],
+			[...definitions, { name: 'openBrowserPage' }],
+			[...definitions, { name: 'openBrowserPage' }, { name: 'clickElement' }],
+		];
+		assert.deepStrictEqual(changes.map(tools => isDeepStrictEqual(appliedConfiguration.sessionConfig, appliedConfiguration.resolve(tools).sessionConfig)), [true, true, false, false, false, true, false]);
+	});
+
+	test('custom-agent tool reference remapping remains launch-only', async () => {
+		const store = disposables.add(new DisposableStore());
+		let configuration: ICopilotClientToolConfiguration | undefined;
+		const reference = 'publisher/tools.read';
+		const definition = withAgentToolFullReferenceName({ name: 'zetaRead', annotations: { readOnlyHint: true } }, reference);
+		const other = withAgentToolFullReferenceName({ name: 'alphaRead', annotations: { readOnlyHint: true } }, 'unreferenced/tool');
+		const uri = URI.file('/workspace/reviewer.agent.md');
+		let reads = 0;
+		await buildResumeConfig(createLauncher(store, {}, () => {
+			reads++;
+			return `---\nname: reviewer\ntools: ["${reference}"]\n---\nReview`;
+		}), undefined, {
+			discoveredAgents: [{
+				name: 'reviewer', uri,
+				customization: { type: CustomizationType.Agent, id: uri.toString(), uri: uri.toString(), name: 'reviewer' },
+			}],
+			additionalRootInstructions: [], tools: [definition, other], plugins: [], mcpServers: {},
+		}, undefined, { configureClientTools: value => { configuration = value; } });
+		assert.ok(configuration);
+		const appliedConfiguration = configuration;
+		const changes: CopilotSessionLaunchPlan['snapshot']['tools'][] = [
+			[other, definition],
+			[{ ...definition, description: 'Changed description', inputSchema: { type: 'object' } }, other],
+			[definition, withAgentToolFullReferenceName(other, 'different/unreferenced/tool')],
+			[withAgentToolFullReferenceName({ name: 'renamed' }, reference), other],
+			[],
+		];
+		assert.deepStrictEqual({
+			equivalent: changes.map(tools => isDeepStrictEqual(appliedConfiguration.sessionConfig, appliedConfiguration.resolve(tools).sessionConfig)),
+			agentTools: configuration.sessionConfig.customAgents.find(agent => agent.name === getSdkCustomAgentName(uri))?.tools,
+			reads,
+		}, { equivalent: [true, true, true, false, false], agentTools: ['zetaRead'], reads: 1 });
+	});
+
+	test('filtered client tools do not change launch-only prompt, search, or semantic-search projections', async () => {
+		const store = disposables.add(new DisposableStore());
+		let configuration: ICopilotClientToolConfiguration | undefined;
+		await buildResumeConfig(createLauncher(store, {
+			toolSearchEnabled: true,
+			modelCapabilityOverrides: {
+				'*': {
+					availableTools: ['custom:*'], excludedTools: [
+						`custom:${CLIENT_TOOL_SEARCH_REFERENCE_NAME}`, 'custom:openBrowserPage', `custom:${SEMANTIC_SEARCH_TOOL_NAME}`,
+					]
+				}
+			},
+		}), { id: 'gpt-6-luna' }, undefined, undefined, { configureClientTools: value => { configuration = value; } });
+		assert.ok(configuration);
+		assert.deepStrictEqual(configuration.resolve([
+			{ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME }, { name: SEMANTIC_SEARCH_TOOL_NAME },
+			{ name: 'openBrowserPage' }, { name: 'clickElement' },
+		]).sessionConfig, configuration.sessionConfig);
+	});
+
 	test('adds the on-device rows to create and resume configs outside the BYOK gate', async () => {
 		const store = disposables.add(new DisposableStore());
 		const launcher = createLauncher(store, { [AgentHostByokModelsEnabledConfigKey]: false });
@@ -3006,7 +3907,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			sessionId: 'sess-1',
 			workingDirectory: URI.file('/workspace'),
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
@@ -3024,12 +3925,46 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
-	test('enables experimental mode with HydraFusion or Fusion opt-in', async () => {
+	test('launches with the Computer Use activation tools the runtime offers, except for ephemeral chats', async () => {
+		const store = disposables.add(new DisposableStore());
+		const launcher = createLauncher(store, {});
+		const activationTool = { name: 'enable_computer_use', description: 'Ask the user to turn on Computer Use.', parameters: { type: 'object', properties: {} }, handler: async () => ({ textResultForLlm: '', resultType: 'success' as const }) };
+		let offers = 0;
+		const build = async (isEphemeral: boolean) => (await (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ config: ResumeSessionConfig }> })._buildSessionConfig({
+			kind: 'resume',
+			client: { rpc: { managedSettings: createUnmanagedCopilotSettings() }, createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
+			extensionSdkPath: '/copilot-sdk',
+			sessionId: 'sess-1',
+			workingDirectory: URI.file('/workspace'),
+			resolvedAgentName: undefined,
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
+			fallback: { model: { id: 'gpt-5' } },
+			isEphemeral,
+		}, {
+			createClientSdkTools: () => [],
+			createServerSdkTools: () => [],
+			createComputerUseActivationTools: async () => { offers++; return [activationTool]; },
+		}, () => { })).config;
+		assert.deepStrictEqual({
+			durable: (await build(false)).tools?.map(tool => tool.name),
+			ephemeral: (await build(true)).tools?.map(tool => tool.name),
+			offers,
+		}, {
+			durable: ['enable_computer_use'],
+			ephemeral: [],
+			offers: 1,
+		});
+	});
+
+	test('enables experimental mode with HydraFusion or dynamic Auto tiers opt-in', async () => {
 		const store = disposables.add(new DisposableStore());
 		const enabled = await buildResumeConfig(createLauncher(store, { hydraFusion: true }), { id: 'hydrafusion' });
 		const v2 = await buildResumeConfig(createLauncher(store, { hydraFusion: true, hydraFusionV2: true }), { id: 'hydrafusion' });
 		const v2WithoutHydraFusion = await buildResumeConfig(createLauncher(store, { hydraFusionV2: true }), { id: 'gpt-5' });
-		const fusion = await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.Fusion]: true, hydraFusion: false, hydraFusionV2: false }), { id: 'auto' });
+		const fusion = await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.DynamicAutoTiers]: true, hydraFusion: false, hydraFusionV2: false }), { id: 'auto' });
 		const disabled = await buildResumeConfig(createLauncher(store, { hydraFusion: false }), { id: 'gpt-5' });
 		const notOptedIn = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
 		const connectors = await buildResumeConfig(createLauncher(store, { [AgentHostMcpConnectorsEnabledConfigKey]: true }), { id: 'gpt-5' });
@@ -3054,44 +3989,47 @@ suite('CopilotSessionLauncher resume config', () => {
 				...catalogInstallationFeatureFlags,
 				AUTO_APPROVAL: true,
 				CONNECTORS: false,
-				TGREP: false,
+				TGREP: true,
 				CONTENT_EXCLUSION: true,
 				DETACH_LONG_LIVED_SERVICES: true,
 				copilot_swe_agent_memory_in_repo_store: false,
 				HYDRAFUSION: true,
 				HYDRAFUSION_ROLLOUT: true,
+				HYDRAFUSION_INTERRUPTED_COMMIT: true,
 			},
 			v2FeatureFlags: {
 				...catalogInstallationFeatureFlags,
 				AUTO_APPROVAL: true,
 				CONNECTORS: false,
-				TGREP: false,
+				TGREP: true,
 				CONTENT_EXCLUSION: true,
 				DETACH_LONG_LIVED_SERVICES: true,
 				copilot_swe_agent_memory_in_repo_store: false,
 				HYDRAFUSION: true,
 				HYDRAFUSION_ROLLOUT: true,
+				HYDRAFUSION_INTERRUPTED_COMMIT: true,
 				HYDRAFUSION_PLAN_V2: true,
 			},
-			v2WithoutHydraFusionFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
+			v2WithoutHydraFusionFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
 			fusionExperimentalMode: true,
 			fusionFeatureFlags: {
 				...catalogInstallationFeatureFlags,
 				AUTO_APPROVAL: true,
 				CONNECTORS: false,
-				TGREP: false,
+				TGREP: true,
 				CONTENT_EXCLUSION: true,
 				DETACH_LONG_LIVED_SERVICES: true,
 				copilot_swe_agent_memory_in_repo_store: false,
 				HYDRAFUSION: true,
 				HYDRAFUSION_ROLLOUT: true,
+				HYDRAFUSION_INTERRUPTED_COMMIT: true,
 				HYDRAFUSION_PLAN_V2: true,
 			},
 			disabledExperimentalMode: undefined,
-			disabledFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
+			disabledFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
 			defaultExperimentalMode: undefined,
-			defaultFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
-			connectorFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
+			defaultFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
+			connectorFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: true, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
 		});
 	});
 
@@ -3099,7 +4037,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		const store = disposables.add(new DisposableStore());
 		const configs = {
 			v2: await buildResumeConfig(createLauncher(store, { hydraFusion: true, hydraFusionV2: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'hydrafusion' }),
-			fusion: await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.Fusion]: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'auto' }),
+			fusion: await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.DynamicAutoTiers]: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'auto' }),
 			v1: await buildResumeConfig(createLauncher(store, { hydraFusion: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'hydrafusion' }),
 			withoutHydraFusion: await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'gpt-5' }),
 			notOptedIn: await buildResumeConfig(createLauncher(store, { hydraFusion: true, hydraFusionV2: true }), { id: 'hydrafusion' }),
@@ -3114,17 +4052,17 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
-	test('configures repository-size-gated tgrep feature flag', async () => {
+	test('enables repository-size-gated tgrep by default and ignores the removed opt-out', async () => {
 		const store = disposables.add(new DisposableStore());
-		const disabled = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
-		const enabled = await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.Tgrep]: true }), { id: 'gpt-5' });
+		const defaultConfig = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
+		const legacyOptOut = await buildResumeConfig(createLauncher(store, { tgrep: false }), { id: 'gpt-5' });
 
 		assert.deepStrictEqual({
-			disabled: disabled.featureFlags,
-			enabled: enabled.featureFlags,
+			default: defaultConfig.featureFlags?.TGREP,
+			legacyOptOut: legacyOptOut.featureFlags?.TGREP,
 		}, {
-			disabled: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
-			enabled: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
+			default: true,
+			legacyOptOut: true,
 		});
 	});
 
@@ -3140,6 +4078,37 @@ suite('CopilotSessionLauncher resume config', () => {
 			disabled: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 			enabled: [...alwaysDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 		});
+	});
+
+	test('controls the built-in Explore agent independently of the search subagent', async () => {
+		const store = disposables.add(new DisposableStore());
+		const results = [];
+		for (const searchSubagent of [false, true]) {
+			for (const exploreAgent of [undefined, true, false]) {
+				const config = await buildResumeConfig(createLauncher(store, { searchSubagent, exploreAgent }), { id: 'gpt-5' });
+				results.push({
+					excludedBuiltinAgents: config.excludedBuiltinAgents,
+					searchExcluded: Array.isArray(config.excludedTools) && config.excludedTools.includes('builtin:search_code_subagent'),
+				});
+			}
+		}
+		assert.deepStrictEqual(results, [
+			{ excludedBuiltinAgents: [], searchExcluded: true },
+			{ excludedBuiltinAgents: [], searchExcluded: true },
+			{ excludedBuiltinAgents: ['explore'], searchExcluded: true },
+			{ excludedBuiltinAgents: [], searchExcluded: false },
+			{ excludedBuiltinAgents: [], searchExcluded: false },
+			{ excludedBuiltinAgents: ['explore'], searchExcluded: false },
+		]);
+	});
+
+	test('preserves explicit tool exclusions when the search subagent is enabled', async () => {
+		const store = disposables.add(new DisposableStore());
+		const config = await buildResumeConfig(createLauncher(store, {
+			searchSubagent: true,
+			modelCapabilityOverrides: { '*': { excludedTools: ['builtin:search_code_subagent'] } },
+		}), { id: 'gpt-5' });
+		assert.deepStrictEqual(config.excludedTools, ['builtin:search_code_subagent', ...alwaysDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]);
 	});
 
 	test('explicitly disables Copilot Memory and the local store unless opted in', async () => {
@@ -3173,16 +4142,17 @@ suite('CopilotSessionLauncher resume config', () => {
 			disabled: disabled.featureFlags,
 			enabled: enabled.featureFlags,
 		}, {
-			disabled: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
-			enabled: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, STABILITY_ORDERED_SYSTEM_PROMPT_V2: true },
+			disabled: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
+			enabled: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, STABILITY_ORDERED_SYSTEM_PROMPT_V2: true },
 		});
 	});
 
 	test('exposes only the client semantic-search override', async () => {
 		const store = new DisposableStore();
-		const snapshot = { tools: [{ name: SEMANTIC_SEARCH_TOOL_NAME }], plugins: [], mcpServers: {} };
-		const disabled = await buildResumeConfig(createLauncher(store, {}), undefined, { tools: [], plugins: [], mcpServers: {} });
+		const snapshot = { discoveredAgents: [], additionalRootInstructions: [], tools: [{ name: SEMANTIC_SEARCH_TOOL_NAME }], plugins: [], mcpServers: {} };
+		const disabled = await buildResumeConfig(createLauncher(store, {}), undefined, { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} });
 		const enabled = await buildResumeConfig(createLauncher(store, {}), undefined, snapshot);
+		const app = await buildResumeConfig(createLauncher(store, {}), undefined, { ...snapshot, tools: snapshot.tools.map(tool => withAgentToolOrigin(tool, 'mcpApp')) });
 		const filtered = await buildResumeConfig(
 			createLauncher(store, { modelCapabilityOverrides: { '*': { excludedTools: [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`] } } }),
 			undefined,
@@ -3190,10 +4160,66 @@ suite('CopilotSessionLauncher resume config', () => {
 		);
 
 		assert.deepStrictEqual(
-			[disabled.excludedTools, enabled.excludedTools, filtered.excludedTools],
-			[[...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], defaultDisabledTools, [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`, ...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]],
+			[disabled.excludedTools, enabled.excludedTools, filtered.excludedTools, app.excludedTools],
+			[[...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], defaultDisabledTools, [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`, ...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]],
 		);
 		store.dispose();
+	});
+
+	test('withholds the semantic-search override while managed permission rules are active', async () => {
+		const store = disposables.add(new DisposableStore());
+		const launcher = createLauncher(store, {});
+		const build = async (permissions: Record<string, string[]> | undefined, failClosed = false) => {
+			const withheld: (string[] | undefined)[] = [];
+			let configuration: ICopilotClientToolConfiguration | undefined;
+			const managedSettings = new class extends mock<CopilotClient['rpc']['managedSettings']>() {
+				override resolve = async () => ({
+					resolved: { source: 'none' as const, serverManaged: permissions !== undefined, deviceManaged: false, clientManaged: false, failClosed, bypassPermissionsDisabled: false, managedKeys: permissions ? ['permissions'] : [], ...(permissions ? { settings: { permissions } } : {}) },
+					layers: [], diagnostics: [],
+				});
+			}();
+			const { config } = await (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ config: ResumeSessionConfig }> })._buildSessionConfig({
+				kind: 'resume',
+				client: { rpc: { managedSettings }, createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
+				extensionSdkPath: '/copilot-sdk',
+				sessionId: 'sess-1',
+				workingDirectory: URI.file('/workspace'),
+				resolvedAgentName: undefined,
+				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [{ name: SEMANTIC_SEARCH_TOOL_NAME }], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(),
+				shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
+				fallback: { model: undefined },
+			}, {
+				createClientSdkTools: (_toolSearchActive: boolean, _hostToolNames?: ReadonlySet<string>, withheldToolNames?: ReadonlySet<string>) => {
+					withheld.push(withheldToolNames && [...withheldToolNames]);
+					return [];
+				},
+				configureClientTools: (value: ICopilotClientToolConfiguration) => { configuration = value; },
+				createServerSdkTools: () => [],
+			}, () => { });
+			const builtinExcluded = (excludedTools: SessionConfig['excludedTools']) => Array.isArray(excludedTools) && excludedTools.includes(`builtin:${SEMANTIC_SEARCH_TOOL_NAME}`);
+			assert.ok(configuration);
+			return {
+				withheld,
+				liveUpdateWithheld: [...configuration.withheldToolNames],
+				builtinExcluded: builtinExcluded(config.excludedTools),
+				// A live update republishing the tool keeps the runtime's built-in excluded.
+				liveUpdateBuiltinExcluded: builtinExcluded(configuration.resolve([{ name: SEMANTIC_SEARCH_TOOL_NAME }]).sessionConfig.excludedTools),
+			};
+		};
+
+		assert.deepStrictEqual({
+			unmanaged: await build(undefined),
+			ask: await build({ ask: ['Shell'] }),
+			readDenied: await build({ deny: ['Read(/denied/**)'] }),
+			failClosed: await build(undefined, true),
+		}, {
+			unmanaged: { withheld: [[]], liveUpdateWithheld: [], builtinExcluded: false, liveUpdateBuiltinExcluded: false },
+			ask: { withheld: [[SEMANTIC_SEARCH_TOOL_NAME]], liveUpdateWithheld: [SEMANTIC_SEARCH_TOOL_NAME], builtinExcluded: true, liveUpdateBuiltinExcluded: true },
+			readDenied: { withheld: [[SEMANTIC_SEARCH_TOOL_NAME]], liveUpdateWithheld: [SEMANTIC_SEARCH_TOOL_NAME], builtinExcluded: true, liveUpdateBuiltinExcluded: true },
+			failClosed: { withheld: [[SEMANTIC_SEARCH_TOOL_NAME]], liveUpdateWithheld: [SEMANTIC_SEARCH_TOOL_NAME], builtinExcluded: true, liveUpdateBuiltinExcluded: true },
+		});
 	});
 
 	test('forwards a configured override on resume and leaves the effort untouched otherwise', async () => {
@@ -3325,6 +4351,8 @@ suite('CopilotSessionLauncher resume config', () => {
 	test('tool search gates on the flag, model support, and the family alias', async () => {
 		const store = new DisposableStore();
 		const searchSnapshot = {
+			discoveredAgents: [],
+			additionalRootInstructions: [],
 			tools: [{ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME, description: 'Search tools', inputSchema: { type: 'object' as const, properties: {} } }],
 			plugins: [],
 			mcpServers: {},
@@ -3357,6 +4385,26 @@ suite('CopilotSessionLauncher resume config', () => {
 		store.dispose();
 	});
 
+	test('an app named toolSearch does not activate the trusted tool-search override', async () => {
+		const store = new DisposableStore();
+		const decisions: boolean[] = [];
+		const config = await buildResumeConfig(
+			createLauncher(store, { toolSearchEnabled: true }),
+			{ id: 'claude-opus-4.8' },
+			{
+				discoveredAgents: [], additionalRootInstructions: [],
+				tools: [withAgentToolOrigin({ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME }, 'mcpApp')],
+				plugins: [], mcpServers: {},
+			},
+			toolSearchActive => {
+				decisions.push(toolSearchActive);
+				return [];
+			},
+		);
+		assert.deepStrictEqual({ config: config.toolSearch, decisions }, { config: { enabled: false }, decisions: [false] });
+		store.dispose();
+	});
+
 	test('uses one launch-time tool-search decision for the config and client tools', async () => {
 		const store = new DisposableStore();
 		const decisions: boolean[] = [];
@@ -3368,6 +4416,8 @@ suite('CopilotSessionLauncher resume config', () => {
 			}),
 			model,
 			{
+				discoveredAgents: [],
+				additionalRootInstructions: [],
 				tools: [{ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME, description: 'Search tools', inputSchema: { type: 'object', properties: {} } }],
 				plugins: [],
 				mcpServers: {},
@@ -3384,6 +4434,18 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 		store.dispose();
 	});
+
+	test('forwards the co-author trailer setting and otherwise leaves the SDK default', async () => {
+		const store = new DisposableStore();
+		const coauthorEnabled = async (values: SchemaValues<typeof copilotCliConfigSchema.definition>) =>
+			(await buildResumeConfig(createLauncher(store, values), undefined)).coauthorEnabled;
+
+		assert.deepStrictEqual(
+			[await coauthorEnabled({ includeCoAuthoredBy: false }), await coauthorEnabled({ includeCoAuthoredBy: true }), await coauthorEnabled({})],
+			[false, true, undefined],
+		);
+		store.dispose();
+	});
 });
 
 /** Resume preserves runtime-owned routing state; a turn's selection is applied through setModel. */
@@ -3392,13 +4454,14 @@ suite('CopilotSessionLauncher auto tier', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** Launches a session and returns the `capi` options the SDK was called with. */
-	async function capiOptionsFor(kind: 'create' | 'resume' | 'fallback', model: ModelSelection | undefined, override?: string): Promise<SessionConfig['capi'][]> {
+	async function capiOptionsFor(kind: 'create' | 'resume' | 'fallback', model: ModelSelection | undefined, override?: string, isInlineChatSurface?: boolean): Promise<SessionConfig['capi'][]> {
 		const capiCalls: SessionConfig['capi'][] = [];
 		const session = {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { },
 			rpc: {
+				agent: emptyAgentCatalog,
 				options: { update: async () => ({ success: true }) },
 			},
 		} as unknown as CopilotSession;
@@ -3425,10 +4488,11 @@ suite('CopilotSessionLauncher auto tier', () => {
 			sessionId: 'session-1',
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+			isInlineChatSurface,
 		};
 		const plan: CopilotSessionLaunchPlan = kind === 'create'
 			? { ...base, kind: 'create', model }
@@ -3494,4 +4558,154 @@ suite('CopilotSessionLauncher auto tier', () => {
 			});
 		});
 	}
+
+	test('pins inline chat on Fusion to the fast tier when creating and resuming', async () => {
+		const model: ModelSelection = { id: 'auto', config: { tier: 'hydrafusion' } };
+		let result;
+		try {
+			setAdvertisedAutoModeTiers(['balance', 'hydrafusion', 'fast'], true);
+			result = {
+				created: await capiOptionsFor('create', model, undefined, true),
+				resumed: await capiOptionsFor('resume', model, undefined, true),
+				emptyFallback: await capiOptionsFor('fallback', model, undefined, true),
+				overridden: await capiOptionsFor('create', model, 'balance', true),
+				panel: await capiOptionsFor('create', model),
+			};
+		} finally {
+			setAdvertisedAutoModeTiers(undefined);
+		}
+		assert.deepStrictEqual(result, {
+			created: [{ autoTier: 'fast' }],
+			resumed: [{ autoTier: 'fast' }],
+			emptyFallback: [{ autoTier: 'fast' }, { autoTier: 'fast' }],
+			overridden: [{ autoTier: 'balance' }],
+			panel: [{ autoTier: 'hydrafusion' }],
+		});
+	});
+});
+
+suite('CopilotSessionLauncher working directory trust', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const folder = URI.file('/repos/project');
+	const trusted = (...uris: URI[]): IAgentHostWorkspaceTrust => ({ enabled: true, trustedUris: uris.map(uri => uri.toString()) });
+
+	/**
+	 * Launches a session and returns, per SDK call, the `trustWorkingDirectory`
+	 * it was opened with (`'absent'` when the field is left out), plus the
+	 * grant the session wrapper recorded.
+	 */
+	async function trustFor(kind: 'create' | 'resume' | 'fallback', trust: IAgentHostWorkspaceTrust | undefined, plan?: Partial<Pick<CopilotSessionLaunchPlan, 'workingDirectory' | 'workspaceless' | 'worktreeRepository'>>): Promise<{ calls: string[]; recorded: string | undefined }> {
+		const calls: string[] = [];
+		const record = (config: object | undefined) => calls.push(config && Object.hasOwn(config, 'trustWorkingDirectory') ? String((config as SessionConfig).trustWorkingDirectory) : 'absent');
+		const session = {
+			sessionId: 'session-1',
+			on: () => () => { },
+			disconnect: async () => { },
+			rpc: {
+				agent: emptyAgentCatalog,
+				options: { update: async () => ({ success: true }) },
+			},
+		} as unknown as CopilotSession;
+		const client: CopilotSessionLaunchPlan['client'] = {
+			rpc: { managedSettings: createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+			createSession: async config => {
+				record(config);
+				return session;
+			},
+			resumeSession: async (_sessionId, config) => {
+				record(config);
+				if (kind === 'fallback') {
+					throw Object.assign(new Error('Session has no events'), { code: -32603 });
+				}
+				return session;
+			},
+		};
+		const launcher = createTestLauncher(undefined, { [AgentHostWorkspaceTrustConfigKey]: trust });
+		const base = {
+			client,
+			extensionSdkPath: '/copilot-sdk',
+			sessionId: 'session-1',
+			workingDirectory: folder,
+			resolvedAgentName: undefined,
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+			...plan,
+		};
+		const launchPlan: CopilotSessionLaunchPlan = kind === 'create'
+			? { ...base, kind: 'create', model: undefined }
+			: { ...base, workingDirectory: base.workingDirectory ?? folder, kind: 'resume', fallback: { model: undefined } };
+
+		const sessions = new DisposableStore();
+		try {
+			const wrapper = sessions.add(await launcher.launch(launchPlan, testRuntime));
+			return { calls, recorded: wrapper.launchWorkingDirectoryTrust };
+		} finally {
+			sessions.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
+	}
+
+	test('grants session trust on create only for a trusted working directory', async () => {
+		assert.deepStrictEqual({
+			trustedFolder: await trustFor('create', trusted(folder)),
+			trustedParent: await trustFor('create', trusted(URI.file('/repos'))),
+			trustDisabled: await trustFor('create', { enabled: false, trustedUris: [] }),
+			untrustedFolder: await trustFor('create', trusted(URI.file('/repos/other'))),
+			siblingWithSharedPrefix: await trustFor('create', trusted(URI.file('/repos/proj'))),
+			noTrustSnapshot: await trustFor('create', undefined),
+		}, {
+			trustedFolder: { calls: ['session'], recorded: 'session' },
+			trustedParent: { calls: ['session'], recorded: 'session' },
+			trustDisabled: { calls: ['session'], recorded: 'session' },
+			untrustedFolder: { calls: ['absent'], recorded: undefined },
+			siblingWithSharedPrefix: { calls: ['absent'], recorded: undefined },
+			noTrustSnapshot: { calls: ['absent'], recorded: undefined },
+		});
+	});
+
+	test('never grants trust on resume, but grants it when an empty session falls back to create', async () => {
+		assert.deepStrictEqual({
+			resume: await trustFor('resume', trusted(folder)),
+			fallback: await trustFor('fallback', trusted(folder)),
+		}, {
+			resume: { calls: ['absent'], recorded: undefined },
+			fallback: { calls: ['absent', 'session'], recorded: 'session' },
+		});
+	});
+
+	test('grants no trust to workspace-less, folderless, or non-file working directories, even with trust disabled', async () => {
+		const disabled: IAgentHostWorkspaceTrust = { enabled: false, trustedUris: [] };
+		assert.deepStrictEqual({
+			workspaceless: await trustFor('create', disabled, { workspaceless: true }),
+			noWorkingDirectory: await trustFor('create', disabled, { workingDirectory: undefined }),
+			virtual: await trustFor('create', disabled, { workingDirectory: URI.from({ scheme: 'vscode-vfs', path: '/repos/project' }) }),
+		}, {
+			workspaceless: { calls: ['absent'], recorded: undefined },
+			noWorkingDirectory: { calls: ['absent'], recorded: undefined },
+			virtual: { calls: ['absent'], recorded: undefined },
+		});
+	});
+
+	test('a created worktree inherits the trust of its repository', async () => {
+		const worktree = URI.file('/repos/project.worktrees/agents-task');
+		assert.deepStrictEqual({
+			trustedRepository: await trustFor('create', trusted(folder), { workingDirectory: worktree, worktreeRepository: folder }),
+			untrustedRepository: await trustFor('create', trusted(URI.file('/repos/other')), { workingDirectory: worktree, worktreeRepository: folder }),
+			notCreatedByVSCode: await trustFor('create', trusted(folder), { workingDirectory: worktree }),
+			notUnderRepositoryWorktrees: await trustFor('create', trusted(folder), { workingDirectory: URI.file('/elsewhere/agents-task'), worktreeRepository: folder }),
+		}, {
+			trustedRepository: { calls: ['session'], recorded: 'session' },
+			untrustedRepository: { calls: ['absent'], recorded: undefined },
+			notCreatedByVSCode: { calls: ['absent'], recorded: undefined },
+			notUnderRepositoryWorktrees: { calls: ['absent'], recorded: undefined },
+		});
+	});
+
+	test('matches trusted folders ignoring path case except on Linux', () => {
+		assert.strictEqual(getCopilotWorkingDirectoryTrust({ workingDirectory: URI.file('/Repos/Project') }, trusted(folder)), isLinux ? undefined : 'session');
+	});
 });
