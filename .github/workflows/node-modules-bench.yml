@@ -2,15 +2,11 @@ name: node_modules restore benchmark
 
 # Throwaway benchmark of ways to restore node_modules on the runners of the PR checks.
 #
-# Run 8: run 7 showed what limits each image: Windows writes 330-640 MB/s to its disk, macOS
-# 750 MB/s, and node_modules held 2 GB of copies that Node's copyFile did not clone. The checkout
-# spent 8 seconds downloading the whole tree. So the images now hold:
-# - node_modules with the copies of the same content as block clones (ReFS, APFS), or deduplicated
-#   by squashfs (Linux);
-# - a seeded .git: the objects of an older commit of main with a tag, so that the shallow fetch of
-#   actions/checkout downloads only what changed.
-# Windows also tries cached I/O and a VHDX that stays in memory, and an image that ReFS
-# deduplicates and compresses. macOS also attaches a disk image on demand over HTTP.
+# Run 9 confirms the Windows image: node_modules with the copies of the same content cloned by
+# CopyFile on ReFS, and a seeded .git: the objects of an older commit of main with a tag, so that
+# the shallow fetch of actions/checkout downloads only what changed. Runs 7 and 8 measured Linux
+# (squashfs and overlays) and macOS (ASIF), whose jobs are off: Windows writes its disk at
+# 250-650 MB/s, so the size of its image decides, with cached I/O and a temporary file.
 # The prepare jobs upload the images as artifacts without a zip, which, unlike new cache entries,
 # cannot evict the caches of the PR jobs from the full repository cache. The other jobs set up a
 # workspace like a PR job on a fresh runner, and build. The scripts are in
@@ -63,9 +59,8 @@ jobs:
     runs-on: vscode-large-runners-windows-8-core
     timeout-minutes: 120
     outputs:
-      nm-clone: ${{ steps.up-nm-clone.outputs.artifact-id }}
+      nm-copyfile: ${{ steps.up-nm-copyfile.outputs.artifact-id }}
       nm-pruned: ${{ steps.up-nm-pruned.outputs.artifact-id }}
-      nm-dedup: ${{ steps.up-nm-dedup.outputs.artifact-id }}
     steps:
       - &dev-drive
         # Same as in pr-win32-test.yml
@@ -163,24 +158,20 @@ jobs:
         run: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = 'Stop'
-          exec { node .github/workflows/node_modules_bench/bench.ts images run8 }
+          exec { node .github/workflows/node_modules_bench/bench.ts images run9 }
 
       - name: Upload the results
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with: { name: nmb-results-prepare-windows, path: .build/nmb/results.*, retention-days: 3, if-no-files-found: ignore }
       - name: Upload the node_modules image
-        id: up-nm-clone
+        id: up-nm-copyfile
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with: { path: .build/nmb/nm-clone-L9.nmbimg, archive: false, retention-days: 3, if-no-files-found: warn }
+        with: { path: .build/nmb/nm-copyfile-L9.nmbimg, archive: false, retention-days: 3, if-no-files-found: warn }
       - name: Upload the pruned node_modules image
         id: up-nm-pruned
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with: { path: .build/nmb/nm-pruned-L9.nmbimg, archive: false, retention-days: 3, if-no-files-found: warn }
-      - name: Upload the deduplicated and compressed node_modules image
-        id: up-nm-dedup
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with: { path: .build/nmb/nm-dedup-L9.nmbimg, archive: false, retention-days: 3, if-no-files-found: warn }
 
   # Today's PR job, plus the steps that read node_modules
   windows-today:
@@ -216,11 +207,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: 'node_modules image, block clones, uncached I/O', image: nm-clone, cached: 'false', temporary: 'false' }
-          - { name: 'node_modules image, block clones, cached I/O', image: nm-clone, cached: 'true', temporary: 'false' }
-          - { name: 'node_modules image, block clones, cached I/O, temporary file', image: nm-clone, cached: 'true', temporary: 'true' }
-          - { name: 'pruned node_modules image, block clones, cached I/O', image: nm-pruned, cached: 'true', temporary: 'false' }
-          - { name: 'ReFS deduplicated and compressed image, cached I/O', image: nm-dedup, cached: 'true', temporary: 'false' }
+          - { name: 'node_modules image, uncached I/O', image: nm-copyfile, cached: 'false', temporary: 'false' }
+          - { name: 'node_modules image, cached I/O', image: nm-copyfile, cached: 'true', temporary: 'false' }
+          - { name: 'node_modules image, cached I/O, temporary file', image: nm-copyfile, cached: 'true', temporary: 'true' }
+          - { name: 'pruned node_modules image, cached I/O, temporary file', image: nm-pruned, cached: 'true', temporary: 'true' }
     env:
       NMB_TOKEN: ${{ github.token }}
     steps:
@@ -292,6 +282,7 @@ jobs:
 
   prepare-linux:
     name: 'Prepare: Linux'
+    if: false
     runs-on: vscode-large-runners-ubuntu-8-core
     timeout-minutes: 90
     outputs:
@@ -348,6 +339,7 @@ jobs:
 
   posix-today:
     name: '${{ matrix.os }}: today'
+    if: false
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     strategy:
@@ -374,6 +366,7 @@ jobs:
   # per node_modules folder for the writes, and a seeded .git
   linux-image:
     name: 'Linux: squashfs lz4hc + overlays + seeded .git, ${{ matrix.connections }} connections'
+    if: false
     needs: [scripts, prepare-linux]
     runs-on: vscode-large-runners-ubuntu-8-core
     timeout-minutes: 60
@@ -427,6 +420,7 @@ jobs:
 
   prepare-macos:
     name: 'Prepare: macOS'
+    if: false
     runs-on: vscode-large-runners-macos-5-core-0
     timeout-minutes: 90
     outputs:
@@ -490,6 +484,7 @@ jobs:
 
   macos-image:
     name: 'macOS: ${{ matrix.name }}'
+    if: false
     needs: [scripts, prepare-macos]
     runs-on: vscode-large-runners-macos-5-core-0
     timeout-minutes: 60
