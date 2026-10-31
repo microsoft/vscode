@@ -1641,6 +1641,46 @@ suite('ChatInputModelSelectionController', () => {
 		});
 	});
 
+	test('restoring a BYOK original applies the session-targeted copy the host publishes', () => {
+		// A conversation can carry the extension's identifier (`openai-compatible/my-endpoint`), which
+		// the host cannot dispatch. The restore must land on the copy it published for the session, or
+		// the request would silently fall back to the host's default model.
+		const sessionType = 'agent-host-copilotcli';
+		const original: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: 'openai-compatible/my-endpoint',
+			metadata: {
+				...model('my-endpoint').metadata,
+				vendor: 'openai-compatible',
+				isBYOK: true,
+			},
+		};
+		const hostCopy: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: `${sessionType}:my-endpoint`,
+			metadata: {
+				...targetedModel('my-endpoint', sessionType).metadata,
+				vendor: sessionType,
+				byokModelIdentifier: original.identifier,
+			},
+		};
+		const modelChanges = disposables.add(new Emitter<string>());
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime({
+			models: [hostCopy],
+			sessionType,
+			conversationKey: 'chat:one',
+		}, modelChanges, applied)));
+
+		controller.syncFromConversationState(original, undefined, sessionType, 'chat:one');
+
+		assert.deepStrictEqual({
+			applied,
+			current: controller.currentModel.get()?.identifier,
+		}, {
+			applied: [hostCopy.identifier],
+			current: hostCopy.identifier,
+		});
+	});
+
 	test('a stand-in echoed back by the conversation does not displace the model being awaited', () => {
 		// Applying a model writes it into the conversation's input state, which the agent host
 		// republishes as the session draft and syncs straight back. Without the echo guard that
