@@ -168,6 +168,8 @@ function setCopilotBuiltinGitHubMcpEnvironment(env: Record<string, string | unde
 	}
 }
 
+const PolicyHelperFeatureFlag = 'POLICY_HELPER';
+
 function addCopilotFeatureFlag(env: Record<string, string | undefined>, flag: string): void {
 	const enabledFlags = env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'];
 	const flags = new Set((enabledFlags ?? '').split(',').map(f => f.trim()).filter(Boolean));
@@ -1629,6 +1631,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _getCopilotRuntimePath(): string | undefined {
 		const runtimePath = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.RuntimePath);
 		return runtimePath ? runtimePath : undefined;
+	}
+
+	private _getPolicyHelper(): string | undefined {
+		const policyHelper = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.PolicyHelper);
+		if (!policyHelper?.path.trim()) {
+			return undefined;
+		}
+		return JSON.stringify({ path: policyHelper.path, args: policyHelper.args ?? [] });
 	}
 
 	/**
@@ -4365,6 +4375,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (startupConfig.dynamicAutoTiers) {
 				addCopilotFeatureFlag(env, DynamicAutoTiersFeatureFlag);
 				this._logService.info(`[Copilot] Enabled runtime feature flag ${DynamicAutoTiersFeatureFlag}`);
+			}
+
+			// The runtime reads COPILOT_CLI_POLICY_HELPER only behind its feature flag.
+			// Changes apply on the next client start; users reload the window after changing the setting.
+			const policyHelper = this._getPolicyHelper();
+			if (policyHelper) {
+				addCopilotFeatureFlag(env, PolicyHelperFeatureFlag);
+				env['COPILOT_CLI_POLICY_HELPER'] = policyHelper;
+				this._logService.info(`[Copilot] Enabled runtime feature flag ${PolicyHelperFeatureFlag}`);
 			}
 
 			// Identify VS Code's agent host traffic in CAPI
