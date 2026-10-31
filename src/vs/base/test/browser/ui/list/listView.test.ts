@@ -741,19 +741,24 @@ suite('ListView', function () {
 		};
 
 		const listView = store.add(new ListView<TestElement>(element, delegate, [renderer], { supportDynamicHeights: true }));
-		store.add(toDisposable(() => element.remove()));
-		listView.layout(100, 200);
-		assert.throws(() => listView.splice(0, 0, [
-			{ height: 20 },
-			{ height: 20, throwOnRender: true },
-		]), /render failed/);
-		assert.deepStrictEqual({
-			rowsInDom: element.querySelectorAll('.monaco-list-row').length,
-			disposedElements
-		}, {
-			rowsInDom: 1,
-			disposedElements: 1
-		});
+		try {
+			listView.layout(100, 200);
+			assert.throws(() => listView.splice(0, 0, [
+				{ height: 20 },
+				{ height: 20, throwOnRender: true },
+			]), /render failed/);
+			assert.deepStrictEqual({
+				rowsInDom: element.querySelectorAll('.monaco-list-row').length,
+				disposedElements
+			}, {
+				rowsInDom: 1,
+				disposedElements: 1
+			});
+		} finally {
+			// Dispose before a queued animation frame can rerender the element that intentionally throws.
+			listView.dispose();
+			element.remove();
+		}
 	});
 
 	test('does not promote a retained row after a reentrant splice', function () {
