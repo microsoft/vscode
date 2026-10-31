@@ -32,8 +32,8 @@ import { AgentHostChannelScheduler, readChannelFlowControl } from '../common/age
 import { AgentHostTcpBudget, AgentHostTcpConnection, agentHostTcpReceiveLimits, type IAgentHostTcpConnection } from '../common/agentHostTcpConnection.js';
 import { LoadClientCertificatesExtensionMethod, type IAgentHostClientCertificatesProvider } from '../common/clientCertificatesProtocol.js';
 import { AgentHostClientCertificatesCapabilityMetaKey } from '../common/meta/agentHostClientCertificatesMeta.js';
-import { LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, type IAgentHostClientProxyProvider } from '../common/clientProxyProtocol.js';
-import { AgentHostClientProxyCapabilityMetaKey } from '../common/meta/agentHostClientProxyMeta.js';
+import { ClientProxyChangedExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, type IAgentHostClientProxyProvider } from '../common/clientProxyProtocol.js';
+import { AgentHostClientProxyCapabilityMetaKey, servesAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
@@ -639,6 +639,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._resolveAdvertisedAuthentication = options?.resolveAdvertisedAuthentication;
 		this._clientCertificates = options?.clientCertificates;
 		this._clientProxy = options?.clientProxy;
+		if (this._clientProxy) {
+			this._register(this._clientProxy.onDidChange(() => this._notifyClientProxyChanged()));
+		}
 		this._onDispose = options?.onDispose;
 
 		if (typeof transportOrFactory === 'function') {
@@ -2078,6 +2081,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (supportsChatUserInteractionTiming(this.initializeResult.get())) {
 			await this._sendExtensionRequest(ReportChatUserInteractionExtensionMethod, timing);
 		}
+	}
+
+	/** Lets a host serving this client's proxy support refresh the proxy it applies after this client's settings change. */
+	private _notifyClientProxyChanged(): void {
+		if (!this._clientProxy?.isEnabled() || !servesAgentHostClientProxy(this._initializeResult.get())) {
+			return;
+		}
+		this._sendExtensionRequest(ClientProxyChangedExtensionMethod, {}).catch(error => this._logService.debug('[AgentHostProtocolClient] Failed to report a client proxy change', error));
 	}
 
 	async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {

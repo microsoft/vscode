@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../base/common/event.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../defaultAccount/common/defaultAccount.js';
 import { GITHUB_DOT_COM_COPILOT_API_BASE_URI } from '../../github/common/githubEndpoints.js';
@@ -11,6 +12,9 @@ import { IRequestService } from '../../request/common/request.js';
 import type { IAgentHostClientProxyProvider } from '../common/clientProxyProtocol.js';
 import { AgentHostProxyConfigKey } from '../common/agentHostSchema.js';
 import { AgentHostSystemProxyEnabledSettingId } from '../common/agentService.js';
+
+/** Settings that change how this client resolves proxies for the agent host. */
+const clientProxySettings = ['http.useLocalProxyConfiguration', 'http.proxy', 'http.noProxy', 'http.proxySupport'];
 
 /**
  * Serves an agent host that shares this client's network, such as one in WSL or a local container, the way a remote
@@ -29,6 +33,10 @@ export class AgentHostClientProxy implements IAgentHostClientProxyProvider {
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
+
+	get onDidChange(): Event<void> {
+		return Event.signal(Event.filter(this._configurationService.onDidChangeConfiguration, e => clientProxySettings.some(key => e.affectsConfiguration(key))));
+	}
 
 	isEnabled(): boolean {
 		return this._isEnabled();
@@ -56,10 +64,11 @@ export class AgentHostClientProxy implements IAgentHostClientProxyProvider {
 	/**
 	 * Tickets are only issued for proxies this client points the agent host at: its `http.proxy` setting, the proxies
 	 * it resolved for the agent host, or the system proxy for GitHub Copilot, which also covers a proxy an earlier window
-	 * resolved. A configured `http.proxyKerberosServicePrincipal` limits tickets to that principal instead.
+	 * resolved. A configured `http.proxyKerberosServicePrincipal` limits tickets to that principal instead. Both settings
+	 * are read as the native request service issuing the tickets reads them, so remote settings cannot widen access.
 	 */
 	private async _isAgentHostProxy(proxyUrl: string): Promise<boolean> {
-		if (this._configurationService.getValue<string>(AgentHostProxyConfigKey.ProxyKerberosServicePrincipal)?.trim()) {
+		if (this._getLocalValue<string>(AgentHostProxyConfigKey.ProxyKerberosServicePrincipal)?.trim()) {
 			return true;
 		}
 		const host = getUrlHost(proxyUrl);
@@ -68,7 +77,7 @@ export class AgentHostClientProxy implements IAgentHostClientProxyProvider {
 
 	private async _resolveCopilotProxyHosts(): Promise<string[]> {
 		// The agent host receives the client's `http.proxy` setting under the same key.
-		const configuredProxy = this._configurationService.getValue<string>(AgentHostProxyConfigKey.Proxy)?.trim();
+		const configuredProxy = this._getLocalValue<string>(AgentHostProxyConfigKey.Proxy)?.trim();
 		if (configuredProxy) {
 			const host = getUrlHost(configuredProxy);
 			return host ? [host] : [];
@@ -83,6 +92,12 @@ export class AgentHostClientProxy implements IAgentHostClientProxyProvider {
 			this._logService.debug('[AgentHostClientProxy] Failed to resolve the GitHub Copilot proxy', error);
 			return [];
 		}
+	}
+
+	/** The local user or default value, the layers the native request service reads for Kerberos tickets. */
+	private _getLocalValue<T>(key: string): T | undefined {
+		const { userLocalValue, defaultValue } = this._configurationService.inspect<T>(key);
+		return userLocalValue ?? defaultValue;
 	}
 }
 

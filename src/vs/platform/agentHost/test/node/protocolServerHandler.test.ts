@@ -10,7 +10,7 @@ import { rootCertificates } from 'tls';
 import { AgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { LoadClientCertificatesExtensionMethod } from '../../common/clientCertificatesProtocol.js';
-import { LookupClientProxyKerberosAuthorizationExtensionMethod, ResolveClientProxyExtensionMethod } from '../../common/clientProxyProtocol.js';
+import { ClientProxyChangedExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, ResolveClientProxyExtensionMethod } from '../../common/clientProxyProtocol.js';
 import { AgentHostClientProxyCapabilityMetaKey } from '../../common/meta/agentHostClientProxyMeta.js';
 import sinon from 'sinon';
 import { generateKeyPairSync, sign, type JsonWebKey } from 'crypto';
@@ -1014,6 +1014,24 @@ suite('ProtocolServerHandler', () => {
 			unadvertised: [undefined, undefined],
 			malformed: [undefined, undefined],
 		});
+	});
+
+	test('confirms the client proxy to the clients it serves and refreshes proxies when they report a change', async () => {
+		let changes = 0;
+		disposables.add(proxyResolver.onDidChangeConfiguration(() => changes++));
+		const clients = [connectClient('other-host-client'), connectClient('wsl', undefined, undefined, { [AgentHostClientProxyCapabilityMetaKey]: true })];
+		const confirmations = [];
+		for (const client of clients) {
+			while (!findResponse(client.sent, 1)) {
+				await Promise.resolve();
+			}
+			confirmations.push((findResponse(client.sent, 1) as { result?: { _meta?: Record<string, unknown> } }).result?._meta?.[AgentHostClientProxyCapabilityMetaKey]);
+			const response = waitForResponse(client, 2);
+			client.simulateMessage(request(2, ClientProxyChangedExtensionMethod, {}));
+			await response;
+		}
+
+		assert.deepStrictEqual({ confirmations, changes }, { confirmations: [undefined, true], changes: 1 });
 	});
 	test('returns false for MCP authentication without connected clients', async () => {
 		const params: IAgentHostMcpAuthenticationRequest = {

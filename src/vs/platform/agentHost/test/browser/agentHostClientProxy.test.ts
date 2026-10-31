@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
@@ -14,11 +14,24 @@ import { IRequestService } from '../../../request/common/request.js';
 import { AgentHostClientProxy } from '../../browser/agentHostClientProxy.js';
 import { AgentHostSystemProxyEnabledSettingId } from '../../common/agentService.js';
 
+/** Settings where `remoteKeys` come only from a remote: part of the merged value, absent from the local user layer. */
+class RemoteSettingsConfigurationService extends TestConfigurationService {
+	constructor(settings: Record<string, unknown>, private readonly _remoteKeys: ReadonlySet<string>) {
+		super(settings);
+	}
+
+	override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+		const inspected = super.inspect<T>(key, overrides);
+		return this._remoteKeys.has(key) ? { ...inspected, userLocalValue: undefined, userRemoteValue: inspected.value } : inspected;
+	}
+}
+
 suite('AgentHostClientProxy', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	interface IOptions {
 		readonly settings?: Record<string, unknown>;
+		readonly remoteSettings?: Record<string, unknown>;
 		readonly resolveProxy?: (url: string) => string | undefined;
 		readonly apiEndpoint?: string;
 	}
@@ -26,7 +39,8 @@ suite('AgentHostClientProxy', () => {
 	function createProxy(options: IOptions) {
 		const resolvedUrls: string[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IConfigurationService, new TestConfigurationService(options.settings));
+		const configurationService = new RemoteSettingsConfigurationService({ ...options.settings, ...options.remoteSettings }, new Set(Object.keys(options.remoteSettings ?? {})));
+		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IRequestService, {
 			resolveProxy: async (url: string) => {
 				resolvedUrls.push(url);
@@ -38,7 +52,7 @@ suite('AgentHostClientProxy', () => {
 			currentDefaultAccount: options.apiEndpoint ? { entitlementsData: { endpoints: { api: options.apiEndpoint } } } : null,
 		} as Partial<IDefaultAccountService>);
 		instantiationService.stub(ILogService, new NullLogService());
-		return { proxy: instantiationService.createInstance(AgentHostClientProxy, () => true), resolvedUrls };
+		return { proxy: instantiationService.createInstance(AgentHostClientProxy, () => true), resolvedUrls, configurationService };
 	}
 
 	async function lookUp(proxyUrls: readonly string[], options: IOptions) {
@@ -62,6 +76,14 @@ suite('AgentHostClientProxy', () => {
 			}),
 			configuredPrincipal: await lookUp(['http://other.corp:8080'], {
 				settings: { 'http.proxyKerberosServicePrincipal': 'HTTP@custom.corp@CORP.COM' },
+				resolveProxy: () => 'DIRECT',
+			}),
+			remotePrincipal: await lookUp(['http://other.corp:8080'], {
+				remoteSettings: { 'http.proxyKerberosServicePrincipal': 'HTTP@custom.corp@CORP.COM' },
+				resolveProxy: () => 'DIRECT',
+			}),
+			remoteProxy: await lookUp(['http://configured.corp:3128'], {
+				remoteSettings: { 'http.proxy': 'http://configured.corp:3128' },
 				resolveProxy: () => 'DIRECT',
 			}),
 			direct: await lookUp(['http://proxy.corp:8080'], {
@@ -92,6 +114,15 @@ suite('AgentHostClientProxy', () => {
 				authorizations: { 'http://other.corp:8080': 'Negotiate token:other.corp' },
 				resolvedUrls: [],
 			},
+			// Remote settings cannot authorize this client's tickets: the native lookup reads local settings only.
+			remotePrincipal: {
+				authorizations: { 'http://other.corp:8080': undefined },
+				resolvedUrls: ['https://api.githubcopilot.com'],
+			},
+			remoteProxy: {
+				authorizations: { 'http://configured.corp:3128': undefined },
+				resolvedUrls: ['https://api.githubcopilot.com'],
+			},
 			direct: {
 				authorizations: { 'http://proxy.corp:8080': undefined },
 				resolvedUrls: ['https://api.githubcopilot.com'],
@@ -121,5 +152,18 @@ suite('AgentHostClientProxy', () => {
 		const { proxy, resolvedUrls } = createProxy({ settings: { 'http.useLocalProxyConfiguration': false }, resolveProxy: () => 'PROXY proxy.corp:8080' });
 
 		assert.deepStrictEqual({ resolved: await proxy.resolveProxy('https://example.com'), resolvedUrls }, { resolved: undefined, resolvedUrls: [] });
+	});
+
+	test('signals changes to the settings that affect proxy resolution', () => {
+		const { proxy, configurationService } = createProxy({});
+		const signaled: string[] = [];
+
+		for (const key of ['http.useLocalProxyConfiguration', 'http.proxy', 'editor.fontSize']) {
+			const listener = proxy.onDidChange(() => signaled.push(key));
+			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: (affected: string) => affected === key } as IConfigurationChangeEvent);
+			listener.dispose();
+		}
+
+		assert.deepStrictEqual(signaled, ['http.useLocalProxyConfiguration', 'http.proxy']);
 	});
 });

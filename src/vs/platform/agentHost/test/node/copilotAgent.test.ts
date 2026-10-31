@@ -1423,6 +1423,8 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 		return Disposable.None;
 	}
 
+	notifySharedNetworkClientChanged(): void { }
+
 	readonly clientKerberosLookups: string[] = [];
 	async lookupClientKerberosAuthorization(proxyUrl: string): Promise<string | undefined> {
 		this.clientKerberosLookups.push(proxyUrl);
