@@ -23,11 +23,14 @@ export class ReferencesTreeInput implements SymbolTreeInput<FileItem | Reference
 	async resolve(): Promise<SymbolTreeModel<FileItem | ReferenceItem> | undefined> {
 
 		let model: ReferencesModel;
+		const definitions = this._command === 'vscode.executeReferenceProvider'
+			? await this._resolveDefinitions()
+			: undefined;
 		if (this._result) {
-			model = new ReferencesModel(this._result);
+			model = new ReferencesModel(this._result, definitions);
 		} else {
 			const resut = await Promise.resolve(vscode.commands.executeCommand<vscode.Location[] | vscode.LocationLink[]>(this._command, this.location.uri, this.location.range.start));
-			model = new ReferencesModel(resut ?? []);
+			model = new ReferencesModel(resut ?? [], definitions);
 		}
 
 		if (model.items.length === 0) {
@@ -47,6 +50,15 @@ export class ReferencesTreeInput implements SymbolTreeInput<FileItem | Reference
 		};
 	}
 
+	private async _resolveDefinitions(): Promise<vscode.Location[] | undefined> {
+		try {
+			const result = await Promise.resolve(vscode.commands.executeCommand<vscode.Location[] | vscode.LocationLink[]>('vscode.executeDefinitionProvider', this.location.uri, this.location.range.start));
+			return result?.map(item => item instanceof vscode.Location ? item : new vscode.Location(item.targetUri, item.targetSelectionRange ?? item.targetRange));
+		} catch {
+			return undefined;
+		}
+	}
+
 	with(location: vscode.Location): ReferencesTreeInput {
 		return new ReferencesTreeInput(this.title, location, this._command);
 	}
@@ -59,7 +71,7 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 
 	readonly items: FileItem[] = [];
 
-	constructor(locations: vscode.Location[] | vscode.LocationLink[]) {
+	constructor(locations: vscode.Location[] | vscode.LocationLink[], definitions?: vscode.Location[]) {
 		let last: FileItem | undefined;
 		for (const item of locations.sort(ReferencesModel._compareLocations)) {
 			const loc = item instanceof vscode.Location
@@ -70,7 +82,11 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 				last = new FileItem(loc.uri.with({ fragment: '' }), [], this);
 				this.items.push(last);
 			}
-			last.references.push(new ReferenceItem(loc, last));
+			const isDefinition = !!definitions?.some(def => ReferencesModel._compareUriIgnoreFragment(def.uri, loc.uri) === 0 && def.range.intersection(loc.range) !== undefined);
+			last.references.push(new ReferenceItem(loc, last, isDefinition));
+			if (isDefinition) {
+				last.containsDefinition = true;
+			}
 		}
 	}
 
@@ -280,6 +296,12 @@ class ReferencesTreeDataProvider implements vscode.TreeDataProvider<FileItem | R
 			result.description = true;
 			result.iconPath = vscode.ThemeIcon.File;
 			result.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
+			if (element.containsDefinition) {
+				// highlight the file that contains the definition, see #64530
+				const name = element.uri.path.substring(element.uri.path.lastIndexOf('/') + 1);
+				result.label = { label: name, highlights: [[0, name.length]] };
+				result.tooltip = vscode.l10n.t('{0} (contains definition)', vscode.workspace.asRelativePath(element.uri));
+			}
 			return result;
 
 		} else {
@@ -296,6 +318,9 @@ class ReferencesTreeDataProvider implements vscode.TreeDataProvider<FileItem | R
 			const result = new vscode.TreeItem(label);
 			result.collapsibleState = vscode.TreeItemCollapsibleState.None;
 			result.contextValue = 'reference-item';
+			if (element.isDefinition) {
+				result.description = vscode.l10n.t('definition');
+			}
 			result.command = {
 				command: 'vscode.open',
 				title: vscode.l10n.t('Open Reference'),
@@ -331,6 +356,8 @@ export class FileItem {
 		readonly model: ReferencesModel
 	) { }
 
+	containsDefinition: boolean = false;
+
 	// --- adapter
 
 	remove(): void {
@@ -353,6 +380,7 @@ export class ReferenceItem {
 	constructor(
 		readonly location: vscode.Location,
 		readonly file: FileItem,
+		readonly isDefinition: boolean = false,
 	) { }
 
 	async getDocument(warmUpNext?: boolean) {
