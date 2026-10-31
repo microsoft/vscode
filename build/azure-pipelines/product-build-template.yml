@@ -70,6 +70,9 @@ parameters:
     displayName: "🎯 Web"
     type: boolean
     default: true
+  - name: VSCODE_BUILD_WEB_MOBILE
+    type: boolean
+    default: false
   - name: VSCODE_PUBLISH
     displayName: "Publish to builds.code.visualstudio.com"
     type: boolean
@@ -91,6 +94,9 @@ parameters:
     default: true
 
 stages:
+
+      - ${{ if and(eq(parameters.VSCODE_BUILD_WEB_MOBILE, true), or(eq(variables.VSCODE_CIBUILD, true), ne(parameters.VSCODE_BUILD_WEB, true))) }}:
+        - 'Mobile web requires a Product build with VSCODE_BUILD_WEB=true': error
 
       - stage: Quality
         dependsOn: []
@@ -661,6 +667,8 @@ stages:
           dependsOn: []
           jobs:
             - template: web/product-build-web.yml@self
+              parameters:
+                VSCODE_BUILD_WEB_MOBILE: ${{ parameters.VSCODE_BUILD_WEB_MOBILE }}
 
       - ${{ if eq(variables['VSCODE_PUBLISH'], true) }}:
         - stage: Publish
