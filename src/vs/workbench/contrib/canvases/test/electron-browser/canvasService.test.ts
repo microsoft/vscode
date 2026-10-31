@@ -201,15 +201,21 @@ suite('CanvasService', () => {
 		assert.deepStrictEqual(harness.groupRestores, [false, false]);
 	});
 
-	test('fresh model opens foreground despite an active modal', async () => {
+	test('completed historical model opens preserve an active modal', async () => {
 		const harness = createHarness();
 		harness.setModalActive(true);
-		harness.openRequests.set(new Map([['preview', { id: 'fresh-request', succeeded: true }]]), undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'historical-request', succeeded: true }]]), undefined);
 		harness.canvases.set([harness.canvas], undefined);
 		await timeout(0);
 
 		assert.deepStrictEqual(harness.openOptions, [
-			{ pinned: true, revealIfOpened: true, preserveFocus: false },
+			{
+				pinned: true,
+				revealIfOpened: true,
+				preserveFocus: true,
+				inactive: true,
+				activation: EditorActivation.PRESERVE,
+			},
 		]);
 	});
 
@@ -252,6 +258,7 @@ suite('CanvasService', () => {
 		harness.setModalActive(true);
 		const pending = harness.delayOpen();
 		harness.canvases.set([harness.canvas], undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'fresh-request', succeeded: false, pending: true }]]), undefined);
 		harness.openRequests.set(new Map([['preview', { id: 'fresh-request', succeeded: true }]]), undefined);
 		await pending.complete();
 		await timeout(0);
