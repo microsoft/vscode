@@ -8,7 +8,7 @@ import { stub } from 'sinon';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -61,10 +61,9 @@ suite('NotebookTextDiffEditor', () => {
 		return editor;
 	}
 
-	function createInput(): NotebookDiffEditorInput {
-		const notebook = { onDidChangeContent: Event.None };
-		const original = { notebook, viewType: 'test', resource: URI.parse('test:///original') } as IResolvedNotebookEditorModel;
-		const modified = { notebook, viewType: 'test', resource: URI.parse('test:///modified') } as IResolvedNotebookEditorModel;
+	function createInput(onDidChangeContent?: { readonly original: Event<void>; readonly modified: Event<void> }): NotebookDiffEditorInput {
+		const original = { notebook: { onDidChangeContent: onDidChangeContent?.original ?? Event.None }, viewType: 'test', resource: URI.parse('test:///original') } as unknown as IResolvedNotebookEditorModel;
+		const modified = { notebook: { onDidChangeContent: onDidChangeContent?.modified ?? Event.None }, viewType: 'test', resource: URI.parse('test:///modified') } as unknown as IResolvedNotebookEditorModel;
 		const model = new class extends mock<Awaited<ReturnType<NotebookDiffEditorInput['resolve']>>>() {
 			override original = original;
 			override modified = modified;
@@ -96,6 +95,27 @@ suite('NotebookTextDiffEditor', () => {
 
 		await editor.setInput(createInput(), undefined, { newInGroup: true }, CancellationToken.None);
 		assert.strictEqual(editor.currentChangedIndex.get(), -1);
+	});
+
+	test('recomputes the diff when the original notebook changes while the diff editor is active', async () => {
+		const editor = createEditor();
+		const originalChanged = store.add(new Emitter<void>());
+		const modifiedChanged = store.add(new Emitter<void>());
+		const input = createInput({ original: originalChanged.event, modified: modifiedChanged.event });
+		Object.defineProperty(editor, 'editorService', { value: { activeEditor: input } });
+
+		let layoutCalls = 0;
+		editor.updateLayout = async () => { layoutCalls++; };
+		await editor.setInput(input, undefined, { newInGroup: true }, CancellationToken.None);
+		layoutCalls = 0;
+
+		// typing in the diff editor changes the modified side and must not rebuild the view
+		modifiedChanged.fire();
+		assert.strictEqual(layoutCalls, 0);
+
+		// the original side can't be edited in the diff editor, its changes come from outside (e.g. the file on disk)
+		originalChanged.fire();
+		assert.strictEqual(layoutCalls, 1);
 	});
 
 	class TestWebview extends Disposable {

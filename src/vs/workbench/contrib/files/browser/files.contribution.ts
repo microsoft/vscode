@@ -65,7 +65,7 @@ class FileOnDiskFileSystemProviderContribution extends Disposable implements IWo
 	constructor(@IFileService fileService: IFileService) {
 		super();
 
-		this._register(fileService.registerProvider(FileOnDiskFileSystemProvider.SCHEME, new FileOnDiskFileSystemProvider(fileService)));
+		this._register(fileService.registerProvider(FileOnDiskFileSystemProvider.SCHEME, this._register(new FileOnDiskFileSystemProvider(fileService))));
 	}
 }
 

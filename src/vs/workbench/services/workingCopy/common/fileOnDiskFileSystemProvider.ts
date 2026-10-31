@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { combinedDisposable, Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileService, IFileSystemProviderWithFileReadWriteCapability, IStat } from '../../../../platform/files/common/files.js';
+import { createFileSystemProviderError, FileChangeType, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileService, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from '../../../../platform/files/common/files.js';
 
 /**
  * A readonly file system provider that serves a resource as it is currently stored on disk,
  * e.g. to compare it with a working copy of the same resource that has unsaved changes.
  */
-export class FileOnDiskFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability {
+export class FileOnDiskFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
 
 	static readonly SCHEME = 'vscode-file-on-disk';
 
@@ -27,9 +27,13 @@ export class FileOnDiskFileSystemProvider implements IFileSystemProviderWithFile
 	readonly capabilities = FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.Readonly;
 
 	readonly onDidChangeCapabilities = Event.None;
-	readonly onDidChangeFile = Event.None;
 
-	constructor(private readonly fileService: IFileService) { }
+	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
+	readonly onDidChangeFile = this._onDidChangeFile.event;
+
+	constructor(private readonly fileService: IFileService) {
+		super();
+	}
 
 	async stat(resource: URI): Promise<IStat> {
 		const stat = await this.fileService.stat(FileOnDiskFileSystemProvider.fromFileOnDisk(resource));
@@ -43,8 +47,25 @@ export class FileOnDiskFileSystemProvider implements IFileSystemProviderWithFile
 		return content.value.buffer;
 	}
 
-	watch(): IDisposable {
-		return Disposable.None;
+	watch(resource: URI, opts: IWatchOptions): IDisposable {
+		const fileOnDisk = FileOnDiskFileSystemProvider.fromFileOnDisk(resource);
+
+		// Forward changes of the file on disk as changes of this resource
+		const watcher = this.fileService.createWatcher(fileOnDisk, { recursive: false, excludes: [] });
+		const listener = watcher.onDidChange(e => {
+			const changes: IFileChange[] = [];
+			for (const type of [FileChangeType.ADDED, FileChangeType.UPDATED, FileChangeType.DELETED]) {
+				if (e.contains(fileOnDisk, type)) {
+					changes.push({ type, resource, cId: opts.correlationId });
+				}
+			}
+
+			if (changes.length > 0) {
+				this._onDidChangeFile.fire(changes);
+			}
+		});
+
+		return combinedDisposable(listener, watcher);
 	}
 
 	async writeFile(): Promise<void> {
