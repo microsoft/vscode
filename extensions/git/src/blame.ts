@@ -415,14 +415,7 @@ export class GitBlameController {
 		if (isGitUri(textEditor.document.uri)) {
 			const { ref } = fromGitUri(textEditor.document.uri);
 
-			// For the following scenarios we can discard the diff information
-			// 1) Commit - Resource in the multi-file diff editor when viewing the details of a commit.
-			// 2) HEAD   - Resource on the left-hand side of the diff editor when viewing a resource from the index.
-			// 3) ~      - Resource on the left-hand side of the diff editor when viewing a resource from the working tree.
-			if (/^[0-9a-f]{40}$/i.test(ref) || ref === 'HEAD' || ref === '~') {
-				workingTreeChanges = allChanges = [];
-				workingTreeAndIndexChanges = undefined;
-			} else if (ref === '') {
+			if (ref === '') {
 				// Resource on the right-hand side of the diff editor when viewing a resource from the index.
 				const diffInformationWorkingTreeAndIndex = getWorkingTreeAndIndexDiffInformation(textEditor);
 
@@ -437,7 +430,12 @@ export class GitBlameController {
 				workingTreeChanges = [];
 				workingTreeAndIndexChanges = allChanges = diffInformationWorkingTreeAndIndex?.changes ?? [];
 			} else {
-				throw new Error(`Unexpected ref: ${ref}`);
+				// For the following scenarios we can discard the diff information
+				// 1) Commit - Resource in the multi-file diff editor when viewing the details of a commit (full SHA, short SHA, branch, tag, etc.).
+				// 2) HEAD   - Resource on the left-hand side of the diff editor when viewing a resource from the index.
+				// 3) ~      - Resource on the left-hand side of the diff editor when viewing a resource from the working tree.
+				workingTreeChanges = allChanges = [];
+				workingTreeAndIndexChanges = undefined;
 			}
 		} else {
 			// Working tree diff information. Diff Editor (Working Tree) -> Text Editor
@@ -478,7 +476,7 @@ export class GitBlameController {
 		} else {
 			// Resource with the `git` scheme
 			const { ref } = fromGitUri(textEditor.document.uri);
-			commit = /^[0-9a-f]{40}$/i.test(ref) ? ref : repository.HEAD.commit;
+			commit = (ref && ref !== '~') ? ref : repository.HEAD.commit;
 		}
 
 		// Git blame information
