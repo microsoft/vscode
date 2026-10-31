@@ -46,6 +46,7 @@ class RecordingFetcher extends mock<IFetcherService>() {
 	filesStatus = 200;
 	matchPayload: object | undefined;
 	filesPayload: object = { file_matches: [], page_info: { has_next_page: false, cursor: '' }, license_stats: { count: { MIT: '1' } } };
+	readonly filesResponses = new Map<string, { status: number; payload: object }>();
 
 	override async fetch(_url: string, options: FetchOptions) {
 		const body: unknown = options.body === undefined ? options.json : JSON.parse(options.body);
@@ -57,7 +58,12 @@ class RecordingFetcher extends mock<IFetcherService>() {
 				snippets: this.returnMatch ? [{ matched_source: body.source, occurrences: '1', capped: false, cursor: 'test-cursor', github_url: 'https://example.com/reference' }] : [],
 			});
 		}
-		assert.ok('cursor' in body && body.cursor === 'test-cursor');
+		assert.ok('cursor' in body && typeof body.cursor === 'string');
+		const response = this.filesResponses.get(body.cursor);
+		if (response) {
+			return createFakeResponse(response.status, response.payload);
+		}
+		assert.strictEqual(body.cursor, 'test-cursor');
 		return createFakeResponse(this.filesStatus, this.filesPayload);
 	}
 
@@ -253,6 +259,32 @@ for (const path of ['completions', 'next-edit'] as const) {
 			}
 		});
 
+		test.each([1, 65, 90, 109])('anchors an expanded %i-token citation at the selected context start', async count => {
+			fetcher.returnMatch = true;
+			const ignored = 'ignored '.repeat(45) + '\r\n';
+			const context = '\u{10400} '.repeat(110);
+			const completion = 'token '.repeat(count);
+			const source = context + completion;
+			await insert(completion, ignored + context);
+			if (path === 'completions') {
+				expect(citationManager.citations.map(citation => ({
+					start: citation.offsetStart,
+					end: citation.offsetEnd,
+					location: citation.location,
+					matchingText: citation.matchingText,
+					documentText: documentManager.document!.getText().slice(citation.offsetStart, citation.offsetEnd),
+				}))).toEqual([{
+					start: ignored.length,
+					end: ignored.length + source.length,
+					location: { start: { line: 1, character: 0 }, end: { line: 1, character: source.length } },
+					matchingText: source,
+					documentText: source,
+				}]);
+			} else {
+				expect(logTarget.hasMessageMatching(LogLevel.Info, /\[Ln 2, Col 1\]/)).toBe(true);
+			}
+		});
+
 		if (path === 'next-edit') {
 			test('logs the selected preceding-context start rather than a reversed-text offset', async () => {
 				fetcher.returnMatch = true;
@@ -272,6 +304,48 @@ for (const path of ['completions', 'next-edit'] as const) {
 					case 'filesFailure': fetcher.filesPayload = errorPayload; break;
 				}
 				await expect(insert('token '.repeat(110))).rejects.toThrow(/Failed/);
+			});
+
+			test.each(['http', 'malformed', 'failure'] as const)('logs successful citations before reporting a mixed %s lookup failure', async failure => {
+				const completion = 'token '.repeat(110);
+				fetcher.matchPayload = {
+					snippets: ['before', 'failed', 'after'].map(cursor => ({
+						matched_source: completion, occurrences: '1', capped: false, cursor, github_url: `https://example.com/${cursor}`,
+					})),
+				};
+				const errorPayload = { kind: 'failure', reason: 'test', code: 400, msg: 'test failure' };
+				fetcher.filesResponses.set('before', { status: 200, payload: fetcher.filesPayload });
+				fetcher.filesResponses.set('after', { status: 200, payload: fetcher.filesPayload });
+				fetcher.filesResponses.set('failed', {
+					status: failure === 'http' ? 400 : 200,
+					payload: failure === 'malformed' ? {} : errorPayload,
+				});
+
+				await expect(insert(completion)).rejects.toThrow(/Failed/);
+				expect({
+					before: logTarget.hasMessageMatching(LogLevel.Info, /\[CODE REFERENCING\].*\[MIT\].*https:\/\/example\.com\/before&editor=vscode/),
+					after: logTarget.hasMessageMatching(LogLevel.Info, /\[CODE REFERENCING\].*\[MIT\].*https:\/\/example\.com\/after&editor=vscode/),
+					failed: logTarget.hasMessageMatching(LogLevel.Info, /https:\/\/example\.com\/failed&editor=vscode/),
+				}).toEqual({ before: true, after: true, failed: false });
+			});
+
+			test('preserves every failure when all reference lookups fail', async () => {
+				const completion = 'token '.repeat(110);
+				fetcher.matchPayload = {
+					snippets: ['first', 'second'].map(cursor => ({
+						matched_source: completion, occurrences: '1', capped: false, cursor, github_url: `https://example.com/${cursor}`,
+					})),
+				};
+				fetcher.filesResponses.set('first', { status: 200, payload: { kind: 'failure', reason: 'test', code: 400, msg: 'first failure' } });
+				fetcher.filesResponses.set('second', { status: 200, payload: {} });
+
+				await expect(insert(completion)).rejects.toMatchObject({
+					name: 'AggregateError',
+					errors: [
+						expect.objectContaining({ message: 'Failed to fetch files for match: first failure' }),
+						expect.objectContaining({ message: 'Failed to parse files-for-match response: undefined' }),
+					],
+				});
 			});
 		}
 	});

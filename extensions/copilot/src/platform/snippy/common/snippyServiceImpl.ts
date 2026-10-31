@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ErrorUtils } from '../../../util/common/errors';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { URI } from '../../../util/vs/base/common/uri';
 import { StringEdit, StringReplacement } from '../../../util/vs/editor/common/core/edits/stringEdit';
@@ -68,8 +69,14 @@ export class SnippyService implements ISnippyService {
 
 		this.notifier.notify();
 
-		const citations = await Promise.all(citationPromises);
-		for (const citation of citations) {
+		const citationResults = await Promise.allSettled(citationPromises);
+		const errors: Error[] = [];
+		for (const result of citationResults) {
+			if (result.status === 'rejected') {
+				errors.push(ErrorUtils.fromUnknown(result.reason));
+				continue;
+			}
+			const citation = result.value;
 			const licensesSet = new Set(Object.keys(citation.licenseStats?.count ?? {}));
 
 			if (licensesSet.delete('NOASSERTION')) {
@@ -93,6 +100,13 @@ export class SnippyService implements ISnippyService {
 				matchLocation,
 				shortenedMatchText
 			].join(' '));
+		}
+
+		if (errors.length === 1) {
+			throw errors[0];
+		}
+		if (errors.length > 1) {
+			throw new AggregateError(errors, 'Failed to fetch files for multiple matches');
 		}
 	}
 

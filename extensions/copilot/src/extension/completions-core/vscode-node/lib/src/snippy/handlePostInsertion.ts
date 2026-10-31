@@ -105,8 +105,8 @@ export async function fetchCitations(accessor: ServicesAccessor, uri: string, co
 
 		const allLicenses = Array.from(licensesSet).sort();
 
-		const offsetStart = insertionOffset;
-		const offsetEnd = insertionOffset + citation.match.matched_source.length;
+		const offsetStart = sourceToCheck.startOffset;
+		const offsetEnd = offsetStart + citation.match.matched_source.length;
 
 		const start = insertionDoc.positionAt(offsetStart);
 		const end = insertionDoc.positionAt(offsetEnd);
