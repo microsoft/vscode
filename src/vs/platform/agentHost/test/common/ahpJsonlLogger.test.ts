@@ -8,9 +8,11 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { basename, dirname, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileWriteOptions } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AhpJsonlLogger, AhpJsonlLogRetention, getAhpLogByteLength, isAhpJsonlLoggingEnabled, isAhpLogFileFor, stringifyAhpLogEntry } from '../../common/ahpJsonlLogger.js';
 
@@ -28,8 +30,7 @@ suite('AhpJsonlLogger', () => {
 	});
 
 	test('does not record inspection of its own logs or log-only file-watch changes', async () => {
-		const files = store.add(new FileService(new NullLogService()));
-		store.add(files.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const files = createInMemoryFileService(store, Schemas.file);
 		const logger = store.add(new AhpJsonlLogger({
 			logsHome: URI.file('/inspection-logs'), logId: 'host', connectionId: 'client', transport: 'mission-control',
 		}, files, new NullLogService()));
@@ -180,8 +181,7 @@ suite('AhpJsonlLogger', () => {
 	});
 
 	test('writes canonical JSON-RPC JSONL with metadata at the root', async () => {
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 
 		const logger = store.add(new AhpJsonlLogger(
 			{ logsHome: URI.file('/logs'), logId: 'logical-host', connectionId: 'conn:1', transport: 'websocket' },
@@ -277,8 +277,7 @@ suite('AhpJsonlLogger', () => {
 	});
 
 	test('rotates JSONL files and keeps bounded history', async () => {
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 
 		const logger = store.add(new AhpJsonlLogger(
 			{ logsHome: URI.file('/logs'), logId: 'logical-host', connectionId: 'rotating', transport: 'websocket', maxFileSizeBytes: 1, maxFiles: 2 },
@@ -315,8 +314,7 @@ suite('AhpJsonlLogger', () => {
 	});
 
 	test('redacts authentication tokens without mutating live requests, including oversized entries', async () => {
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		const logger = store.add(new AhpJsonlLogger(
 			{ logsHome: URI.file('/logs'), logId: 'authentication', connectionId: 'client', transport: 'mission-control' },
 			fileService, new NullLogService(),
@@ -461,8 +459,7 @@ suite('AhpJsonlLogger', () => {
 	});
 
 	test('bounds pending log data and records dropped entries', async () => {
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 
 		const logger = store.add(new AhpJsonlLogger(
 			{ logsHome: URI.file('/logs'), logId: 'bounded', connectionId: 'bounded', transport: 'websocket', maxPendingBytes: 1 },
@@ -486,8 +483,7 @@ suite('AhpJsonlLogger', () => {
 	});
 
 	test('redacts canvas URLs in actions and snapshots without mutating live state', async () => {
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		const logger = store.add(new AhpJsonlLogger(
 			{ logsHome: URI.file('/logs'), logId: 'canvas-source', connectionId: 'canvas-source', transport: 'websocket' },
 			fileService,
@@ -508,8 +504,7 @@ suite('AhpJsonlLogger', () => {
 	});
 
 	test('redacts replayed canvas actions and incomplete canvas state fail closed', async () => {
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		const logger = store.add(new AhpJsonlLogger(
 			{ logsHome: URI.file('/logs'), logId: 'canvas-source-saturated', connectionId: 'canvas-source-saturated', transport: 'websocket' },
 			fileService,
@@ -536,8 +531,7 @@ suite('AhpJsonlLogger', () => {
 	});
 
 	test('flush waits for batched writes and ordering is preserved across drains', async () => {
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 
 		const logger = store.add(new AhpJsonlLogger(
 			{ logsHome: URI.file('/logs'), logId: 'flush-order', connectionId: 'flush-order', transport: 'websocket' },
@@ -561,8 +555,7 @@ suite('AhpJsonlLogger', () => {
 	});
 
 	test('elides oversized string payloads while keeping the line valid JSONL', async () => {
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 
 		const logger = store.add(new AhpJsonlLogger(
 			{ logsHome: URI.file('/logs'), logId: 'logical-host', connectionId: 'conn:1', transport: 'websocket' },

@@ -197,6 +197,12 @@ export interface IAgentChatHistoryChange {
 /** Returns the candidate session URI keys already present in the host registry. */
 export type IAgentKnownSessionsFilter = (sessions: readonly URI[]) => Promise<ReadonlySet<string>>;
 
+/** Options for {@link IAgent.startChatDiscovery}. */
+export interface IAgentChatDiscoveryOptions {
+	/** The host's startup-frozen gate for publishing adoptable legacy chats. */
+	readonly migrateLegacyChats: boolean;
+}
+
 /** Lightweight ordered chat metadata for session-list presentation. */
 export interface IAgentSessionChatMetadata {
 	readonly chat: URI;
@@ -455,6 +461,9 @@ export type IAgentCustomizationInstallationReview = {
 	readonly serverName: string;
 	readonly target: string;
 	readonly endpoint?: string;
+	readonly command?: string;
+	readonly args?: readonly string[];
+	readonly env?: Readonly<Record<string, string>>;
 	readonly configurationFields: readonly string[];
 	readonly restoresPreviousConfiguration?: boolean;
 	readonly preservesSharedAuthentication?: boolean;
@@ -1423,6 +1432,23 @@ export interface IAgentModelCallFinishedSignal {
 	readonly parentToolCallId?: string;
 }
 
+/** Host-owned permission categories used for tool confirmation and auto-approval. */
+export const enum AgentPermissionKind {
+	Shell = 'shell',
+	Write = 'write',
+	Mcp = 'mcp',
+	Read = 'read',
+	Url = 'url',
+	Skill = 'skill',
+	CustomTool = 'custom-tool',
+	Hook = 'hook',
+	Memory = 'memory',
+	Workflow = 'workflow',
+	ExtensionManagement = 'extension-management',
+	ExtensionPermissionAccess = 'extension-permission-access',
+	ExtensionEnvAccess = 'extension-env-access',
+}
+
 /**
  * A tool has finished collecting parameters and needs the host to decide
  * whether it should run (or, mid-execution, re-confirm). The host applies
@@ -1444,9 +1470,11 @@ export interface IAgentToolPendingConfirmationSignal {
 	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `ChatToolCallReady`. */
 	readonly state: ToolCallPendingConfirmationState;
 	/** Host-only auto-approval kind (not part of the dispatched action). */
-	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'skill' | 'custom-tool' | 'hook' | 'memory' | 'workflow' | 'extension-management' | 'extension-permission-access' | 'extension-env-access';
+	readonly permissionKind?: AgentPermissionKind;
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
+	/** Host-only URL target for request approval (not part of the dispatched action). */
+	readonly permissionUrl?: string;
 	/** Host-only command for shell approval when the displayed tool input contains structured arguments. */
 	readonly shellCommand?: string;
 	/**
@@ -1594,6 +1622,14 @@ export namespace AgentSession {
 	export function provider(session: URI | string): AgentProvider | undefined {
 		const parsed = typeof session === 'string' ? URI.parse(session) : session;
 		return parsed.scheme === 'ahp-session' ? undefined : parsed.scheme || undefined;
+	}
+
+	/**
+	 * Whether a session URI has the shape {@link uri} mints: no authority, query or fragment.
+	 * Session storage is keyed by {@link id} alone, so any other shape must not be resolved to it.
+	 */
+	export function isCanonical(session: URI): boolean {
+		return !session.authority && !session.query && !session.fragment;
 	}
 }
 
@@ -1995,8 +2031,12 @@ export interface IAgent {
 	 */
 	watchChatBackgroundWork?(chat: URI, published: () => readonly BackgroundWork[]): IDisposable;
 
-	/** Starts provider-owned native chat discovery; repeated calls are idempotent. */
-	startChatDiscovery?(): Promise<void>;
+	/**
+	 * Starts provider-owned native chat discovery; repeated calls are idempotent.
+	 * The host passes its own startup-frozen legacy-migration gate so discovery
+	 * and listing always agree on whether legacy chats are adoptable.
+	 */
+	startChatDiscovery?(options?: IAgentChatDiscoveryOptions): Promise<void>;
 
 	/** Lets discovery drop registered candidates before per-session I/O. */
 	setKnownSessionsFilter?(filter: IAgentKnownSessionsFilter): void;
@@ -2005,6 +2045,13 @@ export interface IAgent {
 
 	/** Optional adoption hook for providers with a predecessor-owned on-disk format. */
 	ensureChatAdopted?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult>;
+
+	/**
+	 * The worktree a predecessor recorded for a session it still owns (one not
+	 * adopted yet), so deleting the session removes it as the predecessor's
+	 * delete did. `undefined` once the session has Agent Host metadata.
+	 */
+	readLegacyChatWorktree?(session: URI): Promise<IAgentAdoptedWorktree | undefined>;
 
 	/** Optional recovery hook for providers with historical backings but no persisted provider data. */
 	recoverLegacyChat?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult | void>;

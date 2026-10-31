@@ -904,6 +904,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	readonly onDidChangeGroupLabel: Event<IEditorGroup> = Event.None;
 	readonly onDidChangeGroupLocked: Event<IEditorGroup> = Event.None;
 	readonly onDidChangeGroupMaximized: Event<boolean> = Event.None;
+	readonly onDidFocus: Event<void> = Event.None;
 	readonly onDidLayout: Event<IDimension> = Event.None;
 	onDidChangeEditorPartOptions = Event.None;
 	onDidScroll = Event.None;

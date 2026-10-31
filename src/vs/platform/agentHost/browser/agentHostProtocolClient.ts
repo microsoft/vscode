@@ -23,7 +23,7 @@ import { newAgentHostSessionUri } from '../common/agentHostSessionIdentity.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaKey } from '../common/meta/agentHostSessionUrisMeta.js';
 import { readRelayKeepAliveTimeout } from '../common/meta/relayConnectionMeta.js';
 import { supportsAgentHostWorktreeDiskUsage } from '../common/meta/agentHostWorktreeDiskUsageMeta.js';
-import { supportsAgentHostManagedWorktrees, supportsAgentHostWorktreeCleanup } from '../common/meta/agentHostWorktreeCleanupMeta.js';
+import { supportsAgentHostManagedWorktrees, supportsAgentHostWorktreeCleanup, supportsForceWorktreeCleanup } from '../common/meta/agentHostWorktreeCleanupMeta.js';
 import { CleanupManagedWorktreeExtensionMethod, ListManagedWorktreesExtensionMethod, managedWorktreesValidator, SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupStatusValidator, type IAgentHostManagedWorktree, type IAgentHostWorktreeCleanupStatus } from '../common/agentHostWorktreeCleanup.js';
 import { serializeChatWorkspace, withCreateChatWorkspaceMeta } from '../common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { AGENT_HOST_CREATE_SESSION_IMPORT_CHUNK_CHARS, serializeCreateSessionImport, splitCreateSessionImportChunks, StageCreateSessionImportChunkExtensionMethod, supportsAgentHostCreateSessionImport, withCreateSessionImportMeta, withStagedCreateSessionImportMeta } from '../common/meta/agentHostCreateSessionImportMeta.js';
@@ -58,7 +58,7 @@ import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubs
 import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostUri } from '../common/agentHostUri.js';
 import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest, JsonRpcResponse } from '../common/state/protocol/messages.js';
-import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { ActionType, AuthRequiredReason, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { getOlderHostDefaultChat } from './agentHostOlderHostCompatibility.js';
 import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isAhpChatChannel, isSessionChatArchived, isSessionStatusRead, type AgentInfo, type ClientPluginCustomization, type SessionState, type Message, type RootState } from '../common/state/sessionState.js';
 import type { AgentChatMoveDestination } from '../common/agentHostChatMove.js';
@@ -79,7 +79,7 @@ import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomati
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { ITelemetryService, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostWorkspaceTrustConfigKey, getAgentHostTerminalAutoApproveRulesConfig, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostWorkspaceTrustConfigKey, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { addAgentHostConfigurationSyncValue, formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, getGlobalConfigurationValue, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
 import { AgentMergeSettingId } from '../common/agentMerge.js';
 import { AgentHostDynamicAutoTiersEnabledSettingId, CopilotCliConfigKey } from '../common/copilotCliConfig.js';
@@ -250,6 +250,8 @@ type ClientState =
 
 /** Optional configuration for an {@link AgentHostProtocolClient}. */
 export interface IAgentHostProtocolClientOptions {
+	/** Maps client and host resource identities for non-local connections. */
+	readonly resourceUris?: IAgentHostResourceUriMapper;
 	/** Seals relay credentials only after independently authenticating the requested recipient key. */
 	readonly sealAuthenticationToken?: (request: IMissionControlCredentialSealingRequest) => Promise<string>;
 	/** Estimator used to suppress watchdog closes while the local event loop is saturated. Defaults to the shared instance. */
@@ -340,6 +342,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _transport!: IProtocolTransport;
 	get clientConnectionKind(): AgentHostClientConnectionKind | undefined { return this._transport.clientConnectionKind; }
 	private _relayRootRefresh: { readonly transport: IProtocolTransport; readonly promise: Promise<void> } | undefined;
+	private _initialAuthenticationResource: string | undefined;
+	private _expiredRelayAuthentication: { readonly transport: IProtocolTransport; readonly resource: string } | undefined;
 	/** Disposable holding the listeners attached to the current transport. */
 	private readonly _transportListeners = this._register(new MutableDisposable<DisposableStore>());
 	/** The next reconnect sends `initialize` instead of `reconnect`, so the host decides its capabilities again. */
@@ -607,7 +611,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._connectionAuthority = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : agentHostAuthority(identity);
 		this.resourceUris = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY
 			? identityAgentHostResourceUriMapper
-			: createAgentHostResourceUriMapper(this._connectionAuthority);
+			: options?.resourceUris ?? createAgentHostResourceUriMapper(this._connectionAuthority);
 		this._loadEstimator = options?.loadEstimator ?? LoadEstimator.getInstance();
 		if (options?.onDidSuspend && options.onDidResume) {
 			this._register(options.onDidSuspend(() => this._suspendReconnectDeadline()));
@@ -688,9 +692,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			if (e.affectsConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID)) {
 				this._updateTerminalAutoApproveEnabled();
 			}
-			if (e.affectsConfiguration(TERMINAL_AUTO_APPROVE_SETTING_ID) || e.affectsConfiguration(TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID)) {
-				this._updateTerminalAutoApproveRules();
-			}
 			if (e.affectsConfiguration(DISABLE_REPO_INFO_TELEMETRY_SETTING_ID)) {
 				this._updateDisableRepoInfoTelemetry();
 			}
@@ -735,6 +736,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._relayRootRefresh = undefined;
 		}
 		this._transport = transport;
+		this._expiredRelayAuthentication = undefined;
 		this._transportListeners.value = listeners;
 	}
 
@@ -1386,6 +1388,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					const key = this._authenticationKey(normalizedParams);
 					if (this._authenticationOperations.get(key) === operations.get(key)) {
 						initialAuthenticationKey = key;
+						this._initialAuthenticationResource = normalizedParams.resource;
 						const expiresAt = getExpirationTime(normalizedParams.expiresIn);
 						this._authentication.set(key, { params: normalizedParams, expiresAt });
 					}
@@ -1560,7 +1563,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._updateDynamicAutoTiers();
 		this._updateTelemetryLevel();
 		this._updateTerminalAutoApproveEnabled();
-		this._updateTerminalAutoApproveRules();
 		this._updateAutoApprovePolicyRestriction();
 		this._updateWorkspaceTrust();
 		this._updateDisableRepoInfoTelemetry();
@@ -1649,7 +1651,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				? uri.scheme === Schemas.file
 				: (uri.scheme === AGENT_HOST_SCHEME && uri.authority === this._connectionAuthority)
 				|| (remoteAuthority !== undefined && uri.scheme === Schemas.vscodeRemote && uri.authority === remoteAuthority))
-			.map(uri => uri.scheme === Schemas.vscodeRemote ? uri.with({ scheme: Schemas.file, authority: '' }) : this.resourceUris.toAgentHost(uri))
+			.map(uri => this.resourceUris.toAgentHost(uri))
 			.filter(uri => uri.scheme === Schemas.file)
 			.map(uri => uri.toString());
 		this._dispatchRootConfig({
@@ -2024,7 +2026,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			channel: session.toString(),
 			_meta: meta,
 			provider,
-			workingDirectories: config?.workingDirectories?.map(d => fromAgentHostUri(d).toString()),
+			workingDirectories: config?.workingDirectories?.map(d => this._toHostUri(d).toString()),
 			config: config?.config,
 			activeClient: config?.activeClient,
 			progressToken: config?.progressToken,
@@ -2081,7 +2083,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			return undefined;
 		}
 		const requestId = generateUuid();
-		const measurement = this._sendExtensionRequest(MeasureWorktreeDiskUsageExtensionMethod, { uri: fromAgentHostUri(root).toString(), requestId, ...(session ? { session: session.toString() } : {}) });
+		const measurement = this._sendExtensionRequest(MeasureWorktreeDiskUsageExtensionMethod, { uri: this._toHostUri(root).toString(), requestId, ...(session ? { session: session.toString() } : {}) });
 		const cancellation = token.onCancellationRequested(() => {
 			void this._sendExtensionRequest(CancelWorktreeDiskUsageExtensionMethod, { requestId })
 				.catch(error => this._logService.warn('[WorktreeDiskUsage] Failed to cancel measurement', error));
@@ -2097,14 +2099,17 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 	}
 
-	async sessionWorktreeCleanup(session: URI, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined> {
+	async sessionWorktreeCleanup(session: URI, retry: boolean, force = false): Promise<IAgentHostWorktreeCleanupStatus | undefined> {
+		if (force && !supportsForceWorktreeCleanup(this.initializeResult.get())) {
+			throw new Error('This agent host does not support forced worktree cleanup.');
+		}
 		if (!supportsAgentHostWorktreeCleanup(this.initializeResult.get())) {
 			if (retry) {
 				throw new Error('This agent host does not support retrying worktree cleanup.');
 			}
 			return undefined;
 		}
-		const result = await this._sendExtensionRequest(SessionWorktreeCleanupExtensionMethod, { session: session.toString(), retry });
+		const result = await this._sendExtensionRequest(SessionWorktreeCleanupExtensionMethod, { session: session.toString(), retry, ...(force ? { force } : {}) });
 		const validated = sessionWorktreeCleanupStatusValidator.validate(result);
 		if (validated.error) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid worktree cleanup status');
@@ -2124,11 +2129,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return validated.content;
 	}
 
-	async cleanupManagedWorktree(repository: URI, worktree: URI, branch: string): Promise<void> {
+	async cleanupManagedWorktree(repository: URI, worktree: URI, branch: string, force = false): Promise<void> {
+		if (force && !supportsForceWorktreeCleanup(this.initializeResult.get())) {
+			throw new Error('This agent host does not support forced worktree cleanup.');
+		}
 		if (!supportsAgentHostManagedWorktrees(this.initializeResult.get())) {
 			throw new Error('This agent host does not support managed worktree cleanup.');
 		}
-		await this._sendExtensionRequest(CleanupManagedWorktreeExtensionMethod, { repository: repository.toString(), worktree: worktree.toString(), branch });
+		await this._sendExtensionRequest(CleanupManagedWorktreeExtensionMethod, { repository: repository.toString(), worktree: worktree.toString(), branch, ...(force ? { force } : {}) });
 	}
 
 	async installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
@@ -2298,7 +2306,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return this._sendRequest('resolveSessionConfig', {
 			channel: ROOT_STATE_URI,
 			provider: params.provider,
-			workingDirectory: params.workingDirectory ? fromAgentHostUri(params.workingDirectory).toString() : undefined,
+			workingDirectory: params.workingDirectory ? this._toHostUri(params.workingDirectory).toString() : undefined,
 			config: params.config,
 		});
 	}
@@ -2307,7 +2315,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return this._sendRequest('sessionConfigCompletions', {
 			channel: ROOT_STATE_URI,
 			provider: params.provider,
-			workingDirectory: params.workingDirectory ? fromAgentHostUri(params.workingDirectory).toString() : undefined,
+			workingDirectory: params.workingDirectory ? this._toHostUri(params.workingDirectory).toString() : undefined,
 			config: params.config,
 			property: params.property,
 			query: params.query,
@@ -2440,6 +2448,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
+		const transport = this._transport;
 		const normalizedParams = this._normalizeAuthenticationParams(params);
 		const key = this._authenticationKey(normalizedParams);
 		this._authenticationOperations.get(key)?.cancel();
@@ -2463,6 +2472,21 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._authentication.delete(key);
 		}
 		await this._refreshRelayRootSnapshot();
+		const expired = this._expiredRelayAuthentication;
+		if (params.token && !params.target && expired?.transport === transport && params.resource === expired.resource) {
+			if (operation.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			this._markSubscriptionsAwaitingRestore([]);
+			await this._restoreSubscriptionsAwaitingRestore();
+			if (operation.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			if (this._expiredRelayAuthentication === expired && this._transport === transport && !operation.token.isCancellationRequested) {
+				this._expiredRelayAuthentication = undefined;
+				this._onDidReconnect.fire();
+			}
+		}
 		return { authenticated: true };
 	}
 
@@ -2564,7 +2588,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (resource.scheme !== Schemas.file) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Agent Host returned a non-file session state resource: ${resource.toString()}`);
 		}
-		return toAgentHostUri(resource, this._connectionAuthority);
+		return this.resourceUris.fromAgentHost(resource);
 	}
 
 	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI, progressToken?: string): Promise<IAgentHostDebugLogsArtifact> {
@@ -2670,7 +2694,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			...(options?.provider !== undefined ? { provider: options.provider } : {}),
 			...(initialMessage ? { initialMessage } : {}),
 			...(options?.workingDirectories !== undefined && !options.fork
-				? { workingDirectories: options.workingDirectories.map(directory => fromAgentHostUri(directory).toString()) }
+				? { workingDirectories: options.workingDirectories.map(directory => this._toHostUri(directory).toString()) }
 				: {}),
 			...(options?.fork ? {
 				source: { kind: ChatSourceKind.Fork, chat: options.fork.source.toString(), turnId: options.fork.turnId }
@@ -2684,7 +2708,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				}
 			} : {}),
 			...(workspace ? {
-				_meta: withCreateChatWorkspaceMeta(undefined, workspace.kind === 'folder' ? { ...workspace, folder: fromAgentHostUri(workspace.folder) } : workspace),
+				_meta: withCreateChatWorkspaceMeta(undefined, workspace.kind === 'folder' ? { ...workspace, folder: this._toHostUri(workspace.folder) } : workspace),
 			} : {}),
 		});
 	}
@@ -2695,7 +2719,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 		await this._sendExtensionRequest(SetChatWorkspaceExtensionMethod, {
 			chat: chat.toString(),
-			workspace: serializeChatWorkspace(workspace.kind === 'folder' ? { ...workspace, folder: fromAgentHostUri(workspace.folder) } : workspace),
+			workspace: serializeChatWorkspace(workspace.kind === 'folder' ? { ...workspace, folder: this._toHostUri(workspace.folder) } : workspace),
 		});
 	}
 
@@ -2815,8 +2839,13 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return normalized ? { ...snapshot, state: normalized } : snapshot;
 	}
 
+	private _toHostUri(uri: URI): URI {
+		// Local API callers can still pass wrapped resources even though the local mapper is identity-only.
+		return this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? fromAgentHostUri(uri) : this.resourceUris.toAgentHost(uri);
+	}
+
 	private _toClientUri(uri: URI): URI {
-		return uri.scheme === Schemas.file ? toAgentHostUri(uri, this._connectionAuthority) : uri;
+		return uri.scheme === Schemas.file ? this.resourceUris.fromAgentHost(uri) : uri;
 	}
 
 	/**
@@ -3021,6 +3050,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				case 'root/sessionSummaryChanged':
 				case 'root/progress':
 				case 'auth/required': {
+					if (msg.method === 'auth/required' && this._isWebPubSubRelay()
+						&& isAhpRootChannel(msg.params.channel) && msg.params.reason === AuthRequiredReason.Expired
+						&& msg.params.resource.resource === this._initialAuthenticationResource && !this._expiredRelayAuthentication) {
+						this._expiredRelayAuthentication = { transport: this._transport, resource: msg.params.resource.resource };
+						this._markSubscriptionsAwaitingRestore([]);
+					}
 					this._logService.trace(`[RemoteAgentHostProtocol] Notification: ${msg.method}`);
 					// The case narrows `msg.method` to a single literal; the matching params
 					// shape is paired with that literal by the {@link ServerNotificationMap}
@@ -3456,17 +3491,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private _updateTerminalAutoApproveEnabled(): void {
-		// Deliberately on the manual, workspace-aware path rather than declaring
-		// `agentHost` on its schema: the setting is `restricted` and settable per
-		// workspace, and its companion rule set (`terminalAutoApproveRules`) is
-		// workspace-aware too. Resolving only the global value here would let a
-		// workspace that turned auto-approval off still have it applied.
+		// Preserve workspace opt-outs; the globally shared permission rules do not override this toggle.
 		const enabled = this._configurationService.getValue<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID) !== false;
 		this._dispatchRootConfig({ [AgentHostTerminalAutoApproveEnabledConfigKey]: enabled });
-	}
-
-	private _updateTerminalAutoApproveRules(): void {
-		this._dispatchRootConfig({ [AgentHostTerminalAutoApproveRulesConfigKey]: getAgentHostTerminalAutoApproveRulesConfig(this._configurationService) });
 	}
 
 	private _updateManagedSettingsPermissions(sendDuringReconnect = false): void {

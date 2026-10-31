@@ -184,22 +184,6 @@ export const AgentHostOverlapProviderPreparationSettingId = 'chat.agentHost.expe
 /** Configuration key controlling whether new Copilot drafts start their runtime and MCP servers before the first message. */
 export const AgentHostPrewarmSessionsSettingId = 'chat.agentHost.experimental.prewarmSessions';
 
-/**
- * Experimentation setting id gating the conditional agent-window auth feature.
- * When `true`, the agent window opens for a signed-out user instead of forcing
- * GitHub sign-in; each session type then gates on its own GitHub requirement, so
- * a type usable without GitHub (e.g. Claude in native mode with an existing local
- * setup) works signed out while types that need GitHub prompt for it on demand.
- *
- * This is the **workbench** VS Code setting id. The workbench registers the
- * configuration schema and forwards the value into the agent-host root config
- * under the short key `AgentHostConfigKey.AllowSignedOutWhenUsable`, which the
- * Claude provider reads node-side via `getRootValue`. Until it is wired and
- * enabled the root key is absent, so it reads `false` and behavior is identical
- * to today.
- */
-export const AgentHostAllowSignedOutWhenUsableSettingId = 'chat.agentHost.allowSignedOutWhenUsable';
-
 // The Copilot-CLI-specific setting IDs (`customTerminalTool`, `opus48Prompt`,
 // `modelCapabilityOverrides`) live with their root-config keys in
 // `copilotCliConfig.ts`.
@@ -271,6 +255,9 @@ export const AgentHostSessionResidencyLimitEnvVar = 'VSCODE_AGENT_HOST_SESSION_R
 
 /** Overrides the retry delay after a provider temporarily vetoes session release. Primarily used by integration tests. */
 export const AgentHostSessionReleaseRetryMsEnvVar = 'VSCODE_AGENT_HOST_SESSION_RELEASE_RETRY_MS';
+
+/** Overrides how long a changeset read waits for the file snapshots of a running Codex turn. Primarily used by integration tests. */
+export const AgentHostCodexTurnEditsWaitMsEnvVar = 'VSCODE_AGENT_HOST_CODEX_TURN_EDITS_WAIT_MS';
 
 /**
  * Resolves the effective enable state for a Claude/Codex provider from the
@@ -1279,9 +1266,9 @@ export interface IAgentService {
 	measureWorktreeDiskUsage(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined>;
 
 	/** Reports background removal state, optionally retrying cleanup of an archived session. */
-	sessionWorktreeCleanup?(session: URI, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	sessionWorktreeCleanup?(session: URI, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
 	listManagedWorktrees?(repositories: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;
-	cleanupManagedWorktree?(repository: URI, worktree: URI, branch: string): Promise<void>;
+	cleanupManagedWorktree?(repository: URI, worktree: URI, branch: string, force?: boolean): Promise<void>;
 
 	/**
 	 * Read stored content by URI from the agent host (e.g. file edit snapshots,
@@ -1563,9 +1550,9 @@ export interface IAgentConnection {
 	// ---- Filesystem operations ----------------------------------------------
 	/** Estimates reclaimable allocation on local or remote hosts, optionally cached for an idle session. Unsupported hosts must not fall back to per-file RPCs. */
 	measureWorktreeDiskUsage?(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined>;
-	sessionWorktreeCleanup?(session: URI, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	sessionWorktreeCleanup?(session: URI, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
 	listManagedWorktrees?(repositories: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;
-	cleanupManagedWorktree?(repository: URI, worktree: URI, branch: string): Promise<void>;
+	cleanupManagedWorktree?(repository: URI, worktree: URI, branch: string, force?: boolean): Promise<void>;
 	resourceList(uri: URI): Promise<ResourceListResult>;
 	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult>;
 	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult>;

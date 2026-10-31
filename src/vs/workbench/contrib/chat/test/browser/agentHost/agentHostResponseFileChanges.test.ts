@@ -20,6 +20,7 @@ import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platf
 import { AgentSubscriptionManager, IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { chatReducer } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/reducer.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { chatTurnComplete } from '../../../../../../platform/agentHost/test/common/chatActionBuilders.js';
 import {
 	buildChatUri,
 	buildDefaultChatUri,
@@ -613,7 +614,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 
 			chat = streamText(conn, chat);
 			conn.setState(backendSession.toString(), { ...session, title: 'Renamed session' });
-			conn.setState(chat.resource, chatReducer(chat, { type: ActionType.ChatTurnComplete, turnId: 'active', duration: 1 }));
+			conn.setState(chat.resource, chatReducer(chat, chatTurnComplete('active', 1)));
 
 			assert.deepStrictEqual({
 				historyVisits,
@@ -898,7 +899,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			part: toolCallPart(fileEdit('/repo/a.ts', 3), 'second-tool'),
 		});
 		conn.setState(chat.resource, chat);
-		chat = chatReducer(chat, { type: ActionType.ChatTurnComplete, turnId: 't1', duration: 1 });
+		chat = chatReducer(chat, chatTurnComplete('t1', 1));
 		conn.setState(chat.resource, chat);
 
 		assert.deepStrictEqual(observed, [[2], [5]]);

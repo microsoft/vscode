@@ -8,6 +8,7 @@ import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -226,17 +227,14 @@ suite('Mission Control client', () => {
 		const { client, providers } = setup(() => Response.json(emptyPage));
 		const options = { caller: 'test.automations', deadline: Date.now() + 10_000 };
 		const sandbox = sinon.createSandbox();
-		try {
-			assert.ok(providers.missionControl);
-			const request = sandbox.spy(providers.missionControl, 'request');
-			await client.automations.list(repository, signal(), { ...options, query: { page: 2, disabled: false } });
-			const { path, options: requestOptions } = request.firstCall.args[0];
-			assert.deepStrictEqual({ path, options: requestOptions }, {
-				path: '/repos/owner/repo/automations/v2?page=2&disabled=false', options,
-			});
-		} finally {
-			sandbox.restore();
-		}
+		store.add(toDisposable(() => sandbox.restore()));
+		assert.ok(providers.missionControl);
+		const request = sandbox.spy(providers.missionControl, 'request');
+		await client.automations.list(repository, signal(), { ...options, query: { page: 2, disabled: false } });
+		const { path, options: requestOptions } = request.firstCall.args[0];
+		assert.deepStrictEqual({ path, options: requestOptions }, {
+			path: '/repos/owner/repo/automations/v2?page=2&disabled=false', options,
+		});
 	});
 
 	test('configuration reads honor server no-store and preserve caller options and false values', async () => {
@@ -248,30 +246,27 @@ suite('Mission Control client', () => {
 		const { client, providers, requests } = setup(() => Response.json(responses.shift(), { headers: { etag: '"configuration"', 'cache-control': 'private, no-store' } }));
 		const options = { caller: 'test.automationConfiguration', deadline: Date.now() + 10_000, priority: 'visible' as const, noCache: false };
 		const sandbox = sinon.createSandbox();
-		try {
-			assert.ok(providers.missionControl);
-			const request = sandbox.spy(providers.missionControl, 'request');
-			const values = [
-				await client.automations.getConfiguration(repository, signal(), options),
-				await client.automations.getConfiguration(repository, signal(), options),
-			];
-			assert.deepStrictEqual({
-				values,
-				requests: requests.map(({ url, init }) => {
-					const headers = new Headers(init.headers);
-					return [init.method, url.href, headers.get('If-None-Match'), headers.has('Authorization'), headers.get('Copilot-Integration-Id')];
-				}),
-				metadata: request.getCalls().map(call => ({ domain: call.args[0].domain, options: call.args[0].options })),
-				callerNoCache: options.noCache,
-			}, {
-				values: [automationConfiguration, disabled],
-				requests: Array(2).fill(['GET', `${apiBaseUri}${collection}/configuration`, null, true, 'test-integration']),
-				metadata: Array(2).fill({ domain: 'automations', options }),
-				callerNoCache: false,
-			});
-		} finally {
-			sandbox.restore();
-		}
+		store.add(toDisposable(() => sandbox.restore()));
+		assert.ok(providers.missionControl);
+		const request = sandbox.spy(providers.missionControl, 'request');
+		const values = [
+			await client.automations.getConfiguration(repository, signal(), options),
+			await client.automations.getConfiguration(repository, signal(), options),
+		];
+		assert.deepStrictEqual({
+			values,
+			requests: requests.map(({ url, init }) => {
+				const headers = new Headers(init.headers);
+				return [init.method, url.href, headers.get('If-None-Match'), headers.has('Authorization'), headers.get('Copilot-Integration-Id')];
+			}),
+			metadata: request.getCalls().map(call => ({ domain: call.args[0].domain, options: call.args[0].options })),
+			callerNoCache: options.noCache,
+		}, {
+			values: [automationConfiguration, disabled],
+			requests: Array(2).fill(['GET', `${apiBaseUri}${collection}/configuration`, null, true, 'test-integration']),
+			metadata: Array(2).fill({ domain: 'automations', options }),
+			callerNoCache: false,
+		});
 	});
 
 	test('configuration reads encode repository identifiers and validate them before credential lookup', async () => {
@@ -709,7 +704,7 @@ suite('Mission Control client', () => {
 		const feed = {
 			url: 'wss://relay.example.test/?access_token=feed-secret',
 			subprotocol: 'json.webpubsub.azure.v1', group: 'opaque-group',
-			expires_at: date, reconnect_after: date, frame_schema_version: 1,
+			expires_at: date, reconnect_after: date, expires_in: 600_000, reconnect_in: 480_000, frame_schema_version: 1,
 		};
 		const options = clientOptions();
 		const { client, requests } = setup(request => Response.json(request.url.pathname.endsWith('/feed/connect')

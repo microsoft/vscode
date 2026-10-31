@@ -97,7 +97,7 @@ function createCoordinator(exitOnKill = true, ordering?: string[], installExitCo
 }
 
 suite('TunnelProcessCoordinator', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('resolves Remote Tunnel Access modes', () => {
 		assert.deepStrictEqual([
@@ -348,24 +348,21 @@ suite('TunnelProcessCoordinator', () => {
 
 	test('uninstalls the service when a restart preempts the reconcile', async () => {
 		const { coordinator, processes } = createCoordinator();
-		try {
-			await coordinator.setRemoteAccess(activeMode(true), LogLevel.Info);
-			// Turning the service off owes an uninstall. A restart in the same
-			// tick preempts that reconcile, so the requirement must survive.
-			const stopService = coordinator.setRemoteAccess(INACTIVE_TUNNEL_MODE, LogLevel.Info);
-			const restart = coordinator.restart();
-			await Promise.all([stopService, restart]);
+		store.add(coordinator);
+		await coordinator.setRemoteAccess(activeMode(true), LogLevel.Info);
+		// Turning the service off owes an uninstall. A restart in the same
+		// tick preempts that reconcile, so the requirement must survive.
+		const stopService = coordinator.setRemoteAccess(INACTIVE_TUNNEL_MODE, LogLevel.Info);
+		const restart = coordinator.restart();
+		await Promise.all([stopService, restart]);
 
-			assert.deepStrictEqual({
-				uninstalled: processes.some(process => process.args.includes('uninstall')),
-				status: coordinator.getStatus().mode,
-			}, {
-				uninstalled: true,
-				status: 'none',
-			});
-		} finally {
-			coordinator.dispose();
-		}
+		assert.deepStrictEqual({
+			uninstalled: processes.some(process => process.args.includes('uninstall')),
+			status: coordinator.getStatus().mode,
+		}, {
+			uninstalled: true,
+			status: 'none',
+		});
 	});
 
 	test('parses and fans machine-status events to every registered consumer', async () => {

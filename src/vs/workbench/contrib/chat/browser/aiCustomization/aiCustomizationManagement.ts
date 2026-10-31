@@ -164,6 +164,11 @@ export const AI_CUSTOMIZATION_ITEM_URI_KEY = 'aiCustomizationManagementItemUri';
 export const AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY = 'aiCustomizationManagementItemPluginUri';
 
 /**
+ * Context key indicating whether the item's parent plugin is required by the organization and cannot be uninstalled.
+ */
+export const AI_CUSTOMIZATION_ITEM_PLUGIN_REQUIRED_KEY = 'aiCustomizationManagementItemPluginRequired';
+
+/**
  * Context key indicating whether the item is disabled.
  */
 export const AI_CUSTOMIZATION_ITEM_DISABLED_KEY = 'aiCustomizationManagementItemDisabled';

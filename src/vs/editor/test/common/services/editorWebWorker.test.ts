@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Position } from '../../../common/core/position.js';
 import { IRange, Range } from '../../../common/core/range.js';
@@ -16,7 +17,7 @@ import { ICommonModel } from '../../../common/services/textModelSync/textModelSy
 
 suite('EditorWebWorker', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	class WorkerWithModels extends EditorWorker {
 
@@ -45,15 +46,12 @@ suite('EditorWebWorker', () => {
 				ignoreTrimWhitespace: false, maxComputationTimeMs: 500, computeMoves: false,
 			});
 			const stub = sinon.stub(DefaultLinesDiffComputer.prototype, 'computeDiff').returns({ ...diff, hitTimeout });
-			try {
-				const result = await worker.$computeStringDiff('aaa\nzzz', 'AAA\nzzz', { maxComputationTimeMs: 500 }, 'advanced');
-				assert.deepStrictEqual({
-					isCoarse: result.isCoarse,
-					after: StringEdit.fromJson(result.edit).apply('aaa\nzzz'),
-				}, { isCoarse: hitTimeout, after: 'AAA\nzzz' });
-			} finally {
-				stub.restore();
-			}
+			store.add(toDisposable(() => stub.restore()));
+			const result = await worker.$computeStringDiff('aaa\nzzz', 'AAA\nzzz', { maxComputationTimeMs: 500 }, 'advanced');
+			assert.deepStrictEqual({
+				isCoarse: result.isCoarse,
+				after: StringEdit.fromJson(result.edit).apply('aaa\nzzz'),
+			}, { isCoarse: hitTimeout, after: 'AAA\nzzz' });
 		});
 	}
 

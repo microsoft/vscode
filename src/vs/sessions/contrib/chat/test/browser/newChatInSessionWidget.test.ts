@@ -23,6 +23,8 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { NestedChatWorkspaceControls } from '../../browser/nestedChatWorkspacePicker.js';
+import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
+import { IChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -79,6 +81,7 @@ suite('NewChatInSessionWidget', () => {
 			store.add(new InMemoryStorageService()),
 			new TestAccessibilityService(),
 			new class extends mock<IFileService>() { }(),
+			new SessionsChatViewStateService(),
 		));
 		store.add(autorun(reader => { Reflect.get(widget, '_workspaceSupport').read(reader); }));
 
@@ -147,6 +150,127 @@ suite('NewChatInSessionWidget', () => {
 			opened: [{ harness: 'other' }],
 			deleted: ['draft'],
 			active: 'replacement',
+		});
+	});
+
+	test('picking another harness keeps the typed input in the composer when the chat is replaced', async () => {
+		const chat = (fragment: string, harness?: string, status = SessionStatus.Untitled) => upcastPartial<IChat>({ resource: URI.parse(`test:///session#${fragment}`), status: constObservable(status), ...(harness ? { harness } : {}) });
+		const main = chat('', undefined, SessionStatus.Completed);
+		const draft = chat('draft');
+		const replacement = chat('replacement', 'other');
+		const activeChat = observableValue<IChat>('activeChat', draft);
+		const session = upcastPartial<IActiveSession>({ sessionId: 'session', harness: 'main', isCreated: constObservable(true), mainChat: constObservable(main), activeChat });
+		let input: IChatDraft = { inputText: '', attachments: [] };
+		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {
+			_session: constObservable(session),
+			_chat: observableValue<IChat | undefined>('chat', undefined),
+			_newChatInput: { getDraft: () => input, setDraft: (value: IChatDraft | undefined) => { input = value ?? { inputText: '', attachments: [] }; } },
+			viewStateService: new SessionsChatViewStateService(),
+			logService: new NullLogService(),
+			sessionsService: new class extends mock<ISessionsService>() {
+				override async openNewChatInSession(): Promise<void> {
+					await Promise.resolve();
+					activeChat.set(replacement, undefined);
+					widget.setChat(replacement);
+				}
+			}(),
+			sessionsManagementService: new class extends mock<ISessionsManagementService>() {
+				override async deleteChat(): Promise<boolean> { return true; }
+			}(),
+		});
+		widget.setChat(draft);
+		input = { inputText: 'typed before the switch', attachments: [] };
+
+		await widget.selectHarness('other');
+
+		assert.deepStrictEqual(input, { inputText: 'typed before the switch', attachments: [] });
+	});
+
+	test('opening another unsent chat while a harness switch is pending shows that chat\'s own draft', async () => {
+		const chat = (fragment: string, harness?: string, status = SessionStatus.Untitled) => upcastPartial<IChat>({ resource: URI.parse(`test:///session#${fragment}`), status: constObservable(status), ...(harness ? { harness } : {}) });
+		const main = chat('', undefined, SessionStatus.Completed);
+		const draft = chat('draft');
+		const otherDraft = chat('other-draft');
+		const activeChat = observableValue<IChat>('activeChat', draft);
+		const session = upcastPartial<IActiveSession>({ sessionId: 'session', harness: 'main', isCreated: constObservable(true), mainChat: constObservable(main), activeChat });
+		const viewStateService = new SessionsChatViewStateService();
+		viewStateService.setDraft(otherDraft.resource, { inputText: 'the other chat\'s draft', attachments: [] });
+		let input: IChatDraft = { inputText: '', attachments: [] };
+		let finishOpen!: () => void;
+		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {
+			_session: constObservable(session),
+			_chat: observableValue<IChat | undefined>('chat', undefined),
+			_newChatInput: { getDraft: () => input, setDraft: (value: IChatDraft | undefined) => { input = value ?? { inputText: '', attachments: [] }; } },
+			viewStateService,
+			logService: new NullLogService(),
+			sessionsService: new class extends mock<ISessionsService>() {
+				override openNewChatInSession(): Promise<void> {
+					return new Promise<void>(resolve => finishOpen = resolve);
+				}
+			}(),
+			sessionsManagementService: new class extends mock<ISessionsManagementService>() {
+				override async deleteChat(): Promise<boolean> { return true; }
+			}(),
+		});
+		widget.setChat(draft);
+		input = { inputText: 'typed before the switch', attachments: [] };
+
+		const switched = widget.selectHarness('other');
+		widget.setChat(otherDraft);
+		const shown = input;
+		finishOpen();
+		await switched;
+
+		assert.deepStrictEqual(shown, { inputText: 'the other chat\'s draft', attachments: [] });
+	});
+
+	test('returning to the replacement chat while the replaced draft is still being deleted restores its own draft', async () => {
+		const chat = (fragment: string, harness?: string, status = SessionStatus.Untitled) => upcastPartial<IChat>({ resource: URI.parse(`test:///session#${fragment}`), status: constObservable(status), ...(harness ? { harness } : {}) });
+		const main = chat('', undefined, SessionStatus.Completed);
+		const draft = chat('draft');
+		const replacement = chat('replacement', 'other');
+		const otherDraft = chat('other-draft', 'other');
+		const activeChat = observableValue<IChat>('activeChat', draft);
+		const session = upcastPartial<IActiveSession>({ sessionId: 'session', harness: 'main', isCreated: constObservable(true), mainChat: constObservable(main), activeChat });
+		const viewStateService = new SessionsChatViewStateService();
+		viewStateService.setDraft(otherDraft.resource, { inputText: 'the other chat\'s draft', attachments: [] });
+		let input: IChatDraft = { inputText: '', attachments: [] };
+		let finishDelete!: () => void;
+		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {
+			_session: constObservable(session),
+			_chat: observableValue<IChat | undefined>('chat', undefined),
+			_newChatInput: { getDraft: () => input, setDraft: (value: IChatDraft | undefined) => { input = value ?? { inputText: '', attachments: [] }; } },
+			viewStateService,
+			logService: new NullLogService(),
+			sessionsService: new class extends mock<ISessionsService>() {
+				override async openNewChatInSession(): Promise<void> {
+					await Promise.resolve();
+					activeChat.set(replacement, undefined);
+					widget.setChat(replacement);
+				}
+			}(),
+			sessionsManagementService: new class extends mock<ISessionsManagementService>() {
+				override deleteChat(): Promise<boolean> {
+					return new Promise<boolean>(resolve => finishDelete = () => resolve(true));
+				}
+			}(),
+		});
+		widget.setChat(draft);
+		input = { inputText: 'typed before the switch', attachments: [] };
+
+		const switched = widget.selectHarness('other');
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+		widget.setChat(otherDraft);
+		const inOtherChat = input;
+		input = { inputText: 'edited in the other chat', attachments: [] };
+		widget.setChat(replacement);
+		const backInReplacement = input;
+		finishDelete();
+		await switched;
+
+		assert.deepStrictEqual({ inOtherChat, backInReplacement }, {
+			inOtherChat: { inputText: 'the other chat\'s draft', attachments: [] },
+			backInReplacement: { inputText: 'typed before the switch', attachments: [] },
 		});
 	});
 

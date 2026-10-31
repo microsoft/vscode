@@ -20,6 +20,10 @@ export interface SessionFeedConnection {
 	readonly group: string;
 	readonly expires_at: string;
 	readonly reconnect_after: string;
+	/** Milliseconds remaining at response generation; omitted by older servers. */
+	readonly expires_in?: number;
+	/** Milliseconds until renewal at response generation; independent of the client clock. */
+	readonly reconnect_in?: number;
 	readonly frame_schema_version: 1;
 }
 

@@ -426,7 +426,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 					},
 				}), CustomizationMarketplaceSources.AgentFinderPublicFeed.id),
 				createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.CopilotConnectors.id, () => new CopilotConnectorsMarketplaceProvider(this.copilotConnectorsService, this.configurationService)),
-			]);
+			], ['harness.githubFeed', CustomizationMarketplaceSources.CopilotConnectors.id]);
 		}
 		return this.service;
 	}

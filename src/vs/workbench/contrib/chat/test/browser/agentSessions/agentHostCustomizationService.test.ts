@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
@@ -21,7 +22,7 @@ import { IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/ag
 import { withMcpServerConnectorNameMeta, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement, type PluginCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { createSessionState, RootState, SessionState, SessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
@@ -50,9 +51,11 @@ import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { assertCodexSkillItems, createCodexSkillCustomizations } from './agentHostSkillDiscoveryTestUtils.js';
+import { createInstalledMcpServerDetailInput } from '../../../browser/aiCustomization/mcpListWidget.js';
 
 class FakeTarget implements IAgentHostCustomizationTarget {
 	readonly backendSession = URI.parse('other-agent://tenant/conversations/opaque-session?revision=1');
+	readonly clientId = 'vscode';
 	readonly enablementChanges: { readonly rawId: string; readonly enablement: readonly CustomizationEnablement[] }[] = [];
 	readonly startCalls: string[] = [];
 	readonly authenticateCalls: IAgentHostAuthenticateRequest[] = [];
@@ -314,6 +317,50 @@ suite('AbstractAgentHostCustomizationService', () => {
 		]);
 	});
 
+	for (const kind of agentHostConnectionKinds) {
+		test(`maps host MCP sources including client-published plugin children (${kind.name})`, () => {
+			const sut = createSut();
+			const session = URI.parse('vscode-agent-session:///remote');
+			const host = { ...mcpServer('host', 'Host'), uri: 'file:///workspace/.mcp.json' };
+			const client = { ...mcpServer('client', 'Client'), uri: 'file:///client/.mcp.json' };
+			const target = new FakeTarget([host, { type: CustomizationType.Plugin, id: 'client-plugin', uri: 'file:///client', name: 'Client Plugin', clientId: 'vscode', children: [client] }], 'file:///workspace', undefined, kind.resourceUris);
+			sut.setTarget(session, target);
+			sut.setCustomizationEnablement(session, host.id, undefined, CustomizationEnablementKind.Workspace, false);
+			assert.deepStrictEqual({ sources: sut.getMcpServers(session).map(server => server.sourceUri?.toString()), enablement: target.enablementChanges }, {
+				sources: [kind.toClient(URI.file('/workspace/.mcp.json')).toString(), kind.toClient(URI.file('/client/.mcp.json')).toString()],
+				enablement: [{ rawId: host.id, enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: false }] }],
+			});
+		});
+	}
+
+	for (const kind of agentHostConnectionKinds) {
+		test(`decodes only own plugin identities for bundled MCP routing while mapping all host child sources (${kind.name})`, () => {
+			const sut = createSut();
+			const session = URI.parse('vscode-agent-session:///remote-bundle');
+			const ownUri = kind.toClient(URI.file('/plugins/own')).toString();
+			const own: PluginCustomization = {
+				type: CustomizationType.Plugin, id: 'own', name: 'Own', uri: 'vscode-agent-host-file:///plugins/own', clientId: 'vscode',
+				children: [{ ...mcpServer('own-server', 'Own Server'), uri: 'file:///cache/own/.mcp.json' }],
+			};
+			const foreign: PluginCustomization = { ...own, id: 'foreign', clientId: 'other-window', children: [{ ...mcpServer('foreign-server', 'Foreign Server'), uri: 'file:///cache/foreign/.mcp.json' }] };
+			const lookups: string[] = [];
+			const target = new FakeTarget([own, foreign], undefined, uri => { lookups.push(uri); return uri === ownUri; }, kind.resourceUris);
+			sut.setTarget(session, target);
+			assert.deepStrictEqual({
+				servers: sut.getMcpServers(session).map(server => ({ source: server.sourceUri?.toString(), bundled: server.isClientBundled })),
+				lookups,
+				own: sut.getClientPluginUri(session, own)?.toString(),
+				foreign: sut.getClientPluginUri(session, foreign),
+			}, {
+				servers: [
+					{ source: kind.toClient(URI.file('/cache/own/.mcp.json')).toString(), bundled: true },
+					{ source: kind.toClient(URI.file('/cache/foreign/.mcp.json')).toString(), bundled: false },
+				],
+				lookups: [ownUri], own: ownUri, foreign: undefined,
+			});
+		});
+	}
+
 	test('uses conforming host plugin and child targets verbatim without client identity hints', () => {
 		const sut = createSut();
 		const session = URI.parse('vscode-agent-session:///session-1');
@@ -405,13 +452,15 @@ suite('AbstractAgentHostCustomizationService', () => {
 		const sut = createSut();
 		const session = URI.parse('vscode-agent-session:///session-1');
 		const server = mcpServer('server-1', 'Server One');
+		const pluginUri = URI.parse('vscode-synced-customization:///agent-host-copilot').toString();
 		const target = new FakeTarget([{
 			type: CustomizationType.Plugin,
 			id: 'plugin-1',
-			uri: 'vscode-synced-customization:///agent-host-copilot',
+			uri: pluginUri,
 			name: 'Synced',
+			clientId: 'vscode',
 			children: [server],
-		} as unknown as Customization], undefined, (pluginUri, serverName) => pluginUri === 'vscode-synced-customization:///agent-host-copilot' && serverName === 'Server One');
+		} as unknown as Customization], undefined, (uri, serverName) => uri === pluginUri && serverName === 'Server One');
 		sut.setTarget(session, target);
 
 		const [pluginServer] = sut.getMcpServers(session);
@@ -424,15 +473,20 @@ suite('AbstractAgentHostCustomizationService', () => {
 		const session = URI.parse('vscode-agent-session:///session-1');
 		const fileServer = mcpServer('file-server', 'File Server');
 		const topLevelServer = { ...mcpServer('top-level-server', 'Top Level Server'), uri: 'mcp-top-level:/top-level-server' };
+		const opaqueServer = { ...mcpServer('opaque-server', 'Opaque Server'), uri: 'agent-discovery://copilot/mcp#opaque' };
 		const resourceUris = createAgentHostResourceUriMapper('remote.example');
-		sut.setTarget(session, new FakeTarget([fileServer, topLevelServer], undefined, undefined, resourceUris));
+		const wrappedOpaqueServer = { ...mcpServer('wrapped-opaque', 'Wrapped Opaque'), uri: resourceUris.fromAgentHost(URI.parse('agent-discovery://copilot/mcp#wrapped')).toString() };
+		sut.setTarget(session, new FakeTarget([fileServer, topLevelServer, opaqueServer, wrappedOpaqueServer], undefined, undefined, resourceUris));
 
 		const servers = sut.getMcpServers(session);
 
-		assert.deepStrictEqual(servers.map(server => server.sourceUri?.toString()), [
-			resourceUris.fromAgentHost(URI.parse(fileServer.uri)).toString(),
-			undefined,
-		]);
+		assert.deepStrictEqual({
+			sources: servers.map(server => server.sourceUri?.toString()),
+			detailSources: servers.map(server => createInstalledMcpServerDetailInput({ type: 'session-server-item', server }).source?.uri.toString()),
+		}, {
+			sources: [resourceUris.fromAgentHost(URI.parse(fileServer.uri)).toString(), undefined, undefined, undefined],
+			detailSources: [resourceUris.fromAgentHost(URI.parse(fileServer.uri)).toString(), undefined, undefined, undefined],
+		});
 	});
 
 	test('preserves host-only MCP presentation metadata without requiring a source file', () => {

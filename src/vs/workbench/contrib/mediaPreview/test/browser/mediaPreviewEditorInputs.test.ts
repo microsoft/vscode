@@ -22,6 +22,7 @@ import { FileChangesEvent, FileChangeType, IFileContent, IFileService, IFileStat
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOverlayWebview } from '../../../webview/browser/webview.js';
+import { isCustomEditorCompatibleInput } from '../../../customEditor/common/customEditor.js';
 import { AUDIO_PREVIEW_EDITOR_ID, IMAGE_PREVIEW_EDITOR_ID, VIDEO_PREVIEW_EDITOR_ID } from '../../common/mediaPreview.js';
 import { ImagePreviewEditorInput } from '../../browser/imagePreviewEditorInput.js';
 import { MediaPlayerEditorInput, MediaPlayerKind } from '../../browser/mediaPlayerEditorInput.js';
@@ -42,6 +43,7 @@ suite('Media Preview - ImagePreviewEditorInput', () => {
 		assert.deepStrictEqual({
 			typeId: input.typeId,
 			editorId: input.editorId,
+			customEditorViewType: isCustomEditorCompatibleInput(input) ? input.customEditorViewType : undefined,
 			name: input.getName(),
 			readonly: input.hasCapability(EditorInputCapabilities.Readonly),
 			canDropIntoEditor: input.hasCapability(EditorInputCapabilities.CanDropIntoEditor),
@@ -53,6 +55,7 @@ suite('Media Preview - ImagePreviewEditorInput', () => {
 		}, {
 			typeId: ImagePreviewEditorInput.ID,
 			editorId: IMAGE_PREVIEW_EDITOR_ID,
+			customEditorViewType: IMAGE_PREVIEW_EDITOR_ID,
 			name: 'logo.png',
 			readonly: true,
 			canDropIntoEditor: false,
@@ -95,6 +98,7 @@ suite('Media Preview - MediaPlayerEditorInput', () => {
 		assert.deepStrictEqual({
 			typeIds: [audio.typeId, video.typeId],
 			editorIds: [audio.editorId, video.editorId],
+			customEditorViewTypes: [audio, video].map(input => isCustomEditorCompatibleInput(input) ? input.customEditorViewType : undefined),
 			name: audio.getName(),
 			readonly: audio.hasCapability(EditorInputCapabilities.Readonly),
 			singleton: audio.hasCapability(EditorInputCapabilities.Singleton),
@@ -106,6 +110,7 @@ suite('Media Preview - MediaPlayerEditorInput', () => {
 		}, {
 			typeIds: [MediaPlayerEditorInput.typeId, MediaPlayerEditorInput.typeId],
 			editorIds: [AUDIO_PREVIEW_EDITOR_ID, VIDEO_PREVIEW_EDITOR_ID],
+			customEditorViewTypes: [AUDIO_PREVIEW_EDITOR_ID, VIDEO_PREVIEW_EDITOR_ID],
 			name: 'song.mp3',
 			readonly: true,
 			singleton: false,

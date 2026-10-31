@@ -51,6 +51,10 @@ Keeping these separate is what stops this loop: `replaceEnablement` → synchron
 
 An MCP server's storage key is derived from `owningPluginUri`, never from where it happened to appear in the published tree. The same server discovered top-level (`mcpServers#azure`) and nested under a plugin (`<pluginURI>#mcp=azure`) must produce **one** key, or a decision written in one session is invisible to the next. `targetForMcpServer()` and `withOwningPluginUri()` in the gate are the only supported way to build that target.
 
+### Customization URIs have an author
+
+A client-published plugin's `uri` is in that client's URI space, but its `children` are host-authored paths into the host's materialized copy. Resolve them with `getAgentHostCustomizationUri` and treat other clients' plugins as opaque. A same-host plugin is published as `vscode-agent-host-file:`; match it to its client source through `id` or the decoded URI, never the raw published URI. See [Agent Host URI spaces](../../instructions/agent-host-uri-spaces.instructions.md).
+
 ### Pending means fail closed — but pending must be transient
 
 `resolve()` returns `{kind:'pending'}` when the session isn't initialized yet (`reason: 'session'`) or the working directory isn't known (`reason: 'workingDirectory'`). `resolveCustomizationEnablement()` records those in `pendingCustomizationIds`, and `isCustomizationSdkEligible()` makes SDK-boundary consumers **fail closed**.

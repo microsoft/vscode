@@ -155,3 +155,26 @@ The fixes can be run using `npx eslint --fix` in the VS Code repo.
 `local/code-no-timeout-polling-loop` reports loops in unit tests that wait for a state change by sleeping on a timer, for example `for (let i = 0; i < 100 && !done; i++) { await timeout(1); }`, `while (!done) { await new Promise(r => setTimeout(r, 5)); }`, or a fixed number of `await timeout(0)` ticks. Such a loop's time budget depends on timer clamping (about 4ms for nested timers in Electron) and machine load, so it is flaky on slow or oversubscribed machines. A bounded loop that runs out also continues silently with stale state, so the test fails later at an unrelated assertion. Await a signal for the state change instead: a `DeferredPromise`, `Event.toPromise(...)`, `waitForState(...)`, or the promise of the operation itself. For code driven by timers, use `runWithFakedTimers`.
 
 Only loops that do nothing but wait are reported: the body consists solely of awaited sleeps (`timeout`, `sleep`, `delay`, `wait`, the awaited `setTimeout` of `timers/promises`, or a `new Promise` whose executor only resolves on a `setTimeout`), exit guards such as `if (done) { break; }`, and declarations or assignments of reads such as `const state = await db.read();`. Calls count as reads only by name (`get…`, `is…`, `has…`, `find`, `filter` and similar); any other call counts as work. Loops that do work between sleeps or before a `continue`, such as streaming mock data or a parameterized test, are not reported. Loops within a `runWithFakedTimers` callback, where time is virtual, are not reported either, unless the callback passes `useFakeTimers: false`. The rule is enabled for `src/vs/**/*.test.ts`. Files that already polled when it was introduced are listed in its `exclude` option and should be removed from the list once they are fixed. Run its tests with `node --test .eslint-plugin-local/tests/code-no-timeout-polling-loop.test.ts`.
+
+## Prefer events and observables over callback dependencies
+
+`local/code-prefer-event-or-observable` suggests an `Event` for notifications or an `IObservable` for changing values instead of accepting caller-owned behavior through a callback parameter. An injected service or a return value may fit other behavior better. The rule has no automatic fix because replacing a callback changes the API and its lifecycle.
+
+The rule is opt-in. Enabling it checks class constructors and public methods by default, including parameter properties, optional and nullable callbacks, and inline function defaults. Public-method checks include implicit-public, static, abstract, and function-valued class properties, as well as interface/object-type method signatures. Private and protected methods are excluded. Use `['warn', { checkPublicMethods: false }]` to check only constructors.
+
+Enable it for a chosen area in `eslint.config.js`, or use an ESLint directive in an individual file:
+
+```js
+{
+	files: ['src/vs/workbench/contrib/myFeature/**/*.ts'],
+	rules: {
+		'local/code-prefer-event-or-observable': 'warn',
+	},
+}
+```
+
+For an individual file, add `/* eslint local/code-prefer-event-or-observable: "warn" */`.
+
+Detection is syntax-only: it recognizes function types, callable object types, same-file callback type aliases and callable interfaces, and untyped parameters with inline function defaults. Imported callback aliases and inferred callback types are not resolved. Callback properties nested in options objects are outside its scope. `Event` and observable parameters remain valid, and ordinary callback call sites such as collection operators, Promise executors, and event/observable subscriptions are not inspected.
+
+Run its tests with `node --test .eslint-plugin-local/tests/code-prefer-event-or-observable.test.ts`.
