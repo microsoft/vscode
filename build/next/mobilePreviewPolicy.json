@@ -1,9 +1,9 @@
 {
 	"budgets": {
-		"workbenchJavaScriptGzipBytes": 4900000,
-		"workbenchCssGzipBytes": 225000,
-		"initialGzipBytes": 5400000,
-		"runtimeGzipBytes": 13700000,
+		"workbenchJavaScriptGzipBytes": 5500000,
+		"workbenchCssGzipBytes": 240000,
+		"initialGzipBytes": 6100000,
+		"runtimeGzipBytes": 14600000,
 		"extensionsGzipBytes": 800000
 	},
 	"extensions": [
@@ -58,6 +58,7 @@
 		"src/vs/sessions/contrib/chat/browser/chat.contribution.ts",
 		"src/vs/sessions/contrib/chat/browser/openSessionLinkOpener.contribution.ts",
 		"src/vs/sessions/contrib/chat/browser/requestOriginProvider.contribution.ts",
+		"src/vs/sessions/contrib/chat/browser/sharedChatInputComposer.contribution.ts",
 		"src/vs/sessions/contrib/chat/browser/voiceBridge.contribution.ts",
 		"src/vs/sessions/contrib/codeReview/browser/codeReview.contributions.ts",
 		"src/vs/sessions/contrib/configuration/browser/configuration.contribution.ts",

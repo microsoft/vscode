@@ -140,6 +140,7 @@ import { GlobalExtensionEnablementService } from '../platform/extensionManagemen
 import { IAllowedExtensionsService, IGlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionManagement.js';
 import { ContextViewService } from '../platform/contextview/browser/contextViewService.js';
 import { IContextViewService } from '../platform/contextview/browser/contextView.js';
+import { ArtifactIntegrationRegistry, IArtifactIntegrationRegistry } from '../platform/artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { IListService, ListService } from '../platform/list/browser/listService.js';
 import { MarkerDecorationsService } from '../editor/common/services/markerDecorationsService.js';
 import { IMarkerDecorationsService } from '../editor/common/services/markerDecorations.js';
@@ -164,7 +165,9 @@ import { AllowedMcpServersService } from '../platform/mcp/common/allowedMcpServe
 import { IWebWorkerService } from '../platform/webWorker/browser/webWorkerService.js';
 import { WebWorkerService } from '../platform/webWorker/browser/webWorkerServiceImpl.js';
 import { ISessionsSetUpService, SessionsSetUpService } from './browser/sessionsSetUpService.js';
+import { AgentHostMcpOAuthMetadataService, IAgentHostMcpOAuthMetadataService } from '../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 
+registerSingleton(IArtifactIntegrationRegistry, ArtifactIntegrationRegistry, InstantiationType.Delayed);
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, InstantiationType.Delayed);
 registerSingleton(IAllowedExtensionsService, AllowedExtensionsService, InstantiationType.Delayed);
 registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService, InstantiationType.Delayed);
@@ -182,6 +185,7 @@ registerSingleton(IWebWorkerService, WebWorkerService, InstantiationType.Delayed
 registerSingleton(IMcpGalleryService, McpGalleryService, InstantiationType.Delayed);
 registerSingleton(IAllowedMcpServersService, AllowedMcpServersService, InstantiationType.Delayed);
 registerSingleton(ISessionsSetUpService, SessionsSetUpService, InstantiationType.Delayed);
+registerSingleton(IAgentHostMcpOAuthMetadataService, AgentHostMcpOAuthMetadataService, InstantiationType.Delayed);
 
 //#endregion
 

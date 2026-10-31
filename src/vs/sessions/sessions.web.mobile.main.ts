@@ -273,6 +273,7 @@ import './contrib/codeReview/browser/codeReview.contributions.js';
 
 // Chat and the new-session composer (includes the phone diff/changes overlays)
 import './contrib/chat/browser/chat.contribution.js';
+import './contrib/chat/browser/sharedChatInputComposer.contribution.js';
 import './contrib/chat/browser/requestOriginProvider.contribution.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';
 
@@ -305,6 +306,7 @@ import './contrib/providers/copilotChatSessions/browser/copilotChatSessions.cont
 
 // Providers: agent host (mode/model configuration, debug log export, subagents)
 import './contrib/providers/agentHost/browser/agentHostSessionConfigPicker.js';
+import './contrib/providers/agentHost/browser/agentHostPolicyContinuationPresenter.js';
 import './contrib/providers/agentHost/browser/exportDebugLogsAction.js';
 import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSettings.contribution.js';
