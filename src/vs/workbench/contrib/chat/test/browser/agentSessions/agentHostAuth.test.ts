@@ -25,6 +25,13 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
+import { ISecretStorageService } from '../../../../../../platform/secrets/common/secrets.js';
+import { TestSecretStorageService } from '../../../../../../platform/secrets/test/common/testSecretStorageService.js';
+import { ContributionEnablementState } from '../../../common/enablement.js';
+import { ConfigurationResolverExpression } from '../../../../../services/configurationResolver/common/configurationResolverExpression.js';
+import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
+import { IMcpServer, IMcpService, McpServerDefinition, McpServerTransportType, mcpOAuthClientSecretStorageKey } from '../../../../mcp/common/mcpTypes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -86,6 +93,32 @@ function createAuthInstantiationService(disposables: Pick<DisposableStore, 'add'
 		override readonly currentDefaultAccount = null;
 	}());
 	return instantiationService;
+}
+
+/** Stubs the services that look up an OAuth client that the user configured in VS Code for an MCP server. */
+function stubMcpOAuthClientServices(instantiationService: TestInstantiationService, servers: readonly IMcpServer[] = [], secretStorageService: ISecretStorageService = new TestSecretStorageService()): void {
+	instantiationService.stub(IMcpService, { servers: constObservable(servers) });
+	instantiationService.stub(ISecretStorageService, secretStorageService);
+	instantiationService.stub(IConfigurationResolverService, {
+		resolveAsync: async (_folder: unknown, expression: ConfigurationResolverExpression<unknown>) => {
+			for (const replacement of [...expression.unresolved()]) {
+				expression.resolve(replacement, 'env-client');
+			}
+			return expression.toObject();
+		},
+	} as unknown as IConfigurationResolverService);
+}
+
+function createMcpServer(url: string, oauth: { clientId?: string; enterpriseManaged?: boolean } | undefined, enablement: ContributionEnablementState = ContributionEnablementState.EnabledProfile): IMcpServer {
+	return new class extends mock<IMcpServer>() {
+		override readonly enablement = constObservable(enablement);
+		override readDefinitions() {
+			return constObservable({
+				server: { launch: { type: McpServerTransportType.HTTP, uri: URI.parse(url), headers: [], oauth } } as unknown as McpServerDefinition,
+				collection: undefined,
+			});
+		}
+	}();
 }
 
 function createMockAuthService(overrides: {
@@ -1055,6 +1088,7 @@ suite('autoAuthenticateMcpServer', () => {
 				},
 			});
 			instantiationService.stub(IAuthenticationMcpService, { getAccountPreference: () => undefined });
+			stubMcpOAuthClientServices(instantiationService);
 			instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
 			instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
 				getClientRegistration: async () => ({ clientId: 'docs-client' }),
@@ -1102,6 +1136,7 @@ suite('autoAuthenticateMcpServer', () => {
 		}));
 		instantiationService.stub(IAuthenticationMcpAccessService, { isAccessAllowedForUrl: () => true });
 		instantiationService.stub(IAuthenticationMcpService, { getAccountPreference: () => undefined });
+		stubMcpOAuthClientServices(instantiationService);
 		instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
 		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
 		instantiationService.stub(ILogService, new NullLogService());
@@ -1167,6 +1202,7 @@ suite('resolveMcpServerAuthentication', () => {
 			instantiationService.stub(IAuthenticationMcpService, {
 				getAccountPreference: () => undefined,
 			});
+			stubMcpOAuthClientServices(instantiationService);
 			instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
 			instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
 				getClientRegistration: async () => ({ clientId: 'persisted-client', clientSecret: 'secret' }),
@@ -1219,6 +1255,7 @@ suite('resolveMcpServerAuthentication', () => {
 			instantiationService.stub(IAuthenticationService, createMockAuthService({}));
 			instantiationService.stub(IAuthenticationMcpAccessService, {});
 			instantiationService.stub(IAuthenticationMcpService, {});
+			stubMcpOAuthClientServices(instantiationService);
 			instantiationService.stub(IAuthenticationMcpUsageService, {});
 			instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
 			instantiationService.stub(IAgentHostMcpOAuthMetadataService, {
@@ -1277,6 +1314,7 @@ suite('resolveMcpServerAuthentication', () => {
 				}));
 				instantiationService.stub(IAuthenticationMcpAccessService, { isAccessAllowedForUrl: () => true });
 				instantiationService.stub(IAuthenticationMcpService, { getAccountPreference: () => undefined });
+				stubMcpOAuthClientServices(instantiationService);
 				instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
 				instantiationService.stub(IDynamicAuthenticationProviderStorageService, { getClientRegistration: async () => ({ clientId: 'persisted-client' }) });
 				instantiationService.stub(ILogService, new NullLogService());
@@ -1315,6 +1353,75 @@ suite('resolveMcpServerAuthentication', () => {
 		}
 	}
 
+	const configuredResource = 'https://resource.example/mcp';
+	const configuredIssuer = 'https://issuer.example/tenant';
+	const noClient = { clientId: undefined, clientSecret: undefined };
+	for (const { name, secret, servers, challengeResource = configuredResource, trustedIssuers = [configuredIssuer], expected } of [
+		{ name: 'a public client', servers: [createMcpServer(configuredResource, { clientId: 'configured-client' })], expected: { clientId: 'configured-client', clientSecret: undefined } as { clientId: string | undefined; clientSecret: string | undefined } },
+		{ name: 'a client with a stored secret', secret: { clientId: 'configured-client', value: 'stored-secret' }, servers: [createMcpServer(configuredResource, { clientId: 'configured-client' })], expected: { clientId: 'configured-client', clientSecret: 'stored-secret' } },
+		{ name: 'a client ID with a variable', secret: { clientId: 'env-client', value: 'env-secret' }, servers: [createMcpServer(configuredResource, { clientId: '${env:MCP_CLIENT_ID}' })], expected: { clientId: 'env-client', clientSecret: 'env-secret' } },
+		{ name: 'a challenge for the origin of the configured endpoint', challengeResource: 'https://resource.example', servers: [createMcpServer(configuredResource, { clientId: 'configured-client' })], expected: { clientId: 'configured-client', clientSecret: undefined } },
+		{ name: 'no client for a server at another URL', servers: [createMcpServer('https://other.example/mcp', { clientId: 'configured-client' })], expected: noClient },
+		{ name: 'no client for an enterprise-managed server', servers: [createMcpServer(configuredResource, { clientId: 'configured-client', enterpriseManaged: true })], expected: noClient },
+		{ name: 'no client for a server without a client ID', servers: [createMcpServer(configuredResource, {})], expected: noClient },
+		{ name: 'no client for a disabled server', servers: [createMcpServer(configuredResource, { clientId: 'configured-client' }, ContributionEnablementState.DisabledProfile)], expected: noClient },
+		{ name: 'no client for a client ID that needs input', servers: [createMcpServer(configuredResource, { clientId: '${input:client-id}' })], expected: noClient },
+		{ name: 'no client when two servers share the endpoint', servers: [createMcpServer(configuredResource, { clientId: 'configured-client' }), createMcpServer(configuredResource, undefined)], expected: noClient },
+		{ name: 'no client when the issuer is not advertised by the configured endpoint', secret: { clientId: 'configured-client', value: 'stored-secret' }, trustedIssuers: ['https://trusted.example'], servers: [createMcpServer(configuredResource, { clientId: 'configured-client' })], expected: noClient },
+	]) {
+		test(`uses the OAuth client configured in VS Code: ${name}`, async () => {
+			const authorizationServer = URI.parse(configuredIssuer);
+			const resource = challengeResource;
+			const session: AuthenticationSession = {
+				id: 'session', accessToken: 'token', account: { id: 'account', label: 'Account' }, scopes: ['read']
+			};
+			const createdProviders: { clientId: string | undefined; clientSecret: string | undefined }[] = [];
+			const secretStorageService = new TestSecretStorageService();
+			if (secret) {
+				await secretStorageService.set(mcpOAuthClientSecretStorageKey(configuredResource, secret.clientId), secret.value);
+			}
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IAuthenticationService, createMockAuthService({
+				createDynamicAuthenticationProvider: async (_server, _metadata, _resource, clientId, clientSecret) => {
+					createdProviders.push({ clientId, clientSecret });
+					return { id: 'provider' };
+				},
+				getSessions: async () => [session],
+			}));
+			instantiationService.stub(IAuthenticationMcpAccessService, { isAccessAllowedForUrl: () => true });
+			instantiationService.stub(IAuthenticationMcpService, { getAccountPreference: () => undefined });
+			instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
+			instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
+				getClientRegistration: async () => undefined,
+			});
+			instantiationService.stub(IAgentHostMcpOAuthMetadataService, {
+				resolveResource: async () => ({ resource: configuredResource, authorization_servers: trustedIssuers }),
+			});
+			instantiationService.stub(ILogService, new NullLogService());
+			stubMcpOAuthClientServices(instantiationService, servers, secretStorageService);
+
+			const authenticated = await instantiationService.invokeFunction(resolveMcpServerAuthentication, {
+				resource,
+				authorization_servers: [authorizationServer.toString(true)],
+			}, {
+				allowInteraction: true,
+				logPrefix: '[Test]',
+				target: mcpAuthenticationTarget,
+				mcpServerId: 'server',
+				mcpServerName: 'Server',
+				mcpServerUrl: resource,
+				scopes: ['read'],
+				authorizationServerMetadataFetcher: async server => ({ metadata: { issuer: server, response_types_supported: ['code'] }, discoveryUrl: `${server}.well-known/oauth-authorization-server`, errors: [] }),
+				authenticate: async () => { },
+			});
+
+			assert.deepStrictEqual({ authenticated, createdProviders }, {
+				authenticated: true,
+				createdProviders: [expected],
+			});
+		});
+	}
+
 	test('preserves OAuth context when selecting an account', async () => {
 		const authorizationServer = URI.parse('https://issuer.example/tenant');
 		const resource = 'https://resource.example/mcp';
@@ -1344,6 +1451,7 @@ suite('resolveMcpServerAuthentication', () => {
 				return session;
 			},
 		});
+		stubMcpOAuthClientServices(instantiationService);
 		instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
 		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
 			getClientRegistration: async () => oauthClient,
@@ -1386,6 +1494,7 @@ suite('resolveMcpServerAuthentication', () => {
 		instantiationService.stub(IAuthenticationMcpService, {
 			getAccountPreference: () => undefined,
 		});
+		stubMcpOAuthClientServices(instantiationService);
 		instantiationService.stub(IAuthenticationMcpUsageService, {});
 		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
 		instantiationService.stub(ILogService, new NullLogService());
@@ -1426,6 +1535,7 @@ suite('resolveMcpServerAuthentication', () => {
 		instantiationService.stub(IAuthenticationMcpService, {
 			getAccountPreference: () => undefined,
 		});
+		stubMcpOAuthClientServices(instantiationService);
 		instantiationService.stub(IAuthenticationMcpUsageService, {});
 		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
 		instantiationService.stub(ILogService, new NullLogService());
@@ -1467,6 +1577,7 @@ suite('resolveMcpServerAuthentication', () => {
 		instantiationService.stub(IAuthenticationMcpService, {
 			getAccountPreference: () => undefined,
 		});
+		stubMcpOAuthClientServices(instantiationService);
 		instantiationService.stub(IAuthenticationMcpUsageService, {});
 		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
 		instantiationService.stub(ILogService, new NullLogService());
@@ -1513,6 +1624,7 @@ suite('resolveMcpServerAuthentication', () => {
 		instantiationService.stub(IAuthenticationMcpService, {
 			getAccountPreference: () => undefined,
 		});
+		stubMcpOAuthClientServices(instantiationService);
 		instantiationService.stub(IAuthenticationMcpUsageService, {});
 		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
 			getClientRegistration: () => Promise.resolve(undefined),
@@ -1562,6 +1674,7 @@ suite('resolveMcpServerAuthentication', () => {
 		instantiationService.stub(IAuthenticationMcpService, {
 			getAccountPreference: () => undefined,
 		});
+		stubMcpOAuthClientServices(instantiationService);
 		instantiationService.stub(IAuthenticationMcpUsageService, {});
 		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
 			getClientRegistration: () => Promise.resolve({ clientId: 'avalara-client' }),
@@ -1643,6 +1756,7 @@ suite('resolveMcpServerAuthentication', () => {
 		instantiationService.stub(IAuthenticationMcpService, {
 			getAccountPreference: () => 'Notion Account',
 		});
+		stubMcpOAuthClientServices(instantiationService);
 		instantiationService.stub(IAuthenticationMcpUsageService, {
 			addAccountUsage: () => { },
 		});
@@ -1731,6 +1845,7 @@ suite('resolveMcpServerAuthentication', () => {
 		instantiationService.stub(IAuthenticationMcpService, {
 			getAccountPreference: () => 'MCP Account',
 		});
+		stubMcpOAuthClientServices(instantiationService);
 		instantiationService.stub(IAuthenticationMcpUsageService, {
 			addAccountUsage: () => { },
 		});
@@ -1844,6 +1959,7 @@ suite('resolveMcpServerAuthentication', () => {
 			instantiationService.stub(IAuthenticationService, authService);
 			instantiationService.stub(IAuthenticationMcpAccessService, { isAccessAllowedForUrl: () => true });
 			instantiationService.stub(IAuthenticationMcpService, { getAccountPreference: () => 'Slack Account' });
+			stubMcpOAuthClientServices(instantiationService);
 			instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
 			instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
 				getClientRegistration: providerId => Promise.resolve(registrations.get(providerId)),
@@ -1934,6 +2050,7 @@ suite('resolveMcpServerAuthentication', () => {
 		instantiationService.stub(IAuthenticationMcpService, {
 			getAccountPreference: () => 'Slack Account',
 		});
+		stubMcpOAuthClientServices(instantiationService);
 		instantiationService.stub(IAuthenticationMcpUsageService, {
 			addAccountUsage: () => { },
 		});
@@ -2047,6 +2164,7 @@ suite('resolveMcpServerAuthentication', () => {
 			getAccountPreference: () => 'Slack Account',
 			updateAccountPreference: () => { },
 		});
+		stubMcpOAuthClientServices(instantiationService);
 		instantiationService.stub(IAuthenticationMcpUsageService, {
 			addAccountUsage: () => { },
 		});
