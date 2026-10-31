@@ -9,7 +9,7 @@ import './media/workbench.css';
 import './media/phoneLayout.css';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../base/common/event.js';
-import { addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveDocument, getActiveElement, getClientArea, getWindow, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, isHTMLElement, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
+import { addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveDocument, getActiveElement, getClientArea, getExternalFocusWindow, getWindow, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, isHTMLElement, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
 import { DeferredPromise, RunOnceScheduler } from '../../base/common/async.js';
 import { isFullscreen, onDidChangeFullscreen, isChrome, isFirefox, isSafari } from '../../base/browser/browser.js';
 import { mark } from '../../base/common/performance.js';
@@ -1232,11 +1232,25 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this._register(this.editorGroupService.onDidChangeEditorPartOptions(updateCompactHeight));
 	}
 
+	private registerEditorPartFocus(): void {
+		// Browser and Canvas focus can remain in a native WebContentsView, so restore from the
+		// group activation signal instead of waiting for their deferred DOM focus proxy.
+		this._register(this.editorGroupService.onDidActivateGroup(({ group }) => {
+			if (
+				group.windowId === this.editorGroupService.mainPart.windowId
+				&& (this.hasFocus(Parts.EDITOR_PART) || getExternalFocusWindow() === mainWindow)
+			) {
+				this._restoreEditorPartOnActivation();
+			}
+		}));
+	}
+
 	initLayout(accessor: ServicesAccessor): void {
 		// Services - accessing these triggers their instantiation
 		// which creates and registers the parts
 		this.editorGroupService = accessor.get(IEditorGroupsService);
 		this.registerEditorTabHeightClass();
+		this.registerEditorPartFocus();
 		this.editorService = accessor.get(IEditorService);
 		this.paneCompositeService = accessor.get(IPaneCompositePartService);
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
