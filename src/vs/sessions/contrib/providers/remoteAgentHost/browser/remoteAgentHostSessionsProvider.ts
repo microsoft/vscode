@@ -36,6 +36,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { BrowserRemoteProxyEnabledSettingId } from '../../../../../workbench/contrib/browserView/common/browserView.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
@@ -315,6 +316,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		@IAgentHostSessionWorkingDirectoryResolver workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IRemoteAgentHostAuthenticationService remoteAuthenticationService: IRemoteAgentHostAuthenticationService,
 		@INewSessionComposerService private readonly _newSessionComposerService: INewSessionComposerService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, mcpAppToolsService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
 
@@ -880,8 +882,11 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		return this._unpublished ? [] : super.getSessions();
 	}
 
-	async resolveSessionResource(resource: URI, _reason?: SessionResourceResolveReason): Promise<URI | undefined> {
+	async resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined> {
 		const ownsResource = [...this._sessionCache.values()].some(session => isEqual(session.resource, resource));
+		if (ownsResource) {
+			this._reportAdoptableRowOpen(resource, reason, this._telemetryService);
+		}
 		return ownsResource ? resource : undefined;
 	}
 

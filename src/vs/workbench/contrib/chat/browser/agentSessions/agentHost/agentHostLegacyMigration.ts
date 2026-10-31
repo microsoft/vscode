@@ -185,8 +185,12 @@ export async function adoptLegacyCopilotCliResource(
 	}
 }
 
+/** Which list row a migration open started from. */
+export type LegacyMigrationOpenEntry = 'legacyRow' | 'agentHostRow';
+
 type LegacyMigrationOpenEvent = {
 	source: string;
+	entry: LegacyMigrationOpenEntry;
 	surfaced: boolean;
 	migrationSessionId: string | undefined;
 	reason: 'surfaced' | 'sessionNotSurfaced' | 'resolveFailed';
@@ -196,7 +200,8 @@ type LegacyMigrationOpenEvent = {
 
 type LegacyMigrationOpenClassification = {
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Entry point that opened: open (user opened a session) or restore (startup/editor restore).' };
-	surfaced: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the migrated session was found and opened. False means the open fell back to the legacy session the host had just migrated away from.' };
+	entry: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The row opened: legacyRow (the extension-host session, adopted through the client probe) or agentHostRow (the un-adopted session listed by the agent host, which the host adopts when the open subscribes to it, with no probe event).' };
+	surfaced: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the migrated session was found and opened. False means the open fell back to the legacy session the host had just migrated away from, or, for agentHostRow, that the host did not adopt the session within the open budget.' };
 	migrationSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'SHA-1 of the backend session URI, shared with probe and host diagnostics; not an attempt identifier.' };
 	reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether resolution succeeded, returned no session, or encountered a provider/resolution error.' };
 	errorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Exception or protocol error code when resolving the migrated session failed.' };
@@ -210,10 +215,11 @@ type LegacyMigrationOpenClassification = {
  * succeeding does not mean the caller could open it, and that fallback is the
  * failure this telemetry exists to catch.
  */
-export function reportLegacyMigrationOpen(telemetryService: ITelemetryService, source: LegacyMigrationProbeSource, resource: URI, surfaced: boolean, error?: unknown): void {
+export function reportLegacyMigrationOpen(telemetryService: ITelemetryService, source: LegacyMigrationProbeSource, resource: URI, surfaced: boolean, error?: unknown, entry: LegacyMigrationOpenEntry = 'legacyRow'): void {
 	const rawId = getCopilotCliSessionRawId(resource);
 	const data: LegacyMigrationOpenEvent = {
 		source,
+		entry,
 		surfaced,
 		migrationSessionId: rawId ? getTelemetryMigrationSessionId(AgentSession.uri(COPILOT_CLI_AGENT_PROVIDER, rawId)) : undefined,
 		reason: error !== undefined ? 'resolveFailed' : surfaced ? 'surfaced' : 'sessionNotSurfaced',

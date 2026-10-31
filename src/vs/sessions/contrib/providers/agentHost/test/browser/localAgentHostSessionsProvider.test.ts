@@ -58,7 +58,9 @@ import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } 
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { getTelemetryMigrationSessionId } from '../../../../../../platform/agentHost/common/agentTelemetryCorrelation.js';
+import { LEGACY_MIGRATION_RESTORE_TIMEOUT_MS } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { VisibleSessions } from '../../../../../services/sessions/browser/visibleSessions.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
@@ -730,7 +732,7 @@ class BackendSchemeTestProvider extends LocalAgentHostSessionsProvider {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { chatSessionsService?: Partial<IChatSessionsService>; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; getChatModel?: (resource: URI) => IChatModel | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; sessionTools?: (resource: URI) => readonly ToolDefinition[]; mcpAppTools?: (resource: URI) => readonly ToolDefinition[]; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
+], options?: { chatSessionsService?: Partial<IChatSessionsService>; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; getChatModel?: (resource: URI) => IChatModel | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; sessionTools?: (resource: URI) => readonly ToolDefinition[]; mcpAppTools?: (resource: URI) => readonly ToolDefinition[]; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; telemetryService?: ITelemetryService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -823,7 +825,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		onDidChangeRecentWorkspaces: Event.None,
 		onDidRemoveRecentWorkspaces: Event.None,
 	}));
-	instantiationService.stub(ITelemetryService, NullTelemetryService);
+	instantiationService.stub(ITelemetryService, options?.telemetryService ?? NullTelemetryService);
 	instantiationService.stub(IProgressService, {});
 	instantiationService.stub(IGitHubService, options?.gitHubService ?? new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
@@ -3472,6 +3474,46 @@ suite('LocalAgentHostSessionsProvider', () => {
 			{ resolved: twinUri.toString(), seededResource: twinUri.toString() },
 		);
 	});
+
+	test('reports opening an un-adopted row of its own list once the host adopts it, or when the open budget runs out', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const events: Record<string, unknown>[] = [];
+		const telemetryService = new class extends NullTelemetryServiceShape {
+			override publicLog2(name?: string, data?: unknown): void {
+				if (name === 'agentHost.legacyCopilotCliMigrationOpen') {
+					events.push(data as Record<string, unknown>);
+				}
+			}
+		};
+		agentHost.addSession(createSession('row-adopted', { summary: 'Adopted', adoptable: true }));
+		agentHost.addSession(createSession('row-not-adopted', { summary: 'Not adopted', adoptable: true }));
+		agentHost.addSession(createSession('row-native', { summary: 'Native' }));
+		const provider = createProvider(disposables, agentHost, undefined, { telemetryService });
+		await timeout(0);
+		const row = (id: string) => URI.parse(`agent-host-copilotcli:/${id}`);
+		const reported = () => events.map(event => ({ id: event.migrationSessionId, source: event.source, entry: event.entry, surfaced: event.surfaced, reason: event.reason }));
+
+		// The open is not delayed or redirected; a second open of the same row joins the first's report.
+		const resolved = await Promise.all([
+			provider.resolveSessionResource(row('row-adopted'), 'open'),
+			provider.resolveSessionResource(row('row-adopted'), 'open'),
+			provider.resolveSessionResource(row('row-not-adopted'), 'restore'),
+			provider.resolveSessionResource(row('row-native'), 'open'),
+		]);
+		const beforeAdoption = reported();
+		fireSessionSummaryChanged(agentHost, 'row-adopted', { _meta: undefined });
+		await timeout(0);
+		const afterAdoption = reported();
+		await timeout(LEGACY_MIGRATION_RESTORE_TIMEOUT_MS);
+
+		const id = (rawId: string) => getTelemetryMigrationSessionId(AgentSession.uri('copilotcli', rawId));
+		const adopted = { id: id('row-adopted'), source: 'open', entry: 'agentHostRow', surfaced: true, reason: 'surfaced' };
+		assert.deepStrictEqual({ resolved, beforeAdoption, afterAdoption, afterBudget: reported() }, {
+			resolved: [undefined, undefined, undefined, undefined],
+			beforeAdoption: [],
+			afterAdoption: [adopted],
+			afterBudget: [adopted, { id: id('row-not-adopted'), source: 'restore', entry: 'agentHostRow', surfaced: false, reason: 'sessionNotSurfaced' }],
+		});
+	}));
 
 	test('reconciles hydrated sessions against the authoritative list, pruning stale entries', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
