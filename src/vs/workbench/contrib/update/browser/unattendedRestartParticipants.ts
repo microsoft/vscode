@@ -1,0 +1,126 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { getWindows } from '../../../../base/browser/dom.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { isTemporaryWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IUnattendedRestartService, UnattendedRestartCheckResult } from '../../../services/lifecycle/common/unattendedRestart.js';
+
+/**
+ * Blocks an unattended restart while the user left in the middle of an interaction
+ * or when opened editors would not be restored.
+ */
+export class WorkbenchUnattendedRestartParticipants extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.workbenchUnattendedRestartParticipants';
+
+	private openDialogs = 0;
+
+	constructor(
+		@IUnattendedRestartService unattendedRestartService: IUnattendedRestartService,
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IDialogService dialogService: IDialogService,
+		@IQuickInputService quickInputService: IQuickInputService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+	) {
+		super();
+
+		this._register(dialogService.onWillShowDialog(() => this.openDialogs++));
+		this._register(dialogService.onDidShowDialog(() => this.openDialogs = Math.max(0, this.openDialogs - 1)));
+
+		// Participants register up to the `AfterRestored` phase, whose contributions are created when idle
+		let restoredContributionsCreated = false;
+		Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).whenRestored.then(() => restoredContributionsCreated = true);
+		this._register(unattendedRestartService.registerParticipant({
+			check: () => lifecycleService.phase < LifecyclePhase.Eventually || !restoredContributionsCreated ? 'workbench.starting' : undefined
+		}));
+		this._register(unattendedRestartService.registerParticipant({
+			check: () => this.openDialogs > 0 ? 'workbench.dialogOpen' : undefined
+		}));
+		this._register(unattendedRestartService.registerParticipant({
+			check: () => quickInputService.currentQuickInput ? 'workbench.quickInputOpen' : undefined
+		}));
+		this._register(unattendedRestartService.registerParticipant({
+			check: () => this.getWorkspaceBlocker()
+		}));
+		this._register(unattendedRestartService.registerParticipant({
+			check: () => this.getEditorsBlocker()
+		}));
+		this._register(unattendedRestartService.registerParticipant({
+			check: () => hasNonEditorWindow(Iterable.map(getWindows(), ({ window }) => window.vscodeWindowId), this.editorGroupsService.parts) ? 'workbench.floatingWindowNotRestorable' : undefined
+		}));
+	}
+
+	private getWorkspaceBlocker(): string | undefined {
+		const workspace = this.contextService.getWorkspace();
+
+		return workspace.transient || isTemporaryWorkspace(workspace) ? 'workspace.notRestorable' : undefined; // the window would not be reopened as it is
+	}
+
+	private getEditorsBlocker(): UnattendedRestartCheckResult {
+		if (this.editorGroupsService.activeModalEditorPart) {
+			return 'workbench.modalEditorOpen'; // the modal editor part is not persisted
+		}
+
+		if (this.editorService.editors.length === 0) {
+			return undefined;
+		}
+
+		if (this.configurationService.getValue<boolean>('workbench.editor.restoreEditors') === false) {
+			return 'workbench.editorsNotRestored';
+		}
+
+		const editorFactory = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
+		const notRestorable = this.editorService.editors.filter(editor => !isRestorableEditor(editor, editorFactory.getEditorSerializer(editor)));
+		if (notRestorable.length > 0) {
+			return { id: 'workbench.editorNotRestorable', detail: describeEditors(notRestorable) };
+		}
+
+		return undefined;
+	}
+}
+
+/**
+ * Names editors with their kind for the log, for example
+ * `Release Notes: 1.145.0 [workbench.editors.webviewInput, releaseNotes]`.
+ */
+export function describeEditors(editors: readonly Pick<EditorInput, 'typeId' | 'editorId' | 'getName'>[]): string {
+	return editors.map(editor => {
+		const kind = editor.editorId && editor.editorId !== editor.typeId ? `${editor.typeId}, ${editor.editorId}` : editor.typeId;
+		return `${editor.getName()} [${kind}]`;
+	}).join(', ');
+}
+
+/**
+ * Whether an editor survives a restart. Like editor groups when they persist their state, this
+ * requires the serializer to produce a value: some editors can be serialized only once resolved.
+ */
+export function isRestorableEditor(editor: EditorInput, serializer: IEditorSerializer | undefined): boolean {
+	return !!serializer?.canSerialize(editor) && typeof serializer.serialize(editor) === 'string';
+}
+
+/**
+ * Whether one of the windows shows something other than editors, such as the issue reporter.
+ * Of the floating windows, only those showing editors are restored after a restart.
+ */
+export function hasNonEditorWindow(windowIds: Iterable<number>, editorParts: readonly Pick<IEditorPart, 'windowId'>[]): boolean {
+	const editorWindowIds = new Set(editorParts.map(part => part.windowId));
+
+	return Iterable.some(windowIds, windowId => !editorWindowIds.has(windowId));
+}

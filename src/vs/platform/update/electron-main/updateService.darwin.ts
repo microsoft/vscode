@@ -16,9 +16,10 @@ import { IProductService } from '../../product/common/productService.js';
 import { asJson, IRequestService } from '../../request/common/request.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { AvailableForDownload, IUpdate, State, StateType, UpdateType } from '../common/update.js';
+import { AvailableForDownload, IQuitAndInstallOptions, IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
+import { keepAwakeWhileUpdating, relaunchInBackground } from './relaunchInBackground.js';
 
 export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
@@ -203,7 +204,29 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		electron.autoUpdater.checkForUpdates();
 	}
 
-	protected override doQuitAndInstall(): void {
+	protected override doQuitAndInstall(options?: IQuitAndInstallOptions): void {
+		if (options?.unattended) {
+			try {
+				const child = keepAwakeWhileUpdating();
+				child.once('error', error => this.logService.error('update#quitAndInstall(): failed to keep the machine awake while updating', error));
+			} catch (error) {
+				this.logService.error('update#quitAndInstall(): failed to keep the machine awake while updating', error);
+			}
+		}
+
+		const bundleIdentifier = this.productService.darwinBundleIdentifier;
+		if (options?.relaunchInBackground && this.state.type === StateType.Restarting && bundleIdentifier) {
+			this.logService.info('update#quitAndInstall(): installing the update on quit and relaunching in the background');
+			try {
+				const child = relaunchInBackground({ pid: process.pid, commit: this.state.update.version, appRoot: this.environmentMainService.appRoot, bundleIdentifier });
+				child.once('error', error => this.logService.error('update#quitAndInstall(): failed to relaunch in the background', error));
+
+				return; // Squirrel installs the update when the application quits
+			} catch (error) {
+				this.logService.error('update#quitAndInstall(): failed to relaunch in the background', error);
+			}
+		}
+
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 		electron.autoUpdater.quitAndInstall();
 	}
