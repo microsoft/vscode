@@ -244,10 +244,9 @@ export class FindModelBoundToEditorModel {
 		if (this._state.matchesPosition !== 0 || this._decorations.getCount() === 0) {
 			return;
 		}
+		// Empty selections are not skipped: zero-width regex matches have empty ranges too, and
+		// setCurrentFindMatch() only accepts a selection that exactly equals a match.
 		const selection = this._editor.getSelection();
-		if (selection.isEmpty()) {
-			return;
-		}
 		if (this._decorations.getCurrentMatchesPosition(selection) === 0) {
 			return;
 		}
