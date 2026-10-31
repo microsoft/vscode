@@ -7,9 +7,9 @@ import '../../workbench/browser/style.js';
 import './media/style.css';
 import './media/workbench.css';
 import './media/phoneLayout.css';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../base/common/event.js';
-import { addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveDocument, getActiveElement, getClientArea, getExternalFocusWindow, getWindow, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, isHTMLElement, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
+import { addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveDocument, getActiveElement, getClientArea, getWindow, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, isHTMLElement, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
 import { DeferredPromise, RunOnceScheduler } from '../../base/common/async.js';
 import { isFullscreen, onDidChangeFullscreen, isChrome, isFirefox, isSafari } from '../../base/browser/browser.js';
 import { mark } from '../../base/common/performance.js';
@@ -19,7 +19,7 @@ import { Parts, Position, PanelAlignment, IWorkbenchLayoutService, SINGLE_WINDOW
 import { ILayoutOffsetInfo } from '../../platform/layout/browser/layoutService.js';
 import { Part } from '../../workbench/browser/part.js';
 import { Direction, ISerializableView, ISerializedGrid, ISerializedLeafNode, ISerializedNode, IViewSize, Orientation, SerializableGrid, Sizing } from '../../base/browser/ui/grid/grid.js';
-import { IEditorGroupsService } from '../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../workbench/services/editor/common/editorService.js';
 import { IPaneCompositePartService } from '../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../workbench/common/views.js';
@@ -1233,16 +1233,37 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	}
 
 	private registerEditorPartFocus(): void {
-		// Browser and Canvas focus can remain in a native WebContentsView, so restore from the
-		// group activation signal instead of waiting for their deferred DOM focus proxy.
-		this._register(this.editorGroupService.onDidActivateGroup(({ group }) => {
-			if (
-				group.windowId === this.editorGroupService.mainPart.windowId
-				&& (this.hasFocus(Parts.EDITOR_PART) || getExternalFocusWindow() === mainWindow)
-			) {
-				this._restoreEditorPartOnActivation();
+		const listeners = this._register(new DisposableStore());
+		this.editorGroupService.whenReady.then(() => {
+			if (listeners.isDisposed) {
+				return;
 			}
-		}));
+
+			// Browser and Canvas focus can remain in a native WebContentsView, so listen to the
+			// main editor panes directly instead of waiting for their deferred DOM focus proxy.
+			const groupListeners = listeners.add(new DisposableMap<number>());
+			const registerGroup = (group: IEditorGroup) => {
+				const groupStore = new DisposableStore();
+				const activeEditorPaneListener = groupStore.add(new MutableDisposable<IDisposable>());
+				const updateActiveEditorPaneListener = () => {
+					activeEditorPaneListener.value = group.activeEditorPane?.onDidFocus(() => {
+						this._restoreEditorPartOnActivation();
+					});
+				};
+
+				groupStore.add(group.onDidActiveEditorChange(updateActiveEditorPaneListener));
+				updateActiveEditorPaneListener();
+				groupListeners.set(group.id, groupStore);
+			};
+
+			for (const group of this.editorGroupService.mainPart.groups) {
+				registerGroup(group);
+			}
+			listeners.add(this.editorGroupService.mainPart.onDidAddGroup(registerGroup));
+			listeners.add(this.editorGroupService.mainPart.onDidRemoveGroup(group => {
+				groupListeners.deleteAndDispose(group.id);
+			}));
+		});
 	}
 
 	initLayout(accessor: ServicesAccessor): void {

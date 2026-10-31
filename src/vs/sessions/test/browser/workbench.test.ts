@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, append, registerExternalFocusChecker, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
+import { $, append, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 import { Direction, Grid, ISerializableView, ISerializedGrid, ISerializedNode, LayoutPriority, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
+import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter, type Event as BaseEvent } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../base/common/observable.js';
 import { SashState } from '../../../base/browser/ui/sash/sash.js';
-import { mainWindow, type CodeWindow } from '../../../base/browser/window.js';
+import { mainWindow } from '../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { TestView } from '../../../base/test/browser/ui/grid/util.js';
 import { StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
@@ -152,11 +153,22 @@ suite('Sessions - Workbench', () => {
 	const preserveSessionsEditorRatio = Reflect.get(DesktopWorkbench.prototype, '_preserveSessionsEditorRatio') as (this: IProportionalResizeTestHarness, previousSessionsWidth: number, previousEditorWidth: number) => void;
 	const registerEditorPartFocus = Reflect.get(Workbench.prototype, 'registerEditorPartFocus') as (this: {
 		editorGroupService: {
-			mainPart: { readonly windowId: number };
-			readonly onDidActivateGroup: BaseEvent<{ readonly group: { readonly windowId: number } }>;
+			mainPart: {
+				readonly groups: readonly {
+					readonly id: number;
+					readonly activeEditorPane: { readonly onDidFocus: BaseEvent<void> } | undefined;
+					readonly onDidActiveEditorChange: BaseEvent<void>;
+				}[];
+				readonly onDidAddGroup: BaseEvent<{
+					readonly id: number;
+					readonly activeEditorPane: { readonly onDidFocus: BaseEvent<void> } | undefined;
+					readonly onDidActiveEditorChange: BaseEvent<void>;
+				}>;
+				readonly onDidRemoveGroup: BaseEvent<{ readonly id: number }>;
+			};
+			readonly whenReady: Promise<void>;
 		};
 		_register<T extends IDisposable>(disposable: T): T;
-		hasFocus(part: Parts): boolean;
 		_restoreEditorPartOnActivation(): void;
 	}) => void;
 	const registerNotificationRowHeight = Reflect.get(Workbench.prototype, 'registerNotificationRowHeight') as (this: {
@@ -781,46 +793,84 @@ suite('Sessions - Workbench', () => {
 		]);
 	});
 
-	test('restores a minimized Editor only for focused main-group activation', () => {
+	test('restores a minimized Editor when the active editor pane receives focus', async () => {
 		const disposables = store.add(new DisposableStore());
-		const groupActivated = store.add(new Emitter<{ readonly group: { readonly windowId: number } }>());
-		const otherWindow = Object.create(mainWindow) as CodeWindow;
-		let externalFocusWindow: CodeWindow | undefined;
-		let editorDomFocus = false;
+		const groupsReady = new DeferredPromise<void>();
+		const groupAdded = store.add(new Emitter<{
+			readonly id: number;
+			readonly activeEditorPane: { readonly onDidFocus: BaseEvent<void> } | undefined;
+			readonly onDidActiveEditorChange: BaseEvent<void>;
+		}>());
+		const groupRemoved = store.add(new Emitter<{ readonly id: number }>());
+		const firstActiveEditorChanged = store.add(new Emitter<void>());
+		const secondActiveEditorChanged = store.add(new Emitter<void>());
+		const thirdActiveEditorChanged = store.add(new Emitter<void>());
+		const firstPaneFocused = store.add(new Emitter<void>());
+		const secondPaneFocused = store.add(new Emitter<void>());
+		const thirdPaneFocused = store.add(new Emitter<void>());
+		const fourthPaneFocused = store.add(new Emitter<void>());
+		let firstActiveEditorPane = { onDidFocus: firstPaneFocused.event };
+		const firstGroup = {
+			id: 1,
+			get activeEditorPane() { return firstActiveEditorPane; },
+			onDidActiveEditorChange: firstActiveEditorChanged.event,
+		};
+		const secondGroup = {
+			id: 2,
+			activeEditorPane: { onDidFocus: secondPaneFocused.event },
+			onDidActiveEditorChange: secondActiveEditorChanged.event,
+		};
+		const thirdGroup = {
+			id: 3,
+			activeEditorPane: { onDidFocus: fourthPaneFocused.event },
+			onDidActiveEditorChange: thirdActiveEditorChanged.event,
+		};
 		let restores = 0;
 		const restoreCounts: number[] = [];
-		disposables.add(registerExternalFocusChecker(() => ({
-			hasFocus: !!externalFocusWindow,
-			window: externalFocusWindow,
-		})));
 		const host = {
 			editorGroupService: {
-				mainPart: { windowId: 1 },
-				onDidActivateGroup: groupActivated.event,
+				mainPart: {
+					groups: [firstGroup, secondGroup],
+					onDidAddGroup: groupAdded.event,
+					onDidRemoveGroup: groupRemoved.event,
+				},
+				whenReady: groupsReady.p,
 			},
 			_register: <T extends IDisposable>(disposable: T) => disposables.add(disposable),
-			hasFocus: (part: Parts) => part === Parts.EDITOR_PART && editorDomFocus,
 			_restoreEditorPartOnActivation: () => restores++,
 		};
 
 		registerEditorPartFocus.call(host);
-		const activate = (windowId: number) => {
-			groupActivated.fire({ group: { windowId } });
-			restoreCounts.push(restores);
-		};
-		activate(1);
-		externalFocusWindow = mainWindow;
-		activate(1);
-		externalFocusWindow = otherWindow;
-		activate(1);
-		externalFocusWindow = undefined;
-		editorDomFocus = true;
-		activate(1);
-		activate(2);
+		firstPaneFocused.fire();
+		restoreCounts.push(restores);
+		secondPaneFocused.fire();
+		restoreCounts.push(restores);
+		groupsReady.complete();
+		await groupsReady.p;
+		firstPaneFocused.fire();
+		restoreCounts.push(restores);
+		secondPaneFocused.fire();
+		restoreCounts.push(restores);
+		firstActiveEditorPane = { onDidFocus: thirdPaneFocused.event };
+		firstActiveEditorChanged.fire();
+		firstPaneFocused.fire();
+		restoreCounts.push(restores);
+		thirdPaneFocused.fire();
+		restoreCounts.push(restores);
+		secondPaneFocused.fire();
+		restoreCounts.push(restores);
+		groupAdded.fire(thirdGroup);
+		fourthPaneFocused.fire();
+		restoreCounts.push(restores);
+		groupRemoved.fire(secondGroup);
+		secondPaneFocused.fire();
+		restoreCounts.push(restores);
 		disposables.dispose();
-		activate(1);
+		thirdPaneFocused.fire();
+		fourthPaneFocused.fire();
+		restoreCounts.push(restores);
 
-		assert.deepStrictEqual(restoreCounts, [0, 1, 1, 2, 2, 2]);
+		assert.deepStrictEqual(restoreCounts, [0, 0, 1, 2, 2, 3, 4, 5, 5, 5]);
 	});
 
 	test('tracks editor pane visibility across editor and auxiliary bar changes', () => {
