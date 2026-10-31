@@ -1531,14 +1531,16 @@ suite('AgentHostFileSystemProvider - streamed reads', () => {
 	/** A connection over in-memory content that records every read and honors ranges only when it advertises them. */
 	class ContentConnection implements IRemoteFilesystemConnection {
 		readonly reads: (IAgentHostResourceReadRange | 'whole')[] = [];
+		readonly uris: string[] = [];
 		readonly initializeResult: IObservable<InitializeResult | undefined>;
 
 		constructor(private readonly _content: VSBuffer, advertisesRanges: boolean) {
 			this.initializeResult = constObservable({ protocolVersion: '1.0.0', serverSeq: 0, snapshots: [], ...(advertisesRanges ? { _meta: { 'vscode.resourceReadRanges': true } } : {}) });
 		}
 
-		async resourceRead(_uri: URI, _encoding?: ContentEncoding, range?: IAgentHostResourceReadRange): Promise<ResourceReadResult> {
+		async resourceRead(uri: URI, _encoding?: ContentEncoding, range?: IAgentHostResourceReadRange): Promise<ResourceReadResult> {
 			this.reads.push(range ? { ...range } : 'whole');
+			this.uris.push(uri.toString());
 			const start = Math.min(range?.position ?? 0, this._content.byteLength);
 			const end = range?.length === undefined ? this._content.byteLength : Math.min(start + range.length, this._content.byteLength);
 			return { data: encodeBase64(this._content.slice(start, end)), encoding: ContentEncoding.Base64 };
@@ -1592,13 +1594,30 @@ suite('AgentHostFileSystemProvider - streamed reads', () => {
 		});
 	});
 
+	test('sends both ranged reads for the host file that remote connections map the URI to', async () => {
+		const hostFile = URI.file('/workspace/big.json');
+		const resource = toAgentHostUri(hostFile, 'host');
+		const { provider, connection } = createProvider(content(1024 * 1024), true);
+
+		await read(provider, resource);
+
+		assert.deepStrictEqual({
+			sent: connection.uris,
+			remoteAgentHost: createAgentHostResourceUriMapper('host').toAgentHost(resource).toString(),
+			editorRemote: createEditorRemoteAgentHostResourceUriMapper('ssh-remote+test', 'host').toAgentHost(resource).toString(),
+		}, {
+			sent: [hostFile.toString(), hostFile.toString()],
+			remoteAgentHost: hostFile.toString(),
+			editorRemote: hostFile.toString(),
+		});
+	});
+
 	test('stops after the first read when the reader cancels, as binary detection does', async () => {
 		const file = content(1024 * 1024);
 		const { provider, connection } = createProvider(file, true);
-		const cts = new CancellationTokenSource();
+		const cts = disposables.add(new CancellationTokenSource());
 
 		const result = await read(provider, agentHostUri('host', '/workspace/firmware.bin'), {}, cts);
-		cts.dispose();
 
 		assert.deepStrictEqual({ bytes: result.byteLength, reads: connection.reads }, { bytes: FIRST, reads: [{ position: 0, length: FIRST }] });
 	});
@@ -1606,7 +1625,7 @@ suite('AgentHostFileSystemProvider - streamed reads', () => {
 	test('stops after the first read when the reader cancels a few promise continuations later', async () => {
 		const file = content(1024 * 1024);
 		const { provider, connection } = createProvider(file, true);
-		const cts = new CancellationTokenSource();
+		const cts = disposables.add(new CancellationTokenSource());
 
 		const ended = new Promise<void>(resolve => {
 			const stream = provider.readFileStream(agentHostUri('host', '/workspace/firmware.bin'), {}, cts.token);
@@ -1620,7 +1639,6 @@ suite('AgentHostFileSystemProvider - streamed reads', () => {
 			stream.on('end', () => resolve());
 		});
 		await ended;
-		cts.dispose();
 
 		assert.deepStrictEqual(connection.reads, [{ position: 0, length: FIRST }]);
 	});
