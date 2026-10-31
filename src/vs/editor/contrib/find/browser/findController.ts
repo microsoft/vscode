@@ -646,6 +646,7 @@ export class StartFindWithArgsAction extends EditorAction {
 				// matchCaseOverride: args.matchCaseOverride,
 				preserveCase: args.preserveCase,
 				// preserveCaseOverride: args.preserveCaseOverride,
+				searchScope: args.findInSelection === false ? null : undefined,
 			} : {};
 
 			await controller.start({
