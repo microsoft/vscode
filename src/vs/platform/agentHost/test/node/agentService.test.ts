@@ -1642,6 +1642,22 @@ suite('AgentService (node dispatcher)', () => {
 		assert.strictEqual(stateManager.getDefaultChat(legacy.toString()), buildDefaultChatUri(legacy.toString()));
 	});
 
+	test('host sandbox certificate management routes without creating or restoring a chat', async () => {
+		const provider: IAgent = copilotAgent;
+		registerTestAgentProvider(service, provider);
+		service.createSession = async () => { assert.fail('Must not create a session'); };
+		service.restoreSession = async () => { assert.fail('Must not restore a session'); };
+		await assert.rejects(service.manageHostSandboxCertificate('missing', 'install'), /unavailable/);
+		await assert.rejects(service.manageHostSandboxCertificate(provider.id, 'install'), /unavailable/);
+		const calls: string[] = [];
+		provider.manageHostSandboxCertificate = async operation => { calls.push(operation); };
+		const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService());
+		for (const operation of ['install', 'rotate', 'remove'] as const) {
+			await managementService.manageHostSandboxCertificate(provider.id, operation);
+		}
+		assert.deepStrictEqual(calls, ['install', 'rotate', 'remove']);
+	});
+
 	for (const operation of ['installSandboxCertificate', 'rotateSandboxCertificate', 'removeSandboxCertificate'] as const) {
 		test(`sandbox certificate ${operation} uses the registered chat owner without restoring a session`, async () => {
 			const provider: IAgent = copilotAgent;

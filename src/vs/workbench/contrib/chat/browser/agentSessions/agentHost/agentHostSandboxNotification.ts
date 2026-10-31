@@ -17,7 +17,7 @@ import { localize } from '../../../../../../nls.js';
 import { isAgentHostSandboxDisablingBlocked } from '../../../../../../platform/agentHost/browser/agentHostSandboxToggle.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { readAgentSandboxCertificate } from '../../../../../../platform/agentHost/common/meta/agentSandboxCertificate.js';
 import { readAgentSandboxDiagnostics, readAgentSandboxLocalNetworkRequired } from '../../../../../../platform/agentHost/common/meta/agentSandboxDiagnostics.js';
 import { readSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
@@ -66,6 +66,7 @@ export class AgentHostSandboxNotification extends Disposable {
 	private _certificateScope: string | undefined;
 	private _certificateInputUri: URI | undefined;
 	private _certificateCanInstall = false;
+	private _certificateIsRemote = false;
 	private _certificateBusy = false;
 	private _certificateOperation: CertificateOperation | undefined;
 	private readonly _installCommandId = `_chat.installSandboxCertificate.${generateUuid()}`;
@@ -210,6 +211,7 @@ export class AgentHostSandboxNotification extends Disposable {
 		let scope: string | undefined;
 		let inputUri: URI | undefined;
 		let canInstall = false;
+		let isRemote = false;
 		const widget = this._chatWidgetService.lastFocusedWidget;
 		if (state && !(state instanceof Error) && !this._chatEntitlementService.sentiment.hidden
 			&& widget?.visible && isEqual(widget.viewModel?.sessionResource, this._sessionResource)) {
@@ -222,17 +224,19 @@ export class AgentHostSandboxNotification extends Disposable {
 				if (!this._dismissedCertificateScopes.has(key) || this._certificateBusy) {
 					scope = key;
 					inputUri = widget.input.inputUri;
-					canInstall = !!resolution.connection.installSandboxCertificate
+					isRemote = !this._isLocalCertificateHost(resolution.connection);
+					canInstall = !isRemote && !!resolution.connection.installSandboxCertificate
 						&& resolution.connection.sandboxCertificateInstallationSupported?.get() === true;
 				}
 			}
 		}
-		if (!force && this._certificateScope === scope && isEqual(this._certificateInputUri, inputUri) && this._certificateCanInstall === canInstall) {
+		if (!force && this._certificateScope === scope && isEqual(this._certificateInputUri, inputUri) && this._certificateCanInstall === canInstall && this._certificateIsRemote === isRemote) {
 			return;
 		}
 		this._certificateScope = scope;
 		this._certificateInputUri = inputUri;
 		this._certificateCanInstall = canInstall;
+		this._certificateIsRemote = isRemote;
 		if (!scope) {
 			this._notificationService.deleteNotification(this._certificateId);
 			return;
@@ -246,10 +250,15 @@ export class AgentHostSandboxNotification extends Disposable {
 			? localize('agentHost.sandboxCertificateRemovingDetail', "Removing trust from the agent host's operating system trust store. The stored certificate authority is kept.")
 			: this._certificateOperation === 'rotate'
 				? localize('agentHost.sandboxCertificateRotatingDetail', "Replacing the certificate authority and establishing operating system trust. Running sandboxed tools may need to restart.")
-				: localize({
-					key: 'agentHost.sandboxCertificateMissingDetail',
-					comment: ['{0} is a Markdown link labeled "Learn more" that opens certificate trust documentation.'],
-				}, "Install the sandbox certificate authority (CA) so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. {0}.", learnMore.value));
+				: isRemote
+					? localize({
+						key: 'agentHost.sandboxCertificateMissingRemoteDetail',
+						comment: ['{0} is a Markdown link labeled "Learn more" that opens certificate trust documentation.'],
+					}, "Install the sandbox certificate authority (CA) on the remote agent host. On that computer, open a local desktop window of VS Code and run Sandbox: Manage Trusted CA from the Command Palette, then select Install. {0}.", learnMore.value)
+					: localize({
+						key: 'agentHost.sandboxCertificateMissingDetail',
+						comment: ['{0} is a Markdown link labeled "Learn more" that opens certificate trust documentation.'],
+					}, "Install the sandbox certificate authority (CA) so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. {0}.", learnMore.value));
 		this._notificationService.setNotification({
 			id: this._certificateId,
 			inputUri,
@@ -347,6 +356,10 @@ export class AgentHostSandboxNotification extends Disposable {
 		}
 	}
 
+	private _isLocalCertificateHost(connection: IAgentConnection): boolean {
+		return !isWeb && !this._environmentService.remoteAuthority && connection === this._agentHostService;
+	}
+
 	private _certificateTarget(operation: CertificateOperation) {
 		const state = this._subscription.value;
 		const chat = state && !(state instanceof Error) ? getAgentHostBackendChat(this._sessionResource, state) : undefined;
@@ -370,6 +383,9 @@ export class AgentHostSandboxNotification extends Disposable {
 				throw new Error(localize('agentHost.sandboxCertificate.rotationUnavailable', "Sandbox certificate rotation is no longer available for this chat. Make sure the certificate is installed and the host supports rotation."));
 			}
 			throw new Error(localize('agentHost.sandboxCertificate.unavailable', "Sandbox certificate installation is no longer available for this chat."));
+		}
+		if (operation === 'install' && !this._isLocalCertificateHost(resolution.connection)) {
+			throw new Error(localize('agentHost.sandboxCertificate.remoteInstallationUnavailable', "Install the sandbox certificate on the remote agent host. Open a local desktop window of VS Code on that computer and run Sandbox: Manage Trusted CA from the Command Palette."));
 		}
 		const connection = resolution.connection;
 		return {

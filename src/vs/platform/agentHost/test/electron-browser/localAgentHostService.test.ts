@@ -214,7 +214,9 @@ suite('LocalAgentHostServiceClient events', () => {
 		const { service } = createService();
 		const channels: string[] = [];
 		const calls: [string, string, string][] = [];
+		const hostOperations: [string, string][] = [];
 		const channel = ProxyChannel.fromService({
+			manageHostSandboxCertificate: async (provider: string, operation: string) => { hostOperations.push([provider, operation]); },
 			installSandboxCertificate: async (chat: string, scopeId: string) => { calls.push(['install', chat, scopeId]); },
 			rotateSandboxCertificate: async (chat: string, scopeId: string) => { calls.push(['rotate', chat, scopeId]); },
 			removeSandboxCertificate: async (chat: string, scopeId: string) => { calls.push(['remove', chat, scopeId]); },
@@ -229,12 +231,16 @@ suite('LocalAgentHostServiceClient events', () => {
 		const managementClient = sinon.stub(LocalAgentHostManagementConnection.prototype, 'client').resolves(client);
 		disposables.add({ dispose: () => managementClient.restore() });
 		const chat = 'conversation://host/a%2Fb?revision%3D2#entry';
+		for (const operation of ['install', 'rotate', 'remove'] as const) {
+			await service.manageHostSandboxCertificate('copilotcli', operation);
+		}
 		await service.installSandboxCertificate(chat, 'runtime');
 		await service.rotateSandboxCertificate(chat, 'runtime');
 		await service.removeSandboxCertificate(chat, 'runtime');
-		assert.deepStrictEqual({ supported: [service.sandboxCertificateInstallationSupported.get(), service.sandboxCertificateRotationSupported.get(), service.sandboxCertificateRemovalSupported.get()], channels, calls }, {
-			supported: [true, true, true], channels: ['agentHostManagement', 'agentHostManagement', 'agentHostManagement'],
+		assert.deepStrictEqual({ supported: [service.sandboxCertificateInstallationSupported.get(), service.sandboxCertificateRotationSupported.get(), service.sandboxCertificateRemovalSupported.get()], channels, calls, hostOperations }, {
+			supported: [true, true, true], channels: Array(6).fill('agentHostManagement'),
 			calls: [['install', chat, 'runtime'], ['rotate', chat, 'runtime'], ['remove', chat, 'runtime']],
+			hostOperations: [['copilotcli', 'install'], ['copilotcli', 'rotate'], ['copilotcli', 'remove']],
 		});
 	});
 
