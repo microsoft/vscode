@@ -763,7 +763,7 @@ export function fixRegexNewline(pattern: string): string {
 					// must be paired with `[\s\S]` to consume it. Otherwise the class would
 					// match without consuming input and capture nothing. See #234067.
 					const otherContent = pattern.slice(parent.start + 2, char.start) + pattern.slice(char.end, parent.end - 1);
-					replace(parent.start, parent.end, '(?:(?!\\r?\\n' + (otherContent ? `|[${otherContent}]` : '') + ')[\\s\\S])');
+					replace(parent.start, parent.end, '(?:(?!\\r?\\n' + (otherContent ? `|[${otherContent.replace(/^\^/, '\\^')}]` : '') + ')[\\s\\S])');
 				} else {
 					// positive bracket expr, [a-z\n] -> (?:[a-z]|\r?\n)
 					const otherContent = pattern.slice(parent.start + 1, char.start) + pattern.slice(char.end, parent.end - 1);
