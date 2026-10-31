@@ -37,7 +37,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { canvasOwnerKey, type CanvasDefinitionSnapshot, getCanvasDefinitionInstanceId, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasRevealRequest, ICanvasService, isCanvasOwner, isOpenableExtensionCanvasDefinition } from '../../../canvases/common/canvas.js';
+import { canvasOwnerKey, type CanvasDefinitionSnapshot, getCanvasDefinitionInstanceId, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService, isCanvasOwner, isOpenableExtensionCanvasDefinition } from '../../../canvases/common/canvas.js';
 import { CanvasDefinitionStore } from '../../../canvases/common/canvasDefinitionStore.js';
 import { AICustomizationManagementCommands } from '../../common/aiCustomizationWorkspaceService.js';
 import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
@@ -1232,7 +1232,6 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		if (!currentItem || !this.canvasService.enabled.get() || !this.isCanvasEnabled(currentItem)) {
 			return;
 		}
-		let pendingReveal: ICanvasRevealRequest | undefined;
 		try {
 			if (!await this.closeCustomizationEditor()) {
 				return;
@@ -1240,14 +1239,13 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			const instanceId = getCanvasDefinitionInstanceId(currentItem.canvas);
 			const existing = currentItem.context.canvases.get()?.find(candidate => candidate.instanceId === instanceId);
 			if (existing) {
-				pendingReveal = await this.canvasService.revealCanvas({ ...currentItem.context.owner, canvas: existing.resource });
+				await this.canvasService.revealCanvas({ ...currentItem.context.owner, canvas: existing.resource });
 				if (existing.source) {
 					return;
 				}
 			}
 			await currentItem.context.definitionProvider!.openCanvas(currentItem.canvas, instanceId);
 		} catch (error) {
-			pendingReveal?.rollback();
 			this.notificationService.error(localize('copilotCanvases.openFailed', "Unable to open canvas {0}. {1}", currentItem.canvas.displayName, getErrorMessage(error)));
 		}
 	}

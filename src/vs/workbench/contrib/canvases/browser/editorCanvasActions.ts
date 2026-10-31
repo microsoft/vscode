@@ -15,7 +15,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
-import { canvasOwnerKey, getCanvasDefinitionInstanceId, getCanvasDefinitionLabels, getCanvasInstanceLabels, getCanvasReferenceKey, ICanvasContext, ICanvasDefinition, ICanvasOwner, ICanvasReference, ICanvasRevealRequest, ICanvasService, isCanvasOwner } from '../common/canvas.js';
+import { canvasOwnerKey, getCanvasDefinitionInstanceId, getCanvasDefinitionLabels, getCanvasInstanceLabels, getCanvasReferenceKey, ICanvasContext, ICanvasDefinition, ICanvasOwner, ICanvasReference, ICanvasService, isCanvasOwner } from '../common/canvas.js';
 import { CanvasDefinitionStore } from '../common/canvasDefinitionStore.js';
 
 export const OPEN_EDITOR_CANVAS_COMMAND_ID = 'workbench.action.chat.openCanvas';
@@ -172,19 +172,17 @@ export function registerEditorCanvasActions(
 		if (!canvasService.enabled.get() || !context?.definitionProvider || !isCanvasOwner(context.owner, owner) || !definitionAvailable) {
 			return;
 		}
-		let pendingReveal: ICanvasRevealRequest | undefined;
 		try {
 			const instanceId = getCanvasDefinitionInstanceId(canvas);
 			const existing = context.canvases.get()?.find(candidate => candidate.instanceId === instanceId);
 			if (existing) {
-				pendingReveal = await canvasService.revealCanvas({ ...context.owner, canvas: existing.resource });
+				await canvasService.revealCanvas({ ...context.owner, canvas: existing.resource });
 				if (existing.source) {
 					return;
 				}
 			}
 			await context.definitionProvider.openCanvas(canvas, instanceId);
 		} catch (error) {
-			pendingReveal?.rollback();
 			notificationService.error(localize('editorCanvas.openFailed', "Could not open canvas {0}: {1}", label, toErrorMessage(error)));
 		}
 	}

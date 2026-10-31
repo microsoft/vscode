@@ -87,16 +87,11 @@ export interface ICanvasContext {
 export interface ICanvasOpenRequest {
 	readonly id: string;
 	readonly succeeded: boolean;
-	readonly pending?: boolean;
 }
 
 export interface ICanvasModelResolution {
 	readonly model: IBrowserViewModel;
 	readonly reused: boolean;
-}
-
-export interface ICanvasRevealRequest {
-	rollback(): void;
 }
 
 /**
@@ -162,7 +157,7 @@ export interface ICanvasService {
 	readonly enabled: IObservable<boolean>;
 	readonly reopenableCanvases: IObservable<readonly ICanvasReopenTarget[]>;
 	isOwnerPresentable(reference: ICanvasReference, reader?: IReader): boolean;
-	revealCanvas(reference: ICanvasReference): Promise<ICanvasRevealRequest | undefined>;
+	revealCanvas(reference: ICanvasReference): Promise<void>;
 	reopenCanvas(reference: ICanvasReference): Promise<void>;
 	/** Restores a canvas admitted by this live service instance from its opaque working-set identifier. */
 	restoreCanvasInput(serializationId: string): CanvasInput | undefined;

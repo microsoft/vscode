@@ -165,7 +165,7 @@ suite('AgentHost canvases', () => {
 		});
 	});
 
-	test('tracks explicit opens by tool identity and request state rather than source changes', () => {
+	test('tracks explicit opens by tool identity, including failed requests, rather than source changes', () => {
 		const connection = new class extends mock<IAgentConnection>() {
 			override readonly initializeResult = constObservable(undefined);
 			override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
@@ -188,19 +188,12 @@ suite('AgentHost canvases', () => {
 		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService()));
 		const context = collection.createContext(owner, constObservable([{ resource: resource.toString() }]), chat);
 		const initial = context.openRequests?.get().get('preview');
-		const running = upcastPartial<Turn>({
-			id: 'next', responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: { ...call, toolCallId: 'running', status: ToolCallStatus.Running } }],
-		});
-		chat.set(upcastPartial<ChatState>({ resource: owner.chat.toString(), turns: [first, running] }), undefined);
-		const pending = context.openRequests?.get().get('preview');
 		const failed = upcastPartial<Turn>({
 			id: 'next', responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: { ...call, toolCallId: 'failed', success: false } }],
 		});
 		chat.set(upcastPartial<ChatState>({ resource: owner.chat.toString(), turns: [first, failed] }), undefined);
-		assert.deepStrictEqual({ initial, pending, latest: context.openRequests?.get().get('preview') }, {
-			initial: { id: 'turn\u0000first', succeeded: true },
-			pending: { id: 'next\u0000running', succeeded: false, pending: true },
-			latest: { id: 'next\u0000failed', succeeded: false },
+		assert.deepStrictEqual({ initial, latest: context.openRequests?.get().get('preview') }, {
+			initial: { id: 'turn\u0000first', succeeded: true }, latest: { id: 'next\u0000failed', succeeded: false },
 		});
 	});
 

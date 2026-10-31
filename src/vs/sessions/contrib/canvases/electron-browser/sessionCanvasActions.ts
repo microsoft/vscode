@@ -255,7 +255,7 @@ function registerSessionCanvasActivityBarActions(canvasService: ICanvasService, 
 			if (!registration) {
 				registration = new CanvasMenuActionRegistration(
 					`${OPEN_SESSION_CANVAS_COMMAND_ID}.reveal.${++commandSequence}`,
-					async () => { await canvasService.revealCanvas(target.reference); },
+					() => canvasService.revealCanvas(target.reference),
 					Menus.SessionActivityBarCanvas,
 				);
 				registrations.set(key, registration);
