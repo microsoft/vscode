@@ -729,6 +729,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private currentHttpProxy: string | undefined = undefined;
 	private currentNoProxy: string | undefined = undefined;
+	private currentPacUrl: string | undefined = undefined;
 
 	private customZoomLevel: number | undefined = undefined;
 
@@ -1212,9 +1213,10 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 
 		// Proxy
-		if (!e || e.affectsConfiguration('http.proxy') || e.affectsConfiguration('http.noProxy')) {
+		if (!e || e.affectsConfiguration('http.proxy') || e.affectsConfiguration('http.noProxy') || e.affectsConfiguration('http.proxyPacUrl')) {
+			const newPacUrl = (this.configurationService.getValue<string>('http.proxyPacUrl') || '').trim() || undefined; // A PAC file replaces the other proxy settings.
 			const inspect = this.configurationService.inspect<string>('http.proxy');
-			let newHttpProxy = (inspect.userLocalValue || '').trim()
+			let newHttpProxy = newPacUrl ? undefined : (inspect.userLocalValue || '').trim()
 				|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim() // Not standardized.
 				|| undefined;
 
@@ -1230,17 +1232,18 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				newHttpProxy = newHttpProxy.substr(0, newHttpProxy.length - 1);
 			}
 
-			const newNoProxy = (this.configurationService.getValue<string[]>('http.noProxy') || []).map((item) => item.trim()).join(',')
+			const newNoProxy = newPacUrl ? undefined : (this.configurationService.getValue<string[]>('http.noProxy') || []).map((item) => item.trim()).join(',')
 				|| (process.env['no_proxy'] || process.env['NO_PROXY'] || '').trim() || undefined; // Not standardized.
-			if ((newHttpProxy || '').indexOf('@') === -1 && (newHttpProxy !== this.currentHttpProxy || newNoProxy !== this.currentNoProxy)) {
+			if ((newHttpProxy || '').indexOf('@') === -1 && (newHttpProxy !== this.currentHttpProxy || newNoProxy !== this.currentNoProxy || newPacUrl !== this.currentPacUrl)) {
+				this.currentPacUrl = newPacUrl;
 				this.currentHttpProxy = newHttpProxy;
 				this.currentNoProxy = newNoProxy;
 
 				const proxyRules = newHttpProxy || '';
 				const proxyBypassRules = newNoProxy ? `${newNoProxy},<local>` : '<local>';
 				this.logService.trace(`Setting proxy to '${proxyRules}', bypassing '${proxyBypassRules}'`);
-				this._win.webContents.session.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
-				electron.app.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
+				this._win.webContents.session.setProxy({ proxyRules, proxyBypassRules, pacScript: newPacUrl ?? '' });
+				electron.app.setProxy({ proxyRules, proxyBypassRules, pacScript: newPacUrl ?? '' });
 			}
 		}
 	}
