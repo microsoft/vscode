@@ -40,6 +40,7 @@ export interface SectionHeader {
 }
 
 const trimDashesRegex = /^-+|-+$/g;
+const trailingCommentCloseRegex = /\s*(?:\*\/|-->)\s*$/;
 
 const CHUNK_SIZE = 100;
 const MAX_SECTION_LINES = 5;
@@ -148,7 +149,7 @@ export function collectMarkHeaders(model: ISectionHeaderFinderTarget, options: F
 				endColumn
 			};
 
-			const text2 = (match.groups ?? {})['label'] ?? '';
+			const text2 = stripTrailingCommentClose((match.groups ?? {})['label'] ?? '');
 			const hasSeparatorLine = ((match.groups ?? {})['separator'] ?? '') !== '';
 
 			const sectionHeader = {
@@ -178,4 +179,12 @@ function getHeaderText(text: string): { text: string; hasSeparatorLine: boolean 
 	const hasSeparatorLine = text.startsWith('-');
 	text = text.replace(trimDashesRegex, '');
 	return { text, hasSeparatorLine };
+}
+
+/**
+ * Strip trailing comment closing delimiters from section header label text,
+ * since these are not part of the actual header name.
+ */
+function stripTrailingCommentClose(text: string): string {
+	return text.replace(trailingCommentCloseRegex, '');
 }
