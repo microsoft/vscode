@@ -315,6 +315,7 @@ suite('AgentHostConfigurationSync', () => {
 			'http.proxyKerberosServicePrincipal',
 			'http.noProxy',
 			'http.proxySupport',
+				'http.proxyPacUrl',
 			'http.systemCertificates',
 			'http.systemCertificatesNode',
 			'http.experimental.systemCertificatesV2',
@@ -322,7 +323,7 @@ suite('AgentHostConfigurationSync', () => {
 			'http.webSocketAdditionalSupport',
 			'http.experimental.networkInterfaceCheckInterval',
 		];
-		const syncedProxySettingIds = ['http.proxy', 'http.proxyKerberosServicePrincipal', 'http.noProxy'];
+		const syncedProxySettingIds = ['http.proxyPacUrl', 'http.proxy', 'http.proxyKerberosServicePrincipal', 'http.noProxy'];
 		const local = getAgentHostConfigurationSyncEntries(AgentHostConfigurationSyncTarget.Local)
 			.filter(entry => allProxySettingIds.includes(entry.settingId))
 			.map(entry => [entry.settingId, entry.sync.key]);
@@ -346,10 +347,12 @@ suite('AgentHostConfigurationSync', () => {
 
 		assert.deepStrictEqual({
 			proxy: patch['http.proxy'],
+				proxyPacUrl: patch['http.proxyPacUrl'],
 			proxyKerberosServicePrincipal: patch['http.proxyKerberosServicePrincipal'],
 			noProxy: patch['http.noProxy'],
 		}, {
 			proxy: '',
+				proxyPacUrl: '',
 			proxyKerberosServicePrincipal: '',
 			noProxy: [],
 		});
