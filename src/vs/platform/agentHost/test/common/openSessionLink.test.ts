@@ -6,7 +6,8 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, buildAgentSessionLinkPresentation, buildExternalOpenSessionLinkUri, buildOpenSessionLinkForChat, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseExternalOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
+import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, buildAgentSessionLinkPresentation, buildExternalOpenSessionLinkUri, buildNewSessionLinkUri, buildOpenSessionLinkForChat, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseExternalOpenSessionLinkUri, parseNewSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
+import { toAgentHostUri } from '../../common/agentHostUri.js';
 import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 
 suite('openSessionLink', () => {
@@ -34,6 +35,36 @@ suite('openSessionLink', () => {
 	test('an explicitly supplied ambient scope remains distinguishable from old unscoped links', () => {
 		const backend = URI.parse('ahp-session:/shared');
 		assert.deepStrictEqual([undefined, 'local'].map(authority => parseOpenSessionLinkConnectionAuthority(buildOpenSessionLinkUri(backend, undefined, undefined, authority))), [undefined, 'local']);
+	});
+
+	test('new-session links select a host, agent, folder, and draft prompt without addressing a session', () => {
+		const remote = buildNewSessionLinkUri({ connectionAuthority: 'localhost__8123', agent: 'claude', folder: '/home/me/project', prompt: 'Fix the tests & explain' });
+		const parse = (link: string | URI) => {
+			const parsed = parseNewSessionLinkUri(link);
+			return parsed && { ...parsed, folderUri: parsed.folderUri?.toString() };
+		};
+		const remoteFolder = toAgentHostUri(URI.file('/home/me/project'), 'localhost__8123').toString();
+		assert.deepStrictEqual({
+			remote: parse(remote),
+			remoteAsUri: parse(URI.parse(remote)),
+			remoteByAddress: parse('agent-host-session://new?host=localhost:8123&folder=/home/me/project&prompt=Fix%20it'),
+			hostOnly: parse('agent-host-session://new?host=localhost:8123'),
+			local: parse('agent-host-session://new?folder=/home/me/project'),
+			empty: parse('agent-host-session://new'),
+			session: parse('agent-host-session://new/session-id'),
+			otherScheme: parse('vscode://new?folder=/home/me/project'),
+			addressesNoSession: [remote, 'agent-host-session://new'].map(link => parseOpenSessionLinkUri(link)),
+		}, {
+			remote: { connectionAuthority: 'localhost__8123', agent: 'claude', folderUri: remoteFolder, draft: { inputText: 'Fix the tests & explain', attachments: '[]' } },
+			remoteAsUri: { connectionAuthority: 'localhost__8123', agent: 'claude', folderUri: remoteFolder, draft: { inputText: 'Fix the tests & explain', attachments: '[]' } },
+			remoteByAddress: { connectionAuthority: 'localhost__8123', agent: undefined, folderUri: remoteFolder, draft: { inputText: 'Fix it', attachments: '[]' } },
+			hostOnly: { connectionAuthority: 'localhost__8123', agent: undefined, folderUri: undefined, draft: undefined },
+			local: { connectionAuthority: undefined, agent: undefined, folderUri: URI.file('/home/me/project').toString(), draft: undefined },
+			empty: { connectionAuthority: undefined, agent: undefined, folderUri: undefined, draft: undefined },
+			session: undefined,
+			otherScheme: undefined,
+			addressesNoSession: [undefined, undefined],
+		});
 	});
 
 	test('isCreateSessionTool matches bare and mcp-prefixed names', () => {
