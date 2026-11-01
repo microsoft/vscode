@@ -5,6 +5,7 @@
 
 import * as dom from '../../../base/browser/dom.js';
 import { StandardWheelEvent, IMouseWheelEvent } from '../../../base/browser/mouseEvent.js';
+import { GestureEvent } from '../../../base/browser/touch.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import * as platform from '../../../base/common/platform.js';
 import { HitTestContext, MouseTarget, MouseTargetFactory, PointerHandlerLastRenderData } from './mouseTarget.js';
@@ -253,6 +254,31 @@ export class MouseHandler extends ViewEventHandler {
 			}
 		}
 		return this.mouseTargetFactory.createMouseTarget(this.viewHelper.getLastRenderData(), e.editorPos, e.pos, e.relativePos, testEventTarget ? target : null);
+	}
+
+	/**
+	 * Dispatch a gesture event as a mouse event.
+	 * Used by touch handlers to support tap/double-tap gestures.
+	 */
+	protected _dispatchGesture(event: GestureEvent, inSelectionMode: boolean): void {
+		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
+		if (target.position) {
+			this.viewController.dispatchMouse({
+				position: target.position,
+				mouseColumn: target.position.column,
+				startedOnLineNumbers: false,
+				revealType: NavigationCommandRevealType.Minimal,
+				mouseDownCount: event.tapCount,
+				inSelectionMode,
+				altKey: false,
+				ctrlKey: false,
+				metaKey: false,
+				shiftKey: false,
+				leftButton: false,
+				middleButton: false,
+				onInjectedText: target.type === MouseTargetType.CONTENT_TEXT && target.detail.injectedText !== null
+			});
+		}
 	}
 
 	private _getMouseColumn(e: EditorMouseEvent): number {
