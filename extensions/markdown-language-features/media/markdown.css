@@ -471,6 +471,124 @@ pre:hover > .code-block-copy-button,
 	opacity: 1;
 }
 
+/* Code block language label */
+.code-block-language {
+	position: absolute;
+	top: 8px;
+	left: 8px;
+	font-size: 12px;
+	line-height: 1;
+	font-family: var(--vscode-font-family, sans-serif);
+	color: var(--vscode-descriptionForeground, rgba(204, 204, 204, 0.7));
+	pointer-events: none;
+	user-select: none;
+}
+
+/* Add breathing room between the language label and the code content */
+pre.has-language-label {
+	padding-top: 32px;
+}
+
+/* Table of contents — full-height fixed side column */
+body.has-toc {
+	padding-left: calc(var(--toc-width, 220px) + 40px); /* TOC + gap */
+}
+
+.markdown-toc {
+	position: fixed;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	width: var(--toc-width, 220px);
+	overflow-y: auto;
+	padding: 1em 12px;
+	border-right: 1px solid var(--vscode-widget-border, rgba(127, 127, 127, 0.35));
+	background-color: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+	box-sizing: border-box;
+}
+
+/* Drag handle to resize the TOC column.
+   Positioned at the right edge of the TOC (to the right of the scrollbar),
+   in the gap between the TOC and the content. */
+.markdown-toc-resize-handle {
+	position: fixed;
+	top: 0;
+	bottom: 0;
+	left: calc(var(--toc-width, 220px) - 3px);
+	width: 6px;
+	cursor: ew-resize;
+	z-index: 1;
+}
+
+.markdown-toc-resize-handle:hover,
+body.resizing-toc .markdown-toc-resize-handle {
+	background-color: var(--vscode-focusBorder, #007fd4);
+	opacity: 0.5;
+}
+
+body.resizing-toc {
+	cursor: ew-resize;
+	user-select: none;
+}
+
+.markdown-toc ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.markdown-toc-entry {
+	margin: 0;
+}
+
+.markdown-toc-entry a {
+	display: block;
+	padding: 2px 6px;
+	color: var(--vscode-foreground);
+	text-decoration: none;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	border-radius: 3px;
+}
+
+.markdown-toc-entry a:hover {
+	background-color: var(--vscode-list-hoverBackground, rgba(90, 93, 94, 0.31));
+}
+
+/* Remove the focus outline on mouse click, but keep it for keyboard navigation */
+.markdown-toc-entry a:focus {
+	outline: none;
+}
+
+.markdown-toc-entry a:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder, #007fd4);
+	outline-offset: -1px;
+}
+
+.markdown-toc-entry.active a {
+	background-color: var(--vscode-list-activeSelectionBackground, #094771);
+	color: var(--vscode-list-activeSelectionForeground, #ffffff);
+}
+
+/* Indent entries based on their heading level */
+.markdown-toc-entry[style*="--toc-level: 2"] a { padding-left: 18px; }
+.markdown-toc-entry[style*="--toc-level: 3"] a { padding-left: 30px; }
+.markdown-toc-entry[style*="--toc-level: 4"] a { padding-left: 42px; }
+.markdown-toc-entry[style*="--toc-level: 5"] a { padding-left: 54px; }
+.markdown-toc-entry[style*="--toc-level: 6"] a { padding-left: 66px; }
+
+/* Responsive breakpoint — hide the TOC on narrow previews */
+@media (max-width: 576px) {
+	.markdown-toc {
+		display: none;
+	}
+
+	body.has-toc {
+		padding-left: 26px;
+	}
+}
+
 .vscode-high-contrast h1 {
 	border-color: rgb(0, 0, 0);
 }
