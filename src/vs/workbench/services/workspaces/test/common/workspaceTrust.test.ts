@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -20,19 +20,19 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IRemoteAuthorityResolverService, WebSocketRemoteConnection } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IWorkspaceContextService, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, toWorkspaceFolder, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustInfo, IWorkspaceTrustManagementService, WorkspaceTrustUriResponse } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { Memento } from '../../../../common/memento.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
-import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService, WorkspaceTrustRequestService, WORKSPACE_TRUST_STORAGE_KEY } from '../../common/workspaceTrust.js';
+import { CanonicalWorkspace, WorkspaceTrustEnablementService, WorkspaceTrustManagementService, WorkspaceTrustRequestService, WORKSPACE_TRUST_STORAGE_KEY } from '../../common/workspaceTrust.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { TestContextService, TestStorageService, TestWorkspaceTrustEnablementService } from '../../../../test/common/workbenchTestServices.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Mutable } from '../../../../../base/common/types.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { ICanonicalUriService } from '../../../../../platform/workspace/common/canonicalUri.js';
 import { CanonicalUriService } from '../../common/canonicalUriService.js';
 import { encodeHex, VSBuffer } from '../../../../../base/common/buffer.js';
@@ -40,6 +40,11 @@ import { INotificationService, NotificationMessage } from '../../../../../platfo
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+
+class FiringTestContextService extends TestContextService {
+	readonly folderChanges = new Emitter<IWorkspaceFoldersChangeEvent>();
+	override get onDidChangeWorkspaceFolders(): Event<IWorkspaceFoldersChangeEvent> { return this.folderChanges.event; }
+}
 
 suite('Workspace Trust', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -102,7 +107,7 @@ suite('Workspace Trust', () => {
 
 	suite('Management', () => {
 		let storageService: TestStorageService;
-		let workspaceService: TestContextService;
+		let workspaceService: FiringTestContextService;
 
 		teardown(() => {
 			Memento.clear(StorageScope.WORKSPACE);
@@ -112,7 +117,8 @@ suite('Workspace Trust', () => {
 			storageService = store.add(new TestStorageService());
 			instantiationService.stub(IStorageService, storageService);
 
-			workspaceService = new TestContextService();
+			workspaceService = new FiringTestContextService();
+			store.add(workspaceService.folderChanges);
 			instantiationService.stub(IWorkspaceContextService, workspaceService);
 
 			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
@@ -800,6 +806,260 @@ suite('Workspace Trust', () => {
 				assert.strictEqual(replaced, true);
 				assert.strictEqual(testObject.isWorkspaceTrusted(), false);
 				assert.deepStrictEqual(trustChanges, []);
+			});
+
+			function createPairingFixture() {
+				const second = pullRequest.with({ path: '/microsoft/second-project' });
+				const workspace = new Workspace('pairing', [toWorkspaceFolder(pullRequest), new WorkspaceFolder({ uri: second, index: 1, name: 'second-project' })]);
+				const canonicalFirst = base;
+				const canonicalSecond = base.with({ path: second.path });
+				const snapshot = new CanonicalWorkspace(workspace, [canonicalFirst, canonicalSecond], undefined);
+				const describeSnapshot = () => snapshot.folders.map(folder => ({ index: folder.index, name: folder.name, uri: folder.uri?.toString() ?? '<undefined>' }));
+				const expected = [{ index: 0, name: 'project', uri: canonicalFirst.toString() }, { index: 1, name: 'second-project', uri: canonicalSecond.toString() }];
+				return { second, workspace, canonicalFirst, canonicalSecond, describeSnapshot, expected };
+			}
+
+			test('a canonical snapshot keeps its pairings when a folder is removed', () => {
+				const { second, workspace, describeSnapshot, expected } = createPairingFixture();
+
+				workspace.folders = [toWorkspaceFolder(second)];
+
+				assert.deepStrictEqual(describeSnapshot(), expected);
+			});
+
+			test('a canonical snapshot keeps its pairings when folders are reordered', () => {
+				const { second, workspace, describeSnapshot, expected } = createPairingFixture();
+
+				workspace.folders = [new WorkspaceFolder({ uri: second, index: 0, name: 'second-project' }), new WorkspaceFolder({ uri: pullRequest, index: 1, name: 'project' })];
+
+				assert.deepStrictEqual(describeSnapshot(), expected);
+			});
+
+			test('a canonical snapshot keeps its pairings when a folder is added', () => {
+				const { second, workspace, canonicalFirst, canonicalSecond, describeSnapshot, expected } = createPairingFixture();
+				const third = pullRequest.with({ path: '/microsoft/third-project' });
+
+				workspace.folders = [toWorkspaceFolder(pullRequest), new WorkspaceFolder({ uri: second, index: 1, name: 'second-project' }), new WorkspaceFolder({ uri: third, index: 2, name: 'third-project' })];
+
+				assert.deepStrictEqual(describeSnapshot(), expected);
+				assert.throws(() => new CanonicalWorkspace(workspace, [canonicalFirst, canonicalSecond], undefined), /does not match/);
+			});
+
+			test('approving while an added folder is still resolving waits and stores only verified sources', async () => {
+				const secondBase = base.with({ path: '/microsoft/second-project' });
+				const secondPullRequest = pullRequest.with({ path: secondBase.path });
+				const workspace = new Workspace('add-during-resolution', [toWorkspaceFolder(pullRequest)]);
+				workspaceService.setWorkspace(workspace);
+				const secondSource = new DeferredPromise<URI | undefined>();
+				store.add(canonicalUriService.registerCanonicalUriProvider({
+					scheme: 'vscode-vfs',
+					provideCanonicalUri: async uri => {
+						const path = URI.revive(uri).path;
+						return path === secondPullRequest.path ? secondSource.p : base.with({ path });
+					},
+				}));
+				const testObject = await initializeTestObject();
+				const trustChanges: boolean[] = [];
+				store.add(testObject.onDidChangeTrust(trusted => trustChanges.push(trusted)));
+				const initiallyTrusted = testObject.isWorkspaceTrusted();
+
+				const secondFolder = new WorkspaceFolder({ uri: secondPullRequest, index: 1, name: 'second-project' });
+				workspace.folders = [toWorkspaceFolder(pullRequest), secondFolder];
+				workspaceService.folderChanges.fire({ added: [secondFolder], removed: [], changed: [] });
+				await timeout(0);
+				await timeout(0);
+
+				let approved = false;
+				const approval = testObject.setWorkspaceTrust(true).then(() => { approved = true; });
+				await timeout(0);
+				await timeout(0);
+				const whileResolving = {
+					trusted: testObject.isWorkspaceTrusted(),
+					canSetWorkspaceTrust: testObject.canSetWorkspaceTrust(),
+					approved,
+					secondBaseStored: testObject.getTrustedUris().some(uri => uri.toString() === secondBase.toString()),
+				};
+
+				secondSource.complete(secondBase);
+				await approval;
+				await testObject.resolveWorkspaceTrust();
+
+				assert.deepStrictEqual({
+					initiallyTrusted,
+					whileResolving,
+					trusted: testObject.isWorkspaceTrusted(),
+					secondBaseStored: testObject.getTrustedUris().some(uri => uri.toString() === secondBase.toString()),
+					secondPullRequestStored: testObject.getTrustedUris().some(uri => uri.toString() === secondPullRequest.toString()),
+					trustChanges,
+				}, {
+					initiallyTrusted: true,
+					whileResolving: { trusted: true, canSetWorkspaceTrust: false, approved: false, secondBaseStored: false },
+					trusted: true,
+					secondBaseStored: true,
+					secondPullRequestStored: false,
+					trustChanges: [false, true],
+				});
+			});
+
+			test('removing a trusted folder while sources resolve does not leave the remaining folder trusted', async () => {
+				const secondPullRequest = pullRequest.with({ path: '/microsoft/second-project' });
+				const secondFolder = new WorkspaceFolder({ uri: secondPullRequest, index: 1, name: 'second-project' });
+				const workspace = new Workspace('remove-during-resolution', [toWorkspaceFolder(pullRequest), secondFolder]);
+				workspaceService.setWorkspace(workspace);
+				let removed = false;
+				const trustChanges: boolean[] = [];
+				store.add(canonicalUriService.registerCanonicalUriProvider({
+					scheme: 'vscode-vfs',
+					provideCanonicalUri: async uri => {
+						if (!removed) {
+							removed = true;
+							workspace.folders = [new WorkspaceFolder({ uri: secondPullRequest, index: 0, name: 'second-project' })];
+							workspaceService.folderChanges.fire({ added: [], removed: [toWorkspaceFolder(pullRequest)], changed: [] });
+						}
+						return base.with({ path: URI.revive(uri).path });
+					},
+				}));
+				const testObject = store.add(instantiationService.createInstance(WorkspaceTrustManagementService));
+				store.add(testObject.onDidChangeTrust(trusted => trustChanges.push(trusted)));
+				await testObject.workspaceTrustInitialized;
+				const afterInitialization = testObject.isWorkspaceTrusted();
+				await testObject.resolveWorkspaceTrust();
+				await timeout(0);
+
+				assert.deepStrictEqual({ afterInitialization, afterResolution: testObject.isWorkspaceTrusted(), trustChanges }, { afterInitialization: false, afterResolution: false, trustChanges: [] });
+			});
+
+			test('approving after a silent folder change stores only the current folders verified sources', async () => {
+				const staleBase = base.with({ path: '/microsoft/stale-project' });
+				const stalePullRequest = pullRequest.with({ path: staleBase.path });
+				const currentBase = base.with({ path: '/microsoft/current-project' });
+				const currentPullRequest = pullRequest.with({ path: currentBase.path });
+				const workspace = new Workspace('silent-change', [toWorkspaceFolder(stalePullRequest)]);
+				workspaceService.setWorkspace(workspace);
+				store.add(canonicalUriService.registerCanonicalUriProvider({
+					scheme: 'vscode-vfs',
+					provideCanonicalUri: async uri => base.with({ path: URI.revive(uri).path }),
+				}));
+				const testObject = await initializeTestObject();
+				const initiallyTrusted = testObject.isWorkspaceTrusted();
+
+				workspace.folders = [toWorkspaceFolder(currentPullRequest)];
+				const canSetAfterSilentChange = testObject.canSetWorkspaceTrust();
+				await testObject.setWorkspaceTrust(true);
+				const stored = (uri: URI) => testObject.getTrustedUris().some(trusted => trusted.toString() === uri.toString());
+
+				assert.deepStrictEqual({
+					initiallyTrusted,
+					canSetAfterSilentChange,
+					trusted: testObject.isWorkspaceTrusted(),
+					currentBaseStored: stored(currentBase),
+					staleBaseStored: stored(staleBase),
+				}, { initiallyTrusted: false, canSetAfterSilentChange: false, trusted: true, currentBaseStored: true, staleBaseStored: false });
+			});
+
+			test('reordering trusted folders while sources resolve converges to trusted', async () => {
+				const secondBase = base.with({ path: '/microsoft/second-project' });
+				const secondPullRequest = pullRequest.with({ path: secondBase.path });
+				const workspace = new Workspace('reorder-during-resolution', [toWorkspaceFolder(pullRequest), toWorkspaceFolder(secondPullRequest)]);
+				workspaceService.setWorkspace(workspace);
+				storageService.store(WORKSPACE_TRUST_STORAGE_KEY, JSON.stringify({ uriTrustInfo: [base, secondBase].map(uri => ({ uri, trusted: true })) }), StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
+				let reordered = false;
+				store.add(canonicalUriService.registerCanonicalUriProvider({
+					scheme: 'vscode-vfs',
+					provideCanonicalUri: async uri => {
+						if (!reordered) {
+							reordered = true;
+							workspace.folders = [toWorkspaceFolder(secondPullRequest), toWorkspaceFolder(pullRequest)];
+						}
+						return base.with({ path: URI.revive(uri).path });
+					},
+				}));
+				const testObject = store.add(instantiationService.createInstance(WorkspaceTrustManagementService));
+				await testObject.workspaceTrustInitialized;
+
+				assert.strictEqual(testObject.isWorkspaceTrusted(), true);
+			});
+
+			test('folders reordered while sources resolve can be approved and store both sources', async () => {
+				storageService.remove(WORKSPACE_TRUST_STORAGE_KEY, StorageScope.APPLICATION_SHARED);
+				const secondBase = base.with({ path: '/microsoft/second-project' });
+				const secondPullRequest = pullRequest.with({ path: secondBase.path });
+				const workspace = new Workspace('approve-after-reorder', [toWorkspaceFolder(pullRequest), toWorkspaceFolder(secondPullRequest)]);
+				workspaceService.setWorkspace(workspace);
+				let reordered = false;
+				store.add(canonicalUriService.registerCanonicalUriProvider({
+					scheme: 'vscode-vfs',
+					provideCanonicalUri: async uri => {
+						if (!reordered) {
+							reordered = true;
+							workspace.folders = [toWorkspaceFolder(secondPullRequest), toWorkspaceFolder(pullRequest)];
+						}
+						return base.with({ path: URI.revive(uri).path });
+					},
+				}));
+				const testObject = store.add(instantiationService.createInstance(WorkspaceTrustManagementService));
+				await testObject.workspaceTrustInitialized;
+				const beforeApproval = testObject.isWorkspaceTrusted();
+				await testObject.setWorkspaceTrust(true);
+
+				assert.deepStrictEqual({
+					beforeApproval,
+					afterApproval: testObject.isWorkspaceTrusted(),
+					stored: testObject.getTrustedUris().map(uri => uri.toString()).sort(),
+				}, { beforeApproval: false, afterApproval: true, stored: [base.toString(), secondBase.toString()].sort() });
+			});
+
+			test('folders that keep changing during resolution fail closed after bounded retries', async () => {
+				const warnings: string[] = [];
+				instantiationService.stub(ILogService, new class extends NullLogService {
+					override warn(message: string) { warnings.push(message); }
+				});
+				const workspace = new Workspace('keeps-changing', [toWorkspaceFolder(pullRequest)]);
+				workspaceService.setWorkspace(workspace);
+				let calls = 0;
+				store.add(canonicalUriService.registerCanonicalUriProvider({
+					scheme: 'vscode-vfs',
+					provideCanonicalUri: async () => {
+						calls++;
+						workspace.folders = [toWorkspaceFolder(pullRequest.with({ path: `/microsoft/p${calls}` }))];
+						return base;
+					},
+				}));
+				const testObject = store.add(instantiationService.createInstance(WorkspaceTrustManagementService));
+				await testObject.workspaceTrustInitialized;
+				const trusted = testObject.isWorkspaceTrusted();
+				const callsAfterInitialization = calls;
+				await assert.rejects(testObject.setWorkspaceTrust(true), /source of this workspace could not be determined/);
+
+				assert.deepStrictEqual({
+					trusted,
+					callsAfterInitialization,
+					warned: warnings.includes('Unable to verify workspace trust sources because the workspace folders changed during resolution'),
+					warningsContainUris: warnings.some(warning => warning.includes('vscode-vfs')),
+					stored: testObject.getTrustedUris().map(uri => uri.toString()),
+				}, { trusted: false, callsAfterInitialization: 2, warned: true, warningsContainUris: false, stored: [base.toString()] });
+			});
+
+			test('a failure while resolving sources revokes current trust', async () => {
+				registerSource(base);
+				class FailingResolutionService extends WorkspaceTrustManagementService {
+					fail = false;
+					protected override async resolveCanonicalUris(): Promise<CanonicalWorkspace> {
+						if (this.fail) {
+							throw new Error('boom');
+						}
+						return super.resolveCanonicalUris();
+					}
+				}
+				const testObject = store.add(instantiationService.createInstance(FailingResolutionService));
+				const trustChanges: boolean[] = [];
+				store.add(testObject.onDidChangeTrust(trusted => trustChanges.push(trusted)));
+				await testObject.workspaceTrustInitialized;
+				const initiallyTrusted = testObject.isWorkspaceTrusted();
+				testObject.fail = true;
+				await testObject.resolveWorkspaceTrust();
+
+				assert.deepStrictEqual({ initiallyTrusted, trusted: testObject.isWorkspaceTrusted(), lastChange: trustChanges.at(-1) }, { initiallyTrusted: true, trusted: false, lastChange: false });
 			});
 
 			test('approval is stored for the fork and can be revoked independently', async () => {
