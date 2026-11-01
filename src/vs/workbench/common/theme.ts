@@ -726,6 +726,8 @@ export const MODERN_EDITOR_TAB_ACTIVE_FOREGROUND = registerColor('modernEditorTa
 
 export const MODERN_EDITOR_TAB_INACTIVE_BACKGROUND = registerColor('modernEditorTab.inactiveBackground', Color.transparent, localize('modernEditorTabInactiveBackground', "Background color of inactive editor tabs when the modern tab style is enabled."));
 
+export const MODERN_EDITOR_TAB_INACTIVE_FOREGROUND = registerColor('modernEditorTab.inactiveForeground', transparent(foreground, 0.5), localize('modernEditorTabInactiveForeground', "Foreground color of inactive editor tabs when the modern pill tab style is enabled."));
+
 export const MODERN_EDITOR_TAB_HOVER_BACKGROUND = registerColor('modernEditorTab.hoverBackground', MODERN_TAB_HOVER_BACKGROUND, localize('modernEditorTabHoverBackground', "Background color of editor tabs when hovering and the modern tab style is enabled."));
 
 export const MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND = registerColor('modernEditorTab.hoverActionBackground', opaque(MODERN_EDITOR_TAB_HOVER_BACKGROUND, editorBackground), localize('modernEditorTabHoverActionBackground', "Opaque background color of tab actions on editor tabs when hovering and the modern tab style is enabled."));
