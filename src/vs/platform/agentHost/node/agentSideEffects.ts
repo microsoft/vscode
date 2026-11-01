@@ -25,7 +25,7 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { IAgentHostChatContributions, type ISendTurnMessageOptions } from '../common/agentHostChatContributionsService.js';
 import { captureCredentialSource, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
-import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
+import { getLatestTurnAgent, getPendingSteeringMessages } from '../common/agentSessionMessage.js';
 import { isRenameChatTool } from '../common/serverToolNames.js';
 import { type CodexModelProvider, AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentPermissionKind, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type AgentSubagentKind, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal, type IAgentSubagentStartedSignal } from '../common/agent.js';
@@ -68,6 +68,7 @@ import {
 	ToolCallConfirmationReason,
 	ToolResultContentType,
 	type ErrorInfo,
+	type ChatState,
 	type ISessionWithDefaultChat,
 	type Message,
 	type MessageAttachment,
@@ -236,6 +237,18 @@ function getMcpSourceKind(customizations: readonly Customization[] | undefined, 
 		return undefined;
 	}
 	return readMcpServerSource(candidate.customization) ?? (candidate.owningPluginUri !== undefined ? 'plugin' : undefined);
+}
+
+/**
+ * Steering that the provider consumes joins the turn it steers, which keeps running with that
+ * turn's agent: the agent selected when the steering was sent applies only when the steering
+ * starts a fresh turn. The provider shows consumed steering as a turn of its own, so that turn
+ * records the agent still running (the latest turn's, read before the steering turn starts).
+ */
+function withSteeredTurnAgent(action: ChatTurnStartedAction, state: ChatState | undefined): ChatTurnStartedAction {
+	const { agent: _selectedAgent, ...message } = action.message;
+	const runningAgent = getLatestTurnAgent(state);
+	return { ...action, message: { ...message, ...(runningAgent ? { agent: runningAgent } : {}) } };
 }
 
 type AgentSignalTurnIdRouting = 'preserve' | 'remap';
@@ -909,10 +922,11 @@ export class AgentSideEffects extends Disposable {
 				&& action.queuedMessageId !== undefined
 				&& state !== undefined
 				&& getPendingSteeringMessages(state).some(message => message.id === action.queuedMessageId);
-			this._stateManager.dispatchServerAction(sessionKey, action);
-			if (action.type === ActionType.ChatTurnStarted && this._stateManager.getActiveTurnId(sessionKey) === action.turnId) {
+			const dispatched = startedWithSteering && action.type === ActionType.ChatTurnStarted ? withSteeredTurnAgent(action, state) : action;
+			this._stateManager.dispatchServerAction(sessionKey, dispatched);
+			if (dispatched.type === ActionType.ChatTurnStarted && this._stateManager.getActiveTurnId(sessionKey) === dispatched.turnId) {
 				// Provider-promoted turns are already running and must not enter the admission/send path again.
-				this._trackProviderStartedTurn(agent, sessionKey, action, startedWithSteering);
+				this._trackProviderStartedTurn(agent, sessionKey, dispatched, startedWithSteering);
 			} else if (action.type === ActionType.ChatTurnComplete) {
 				this._runTurnCompleteSideEffects(sessionKey, undefined);
 			}
