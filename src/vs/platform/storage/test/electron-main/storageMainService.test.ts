@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, notStrictEqual, strictEqual } from 'assert';
+import { timeout } from '../../../../base/common/async.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -17,7 +18,7 @@ import product from '../../../product/common/product.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { SaveStrategy, StateService } from '../../../state/node/stateService.js';
 import { IS_NEW_KEY, StorageScope } from '../../common/storage.js';
-import { IBaseSerializableStorageRequest, ISerializableCompareAndSwapRequest, ISerializableCompareAndSwapResult, ISerializableUpdateRequest } from '../../common/storageIpc.js';
+import { IBaseSerializableStorageRequest, ISerializableCompareAndSwapRequest, ISerializableCompareAndSwapResult, ISerializableItemsChangeEvent, ISerializableUpdateRequest, ISerializableUpdateResult } from '../../common/storageIpc.js';
 import { IStorageChangeEvent, IStorageMain, IStorageMainOptions } from '../../electron-main/storageMain.js';
 import { StorageDatabaseChannel } from '../../electron-main/storageIpc.js';
 import { StorageMainService } from '../../electron-main/storageMainService.js';
@@ -245,6 +246,32 @@ suite('StorageMainService', function () {
 				unrelated: `${testCase.name}-sentinel`,
 			})),
 		});
+	});
+
+	test('storage channel reports the same revision in update result and change event', async function () {
+		const storageMainService = createStorageService();
+		const channel = disposables.add(new StorageDatabaseChannel(new NullLogService(), storageMainService));
+		const profile = inMemoryProfile;
+		const profileStorage = storageMainService.profileStorage(profile);
+
+		const events: ISerializableItemsChangeEvent[] = [];
+		disposables.add(channel.listen(undefined, 'onDidChangeStorage', { profile, workspace: undefined })(e => events.push(e)));
+
+		const request: ISerializableUpdateRequest = {
+			profile,
+			workspace: undefined,
+			insert: [['key', 'value']]
+		};
+		const result: ISerializableUpdateResult = await channel.call(undefined, 'updateItems', request);
+		const revision = new Map(result.revisions).get('key');
+		strictEqual(typeof revision, 'number');
+
+		await timeout(100 /* debounce */ + 50);
+
+		strictEqual(events.length, 1);
+		strictEqual(new Map(events[0].revisions).get('key'), revision);
+
+		await profileStorage.close();
 	});
 
 	test('storage closed onWillShutdown', async function () {
