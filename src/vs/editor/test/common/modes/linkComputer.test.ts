@@ -283,4 +283,18 @@ suite('Editor Modes - Link Computer', () => {
 			`          https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/withResolvers                       `,
 		);
 	});
+
+	test('issue #303101: CJK full-width exclamation mark terminates URL', () => {
+		assertLink(
+			'請訪問 https://github.com/lobehub/lobehub/pull/13120！點擊此處',
+			'    https://github.com/lobehub/lobehub/pull/13120          '
+		);
+	});
+
+	test('issue #303101: CJK full-width question mark terminates URL', () => {
+		assertLink(
+			'請訪問 https://github.com/lobehub/lobehub/pull/13120？點擊此處',
+			'    https://github.com/lobehub/lobehub/pull/13120          '
+		);
+	});
 });
