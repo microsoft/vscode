@@ -99,14 +99,6 @@ function run(command: string, args: readonly string[], options: SpawnSyncOptions
 	return typeof result.stdout === 'string' ? result.stdout : '';
 }
 
-function runAsync(command: string, args: readonly string[]): Promise<void> {
-	return new Promise((resolve, reject) => {
-		const child = spawn(command, args, { stdio: 'inherit' });
-		child.on('error', reject);
-		child.on('exit', code => code === 0 ? resolve() : reject(new Error(`${command} ${args.join(' ')} exited with ${code}`)));
-	});
-}
-
 function workspace(): string {
 	const folder = process.env.GITHUB_WORKSPACE;
 	if (!folder) {
@@ -585,7 +577,7 @@ function samePath(a: string, b: string): boolean {
 }
 
 /** Mounts a disk image at the root folder, and returns how to unmount it */
-async function mount(source: Source, root: string, connections: number, prepared: Promise<void>): Promise<() => void> {
+async function mount(source: Source, root: string, connections: number): Promise<() => void> {
 	const temp = process.env.RUNNER_TEMP ?? os.tmpdir();
 	const ws = workspace();
 	switch (process.platform) {
@@ -594,10 +586,8 @@ async function mount(source: Source, root: string, connections: number, prepared
 			// initialize alone, as they are zeros already, instead of writing them during the job.
 			const file = path.join(temp, 'workspace-image.ext4');
 			log(await unpack(source, file, { sparse: true, existing: false, connections }));
-			await prepared;
-			// Through the page cache, which holds the image: with direct I/O, the loop device would wait
-			// for the kernel to write the image to the disk first
-			const loop = run('sudo', ['losetup', '--find', '--show', '--direct-io=off', file], { stdio: ['ignore', 'pipe', 'inherit'] }).trim();
+			// The kernel writes what is left of the image to the disk before it attaches it
+			const loop = run('sudo', ['losetup', '--find', '--show', file], { stdio: ['ignore', 'pipe', 'inherit'] }).trim();
 			log(`attached the image to ${loop}`);
 			run('sudo', ['mount', '-o', 'noatime,noinit_itable', loop, root]);
 			return () => {
@@ -673,19 +663,11 @@ async function restoreImage(args: Args): Promise<void> {
 	if (others.length) {
 		throw new Error(`${root} holds more than the workspace: ${others.join(', ')}`);
 	}
-	// On Linux, the first sudo of a job can take seconds, so it runs while the image downloads: the
-	// restore writes the image to memory, and the kernel writes it to the disk while the job goes on,
-	// instead of waiting for the disk once it filled the default share of memory (20 %)
-	const prepared = process.platform === 'linux'
-		? runAsync('sudo', ['sysctl', '-q', '-w', `vm.dirty_bytes=${16 * 1024 ** 3}`, `vm.dirty_background_bytes=${1024 ** 3}`]).then(
-			() => log('raised the share of dirty memory'),
-			err => log(`kept the default share of dirty memory: ${err instanceof Error ? err.message : String(err)}`))
-		: Promise.resolve();
 	const artifact = await locate(name, branch);
 	log(`found artifact ${artifact.id} of ${Math.round(artifact.size_in_bytes / 1e6)} MB, built at ${artifact.workflow_run!.head_sha} on ${artifact.created_at}`);
 	const source = await openArtifact(artifact.id);
 	log('opened the artifact');
-	const unmount = await mount(source, root, connections, prepared);
+	const unmount = await mount(source, root, connections);
 	log(`mounted the image at ${root}`);
 	let metadata: Metadata;
 	try {
