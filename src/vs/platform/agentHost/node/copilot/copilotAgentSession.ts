@@ -619,6 +619,8 @@ const CONNECTOR_OWNERSHIP_LOOKUP_TIMEOUT_MS = 10_000;
 const SUBAGENT_TASK_COMPLETION_DELAY_MS = 250;
 /** The longest a `tasks.readOutput` call may wait for a detached shell to write more output. */
 const DETACHED_SHELL_OUTPUT_WAIT_MS = 30_000;
+/** The longest steering waits for the turn it ends to finish recording tool results before showing the steering turn. */
+const STEERING_RESULT_WAIT_MS = 5_000;
 /** Type of the `session.info` and `session.warning` events about preparing plugins required by the organization. */
 const MANAGED_PLUGINS_EVENT_TYPE = 'managed_plugins';
 /** Type of the `session.info` event sent when plugins required by the organization are ready. */
@@ -1066,6 +1068,89 @@ interface IPendingSteering {
 	promotedTurnId?: string;
 	/** Set while the user's withdrawal of the message awaits the SDK, so it is not promoted meanwhile. */
 	withdrawing?: boolean;
+}
+
+/**
+ * Signals held while steering ends a turn whose tool results are still being recorded.
+ * See `CopilotAgentSession._beginSteeringTurn`.
+ */
+interface ISteeringHold {
+	/** The turn steering ended. Its own results pass so they land before it ends. */
+	readonly turn: CopilotTurn;
+	/** Every other signal, in order, released once the turn's results are recorded. */
+	readonly signals: AgentSignal[];
+}
+
+/** Whether `signal` is a result of the turn steering ended, which must land before that turn ends. */
+function isSteeredTurnResult(turnId: string, signal: AgentSignal): boolean {
+	return signal.kind === 'action'
+		&& signal.parentToolCallId === undefined
+		&& isChatAction(signal.action)
+		&& hasKey(signal.action, { turnId: true })
+		&& signal.action.turnId === turnId
+		&& signal.action.type !== ActionType.ChatTurnComplete;
+}
+
+/**
+ * The turn a held signal belongs to, and whether the signal starts or ends it.
+ * The chat's own turns are keyed `chat:<turn id>`, a subagent's turns
+ * `subagent:<spawning tool call id>`. `runningChatTurn` is the key of the
+ * chat's turn that was running when the signal was emitted, for a signal that
+ * does not name its turn.
+ */
+function getHeldSignalTurn(signal: AgentSignal, runningChatTurn: string | undefined): { readonly key: string; readonly boundary?: 'start' | 'end' } | undefined {
+	switch (signal.kind) {
+		case 'subagent_started':
+		case 'subagent_resumed':
+			return { key: `subagent:${signal.toolCallId}`, boundary: 'start' };
+		case 'subagent_completed':
+			return { key: `subagent:${signal.toolCallId}`, boundary: 'end' };
+		case 'pending_confirmation':
+			if (signal.parentToolCallId !== undefined) {
+				return { key: `subagent:${signal.parentToolCallId}` };
+			}
+			return runningChatTurn !== undefined ? { key: runningChatTurn } : undefined;
+		case 'model_call_completed':
+		case 'model_call_finished':
+			return { key: signal.parentToolCallId !== undefined ? `subagent:${signal.parentToolCallId}` : `chat:${signal.turnId}` };
+		case 'action': {
+			const action = signal.action;
+			const ends = action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatTurnCancelled || action.type === ActionType.ChatError;
+			if (signal.parentToolCallId !== undefined) {
+				return { key: `subagent:${signal.parentToolCallId}`, boundary: ends ? 'end' : undefined };
+			}
+			if (!isChatAction(action) || !hasKey(action, { turnId: true })) {
+				return undefined;
+			}
+			return { key: `chat:${action.turnId}`, boundary: action.type === ActionType.ChatTurnStarted ? 'start' : ends ? 'end' : undefined };
+		}
+		default:
+			return undefined;
+	}
+}
+
+/** The held signals of every turn, the chat's own or a subagent's, that started while held and has not ended. */
+function getUnfinishedHeldSignals(signals: readonly AgentSignal[]): ReadonlySet<AgentSignal> {
+	let runningChatTurn: string | undefined;
+	const startIndexByTurn = new Map<string, number>();
+	const turns = signals.map((signal, index) => {
+		const turn = getHeldSignalTurn(signal, runningChatTurn);
+		if (turn?.boundary === 'start') {
+			startIndexByTurn.set(turn.key, index);
+		} else if (turn?.boundary === 'end') {
+			startIndexByTurn.delete(turn.key);
+		}
+		// Only the chat's own actions start or end its turns, one at a time.
+		if (turn?.boundary && signal.kind === 'action' && signal.parentToolCallId === undefined) {
+			runningChatTurn = turn.boundary === 'start' ? turn.key : undefined;
+		}
+		return turn?.key;
+	});
+	return new Set(signals.filter((_, index) => {
+		const turn = turns[index];
+		const startIndex = turn !== undefined ? startIndexByTurn.get(turn) : undefined;
+		return startIndex !== undefined && index >= startIndex;
+	}));
 }
 
 /** Where a transient chat activity comes from; see `CopilotAgentSession._publishActivity` for the precedence. */
@@ -1960,7 +2045,8 @@ export class CopilotAgentSession extends Disposable {
 	 *  is disposed. */
 	private readonly _pendingEditContentUris = new Map<string, URI>();
 
-	private readonly _onDidSessionProgress: Emitter<AgentSignal>;
+	private readonly _onDidSessionProgress: Pick<Emitter<AgentSignal>, 'fire'>;
+	private _steeringHold: ISteeringHold | undefined;
 	private readonly _sessionLauncher: ICopilotSessionLauncher;
 	/** Last config materialized and pushed, so unchanged turns do no file I/O or RPC. */
 	private _lastAppliedShellInitScripts: string | undefined;
@@ -2160,7 +2246,17 @@ export class CopilotAgentSession extends Disposable {
 			{ getCommandHandler: command => sandboxPolicyDisplay.getHandler(command) ?? getCopilotCustomizationCommandHandler(command, { api: this._wrapper.session.rpc.plugins, reload: reason => this.reloadPlugins(reason) }, options.getInstalledPlugins, name => this._getMcpCommandServer(name)) },
 			this._logService,
 		);
-		this._onDidSessionProgress = options.onDidSessionProgress;
+		const onDidSessionProgress = options.onDidSessionProgress;
+		this._onDidSessionProgress = {
+			fire: signal => {
+				const hold = this._steeringHold;
+				if (hold && !isSteeredTurnResult(hold.turn.id, signal)) {
+					hold.signals.push(signal);
+				} else {
+					onDidSessionProgress.fire(signal);
+				}
+			},
+		};
 		this._pendingCanvasHandoff = options.canvasHandoff;
 		for (const projection of options.canvasHandoff?.projections ?? []) {
 			this._canvasByInstanceId.set(projection.canvas.instanceId, { ...projection, handedOver: true });
@@ -2605,15 +2701,30 @@ export class CopilotAgentSession extends Disposable {
 	 * The active SDK turn association is transferred to the new
 	 * {@link CopilotTurn}, so subsequent SDK events target the steering turn
 	 * rather than being folded into the original turn.
+	 *
+	 * The SDK finishes the preempted turn's tools before it echoes the
+	 * steering, but this session may still be recording their results (file
+	 * edits, shell output). Ending the turn would mark those tools cancelled
+	 * and drop their results, and the SDK is already running the steering
+	 * turn, so its events cannot wait. Instead, until the turn's tool
+	 * completions drain, for at most {@link STEERING_RESULT_WAIT_MS}, every
+	 * other signal is held and then released in order.
 	 */
 	private _beginSteeringTurn(steering: IPendingSteering): void {
-		const previousTurnId = this._currentTurn.value?.id;
-		const activeSdkTurnId = this._currentTurn.value?.activeSdkTurnId;
+		const preempted = this._currentTurn.value;
+		const previousTurnId = preempted?.id;
+		const activeSdkTurnId = preempted?.activeSdkTurnId;
 		// The SDK keeps running any in-flight HydraFusion workflow after a steering
 		// message, so the steering turn keeps the preempted turn's Fusion state
 		// (empty when no workflow is running); otherwise its phase events can no
 		// longer be routed and stay invisible. A cancelled workflow is not kept.
 		const preservesFusionState = previousTurnId !== undefined && !this._fusionTurnCancelled;
+		if (!this._steeringHold && preempted?.hasPendingToolCompletions) {
+			const hold: ISteeringHold = { turn: preempted, signals: [] };
+			this._steeringHold = hold;
+			// Started before the turn ends below, so it waits on every completion the turn tracks.
+			void raceTimeout(preempted.drainToolCompletions(), STEERING_RESULT_WAIT_MS).finally(() => this._releaseSteeringHold(hold));
+		}
 		this._completeActiveTurn(false, preservesFusionState);
 		const newTurnId = generateUuid();
 		steering.promotedTurnId = newTurnId;
@@ -2656,6 +2767,31 @@ export class CopilotAgentSession extends Disposable {
 		}
 		if (activeSdkTurnId) {
 			this._recordHostSdkTurn(activeSdkTurnId, newTurnId);
+		}
+	}
+
+	/**
+	 * Emits the signals held by {@link _beginSteeringTurn}, in their original order.
+	 *
+	 * An abort drops every turn that started while held and is still running,
+	 * whether the chat's own (steering, or a request an extension started) or
+	 * a subagent's, with everything it emitted: the chat never saw it start,
+	 * and the abort ends it without telling the chat, so publishing it would
+	 * leave the turn running. A dropped steering turn's pending message is
+	 * cleared instead. Finished turns and all other signals are released.
+	 */
+	private _releaseSteeringHold(hold: ISteeringHold | undefined, aborted = false): void {
+		if (!hold || this._steeringHold !== hold) {
+			return;
+		}
+		this._steeringHold = undefined;
+		const unfinished = aborted ? getUnfinishedHeldSignals(hold.signals) : undefined;
+		for (const signal of hold.signals) {
+			if (!unfinished?.has(signal)) {
+				this._onDidSessionProgress.fire(signal);
+			} else if (signal.kind === 'action' && signal.action.type === ActionType.ChatTurnStarted && signal.action.queuedMessageId !== undefined) {
+				this._fireSteeringConsumed(signal.action.queuedMessageId);
+			}
 		}
 	}
 
@@ -6945,6 +7081,7 @@ export class CopilotAgentSession extends Disposable {
 
 	async abort(): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Aborting session...`);
+		this._releaseSteeringHold(this._steeringHold, true);
 		const abortingTurn = this._currentTurn.value;
 		const resumingTurn = this._resumingTurnAwaitingProviderStart;
 		const abortTarget = abortingTurn ?? resumingTurn;
@@ -7001,6 +7138,7 @@ export class CopilotAgentSession extends Disposable {
 	 * backstop, since {@link _beginAbort} no-ops when already aborted.
 	 */
 	override dispose(): void {
+		this._releaseSteeringHold(this._steeringHold);
 		this._clearCanvasProjection();
 		this._lifetimeCts.cancel();
 		this._invalidateMappedEvents();
@@ -9913,7 +10051,8 @@ export class CopilotAgentSession extends Disposable {
 			const isSubagent = parentToolCallId !== undefined && !this._fusionPhases.has(parentToolCallId);
 			// A steering handoff can move the tool to the next turn while its completion persists.
 			const publishingTurnId = () => this._unpublishedToolCompletions.get(e.data.toolCallId)?.toolCall.turnId ?? turnId;
-			const isCurrent = () => !this._store.isDisposed && !abortToken.isCancellationRequested && (isSubagent || this._currentTurn.value === turn || (this._currentTurn.value !== undefined && this._currentTurn.value.id === publishingTurnId()));
+			// A root result also stays current while steering waits for it to end the preempted turn.
+			const isCurrent = () => !this._store.isDisposed && !abortToken.isCancellationRequested && (isSubagent || this._currentTurn.value === turn || this._steeringHold?.turn === turn || (this._currentTurn.value !== undefined && this._currentTurn.value.id === publishingTurnId()));
 			let terminalOutputStored = false;
 			let completionPublished = false;
 			let publication: Promise<boolean> | undefined;
