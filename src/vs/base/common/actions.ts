@@ -265,16 +265,17 @@ export class SubmenuAction implements IAction {
 	readonly class: string | undefined;
 	readonly tooltip: string = '';
 	readonly enabled: boolean = true;
-	readonly checked: undefined = undefined;
+	readonly checked: boolean | undefined;
 
 	private readonly _actions: readonly IAction[];
 	get actions(): readonly IAction[] { return this._actions; }
 
-	constructor(id: string, label: string, actions: readonly IAction[], cssClass?: string) {
+	constructor(id: string, label: string, actions: readonly IAction[], cssClass?: string, checked?: boolean) {
 		this.id = id;
 		this.label = label;
 		this.class = cssClass;
 		this._actions = actions;
+		this.checked = checked;
 	}
 
 	async run(): Promise<void> { }

@@ -33,6 +33,8 @@ export interface ISubmenuItem {
 	submenu: MenuId;
 	icon?: Icon;
 	when?: ContextKeyExpression;
+	/** Submenu item is checked if this expression returns true. */
+	toggled?: ContextKeyExpression;
 	group?: 'navigation' | string;
 	order?: number;
 	isSelection?: boolean;
@@ -571,8 +573,9 @@ export class SubmenuItemAction extends SubmenuAction {
 		readonly item: ISubmenuItem,
 		readonly hideActions: IMenuItemHide | undefined,
 		actions: readonly IAction[],
+		checked?: boolean,
 	) {
-		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, actions, 'submenu');
+		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, actions, 'submenu', checked);
 	}
 }
 

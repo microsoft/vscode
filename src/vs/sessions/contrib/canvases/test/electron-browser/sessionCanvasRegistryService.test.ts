@@ -11,12 +11,13 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { NullCommandService } from '../../../../../platform/commands/test/common/nullCommandService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyExpression, ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -24,14 +25,15 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { ICanvasContextService, ICanvasReference, ICanvasService } from '../../../../../workbench/contrib/canvases/common/canvas.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { CanvasInput, ICanvasContextService, ICanvasReference, ICanvasService } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
-import { getSessionCanvasDefinitionInstanceId } from '../../common/sessionCanvas.js';
+import { getSessionCanvasDefinitionInstanceId, WindowCanvasesAvailableContext } from '../../common/sessionCanvas.js';
 import { CREATE_SESSION_CANVAS_COMMAND_ID, DISCOVER_SESSION_CANVASES_COMMAND_ID, OPEN_SESSION_CANVAS_COMMAND_ID, registerSessionCanvasActions } from '../../electron-browser/sessionCanvasActions.js';
 import { SessionCanvasRegistryService } from '../../electron-browser/sessionCanvasService.js';
 
@@ -196,6 +198,69 @@ suite('SessionCanvasRegistryService', () => {
 		}, {
 			entries: ['Daily Triage'],
 			revealed: [{ session: 'agent-host-session:/session', chat: 'agent-host-chat:/session/main', canvas: canvas.resource.toString() }],
+		});
+	});
+
+	test('activity bar toggles its single command and multiple-canvas submenu with the active Canvas editor', () => {
+		const harness = createHarness([]);
+		const first: ISessionCanvas = {
+			resource: URI.parse('agent-host-canvas:/session/first'), instanceId: 'first',
+			title: 'First', source: URI.parse('https://example.com/first'),
+		};
+		const second: ISessionCanvas = {
+			resource: URI.parse('agent-host-canvas:/session/second'), instanceId: 'second',
+			title: 'Second', source: URI.parse('https://example.com/second'),
+		};
+		let activeEditor = CanvasInput.EDITOR_ID;
+		let editorAreaVisible = true;
+		const contextKeyService = store.add(new class extends MockContextKeyService {
+			override contextMatchesRules(rules: ContextKeyExpression | undefined): boolean {
+				return rules?.evaluate({
+					getValue: <T extends ContextKeyValue>(key: string) => {
+						if (key === ActiveEditorContext.key) {
+							return activeEditor as T;
+						}
+						if (key === MainEditorAreaVisibleContext.key) {
+							return editorAreaVisible as T;
+						}
+						if (key === AuxiliaryBarVisibleContext.key || key === IsAuxiliaryWindowContext.key || key === WindowCanvasesAvailableContext.key) {
+							return false as T;
+						}
+						return true as T;
+					},
+				} satisfies IContext) ?? true;
+			}
+		});
+		const menuService = store.add(new MenuService(NullCommandService, new MockKeybindingService(), store.add(new InMemoryStorageService())));
+		const getAction = () => {
+			const action = menuService.getMenuActions(Menus.SessionActivityBar, contextKeyService).flatMap(([, actions]) => actions)
+				.find(action => action.label === 'First' || action.label === 'Canvas');
+			assert.ok(action);
+			return action;
+		};
+		harness.canvases.set([first], undefined);
+		store.add(registerSessionCanvasActions(harness.canvasService, harness.registryService, harness.contextService));
+		const singleActive = getAction().checked;
+		activeEditor = 'workbench.editors.files.textFileEditor';
+		const singleOtherEditor = getAction().checked;
+		activeEditor = CanvasInput.EDITOR_ID;
+		harness.canvases.set([first, second], undefined);
+		const multiple = getAction();
+		assert.ok(multiple instanceof SubmenuItemAction);
+		const multipleActive = { checked: multiple.checked, childChecks: multiple.actions.map(action => action.checked) };
+		editorAreaVisible = false;
+		const multipleClosed = getAction().checked;
+
+		assert.deepStrictEqual({
+			singleActive,
+			singleOtherEditor,
+			multipleActive,
+			multipleClosed,
+		}, {
+			singleActive: true,
+			singleOtherEditor: false,
+			multipleActive: { checked: true, childChecks: [undefined, undefined] },
+			multipleClosed: false,
 		});
 	});
 

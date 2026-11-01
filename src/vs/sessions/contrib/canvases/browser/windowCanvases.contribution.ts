@@ -17,8 +17,9 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../workbench
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
 import { EditorExtensions } from '../../../../workbench/common/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { CanvasInput } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
+import { Menus, SessionActivityBarGroup, sessionActivityBarEntryToggled } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { IWindowCanvasService, WindowCanvasInput, WindowCanvasService } from '../../../services/canvas/browser/windowCanvasService.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
@@ -62,6 +63,7 @@ class WindowCanvasesContribution extends Disposable implements IWorkbenchContrib
 			}
 		}));
 		const when = ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext, IsAuxiliaryWindowContext.toNegated(), WindowCanvasesAvailableContext);
+		const activityBarToggled = sessionActivityBarEntryToggled(CanvasInput.EDITOR_ID);
 		for (const menu of [Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEmptyEditorGroupAddTab, Menus.SessionActivityBar]) {
 			const activityBar = menu === Menus.SessionActivityBar;
 			this._register(MenuRegistry.appendMenuItem(menu, {
@@ -71,6 +73,7 @@ class WindowCanvasesContribution extends Disposable implements IWorkbenchContrib
 				group: activityBar ? SessionActivityBarGroup.SidePanel : 'navigation',
 				order: 4,
 				when: activityBar ? when : ContextKeyExpr.and(when, IsTopRightEditorGroupContext),
+				toggled: activityBar ? activityBarToggled : undefined,
 			}));
 		}
 	}
