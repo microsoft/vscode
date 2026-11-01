@@ -23,6 +23,7 @@ import { IDiffComputeService, IOffsetEdit } from '../../common/diffComputeServic
 import { createFileEditContentDigest, IAgentEditAttribution, IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionCoverageGapAcknowledgement, IEditAttributionFlushResult, IFileEditAttributionMarker, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, ISkippedFileEditAttributionMarker, MAX_EDIT_ATTRIBUTION_FILE_SIZE } from '../../common/fileEditAttribution.js';
 import { isAhpChatChannel } from '../../common/state/sessionState.js';
 import { IAgentHostTelemetryService } from '../agentHostTelemetryService.js';
+import { mayBeInGitRepository, nodeGitProcessEnvironment } from '../gitProcess.js';
 
 const MAX_TOTAL_TRACKED_TEXT = 20 * 1024 * 1024;
 const MAX_TRACKED_RESOURCES = 100;
@@ -1460,8 +1461,14 @@ function excludeExternalIntervals(intervals: readonly IAttributedInterval[], exc
 }
 
 async function readGitState(workingDirectory: string): Promise<IAgentEditAttributionGitState | undefined> {
+	const { env, fileSystem, executable: resolver } = nodeGitProcessEnvironment;
+	let executable: string | undefined;
 	try {
-		const { stdout } = await execFileAsync('git', ['rev-parse', '--show-toplevel', 'HEAD', '--abbrev-ref', 'HEAD'], {
+		if (!await mayBeInGitRepository(workingDirectory, env, fileSystem)) {
+			return undefined;
+		}
+		executable = await resolver.resolve(env);
+		const { stdout } = await execFileAsync(executable, ['rev-parse', '--show-toplevel', 'HEAD', '--abbrev-ref', 'HEAD'], {
 			cwd: workingDirectory,
 			timeout: GIT_STATE_TIMEOUT,
 		});
@@ -1474,7 +1481,10 @@ async function readGitState(workingDirectory: string): Promise<IAgentEditAttribu
 			head,
 			branch: branch === 'HEAD' ? '' : branch,
 		};
-	} catch {
+	} catch (error) {
+		if (executable) {
+			resolver.handleSpawnError(env, executable, error);
+		}
 		return undefined;
 	}
 }
