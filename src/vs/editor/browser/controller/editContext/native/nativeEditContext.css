@@ -11,6 +11,7 @@
 	scrollbar-width: none;
 	z-index: -10;
 	white-space: pre-wrap;
+	caret-animation: manual;
 }
 
 .monaco-editor .ime-text-area {
