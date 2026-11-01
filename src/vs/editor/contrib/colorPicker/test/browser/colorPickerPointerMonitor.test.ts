@@ -27,7 +27,12 @@ suite('Color picker pointer monitors', () => {
 
 	teardown(() => {
 		container.remove();
-		setDisposableTracker(null);
+		try {
+			// The suite helper disposes the fixtures first; check the tracker that observed them.
+			assert.strictEqual(tracker.computeLeakingDisposables()?.details, undefined);
+		} finally {
+			setDisposableTracker(null);
+		}
 	});
 
 	const controls = [
