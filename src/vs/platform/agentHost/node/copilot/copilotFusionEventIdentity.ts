@@ -54,8 +54,23 @@ export function getFusionEventSdkTurnId(event: CopilotFusionEvent): string | und
 	return event.type === 'session.fusion_resolved' || event.type === 'session.fusion_completed' ? event.data.turnId : undefined;
 }
 
+/**
+ * A harness-injected user message (skill content, plugin context, ...) that must not surface
+ * as a turn. Genuine prompts carry no source or `user`; prompts steered through Remote Control
+ * carry a `command-<id>` source and remain real user turns ({@link isRemoteSteeredUserMessage}).
+ */
 export function isSyntheticUserMessage(event: SessionEvent): boolean {
-	return event.type === 'user.message' && !!event.data.source && event.data.source.toLowerCase() !== 'user' && !isInterAgentUserMessage(event);
+	return event.type === 'user.message' && !!event.data.source && event.data.source.toLowerCase() !== 'user'
+		&& !isInterAgentUserMessage(event) && !isRemoteSteeredUserMessage(event);
+}
+
+/**
+ * A root user prompt sent through Remote Control (`/remote on`) from github.com or the GitHub
+ * Mobile app. The runtime echoes it as `user.message` with a `command-<id>` source and answers
+ * it locally, so the host must open a turn for it exactly like a locally typed prompt.
+ */
+export function isRemoteSteeredUserMessage(event: SessionEvent): boolean {
+	return event.type === 'user.message' && !event.agentId && !!event.data.source?.toLowerCase().startsWith('command-');
 }
 
 export function isInterAgentUserMessage(event: SessionEvent): boolean {

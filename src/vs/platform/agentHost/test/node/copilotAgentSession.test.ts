@@ -14934,6 +14934,60 @@ suite('CopilotAgentSession', () => {
 			}]);
 		});
 
+		test('promotes a Remote Control prompt echoed during an active turn to its own turn', async () => {
+			const sessionDatabase = new TestSessionDatabase();
+			const { session, mockSession, signals } = await createAgentSession(disposables, { sessionDatabase });
+			session.resetTurnState('turn-original');
+
+			// `/remote on`: a prompt steered from github.com or GitHub Mobile while the
+			// agent is busy is echoed with a `command-<id>` source and `steering` delivery.
+			mockSession.fire('user.message', {
+				content: 'Sent from the phone',
+				messageId: 'remote-message',
+				turnId: 'remote-sdk-turn',
+				source: 'command-a023a7ea-d4b5-48b9-b600-9cf7d83a2f28',
+				delivery: 'steering',
+			} as SessionEventPayload<'user.message'>['data'], {
+				id: 'remote-user-event',
+				timestamp: '2026-10-29T00:00:00.000Z',
+			});
+			mockSession.fire('assistant.message_delta', {
+				deltaContent: 'Answered locally.',
+			} as SessionEventPayload<'assistant.message_delta'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			await timeout(0);
+
+			const actions = getActions(signals);
+			const started = actions.find(action => action.type === ActionType.ChatTurnStarted);
+			const response = actions.find(action => action.type === ActionType.ChatResponsePart);
+			assert.deepStrictEqual({
+				completedTurns: actions.filter(action => action.type === ActionType.ChatTurnComplete)
+					.map(action => action.turnId === 'turn-original' ? 'original' : action.turnId === started?.turnId ? 'remote' : action.turnId),
+				started: started && {
+					isNewTurn: started.turnId !== 'turn-original',
+					startedAt: started.startedAt,
+					message: started.message,
+				},
+				response: response && {
+					sameTurn: response.turnId === started?.turnId,
+					content: response.part.kind === ResponsePartKind.Markdown ? response.part.content : undefined,
+				},
+				setTurnEventIdCalls: sessionDatabase.setTurnEventIdCalls.map(call => ({
+					sameTurn: call.turnId === started?.turnId,
+					eventId: call.eventId,
+				})),
+			}, {
+				completedTurns: ['original', 'remote'],
+				started: {
+					isNewTurn: true,
+					startedAt: '2026-10-29T00:00:00.000Z',
+					message: { text: 'Sent from the phone', origin: { kind: MessageKind.User } },
+				},
+				response: { sameTurn: true, content: 'Answered locally.' },
+				setTurnEventIdCalls: [{ sameTurn: true, eventId: 'remote-user-event' }],
+			});
+		});
+
 		test('promotes steering to its own turn when the SDK echoes the user message', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-original');
