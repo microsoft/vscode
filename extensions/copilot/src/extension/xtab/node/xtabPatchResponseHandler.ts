@@ -559,7 +559,8 @@ export namespace XtabPatchResponseHandler {
 		};
 
 		for await (const line of linesStream) {
-			if (line.trim() === ResponseTags.NO_EDIT) {
+			const trimmedLine = line.trim();
+			if (trimmedLine === ResponseTags.NO_EDIT || trimmedLine === ResponseTags.NO_EDIT_SENTINEL) {
 				break;
 			}
 			if (currentPatch === null) {
