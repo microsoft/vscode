@@ -5,6 +5,7 @@
 
 import 'mocha';
 import * as assert from 'assert';
+import * as path from 'path';
 import { workspace, extensions, Uri, commands } from 'vscode';
 import { findPullRequestTemplates, pickPullRequestTemplate } from '../pushErrorHandler.js';
 
@@ -32,7 +33,7 @@ suite('github smoke test', function () {
 
 		const uris = await findPullRequestTemplates(cwd);
 
-		const urisSorted = uris.map(x => x.path.slice(cwd.path.length));
+		const urisSorted = uris.map(x => path.posix.relative(cwd.path, x.path));
 		urisSorted.sort();
 
 		assert.deepStrictEqual(urisSorted, expectedValuesSorted);
