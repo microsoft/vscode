@@ -19,6 +19,7 @@ import { McpConnectionState, McpServerDefinition, McpServerLaunch } from '../../
 import { MCP } from '../../common/modelContextProtocol.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { McpTaskManager } from '../../common/mcpTaskManager.js';
@@ -315,33 +316,78 @@ suite('Workbench - MCP - ServerRequestHandler', () => {
 		}
 	});
 
-	test('should handle cancelled notification from server', async () => {
-		// Setup request
-		const requestPromise = handler.listResources();
+	test('should handle cancelled notification from server for incoming request without affecting outgoing request', async () => {
+		let incomingCancelled = false;
+		const serverRequestDeferred = new DeferredPromise<MCP.CreateMessageResult>();
+		const customTransport = store.add(new TestMcpMessageTransport());
+		customTransport.setConnectionState({ state: McpConnectionState.Kind.Running });
+		const testLogger = store.add((instantiationService.get(ILoggerService) as TestLoggerService)
+			.createLogger('mcpServerTest', { hidden: true, name: 'MCP Test' }));
 
-		// Get the request ID
-		const sentMessages = transport.getSentMessages();
-		const listResourcesRequest = sentMessages[2] as MCP.JSONRPCRequest;
-		const requestId = listResourcesRequest.id;
+		const customHandler = await McpServerRequestHandler.create(
+			instantiationService,
+			{
+				logger: testLogger,
+				launch: customTransport,
+				taskManager: store.add(new McpTaskManager()),
+				createMessageRequestHandler: async (_params, token) => {
+					const listener = token?.onCancellationRequested(() => {
+						incomingCancelled = true;
+					});
+					try {
+						return await serverRequestDeferred.p;
+					} finally {
+						listener?.dispose();
+					}
+				}
+			},
+			cts.token
+		);
+		store.add(customHandler);
 
-		// Simulate cancelled notification from server
-		const cancelledNotification: MCP.JSONRPCNotification & MCP.CancelledNotification = {
+		// Editor sends outgoing request
+		const listPromise = customHandler.listResources();
+		const sentMessages = customTransport.getSentMessages();
+		const listReq = sentMessages.find(m => 'method' in m && m.method === 'resources/list') as MCP.JSONRPCRequest;
+		const outgoingId = listReq.id;
+
+		// Server sends incoming sampling/createMessage request sharing the SAME id as outgoing request
+		customTransport.simulateReceiveMessage({
+			jsonrpc: MCP.JSONRPC_VERSION,
+			id: outgoingId,
+			method: 'sampling/createMessage',
+			params: {
+				messages: [],
+				maxTokens: 50
+			}
+		});
+
+		assert.strictEqual(incomingCancelled, false);
+
+		// Server sends notifications/cancelled with requestId naming the incoming request
+		customTransport.simulateReceiveMessage({
 			jsonrpc: MCP.JSONRPC_VERSION,
 			method: 'notifications/cancelled',
 			params: {
-				requestId
+				requestId: outgoingId
 			}
-		};
+		});
 
-		transport.simulateReceiveMessage(cancelledNotification);
+		// Verify incoming request token was cancelled
+		assert.strictEqual(incomingCancelled, true);
+		serverRequestDeferred.complete({ role: 'assistant', content: { type: 'text', text: '' }, model: 'test' });
 
-		// Verify the promise was cancelled
-		try {
-			await requestPromise;
-			assert.fail('Promise should have been cancelled');
-		} catch (e) {
-			assert.strictEqual(e.name, 'Canceled');
-		}
+		// Verify editor's outgoing request was NOT cancelled and can complete normally
+		customTransport.simulateReceiveMessage({
+			jsonrpc: MCP.JSONRPC_VERSION,
+			id: outgoingId,
+			result: {
+				resources: []
+			}
+		});
+
+		const resources = await listPromise;
+		assert.deepStrictEqual(resources, []);
 	});
 
 	test('should dispose properly and cancel pending requests', async () => {
