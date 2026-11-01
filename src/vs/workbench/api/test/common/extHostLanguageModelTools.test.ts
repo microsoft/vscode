@@ -10,6 +10,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../../contrib/chat/common/languageModels.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { MainThreadLanguageModelsShape, MainThreadLanguageModelToolsShape } from '../../common/extHost.protocol.js';
 import { IExtHostAuthentication } from '../../common/extHostAuthentication.js';
@@ -21,7 +22,7 @@ import { SingleProxyRPCProtocol } from './testRPCProtocol.js';
 suite('ExtHostLanguageModelTools request model resolution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function createTools(tool: vscode.LanguageModelTool<object>, resolutionError?: Error) {
+	async function createTools(tool: vscode.LanguageModelTool<object>, resolutionError?: Error, externalModels: ILanguageModelChatMetadataAndIdentifier[] = []) {
 		const selections: string[] = [];
 		const modelProxy: Partial<MainThreadLanguageModelsShape> = {
 			$registerLanguageModelProvider: () => { },
@@ -33,6 +34,7 @@ suite('ExtHostLanguageModelTools request model resolution', () => {
 				}
 				return [];
 			},
+			$lookupChatModels: async identifiers => externalModels.filter(model => identifiers.includes(model.identifier)),
 		};
 		const models = store.add(new ExtHostLanguageModels(SingleProxyRPCProtocol(modelProxy), new NullLogService(), new class extends mock<IExtHostAuthentication>() { }));
 		store.add(models.registerLanguageModelChatProvider(nullExtensionDescription, 'test', {
@@ -109,4 +111,29 @@ suite('ExtHostLanguageModelTools request model resolution', () => {
 			assert.strictEqual(invoked, false);
 		});
 	}
+
+	test('model-dependent tool receives a selected model registered outside the extension host', async () => {
+		const identifier = 'agent-host-copilotcli:claude-opus-5.5';
+		const { invoke } = await createTools({
+			invoke: options => new LanguageModelToolResult([new LanguageModelTextPart(`${options.model?.vendor}/${options.model?.id}`)]),
+		}, undefined, [{
+			identifier,
+			metadata: {
+				extension: nullExtensionDescription.identifier,
+				id: 'claude-opus-5.5',
+				name: 'Claude Opus 5.5',
+				vendor: 'agent-host-copilotcli',
+				version: '1.0',
+				family: 'claude-opus-5.5',
+				maxInputTokens: 1000,
+				maxOutputTokens: 1000,
+				isDefaultForLocation: {},
+			},
+		}]);
+		const result = await invoke(identifier);
+		assert.deepStrictEqual(result, {
+			content: [{ kind: 'text', value: 'agent-host-copilotcli/claude-opus-5.5', audience: undefined }],
+			toolResultMessage: undefined, toolResultDetails: undefined, toolMetadata: undefined, toolResultError: undefined,
+		});
+	});
 });
