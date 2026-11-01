@@ -30,7 +30,7 @@ export interface IUpdate {
  *         ↓                    ↑
  *     Downloaded      →     Updating
  *
- * Available: There is an update available for download (linux, darwin on metered connection).
+ * Available: There is an update available for download (linux, darwin on metered connection or when installing requires administrator privileges).
  * Ready: Code will be updated as soon as it restarts (win32, darwin).
  * Downloaded: There is an update ready to be installed in the background (win32).
  * Overwriting: A newer update is being downloaded to replace the pending update (darwin).
@@ -72,7 +72,7 @@ export type Uninitialized = { type: StateType.Uninitialized };
 export type Disabled = { type: StateType.Disabled; reason: DisablementReason };
 export type Idle = { type: StateType.Idle; updateType: UpdateType; error?: string; notAvailable?: boolean };
 export type CheckingForUpdates = { type: StateType.CheckingForUpdates; explicit: boolean };
-export type AvailableForDownload = { type: StateType.AvailableForDownload; update: IUpdate; canInstall?: boolean };
+export type AvailableForDownload = { type: StateType.AvailableForDownload; update: IUpdate; requiresElevation?: boolean };
 export type Downloading = { type: StateType.Downloading; update?: IUpdate; explicit: boolean; overwrite: boolean; downloadedBytes?: number; totalBytes?: number; startTime?: number };
 export type Downloaded = { type: StateType.Downloaded; update: IUpdate; explicit: boolean; overwrite: boolean };
 export type Updating = { type: StateType.Updating; update: IUpdate; currentProgress?: number; maxProgress?: number; explicit: boolean };
@@ -88,7 +88,7 @@ export const State = {
 	Disabled: (reason: DisablementReason): Disabled => ({ type: StateType.Disabled, reason }),
 	Idle: (updateType: UpdateType, error?: string, notAvailable?: boolean): Idle => ({ type: StateType.Idle, updateType, error, notAvailable }),
 	CheckingForUpdates: (explicit: boolean): CheckingForUpdates => ({ type: StateType.CheckingForUpdates, explicit }),
-	AvailableForDownload: (update: IUpdate, canInstall?: boolean): AvailableForDownload => ({ type: StateType.AvailableForDownload, update, canInstall }),
+	AvailableForDownload: (update: IUpdate, requiresElevation?: boolean): AvailableForDownload => ({ type: StateType.AvailableForDownload, update, requiresElevation }),
 	Downloading: (update: IUpdate | undefined, explicit: boolean, overwrite: boolean, downloadedBytes?: number, totalBytes?: number, startTime?: number): Downloading => ({ type: StateType.Downloading, update, explicit, overwrite, downloadedBytes, totalBytes, startTime }),
 	Downloaded: (update: IUpdate, explicit: boolean, overwrite: boolean): Downloaded => ({ type: StateType.Downloaded, update, explicit, overwrite }),
 	Updating: (update: IUpdate, explicit: boolean, currentProgress?: number, maxProgress?: number): Updating => ({ type: StateType.Updating, update, explicit, currentProgress, maxProgress }),
