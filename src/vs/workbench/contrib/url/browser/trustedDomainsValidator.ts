@@ -96,7 +96,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 					'Do you want {0} to open the external website?',
 					this._productService.nameShort
 				),
-				detail: typeof originalResource === 'string' ? originalResource : formattedLink,
+				detail: formattedLink,
 				buttons: [
 					{
 						label: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, '&&Open'),
