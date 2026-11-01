@@ -17,7 +17,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -28,7 +28,7 @@ import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/w
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
-import { IMenu, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IAction, Separator, SubmenuAction } from '../../../../../base/common/actions.js';
@@ -37,7 +37,7 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { SessionGroupAppearancePicker } from '../../browser/views/sessionGroupAppearancePicker.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -79,6 +79,7 @@ import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import type { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
+import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasState } from '../../../canvases/browser/pinnedCanvases.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupsService, SessionGroupTree } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
@@ -962,6 +963,239 @@ suite('Sessions - SessionsList', () => {
 				commandId: OPEN_AI_CUSTOMIZATIONS_COMMAND_ID,
 				args: [],
 			}]);
+		});
+
+		test('lists pinned canvases below Customizations, highlights the shown one, and hides the group when empty', async () => {
+			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
+			const createPin = (id: string, title: string, chatTitle: string | undefined, state: PinnedCanvasState) => upcastPartial<IPinnedCanvas>({
+				id,
+				title: constObservable(title),
+				chatTitle: constObservable(chatTitle),
+				state: constObservable(state),
+				canvas: constObservable(undefined),
+			});
+			const plan = createPin('plan', 'Agent Plan', 'Fix login bug', PinnedCanvasState.Live);
+			const preview = createPin('preview', 'Preview', undefined, PinnedCanvasState.Unavailable);
+			const entries = observableValue<readonly IPinnedCanvas[]>(disposables, [plan, preview]);
+			const selected = observableValue<IPinnedCanvas | undefined>(disposables, undefined);
+			const opened: string[] = [];
+			const harness = createListHarness(disposables, [], instantiationService => {
+				ChatContextKeys.enabled.bindTo(instantiationService.get(IContextKeyService)).set(true);
+				instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+					override readonly activeCustomView = activeCustomView;
+				});
+			});
+			const container = harness.createContainer();
+			const navigationContainer = mainWindow.document.createElement('div');
+			const listContainer = mainWindow.document.createElement('div');
+			container.append(navigationContainer, listContainer);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				showNavigationShortcuts: () => true,
+				navigationContainer,
+				pinnedCanvases: upcastPartial<IPinnedCanvasService>({
+					entries,
+					selected,
+					show: async target => { opened.push((target as IPinnedCanvas).id); },
+				}),
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const rows = () => Array.from(navigationContainer.querySelectorAll<HTMLElement>('.monaco-list-row'))
+				.sort((first, second) => first.offsetTop - second.offsetTop)
+				// A navigation row is its own section element.
+				.map(row => row.classList.contains('session-section-pinned-canvas') ? {
+					label: row.querySelector('.session-section-label')?.textContent,
+					description: row.querySelector('.session-section-description')?.textContent,
+					ariaLabel: row.getAttribute('aria-label'),
+					active: row.classList.contains('active'),
+					unavailable: row.classList.contains('unavailable'),
+				} : row.querySelector('.session-section-label')?.textContent);
+
+			const initial = rows();
+			transaction(tx => {
+				selected.set(plan, tx);
+				activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: PINNED_CANVAS_PAGE_ID }), tx);
+			});
+			const shown = rows().filter(row => typeof row === 'object').map(row => typeof row === 'object' && row.active);
+			const planRow = Array.from(navigationContainer.querySelectorAll<HTMLElement>('.session-section-pinned-canvas'))
+				.find(row => row.querySelector('.session-section-label')?.textContent === 'Agent Plan');
+			assert.ok(planRow);
+			clickRow(planRow);
+			await Promise.resolve();
+			entries.set([], undefined);
+
+			assert.deepStrictEqual({ initial, shown, opened, afterUnpin: rows() }, {
+				initial: [
+					'New Session',
+					'Customizations',
+					{ label: 'Agent Plan', description: 'Fix login bug', ariaLabel: 'Agent Plan, canvas from Fix login bug, Live', active: false, unavailable: false },
+					{ label: 'Preview', description: '', ariaLabel: 'Preview, canvas, Unavailable', active: false, unavailable: true },
+				],
+				shown: [true, false],
+				opened: ['plan'],
+				afterUnpin: ['New Session', 'Customizations'],
+			});
+		});
+
+		test('lists pinned canvases directly below Automations in the sessions tree without separate navigation', async () => {
+			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
+			const createPin = (id: string, title: string) => upcastPartial<IPinnedCanvas>({
+				id,
+				title: constObservable(title),
+				chatTitle: constObservable('Fix login bug'),
+				state: constObservable(PinnedCanvasState.Live),
+				canvas: constObservable(undefined),
+			});
+			const plan = createPin('plan', 'Agent Plan');
+			const timeline = createPin('timeline', 'Session timeline');
+			const entries = observableValue<readonly IPinnedCanvas[]>(disposables, [plan, timeline]);
+			const selected = observableValue<IPinnedCanvas | undefined>(disposables, undefined);
+			const opened: string[] = [];
+			const contextMenus: (string | undefined)[] = [];
+			const harness = createListHarness(disposables, [], instantiationService => {
+				const contextKeyService = instantiationService.get(IContextKeyService);
+				ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+				ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
+				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
+					override readonly automations = constObservable([]);
+					override readonly runs = constObservable([]);
+					override readonly catalogueState = constObservable('ready' as const);
+				});
+				instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+					override readonly activeCustomView = activeCustomView;
+				});
+				instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+					override showContextMenu(delegate: IContextMenuMenuDelegate): void {
+						contextMenus.push(delegate.menuId?.id);
+					}
+				});
+			});
+			const container = harness.createContainer();
+			const navigationContainer = mainWindow.document.createElement('div');
+			const listContainer = mainWindow.document.createElement('div');
+			container.append(navigationContainer, listContainer);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				showNavigationShortcuts: () => false,
+				navigationContainer,
+				pinnedCanvases: upcastPartial<IPinnedCanvasService>({
+					entries,
+					selected,
+					show: async target => { opened.push((target as IPinnedCanvas).id); },
+				}),
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const treeRows = () => Array.from(listContainer.querySelectorAll<HTMLElement>('.monaco-list-row'))
+				.sort((first, second) => first.offsetTop - second.offsetTop);
+			// A tree row contains its section element, which marks the shown pin independently of the row's focus.
+			const rows = () => treeRows().map(row => {
+				const section = row.querySelector<HTMLElement>('.session-section');
+				const label = row.querySelector('.session-section-label')?.textContent;
+				return section?.classList.contains('session-section-pinned-canvas')
+					? { label, description: row.querySelector('.session-section-description')?.textContent, ariaLabel: row.getAttribute('aria-label'), active: section.classList.contains('active'), current: row.getAttribute('aria-current') }
+					: label;
+			});
+			const planRow = () => {
+				const row = treeRows().find(candidate => candidate.querySelector('.session-section-label')?.textContent === 'Agent Plan');
+				assert.ok(row);
+				return row;
+			};
+
+			const initial = rows();
+			transaction(tx => {
+				selected.set(timeline, tx);
+				activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: PINNED_CANVAS_PAGE_ID }), tx);
+			});
+			const shown = rows();
+			clickRow(planRow());
+			await Promise.resolve();
+			planRow().dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+			entries.set([], undefined);
+
+			assert.deepStrictEqual({ initial, shown, opened, contextMenus, navigationRows: navigationContainer.querySelectorAll('.monaco-list-row').length, afterUnpin: rows() }, {
+				initial: [
+					'Automations',
+					{ label: 'Agent Plan', description: 'Fix login bug', ariaLabel: 'Agent Plan, canvas from Fix login bug, Live', active: false, current: null },
+					{ label: 'Session timeline', description: 'Fix login bug', ariaLabel: 'Session timeline, canvas from Fix login bug, Live', active: false, current: null },
+				],
+				shown: [
+					'Automations',
+					{ label: 'Agent Plan', description: 'Fix login bug', ariaLabel: 'Agent Plan, canvas from Fix login bug, Live', active: false, current: null },
+					{ label: 'Session timeline', description: 'Fix login bug', ariaLabel: 'Session timeline, canvas from Fix login bug, Live', active: true, current: 'page' },
+				],
+				opened: ['plan'],
+				contextMenus: [Menus.SidebarCanvasContext.id],
+				navigationRows: 0,
+				afterUnpin: ['Automations'],
+			});
+		});
+
+		test('runs a pinned canvas row toolbar action for its pin in both sidebar layouts without opening the canvas', async () => {
+			disposables.add(MenuRegistry.appendMenuItem(Menus.SidebarCanvasToolbar, {
+				command: { id: 'test.removeCanvasFromSidebar', title: 'Remove from Sidebar', icon: Codicon.unpin },
+				group: 'navigation',
+			}));
+			const pins = ['plan', 'timeline'].map(id => upcastPartial<IPinnedCanvas>({
+				id,
+				title: constObservable(`Canvas ${id}`),
+				chatTitle: constObservable('Fix login bug'),
+				state: constObservable(PinnedCanvasState.Live),
+				canvas: constObservable(undefined),
+			}));
+			const results = [];
+			for (const separateNavigation of [false, true]) {
+				const opened: string[] = [];
+				const harness = createListHarness(disposables, [], instantiationService => {
+					const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+					ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+					instantiationService.stub(IContextKeyService, contextKeyService);
+					instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
+					instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+						override readonly activeCustomView = constObservable(undefined);
+					});
+				});
+				const container = harness.createContainer();
+				const navigationContainer = mainWindow.document.createElement('div');
+				const listContainer = mainWindow.document.createElement('div');
+				container.append(navigationContainer, listContainer);
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
+					grouping: () => SessionsGrouping.Date,
+					sorting: () => SessionsSorting.Created,
+					showNavigationShortcuts: () => separateNavigation,
+					navigationContainer,
+					pinnedCanvases: upcastPartial<IPinnedCanvasService>({
+						entries: constObservable(pins),
+						selected: constObservable(undefined),
+						show: async target => { opened.push((target as IPinnedCanvas).id); },
+					}),
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+				const toolbars = Array.from(container.querySelectorAll<HTMLElement>('.session-section-pinned-canvas-toolbar'));
+				const timelineButton = toolbars
+					.find(toolbar => toolbar.closest('.monaco-list-row')?.querySelector('.session-section-label')?.textContent === 'Canvas timeline')
+					?.querySelector<HTMLElement>('.action-label');
+				assert.ok(timelineButton);
+				clickRow(timelineButton);
+				await timeout(0);
+				results.push({
+					separateNavigation,
+					actions: toolbars.map(toolbar => Array.from(toolbar.querySelectorAll('.action-label')).map(label => label.getAttribute('aria-label'))),
+					calls: harness.commandService.calls,
+					opened,
+				});
+			}
+
+			assert.deepStrictEqual(results, [false, true].map(separateNavigation => ({
+				separateNavigation,
+				actions: [['Remove from Sidebar'], ['Remove from Sidebar']],
+				calls: [{ commandId: 'test.removeCanvasFromSidebar', args: ['timeline'] }],
+				opened: [],
+			})));
 		});
 
 		test('switches the navigation treatment without disturbing Find focus', async () => {

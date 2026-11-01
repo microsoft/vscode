@@ -621,6 +621,21 @@ export interface ISessionsProvider {
 	closeCanvas?(sessionId: string, chatResource: URI, canvas: ISessionCanvas): Promise<void>;
 
 	/**
+	 * Observe one live canvas of a chat, whether or not its session is active. Holding
+	 * the reference keeps the canvas live, which may keep its session resident; the
+	 * value is `undefined` once the provider can no longer reach the canvas.
+	 */
+	observeCanvas?(sessionId: string, chatResource: URI, canvasResource: URI): IReference<IObservable<ISessionCanvas | undefined>>;
+
+	/**
+	 * Observe the live canvases of a chat whether or not its session is active, unlike
+	 * {@link IChat.canvases}. `undefined` while membership is unknown. Holding the
+	 * reference may keep the session resident. Returns `undefined` when the provider
+	 * cannot resolve the chat.
+	 */
+	observeChatCanvases?(sessionId: string, chatResource: URI): IReference<IObservable<readonly ISessionCanvas[] | undefined>> | undefined;
+
+	/**
 	 * Get selectable models and the current resolution of `desiredModelId`.
 	 * Callers wait for {@link onDidChangeModels} while the requested model is pending.
 	 * @param chat The chat whose models to resolve, when its harness may differ from the session's ({@link IChat.harness}).
