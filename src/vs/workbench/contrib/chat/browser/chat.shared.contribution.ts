@@ -245,7 +245,7 @@ import { ChatMicrosoftSignInProbeContribution, ChatMicrosoftSignInProbeService, 
 import { ChatSessionOptionSlashCommandsContribution, ChatSlashCommandsContribution } from './chatSlashCommands.js';
 import { BtwSlashCommandContribution } from './btwSlashCommand.js';
 import { EditorSideChatProviderContribution } from './chatSideChatProvider.js';
-import { AskSelectionInSideChatAction, EditorResponseSelectionSideChatContribution } from './responseSelectionSideChatController.js';
+import { AskSelectionInSideChatAction, EditorResponseSelectionSideChatContribution, QuoteSelectionAction } from './responseSelectionSideChatController.js';
 import { ChatStatusBarEntry } from './chatStatus/chatStatusEntry.js';
 import { CodexStatusBarEntry } from './chatStatus/codexStatusEntry.js';
 import { ChatTipService, IChatTipService } from './chatTipService.js';
@@ -3484,3 +3484,4 @@ registerSingleton(IChatMicrosoftSignInProbeService, ChatMicrosoftSignInProbeServ
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);
 ChatWidget.CONTRIBS.push(EditorResponseSelectionSideChatContribution);
 registerAction2(AskSelectionInSideChatAction);
+registerAction2(QuoteSelectionAction);
