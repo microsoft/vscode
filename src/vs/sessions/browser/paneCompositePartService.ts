@@ -46,8 +46,9 @@ export class AgenticPaneCompositePartService extends Disposable implements IPane
 	) {
 		super();
 
-		const { width } = getClientArea(mainWindow.document.body);
-		const isPhoneLayout = width < 640;
+		const isPhoneLayout = layoutService.initialViewportClass
+			? layoutService.initialViewportClass === 'phone'
+			: getClientArea(mainWindow.document.body).width < 640;
 
 		this.registerPart(ViewContainerLocation.Panel, instantiationService.createInstance(isPhoneLayout ? MobilePanelPart : PanelPart));
 		this.registerPart(ViewContainerLocation.Sidebar, instantiationService.createInstance(isPhoneLayout ? MobileSidebarPart : SidebarPart));

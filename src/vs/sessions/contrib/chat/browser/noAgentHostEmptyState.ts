@@ -32,6 +32,7 @@ export class NoAgentHostEmptyState extends Disposable {
 	private _root: HTMLElement | undefined;
 
 	constructor(
+		private readonly showIcon: boolean = !isMobile,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IProductService private readonly _productService: IProductService,
 	) {
@@ -48,7 +49,7 @@ export class NoAgentHostEmptyState extends Disposable {
 		this._root.tabIndex = -1;
 
 		// --- Hero icon (skipped on phone-layout viewports for vertical room)
-		if (!isMobile) {
+		if (this.showIcon) {
 			const iconWrap = dom.append(this._root, $('.no-agent-host-icon'));
 			iconWrap.append(...renderLabelWithIcons(`$(${Codicon.remote.id})`));
 		}

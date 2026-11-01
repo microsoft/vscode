@@ -206,6 +206,10 @@ const CachedLanguageModelsKey = 'chat.cachedLanguageModels.v2';
 const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
 const CHAT_INPUT_COMPACT_PICKER_WIDTH = 22;
 
+export function getChatInputEditorMetrics(options: IChatInputPartOptions['inputEditorOptions']): { fontSize: number; lineHeight: number } {
+	return { fontSize: options?.fontSize ?? 13, lineHeight: options?.lineHeight ?? INPUT_EDITOR_LINE_HEIGHT };
+}
+
 export function getToolbarPickerResponsiveItems(
 	toolbar: MenuWorkbenchToolBar,
 	compactStates: ReadonlyMap<string, ISettableObservable<boolean>>,
@@ -311,6 +315,7 @@ export interface IChatInputPartOptions {
 	supportsChangingModes?: boolean;
 	dndContainer?: HTMLElement;
 	inputEditorMinLines?: number;
+	inputEditorOptions?: Pick<IEditorOptions, 'fontSize' | 'lineHeight'>;
 	/** Vertical padding of the input editor. Defaults to the render style's padding. */
 	inputEditorPadding?: { readonly top: number; readonly bottom: number };
 	/** Quick-suggestion behavior for the input editor. Defaults to disabled. */
@@ -1316,8 +1321,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
 		const padding = this._getInputEditorPadding();
-		this.singleLineInputEditorHeight = INPUT_EDITOR_LINE_HEIGHT + padding.top + padding.bottom;
-		this.inputEditorMinHeight = this.options.inputEditorMinLines ? this.options.inputEditorMinLines * INPUT_EDITOR_LINE_HEIGHT + padding.top + padding.bottom : undefined;
+		const { lineHeight } = getChatInputEditorMetrics(this.options.inputEditorOptions);
+		this.singleLineInputEditorHeight = lineHeight + padding.top + padding.bottom;
+		this.inputEditorMinHeight = this.options.inputEditorMinLines ? this.options.inputEditorMinLines * lineHeight + padding.top + padding.bottom : undefined;
 
 		this.inputEditorHasText = ChatContextKeys.inputHasText.bindTo(contextKeyService);
 		this.inputEditorHasSendableContent = ChatContextKeys.inputHasSendableContent.bindTo(contextKeyService);
@@ -3855,8 +3861,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.readOnly = false;
 		options.ariaLabel = this._getAriaLabel();
 		options.fontFamily = DEFAULT_FONT_FAMILY;
-		options.fontSize = 13;
-		options.lineHeight = INPUT_EDITOR_LINE_HEIGHT;
+		const metrics = getChatInputEditorMetrics(this.options.inputEditorOptions);
+		options.fontSize = metrics.fontSize;
+		options.lineHeight = metrics.lineHeight;
 		options.padding = this._getInputEditorPadding();
 		options.cursorWidth = 1;
 		options.wrappingStrategy = 'advanced';
@@ -4162,7 +4169,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						}
 						const modelDelegate = this._createModelPickerDelegate();
 						const modeDelegate = this._createModePickerDelegate();
-						return this.instantiationService.createInstance(MobileChatInputCombinedPickerActionItem, action, modeDelegate, modelDelegate);
+						return this.chatPhoneInputPresenter.createActionViewItem?.(action, modeDelegate, modelDelegate)
+							?? this.instantiationService.createInstance(MobileChatInputCombinedPickerActionItem, action, modeDelegate, modelDelegate);
 					} else if (action.id === OpenModePickerAction.ID && action instanceof MenuItemAction) {
 						return new HiddenActionViewItem(action);
 					}

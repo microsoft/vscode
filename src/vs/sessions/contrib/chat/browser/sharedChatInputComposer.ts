@@ -281,6 +281,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				supportsChangingModes: false,
 				isSessionsWindow: true,
 				inputEditorMinLines: 2,
+				inputEditorOptions: this.options.inputEditorOptions,
 				inputEditorPadding: COMPOSER_INPUT_EDITOR_PADDING,
 				inputPlaceholder: this.options.placeholder,
 				editorOverflowWidgetsDomNode,

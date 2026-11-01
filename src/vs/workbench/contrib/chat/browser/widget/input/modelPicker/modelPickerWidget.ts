@@ -724,6 +724,10 @@ export class ModelPickerWidget extends Disposable {
 		if (!anchorElement || this._domNode?.classList.contains('disabled')) {
 			return;
 		}
+		if (!options && this._delegate.showPicker && !this.isRestrictedMode() && !this.isSetupRequired()
+			&& this._delegate.showPicker((showDetails ? this._configButton : this._nameButton) ?? anchorElement, showDetails)) {
+			return;
+		}
 		if (this._tabbedPicker.value?.isVisible) {
 			if (options) {
 				this._tabbedPicker.value.openWithFilter(options);

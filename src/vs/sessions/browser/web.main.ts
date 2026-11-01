@@ -28,12 +28,22 @@ import { SessionsWorkspaceContextService } from '../services/workspace/browser/w
 import { ConfigurationService } from '../services/configuration/browser/configurationService.js';
 import { ConfigurationCache } from '../../workbench/services/configuration/common/configurationCache.js';
 import { Schemas } from '../../base/common/network.js';
-import { createSessionsWorkbench } from './workbenchFactory.js';
+import { createSessionsWorkbench, SessionsWorkbenchFactory } from './workbenchFactory.js';
+import { IWorkbenchConstructionOptions } from '../../workbench/browser/web.api.js';
 
 export class SessionsBrowserMain extends BrowserMain {
 
+	/** Entry points can select a presentation while sharing service initialization. */
+	constructor(
+		domElement: HTMLElement,
+		configuration: IWorkbenchConstructionOptions,
+		private readonly workbenchFactory: SessionsWorkbenchFactory = createSessionsWorkbench,
+	) {
+		super(domElement, configuration);
+	}
+
 	protected override createWorkbench(domElement: HTMLElement, serviceCollection: ServiceCollection, logService: ILogService): IBrowserMainWorkbench {
-		return createSessionsWorkbench(domElement, undefined, serviceCollection, logService);
+		return this.workbenchFactory(domElement, undefined, serviceCollection, logService);
 	}
 
 	protected override async createWorkspaceConfigAndStorageServices(

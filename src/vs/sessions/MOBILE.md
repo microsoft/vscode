@@ -12,6 +12,18 @@ This specification defines stable mobile composition and ownership. Exact dimens
 
 Mobile components are presentation adapters over shared Sessions services. They may replace a desktop part, picker, or editor presentation, but must preserve provider-neutral session identity, scoped context, and command semantics.
 
+Alternative web entry points supply a workbench factory and select concrete presentations at startup. Shared contracts do not import their default implementations or choose a mobile fallback. Concrete replacements and their styles belong to the entry that selects them.
+
+For starting browser sessions, each entry registers its `ISessionRepositoryPicker` implementation. Providers call that required service without selecting or importing a picker implementation; authentication, cancellation, and repository validation remain provider-owned. The regular entry registers the existing quick picker. Alternative entries can supply a sheet without changing the provider.
+
+`IChatViewFactory` supplies composer options, including editor metrics and new-session chrome. These options are forwarded to new-session, nested-chat, running-chat, and edited-request inputs; mode/model presentation does not control font sizing or clipboard access. Clipboard attachments are registered through the existing chat context-item mechanism by each entry.
+
+Directly composed chat inputs, such as automation prompts, receive the same editor options from the view factory and pass them to their input component.
+
+`ISessionsListPresentation` owns list chrome, interactions, and name editing. The regular implementation starts the list's inline editor; an alternative implementation can prompt before committing. Session and group changes still go through the list and its shared services. List dimensions are passed as component options.
+
+`IChatEditPresentationService` owns text-edit rendering and external-edit opening. The regular entry selects compare editors and ordinary editor navigation. Shared chat owns compare-model creation, and each returned presentation owns its rendering resources. Mobile diff overlays read through the standard text-model service, including in-memory snapshots.
+
 ## Viewport classification
 
 The Agents Window derives phone layout from the current viewport and platform environment. Mobile context keys are declarative inputs for menus, view registration, and presentation selection; they are not the source of truth for model or provider behavior.
