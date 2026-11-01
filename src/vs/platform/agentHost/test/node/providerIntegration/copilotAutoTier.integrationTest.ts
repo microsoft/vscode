@@ -10,6 +10,7 @@ import type { Server } from 'http';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import type { IAgentModelInfo } from '../../../common/agent.js';
@@ -86,12 +87,14 @@ suite('Copilot SDK managed model configuration', function () {
 				if (stub) {
 					response.writeHead(stub.status, stub.headers);
 					let content = stub.body.replaceAll('${capi}', baseUrl);
-					if (path === '/models' && modelEfforts) {
-						const catalog: { data: { id: string; capabilities: { supports: { reasoning_effort?: string[] } } }[] } = JSON.parse(content);
+					if ((path === '/models' || path === '/meta') && modelEfforts) {
+						type ModelCatalog = { data: { id: string; capabilities: { supports: { reasoning_effort?: string[] } } }[] };
+						const payload: ModelCatalog | { models: ModelCatalog } = JSON.parse(content);
+						const catalog = hasKey(payload, { models: true }) ? payload.models : payload;
 						const model = catalog.data.find(model => model.id === 'gpt-5');
 						assert.ok(model);
 						model.capabilities.supports.reasoning_effort = modelEfforts;
-						content = JSON.stringify(catalog);
+						content = JSON.stringify(payload);
 					}
 					response.end(content);
 				} else {

@@ -94,7 +94,7 @@ suite('Copilot Agent credential sponsorship', function () {
 		signals.length = 0;
 		const { runtimePath } = await resolveCopilotRuntimePaths(getAppNodeModulesUri());
 		const skillsRoot = join(dirname(runtimePath), '..', '..', 'builtin-skills');
-		assert.deepStrictEqual((await readdir(skillsRoot)).sort(), ['customize-cloud-agent', 'discover-resources', 'github-pr-media']);
+		assert.deepStrictEqual((await readdir(skillsRoot)).sort(), ['customize-cloud-agent', 'discover-resources', 'github-pr-media', 'pr-stack']);
 		assert.ok((await readFile(join(skillsRoot, 'github-pr-media', 'SKILL.md'), 'utf8')).includes('gh auth token'), 'Excluded SDK skill no longer has its reviewed ambient-auth behavior');
 		directory = createTestDirectory(join(tmpdir(), 'copilot-sponsorship-'));
 		assert.ok(!isEqualOrParent(URI.file(directory), URI.file(process.cwd())), 'Synthetic provider data must be outside the source workspace');

@@ -45,6 +45,7 @@ suite('CapiReplayProxy', () => {
 
 	for (const request of [
 		{ method: 'GET', path: '/unexpected-api' },
+		{ method: 'POST', path: '/meta' },
 		{ method: 'POST', path: '/json/version' },
 		{ method: 'POST', path: '/v1/messages' },
 		{ method: 'POST', path: '/responses' },
@@ -64,6 +65,35 @@ suite('CapiReplayProxy', () => {
 			}
 		});
 	}
+
+	test('serves the same model catalog through meta discovery without recording replay traffic', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-meta-'));
+		const fixturePath = join(directory, 'capture.yaml');
+		store.add(toDisposable(() => rmSync(directory, { recursive: true, force: true })));
+		for (const mode of ['record', 'replay'] as const) {
+			const proxy = new CapiReplayProxy({ fixturePath, mode });
+			try {
+				const url = await proxy.start();
+				const models = await (await fetch(`${url}/models`)).json();
+				const meta = await (await fetch(`${url}/meta`)).json();
+				assert.deepStrictEqual(meta, {
+					models,
+					auto: {
+						default_tier: 'balance',
+						tiers: [
+							{ id: 'efficiency', display_name: 'efficiency', description: 'Synthetic efficiency tier', type: 'auto', status: { enabled: true } },
+							{ id: 'balance', display_name: 'balance', description: 'Synthetic balance tier', type: 'auto', status: { enabled: true } },
+							{ id: 'intelligence', display_name: 'intelligence', description: 'Synthetic intelligence tier', type: 'auto', status: { enabled: true } },
+						],
+					},
+				});
+				proxy.assertNoReplayMismatches();
+			} finally {
+				await proxy.stop();
+			}
+		}
+		assert.ok(!readFileSync(fixturePath, 'utf8').includes('/meta'), 'Model discovery must not enter recordings');
+	});
 
 	test('serves mutable managed settings locally in record and replay and resets between tests', async () => {
 		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-policy-'));

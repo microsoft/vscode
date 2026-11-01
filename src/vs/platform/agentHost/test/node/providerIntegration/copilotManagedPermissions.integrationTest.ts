@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { CopilotClient, ToolSet, type CopilotSession, type ManagedSettingsPermissions, type PermissionRequest, type SessionConfig } from '@github/copilot-sdk';
-import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { Emitter } from '../../../../../base/common/event.js';
 import { join } from '../../../../../base/common/path.js';
@@ -169,17 +169,19 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 					await session.rpc.tools.initializeAndValidate();
 					assert.strictEqual((await session.rpc.permissions.setMode({ mode: 'manual' })).success, true);
 					requests.length = 0;
-					const shellResult = await session.rpc.tools.execute({ name: shell, arguments: { command: isWindows ? 'Get-Location' : 'pwd', description: 'Read working directory' } });
+					const shellResult = await session.rpc.tools.execute({ name: shell, arguments: { command: isWindows ? `New-Item -ItemType Directory -Path shell-${phase}` : `mkdir shell-${phase}`, description: 'Create a test directory' } });
 					const readResult = await session.rpc.tools.execute({ name: 'view', arguments: { path: join(directory, 'input.txt') } });
 					const outputPath = join(directory, `${phase}.txt`);
 					const writeResult = await session.rpc.tools.execute({ name: 'create', arguments: { path: outputPath, file_text: phase } });
 					const urlResult = await session.rpc.tools.execute({ name: 'web_fetch', arguments: { url: 'https://unmatched.invalid' } });
 					assert.deepStrictEqual({
 						results: [shellResult, readResult, writeResult, urlResult].map(resultType),
+						createdDirectory: (await stat(join(directory, `shell-${phase}`))).isDirectory(),
 						written: await readFile(outputPath, 'utf8'),
 						requests,
 					}, {
 						results: ['success', 'success', 'success', 'rejected'],
+						createdDirectory: true,
 						written: phase,
 						requests: ['shell', 'read', 'write', 'url'].map(kind => ({ kind, managedApprovalRequired: kind === 'shell' && terminalPolicyActive })),
 					}, phase);
@@ -187,7 +189,7 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 					requests.length = 0;
 					const matching: RuntimeToolResult = restriction === 'denied domain'
 						? await session.rpc.tools.execute({ name: 'web_fetch', arguments: { url: 'https://blocked.example' } })
-						: await session.rpc.tools.execute({ name: shell, arguments: { command: `${matchingCommand} managed-probe`, description: 'Print managed probe' } });
+						: await session.rpc.tools.execute({ name: shell, arguments: { command: isWindows ? `${matchingCommand} managed-probe | Out-File -FilePath ${phase}-managed-probe.txt -Encoding utf8` : `${matchingCommand} managed-probe > ${phase}-managed-probe.txt`, description: 'Write managed probe' } });
 					assert.deepStrictEqual({ result: resultType(matching), requests }, restriction === 'denied domain' ? {
 						result: phase === 'removed' ? 'rejected' : 'denied',
 						requests: phase === 'removed' ? [{ kind: 'url', managedApprovalRequired: false }] : [],
@@ -195,6 +197,9 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 						result: 'success',
 						requests: [{ kind: 'shell', managedApprovalRequired: managedShellApprovalRequired }],
 					}, phase);
+					if (restriction !== 'denied domain') {
+						assert.strictEqual((await readFile(join(directory, `${phase}-managed-probe.txt`), 'utf8')).trim(), 'managed-probe');
+					}
 
 					if (managedShellApprovalRequired) {
 						for (const mode of ['allow-all', 'assisted'] as const) {
