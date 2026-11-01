@@ -30,7 +30,7 @@ import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { buildDefaultChatUri, createErrorResponsePart, MessageKind, SessionStatus, withSessionGitHubState, withSessionGitState } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, createErrorResponsePart, SessionStatus, withSessionGitHubState, withSessionGitState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
@@ -38,6 +38,7 @@ import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentMergeController } from '../../node/agentMergeController.js';
 import { AgentMergeTools } from '../../node/agentMergeTools.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 
 const ref: PullRequestRef = { host: 'api.github.com', accountId: '1', owner: 'octo', repo: 'repo', number: 1 };
 const pullRequestUrl = 'https://github.com/octo/repo/pull/1';
@@ -131,6 +132,37 @@ suite('Agent Merge workflow reruns', () => {
 		});
 	}));
 
+	test('keeps deferring a rerun once the required gate that waits for the deferred job reports its failure', () => withController(async h => {
+		const dependency = { required: false, requiredBy: ['PR Gate'] };
+		h.snapshot.set(gateSnapshot([
+			{ ...check('mac', 'macOS', 'COMPLETED', 'FAILURE'), ...dependency },
+			{ ...check('windows', 'Windows', 'IN_PROGRESS'), ...dependency },
+		]), undefined);
+		await h.tools.rerunFailedWorkflow(h.session, '1', true);
+		await h.completeTurn();
+		await timeout(31_000);
+
+		// GitHub creates the gate's check once the jobs it needs finished, which then no longer count.
+		h.mutations.runs = [{ ...h.mutations.runs[0], status: 'COMPLETED', conclusion: 'FAILURE' }];
+		h.snapshot.set(gateSnapshot([
+			{ ...check('mac', 'macOS', 'COMPLETED', 'FAILURE'), required: false },
+			{ ...check('windows', 'Windows', 'COMPLETED', 'SUCCESS'), required: false },
+			check('gate', 'PR Gate', 'COMPLETED', 'FAILURE'),
+		]), undefined);
+		await timeout(31_000);
+		await timeout(20 * 60_000);
+
+		assert.deepStrictEqual({
+			failures: h.prompts.map(prompt => parseAgentMergePrompt(prompt)?.failedChecks),
+			reruns: h.mutations.reruns.map(({ runId, expectedRunAttempt, failedJobsOnly }) => ({ runId, expectedRunAttempt, failedJobsOnly })),
+			state: h.controllerState(),
+		}, {
+			failures: [['macOS']],
+			reruns: [{ runId: '1', expectedRunAttempt: 1, failedJobsOnly: true }],
+			state: { enabled: true, totalPromptCount: 1, repeatedPromptCount: 0 },
+		});
+	}));
+
 	test('suppresses a newly deferred failure during the same turn without revoking its rerun authorization', () => withController(async h => {
 		h.mutations.jobs = [createTestWorkflowJob(101, { name: 'macOS', check_run_url: 'https://api.github.com/repos/octo/repo/check-runs/1001' })];
 		await h.tools.rerunFailedWorkflow(h.session, '1', true);
@@ -208,6 +240,24 @@ suite('Agent Merge workflow reruns', () => {
 			logIds: ['102'],
 			reruns: [],
 			state: { enabled: true, totalPromptCount: 2, repeatedPromptCount: 0 },
+		});
+	}));
+
+	test('repairs a failed check suite that reported no check run, whose CI summary has no annotations to read', () => withController(async h => {
+		await h.completeTurn();
+		// When the base branch requires no check, a workflow that failed to start counts too.
+		h.snapshot.set(readySnapshot([], 'head', [{ id: 'suite', name: 'GitHub Actions', status: 'COMPLETED', conclusion: 'FAILURE', checkRunsReported: false }]), undefined);
+		await timeout(31_000);
+		const summary: { items: { name: string; logAvailability: string }[] } = JSON.parse(await h.tools.readFailedCI(h.session));
+
+		assert.deepStrictEqual({
+			failures: h.prompts.map(prompt => parseAgentMergePrompt(prompt)?.failedChecks),
+			items: summary.items.map(({ name, logAvailability }) => ({ name, logAvailability })),
+			annotationIds: h.mutations.annotationIds,
+		}, {
+			failures: [['macOS'], ['GitHub Actions']],
+			items: [{ name: 'GitHub Actions', logAvailability: 'This check suite failed without reporting a check run, so it has no logs or annotations. A GitHub Actions workflow does that when it fails to start, such as with an invalid workflow file.' }],
+			annotationIds: [],
 		});
 	}));
 
@@ -817,11 +867,11 @@ class RerunTestHarness extends Disposable {
 			}();
 			override readonly pullRequests = new class extends mock<IPullRequestResources>() {
 				override subscribePullRequest(_ref: PullRequestRef, options: PullRequestSubscriptionOptions): PullRequestSubscription {
-					// Like the query service, only an interest in optional checks reports them.
+					// Like the query service, only an interest in optional checks reports them, unless an unfinished required check waits for them.
 					const visible = options.checks?.includeOptional ? snapshot : derived(reader => {
 						const value = snapshot.read(reader);
 						const checks = value.checks.value;
-						return checks ? { ...value, checks: { ...value.checks, value: { ...checks, checks: checks.checks.filter(check => check.required !== false) } } } : value;
+						return checks ? { ...value, checks: { ...value.checks, value: { ...checks, checks: checks.checks.filter(check => check.required !== false || check.requiredBy !== undefined) } } } : value;
 					});
 					return {
 						resource: { ref, snapshot: visible },
@@ -848,12 +898,7 @@ class RerunTestHarness extends Disposable {
 			{
 				startTurn: (chat, turnId, prompt) => {
 					this.prompts.push(prompt);
-					this.stateManager.dispatchServerAction(chat, {
-						type: ActionType.ChatTurnStarted,
-						turnId,
-						startedAt: new Date().toISOString(),
-						message: { text: prompt, origin: { kind: MessageKind.User } },
-					});
+					this.stateManager.dispatchServerAction(chat, chatTurnStarted(turnId, prompt));
 					return true;
 				},
 				cancelTurn: (chat, turnId) => this.stateManager.dispatchServerAction(chat, {
@@ -884,11 +929,7 @@ class RerunTestHarness extends Disposable {
 	async completeTurn(): Promise<void> {
 		const context = this.controller.getTurnContext(this.session);
 		assert.ok(context);
-		this.stateManager.dispatchServerAction(buildDefaultChatUri(this.session), {
-			type: ActionType.ChatTurnComplete,
-			turnId: context.turnId,
-			duration: 0,
-		});
+		this.stateManager.dispatchServerAction(buildDefaultChatUri(this.session), chatTurnComplete(context.turnId, 0));
 		await timeout(1);
 	}
 
@@ -939,10 +980,16 @@ class TestMutations extends mock<PullRequestMutationApi>() {
 }
 
 function check(id: string, name: string, status: string, conclusion?: string, runId = '1'): PullRequestCheck {
-	const numericIds = new Map([['mac', '1001'], ['windows', '1002'], ['other-workflow', '1003'], ['fixed', '1004'], ['new', '1005'], ['mac-attempt-2', '1006']]);
+	const numericIds = new Map([['mac', '1001'], ['windows', '1002'], ['other-workflow', '1003'], ['fixed', '1004'], ['new', '1005'], ['mac-attempt-2', '1006'], ['gate', '1007']]);
 	const numericId = numericIds.get(id);
 	assert.ok(numericId, `Missing numeric check ID for ${id}`);
 	return { id: numericId, name, type: 'checkRun', required: true, status, conclusion, detailsUrl: `https://github.com/octo/repo/actions/runs/${runId}/job/${numericId}` };
+}
+
+/** Checks of a head whose base branch requires an aggregate `PR Gate`, as microsoft/vscode's does. */
+function gateSnapshot(checks: readonly PullRequestCheck[]): PullRequestSnapshot {
+	const snapshot = readySnapshot(checks);
+	return { ...snapshot, checks: { ...snapshot.checks, value: { ...snapshot.checks.value!, requiredContexts: ['PR Gate'] } } };
 }
 
 function readySnapshot(checks: readonly PullRequestCheck[], headSha = 'head', expectedSuites: readonly PullRequestCheckSuite[] = []): PullRequestSnapshot {

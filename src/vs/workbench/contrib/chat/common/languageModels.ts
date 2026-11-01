@@ -279,6 +279,11 @@ export interface ILanguageModelChatMetadata {
 	readonly autoModelDiscountPercent?: number;
 	/** Whether the agent host presents its Auto model as Copilot Fusion. */
 	readonly autoModelFusion?: boolean;
+	/**
+	 * The tier the agent host runs Copilot Fusion at for editor and terminal inline chat, whatever
+	 * effort level is selected, so inline chat offers none. Absent when the host pins no tier there.
+	 */
+	readonly autoModelFusionInlineChatTier?: string;
 	/** Set only on the agent host's Auto model presented as Fusion. */
 	readonly autoModelTierPromotions?: readonly IAutoModelTierPromotion[];
 	/** Auto's tiers come from the provider, which may hide some, including HydraFusion ones. */
@@ -474,7 +479,7 @@ export namespace ILanguageModelChatMetadata {
 	export const autoModelSelectionDocsUrl = 'https://docs.github.com/en/copilot/concepts/models/auto-model-selection';
 
 	/** Where Copilot Fusion's description links for more about it. */
-	export const fusionDocsUrl = 'https://docs.github.com/en/early-access/copilot/hydrafusion';
+	export const fusionDocsUrl = 'https://aka.ms/vscode-copilot-fusion';
 
 	/**
 	 * Builds the shared description shown for the Auto model, rendered as Markdown
@@ -642,8 +647,11 @@ export interface IModelConfigurationAccess {
 	/** Applies values in this scope without persisting them or reporting them as a selection. */
 	presentModelConfiguration?(modelId: string, values: IStringDictionary<unknown>): void;
 	getModelConfigurationActions(modelId: string): IAction[];
-	/** Configuration changes within this scope; global access uses `onDidChangeLanguageModels`. */
-	readonly onDidChange?: Event<string>;
+	/**
+	 * Configuration changes within this scope, once per update with the models it changed, so an update covering
+	 * many models (such as a chat's snapshot) notifies once. Global access uses `onDidChangeLanguageModels`.
+	 */
+	readonly onDidChange?: Event<readonly string[]>;
 }
 
 /** Where a pin change was made, for telemetry. */

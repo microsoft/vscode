@@ -6,6 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -21,8 +22,10 @@ import { InMemoryFileSystemProvider } from '../../../../../../platform/files/com
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { CustomizationEnablementKind, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { parsePlugin } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { isClientPluginStandalone } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
 import { type ISyncableMcpServer, type ISyncedCustomizationBundlerOptions, type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
+import { AgentCustomizationContentExpander } from '../../../browser/agentSessions/agentHost/agentCustomizationContentExpander.js';
 import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -216,7 +219,7 @@ suite('SyncedCustomizationBundler', () => {
 		const result = await bundler.bundle([
 			{ uri: instrUri, type: PromptsType.instructions },
 			{ uri: promptUri, type: PromptsType.prompt },
-			{ uri: agentUri, type: PromptsType.agent },
+			{ uri: agentUri, type: PromptsType.agent, source: AICustomizationSources.extension },
 			{ uri: skillUri, type: PromptsType.skill },
 		]);
 		assert.ok(result);
@@ -228,12 +231,79 @@ suite('SyncedCustomizationBundler', () => {
 		const cmdContent = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/commands/cmd.prompt.md' }));
 		assert.strictEqual(cmdContent.value.toString(), 'prompt content');
 
-		const agentContent = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/agents/my-agent.md' }));
+		const agentContent = await fileService.readFile(bundler.getSyncedUri(agentUri)!);
 		assert.strictEqual(agentContent.value.toString(), 'agent content');
 
 		// Non-SKILL.md skill files are written flat
 		const skillContent = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill.md' }));
 		assert.strictEqual(skillContent.value.toString(), 'skill content');
+	});
+
+	for (const hasName of [true, false]) {
+		test(`preserves colliding agent files and their ${hasName ? 'authored' : 'file-derived'} names`, async () => {
+			const bundler = createBundler('test-agent', { preserveAgentFileCollisions: true });
+			const files = await Promise.all(['first', 'second'].map(async extensionId => ({
+				uri: await seedFile(`/extensions/${extensionId}/reviewer.agent.md`, `${hasName ? '---\nname: Reviewer\n---\n' : ''}${extensionId}`),
+				type: PromptsType.agent,
+				source: AICustomizationSources.extension,
+				extensionId,
+			})));
+			const result = await bundler.bundle(files);
+			assert.ok(result);
+			const root = URI.parse(result.ref.uri);
+			const parsed = await parsePlugin(root, fileService, undefined, URI.from({ scheme: Schemas.inMemory, path: '/home' }), root, { deduplicateAgentsByName: false });
+			const expanded = await new AgentCustomizationContentExpander(fileService, new NullLogService())
+				.expandPluginContents(root, 'test', true, AICustomizationSources.extension, undefined, CancellationToken.None);
+			const agents = await Promise.all(parsed.agents.map(async agent => ({
+				name: agent.name,
+				source: serializeOrigin(bundler.getOrigin(agent.uri)),
+				content: (await fileService.readFile(agent.uri)).value.toString(),
+			})));
+			const destinations = files.map(file => bundler.getSyncedUri(file.uri)?.toString());
+			const reordered = await bundler.bundle(files.slice().reverse());
+			assert.deepStrictEqual({
+				agents: agents.sort((a, b) => a.content.localeCompare(b.content)),
+				expanded: expanded.map(item => ({ name: item.name, source: bundler.getOrigin(item.uri)?.uri.toString() }))
+					.sort((a, b) => (a.source ?? '').localeCompare(b.source ?? '')),
+				destinationsDistinct: new Set(destinations).size,
+				destinationsStable: files.map(file => bundler.getSyncedUri(file.uri)?.toString()),
+				nonce: reordered?.ref.nonce,
+			}, {
+				agents: files.map(file => ({
+					name: hasName ? 'Reviewer' : 'reviewer',
+					source: { uri: file.uri.toString(), source: 'extension', extensionId: file.extensionId, pluginUri: undefined },
+					content: `${hasName ? '---\nname: Reviewer\n---\n' : ''}${file.extensionId}`,
+				})),
+				expanded: files.map(file => ({ name: hasName ? 'Reviewer' : 'reviewer', source: file.uri.toString() })),
+				destinationsDistinct: 2,
+				destinationsStable: destinations,
+				nonce: result.ref.nonce,
+			});
+		});
+	}
+
+	test('preserves legacy flat selections and nonces for uniquely named Copilot agents', async () => {
+		const files = await Promise.all(['reviewer', 'planner'].map(async name => ({
+			uri: await seedFile(`/extension/${name}.agent.md`, `---\nname: ${name}\n---\nPrompt`),
+			type: PromptsType.agent,
+			source: AICustomizationSources.extension,
+		})));
+		const legacy = createBundler('legacy');
+		const before = await legacy.bundle(files);
+		const selections = files.map(file => legacy.getSyncedUri(file.uri)?.toString());
+		const copilot = createBundler('legacy', { preserveAgentFileCollisions: true });
+		const after = await copilot.bundle(files);
+		assert.deepStrictEqual({
+			nonce: after?.ref.nonce,
+			selections: files.map(file => copilot.getSyncedUri(file.uri)?.toString()),
+		}, { nonce: before?.ref.nonce, selections });
+	});
+
+	test('keeps the existing flat agent layout for consumers that do not opt in', async () => {
+		const source = await seedFile('/extension/reviewer.agent.md', 'Reviewer');
+		const bundler = createBundler('native-layout');
+		await bundler.bundle([{ uri: source, type: PromptsType.agent, source: AICustomizationSources.extension }]);
+		assert.strictEqual(bundler.getSyncedUri(source)?.path, '/native-layout/agents/reviewer.agent.md');
 	});
 
 	test('bundles SKILL.md files into per-skill subdirectories', async () => {
@@ -1129,18 +1199,24 @@ suite('SyncedCustomizationBundler', () => {
 		const source = await seedFile('/ext/review.agent.md', '# Review');
 		const replacement = await seedFile('/other/review.agent.md', '# Review');
 		const result = await bundler.bundle([{ uri: source, type: PromptsType.agent, source: 'extension' }]);
-		const expected = URI.joinPath(URI.parse(result!.ref.uri), 'agents', 'review.agent.md').toString();
-		const first = bundler.getSyncedUri(source)?.toString();
+		assert.ok(result);
+		const first = bundler.getSyncedUri(source);
+		assert.ok(first);
+		const firstOrigin = bundler.getOrigin(first)?.uri.toString();
 		await bundler.bundle([{ uri: replacement, type: PromptsType.agent, source: 'extension' }]);
+		const replacementDestination = bundler.getSyncedUri(replacement);
+		assert.ok(replacementDestination);
 		assert.deepStrictEqual({
-			first,
+			firstOrigin,
 			oldSource: bundler.getSyncedUri(source),
-			replacement: bundler.getSyncedUri(replacement)?.toString(),
+			replacementOrigin: bundler.getOrigin(replacementDestination)?.uri.toString(),
+			sameDestination: isEqual(first, replacementDestination),
 			missing: bundler.getSyncedUri(URI.file('/missing.agent.md')),
 		}, {
-			first: expected,
+			firstOrigin: source.toString(),
 			oldSource: undefined,
-			replacement: expected,
+			replacementOrigin: replacement.toString(),
+			sameDestination: true,
 			missing: undefined,
 		});
 	});

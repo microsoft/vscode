@@ -36,12 +36,14 @@ type AppliedPluginIdentity = Extract<IAgentCustomizationInstallationApplyResult,
 
 export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable implements ICustomizationMarketplaceInstallProvider, ICustomizationMarketplaceSearchProvider, ICustomizationMarketplaceManagementProvider, ICustomizationMcpConfigurationProvider, ICustomizationPluginInstallProvider {
 	private readonly _onDidChange = this._register(new Emitter<void>());
+	private readonly _onDidChangeMarketplaces = this._register(new Emitter<void>());
 	private readonly receiptInstallations = new ResourceMap<readonly IRecordedCustomizationMarketplaceResource[]>();
 	private readonly unavailableCatalogItems = new Map<string, string>();
 	private readonly catalogAssociations = new Map<string, ICustomizationMarketplaceResource>();
 	private readonly pendingCatalogAssociations: { readonly identity: AppliedPluginIdentity; readonly resource: ICustomizationMarketplaceResource }[] = [];
 	private readonly catalogAuthenticationRequired = new Set<string>();
 	readonly onDidChange: Event<void>;
+	readonly onDidChangeMarketplaces: Event<void>;
 
 	constructor(
 		private readonly providerId: string,
@@ -61,6 +63,16 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			Event.map(this.agentHostService.onAgentHostExit, () => undefined),
 			Event.fromObservableLight(this.agentPluginService.plugins),
 		);
+		this.onDidChangeMarketplaces = Event.any(
+			this._onDidChangeMarketplaces.event,
+			this.agentHostService.onAgentHostStart,
+			Event.map(this.agentHostService.onAgentHostExit, () => undefined),
+		);
+	}
+
+	private fireMarketplacesChanged(): void {
+		this._onDidChangeMarketplaces.fire();
+		this._onDidChange.fire();
 	}
 
 	getInstallUnavailableMessage(resource: ICustomizationMarketplaceResource): string | undefined {
@@ -114,7 +126,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			throw new Error(localize('agentHost.marketplaceManagement.addUnavailable', "The selected agent does not support adding marketplaces."));
 		}
 		const result = await this.agentHostService.addPluginMarketplace(this.providerId, this.getBackendSession(sessionResource), source, this.agentHostCustomizationService.getBackendChatResource?.(sessionResource));
-		this._onDidChange.fire();
+		this.fireMarketplacesChanged();
 		return result;
 	}
 
@@ -164,7 +176,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		}
 		const result = await this.agentHostService.removePluginMarketplace(this.providerId, this.getBackendSession(sessionResource), name, force, this.agentHostCustomizationService.getBackendChatResource?.(sessionResource));
 		if (result.removed) {
-			this._onDidChange.fire();
+			this.fireMarketplacesChanged();
 		}
 		return result;
 	}
@@ -174,7 +186,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			throw new Error(localize('agentHost.marketplaceManagement.refreshUnavailable', "The selected agent does not support refreshing marketplaces."));
 		}
 		const result = await this.agentHostService.refreshPluginMarketplaces(this.providerId, this.getBackendSession(sessionResource), name, this.agentHostCustomizationService.getBackendChatResource?.(sessionResource));
-		this._onDidChange.fire();
+		this.fireMarketplacesChanged();
 		return result;
 	}
 
@@ -585,6 +597,9 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			return localize('agentHost.customizationInstall.pluginInstallDetail', "Plugins can supply agents, skills, hooks, and MCP servers. Only install resources from sources you trust.\n\nSource: {0}\nDestination: {1}\nFiles: {2}\nSize: {3} bytes\n\n{4}{5}", review.source, review.target, review.fileCount, review.totalBytes, status, mcpServers);
 		}
 		if (review.action === 'install') {
+			if (review.command !== undefined) {
+				return localize('agentHost.customizationInstall.mcpLocalInstallDetail', "MCP servers can run tools and access local files. Only install resources from sources you trust.\n\nServer: {0}\nDestination: {1}\nCommand: {2}\nArguments: {3}\nEnvironment: {4}\nConfiguration fields: {5}", review.serverName, review.target, review.command, JSON.stringify(review.args ?? []), JSON.stringify(review.env ?? {}), review.configurationFields.join(', ') || localize('agentHost.customizationInstall.none', "None"));
+			}
 			return localize('agentHost.customizationInstall.mcpInstallDetail', "MCP servers can run tools and access external services. Only install resources from sources you trust.\n\nServer: {0}\nDestination: {1}\nEndpoint: {2}\nConfiguration fields: {3}", review.serverName, review.target, review.endpoint ?? localize('agentHost.customizationInstall.notApplicable', "Not applicable"), review.configurationFields.join(', ') || localize('agentHost.customizationInstall.none', "None"));
 		}
 		return localize('agentHost.customizationInstall.mcpUninstallDetail', "Server: {0}\nRestores previous configuration: {1}\nShared authentication is preserved: {2}", review.serverName, review.restoresPreviousConfiguration ? localize('agentHost.customizationInstall.yes', "Yes") : localize('agentHost.customizationInstall.no', "No"), review.preservesSharedAuthentication ? localize('agentHost.customizationInstall.yes', "Yes") : localize('agentHost.customizationInstall.no', "No"));

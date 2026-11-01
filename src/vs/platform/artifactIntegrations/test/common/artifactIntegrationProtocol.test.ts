@@ -64,10 +64,14 @@ suite('Artifact Integration Protocol', () => {
 		const artifact = { ...f.snapshot.get().artifact, origin: { chat: 'vendor-chat://original?thread=opaque' } };
 		f.snapshot.set({ ...f.snapshot.get(), session: 'vendor-session://opaque', artifact }, undefined);
 		const notices: ArtifactAutomationNotice[] = [];
+		const changes = [{ integrationId: 'integration', optionId: 'analysis', label: 'Analysis', kind: 'enabled' as const, details: ['Analyses the artifact.'] }];
 		const server = store.add(new ArtifactIntegrationServer(f.access, async notice => { notices.push(notice); }));
 		const request = {
 			kind: 'notice' as const, subscription: 'notice',
-			notice: { kind: 'enabled' as const, content: 'Analysis enabled', iconId: 'beaker', session: 'wrong-session', artifact: { origin: { chat: 'wrong-chat' } } },
+			notice: {
+				kind: 'enabled' as const, content: 'Analysis enabled', iconId: 'beaker', session: 'wrong-session', artifact: { origin: { chat: 'wrong-chat' } },
+				changes, enabledRules: [{ integrationId: 'integration', labels: ['Analysis'] }],
+			},
 		};
 		await assert.rejects(server.request(request), /subscription not found/);
 		await server.request({ kind: 'acquire', subscription: 'notice', session: 'vendor-session://opaque', artifactId: 'artifact' });
@@ -75,7 +79,7 @@ suite('Artifact Integration Protocol', () => {
 		await server.request({ kind: 'release', subscription: 'notice' });
 		await assert.rejects(server.request(request), /subscription not found/);
 		assert.deepStrictEqual({ notices, counts: f.counts() }, {
-			notices: [{ session: 'vendor-session://opaque', artifact, kind: 'enabled', content: 'Analysis enabled', iconId: 'beaker' }],
+			notices: [{ session: 'vendor-session://opaque', artifact, kind: 'enabled', content: 'Analysis enabled', iconId: 'beaker', changes, enabledRules: [{ integrationId: 'integration', labels: ['Analysis'] }] }],
 			counts: { references: 0, detailReferences: 0 },
 		});
 	});
@@ -84,13 +88,23 @@ suite('Artifact Integration Protocol', () => {
 		const f = model();
 		const server = store.add(new ArtifactIntegrationServer(f.access));
 		const request = { kind: 'notice' as const, subscription: 'notice', notice: { kind: 'enabled' as const, content: 'Enabled' } };
+		const change = { integrationId: 'integration', optionId: 'fix', label: 'Fix', kind: 'enabled', details: ['Fixes failures.'] };
+		const enabledRules = [{ integrationId: 'integration', labels: ['Fix'] }];
 		await assert.rejects(server.request(request), /does not support/);
 		assert.deepStrictEqual([
 			isArtifactIntegrationRequest(request),
 			isArtifactIntegrationRequest({ ...request, notice: { kind: 'sent', content: 'Unsupported' } }),
 			isArtifactIntegrationRequest({ ...request, notice: { kind: 'enabled', content: '' } }),
 			isArtifactIntegrationRequest({ ...request, notice: { kind: 'enabled', content: 'Enabled', iconId: 'invalid icon' } }),
-		], [true, false, false, false]);
+			isArtifactIntegrationRequest({ ...request, notice: { ...request.notice, changes: [change], enabledRules } }),
+			isArtifactIntegrationRequest({ ...request, notice: { ...request.notice, changes: [change] } }),
+			isArtifactIntegrationRequest({ ...request, notice: { ...request.notice, enabledRules } }),
+			isArtifactIntegrationRequest({ ...request, notice: { ...request.notice, changes: [], enabledRules: [] } }),
+			isArtifactIntegrationRequest({ ...request, notice: { ...request.notice, changes: [{ ...change, kind: 'sent' }], enabledRules } }),
+			isArtifactIntegrationRequest({ ...request, notice: { ...request.notice, changes: [{ ...change, details: [1] }], enabledRules } }),
+			isArtifactIntegrationRequest({ ...request, notice: { ...request.notice, changes: [change, change], enabledRules } }),
+			isArtifactIntegrationRequest({ ...request, notice: { ...request.notice, changes: [change], enabledRules: [{ integrationId: 'other', labels: [] }] } }),
+		], [true, false, false, false, true, false, false, false, false, false, false, false]);
 	});
 
 	test('an update arriving before the acquire response is not overwritten by the older response', async () => {
@@ -238,6 +252,7 @@ suite('Artifact Integration Protocol', () => {
 	test('validates authentication requests, challenges, and capability state', () => {
 		const f = model(true);
 		const current = f.snapshot.get();
+		const withAvailability = (availability: object) => ({ ...current, contributions: [{ ...current.contributions[0], view: { ...current.contributions[0].view, availability } }] });
 		assert.deepStrictEqual([
 			isArtifactIntegrationRequest({ kind: 'authenticate', subscription: 'sub', integrationId: 'integration' }),
 			isArtifactIntegrationRequest({ kind: 'authenticate', subscription: 'sub', integrationId: '' }),
@@ -253,7 +268,10 @@ suite('Artifact Integration Protocol', () => {
 			isArtifactSnapshot({ ...current, contributions: [{ ...current.contributions[0], authentication: { enabled: 'true' } }] }),
 			isArtifactSnapshot({ ...current, contributions: [{ ...current.contributions[0], authority: { id: 'extension', targetHost: 'host', location: 'client' } }] }),
 			isArtifactSnapshot({ ...current, contributions: [{ ...current.contributions[0], authority: { id: 'extension', location: 'invalid' } }] }),
-		], [true, false, true, false, false, false, false, false, true, false, true, false, true, false]);
+			isArtifactSnapshot(withAvailability({ kind: 'authenticationRequired', reason: 'Authorize', authorizationUrl: 'https://example.test/orgs/octo/sso' })),
+			isArtifactSnapshot(withAvailability({ kind: 'authenticationRequired', reason: 'Authorize', authorizationUrl: 'command:run' })),
+			isArtifactSnapshot(withAvailability({ kind: 'error', reason: 'Failed', authorizationUrl: 'https://example.test/orgs/octo/sso' })),
+		], [true, false, true, false, false, false, false, false, true, false, true, false, true, false, true, false, false]);
 	});
 
 	test('disposing an endpoint releases all of its leases', async () => {
@@ -366,7 +384,7 @@ suite('Artifact Integration Protocol', () => {
 		], [true, false, false, false, false, false, false, false, false, false, false, true, true]);
 	});
 
-	test('wire snapshots accept an integration group label and per-artifact group icon with a finite priority', () => {
+	test('wire snapshots accept an integration group label and per-artifact group ID and icon with a finite priority', () => {
 		const view = { availability: { kind: 'available' as const }, sections: [], stateActions: [], generalActions: [], automationAvailability: [] };
 		const contribution = { integrationId: 'test', label: 'Test', actions: [], options: [], view, configuration: { revision: 0, values: {}, generations: {}, disablements: {} } };
 		const snapshot = { ...model().snapshot.get(), mainIntegrationId: 'test', contributions: [contribution] };
@@ -380,7 +398,10 @@ suite('Artifact Integration Protocol', () => {
 			isArtifactSnapshot(withGroup({ icon: { id: 'beaker' }, priority: '2' })),
 			isArtifactSnapshot(withGroup({ icon: { id: 'not an icon' }, priority: 1 })),
 			isArtifactSnapshot(withGroup({ priority: 1 })),
-		], [true, false, false, false, false, false, false]);
+			isArtifactSnapshot(withContribution({ view: { ...view, groupId: 'tests' } })),
+			isArtifactSnapshot(withContribution({ view: { ...view, groupId: '' } })),
+			isArtifactSnapshot(withContribution({ view: { ...view, groupId: 1 } })),
+		], [true, false, false, false, false, false, false, true, false, false]);
 	});
 
 	test('detail pages have an explicit bounded shape', () => {
@@ -433,11 +454,47 @@ suite('Artifact Integration Protocol', () => {
 				isArtifactDetails(page([rerun], ['rerun', 'rerun'])),
 				isArtifactDetails(page([rerun, rerun], ['rerun'])),
 				isArtifactDetails(page([{ ...rerun, iconId: 'not an icon' }], ['rerun'])),
+				isArtifactDetails(page([{ ...rerun, actionId: 'fix' }], ['rerun'])),
+				isArtifactDetails(page([{ ...rerun, actionId: '' }], ['rerun'])),
 			],
 		}, {
 			calls: [['checks', 'build', 'rerun']],
 			requests: [true, false, false],
-			details: [true, true, false, false, false, false, false],
+			details: [true, true, false, false, false, false, false, true, false],
+		});
+	});
+
+	test('manual action input crosses the transport and is validated', async () => {
+		const f = model();
+		const invoked: unknown[][] = [];
+		const access: IArtifactIntegrationAccess = {
+			acquireArtifact: async (session, artifactId) => {
+				const reference = await f.access.acquireArtifact(session, artifactId);
+				return {
+					object: {
+						...reference.object,
+						invoke: async (...args) => {
+							invoked.push(args);
+							return { id: 'run', bindingId: 'binding', integrationId: args[0], actionId: args[1], actionKind: 'prompt', actionConsent: '', requestId: args[3], source: 'manual', reason: 'Fix', chat: args[2], state: 'queued', createdAt: 0, updatedAt: 0, dispatched: false, input: args[5] };
+						},
+					},
+					dispose: () => reference.dispose(),
+				};
+			},
+		};
+		const server = store.add(new ArtifactIntegrationServer(access));
+		const client = store.add(new ArtifactIntegrationClient({ onDidUpdate: server.onDidUpdate, request: request => server.request(request) }, new NullLogService()));
+		const reference = store.add(await client.acquireArtifact('session', 'artifact'));
+		const input = { detailsId: 'issues', itemId: 'one' };
+		const run = await reference.object.invoke('integration', 'fix', 'chat', 'request', undefined, input);
+		const request = { kind: 'invoke', subscription: 'sub', integrationId: 'integration', actionId: 'fix', chat: 'chat', requestId: 'request' };
+		assert.deepStrictEqual({
+			invoked, input: run.input,
+			requests: [isArtifactIntegrationRequest({ ...request, input }), isArtifactIntegrationRequest({ ...request, input: () => { } })],
+		}, {
+			invoked: [['integration', 'fix', 'chat', 'request', undefined, input]],
+			input,
+			requests: [true, false],
 		});
 	});
 });

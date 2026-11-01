@@ -42,7 +42,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPick, IQuickPickItem, QuickInputHideReason } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { FloatingEditorClickMenu } from '../../../browser/codeeditor.js';
 import { IChatCodeBlockContextProviderService } from '../../chat/browser/chat.js';
@@ -99,6 +99,7 @@ export class AccessibleView extends Disposable {
 	private readonly _helpClearListener = this._register(new MutableDisposable());
 	private readonly _codeBlockContextProviderRegistration = this._register(new MutableDisposable());
 	private readonly _configureKeybindingsDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _symbolQuickPick = this._register(new MutableDisposable<AccessibleViewSymbolQuickPick>());
 
 	private _currentProvider: AccesibleViewContentProvider | undefined;
 	private _currentContent: string | undefined;
@@ -308,6 +309,9 @@ export class AccessibleView extends Disposable {
 		if (!provider) {
 			return;
 		}
+		if (provider === this._currentProvider && provider instanceof AccessibleContentProvider && provider.onDispose) {
+			provider = this._updateLastProvider(true)!;
+		}
 		const showDisposables = new DisposableStore();
 		this._showDisposables.value = showDisposables;
 		const onOpenDisposable = provider.onOpen?.();
@@ -336,6 +340,8 @@ export class AccessibleView extends Disposable {
 					this._currentProvider?.dispose();
 					this._currentProvider = undefined;
 					this._resetContextKeys();
+				} else {
+					provider.dispose();
 				}
 			}
 		};
@@ -408,11 +414,19 @@ export class AccessibleView extends Disposable {
 	}
 
 	goToSymbol(): void {
-		if (!this._currentProvider) {
+		const symbols = this.getSymbols();
+		if (!symbols?.length) {
+			return;
+		}
+		this._symbolQuickPick.clear();
+		const provider = this._updateLastProvider(true);
+		if (!provider) {
 			return;
 		}
 		this._isInQuickPick = true;
-		this._instantiationService.createInstance(AccessibleViewSymbolQuickPick, this).show(this._currentProvider);
+		const picker = this._instantiationService.createInstance(AccessibleViewSymbolQuickPick, this, provider, () => this._isInQuickPick = false);
+		this._symbolQuickPick.value = picker;
+		picker.show(symbols);
 	}
 
 	calculateCodeBlocks(markdown?: string): void {
@@ -476,33 +490,46 @@ export class AccessibleView extends Disposable {
 	}
 
 	configureKeybindings(unassigned: boolean): void {
-		this._isInQuickPick = true;
-		const provider = this._updateLastProvider();
-		const items = unassigned ? provider?.options?.configureKeybindingItems : provider?.options?.configuredKeybindingItems;
-		if (!items) {
+		const items = unassigned ? this._currentProvider?.options.configureKeybindingItems : this._currentProvider?.options.configuredKeybindingItems;
+		if (!items?.length) {
+			return;
+		}
+		this._configureKeybindingsDisposables.clear();
+		const provider = this._updateLastProvider(true);
+		if (!provider) {
 			return;
 		}
 		const disposables = new DisposableStore();
 		this._configureKeybindingsDisposables.value = disposables;
+		const retainedProvider = disposables.add(new MutableDisposable<AccesibleViewContentProvider>());
+		retainedProvider.value = provider;
+		this._isInQuickPick = true;
+		disposables.add(toDisposable(() => this._isInQuickPick = false));
 		const quickPick: IQuickPick<IQuickPickItem> = disposables.add(this._quickInputService.createQuickPick());
 		quickPick.items = items;
 		quickPick.title = localize('keybindings', 'Configure keybindings');
 		quickPick.placeholder = localize('selectKeybinding', 'Select a command ID to configure a keybinding for it');
-		quickPick.show();
+		let accepted = false;
 		disposables.add(quickPick.onDidAccept(async () => {
 			const item = quickPick.selectedItems[0];
 			if (item) {
+				accepted = true;
+				quickPick.hide();
 				await this._commandService.executeCommand('workbench.action.openGlobalKeybindings', item.id);
 			}
-			quickPick.dispose();
 		}));
-		disposables.add(quickPick.onDidHide(() => {
-			if (!quickPick.selectedItems.length && provider) {
-				this.show(provider);
+		disposables.add(quickPick.onDidHide(({ reason }) => {
+			if (disposables.isDisposed) {
+				return;
 			}
+			const replaced = this._quickInputService.currentQuickInput !== undefined && this._quickInputService.currentQuickInput !== quickPick;
+			const restore = !accepted && reason !== QuickInputHideReason.Blur && !replaced ? retainedProvider.clearAndLeak() : undefined;
 			disposables.dispose();
-			this._isInQuickPick = false;
+			if (restore) {
+				this.show(restore);
+			}
 		}));
+		quickPick.show();
 	}
 
 	private _convertTokensToSymbols(tokens: marked.TokensList, symbols: IAccessibleViewSymbol[]): void {
@@ -814,7 +841,7 @@ export class AccessibleView extends Disposable {
 		return this._currentProvider.options.type === AccessibleViewType.Help || this._currentProvider.options.language === 'markdown' || this._currentProvider.options.language === undefined || (this._currentProvider instanceof AccessibleContentProvider && !!this._currentProvider.getSymbols?.());
 	}
 
-	private _updateLastProvider(): AccesibleViewContentProvider | undefined {
+	private _updateLastProvider(transferDisposal = false): AccesibleViewContentProvider | undefined {
 		const provider = this._currentProvider;
 		if (!provider) {
 			return;
@@ -844,11 +871,15 @@ export class AccessibleView extends Disposable {
 			provider.actions,
 			provider.onDidChangeContent?.bind(provider),
 		);
+		if (transferDisposal && provider instanceof AccessibleContentProvider && lastProvider instanceof AccessibleContentProvider) {
+			lastProvider.onDispose = provider.onDispose?.bind(provider);
+			provider.onDispose = undefined;
+		}
 		return lastProvider;
 	}
 
 	public showAccessibleViewHelp(): void {
-		const lastProvider = this._updateLastProvider();
+		const lastProvider = this._updateLastProvider(true);
 		if (!lastProvider) {
 			return;
 		}
@@ -859,7 +890,9 @@ export class AccessibleView extends Disposable {
 				clearRequested = true;
 			}
 		}) : undefined;
+		let restoringLastProvider = false;
 		const restoreLastProvider = () => {
+			restoringLastProvider = true;
 			this._helpClearListener.clear();
 			this._contextViewService.hideContextView();
 			if (clearRequested) {
@@ -878,6 +911,12 @@ export class AccessibleView extends Disposable {
 				restoreLastProvider,
 				lastProvider.verbositySettingKey
 			);
+			accessibleViewHelpProvider.onDispose = () => {
+				this._helpClearListener.clear();
+				if (!restoringLastProvider) {
+					lastProvider.dispose();
+				}
+			};
 		} else {
 			accessibleViewHelpProvider = new ExtensionContentProvider(
 				lastProvider.id,
@@ -1057,44 +1096,53 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 	}
 }
 
-class AccessibleViewSymbolQuickPick {
-	constructor(private _accessibleView: AccessibleView, @IQuickInputService private readonly _quickInputService: IQuickInputService) {
+class AccessibleViewSymbolQuickPick extends Disposable {
+	private readonly _provider = this._register(new MutableDisposable<AccesibleViewContentProvider>());
+	private readonly _quickPick: IQuickPick<IAccessibleViewSymbol>;
 
-	}
-	show(provider: AccesibleViewContentProvider): void {
-		const disposables = new DisposableStore();
-		const quickPick = disposables.add(this._quickInputService.createQuickPick<IAccessibleViewSymbol>());
+	constructor(
+		private readonly _accessibleView: AccessibleView,
+		provider: AccesibleViewContentProvider,
+		onDidEnd: () => void,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+	) {
+		super();
+		this._provider.value = provider;
+		this._register(toDisposable(onDidEnd));
+		const quickPick = this._quickPick = this._register(this._quickInputService.createQuickPick<IAccessibleViewSymbol>());
 		quickPick.placeholder = localize('accessibleViewSymbolQuickPickPlaceholder', "Type to search symbols");
 		quickPick.title = localize('accessibleViewSymbolQuickPickTitle', "Go to Symbol Accessible View");
-		const picks = [];
-		const symbols = this._accessibleView.getSymbols();
-		if (!symbols) {
-			return;
-		}
-		for (const symbol of symbols) {
-			picks.push({
-				label: symbol.label,
-				ariaLabel: symbol.ariaLabel,
-				firstListItem: symbol.firstListItem,
-				lineNumber: symbol.lineNumber,
-				endLineNumber: symbol.endLineNumber,
-				markdownToParse: symbol.markdownToParse
-			});
-		}
 		quickPick.canSelectMany = false;
-		quickPick.items = picks;
-		quickPick.show();
-		disposables.add(quickPick.onDidAccept(() => {
-			this._accessibleView.showSymbol(provider, quickPick.selectedItems[0]);
-			quickPick.hide();
-		}));
-		disposables.add(quickPick.onDidHide(() => {
-			if (quickPick.selectedItems.length === 0) {
-				// this was escaped, so refocus the accessible view
-				this._accessibleView.show(provider);
+		this._register(quickPick.onDidAccept(() => {
+			const symbol = quickPick.selectedItems[0];
+			if (symbol) {
+				this.restore(symbol);
 			}
-			disposables.dispose();
 		}));
+		this._register(quickPick.onDidHide(({ reason }) => {
+			if (this._store.isDisposed) {
+				return;
+			}
+			const replaced = this._quickInputService.currentQuickInput !== undefined && this._quickInputService.currentQuickInput !== quickPick;
+			if (!quickPick.selectedItems.length && reason !== QuickInputHideReason.Blur && !replaced) {
+				this.restore();
+			} else {
+				this.dispose();
+			}
+		}));
+	}
+
+	show(symbols: readonly IAccessibleViewSymbol[]): void {
+		this._quickPick.items = symbols;
+		this._quickPick.show();
+	}
+
+	private restore(symbol?: IAccessibleViewSymbol): void {
+		const provider = this._provider.clearAndLeak();
+		this.dispose();
+		if (provider) {
+			this._accessibleView.show(provider, symbol);
+		}
 	}
 }
 

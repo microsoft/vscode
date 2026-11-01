@@ -92,6 +92,23 @@ suite('CopilotConnectorsMarketplaceProvider', () => {
 		]);
 	});
 
+	test('dashed and spaced queries tokenize the same way', async () => {
+		const { source } = createSource([
+			connector('id-2', { displayName: 'Work IQ Mail Tools' }),
+			connector('id-1', { displayName: 'Work IQ Mail' }),
+		]);
+		const scores: Record<string, (string | number | undefined)[][]> = {};
+		for (const query of ['Work IQ Mail', 'work-iq-mail', 'work_iq.mail']) {
+			const page = await source.query({ query }, CancellationToken.None);
+			scores[query] = page.items.map(item => [item.identifier, item.score]);
+		}
+		assert.deepStrictEqual(scores, {
+			'Work IQ Mail': [['id-1', 100], ['id-2', 87]],
+			'work-iq-mail': [['id-1', 100], ['id-2', 87]],
+			'work_iq.mail': [['id-1', 100], ['id-2', 87]],
+		});
+	});
+
 	test('matches names and all searchable metadata, including the last keyword and example query', async () => {
 		const { source } = createSource([
 			connector('mail'),

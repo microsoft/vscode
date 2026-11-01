@@ -78,6 +78,10 @@ export class PromptsServiceImpl extends Disposable implements IPromptsService {
 		return Promise.resolve(vscode.chat.getPlugins(token));
 	}
 
+	getWorkspaceFolderRoots(workspaceFolders: readonly URI[]): Promise<URI[]> {
+		return this._agentInstructionsLocator.getWorkspaceFolderRoots(workspaceFolders);
+	}
+
 	listAgentInstructions(token: CancellationToken, logger?: AgentInstructionsLogger): Promise<IAgentInstructionFile[]> {
 		return this._agentInstructionsLocator.listAgentInstructions(token, logger);
 	}

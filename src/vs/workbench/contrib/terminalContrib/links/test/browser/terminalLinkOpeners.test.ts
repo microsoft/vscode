@@ -8,8 +8,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ITextEditorSelection, ITextResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
-import { IFileService, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
-import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
@@ -32,6 +31,7 @@ import { TerminalCommand } from '../../../../../../platform/terminal/common/capa
 import type { IMarker } from '@xterm/headless';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
+import { TestFileService } from './linkTestUtils.js';
 
 interface ITerminalLinkActivationResult {
 	source: 'editor' | 'search';
@@ -42,19 +42,6 @@ interface ITerminalLinkActivationResult {
 class TestCommandDetectionCapability extends CommandDetectionCapability {
 	setCommands(commands: TerminalCommand[]) {
 		this._commands = commands;
-	}
-}
-
-class TestFileService extends FileService {
-	private _files: URI[] | '*' = '*';
-	override async stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
-		if (this._files === '*' || this._files.some(e => e.toString() === resource.toString())) {
-			return { isFile: true, isDirectory: false, isSymbolicLink: false } as IFileStatWithPartialMetadata;
-		}
-		throw new Error('ENOENT');
-	}
-	setFiles(files: URI[] | '*'): void {
-		this._files = files;
 	}
 }
 

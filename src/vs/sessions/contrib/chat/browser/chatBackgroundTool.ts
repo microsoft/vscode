@@ -194,10 +194,10 @@ Changes persist across chats for the active color scheme, leaving the other sche
 		switch (preparedInput.kind) {
 			case 'preset':
 				if (preparedInput.preset === 'none') {
-					await this.backgroundService.clearBackground(theme);
+					await this.backgroundService.clearBackground('agent', theme);
 					message = localize('setChatBackground.result.none', "Removed the chat background");
 				} else {
-					await this.backgroundService.setBackground(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, theme);
+					await this.backgroundService.setBackground(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, 'agent', theme);
 					message = localize('setChatBackground.result.codicons', "Set the chat background to Codicons");
 				}
 				break;
@@ -206,9 +206,9 @@ Changes persist across chats for the active color scheme, leaving the other sche
 				image = prepared.image;
 				imageSize = prepared.size;
 				// From here on the change is applied even if the request is cancelled, so that the result stays accurate.
-				await this.backgroundService.setBackground(image, theme);
+				await this.backgroundService.setBackground(image, 'agent', theme);
 				if (preparedInput.layout) {
-					await this.backgroundService.setBackgroundImageLayout(preparedInput.layout, true, theme);
+					await this.backgroundService.setBackgroundImageLayout(preparedInput.layout, 'agent', true, theme);
 				}
 				message = localize('setChatBackground.result.image', "Set the chat background to {0}", prepared.name);
 				break;
@@ -217,7 +217,7 @@ Changes persist across chats for the active color scheme, leaving the other sche
 				if (replaced?.kind !== 'image') {
 					throw new SetChatBackgroundError('There is no background image to lay out. Pass "image" together with "layout".');
 				}
-				await this.backgroundService.setBackgroundImageLayout(preparedInput.layout, true, theme);
+				await this.backgroundService.setBackgroundImageLayout(preparedInput.layout, 'agent', true, theme);
 				message = localize('setChatBackground.result.layout', "Changed the chat background layout");
 				break;
 		}
@@ -448,6 +448,7 @@ function resolveImage(value: string, workingDirectory: URI | undefined): URI {
 	const remote = workingDirectory?.scheme !== Schemas.file ? workingDirectory : undefined;
 	if (isFileUri) {
 		const uri = URI.parse(value);
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- wraps an absolute background-image filesystem URI using the working directory's host authority
 		return remote?.scheme === AGENT_HOST_SCHEME ? toAgentHostUri(uri, remote.authority)
 			: remote ? remote.with({ path: uri.path, fragment: '' }) : uri;
 	}
@@ -458,6 +459,7 @@ function resolveImage(value: string, workingDirectory: URI | undefined): URI {
 		// The agent host may run on another OS than this window, so convert Windows paths explicitly.
 		const path = /^[a-z]:[\\/]/i.test(value) ? `/${value.replace(/\\/g, '/')}` : value;
 		if (/^(\\\\|\/\/)/.test(value) && remote.scheme === AGENT_HOST_SCHEME) {
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- preserves a UNC image path's filesystem authority inside the working directory's host wrapper
 			return toAgentHostUri(URI.file(value.replace(/\\/g, '/')), remote.authority);
 		}
 		return remote.with({ path, fragment: '' });

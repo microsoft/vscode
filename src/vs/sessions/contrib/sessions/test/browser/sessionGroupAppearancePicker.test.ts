@@ -36,7 +36,11 @@ suite('SessionGroupAppearancePicker', () => {
 			const colors: (string | undefined)[] = [];
 			const quickInputService = instantiationService.get(IQuickInputService);
 			let offered: readonly IQuickPickItem[] = [];
-			quickInputService.pick = async picks => {
+			let optionKeys: string[] = [];
+			let activeItem: string | undefined;
+			quickInputService.pick = async (picks, options) => {
+				optionKeys = Object.keys(options ?? {}).sort();
+				activeItem = (await options?.activeItem)?.id;
 				const items = (await picks).filter(item => item.type !== 'separator');
 				offered = items;
 				return selection === 'cancel' ? undefined : items.find(item => selection === 'reset' ? item.id === undefined : item.id === selection);
@@ -45,9 +49,13 @@ suite('SessionGroupAppearancePicker', () => {
 			await picker.changeColor('terminal.ansiBlue', color => colors.push(color));
 			assert.deepStrictEqual({
 				colors,
+				optionKeys,
+				activeItem,
 				swatches: offered.filter(item => item.iconColor).map(item => ({ id: item.id, color: item.iconColor?.id })),
 			}, {
 				colors: selection === 'cancel' ? [] : [selection === 'reset' ? undefined : selection],
+				optionKeys: ['activeItem', 'matchOnDescription', 'placeHolder'],
+				activeItem: 'terminal.ansiBlue',
 				swatches: ['Black', 'Red', 'Green', 'Yellow', 'Blue', 'Magenta', 'Cyan', 'White'].map(color => ({ id: `terminal.ansi${color}`, color: `terminal.ansi${color}` })),
 			});
 		});

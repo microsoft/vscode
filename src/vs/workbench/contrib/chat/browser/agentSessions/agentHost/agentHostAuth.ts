@@ -26,7 +26,7 @@ import type { AuthenticateTarget, McpServerAuthenticateTarget } from '../../../.
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { copilotConnectorsScope } from '../../../../../../platform/github/common/connectors/connectors.js';
+import { copilotConnectorsScope, copilotCredentialBaselineScopes } from '../../../../../../platform/github/common/connectors/connectors.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -60,12 +60,12 @@ export function agentHostMcpServerId(authority: string, serverName: string, reso
 /**
  * Whether creating a session with the selected model requires the agent's protected-resource authentication.
  */
-export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, model: ModelSelection | undefined, allowSignedOutWhenUsable = false): boolean {
+export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, model: ModelSelection | undefined): boolean {
 	if (!agent?.protectedResources?.length) {
 		return false;
 	}
 	const requiresAuthentication = agent.protectedResources.some(resource => resource.required !== false);
-	if (!allowSignedOutWhenUsable || !agent.models.some(candidate => readAgentModelByokIdentifier(candidate) !== undefined)) {
+	if (!agent.models.some(candidate => readAgentModelByokIdentifier(candidate) !== undefined)) {
 		return requiresAuthentication;
 	}
 	if (!model) {
@@ -324,15 +324,15 @@ export class AgentHostAuthenticationRecovery {
 	private async _recover(accessor: ServicesAccessor, key: string, resource: ProtectedResourceMetadata, options: IResolvedAgentHostAuthenticationOptions): Promise<void> {
 		throwIfAuthenticationStale(options);
 		const logService = accessor.get(ILogService);
-		if (options.renewAuthentication) {
-			await options.renewAuthentication(resource);
+		const authenticationService = accessor.get(IAuthenticationService);
+		const defaultAccountService = accessor.get(IDefaultAccountService);
+		const commandService = accessor.get(ICommandService);
+		if (await options.renewAuthentication?.(resource)) {
 			throwIfAuthenticationStale(options);
 			logService.info(`${options.logPrefix} Renewed authentication for resource: ${resource.resource}`);
 			return;
 		}
-		const authenticationService = accessor.get(IAuthenticationService);
-		const defaultAccountService = accessor.get(IDefaultAccountService);
-		const commandService = accessor.get(ICommandService);
+		throwIfAuthenticationStale(options);
 		const scopes = resource.scopes_supported ?? [];
 		const quarantinePresent = options.authTokenCache?.getRejectedSession(resource.resource, scopes) !== undefined;
 		const resolution = await resolveSessionForProtectedResource(authenticationService, defaultAccountService, logService, resource, options, null);
@@ -573,8 +573,8 @@ export interface IAgentHostAuthenticationOptions {
 	/** Prefer this signed-in session's account when several accounts can satisfy the resource. */
 	readonly preferredSessionId?: string;
 	readonly isCurrent?: () => boolean;
-	/** Renews a connection-owned credential instead of retrying or replacing the user's authentication session. */
-	readonly renewAuthentication?: (resource: ProtectedResourceMetadata) => Promise<void>;
+	/** Returns true after renewing a connection-owned credential, or false to use normal provider recovery. */
+	readonly renewAuthentication?: (resource: ProtectedResourceMetadata) => Promise<boolean>;
 	readonly authenticate: (request: IAgentHostAuthenticateRequest) => Promise<unknown>;
 }
 
@@ -911,8 +911,8 @@ async function resolveSessionForProtectedResource(
 		options.preferredSessionId,
 		defaultAccountService.currentDefaultAccount,
 	);
-	if (!options.preferConnectorScopedSession || resource.resource !== deriveGitHubEndpoints(undefined).apiBaseUri ||
-		resolution.kind !== 'resolved' || resolution.session.scopes.includes(copilotConnectorsScope)) {
+	if (resource.resource !== deriveGitHubEndpoints(undefined).apiBaseUri || resolution.kind !== 'resolved' ||
+		!options.preferConnectorScopedSession && !resolution.session.scopes.includes(copilotConnectorsScope)) {
 		return resolution;
 	}
 
@@ -923,20 +923,35 @@ async function resolveSessionForProtectedResource(
 		logService.trace(`${options.logPrefix} Unable to resolve an already-authorized connector session; retaining Copilot authentication`, error);
 		return resolution;
 	}
-	let preferred = resolution.session;
-	for (const session of sessions) {
-		if (session.account.id === resolution.session.account.id &&
-			isAuthenticationSessionCandidate(session, rejectedSession) &&
-			session.scopes.includes(copilotConnectorsScope) &&
-			(resource.scopes_supported ?? []).every(scope => session.scopes.includes(scope)) &&
-			(!preferred.scopes.includes(copilotConnectorsScope) || session.scopes.length < preferred.scopes.length)) {
-			preferred = session;
-		}
+	const requiredScopes = resource.scopes_supported ?? [];
+	const candidates = sessions.filter(session => session.account.id === resolution.session.account.id &&
+		isAuthenticationSessionCandidate(session, rejectedSession) &&
+		requiredScopes.every(scope => session.scopes.includes(scope)));
+	// The forwarded credential is also used for GitHub requests beyond Copilot (for example, the GitHub MCP server),
+	// so a Connector-scoped session must never replace it with fewer scopes. The baseline is the credential the
+	// account would use without Connector authorization; Connector authorization keeps the same baseline's scopes.
+	const isConnectorScoped = (session: AuthenticationSession) => session.scopes.includes(copilotConnectorsScope);
+	const baselineScopes = copilotCredentialBaselineScopes(candidates, requiredScopes) ?? resolution.session.scopes;
+	const fallback = isConnectorScoped(resolution.session)
+		? selectFewestScopes(candidates.filter(session => !isConnectorScoped(session))) ?? resolution.session
+		: resolution.session;
+	const retainsBaseline = (session: AuthenticationSession) => baselineScopes.every(scope => session.scopes.includes(scope));
+	const preferred = isConnectorScoped(resolution.session) && retainsBaseline(resolution.session)
+		? resolution.session
+		: options.preferConnectorScopedSession
+			? selectFewestScopes(candidates.filter(session => isConnectorScoped(session) && retainsBaseline(session))) ?? fallback
+			: fallback;
+	if (preferred === fallback && fallback !== resolution.session) {
+		logService.info(`${options.logPrefix} Forwarding the account's GitHub credential instead of a Copilot Connector session that lacks some of its scopes`);
 	}
 	return preferred === resolution.session ? resolution : {
 		kind: 'resolved', providerId: resolution.providerId, session: preferred, match: 'superset',
 		...(isEqual(preferred.authorizationServer, resolution.session.authorizationServer) && resolution.entitlement ? { entitlement: resolution.entitlement } : {}),
 	};
+}
+
+function selectFewestScopes(sessions: readonly AuthenticationSession[]): AuthenticationSession | undefined {
+	return findFirstMin(sessions, compareBy(session => new Set(session.scopes).size, numberComparator));
 }
 
 function logAuthenticationSessionResolution(
@@ -1080,15 +1095,6 @@ async function forceAuthenticationInteractively(
 }
 
 /**
- * Whether an MCP authentication requirement belongs to a Copilot Connector. Connector-owned servers authenticate
- * with the session's GitHub credential, so their challenge asks for the Connector authorization scope and a
- * per-server MCP token never satisfies it.
- */
-export function isCopilotConnectorMcpAuthentication(requiredScopes: readonly string[] | undefined): boolean {
-	return requiredScopes?.includes(copilotConnectorsScope) === true;
-}
-
-/**
  * Forwards the GitHub Copilot credential of the account that authorized Copilot Connectors, without prompting and
  * preferring that account's session that also grants the Connector scope. Connector-owned servers use this
  * credential, so this is how an authorization of the account reaches them. Never falls back to another account.
@@ -1128,6 +1134,7 @@ export function autoAuthenticateMcpServer(
 	});
 }
 
+/** Resolves an MCP credential, propagating discovery and provider failures for interactive requests. */
 export async function resolveMcpServerAuthentication(
 	accessor: ServicesAccessor,
 	protectedResource: ProtectedResourceMetadata,
@@ -1139,11 +1146,6 @@ export async function resolveMcpServerAuthentication(
 	const authenticationMcpUsageService = accessor.get(IAuthenticationMcpUsageService);
 	const dynamicAuthenticationProviderStorageService = accessor.get(IDynamicAuthenticationProviderStorageService);
 	const logService = accessor.get(ILogService);
-	if (isCopilotConnectorMcpAuthentication(options.scopes)) {
-		// A narrow token would be ignored for the Connector and retried indefinitely; Connector authorization owns this.
-		logService.info(`${options.logPrefix} Not forwarding an MCP token for Connector-owned server ${options.mcpServerName}; it requires Copilot Connector authorization`);
-		return false;
-	}
 	let authorizationServerMetadataFetcher = options.authorizationServerMetadataFetcher;
 	if (!authorizationServerMetadataFetcher) {
 		const metadataService = accessor.get(IAgentHostMcpOAuthMetadataService);
@@ -1161,6 +1163,9 @@ export async function resolveMcpServerAuthentication(
 			protectedResource = { ...protectedResource, ...metadata };
 		} catch (error) {
 			logService.warn(`${options.logPrefix} Failed to discover MCP authentication for ${options.mcpServerName}`, error);
+			if (options.allowInteraction) {
+				throw error;
+			}
 			return false;
 		}
 	}
@@ -1169,22 +1174,32 @@ export async function resolveMcpServerAuthentication(
 		? options.scopes
 		: protectedResource.scopes_supported ?? [];
 	const authenticationOperations = getMcpAuthenticationOperations(authenticationService);
+	let providerError: unknown;
 	for (const authorizationServer of protectedResource.authorization_servers ?? []) {
 		const authorizationServerUri = URI.parse(authorizationServer);
 		const providerOperationId = await getMcpAuthenticationProviderId(authorizationServerUri, protectedResource, options.oauthClient, dynamicAuthenticationProviderStorageService);
 		const authenticated = await authenticationOperations.queue(providerOperationId, async () => {
-			const providerId = await getOrCreateProviderForMcpResource(
-				authorizationServerUri,
-				protectedResource,
-				options.oauthClient,
-				providerOperationId,
-				authenticationService,
-				dynamicAuthenticationProviderStorageService,
-				logService,
-				options.logPrefix,
-				options.allowInteraction,
-				authorizationServerMetadataFetcher,
-			);
+			let providerId: string | undefined;
+			try {
+				providerId = await getOrCreateProviderForMcpResource(
+					authorizationServerUri,
+					protectedResource,
+					options.oauthClient,
+					providerOperationId,
+					authenticationService,
+					dynamicAuthenticationProviderStorageService,
+					logService,
+					options.logPrefix,
+					options.allowInteraction,
+					authorizationServerMetadataFetcher,
+				);
+			} catch (error) {
+				if (!options.allowInteraction || isCancellationError(error)) {
+					throw error;
+				}
+				providerError = error;
+				return false;
+			}
 			if (!providerId) {
 				return false;
 			}
@@ -1222,10 +1237,18 @@ export async function resolveMcpServerAuthentication(
 				});
 			await authenticateMcpSession(providerId, session, scopes, authenticationMcpAccessService, authenticationMcpService, authenticationMcpUsageService, logService, options, true, agentHostMeta);
 			return true;
+		}).catch(error => {
+			if (error === 'Cancelled' || (error instanceof Error && error.message === 'Cancelled')) {
+				throw new CancellationError();
+			}
+			throw error;
 		});
 		if (authenticated) {
 			return true;
 		}
+	}
+	if (providerError !== undefined) {
+		throw providerError;
 	}
 	return false;
 }
@@ -1316,6 +1339,9 @@ async function getOrCreateProviderForMcpResource(
 		return provider?.id;
 	} catch (err) {
 		logService.warn(`${logPrefix} Failed to create MCP auth provider for ${authorizationServer.toString(true)}`, err);
+		if (allowCreation) {
+			throw err;
+		}
 		return undefined;
 	}
 }

@@ -15,6 +15,7 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/servic
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
 import { IChat, ISession, ISessionCanvasDefinition } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
@@ -36,6 +37,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 		@ISessionEditorWorkingSetService editorWorkingSetService: ISessionEditorWorkingSetService,
 		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
 		@IChatService chatService: IChatService,
+		@ICustomViewService private readonly customViewService: ICustomViewService,
 	) {
 		super();
 		this.workingSets = {
@@ -52,8 +54,9 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 			const owner: ICanvasOwner = { providerId: session.providerId, session: session.resource, chat: chat.resource };
 			this.knownOwners.set(canvasOwnerKey(owner), owner);
 			chatService.chatModels.read(reader);
-			const openRequests = chatService.getSession(chat.resource)?.canvasContext?.read(reader)?.openRequests;
 			const supportsCanvases = session.capabilities.read(reader).supportsCanvases === true;
+			// Open requests are derived from the chat's canvases, so only read them while the session presents canvases.
+			const openRequests = supportsCanvases ? chatService.getSession(chat.resource)?.canvasContext?.read(reader)?.openRequests : undefined;
 			const canvases = supportsCanvases ? chat.canvases ?? constObservable(undefined) : constObservable([]);
 			const definitionProvider = supportsCanvases ? {
 				onDidChangeDefinitions: Event.fromObservableLight(canvases),
@@ -76,6 +79,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 	isOwnerVisible(owner: ICanvasOwner, reader?: IReader): boolean {
 		const session = this.sessionsService.activeSession.read(reader);
 		return !!session
+			&& !this.customViewService.activeCustomView.read(reader)
 			&& session.capabilities.read(reader).supportsCanvases === true
 			&& ownsSession(owner, session)
 			&& isEqual(session.activeChat.read(reader).resource, owner.chat);
@@ -121,6 +125,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 export class SessionCanvasRegistryService extends Disposable implements ISessionCanvasRegistryService {
 
 	declare readonly _serviceBrand: undefined;
+	readonly supportsCanvases: IObservable<boolean>;
 	readonly availableCanvases: IObservable<readonly ISessionCanvasDefinition[]>;
 
 	constructor(
@@ -130,12 +135,18 @@ export class SessionCanvasRegistryService extends Disposable implements ISession
 		@ILogService logService: ILogService,
 	) {
 		super();
+		this.supportsCanvases = derived(this, reader => {
+			const session = sessionsService.activeSession.read(reader);
+			return !!session?.activeChat.read(reader)
+				&& canvasService.enabled.read(reader)
+				&& session.capabilities.read(reader).supportsCanvases === true;
+		});
 		this.availableCanvases = this._register(new CanvasDefinitionStore(reader => {
 			const session = sessionsService.activeSession.read(reader);
 			const chat = session?.activeChat.read(reader);
 			// Hosts republish canvas membership when their registry changes, so refresh on every emission.
 			chat?.canvases?.read(reader);
-			if (!session || !chat || !canvasService.enabled.read(reader) || session.capabilities.read(reader).supportsCanvases !== true) {
+			if (!session || !chat || !this.supportsCanvases.read(reader)) {
 				return undefined;
 			}
 			return {

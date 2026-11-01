@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../base/browser/dom.js';
+import { isContextViewFocused } from '../../../../base/browser/ui/contextview/contextview.js';
 import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { timeout } from '../../../../base/common/async.js';
@@ -112,7 +113,7 @@ export class InlineEditInputBox extends Disposable {
 				}
 
 				const ownerDocument = inputBox.inputElement.ownerDocument;
-				if (DOM.isHTMLElement(ownerDocument.activeElement) && DOM.hasParentWithClass(ownerDocument.activeElement, 'context-view')) {
+				if (isContextViewFocused(ownerDocument)) {
 					// Keep editing while a context menu of the input box is open
 					await Event.toPromise(this._contextMenuService.onDidHideContextMenu, this._store);
 				} else if (ownerDocument.activeElement === inputBox.inputElement) {

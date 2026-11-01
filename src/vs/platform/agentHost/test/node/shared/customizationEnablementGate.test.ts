@@ -34,6 +34,8 @@ class TestEnablementService implements IAgentHostCustomizationEnablementService 
 
 	async initializeSession(_session: string): Promise<void> { }
 
+	adoptMcpServerOwnership(): void { }
+
 	getWorkingDirectoryState(_session: string): WorkingDirectoryState {
 		return { kind: 'workspaceless' };
 	}

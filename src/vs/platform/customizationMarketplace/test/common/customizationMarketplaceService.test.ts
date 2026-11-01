@@ -80,6 +80,28 @@ suite('CustomizationMarketplaceService', () => {
 		});
 	});
 
+	test('prioritizes provider queries without changing result tie-breaking order', async () => {
+		const calls: string[] = [];
+		const sources = ['first', 'priority', 'last'].map((id): ICustomizationMarketplaceProvider => ({
+			id,
+			query: async () => {
+				calls.push(id);
+				return { items: [{ ...entry, identifier: id }], total: 1 };
+			},
+		}));
+		const page = await new CustomizationMarketplaceService(sources, ['priority']).query({
+			sourceIds: sources.map(source => source.id),
+			pageSize: sources.length,
+		}, CancellationToken.None);
+		assert.deepStrictEqual({
+			calls,
+			items: page.items.map(item => item.identifier),
+		}, {
+			calls: ['priority', 'first', 'last'],
+			items: ['first', 'priority', 'last'],
+		});
+	});
+
 	test('reports source progress and serves cached Browse content while refreshing', async () => {
 		const firstFast = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
 		const firstSlow = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
@@ -123,6 +145,25 @@ suite('CustomizationMarketplaceService', () => {
 		secondFast.complete({ items: [{ ...entry, identifier: 'fresh-fast' }], total: 1 });
 		secondSlow.complete({ items: [{ ...entry, identifier: 'fresh-slow' }], total: 1 });
 		assert.deepStrictEqual((await refresh).items.map(item => item.identifier), ['fresh-fast', 'fresh-slow']);
+	});
+
+	test('clears cached Browse content only for the requested sources', async () => {
+		const calls = { fast: 0, slow: 0 };
+		const service = new CustomizationMarketplaceService((['fast', 'slow'] as const).map((id): ICustomizationMarketplaceProvider => ({
+			id: `provider.${id}`,
+			sourceId: id,
+			query: async () => {
+				calls[id]++;
+				return { items: [{ ...entry, identifier: `${id}-${calls[id]}` }], total: 1 };
+			},
+		})));
+		await service.query({ sourceIds: ['fast', 'slow'], pageSize: 2 }, CancellationToken.None);
+		service.clearBrowseCache(['slow']);
+		const cached = new Set<string>();
+		await service.query({ sourceIds: ['fast', 'slow'], pageSize: 2 }, CancellationToken.None, update => {
+			update.cachedSourceIds.forEach(sourceId => cached.add(sourceId));
+		});
+		assert.deepStrictEqual({ cached: [...cached], calls }, { cached: ['fast'], calls: { fast: 2, slow: 2 } });
 	});
 
 	test('groups multiple providers behind one contributed source', async () => {

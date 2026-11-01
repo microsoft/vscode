@@ -10,12 +10,13 @@ import { Schemas } from '../../../../base/common/network.js';
 import { findAgentSessionMessage, getPendingSteeringMessages, readOwnedAgentSessionMessage } from '../../common/agentSessionMessage.js';
 import { toAgentMessageDelegationMeta, type IAgentMessageDelegationMeta, type IAgentMessageSessionDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { localize } from '../../../../nls.js';
-import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionMetadata } from '../../common/agent.js';
+import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionChatMetadata, type IAgentSessionMetadata } from '../../common/agent.js';
+import { fromAgentHostChatHarness, toAgentHostChatHarness } from '../../common/agentHostChatProviders.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
-import { ChatInteractivity, ChatOriginKind, getAgentHostChatId, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, isSessionStatusRead, MessageKind, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
-import { buildOpenSessionLinkForChat, buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
+import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_ID, getAgentHostChatId, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, isSessionStatusRead, MessageKind, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type SessionActiveClient, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { AGENT_HOST_CHAT_LINK_PATTERN, buildOpenSessionLinkForChat, buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
@@ -163,15 +164,39 @@ const createSessionWithSharedWorkspaceInputSchema: ToolDefinition['inputSchema']
 	required: ['relationship', 'prompt', 'title'],
 };
 
+const createSessionHarnessSentence = ' With `currentSession`, set `harness` to create the chat on another agent, for example to have a different agent review the work.';
+
+/** `create_session` offering `harness`, with the harnesses a chat of the session may use, for a session whose chats may use another agent. */
+function withCreateSessionHarness(definition: IAgentServerToolDefinition, available: readonly AgentProvider[]): IAgentServerToolDefinition {
+	const inputSchema = definition.inputSchema ?? { type: 'object' as const };
+	const harness = {
+		type: 'string',
+		description: `Optional harness (agent) for the new chat: one of ${available.map(provider => `\`${toAgentHostChatHarness(provider)}\``).join(', ')}. Only valid with relationship \`currentSession\`. Defaults to the current session's harness. A chat on another harness starts with that harness's defaults; \`model\`, when given, must belong to it.`,
+	};
+	const model = { ...inputSchema.properties?.model, description: createSessionHarnessModelDescription };
+	return {
+		...definition,
+		description: `${definition.description}${createSessionHarnessSentence}`,
+		inputSchema: { ...inputSchema, properties: { ...inputSchema.properties, model, harness } },
+	};
+}
+
 const createSessionWithSharedWorkspaceDescription = 'Create delegated work and start it with an initial prompt, either in a new chat sharing the current session\'s workspace, lifecycle, and aggregate diff, or in an independent session. Only supply `worktree` when the user explicitly requests working with or without a new worktree; never combine it with `currentSession`.';
 
 /** The sentences of `list_sessions` and `get_current_session` that describe a session's `chats`, by tool. */
-const listSessionsChatsSentence = 'A session with nested sessions also lists `chats`: its main session (`main: true`) and its nested sessions in order, each with a `title` and an `openLink` that names that chat in `send_message`, `get_session_context` and `rename_chat`.';
+const listSessionsChatsSentence = 'A session with nested sessions also lists `chats`: its main session (`main: true`) and its nested sessions in order, each with a `title` and an `openLink` that names that chat in `send_message`, `get_session_context`, `rename_chat` and `archive_chat`.';
 const getCurrentSessionChatsSentence = 'Get metadata and the open link for the session this conversation is running in, with its nested sessions in `chats` like `list_sessions`.';
 const sessionChatsSentences: ReadonlyMap<string, string> = new Map([
 	[SessionServerToolName.ListSessions, listSessionsChatsSentence],
 	[SessionServerToolName.GetCurrentSession, getCurrentSessionChatsSentence],
 ]);
+/** {@link sessionChatsSentences} for a session whose chats may use another agent, which lists their `harness`. */
+const sessionChatsHarnessSentences: ReadonlyMap<string, string> = new Map([
+	[SessionServerToolName.ListSessions, 'A session with nested sessions also lists `chats`: its main session (`main: true`) and its nested sessions in order, each with a `title`, an `openLink` that names that chat in `send_message`, `get_session_context`, `rename_chat` and `archive_chat`, and a `harness` when it runs on a different agent than its session.'],
+	[SessionServerToolName.GetCurrentSession, 'Get metadata and the open link for the session this conversation is running in, with its nested sessions in `chats` like `list_sessions`, including the `harness` of a nested session that runs on a different agent.'],
+]);
+/** `create_session`'s `model` description for a session whose chats may use another agent. */
+const createSessionHarnessModelDescription = 'Optional model ID or display name. Defaults to the current chat\'s model when the new chat uses the same agent. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.';
 /** Follows a tool's {@link sessionChatsSentences} entry while `move_session` is offered. */
 const moveSessionLinksSentence = ' `move_session` takes these links too.';
 
@@ -204,6 +229,14 @@ const renameChatInputSchema: NonNullable<ToolDefinition['inputSchema']> = {
 		automatic: { type: 'boolean', description: 'Set to true only when this call is fulfilling the host\'s automatic title reminder. Omit for user-requested renames.' },
 	},
 	required: ['title'],
+};
+
+const archiveChatInputSchema: ToolDefinition['inputSchema'] = {
+	type: 'object',
+	properties: {
+		chat: { type: 'string', description: 'The chat to archive: an `agent-host-session://` chat link from `list_sessions`, `get_current_session` or `create_session`. A session link without a chat id targets that session\'s main session, which archives the whole session.' },
+	},
+	required: ['chat'],
 };
 
 const deleteSessionInputSchema: ToolDefinition['inputSchema'] = {
@@ -289,6 +322,14 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 		deferLoading: true,
 	},
 	{
+		name: SessionServerToolName.ArchiveChat,
+		title: 'Archive Chat',
+		description: 'Archive a chat, or a whole session, so it no longer appears among active sessions. Use it when the user asks to archive a chat or session or to mark it done. Archiving a nested session archives only that chat. Archiving a session\'s main session (`main: true` in `chats`, or a session link without a chat id) archives the whole session with all of its nested sessions, and removes its isolated worktree after committing the worktree\'s changes. Archived chats keep their history and can be unarchived. To remove a session permanently, use `delete_session` instead. Refuses the chat this tool runs in and the main session of its own session.',
+		inputSchema: archiveChatInputSchema,
+		annotations: { readOnlyHint: false },
+		deferLoading: true,
+	},
+	{
 		name: SessionServerToolName.SendMessage,
 		title: 'Send Message',
 		description: 'Send, replace, or cancel your message in an existing session or chat. Use `delivery: "steer"` only to update an active turn; steering is handed to the provider immediately and cannot be replaced or cancelled. Use `delivery: "queue"` for a separate turn. Replace and cancel require the message ID and revision returned by an earlier call and succeed only while that queued message is pending. If it already started, the result reports `processing` or `completed`; decide whether to send a steering correction or a queued follow-up. Delivery is asynchronous — this tool does not wait for or return a reply.',
@@ -333,6 +374,7 @@ interface ICreateSessionArgs {
 	readonly prompt?: unknown;
 	readonly title?: unknown;
 	readonly model?: unknown;
+	readonly harness?: unknown;
 }
 
 export type IResolvedCreateSessionArgs = {
@@ -394,12 +436,23 @@ export interface IAgentServiceSessionServerToolAccessor {
 	readonly getWorktreeRoots: (workspace: URI) => Promise<readonly URI[]>;
 	readonly createSession: (config: IAgentCreateSessionConfig) => Promise<URI>;
 	readonly getModels: () => readonly IAgentModelInfo[];
-	readonly getCreationDefaults: (source: URI) => ISessionCreationDefaults | undefined;
+	readonly getCreationDefaults: (source: URI, sourceTurnId?: string) => ISessionCreationDefaults | undefined;
 	readonly startPrompt: (session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta, credentials?: IAgentHostCredentialSource) => Promise<void>;
-	readonly createChat: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection; workingDirectories?: readonly URI[] }, credentials?: IAgentHostCredentialSource) => Promise<void>;
+	readonly createChat: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection; workingDirectories?: readonly URI[]; provider?: AgentProvider }, credentials?: IAgentHostCredentialSource) => Promise<void>;
+	/**
+	 * The agents a new chat of `session` may use (`create_session`'s `harness`): `undefined` unless chats of one session
+	 * may use different agents (`multipleChatProviders.enabled`) and the session's agent supports multiple chats.
+	 */
+	readonly getChatHarnesses: (session: URI) => readonly AgentProvider[] | undefined;
+	/** Whether `provider` is registered and enabled, so it can start a new top-level session. */
+	readonly canCreateSessions: (provider: AgentProvider) => boolean;
 	readonly prepareChatWorkingDirectory: (session: URI, directory: URI, options: IAddSessionWorkingDirectoryOptions) => Promise<IPreparedChatWorkingDirectory>;
 	readonly renameChat: (session: URI, chat: URI, title: string) => Promise<IRenameTitleResult>;
 	readonly reportToolError: (toolName: SessionServerToolName, error: unknown) => void;
+	/** Archives a session with all of its chats, as a client archiving it would. Rejects when the host refuses. */
+	readonly archiveSession: (session: URI) => Promise<void>;
+	/** Archives a non-default chat of a session, as a client archiving it would. Rejects when the host refuses. */
+	readonly archiveChat: (chat: URI) => Promise<void>;
 	readonly deleteSession: (session: URI) => Promise<void>;
 	/** Reads a point-in-time snapshot of a session's chat conversation (default chat, or a specific chat by id). */
 	readonly getChatContext: (session: URI, chatId?: string) => Promise<IChatContextSnapshot | undefined>;
@@ -482,11 +535,15 @@ export interface IRenameTitleResult {
 }
 
 export interface ISessionCreationDefaults {
+	/** The calling chat's own agent, which its model and config belong to. */
 	readonly provider?: AgentProvider;
+	/** The agent of the calling chat's session, which a current-session chat uses unless it requests another. */
+	readonly sessionProvider?: AgentProvider;
 	readonly model?: ModelSelection;
 	readonly config?: Record<string, unknown>;
 	readonly isolation?: 'folder' | 'worktree';
 	readonly project?: URI;
+	readonly activeClient?: SessionActiveClient;
 }
 
 /** Point-in-time snapshot of a chat's conversation, read from the host state. */
@@ -551,6 +608,8 @@ interface ISerializedSessionChat {
 	/** Whether this is the session's main session. */
 	readonly main?: true;
 	readonly status?: string;
+	/** The harness (agent) of a nested session whose harness differs from its session's. */
+	readonly harness?: string;
 }
 
 /**
@@ -567,13 +626,20 @@ function serializeSessionChats(session: IAgentSessionMetadata): readonly ISerial
 		const main = chat.kind === 'default';
 		const title = chat.summary ?? (main ? session.summary : undefined);
 		const status = chat.status !== undefined ? describeSessionStatusBits(chat.status).join(',') || undefined : undefined;
+		const harness = chatHarness(session, chat);
 		return {
 			...(title !== undefined ? { title } : {}),
 			openLink: buildOpenSessionLinkForChat(session.session, chat.chat, defaultChat, undefined) ?? buildOpenSessionLinkUri(session.session),
 			...(main ? { main: true as const } : {}),
 			...(status !== undefined ? { status } : {}),
+			...(harness !== undefined ? { harness } : {}),
 		};
 	});
+}
+
+/** The user-facing harness of a chat whose agent differs from its session's; `undefined` otherwise. */
+function chatHarness(session: IAgentSessionMetadata, chat: IAgentSessionChatMetadata | undefined): string | undefined {
+	return chat?.provider !== undefined && chat.provider !== session.provider ? toAgentHostChatHarness(chat.provider) : undefined;
 }
 
 function getRequiredString(value: unknown, field: string, toolName: string): string {
@@ -1087,8 +1153,11 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	const currentSession = source ? currentSessionUri(accessor, source.toString()) : undefined;
 	const supportsChatWorkingDirectories = currentSession === undefined || accessor.supportsChatWorkingDirectories(currentSession);
 	const sessions = await getCreateSessionCatalog(accessor, rawArgs, supportsChatWorkingDirectories);
-	const defaults = source ? accessor.getCreationDefaults(source) : undefined;
-	const currentProvider = defaults?.provider ?? (currentSession ? (await accessor.getSession(currentSession))?.provider ?? AgentSession.provider(currentSession) : undefined);
+	const defaults = source ? accessor.getCreationDefaults(source, sourceTurnId) : undefined;
+	const sessionProvider = defaults?.sessionProvider ?? (currentSession ? (await accessor.getSession(currentSession))?.provider ?? AgentSession.provider(currentSession) : undefined);
+	const harnessProvider = resolveCreateSessionHarness(accessor, rawArgs, currentSession, supportsChatWorkingDirectories);
+	// The agent a current-session chat is created on: the requested harness, else the session's (never the calling chat's).
+	const currentProvider = harnessProvider ?? sessionProvider;
 	const args = getCreateSessionArgs(rawArgs, sessions, accessor.getModels(), currentProvider, supportsChatWorkingDirectories);
 	if (args.relationship === 'currentSession') {
 		if (!currentSession) {
@@ -1112,6 +1181,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 				title: args.title,
 				model: args.model,
 				...(prepared !== undefined ? { workingDirectories: [prepared.directory] } : {}),
+				...(harnessProvider !== undefined && harnessProvider !== sessionProvider ? { provider: harnessProvider } : {}),
 			}, source, sourceTurnId, prepared?.associateWithChat);
 		} catch (error) {
 			await prepared?.release();
@@ -1132,6 +1202,9 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 		}
 	}
 	const provider = args.model?.provider ?? defaults?.provider;
+	if (args.model === undefined && provider !== undefined && !accessor.canCreateSessions(provider)) {
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: the current chat's agent "${toAgentHostChatHarness(provider)}" can't start a new session because it is unavailable or disabled. Pass \`model\` with a model of another agent to choose the new session's agent.`);
+	}
 	const inheritsSourceProvider = provider !== undefined && provider === defaults?.provider;
 	const inheritedProviderConfig = inheritsSourceProvider ? defaults?.config : undefined;
 	let isolation: 'folder' | 'worktree' | undefined;
@@ -1154,6 +1227,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 		...(workspace !== undefined ? { workingDirectories: [workspace] } : {}),
 		...(provider !== undefined ? { provider } : {}),
 		...(args.model !== undefined ? { model: { id: args.model.id } } : defaults?.model !== undefined ? { model: defaults.model } : {}),
+		...(inheritsSourceProvider && defaults?.activeClient !== undefined ? { activeClient: { ...defaults.activeClient, tools: [] } } : {}),
 		...(configValues !== undefined ? { config: configValues } : {}),
 		...(currentSession !== undefined && source !== undefined ? {
 			_meta: withSessionCreationReference(undefined, {
@@ -1177,6 +1251,29 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 		...(sourceTurnId !== undefined ? { sourceTurnId } : {}),
 	} : undefined, credentials);
 	return { relationship: args.relationship, session: session.toString(), chat: chat.toString(), openLink: buildOpenSessionLinkUri(session) };
+}
+
+/**
+ * Resolves `create_session`'s `harness` to the agent provider of the new chat, with the checks the host applies to a
+ * chat created with its own agent. `undefined` when no harness is requested.
+ */
+function resolveCreateSessionHarness(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentSession: URI | undefined, supportsChatWorkingDirectories: boolean): AgentProvider | undefined {
+	const harness = getOptionalString((rawArgs as ICreateSessionArgs | undefined)?.harness, 'harness', SessionServerToolName.CreateSession);
+	if (harness === undefined) {
+		return undefined;
+	}
+	if (getCreateSessionRelationship(rawArgs, supportsChatWorkingDirectories) !== 'currentSession') {
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: harness is only valid with relationship "currentSession". Omit harness, or create the chat in the current session.`);
+	}
+	const available = currentSession ? accessor.getChatHarnesses(currentSession) : undefined;
+	if (!available) {
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: chats in this session can't use another harness because multiple chat providers is off, or this session's agent doesn't support multiple chats. Omit harness to use the session's own agent.`);
+	}
+	const provider = available.includes(harness) ? harness : fromAgentHostChatHarness(harness);
+	if (!available.includes(provider)) {
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: harness "${harness}" is not available. Use one of: ${available.map(toAgentHostChatHarness).join(', ')}, or omit harness to use the session's own agent.`);
+	}
+	return provider;
 }
 
 /**
@@ -1219,6 +1316,8 @@ interface IResolvedCreateChatArgs {
 	readonly title?: string;
 	readonly model?: IAgentModelInfo;
 	readonly workingDirectories?: readonly URI[];
+	/** The agent of the new chat when it differs from its session's. */
+	readonly provider?: AgentProvider;
 }
 
 /**
@@ -1269,12 +1368,14 @@ export function getCreateChatArgs(rawArgs: unknown, sessions: readonly IAgentSes
 async function createChat(accessor: ISessionServerToolAccessor, args: IResolvedCreateChatArgs, source?: URI, sourceTurnId?: string, onChatAllocated?: (chat: URI) => Promise<void>): Promise<ICreateChatResult> {
 	const credentials = source ? accessor.getCredentialSource(source) : undefined;
 	const currentSession = source ? currentSessionUri(accessor, source.toString()) : undefined;
-	const defaults = source ? accessor.getCreationDefaults(source) : undefined;
-	const targetProvider = (await accessor.getSession(args.session))?.provider ?? AgentSession.provider(args.session);
+	const defaults = source ? accessor.getCreationDefaults(source, sourceTurnId) : undefined;
+	const targetProvider = args.provider ?? (await accessor.getSession(args.session))?.provider ?? AgentSession.provider(args.session);
+	// The calling chat's model is inherited only by a chat of the same agent.
 	const model = args.model !== undefined ? { id: args.model.id } : targetProvider === defaults?.provider ? defaults?.model : undefined;
 	const chat = URI.parse(mintPeerChatUri(chatUriFormatOf(accessor.getDefaultChat(args.session.toString())), args.session.toString()));
 	await onChatAllocated?.(chat);
 	await accessor.createChat(args.session, chat, {
+		...(args.provider !== undefined ? { provider: args.provider } : {}),
 		title: args.title,
 		model,
 		...(args.workingDirectories !== undefined ? { workingDirectories: args.workingDirectories } : {}),
@@ -1753,6 +1854,8 @@ function describeTurnState(state: TurnState | 'inProgress'): string {
 interface ISerializedSessionContext {
 	readonly session: string;
 	readonly openLink: string;
+	/** The harness (agent) of a chat whose harness differs from its session's. */
+	readonly harness?: string;
 	readonly detail: SessionContextDetail;
 	readonly transcript: readonly ISerializedContextTurn[];
 	readonly messagesSentByMe?: readonly {
@@ -1768,7 +1871,7 @@ interface ISerializedSessionContext {
 }
 
 /** Builds the compacted, model-facing session-context payload from a snapshot. */
-export function serializeSessionContext(session: URI, chatId: string | undefined, snapshot: IChatContextSnapshot, detail: SessionContextDetail, transcriptLimit: number, sourceChat?: URI): string {
+export function serializeSessionContext(session: URI, chatId: string | undefined, snapshot: IChatContextSnapshot, detail: SessionContextDetail, transcriptLimit: number, sourceChat?: URI, harness?: string): string {
 	const caps = contextCaps[detail];
 	let truncated = false;
 	const trunc = (text: string, max: number): string | undefined => {
@@ -1827,6 +1930,7 @@ export function serializeSessionContext(session: URI, chatId: string | undefined
 	const payload: ISerializedSessionContext = {
 		session: session.toString(),
 		openLink: buildOpenSessionLinkUri(session, chatId),
+		...(harness !== undefined ? { harness } : {}),
 		detail,
 		transcript,
 		...(messagesSentByMe !== undefined ? { messagesSentByMe } : {}),
@@ -1841,19 +1945,22 @@ export async function applyGetSessionContextTool(accessor: ISessionServerToolAcc
 	const sessions = await accessor.listSessions();
 	const { session, chatId, detail, transcriptLimit } = getSessionContextArgs(rawArgs, sessions);
 	const snapshot = await accessor.getChatContext(session, chatId);
+	const metadata = sessions.find(candidate => candidate.session.toString() === session.toString());
+	const harness = metadata && chatId !== undefined ? chatHarness(metadata, metadata.chats?.find(chat => chat.chat.toString() === chatId || getAgentHostChatId(chat.chat) === chatId)) : undefined;
 	if (!snapshot) {
 		// No live conversation state (e.g. a cold/unsubscribed session): return the
 		// identity + an empty transcript. Metadata is available via list_sessions.
 		return JSON.stringify({
 			session: session.toString(),
 			openLink: buildOpenSessionLinkUri(session, chatId),
+			...(harness !== undefined ? { harness } : {}),
 			detail,
 			transcript: [],
 			hasMoreHistory: false,
 			truncated: false,
 		} satisfies ISerializedSessionContext);
 	}
-	return serializeSessionContext(session, chatId, snapshot, detail, transcriptLimit, currentChannel ? URI.parse(currentChannel) : undefined);
+	return serializeSessionContext(session, chatId, snapshot, detail, transcriptLimit, currentChannel ? URI.parse(currentChannel) : undefined, harness);
 }
 
 
@@ -1895,6 +2002,87 @@ export async function applyDeleteSessionTool(accessor: ISessionServerToolAccesso
 	const session = getDeleteSessionArgs(rawArgs, sessions, currentSession);
 	await accessor.deleteSession(session);
 	return `Deleted session ${session.toString()}. Reply with one short sentence confirming the session was deleted.`;
+}
+
+interface IArchiveChatArgs {
+	readonly chat?: unknown;
+}
+
+/** The target of `archive_chat`: a session's main session archives the session, any other chat only itself. */
+export type IResolvedArchiveChatArgs =
+	| { readonly kind: 'session'; readonly session: URI }
+	| { readonly kind: 'chat'; readonly session: URI; readonly chat: URI };
+
+/**
+ * Resolves `archive_chat` arguments against the target session's metadata.
+ * Refuses the chat the tool runs in and the main session of its own session:
+ * archiving either would archive the conversation that is calling the tool.
+ */
+export function getArchiveChatArgs(rawArgs: unknown, sessions: readonly IAgentSessionMetadata[], currentChat: URI | undefined, currentSession: URI | undefined, getDefaultChat: (session: ProtocolURI) => ProtocolURI | undefined): IResolvedArchiveChatArgs {
+	const args = (rawArgs ?? {}) as IArchiveChatArgs;
+	const chatInput = getRequiredString(args.chat, 'chat', SessionServerToolName.ArchiveChat);
+	const session = resolveKnownSession(chatInput, sessions);
+	if (!session) {
+		throw new Error(`Invalid ${SessionServerToolName.ArchiveChat} input: chat must be an agent-host-session:// link targeting a known chat (see list_sessions).`);
+	}
+	const chatId = parseOpenSessionLinkChatId(chatInput);
+	// An explicit selector reads as absent when it is empty or cannot be decoded; it must not fall back to the whole session.
+	if (chatId === undefined && AGENT_HOST_CHAT_LINK_PATTERN.test(chatInput) && URI.parse(chatInput).query.split('&').some(part => part.startsWith('chat=') && part !== `chat=${DEFAULT_CHAT_ID}`)) {
+		throw new Error(`Invalid ${SessionServerToolName.ArchiveChat} input: chat must name a valid chat id; omit the chat id to archive the whole session.`);
+	}
+	const defaultChat = resolveDefaultChat(sessions, session, getDefaultChat);
+	const isDefaultChatId = chatId !== undefined && defaultChat !== undefined && (defaultChat.toString() === chatId || getAgentHostChatId(defaultChat) === chatId);
+	const chat = chatId === undefined || isDefaultChatId ? defaultChat : resolveLinkedChat(sessions, session, chatId);
+	if (chatId !== undefined && !chat) {
+		throw new Error(`Invalid ${SessionServerToolName.ArchiveChat} input: chat must target a known chat of its session.`);
+	}
+	if (chat && currentChat && isEqual(chat, currentChat)) {
+		throw new Error(`Invalid ${SessionServerToolName.ArchiveChat} input: refusing to archive the chat this tool runs in.`);
+	}
+	const isMainSession = chat === undefined || (defaultChat !== undefined && isEqual(chat, defaultChat));
+	if (isMainSession) {
+		if (currentSession && isEqual(session, currentSession)) {
+			throw new Error(`Invalid ${SessionServerToolName.ArchiveChat} input: refusing to archive the main session of the current session, which would archive the current session.`);
+		}
+		return { kind: 'session', session };
+	}
+	return { kind: 'chat', session, chat };
+}
+
+/**
+ * The target session's metadata with its chats. A session that is not loaded
+ * lists its chats only in the session list, as `list_sessions` shows them.
+ */
+async function getArchiveTargetMetadata(accessor: ISessionServerToolAccessor, session: URI): Promise<IAgentSessionMetadata | undefined> {
+	const metadata = await accessor.getSession(session);
+	if (metadata?.chats?.length) {
+		return metadata;
+	}
+	return (await accessor.listSessions()).find(candidate => isEqual(candidate.session, session)) ?? metadata;
+}
+
+/** Archives a chat, or the whole session for its main session, and returns the model-facing confirmation. */
+export async function applyArchiveChatTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel: ProtocolURI): Promise<string> {
+	const chatInput = getRequiredString(((rawArgs ?? {}) as IArchiveChatArgs).chat, 'chat', SessionServerToolName.ArchiveChat);
+	const targetSession = parseOpenSessionLinkUri(chatInput) ?? URI.parse(chatInput);
+	const metadata = await getArchiveTargetMetadata(accessor, targetSession);
+	const sessions = metadata ? [metadata] : [];
+	const target = getArchiveChatArgs(rawArgs, sessions, currentChatUri(currentChannel), currentSessionUri(accessor, currentChannel), accessor.getDefaultChat);
+	if (target.kind === 'session') {
+		const openLink = buildOpenSessionLinkUri(target.session);
+		if (metadata && sessionIsArchived(metadata)) {
+			return `Session ${openLink} is already archived.`;
+		}
+		await accessor.archiveSession(target.session);
+		return `Archived session ${openLink} with all of its chats.`;
+	}
+	const openLink = buildOpenSessionLinkUri(target.session, getAgentHostChatId(target.chat));
+	const entry = metadata?.chats?.find(candidate => isEqual(candidate.chat, target.chat));
+	if (entry?.archived === true || (entry?.status !== undefined && isSessionStatusArchived(entry.status))) {
+		return `Chat ${openLink} is already archived.`;
+	}
+	await accessor.archiveChat(target.chat);
+	return `Archived chat ${openLink}.`;
 }
 
 const workspaceUnchangedResultPrefix = 'This chat already uses';
@@ -1953,6 +2141,12 @@ function getSessionToolDisplay(toolName: string, args: unknown, result?: IServer
 				displayName: localize('toolName.renameChat', "Rename Chat"),
 				invocationMessage: localize('toolInvoke.renameChat', "Renaming chat"),
 				pastTenseMessage: localize('toolComplete.renameChat', "Requested chat rename"),
+			};
+		case SessionServerToolName.ArchiveChat:
+			return {
+				displayName: localize('toolName.archiveChat', "Archive Chat"),
+				invocationMessage: localize('toolInvoke.archiveChat', "Archiving chat"),
+				pastTenseMessage: localize('toolComplete.archiveChat', "Archived chat"),
 			};
 		case SessionServerToolName.SendMessage: {
 			const operation = args === undefined ? undefined : (args as ISendMessageArgs).operation;
@@ -2045,18 +2239,26 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 		getDefinitionForSession(definition, sessionUri): IAgentServerToolDefinition {
 			// Mentions `move_session` only while it is offered (`chatMoves.enabled`): with moves off, these read as before.
 			// Also only where its session's agent can move chats, as `move_session` itself.
-			if ((definition.name === SessionServerToolName.ListSessions || definition.name === SessionServerToolName.GetCurrentSession) && accessor?.isChatMoveEnabled() === true && accessor.supportsChatMoves(URI.parse(sessionUri))) {
+			// Mentions `harness` only while a chat of this session may use another agent: with that off, these read as before.
+			if (definition.name === SessionServerToolName.ListSessions || definition.name === SessionServerToolName.GetCurrentSession) {
 				const chatsSentence = sessionChatsSentences.get(definition.name)!;
-				return { ...definition, description: definition.description?.replace(chatsSentence, `${chatsSentence}${moveSessionLinksSentence}`) };
+				const harnessSentence = accessor?.getChatHarnesses?.(URI.parse(sessionUri)) !== undefined ? sessionChatsHarnessSentences.get(definition.name)! : chatsSentence;
+				const moves = accessor?.isChatMoveEnabled() === true && accessor.supportsChatMoves(URI.parse(sessionUri));
+				return harnessSentence === chatsSentence && !moves
+					? definition
+					: { ...definition, description: definition.description?.replace(chatsSentence, `${harnessSentence}${moves ? moveSessionLinksSentence : ''}`) };
 			}
 			if (definition.name === SessionServerToolName.SetWorkspace && accessor?.isWorkspaceless(URI.parse(sessionUri)) === true) {
 				return { ...definition, deferLoading: false };
 			}
 			if (definition.name === SessionServerToolName.CreateSession) {
 				// Without multi-root support a current-session chat cannot get its own folder.
-				return accessor?.supportsChatWorkingDirectories(URI.parse(sessionUri)) === false
+				const forSession = accessor?.supportsChatWorkingDirectories(URI.parse(sessionUri)) === false
 					? { ...definition, description: createSessionWithSharedWorkspaceDescription, inputSchema: createSessionWithSharedWorkspaceInputSchema }
 					: definition;
+				// `harness` is offered only while a chat of this session may use another agent; otherwise the schema is unchanged.
+				const harnesses = accessor?.getChatHarnesses(URI.parse(sessionUri));
+				return harnesses !== undefined ? withCreateSessionHarness(forSession, harnesses) : forSession;
 			}
 			if (definition.name !== SessionServerToolName.RenameChat) {
 				return definition;
@@ -2136,6 +2338,8 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 				}
 				case SessionServerToolName.RenameChat:
 					return applyRenameChatTool(accessor, rawArgs, currentChannel);
+				case SessionServerToolName.ArchiveChat:
+					return applyArchiveChatTool(accessor, rawArgs, currentChannel);
 				case SessionServerToolName.SendMessage: {
 					const operation = (rawArgs as ISendMessageArgs | undefined)?.operation ?? 'send';
 					const sendingSession = currentSessionUri(accessor, currentChannel).toString();

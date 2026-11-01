@@ -27,6 +27,7 @@
     "contribViewsWelcome",
     "editSessionIdentityProvider",
     "envIsConnectionMetered",
+    "notificationTelemetry",
     "quickDiffProvider",
     "quickPickSortByLabel",
     "scmActionButton",
@@ -42,7 +43,6 @@
     "tabInputMultiDiff",
     "tabInputTextMerge",
     "textEditorDiffInformation",
-    "timeline",
     "workspaceTrust"
   ],
   "categories": [
