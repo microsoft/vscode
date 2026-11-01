@@ -65,6 +65,7 @@ import { VSCODE_EPHEMERAL_SESSION_META_KEY } from '../../../../../../platform/ag
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../../../../../platform/agentHost/common/meta/agentChatInputRequestMeta.js';
 import { getComputerUseActivationAnswers, withComputerUseActivationCard, withComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
+import { createAgentModelByokMeta } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
@@ -17743,6 +17744,57 @@ suite('AgentHostChatContribution', () => {
 			}, {
 				authenticationRequests: [[protectedResource]],
 				turnActionCount: 1,
+			});
+		});
+
+		test('handler rejects a stale selected model id instead of resolving authentication', async () => {
+			const authenticationRequests: ProtectedResourceMetadata[][] = [];
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot',
+				agentId: 'stale-model-agent',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+				resolveAuthentication: async protectedResources => {
+					authenticationRequests.push(protectedResources);
+					return true;
+				},
+			}));
+			agentHostService.setRootState({
+				agents: [{
+					provider: 'copilot',
+					displayName: 'Agent Host - Copilot',
+					description: 'test',
+					models: [{ id: 'byok-model', _meta: createAgentModelByokMeta('custom/byok-model') }],
+					protectedResources: [{ resource: 'https://api.github.com', required: true }],
+				}],
+				activeSessions: 0,
+			});
+
+			const sessionUri = AgentSession.uri('copilot', 'stale-model');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [],
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/stale-model' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			const registered = chatAgentService.registeredAgents.get('stale-model-agent')!;
+			const turnPromise = registered.impl.invoke(makeRequest({ agentId: 'stale-model-agent', message: 'Send with stale model', sessionResource, userSelectedModelId: 'agent-host-copilot:stale-model-id' }), () => { }, [], CancellationToken.None);
+			await assert.rejects(turnPromise, /no longer available/);
+
+			assert.deepStrictEqual({
+				authenticationRequests,
+				turnActionCount: agentHostService.turnActions.length,
+			}, {
+				authenticationRequests: [],
+				turnActionCount: 0,
 			});
 		});
 
