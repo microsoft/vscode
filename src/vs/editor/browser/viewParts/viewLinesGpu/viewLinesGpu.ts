@@ -16,7 +16,7 @@ import type { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { TextureAtlasPage } from '../../gpu/atlas/textureAtlasPage.js';
 import { BindingId, type IGpuRenderStrategy } from '../../gpu/gpu.js';
 import { GPULifecycle } from '../../gpu/gpuDisposable.js';
-import { quadVertices } from '../../gpu/gpuUtils.js';
+import { premultipliedAlphaBlend, quadVertices } from '../../gpu/gpuUtils.js';
 import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
 import { FloatHorizontalRange, HorizontalPosition, HorizontalRange, IViewLines, LineVisibleRanges, RenderingContext, RestrictedRenderingContext, VisibleRanges } from '../../view/renderingContext.js';
 import { ViewPart } from '../../view/viewPart.js';
@@ -30,14 +30,7 @@ import { FullFileRenderStrategy } from '../../gpu/renderStrategy/fullFileRenderS
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import type { ViewLineRenderingData } from '../../../common/viewModel.js';
 import { GlyphRasterizer } from '../../gpu/raster/glyphRasterizer.js';
-
-const enum GlyphStorageBufferInfo {
-	FloatsPerEntry = 2 + 2 + 2,
-	BytesPerEntry = GlyphStorageBufferInfo.FloatsPerEntry * 4,
-	Offset_TexturePosition = 0,
-	Offset_TextureSize = 2,
-	Offset_OriginPosition = 4,
-}
+import { GpuAtlasStorage, GlyphStorageBufferInfo } from '../../gpu/atlas/gpuAtlasStorage.js';
 
 /**
  * The GPU implementation of the ViewLines part.
@@ -64,8 +57,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 	private _vertexBuffer!: GPUBuffer;
 
-	private _glyphStorageBuffer!: GPUBuffer;
-	private _atlasGpuTexture!: GPUTexture;
+	private _atlasStorage!: GpuAtlasStorage;
 	private readonly _atlasGpuTextureVersions: number[] = [];
 
 	private _initialized = false;
@@ -115,8 +107,6 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		// Rerender when the texture atlas deletes glyphs
 		this._register(atlas.onDidDeleteGlyphs(() => {
 			this._atlasGpuTextureVersions.length = 0;
-			this._atlasGpuTextureVersions[0] = 0;
-			this._atlasGpuTextureVersions[1] = 0;
 			this._renderStrategy.value!.reset();
 		}));
 
@@ -202,7 +192,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
 		const fontSize = this._context.configuration.options.get(EditorOption.fontSize);
-		this._glyphRasterizer.value = this._register(new GlyphRasterizer(fontSize, fontFamily, this._viewGpuContext.devicePixelRatio.get(), ViewGpuContext.decorationStyleCache));
+		this._glyphRasterizer.value = new GlyphRasterizer(fontSize, fontFamily, this._viewGpuContext.devicePixelRatio.get(), ViewGpuContext.decorationStyleCache);
 		this._register(runOnChange(this._viewGpuContext.devicePixelRatio, () => {
 			this._refreshGlyphRasterizer();
 		}));
@@ -211,23 +201,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		this._renderStrategy.value = this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._viewGpuContext, this._device, this._glyphRasterizer as { value: GlyphRasterizer });
 		// this._renderStrategy.value = this._instantiationService.createInstance(ViewportRenderStrategy, this._context, this._viewGpuContext, this._device);
 
-		this._glyphStorageBuffer = this._register(GPULifecycle.createBuffer(this._device, {
-			label: 'Monaco glyph storage buffer',
-			size: TextureAtlas.maximumPageCount * (TextureAtlasPage.maximumGlyphCount * GlyphStorageBufferInfo.BytesPerEntry),
-			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-		})).object;
-		this._atlasGpuTextureVersions[0] = 0;
-		this._atlasGpuTextureVersions[1] = 0;
-		this._atlasGpuTexture = this._register(GPULifecycle.createTexture(this._device, {
-			label: 'Monaco atlas texture',
-			format: 'rgba8unorm',
-			size: { width: atlas.pageSize, height: atlas.pageSize, depthOrArrayLayers: TextureAtlas.maximumPageCount },
-			dimension: '2d',
-			usage: GPUTextureUsage.TEXTURE_BINDING |
-				GPUTextureUsage.COPY_DST |
-				GPUTextureUsage.RENDER_ATTACHMENT,
-		})).object;
-
+		this._atlasStorage = this._register(new GpuAtlasStorage(this._device));
 		this._updateAtlasStorageBufferAndTexture();
 
 		// #endregion Storage buffers
@@ -272,16 +246,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 				targets: [
 					{
 						format: presentationFormat,
-						blend: {
-							color: {
-								srcFactor: 'src-alpha',
-								dstFactor: 'one-minus-src-alpha'
-							},
-							alpha: {
-								srcFactor: 'src-alpha',
-								dstFactor: 'one-minus-src-alpha'
-							},
-						},
+						blend: premultipliedAlphaBlend,
 					}
 				],
 			},
@@ -297,7 +262,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 				layout: this._pipeline.getBindGroupLayout(0),
 				entries: [
 					// TODO: Pass in generically as array?
-					{ binding: BindingId.GlyphInfo, resource: { buffer: this._glyphStorageBuffer } },
+					{ binding: BindingId.GlyphInfo, resource: { buffer: this._atlasStorage.glyphBuffer } },
 					{
 						binding: BindingId.TextureSampler, resource: this._device.createSampler({
 							label: 'Monaco atlas sampler',
@@ -305,7 +270,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 							minFilter: 'nearest',
 						})
 					},
-					{ binding: BindingId.Texture, resource: this._atlasGpuTexture.createView() },
+					{ binding: BindingId.Texture, resource: this._atlasStorage.texture.createView({ dimension: '2d-array' }) },
 					{ binding: BindingId.LayoutInfoUniform, resource: { buffer: layoutInfoUniformBuffer } },
 					{ binding: BindingId.AtlasDimensionsUniform, resource: { buffer: atlasInfoUniformBuffer } },
 					...this._renderStrategy.value!.bindGroupEntries
@@ -354,6 +319,11 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	}
 
 	private _updateAtlasStorageBufferAndTexture() {
+		const atlas = ViewGpuContext.atlas;
+		if (this._atlasStorage.setPageCount(atlas.pageSize, atlas.pages.length)) {
+			this._atlasGpuTextureVersions.length = 0;
+			this._rebuildBindGroup?.();
+		}
 		for (const [layerIndex, page] of ViewGpuContext.atlas.pages.entries()) {
 			if (layerIndex >= TextureAtlas.maximumPageCount) {
 				console.log(`Attempt to upload atlas page [${layerIndex}], only ${TextureAtlas.maximumPageCount} are supported currently`);
@@ -383,7 +353,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 				throw new Error(`Attempting to write more glyphs (${entryOffset / GlyphStorageBufferInfo.FloatsPerEntry}) than the GPUBuffer can hold (${TextureAtlasPage.maximumGlyphCount})`);
 			}
 			this._device.queue.writeBuffer(
-				this._glyphStorageBuffer,
+				this._atlasStorage.glyphBuffer,
 				layerIndex * GlyphStorageBufferInfo.FloatsPerEntry * TextureAtlasPage.maximumGlyphCount * Float32Array.BYTES_PER_ELEMENT,
 				values,
 				0,
@@ -393,7 +363,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 				this._device.queue.copyExternalImageToTexture(
 					{ source: page.source },
 					{
-						texture: this._atlasGpuTexture,
+						texture: this._atlasStorage.texture,
 						origin: {
 							x: page.usedArea.left,
 							y: page.usedArea.top,
