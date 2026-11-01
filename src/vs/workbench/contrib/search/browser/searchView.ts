@@ -55,7 +55,6 @@ import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPan
 import { IEditorPane } from '../../../common/editor.js';
 import { Memento } from '../../../common/memento.js';
 import { IViewDescriptorService } from '../../../common/views.js';
-import { NotebookEditor } from '../../notebook/browser/notebookEditor.js';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from './patternInputWidget.js';
 import { IFindInFilesArgs } from './searchActionsBase.js';
 import { searchDetailsIcon } from './searchIcons.js';
@@ -74,6 +73,7 @@ import { SemanticSearchBehavior, IPatternInfo, ISearchComplete, ISearchConfigura
 import { AISearchKeyword, TextSearchCompleteMessage } from '../../../services/search/common/searchExtTypes.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
+import { buildFeatures } from '../../../../platform/product/common/buildFeatures.js';
 import { ISCMRepository, ISCMService } from '../../scm/common/scm.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
@@ -81,7 +81,7 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ISearchViewModelWorkbenchService } from './searchTreeModel/searchViewModelWorkbenchService.js';
 import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, SearchModelLocation, IChangeEvent, FileMatchOrMatch, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchNoRoot, isSearchTreeFolderMatchWithResource, isSearchTreeFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading, ITextSearchHeading, isSearchHeader } from './searchTreeModel/searchTreeCommon.js';
-import { INotebookFileInstanceMatch, isIMatchInNotebook } from './notebookSearch/notebookSearchModelBase.js';
+import type { INotebookFileInstanceMatch } from './notebookSearch/notebookSearchModelBase.js';
 import { searchMatchComparer } from './searchCompare.js';
 import { AIFolderMatchWorkspaceRootImpl } from './AISearch/aiSearchModel.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -2221,17 +2221,22 @@ export class SearchView extends ViewPane {
 		this.currentSelectedFileMatch = undefined;
 	}
 
-	private shouldOpenInNotebookEditor(match: ISearchTreeMatch, uri: URI): boolean {
+	private async shouldOpenInNotebookEditor(match: ISearchTreeMatch, uri: URI): Promise<boolean> {
+		if (!buildFeatures.notebooks) {
+			return false;
+		}
+		const { isIMatchInNotebook } = await import('./notebookSearch/notebookSearchModelBase.js');
 		// Untitled files will return a false positive for getContributedNotebookTypes.
 		// Since untitled files are already open, then untitled notebooks should return NotebookMatch results.
 		return isIMatchInNotebook(match) || (uri.scheme !== network.Schemas.untitled && this.notebookService.getContributedNotebookTypes(uri).length > 0);
 	}
 
-	private onFocus(lineMatch: ISearchTreeMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
+	private async onFocus(lineMatch: ISearchTreeMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
 		const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search?.useReplacePreview;
 
 		const resource = isSearchTreeMatch(lineMatch) ? lineMatch.parent().resource : (<ISearchTreeFileMatch>lineMatch).resource;
-		return (useReplacePreview && this.viewModel.isReplaceActive() && !!this.viewModel.replaceString && !(this.shouldOpenInNotebookEditor(lineMatch, resource))) ?
+		const openNotebook = await this.shouldOpenInNotebookEditor(lineMatch, resource);
+		return (useReplacePreview && this.viewModel.isReplaceActive() && !!this.viewModel.replaceString && !openNotebook) ?
 			this.replaceService.openReplacePreview(lineMatch, preserveFocus, sideBySide, pinned) :
 			this.open(lineMatch, preserveFocus, sideBySide, pinned, resource);
 	}
@@ -2269,28 +2274,32 @@ export class SearchView extends ViewPane {
 			return;
 		}
 
-		if (editor instanceof NotebookEditor) {
-			const elemParent = element.parent() as INotebookFileInstanceMatch;
-			if (isSearchTreeMatch(element)) {
-				if (isIMatchInNotebook(element)) {
-					element.parent().showMatch(element);
-				} else {
-					const editorWidget = editor.getControl();
-					if (editorWidget) {
-						// Ensure that the editor widget is binded. If if is, then this should return immediately.
-						// Otherwise, it will bind the widget.
-						elemParent.bindNotebookEditorWidget(editorWidget);
-						await elemParent.updateMatchesForEditorWidget();
+		if (buildFeatures.notebooks) {
+			const { NotebookEditor } = await import('../../notebook/browser/notebookEditor.js');
+			const { isIMatchInNotebook } = await import('./notebookSearch/notebookSearchModelBase.js');
+			if (editor instanceof NotebookEditor) {
+				const elemParent = element.parent() as INotebookFileInstanceMatch;
+				if (isSearchTreeMatch(element)) {
+					if (isIMatchInNotebook(element)) {
+						element.parent().showMatch(element);
+					} else {
+						const editorWidget = editor.getControl();
+						if (editorWidget) {
+							// Ensure that the editor widget is binded. If if is, then this should return immediately.
+							// Otherwise, it will bind the widget.
+							elemParent.bindNotebookEditorWidget(editorWidget);
+							await elemParent.updateMatchesForEditorWidget();
 
-						const matchIndex = oldParentMatches.findIndex(e => e.id() === element.id());
-						const matches = elemParent.matches();
-						const match = matchIndex >= matches.length ? matches[matches.length - 1] : matches[matchIndex];
+							const matchIndex = oldParentMatches.findIndex(e => e.id() === element.id());
+							const matches = elemParent.matches();
+							const match = matchIndex >= matches.length ? matches[matches.length - 1] : matches[matchIndex];
 
-						if (isIMatchInNotebook(match)) {
-							elemParent.showMatch(match);
-							if (!this.tree.getFocus().includes(match) || !this.tree.getSelection().includes(match)) {
-								this.tree.setSelection([match], getSelectionKeyboardEvent());
-								this.tree.setFocus([match]);
+							if (isIMatchInNotebook(match)) {
+								elemParent.showMatch(match);
+								if (!this.tree.getFocus().includes(match) || !this.tree.getSelection().includes(match)) {
+									this.tree.setSelection([match], getSelectionKeyboardEvent());
+									this.tree.setFocus([match]);
+								}
 							}
 						}
 					}

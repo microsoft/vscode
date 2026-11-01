@@ -9,6 +9,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { IHostService } from '../../host/browser/host.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { buildFeatures } from '../../../../platform/product/common/buildFeatures.js';
 
 export interface IUpdate {
 	version: string;
@@ -44,10 +45,17 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 	) {
 		super();
 
-		this.checkForUpdates(false);
+		if (buildFeatures.productServices) {
+			this.checkForUpdates(false);
+		} else {
+			this.state = State.Idle(UpdateType.Archive);
+		}
 	}
 
 	async isLatestVersion(): Promise<boolean | undefined> {
+		if (!buildFeatures.productServices) {
+			return undefined;
+		}
 		const update = await this.doCheckForUpdates(false);
 		if (update === undefined) {
 			return undefined; // no update provider
@@ -57,6 +65,9 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 	}
 
 	async checkForUpdates(explicit: boolean): Promise<void> {
+		if (!buildFeatures.productServices) {
+			return;
+		}
 		await this.doCheckForUpdates(explicit);
 	}
 
@@ -87,11 +98,15 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 	}
 
 	async applyUpdate(): Promise<void> {
-		this.hostService.reload();
+		if (buildFeatures.productServices) {
+			this.hostService.reload();
+		}
 	}
 
 	async quitAndInstall(): Promise<void> {
-		this.hostService.reload();
+		if (buildFeatures.productServices) {
+			this.hostService.reload();
+		}
 	}
 
 	async _applySpecificUpdate(packagePath: string): Promise<void> {
@@ -103,4 +118,4 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 	}
 }
 
-registerSingleton(IUpdateService, BrowserUpdateService, InstantiationType.Eager);
+registerSingleton(IUpdateService, BrowserUpdateService, buildFeatures.productServices ? InstantiationType.Eager : InstantiationType.Delayed);

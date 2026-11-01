@@ -52,6 +52,13 @@ import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 
+import { buildFeatures } from '../../../../platform/product/common/buildFeatures.js';
+
+let isNotebookWithCellEditor: (candidate: any, editor: ICodeEditor) => boolean = () => false;
+if (buildFeatures.notebooks) {
+	({ isNotebookContainingCellEditor: isNotebookWithCellEditor } = await import('../../notebook/browser/notebookEditor.js'));
+}
+
 export abstract class InlineChatRunOptions {
 
 	initialSelection?: ISelection;

@@ -24,6 +24,7 @@ import { getCompilerOptionsFromTsConfig } from './lib/tsconfigUtils.ts';
 import * as util from './lib/util.ts';
 import watcher from './lib/watch/index.ts';
 import { BuildLifecycle } from './lib/buildEvents.ts';
+import { getBuildFeatures, isExtensionBundled } from './lib/buildFeatures.ts';
 
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
@@ -222,7 +223,22 @@ export function createExtensionTasks(tsconfigFile: string, repoRoot = root) {
 	return { transpileTask, compileTask, watchTask };
 }
 
-const tasks = compilations.map(tsconfigFile => createExtensionTasks(tsconfigFile));
+function isExtensionCompilationIncluded(tsconfigFile: string): boolean {
+	if (!tsconfigFile.startsWith('extensions/')) {
+		return getBuildFeatures().bundledExtensions === '*';
+	}
+	const extensionFolder = tsconfigFile.split('/')[1];
+	const manifestPath = path.join(root, 'extensions', extensionFolder, 'package.json');
+	if (!fs.existsSync(manifestPath)) {
+		return false;
+	}
+	const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+	return typeof manifest.publisher === 'string' && typeof manifest.name === 'string'
+		? isExtensionBundled(`${manifest.publisher}.${manifest.name}`)
+		: getBuildFeatures().bundledExtensions === '*';
+}
+
+const tasks = compilations.filter(isExtensionCompilationIncluded).map(tsconfigFile => createExtensionTasks(tsconfigFile));
 
 const transpileExtensionsTask = task.define('transpile-extensions', task.parallel(...tasks.map(t => t.transpileTask)));
 task.task(transpileExtensionsTask);

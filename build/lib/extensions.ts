@@ -19,13 +19,21 @@ import ansiColors from 'ansi-colors';
 import * as jsoncParser from 'jsonc-parser';
 import { getProductionDependencies } from './dependencies.ts';
 import { type IExtensionDefinition, getExtensionStream } from './builtInExtensions.ts';
-import { filterBuiltInExtensions, getBuildFeatures } from './buildFeatures.ts';
+import { filterBuiltInExtensions, getBuildFeatures, isExtensionBundled } from './buildFeatures.ts';
 import { fetchUrls, fetchGithub } from './fetch.ts';
 import { createTsgoStream, spawnTsgo } from './tsgo.ts';
 import watcher from './watch/index.ts';
 
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
+
+function isLocalExtensionIncluded(manifestPath: string): boolean {
+	const manifest = require(manifestPath);
+	const extensionId = typeof manifest.publisher === 'string' && typeof manifest.name === 'string'
+		? `${manifest.publisher}.${manifest.name}`
+		: undefined;
+	return extensionId ? isExtensionBundled(extensionId) : getBuildFeatures().bundledExtensions === '*';
+}
 
 const root = path.dirname(path.dirname(import.meta.dirname));
 // const commit = getVersion(root);
@@ -423,6 +431,7 @@ function doPackageLocalExtensionsStream(forWeb: boolean, native: boolean): Strea
 			})
 			.filter(({ name }) => native ? nativeExtensionsSet.has(name) : !nativeExtensionsSet.has(name))
 			.filter(({ name }) => excludedExtensions.indexOf(name) === -1)
+			.filter(({ manifestPath }) => isLocalExtensionIncluded(manifestPath))
 			.filter(({ name }) => getBuildFeatures().git || (name !== 'git' && name !== 'git-base'))
 			.filter(({ name }) => builtInExtensions.every(b => b.name !== name))
 			.filter(({ manifestPath }) => (forWeb ? isWebExtension(require(manifestPath)) : true))
@@ -544,6 +553,12 @@ export function scanBuiltinExtensions(extensionsRoot: string, exclude: string[] 
 				continue;
 			}
 			const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
+			const extensionId = typeof packageJSON.publisher === 'string' && typeof packageJSON.name === 'string'
+				? `${packageJSON.publisher}.${packageJSON.name}`
+				: undefined;
+			if (getBuildFeatures().bundledExtensions !== '*' && (!extensionId || !isExtensionBundled(extensionId))) {
+				continue;
+			}
 			if (!isWebExtension(packageJSON)) {
 				continue;
 			}
@@ -643,12 +658,13 @@ const esbuildMediaScripts: { script: string; tsconfig: string }[] = [
 ];
 
 export function buildExtensionMedia(isWatch: boolean, outputRoot?: string): Promise<void> {
-	const esbuildTask = esbuildExtensions('esbuilding extension media', isWatch, esbuildMediaScripts.map(({ script }) => ({
+	const includedMediaScripts = esbuildMediaScripts.filter(({ script }) => isLocalExtensionIncluded(path.join(extensionsPath, path.dirname(script), 'package.json')));
+	const esbuildTask = esbuildExtensions('esbuilding extension media', isWatch, includedMediaScripts.map(({ script }) => ({
 		script: path.join(extensionsPath, script),
 		outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(script)) : undefined
 	})));
 
-	const typeCheckTasks = esbuildMediaScripts.map(({ tsconfig }) => {
+	const typeCheckTasks = includedMediaScripts.map(({ tsconfig }) => {
 		const tsconfigPath = path.join(extensionsPath, tsconfig);
 		const config = { taskName: 'typechecking extension media (tsgo)', noEmit: true };
 		if (!isWatch) {

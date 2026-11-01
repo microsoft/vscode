@@ -2,10 +2,13 @@
 	"profiles": {
 		"default": {
 			"copilotChat": true,
+			"chatPanel": true,
 			"agentSessionsUI": true,
 			"git": true,
-			"scm": true,
-			"debug": true,
+			"sourceControlUI": true,
+			"scmService": true,
+			"debugUI": true,
+			"debugService": true,
 			"tasks": true,
 			"notebooks": true,
 			"testing": true,
@@ -16,6 +19,7 @@
 			"sync": true,
 			"productServices": true,
 			"terminal": true,
+			"bundledExtensions": "*",
 			"agents": {
 				"codex": true,
 				"claude": true
@@ -23,10 +27,13 @@
 		},
 		"minimal": {
 			"copilotChat": false,
+			"chatPanel": false,
 			"agentSessionsUI": true,
 			"git": false,
-			"scm": false,
-			"debug": false,
+			"sourceControlUI": false,
+			"scmService": true,
+			"debugUI": false,
+			"debugService": true,
 			"tasks": false,
 			"notebooks": false,
 			"testing": false,
@@ -37,6 +44,16 @@
 			"sync": false,
 			"productServices": false,
 			"terminal": true,
+			"bundledExtensions": [
+				"vscode.configuration-editing",
+				"vscode.css-language-features",
+				"vscode.emmet",
+				"vscode.html-language-features",
+				"vscode.json-language-features",
+				"vscode.references-view",
+				"vscode.search-result",
+				"vscode.typescript-language-features"
+			],
 			"agents": {
 				"codex": true,
 				"claude": true

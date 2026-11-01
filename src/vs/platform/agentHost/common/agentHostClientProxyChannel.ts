@@ -81,3 +81,14 @@ export class AgentHostClientProxyChannel implements IServerChannel {
 		throw new Error(`Unknown command '${command}' on AgentHostClientProxyChannel`);
 	}
 }
+
+/** Keeps the reverse IPC channel present when request services are unavailable. */
+export class UnavailableAgentHostClientProxyChannel implements IServerChannel {
+	listen<T>(): Event<T> {
+		return Event.None;
+	}
+
+	call<T>(): Promise<T> {
+		return Promise.reject(new Error('The renderer request service is unavailable.'));
+	}
+}

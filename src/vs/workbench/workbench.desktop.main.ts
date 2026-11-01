@@ -132,7 +132,7 @@ import './contrib/files/electron-browser/fileActions.contribution.js';
 import './contrib/codeEditor/electron-browser/codeEditor.contribution.js';
 
 // Debug
-if (buildFeatures.debug) {
+if (buildFeatures.debugService) {
 	await import('./contrib/debug/electron-browser/extensionHostDebugService.js');
 }
 

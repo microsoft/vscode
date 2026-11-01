@@ -87,13 +87,11 @@ import { TelemetryAppenderClient } from '../../platform/telemetry/common/telemet
 import { ITelemetryServiceConfig, TelemetryService } from '../../platform/telemetry/common/telemetryService.js';
 import { getPiiPathsFromEnvironment, getTelemetryLevel, getUserContentPathsFromEnvironment, isInternalTelemetry, NullTelemetryService, supportsTelemetry } from '../../platform/telemetry/common/telemetryUtils.js';
 import { IUpdateService } from '../../platform/update/common/update.js';
+import { NullUpdateService } from '../../platform/update/common/nullUpdateService.js';
 import { UpdateChannel } from '../../platform/update/common/updateIpc.js';
 import { NotAvailableUpdateDialog } from '../../platform/update/electron-main/notAvailableUpdateDialog.js';
-import { DarwinUpdateService } from '../../platform/update/electron-main/updateService.darwin.js';
-import { LinuxUpdateService } from '../../platform/update/electron-main/updateService.linux.js';
-import { SnapUpdateService } from '../../platform/update/electron-main/updateService.snap.js';
-import { Win32UpdateService } from '../../platform/update/electron-main/updateService.win32.js';
 import { isInnoSetupInstall } from '../../platform/update/electron-main/win32UpdateType.js';
+import { buildFeatures } from '../../platform/product/common/buildFeatures.js';
 import { IOpenURLOptions, IURLService } from '../../platform/url/common/url.js';
 import { URLHandlerChannelClient, URLHandlerRouter } from '../../platform/url/common/urlIpc.js';
 import { NativeURLService } from '../../platform/url/common/urlService.js';
@@ -1221,22 +1219,26 @@ export class CodeApplication extends Disposable {
 		const services = new ServiceCollection();
 
 		// Update
-		switch (process.platform) {
-			case 'win32':
-				services.set(IUpdateService, new SyncDescriptor(Win32UpdateService));
-				break;
+		if (!buildFeatures.productServices) {
+			services.set(IUpdateService, new NullUpdateService());
+		} else {
+			switch (process.platform) {
+				case 'win32':
+					services.set(IUpdateService, new SyncDescriptor((await import('../../platform/update/electron-main/updateService.win32.js')).Win32UpdateService));
+					break;
 
-			case 'linux':
-				if (isLinuxSnap) {
-					services.set(IUpdateService, new SyncDescriptor(SnapUpdateService, [process.env['SNAP'], process.env['SNAP_REVISION']]));
-				} else {
-					services.set(IUpdateService, new SyncDescriptor(LinuxUpdateService));
-				}
-				break;
+				case 'linux':
+					if (isLinuxSnap) {
+						services.set(IUpdateService, new SyncDescriptor((await import('../../platform/update/electron-main/updateService.snap.js')).SnapUpdateService, [process.env['SNAP'], process.env['SNAP_REVISION']]));
+					} else {
+						services.set(IUpdateService, new SyncDescriptor((await import('../../platform/update/electron-main/updateService.linux.js')).LinuxUpdateService));
+					}
+					break;
 
-			case 'darwin':
-				services.set(IUpdateService, new SyncDescriptor(DarwinUpdateService));
-				break;
+				case 'darwin':
+					services.set(IUpdateService, new SyncDescriptor((await import('../../platform/update/electron-main/updateService.darwin.js')).DarwinUpdateService));
+					break;
+			}
 		}
 
 		// Windows
@@ -1417,7 +1419,9 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('update', updateChannel);
 
 		// Show a native "no updates available" dialog from the main process only in windowless macOS case.
-		this._register(new NotAvailableUpdateDialog(updateService, accessor.get(IDialogMainService), accessor.get(IWindowsMainService)));
+		if (buildFeatures.productServices) {
+			this._register(new NotAvailableUpdateDialog(updateService, accessor.get(IDialogMainService), accessor.get(IWindowsMainService)));
+		}
 
 		// Metered Connection
 		const meteredConnectionChannel = new MeteredConnectionChannel(accessor.get(IMeteredConnectionService) as MeteredConnectionMainService);

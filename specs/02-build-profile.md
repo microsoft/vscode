@@ -6,41 +6,34 @@
 - Remove disabled feature modules from generated outputs, not merely hide their UI.
 - Use one feature resolution across desktop, web, and any server/package lanes that consume the affected modules.
 - Reject unknown options and unsupported dependency combinations early.
-- Make the resolved profile visible in build logs and package metadata.
+- Make the resolved profile visible in build logs and apply it to product metadata and bundled assets.
 
-## Proposed interface
+## Implemented interface
 
-Use the checked-in `build/features.json` to define named profiles and defaults. The initial profile schema is now present. Proposed profiles:
+Use the checked-in `build/features.json` to define named profiles and defaults:
 
-- `default`: equivalent to today's build; all current features enabled.
-- `minimal`: editor-focused build with terminal enabled, optional feature groups disabled, and agent providers opt-in.
+- `default`: preserves the repository's full feature and extension set.
+- `minimal`: editor-focused build with terminal enabled, selected optional groups disabled, and Codex/Claude providers explicitly declared.
+
+The optional `chatPanel` flag controls the Chat sidebar view independently from `agentSessionsUI`. The minimal profile sets `chatPanel` to false while keeping the generic agent sessions UI and Codex/Claude providers enabled.
 
 For the Trinoris-focused minimal profile, keep the generic Chat/Agents session surface if Codex or Claude use it. Exclude Copilot-specific harness and product services through a separate `copilotChat` capability. A single `chat` boolean would be too coarse and could remove the selected agents' in-editor panel.
 
-The first implementation slice selects a profile with `VSCODE_BUILD_PROFILE=default|minimal`; absent means `default`. Example: `VSCODE_BUILD_PROFILE=minimal npm run gulp -- vscode-linux-x64-min`. Individual overrides are deferred until profile behavior is implemented consistently across every lane. The build must print the selected profile before compilation.
+`build/features.json` defines `default` and `minimal`. Select one with `VSCODE_BUILD_PROFILE=default|minimal`; absent means `default`. Example: `VSCODE_BUILD_PROFILE=minimal npm run gulp -- vscode-linux-x64-min`. Build tooling validates the schema, logs the selected profile, and injects literal feature values into Vite and the Next build lane. The `npm run watch` TypeScript transpile path does not run compile-time injection, so the Electron development fallback mirrors the `minimal` profile; the top-level Copilot watcher uses that same minimal fallback and skips compiling Copilot. `npm run compile` retains the default full profile when the variable is absent. Profiles are currently named presets; arbitrary per-flag command-line overrides are not implemented.
 
-Profile schema sketch (not yet implemented):
+The schema enumerates 17 optional boolean controls, explicit `agents.codex` and `agents.claude` provider declarations, a separate `bundledExtensions` package allowlist, and the `terminal: true` invariant. The resolver strictly validates profile names, feature keys, types, provider keys, the extension list, and terminal invariant. Vite and Next receive compile-time constants; the gulp packaging lanes consume profile values for product metadata, extension compilation, and extension packaging. Workbench entry points gate Git, Source Control UI, Debug UI, task execution and UI, notebook editors/renderers, Interactive and REPL, notebook extension bridges, testing, remote entry contributions, welcome surfaces, review comments, extension UI, Settings Sync UI, product services, and Copilot Chat. The minimal profile retains SCM and Debug service APIs for remaining workbench consumers while omitting their visible UI, the Source Control view, built-in Git, and built-in JavaScript debugger. Task and notebook API consumers receive disabled service contracts while their UIs and tools are omitted. Agent host registration respects Codex and Claude profile values. Shared agent sessions and terminal remain available in the minimal profile.
 
-```json
-{
-  "profiles": {
-    "default": { "features": { "chat": true, "terminal": true } },
-    "minimal": { "features": { "chat": false, "terminal": true } }
-  }
-}
-```
-
-The schema enumerates candidate features and encodes the `terminal: true` invariant. Agent providers use explicit provider declarations (`agents.codex` and `agents.claude`) rather than a generic `agents: true` switch. The profile resolver strictly validates profile names, feature keys, types, provider keys, and the terminal invariant, and supplies compile-time constants to Vite and esbuild. Workbench entry points gate Git/SCM, debugging, tasks, notebooks, testing, remote entry contributions, welcome surfaces, review comments, extension UI, Settings Sync UI, product surveys/updates, and Copilot Voice. Extension packaging filters built-in debug and Git extensions; packaged product metadata omits Copilot-specific configuration. Agent host registration respects the Codex and Claude build flags. Shared Chat/Agents sessions and terminal remain available in the minimal profile.
+The build profile also declares `bundledExtensions`, a package allowlist separate from the 17 runtime feature controls. `"*"` preserves all extensions in the default profile; minimal enumerates the exact language and workbench extensions to compile and bundle. The Extensions UI remains available for deliberate marketplace installs.
 
 ## Resolution and compile-time injection
 
-Resolve the profile once in build tooling. Validate the schema and feature dependency graph before starting compilation. Generate a TypeScript module with literal booleans and a JSON manifest containing profile name, enabled features, and source revision. Import the generated module at entry-point boundaries.
+Resolve the profile in build tooling. Validate the schema before starting compilation. Inject literal profile values at Vite/Next bundling boundaries and use the same resolver for gulp packaging.
 
-Use statically analyzable feature gates around grouped imports so the bundler can remove the disabled branch. Confirm current Vite and gulp bundling behavior before choosing the exact source pattern. Dynamic imports alone do not guarantee exclusion from output chunks. Avoid broad text replacement and runtime settings: they risk inconsistent desktop/web behavior and retain unnecessary code.
+Use statically analyzable feature gates around grouped imports so the bundler can remove the disabled branch. Dynamic imports alone do not guarantee exclusion from output chunks. Avoid broad text replacement and runtime settings: they risk inconsistent desktop/web behavior and retain unnecessary code.
 
 ## Build lanes to cover
 
-The investigation has identified common, desktop, and web workbench entry points, Vite client bundling, and gulp packaging lanes. The implementation inventory must also inspect server/remote packaging, extension compilation/packaging, CLI, and development launch tasks. A profile is complete only when each lane either consumes it or clearly documents that it does not include the feature.
+The implementation covers common, desktop, and web workbench entry points, Vite and Next feature injection, built-in extension filtering/packaging, top-level Copilot compile/watch tasks, and desktop/server product metadata and runtime packaging. The Rust CLI does not bundle workbench code or built-in extensions, so it does not consume this profile. The TypeScript watch/dev fallback is the minimal profile; it does not currently select a different profile from `VSCODE_BUILD_PROFILE`. A profile is complete only when each lane either consumes it or clearly documents that it does not include the feature.
 
 ## Compatibility behavior
 

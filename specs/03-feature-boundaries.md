@@ -13,19 +13,15 @@ Do not remove core runtime merely because it is imported by an optional feature.
 
 ## Source Control and Git
 
-The common workbench entry point imports Git contributions, GitHub link presentation, SCM contributions, quick diff, and SCM service contributions. Treat these as at least two candidate groups:
+The common workbench entry point controls Git contributions, GitHub link presentation, Source Control UI and quick diff, and the generic SCM service as separate groups:
 
 - `git`: built-in Git provider and Git-specific UI/integration.
-- `scm`: generic source control provider framework, views, commands, and extension API support.
+- `sourceControlUI`: Source Control views, commands, and quick diff UI.
+- `scmService`: generic source control provider framework and extension API support.
 
-Dependency questions to answer before implementation:
+The minimal profile disables `git` and `sourceControlUI` while retaining `scmService`, which is injected by enabled features such as Search and Chat. Removing the service requires separately gating or redesigning those consumers. Third-party SCM providers can still register through the service, but the Source Control UI remains absent.
 
-- Which Git contributions register an SCM provider, and can they be omitted while preserving the generic provider service?
-- Does quick diff have non-Git consumers or extension API consumers?
-- Which core services reference SCM interfaces unconditionally?
-- Is the intended product allowed to load third-party source control providers?
-
-If third-party SCM is retained, keep the generic API/service and disable built-in Git. If all source control is removed, omit SCM registration and review API compatibility explicitly.
+Debug has the same split. The minimal profile disables `debugUI` and removes the built-in JavaScript debugger, while `debugService` keeps `IDebugService` available to the extension host API and workbench consumers. Removing the service requires separately gating those consumers.
 
 ## Chat and selected agents
 
@@ -34,7 +30,7 @@ The common entry point imports shared chat, chat contributions, agent sessions, 
 Treat these separately until dependencies are known:
 
 - `agentSessionsUI`: generic Chat/Agents session surface required when Codex/Claude are selected for in-editor sessions.
-- `copilotChat`: Copilot harness, sign-in, and Copilot-specific contributions/services.
+- `copilotChat`: the built-in Copilot Chat extension is filtered from packaging; workbench Copilot sign-in/setup, Copilot CLI discovery and launch commands, harness introduction, quota/promo notifications, Chat entitlement UI, and Copilot voice/canvas features are disabled. Shared entitlement and configuration modules remain where generic Chat code still imports their contracts; removing those modules needs a separate dependency split.
 - `agentHost`: generic agent session/runtime integration, only if Codex/Claude need it.
 - `mcp`: shared MCP platform and UI; provider-specific MCP use may survive without chat UI.
 - `agents.codex` and `agents.claude`: provider/runtime selections, explicitly opt-in.
@@ -51,5 +47,25 @@ The extension platform remains necessary if users depend on extension-provided l
 
 ## Diagnostics and testing
 
-Keep markers, diagnostic collections, editor decorations, and language feature APIs in core. Disabling the Testing view must not disable diagnostic markers. Decide separately whether the testing extension API remains available to third-party providers when built-in testing UI is off.
+Keep markers, diagnostic collections, editor decorations, and language feature APIs in core. Disabling Testing must not disable diagnostic markers. When `testing` is false, omit the Testing workbench contribution and the MainThreadTesting bridge, so extensions cannot register test controllers in that build. The extension-host testing implementation remains for internal Debug service consumers; exclude it only after Debug no longer depends on that contract.
+
+## Remote workspaces and tunnels
+
+When `remote` is false, omit remote workbench contributions and the MainThread remote connection, managed socket, and tunnel bridges. Remote service contracts remain registered where the local extension-management and browser entry paths still depend on them; replacing those contracts with disabled implementations is a separate boundary before their implementations can be removed from every bundle.
+
+## Welcome and onboarding
+
+When `welcome` is false, omit Welcome, walkthrough, onboarding, and tryout contributions, including the Codex continuation guide that requires the onboarding scenario service. Preserve generic Chat/Agents sessions and their Chat-specific empty-state content.
+
+## Review comments
+
+When `review` is false, omit review/comment workbench contributions and the MainThreadComments extension bridge. Keep the separate agent-editor comments bridge, which serves agent session comments and does not use the review `ICommentService`.
+
+## Settings Sync
+
+When `sync` is false, omit Settings Sync and Edit Sessions UI contributions and do not eagerly start web auto-sync. Shared sync service contracts remain registered for Settings, extension management, and profile consumers; removing those implementations requires disabled contracts and a separate consumer audit.
+
+## Product services
+
+When `productServices` is false, omit update UI, surveys, and issue-reporting contributions. Keep `IUpdateService` registered for timer and menu-bar consumers through a no-op implementation. The browser implementation reports an idle state and skips update checks and reload actions; the Electron main process does not load platform update implementations in this profile.
 

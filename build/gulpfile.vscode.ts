@@ -17,7 +17,7 @@ import { inlineMeta } from './lib/inlineMeta.ts';
 import { computeNLSMetadataHash } from './lib/nlsMetadata.ts';
 import packageJson from '../package.json' with { type: 'json' };
 import product from '../product.json' with { type: 'json' };
-import { configureProductForBuild } from './lib/buildFeatures.ts';
+import { configureProductForBuild, getBuildFeatures } from './lib/buildFeatures.ts';
 import * as crypto from 'crypto';
 import * as cp from 'child_process';
 import * as i18n from './lib/i18n.ts';
@@ -214,10 +214,12 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				json.date = readISODate(out);
 				json.checksums = checksums;
 				json.version = version;
-				json.copilotVersions = {
-					runtime: copilotRuntimeVersion,
-					sdk: getLockedPackageVersion('@github/copilot-sdk'),
-				};
+				if (getBuildFeatures().copilotChat) {
+					json.copilotVersions = {
+						runtime: copilotRuntimeVersion,
+						sdk: getLockedPackageVersion('@github/copilot-sdk'),
+					};
+				}
 				// Stamp agentSdks from the per-platform results file produced
 				// by `build/agent-sdk/produce.ts` (an earlier pipeline step).
 				// Local dev: file absent → empty → not stamped.
@@ -260,12 +262,18 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(filter(depFilterPattern))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)));
-		ensureCopilotPlatformPackage(platform, arch);
-		const copilotRuntimePrebuilds = gulp.src(getCopilotRuntimePrebuildFiles(platform, arch), { base: '.', dot: true, allowEmpty: true });
+		if (getBuildFeatures().copilotChat) {
+			ensureCopilotPlatformPackage(platform, arch);
+		}
+		const copilotRuntimePrebuilds = getBuildFeatures().copilotChat
+			? gulp.src(getCopilotRuntimePrebuildFiles(platform, arch), { base: '.', dot: true, allowEmpty: true })
+			: es.readArray([]);
 		ensureOSProxyResolverPlatformPackage(platform, arch);
 		const osProxyResolverPlatformPackage = gulp.src(getOSProxyResolverPlatformFiles(platform, arch), { base: '.', dot: true, allowEmpty: true });
 		const deps = es.merge(cleanedDeps, copilotRuntimePrebuilds, osProxyResolverPlatformPackage)
-			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
+			.pipe(filter(getBuildFeatures().copilotChat
+				? getCopilotExcludeFilter(platform, arch)
+				: ['**', '!**/node_modules/@github/copilot-sdk/**', '!**/node_modules/@github/copilot-sdk-*/**']))
 			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch)))
 			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
 			.pipe(filter(getFoundryLocalExcludeFilter()))
@@ -437,7 +445,8 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				.pipe(rename(product.nameShort + '.VisualElementsManifest.xml')));
 
 			// Setup publishes it next to the copilot.exe shim; see build/win32/copilot.iss.
-			result = es.merge(result, gulp.src('resources/win32/bin/copilot.sh', { base: 'resources/win32' })
+			if (getBuildFeatures().copilotChat) {
+				result = es.merge(result, gulp.src('resources/win32/bin/copilot.sh', { base: 'resources/win32' })
 				.pipe(es.through(function (file) {
 					file.contents = Buffer.from(renderCopilotShimLauncher(file.contents.toString('utf8'), {
 						commit: String(commit),
@@ -449,6 +458,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 					this.emit('data', file);
 				}))
 				.pipe(rename(f => { f.dirname = 'bin/copilot-shim'; f.basename = 'copilot'; f.extname = ''; })));
+			}
 
 			result = es.merge(result, gulp.src('.build/policies/win32/**', { base: '.build/policies/win32' })
 				.pipe(rename(f => f.dirname = `policies/${f.dirname}`)));
@@ -565,6 +575,9 @@ function prepareCopilotRipgrepShimTask(platform: string, arch: string, destinati
 	const outputDir = path.join(path.dirname(root), destinationFolderName);
 
 	return async () => {
+		if (!getBuildFeatures().copilotChat) {
+			return;
+		}
 		// On Windows with win32VersionedUpdate, app resources live under a
 		// commit-hash prefix: {output}/{commitHash}/resources/app/
 		const versionedResourcesFolder = util.getVersionedResourcesFolder(platform, commit!);

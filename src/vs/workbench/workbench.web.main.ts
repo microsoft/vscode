@@ -119,7 +119,7 @@ registerSingleton(IUserDataSyncLocalStoreService, UserDataSyncLocalStoreService,
 registerSingleton(IUserDataSyncAccountService, UserDataSyncAccountService, InstantiationType.Delayed);
 registerSingleton(IUserDataSyncService, UserDataSyncService, InstantiationType.Delayed);
 registerSingleton(IUserDataSyncResourceProviderService, UserDataSyncResourceProviderService, InstantiationType.Delayed);
-registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService, InstantiationType.Eager /* Eager to start auto sync */);
+registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService, buildFeatures.sync ? InstantiationType.Eager /* Eager to start auto sync */ : InstantiationType.Delayed);
 registerSingleton(ITitleService, BrowserTitleService, InstantiationType.Eager);
 registerSingleton(IExtensionTipsService, ExtensionTipsService, InstantiationType.Delayed);
 registerSingleton(ITimerService, TimerService, InstantiationType.Delayed);
@@ -151,7 +151,7 @@ import './contrib/performance/browser/performance.web.contribution.js';
 import './contrib/preferences/browser/keyboardLayoutPicker.js';
 
 // Debug
-if (buildFeatures.debug) {
+if (buildFeatures.debugService) {
 	await import('./contrib/debug/browser/extensionHostDebugService.js');
 }
 

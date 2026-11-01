@@ -31,9 +31,6 @@ import { SendToTerminalTool, SendToTerminalToolData } from './tools/sendToTermin
 import { GetTerminalSelectionTool, GetTerminalSelectionToolData } from './tools/getTerminalSelectionTool.js';
 import { ConfirmTerminalCommandTool, ConfirmTerminalCommandToolData } from './tools/runInTerminalConfirmationTool.js';
 import { RunInTerminalTool, createRunInTerminalToolData } from './tools/runInTerminalTool.js';
-import { CreateAndRunTaskTool, CreateAndRunTaskToolData } from './tools/task/createAndRunTaskTool.js';
-import { GetTaskOutputTool, GetTaskOutputToolData } from './tools/task/getTaskOutputTool.js';
-import { RunTaskTool, RunTaskToolData } from './tools/task/runTaskTool.js';
 import { registerTerminalCompressors } from './tools/terminalOutputCompressor.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ITerminalSandboxService, TerminalSandboxService } from '../common/terminalSandboxService.js';
@@ -123,22 +120,6 @@ export class ChatAgentToolsContribution extends Disposable implements IWorkbench
 
 		this._register(_toolsService.readToolSet.addTool(GetTerminalSelectionToolData));
 		this._register(_toolsService.readToolSet.addTool(GetTerminalLastCommandToolData));
-
-		// #endregion
-
-		// #region Tasks
-
-		const runTaskTool = _instantiationService.createInstance(RunTaskTool);
-		this._register(_toolsService.registerTool(RunTaskToolData, runTaskTool));
-
-		const getTaskOutputTool = _instantiationService.createInstance(GetTaskOutputTool);
-		this._register(_toolsService.registerTool(GetTaskOutputToolData, getTaskOutputTool));
-
-		const createAndRunTaskTool = _instantiationService.createInstance(CreateAndRunTaskTool);
-		this._register(_toolsService.registerTool(CreateAndRunTaskToolData, createAndRunTaskTool));
-		this._register(_toolsService.executeToolSet.addTool(RunTaskToolData));
-		this._register(_toolsService.executeToolSet.addTool(CreateAndRunTaskToolData));
-		this._register(_toolsService.readToolSet.addTool(GetTaskOutputToolData));
 
 		// #endregion
 

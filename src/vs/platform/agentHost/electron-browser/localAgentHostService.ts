@@ -32,7 +32,7 @@ import { AgentHostClientState, AgentHostProtocolClient } from '../browser/agentH
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel, NullAgentHostClientByokLmChannel } from '../common/agentHostClientByokLmChannel.js';
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
-import { AGENT_HOST_CLIENT_PROXY_CHANNEL, AgentHostClientProxyChannel } from '../common/agentHostClientProxyChannel.js';
+import { AGENT_HOST_CLIENT_PROXY_CHANNEL, AgentHostClientProxyChannel, UnavailableAgentHostClientProxyChannel } from '../common/agentHostClientProxyChannel.js';
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
@@ -868,7 +868,12 @@ export function registerAgentHostClientChannels(
 	instantiationService: IInstantiationService,
 	logService: ILogService,
 ): void {
-	client.registerChannel(AGENT_HOST_CLIENT_PROXY_CHANNEL, instantiationService.createInstance(AgentHostClientProxyChannel));
+	try {
+		client.registerChannel(AGENT_HOST_CLIENT_PROXY_CHANNEL, instantiationService.createInstance(AgentHostClientProxyChannel));
+	} catch (error) {
+		logService.warn(`${LOG_PREFIX} Request service unavailable for agent-host proxy lookups. ${error instanceof Error ? error.message : String(error)}`);
+		client.registerChannel(AGENT_HOST_CLIENT_PROXY_CHANNEL, new UnavailableAgentHostClientProxyChannel());
+	}
 
 	try {
 		client.registerChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, instantiationService.createInstance(AgentHostClientByokLmChannel));

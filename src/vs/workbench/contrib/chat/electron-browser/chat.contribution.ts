@@ -23,6 +23,7 @@ import { registerSharedProcessRemoteService } from '../../../../platform/ipc/ele
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import product from '../../../../platform/product/common/product.js';
+import { buildFeatures } from '../../../../platform/product/common/buildFeatures.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { ViewContainerLocation } from '../../../common/views.js';
@@ -32,7 +33,9 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
-import '../browser/aiCustomization/copilotCanvases.contribution.js';
+if (buildFeatures.copilotChat) {
+	await import('../browser/aiCustomization/copilotCanvases.contribution.js');
+}
 import './codexCustomizationSettings.contribution.js';
 import './agentSessions/computerUseHelperApp.contribution.js';
 import { AgentSessionProviders, getAgentSessionProviderName } from '../browser/agentSessions/agentSessions.js';
@@ -223,7 +226,7 @@ registerAction2(OpenWorkspaceInAgentsWindowTitleBarAction);
 registerAction2(ToggleOpenInAgentsWindowTitleBarAction);
 registerAction2(OpenAgentsWindowAction);
 registerAction2(OpenChatSessionInAgentsWindowAction);
-if (!product.quality) {
+if (buildFeatures.copilotChat && !product.quality) {
 	registerAction2(ResetCopilotHarnessIntroductionAction);
 }
 registerAction2(StartVoiceChatAction);
@@ -252,7 +255,9 @@ registerWorkbenchContribution2(ChatSuspendThrottlingHandler.ID, ChatSuspendThrot
 registerWorkbenchContribution2(ChatLifecycleHandler.ID, ChatLifecycleHandler, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(OpenWorkspaceInAgentsContribution.ID, OpenWorkspaceInAgentsContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(AgentsWindowInvitationContribution.ID, AgentsWindowInvitationContribution, WorkbenchPhase.BlockRestore);
-registerWorkbenchContribution2(CopilotHarnessIntroductionContribution.ID, CopilotHarnessIntroductionContribution, WorkbenchPhase.Eventually);
+if (buildFeatures.copilotChat) {
+	registerWorkbenchContribution2(CopilotHarnessIntroductionContribution.ID, CopilotHarnessIntroductionContribution, WorkbenchPhase.Eventually);
+}
 
 // How long to wait for the agent host to surface an AgentInfo before
 // throwing an error. Long enough for normal startup, short enough to avoid
@@ -337,11 +342,13 @@ async function openNewAgentHostSession(accessor: ServicesAccessor, position: Cha
 // registered after the agent host starts and surfaces an AgentInfo, which
 // is asynchronous. Provide stable command ids that automation (evals) can
 // invoke before the dynamic registration has occurred.
-CommandsRegistry.registerCommand(
-	`workbench.action.chat.openNewSessionSidebar.${AgentSessionProviders.AgentHostCopilot}`,
-	(accessor, chatSendOptions?: NewAgentHostSessionSendOptions) => openNewAgentHostSession(accessor, ChatSessionPosition.Sidebar, chatSendOptions)
-);
-CommandsRegistry.registerCommand(
-	`workbench.action.chat.openNewSessionEditor.${AgentSessionProviders.AgentHostCopilot}`,
-	(accessor, chatSendOptions?: NewAgentHostSessionSendOptions) => openNewAgentHostSession(accessor, ChatSessionPosition.Editor, chatSendOptions)
-);
+if (buildFeatures.copilotChat) {
+	CommandsRegistry.registerCommand(
+		`workbench.action.chat.openNewSessionSidebar.${AgentSessionProviders.AgentHostCopilot}`,
+		(accessor, chatSendOptions?: NewAgentHostSessionSendOptions) => openNewAgentHostSession(accessor, ChatSessionPosition.Sidebar, chatSendOptions)
+	);
+	CommandsRegistry.registerCommand(
+		`workbench.action.chat.openNewSessionEditor.${AgentSessionProviders.AgentHostCopilot}`,
+		(accessor, chatSendOptions?: NewAgentHostSessionSendOptions) => openNewAgentHostSession(accessor, ChatSessionPosition.Editor, chatSendOptions)
+	);
+}

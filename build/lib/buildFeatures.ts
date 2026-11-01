@@ -10,10 +10,13 @@ export type BuildFeatureProfile = 'default' | 'minimal';
 
 export interface IBuildFeatures {
 	readonly copilotChat: boolean;
+	readonly chatPanel: boolean;
 	readonly agentSessionsUI: true;
 	readonly git: boolean;
-	readonly scm: boolean;
-	readonly debug: boolean;
+	readonly sourceControlUI: boolean;
+	readonly scmService: boolean;
+	readonly debugUI: boolean;
+	readonly debugService: boolean;
 	readonly tasks: boolean;
 	readonly notebooks: boolean;
 	readonly testing: boolean;
@@ -24,6 +27,7 @@ export interface IBuildFeatures {
 	readonly sync: boolean;
 	readonly productServices: boolean;
 	readonly terminal: true;
+	readonly bundledExtensions: '*' | readonly string[];
 	readonly agents: { readonly codex: boolean; readonly claude: boolean };
 }
 
@@ -35,7 +39,7 @@ const buildFeatureConfiguration = JSON.parse(fs.readFileSync(path.join(import.me
 let loggedProfile: BuildFeatureProfile | undefined;
 
 const booleanFeatureKeys: readonly (keyof Omit<IBuildFeatures, 'terminal' | 'agentSessionsUI' | 'agents'>)[] = [
-	'copilotChat', 'git', 'scm', 'debug', 'tasks', 'notebooks', 'testing',
+	'copilotChat', 'chatPanel', 'git', 'sourceControlUI', 'scmService', 'debugUI', 'debugService', 'tasks', 'notebooks', 'testing',
 	'remote', 'extensionsUI', 'welcome', 'review', 'sync', 'productServices'
 ];
 
@@ -56,10 +60,21 @@ function validateBuildFeatureConfiguration(): void {
 		if (profile.terminal !== true || profile.agentSessionsUI !== true) {
 			throw new Error(`Invalid build/features.json: '${profileName}' must keep terminal and generic agent sessions enabled.`);
 		}
+		if (profile.sourceControlUI && !profile.scmService) {
+			throw new Error(`Invalid build/features.json: '${profileName}.sourceControlUI' requires 'scmService'.`);
+		}
+		if (profile.debugUI && !profile.debugService) {
+			throw new Error(`Invalid build/features.json: '${profileName}.debugUI' requires 'debugService'.`);
+		}
 		if (typeof profile.agents !== 'object' || profile.agents === null || Object.keys(profile.agents).sort().join(',') !== 'claude,codex' || typeof profile.agents.codex !== 'boolean' || typeof profile.agents.claude !== 'boolean') {
 			throw new Error(`Invalid build/features.json: '${profileName}.agents' must declare boolean codex and claude values.`);
 		}
-		const expectedKeys = [...booleanFeatureKeys, 'agents', 'terminal', 'agentSessionsUI'].sort();
+		if (profile.bundledExtensions !== '*') {
+			if (!Array.isArray(profile.bundledExtensions) || profile.bundledExtensions.some(id => typeof id !== 'string' || !/^[a-z0-9-]+\.[a-z0-9-]+$/.test(id)) || new Set(profile.bundledExtensions).size !== profile.bundledExtensions.length) {
+				throw new Error(`Invalid build/features.json: '${profileName}.bundledExtensions' must be '*' or a unique list of extension identifiers.`);
+			}
+		}
+		const expectedKeys = [...booleanFeatureKeys, 'agents', 'terminal', 'agentSessionsUI', 'bundledExtensions'].sort();
 		if (JSON.stringify(Object.keys(profile).sort()) !== JSON.stringify(expectedKeys)) {
 			throw new Error(`Invalid build/features.json keys for '${profileName}'.`);
 		}
@@ -101,7 +116,7 @@ export function configureProductForBuild<T extends Record<string, unknown>>(prod
 	for (const key of ['builtInExtensions', 'webBuiltInExtensions']) {
 		const extensions = configured[key];
 		if (Array.isArray(extensions)) {
-			configured[key] = extensions.filter(extension => typeof extension === 'object' && extension !== null && 'name' in extension && isBuildFeatureEnabledForExtension(String(extension.name), features));
+			configured[key] = extensions.filter(extension => typeof extension === 'object' && extension !== null && 'name' in extension && isBuildFeatureEnabledForExtension(String(extension.name), features) && isExtensionBundledForFeatures(String(extension.name), features));
 		}
 	}
 	return configured;
@@ -109,14 +124,23 @@ export function configureProductForBuild<T extends Record<string, unknown>>(prod
 
 export function filterBuiltInExtensions<T extends { name: string }>(extensions: T[]): T[] {
 	const features = getBuildFeatures();
-	return extensions.filter(extension => isBuildFeatureEnabledForExtension(extension.name, features));
+	return extensions.filter(extension => isBuildFeatureEnabledForExtension(extension.name, features) && isExtensionBundled(extension.name));
+}
+
+export function isExtensionBundled(extensionId: string): boolean {
+	return isExtensionBundledForFeatures(extensionId, getBuildFeatures());
+}
+
+function isExtensionBundledForFeatures(extensionId: string, features: IBuildFeatures): boolean {
+	const extensions = features.bundledExtensions;
+	return extensions === '*' || extensions.includes(extensionId.toLowerCase());
 }
 
 function isBuildFeatureEnabledForExtension(name: string, features: IBuildFeatures): boolean {
 	switch (name.toLowerCase()) {
 		case 'github.copilot-chat': return features.copilotChat;
 		case 'ms-vscode.js-debug':
-		case 'ms-vscode.js-debug-companion': return features.debug;
+		case 'ms-vscode.js-debug-companion': return features.debugUI;
 		default: return true;
 	}
 }

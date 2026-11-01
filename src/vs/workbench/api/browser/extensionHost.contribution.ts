@@ -5,6 +5,7 @@
 
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../common/contributions.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { buildFeatures } from '../../../platform/product/common/buildFeatures.js';
 
 // --- other interested parties
 import { JSONValidationExtensionPoint } from '../common/jsonValidationExtensionPoint.js';
@@ -49,14 +50,18 @@ import './mainThreadLanguageFeatures.js';
 import './mainThreadLanguages.js';
 import './mainThreadLogService.js';
 import './mainThreadMessageService.js';
-import './mainThreadManagedSockets.js';
+if (buildFeatures.remote) {
+	await import('./mainThreadManagedSockets.js');
+}
 import './mainThreadBrowserTunnelProxy.js';
 import './mainThreadOutputService.js';
 import './mainThreadProgress.js';
 import './mainThreadQuickDiff.js';
 import './mainThreadDocumentDiff.js';
 import './mainThreadQuickOpen.js';
-import './mainThreadRemoteConnectionData.js';
+if (buildFeatures.remote) {
+	await import('./mainThreadRemoteConnectionData.js');
+}
 import './mainThreadSaveParticipant.js';
 import './mainThreadSpeech.js';
 import './mainThreadEditSessionIdentityParticipant.js';
@@ -77,19 +82,27 @@ import './mainThreadPower.js';
 import './mainThreadGitHub.js';
 import './mainThreadWebviewManager.js';
 import './mainThreadWorkspace.js';
-import './mainThreadComments.js';
-import './mainThreadNotebook.js';
-import './mainThreadNotebookKernels.js';
-import './mainThreadNotebookDocumentsAndEditors.js';
-import './mainThreadNotebookRenderers.js';
-import './mainThreadNotebookSaveParticipant.js';
-import './mainThreadInteractive.js';
+if (buildFeatures.review) {
+	await import('./mainThreadComments.js');
+}
+if (buildFeatures.notebooks) {
+	await import('./mainThreadNotebook.js');
+	await import('./mainThreadNotebookKernels.js');
+	await import('./mainThreadNotebookDocumentsAndEditors.js');
+	await import('./mainThreadNotebookRenderers.js');
+	await import('./mainThreadNotebookSaveParticipant.js');
+	await import('./mainThreadInteractive.js');
+}
 import './mainThreadTask.js';
 import './mainThreadLabelService.js';
-import './mainThreadTunnelService.js';
+if (buildFeatures.remote) {
+	await import('./mainThreadTunnelService.js');
+}
 import './mainThreadAuthentication.js';
 import './mainThreadTimeline.js';
-import './mainThreadTesting.js';
+if (buildFeatures.testing) {
+	await import('./mainThreadTesting.js');
+}
 import './mainThreadSecretState.js';
 import './mainThreadShare.js';
 import './mainThreadProfileContentHandlers.js';

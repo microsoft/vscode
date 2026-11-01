@@ -86,7 +86,9 @@ export class WorkspaceWatcher extends Disposable {
 					run: () => this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=867693'))
 				}],
 				{
-					sticky: true,
+					// Keep repeated ENOSPC warnings out of the way while preserving the notification and its dismissal action.
+					sticky: false,
+					priority: NotificationPriority.SILENT,
 					neverShowAgain: { id: 'ignoreEnospcError', isSecondary: true, scope: NeverShowAgainScope.WORKSPACE }
 				}
 			);

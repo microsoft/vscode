@@ -32,6 +32,7 @@ import { fetchUrls } from './lib/fetch.ts';
 import { downloadFeedPackage } from './lib/azureFeed.ts';
 import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
 import { readAgentSdkResults } from './agent-sdk/common.ts';
+import { configureProductForBuild, filterBuiltInExtensions, getBuildFeatures } from './lib/buildFeatures.ts';
 
 
 const rcedit = promisify(rceditCallback);
@@ -294,7 +295,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 				return !isUIExtension(manifest);
 			}).map((extensionPath) => path.basename(path.dirname(extensionPath)))
 			.filter(name => name !== 'vscode-api-tests' && name !== 'vscode-test-resolver'); // Do not ship the test extensions
-		const builtInExtensions: Array<{ name: string; platforms?: string[]; clientOnly?: boolean }> = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'product.json'), 'utf8')).builtInExtensions;
+		const builtInExtensions: Array<{ name: string; platforms?: string[]; clientOnly?: boolean }> = filterBuiltInExtensions(JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'product.json'), 'utf8')).builtInExtensions);
 		const marketplaceExtensions = builtInExtensions
 			.filter(entry => !entry.platforms || new Set(entry.platforms).has(platform))
 			.filter(entry => !entry.clientOnly)
@@ -327,6 +328,13 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 		let productJsonContents = '';
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
 			.pipe(jsonEditor((json: Record<string, unknown>) => {
+				const buildProduct = configureProductForBuild(json);
+				for (const key of Object.keys(json)) {
+					if (!Object.hasOwn(buildProduct, key)) {
+						delete json[key];
+					}
+				}
+				Object.assign(json, buildProduct);
 				json.commit = commit;
 				json.nlsMetadataHash = computeNLSMetadataHash(path.join(REPO_ROOT, sourceFolderName), commit);
 				json.date = readISODate(sourceFolderName);
@@ -359,10 +367,16 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 			.pipe(filter(['**', '!**/package-lock.json', '!**/*.{js,css}.map']))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)));
-		ensureCopilotPlatformPackage(platform, arch, 'remote/node_modules');
-		const copilotRuntimePrebuilds = gulp.src(getCopilotRuntimePrebuildFiles(platform, arch, 'remote/node_modules'), { base: 'remote', dot: true, allowEmpty: true });
+		if (getBuildFeatures().copilotChat) {
+			ensureCopilotPlatformPackage(platform, arch, 'remote/node_modules');
+		}
+		const copilotRuntimePrebuilds = getBuildFeatures().copilotChat
+			? gulp.src(getCopilotRuntimePrebuildFiles(platform, arch, 'remote/node_modules'), { base: 'remote', dot: true, allowEmpty: true })
+			: es.readArray([]);
 		const deps = es.merge(cleanedDeps, copilotRuntimePrebuilds)
-			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
+			.pipe(filter(getBuildFeatures().copilotChat
+				? getCopilotExcludeFilter(platform, arch)
+				: ['**', '!**/node_modules/@github/copilot-sdk/**', '!**/node_modules/@github/copilot-sdk-*/**']))
 			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch)))
 			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
 			.pipe(jsFilter)
@@ -522,6 +536,9 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 
 function prepareCopilotRipgrepShimTaskREH(platform: string, arch: string, destinationFolderName: string) {
 	return async () => {
+		if (!getBuildFeatures().copilotChat) {
+			return;
+		}
 		const outputDir = path.join(BUILD_ROOT, destinationFolderName);
 		const nodeModulesDir = path.join(outputDir, 'node_modules');
 

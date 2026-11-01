@@ -5,10 +5,13 @@
 
 interface IBuildFeatures {
 	readonly copilotChat: boolean;
+	readonly chatPanel: boolean;
 	readonly agentSessionsUI: true;
 	readonly git: boolean;
-	readonly scm: boolean;
-	readonly debug: boolean;
+	readonly sourceControlUI: boolean;
+	readonly scmService: boolean;
+	readonly debugUI: boolean;
+	readonly debugService: boolean;
 	readonly tasks: boolean;
 	readonly notebooks: boolean;
 	readonly testing: boolean;
@@ -25,20 +28,25 @@ interface IBuildFeatures {
 declare const __VSCODE_BUILD_FEATURES__: IBuildFeatures;
 
 const developmentBuildFeatures: IBuildFeatures = {
-	copilotChat: true,
+	// The TypeScript watch pipeline does not run the Vite/build feature injection.
+	// Keep Electron development launches aligned with this repository's minimal profile.
+	copilotChat: false,
+	chatPanel: false,
 	agentSessionsUI: true,
-	git: true,
-	scm: true,
-	debug: true,
-	tasks: true,
-	notebooks: true,
-	testing: true,
-	remote: true,
+	git: false,
+	sourceControlUI: false,
+	scmService: true,
+	debugUI: false,
+	debugService: true,
+	tasks: false,
+	notebooks: false,
+	testing: false,
+	remote: false,
 	extensionsUI: true,
-	welcome: true,
-	review: true,
-	sync: true,
-	productServices: true,
+	welcome: false,
+	review: false,
+	sync: false,
+	productServices: false,
 	terminal: true,
 	agents: { codex: true, claude: true },
 };
