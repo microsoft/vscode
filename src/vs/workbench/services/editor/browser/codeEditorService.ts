@@ -10,6 +10,7 @@ import { IResourceEditorInput } from '../../../../platform/editor/common/editor.
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkbenchEditorConfiguration } from '../../../common/editor.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../common/editorService.js';
+import { IEditorGroup } from '../common/editorGroupsService.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -75,6 +76,24 @@ export class CodeEditorService extends AbstractCodeEditorService {
 	// Open using our normal editor service
 	private async doOpenCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 
+		// Resolve the editor group that hosts the source editor (if any). When a
+		// navigation originates from a specific editor, we want to target that
+		// editor's group rather than the currently most-recently-active group.
+		// This matters most for auxiliary editor windows: e.g. the outline view
+		// in the main window can track an editor in an auxiliary window, and
+		// clicking an outline item must navigate within that auxiliary window
+		// even if focusing the outline made another (main window) group active
+		// in the meantime.
+		let sourceGroup: IEditorGroup | undefined;
+		if (source && !sideBySide) {
+			for (const visiblePane of this.editorService.visibleEditorPanes) {
+				if (getCodeEditor(visiblePane.getControl()) === source) {
+					sourceGroup = visiblePane.group;
+					break;
+				}
+			}
+		}
+
 		// Special case: we want to detect the request to open an editor that
 		// is different from the current one to decide whether the current editor
 		// should be pinned or not. This ensures that the source of a navigation
@@ -88,16 +107,11 @@ export class CodeEditorService extends AbstractCodeEditorService {
 			!sideBySide &&										// we only need to care if editor opens in same group
 			!isEqual(source.getModel()?.uri, input.resource)	// we only need to do this if the editor is about to change
 		) {
-			for (const visiblePane of this.editorService.visibleEditorPanes) {
-				if (getCodeEditor(visiblePane.getControl()) === source) {
-					visiblePane.group.pinEditor();
-					break;
-				}
-			}
+			sourceGroup?.pinEditor();
 		}
 
 		// Open as editor
-		const control = await this.editorService.openEditor(input, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+		const control = await this.editorService.openEditor(input, sideBySide ? SIDE_GROUP : (sourceGroup ?? ACTIVE_GROUP));
 		if (control) {
 			const widget = control.getControl();
 			if (isCodeEditor(widget)) {
