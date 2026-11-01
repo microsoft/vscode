@@ -17,6 +17,12 @@ import { promiseWithResolvers } from '../../../../base/common/async.js';
 
 const WORKSPACE_CONTAINS_TIMEOUT = 7000;
 
+const EXCLUDED_DIRECTORIES = ['.git', '.svn', '.hg', 'node_modules'];
+
+function shouldIgnoreExcludesForPattern(globPattern: string): boolean {
+	return EXCLUDED_DIRECTORIES.some(dir => globPattern.includes(`/${dir}/`));
+}
+
 export interface IExtensionActivationHost {
 	readonly logService: ILogService;
 	readonly folders: readonly UriComponents[];
@@ -119,10 +125,12 @@ export function checkGlobFileExists(
 	const instantiationService = accessor.get(IInstantiationService);
 	const searchService = accessor.get(ISearchService);
 	const queryBuilder = instantiationService.createInstance(QueryBuilder);
+	const shouldIgnore = includes.some(pattern => shouldIgnoreExcludesForPattern(pattern));
 	const query = queryBuilder.file(folders.map(folder => toWorkspaceFolder(URI.revive(folder))), {
 		_reason: 'checkExists',
 		includePattern: includes,
-		exists: true
+		exists: true,
+		...(shouldIgnore && { disregardExcludeSettings: true, disregardIgnoreFiles: true }),
 	});
 
 	return searchService.fileSearch(query, token).then(
