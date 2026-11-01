@@ -585,6 +585,7 @@ export const AgentHostProxyConfigKey = {
 	Proxy: 'http.proxy',
 	ProxyKerberosServicePrincipal: 'http.proxyKerberosServicePrincipal',
 	NoProxy: 'http.noProxy',
+	ProxyPacUrl: 'http.proxyPacUrl',
 } as const;
 
 const agentHostProxyConfigDefinition = {
@@ -597,6 +598,11 @@ const agentHostProxyConfigDefinition = {
 		type: 'string',
 		title: localize('agentHost.config.httpProxyKerberosServicePrincipal.title', "HTTP Proxy Kerberos Service Principal"),
 		description: localize('agentHost.config.httpProxyKerberosServicePrincipal.description', "The Kerberos service principal used to authenticate with the HTTP proxy."),
+	}),
+	[AgentHostProxyConfigKey.ProxyPacUrl]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.httpProxyPacUrl.title', "HTTP Proxy PAC URL"),
+		description: localize('agentHost.config.httpProxyPacUrl.description', "The URL of a proxy auto-config (PAC) file. When set, the HTTP proxy and no-proxy settings are ignored."),
 	}),
 	[AgentHostProxyConfigKey.NoProxy]: schemaProperty<string[]>({
 		type: 'array',

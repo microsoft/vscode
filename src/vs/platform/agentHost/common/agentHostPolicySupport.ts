@@ -186,6 +186,9 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	ExtensionGalleryServiceUrl: { status: 'enforced' },
 	EnableFeedback: { status: 'enforced' },
 	UpdateMode: { status: 'enforced' },
+	// The host resolves proxies through the window session, which applies the PAC. The Copilot SDK
+	// process gets one proxy resolved for the Copilot API URL, not one per request.
+	ProxyPacUrl: { status: 'partial' },
 	// Windows setup, the Linux DEB/RPM scripts, and the `copilot` command on every platform read the
 	// policy themselves, so it applies to shells of every session type.
 	CopilotCliCommand: { status: 'enforced' },

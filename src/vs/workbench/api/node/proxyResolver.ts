@@ -13,6 +13,7 @@ import { ILogService, LogLevel as LogServiceLevel } from '../../../platform/log/
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { LogLevel, createHttpPatch, createProxyAuthorizationLookup, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch, loadSystemCertificates, ResolveProxyWithRequest } from '@vscode/proxy-agent';
 import { systemCertificatesNodeDefault } from '../../../platform/request/common/request.js';
+import { hasProxyPacUrl } from './proxyPacUrl.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { createRequire } from 'node:module';
 import type * as undiciType from 'undici-types';
@@ -44,6 +45,7 @@ export function connectProxyResolver(
 	const fallbackToLocalKerberos = useHostProxyDefault;
 	const loadLocalCertificates = useHostProxyDefault;
 	const isUseHostProxyEnabled = () => !isRemote || configProvider.getConfiguration('http').get<boolean>('useLocalProxyConfiguration', useHostProxyDefault);
+	const hasPacUrl = () => isUseHostProxyEnabled() && hasProxyPacUrl(configProvider); // Without host proxy resolution a PAC would never be evaluated.
 	const timedResolveProxy = createTimedResolveProxy(extHostWorkspace, mainThreadTelemetry);
 	const params: ProxyAgentParams = {
 		resolveProxy: timedResolveProxy,
@@ -70,9 +72,9 @@ export function connectProxyResolver(
 			lookupAuthorization: authInfo => extHostWorkspace.lookupAuthorization(authInfo),
 			onDidRequestAuthentication: authenticate => sendTelemetry(mainThreadTelemetry, authenticate, isRemote),
 		}),
-		getProxyURL: () => getExtHostConfigValue<string>(configProvider, isRemote, 'http.proxy'),
+		getProxyURL: () => hasPacUrl() ? undefined : getExtHostConfigValue<string>(configProvider, isRemote, 'http.proxy'),
 		getProxySupport: () => getExtHostConfigValue<ProxySupportSetting>(configProvider, isRemote, 'http.proxySupport') || 'off',
-		getNoProxyConfig: () => getExtHostConfigValue<string[]>(configProvider, isRemote, 'http.noProxy') || [],
+		getNoProxyConfig: () => hasPacUrl() ? [] : getExtHostConfigValue<string[]>(configProvider, isRemote, 'http.noProxy') || [],
 		isAdditionalFetchSupportEnabled: () => getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.fetchAdditionalSupport', true),
 		isWebSocketPatchEnabled: () => getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.webSocketAdditionalSupport', true),
 		addCertificatesV1: () => certSettingV1(configProvider, isRemote),

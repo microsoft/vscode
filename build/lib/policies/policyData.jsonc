@@ -23,6 +23,13 @@
             }
         },
         {
+            "key": "Network",
+            "name": {
+                "key": "networkConfigurationTitle",
+                "value": "Network"
+            }
+        },
+        {
             "key": "Telemetry",
             "name": {
                 "key": "telemetryConfigurationTitle",
@@ -1221,6 +1228,24 @@
             "included": true,
             "agentHost": {
                 "status": "notApplicable"
+            }
+        },
+        {
+            "key": "http.proxyPacUrl",
+            "name": "ProxyPacUrl",
+            "category": "Network",
+            "minimumVersion": "1.145",
+            "localization": {
+                "description": {
+                    "key": "http.proxyPacUrl",
+                    "value": "The URL of a proxy auto-config (PAC) file used to choose the proxy for each request. When set, the user's proxy settings are ignored."
+                }
+            },
+            "type": "string",
+            "default": "",
+            "included": true,
+            "agentHost": {
+                "status": "partial"
             }
         },
         {

@@ -351,6 +351,29 @@ suite('AgentHostProxyResolver', () => {
 		});
 	});
 
+	test('ignores the manually configured proxy and noProxy settings when a PAC URL is set', () => {
+		const configurationService = createAgentConfigurationService(disposables);
+		const resolver = disposables.add(new AgentHostProxyResolver(configurationService, new NullLogService()));
+		const settings = {
+			[AgentHostProxyConfigKey.Proxy]: 'http://proxy.example:8080',
+			[AgentHostProxyConfigKey.NoProxy]: ['internal.example'],
+		};
+		const readParams = () => {
+			const { params } = resolver['_getProxyResolver']();
+			return { proxy: params.getProxyURL(), noProxy: params.getNoProxyConfig?.() };
+		};
+
+		configurationService.updateRootConfig(settings);
+		const withoutPac = readParams();
+		configurationService.updateRootConfig({ ...settings, [AgentHostProxyConfigKey.ProxyPacUrl]: 'https://pac.example/proxy.pac' });
+		const withPac = readParams();
+
+		assert.deepStrictEqual({ withoutPac, withPac }, {
+			withoutPac: { proxy: 'http://proxy.example:8080', noProxy: ['internal.example'] },
+			withPac: { proxy: undefined, noProxy: [] },
+		});
+	});
+
 	test('reads local mirrored proxy values as transient before construction', () => {
 		const configurationService = createAgentConfigurationService(disposables);
 		configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://stale-proxy.example:8080' });
