@@ -453,6 +453,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			['installSandboxCertificate', 'sandboxCertificateInstallationSupported'],
 			['rotateSandboxCertificate', 'sandboxCertificateRotationSupported'],
 			['removeSandboxCertificate', 'sandboxCertificateRemovalSupported'],
+			['refreshSandboxCertificate', 'sandboxCertificateRefreshSupported'],
 		] as const;
 		const chat = 'conversation://tenant/a%2Fb?revision%3D2#entry';
 		const scopeId = 'remote-runtime-scope';
@@ -492,14 +493,17 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 				const installation = observableValue('installation', false);
 				const rotation = observableValue('rotation', false);
 				const removal = observableValue('removal', false);
+				const refresh = observableValue('refresh', false);
 				const calls: { operation: string; chat: string; scopeId: string }[] = [];
 				const service = createService({
 					sandboxCertificateInstallationSupported: installation,
 					sandboxCertificateRotationSupported: rotation,
 					sandboxCertificateRemovalSupported: removal,
+					sandboxCertificateRefreshSupported: refresh,
 					installSandboxCertificate: async (chat, scopeId) => { calls.push({ operation: 'install', chat, scopeId }); },
 					rotateSandboxCertificate: async (chat, scopeId) => { calls.push({ operation: 'rotate', chat, scopeId }); },
 					removeSandboxCertificate: async (chat, scopeId) => { calls.push({ operation: 'remove', chat, scopeId }); },
+					refreshSandboxCertificate: async (chat, scopeId) => { calls.push({ operation: 'refresh', chat, scopeId }); },
 				}, remoteAuthority);
 				const capabilities: boolean[][] = [];
 				disposables.add(autorun(reader => {
@@ -515,18 +519,23 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 				removal.set(true, undefined);
 				await service.removeSandboxCertificate(chat, scopeId);
 				removal.set(false, undefined);
+				refresh.set(true, undefined);
+				await service.refreshSandboxCertificate(chat, scopeId);
+				refresh.set(false, undefined);
 
 				assert.deepStrictEqual({ capabilities, calls }, {
 					capabilities: [
-						[false, false, false],
-						[true, false, false],
-						[false, false, false],
-						[false, true, false],
-						[false, false, false],
-						[false, false, true],
-						[false, false, false],
+						[false, false, false, false],
+						[true, false, false, false],
+						[false, false, false, false],
+						[false, true, false, false],
+						[false, false, false, false],
+						[false, false, true, false],
+						[false, false, false, false],
+						[false, false, false, true],
+						[false, false, false, false],
 					],
-					calls: ['install', 'rotate', 'remove'].map(operation => ({ operation, chat, scopeId })),
+					calls: ['install', 'rotate', 'remove', 'refresh'].map(operation => ({ operation, chat, scopeId })),
 				});
 			});
 		}
@@ -538,9 +547,11 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 				sandboxCertificateInstallationSupported: observableValue('installation', false),
 				sandboxCertificateRotationSupported: observableValue('rotation', false),
 				sandboxCertificateRemovalSupported: observableValue('removal', false),
+				sandboxCertificateRefreshSupported: observableValue('refresh', false),
 				installSandboxCertificate: fail,
 				rotateSandboxCertificate: fail,
 				removeSandboxCertificate: fail,
+				refreshSandboxCertificate: fail,
 			}, 'ssh-remote+test');
 
 			for (const [method, capability] of operations) {

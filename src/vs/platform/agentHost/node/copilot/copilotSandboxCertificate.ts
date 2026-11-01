@@ -38,6 +38,22 @@ export class CopilotSandboxCertificate {
 		return this._getStatusAfterOperations(rpc, config);
 	}
 
+	/** Invalidates all shared-store observations and checks the current chat without changing certificate trust. */
+	refresh(rpc: SandboxCertificateRpc, getConfig: () => SandboxCertificateConfig, scopeId: string): Promise<void> {
+		return this._operations.queue(this, async () => {
+			const config = getConfig();
+			if (!config.enabled) {
+				throw new Error(localize('copilot.sandboxCertificate.refreshDisabled', "Sandboxing is no longer enabled for this chat."));
+			}
+			this._requireRuntime(rpc, scopeId);
+			this._invalidateStatus();
+			const status = await this._getStatus(rpc, config);
+			if (status.state === 'error') {
+				throw new Error(status.detail ?? localize('copilot.sandboxCertificate.refreshFailed', "Could not refresh the sandbox certificate status."));
+			}
+		});
+	}
+
 	/** Explicitly creates the persistent CA without trusting it; the caller must obtain user consent first. */
 	create(rpc: SandboxCertificateRpc, config: SandboxCertificateConfig): ReturnType<SandboxCertificateRpc['create']> {
 		return this._mutate(() => config, 'create', config => rpc.create({ sandboxConfig: config }));
@@ -70,6 +86,26 @@ export class CopilotSandboxCertificate {
 			const supported = await this._query(() => rpc.checkInstallationSupport());
 			const status = await this._query(() => rpc.getStatus({}));
 			await this._installCertificate(rpc, {}, { ...status, canInstall: supported && status.canInstall });
+		});
+	}
+
+	/** Creates the CA using saved settings without changing OS trust or requiring sandbox enablement. */
+	createForHost(rpc: SandboxCertificateRpc): ReturnType<SandboxCertificateRpc['create']> {
+		return this._mutate(() => undefined, 'create', () => rpc.create({}));
+	}
+
+	/** Reads the saved-settings status without creating a CA or caching the observation. */
+	getStatusForHost(rpc: SandboxCertificateRpc): ReturnType<SandboxCertificateRpc['getStatus']> {
+		return this._query(() => rpc.getStatus({}));
+	}
+
+	/** Trusts only the existing CA using saved settings; does not create or rotate it. */
+	trustForHost(rpc: SandboxCertificateRpc): Promise<void> {
+		return this._mutate(() => undefined, 'trust', async () => {
+			const status = await rpc.trust({});
+			if (status.state !== 'installed' || status.detail !== undefined) {
+				throw new Error(status.detail ?? localize('copilot.sandboxCertificate.trustFailed', "The sandbox certificate was not trusted."));
+			}
 		});
 	}
 

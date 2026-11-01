@@ -1657,7 +1657,7 @@ suite('AgentService (node dispatcher)', () => {
 		assert.deepStrictEqual(calls, ['install', 'rotate', 'remove']);
 	});
 
-	for (const operation of ['installSandboxCertificate', 'rotateSandboxCertificate', 'removeSandboxCertificate'] as const) {
+	for (const operation of ['installSandboxCertificate', 'rotateSandboxCertificate', 'removeSandboxCertificate', 'refreshSandboxCertificate'] as const) {
 		test(`sandbox certificate ${operation} uses the registered chat owner without restoring a session`, async () => {
 			const provider: IAgent = copilotAgent;
 			const calls: [string, string][] = [];

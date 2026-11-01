@@ -99,6 +99,13 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.removeSandboxCertificate!(chat, scopeId));
 	}
 
+	refreshSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		if (!this._agentService.refreshSandboxCertificate) {
+			throw new Error('Sandbox certificate refresh is unavailable');
+		}
+		return this._runMutation(() => this._agentService.refreshSandboxCertificate!(chat, scopeId));
+	}
+
 	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
 		if (!this._agentService.createDetachedWorktree) {
 			throw new Error('Agent Host detached worktrees are unavailable');

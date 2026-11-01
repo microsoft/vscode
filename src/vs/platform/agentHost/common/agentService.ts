@@ -908,6 +908,7 @@ export interface IAgentHostManagementService {
 	installSandboxCertificate(chat: string, scopeId: string): Promise<void>;
 	rotateSandboxCertificate(chat: string, scopeId: string): Promise<void>;
 	removeSandboxCertificate(chat: string, scopeId: string): Promise<void>;
+	refreshSandboxCertificate(chat: string, scopeId: string): Promise<void>;
 	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void>;
 	claimDetachedWorktree(handle: string): Promise<void>;
@@ -1031,6 +1032,7 @@ export interface IAgentService {
 	installSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 	rotateSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 	removeSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
+	refreshSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree?(handle: string): Promise<void>;
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
@@ -1461,6 +1463,9 @@ export interface IAgentConnection {
 	readonly sandboxCertificateRemovalSupported?: IObservable<boolean>;
 	/** Removes OS trust only, after explicit user consent. */
 	removeSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
+	readonly sandboxCertificateRefreshSupported?: IObservable<boolean>;
+	/** Checks fresh status on this host and publishes it without changing certificate trust. */
+	refreshSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 	/** Refresh a held subscription through the standard subscribe request, preserving pending actions. */
 	refreshSubscription?(resource: URI): Promise<void>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;

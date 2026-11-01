@@ -15,6 +15,18 @@ import { isResponseSelectionSupported } from '../../../browser/chat.js';
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents read-only remote sandbox certificate refresh and keyboard access', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true),
+			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true),
+		].map(help => help.includes('Tab to reach Refresh')
+			&& help.includes('Enter or Space to activate it')
+			&& help.includes('without changing trust')
+			&& help.includes('leaves Refresh available to try again')), [true, true, false, true]);
+	});
+
 	test('documents the file chooser on chat surfaces with Add Context', () => {
 		assert.deepStrictEqual([
 			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),

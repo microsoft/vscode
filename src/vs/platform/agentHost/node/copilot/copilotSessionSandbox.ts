@@ -56,6 +56,7 @@ interface ICopilotSessionSandboxOptions {
 	readonly isSessionClosed?: (session?: CopilotSession) => boolean;
 	readonly getHostSupport: () => ReturnType<CopilotClient['rpc']['sandbox']['getHostSupport']>;
 	readonly getCertificateStatus: (config: SandboxConfig) => Promise<IAgentSandboxCertificateStatus | undefined>;
+	readonly refreshCertificate: (getConfig: () => SandboxConfig, scopeId: string) => Promise<void>;
 	readonly installCertificate: (getConfig: () => SandboxConfig, scopeId: string) => Promise<void>;
 	readonly rotateCertificate: (getConfig: () => SandboxConfig, scopeId: string) => Promise<void>;
 	readonly removeCertificate: (scopeId: string, validate: () => void) => Promise<void>;
@@ -331,9 +332,15 @@ export class CopilotSessionSandbox extends Disposable {
 		return this.isCustomTerminalToolEnabled() || this._disabledForSession ? { enabled: false } : this._computeConfig() ?? { enabled: false };
 	}
 
-	refreshCertificateDiagnostics(): Promise<void> {
-		const config = this.isCustomTerminalToolEnabled() || this._disabledForSession ? { enabled: false } : this._computeConfig() ?? { enabled: false };
-		return this._certificateDiagnostics.update(config);
+	async refreshCertificateDiagnostics(scopeId?: string): Promise<void> {
+		try {
+			if (scopeId !== undefined) {
+				await this._options.refreshCertificate(() => this._certificateConfig(), scopeId);
+			}
+		} finally {
+			const config = this.isCustomTerminalToolEnabled() || this._disabledForSession ? { enabled: false } : this._computeConfig() ?? { enabled: false };
+			await this._certificateDiagnostics.update(config);
+		}
 	}
 
 	/** Serializes configuration pushes with request-bound grants and session opt-outs. */
@@ -453,4 +460,3 @@ export class CopilotSessionSandbox extends Disposable {
 		}
 	}
 }
-

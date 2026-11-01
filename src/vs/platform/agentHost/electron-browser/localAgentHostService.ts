@@ -545,6 +545,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	readonly sandboxCertificateInstallationSupported = constObservable(true);
 	readonly sandboxCertificateRotationSupported = constObservable(true);
 	readonly sandboxCertificateRemovalSupported = constObservable(true);
+	readonly sandboxCertificateRefreshSupported = constObservable(true);
 
 	manageHostSandboxCertificate(provider: AgentProvider, operation: AgentSandboxCertificateOperation): Promise<void> {
 		return this._getManagementService().manageHostSandboxCertificate(provider, operation);
@@ -560,6 +561,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	removeSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		return this._getManagementService().removeSandboxCertificate(chat, scopeId);
+	}
+
+	refreshSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		return this._getManagementService().refreshSandboxCertificate(chat, scopeId);
 	}
 
 	importSession(session: URI): Promise<void> {

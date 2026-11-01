@@ -82,6 +82,91 @@ suite('CopilotSandboxCertificate', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 	const config = { enabled: true, auth: { git: true, gh: true } };
 
+	suite('refresh', () => {
+		test('invalidates every shared-store client and configuration without changing trust', async () => {
+			const first = new TestCertificateRpc();
+			const second = new TestCertificateRpc();
+			const certificates = new CopilotSandboxCertificate(new NullLogService());
+			const otherConfig = { enabled: true, auth: { git: true, gh: false } };
+			const initial = await certificates.getStatus(first, config);
+			const otherInitial = await certificates.getStatus(second, otherConfig);
+			await certificates.getStatus(first, otherConfig);
+			assert.ok(initial && otherInitial);
+			first.status = second.status = { state: 'installed', canInstall: true };
+			const cached = await certificates.getStatus(first, config);
+			await certificates.refresh(first, () => config, initial.scopeId);
+			assert.deepStrictEqual({
+				cached,
+				first: await certificates.getStatus(first, config),
+				otherConfig: await certificates.getStatus(first, otherConfig),
+				second: await certificates.getStatus(second, otherConfig),
+				firstCalls: first.calls,
+				secondCalls: second.calls,
+			}, {
+				cached: initial,
+				first: { ...initial, state: 'installed' },
+				otherConfig: { ...initial, state: 'installed' },
+				second: { ...otherInitial, state: 'installed' },
+				firstCalls: ['relevance', 'support', 'status', 'relevance', 'status', 'relevance', 'support', 'status', 'relevance', 'status'],
+				secondCalls: ['relevance', 'support', 'status', 'relevance', 'support', 'status'],
+			});
+		});
+
+		for (const fails of ['returned', 'thrown'] as const) {
+			test(`reports a ${fails} status error and retries without using the cached failure`, async () => {
+				const rpc = new TestCertificateRpc();
+				const certificates = new CopilotSandboxCertificate(new NullLogService());
+				const initial = await certificates.getStatus(rpc, config);
+				assert.ok(initial);
+				if (fails === 'returned') {
+					rpc.status = { state: 'error', canInstall: false, detail: 'Check failed' };
+				} else {
+					rpc.getStatus = async () => { throw new Error('Check failed'); };
+				}
+				await assert.rejects(certificates.refresh(rpc, () => config, initial.scopeId), /Check failed/);
+				const failed = await certificates.getStatus(rpc, config);
+				rpc.getStatus = async () => ({ state: 'installed', canInstall: true });
+				await certificates.refresh(rpc, () => config, initial.scopeId);
+				assert.deepStrictEqual({
+					failed: failed?.state,
+					refreshed: await certificates.getStatus(rpc, config),
+					mutations: rpc.calls.filter(call => ['create', 'trust', 'rotate', 'remove'].includes(call)),
+				}, { failed: 'error', refreshed: { ...initial, state: 'installed' }, mutations: [] });
+			});
+		}
+
+		test('rejects a stale scope without invalidating current observations', async () => {
+			const rpc = new TestCertificateRpc();
+			const certificates = new CopilotSandboxCertificate(new NullLogService());
+			const initial = await certificates.getStatus(rpc, config);
+			await assert.rejects(certificates.refresh(rpc, () => config, 'stale-runtime'), /runtime changed/);
+			assert.deepStrictEqual({ status: await certificates.getStatus(rpc, config), calls: rpc.calls }, {
+				status: initial, calls: ['relevance', 'support', 'status'],
+			});
+		});
+
+		test('waits for a mutation and revalidates the live configuration after dequeueing', async () => {
+			const rpc = new TestCertificateRpc();
+			const certificates = new CopilotSandboxCertificate(new NullLogService());
+			const initial = await certificates.getStatus(rpc, config);
+			assert.ok(initial);
+			const created = new DeferredPromise<CertificateCreateResult>();
+			rpc.createResult = created.p;
+			const installing = certificates.install(rpc, () => config, initial.scopeId);
+			await rpc.createStarted.p;
+			let configReads = 0;
+			const refreshing = certificates.refresh(rpc, () => { configReads++; return { enabled: false }; }, initial.scopeId);
+			const rejected = assert.rejects(refreshing, /no longer enabled/);
+			const readsWhileInstalling = configReads;
+			await created.complete({ certificatePath: '/runtime/proxy-ca.pem' });
+			await Promise.all([installing, rejected]);
+			assert.deepStrictEqual({ readsWhileInstalling, configReads, calls: rpc.calls }, {
+				readsWhileInstalling: 0, configReads: 1,
+				calls: ['relevance', 'support', 'status', 'relevance', 'support', 'status', 'create', 'trust'],
+			});
+		});
+	});
+
 	suite('host certificate management', () => {
 		test('host removal waits for installation from a different client sharing the CA store', async () => {
 			const hostRpc = new TestCertificateRpc();

@@ -937,7 +937,142 @@ suite('AgentHostSandboxNotification', () => {
 			assert.deepStrictEqual({ hasInstallButton: hasInstallButton(service), actions: service.notifications.get(id)?.actions }, { hasInstallButton: false, actions: [] });
 		});
 
-		const remoteGuidance = 'Install the sandbox certificate authority (CA) on the remote agent host. On that computer, open a local desktop window of VS Code and run Sandbox: Manage Trusted CA from the Command Palette, then select Install. Learn more.';
+		const remoteGuidance = 'Install the sandbox certificate authority (CA) on remote agent host so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. Learn more.';
+
+		function enableRefresh(refresh: (chat: string, scopeId: string) => Promise<void>) {
+			assert.ok(resolution);
+			const supported = observableValue('refreshSupported', true);
+			resolution = {
+				...resolution,
+				connection: new class extends mock<IAgentConnection>() {
+					override readonly sandboxCertificateRefreshSupported = supported;
+					override refreshSandboxCertificate = refresh;
+					override getSubscriptionUnmanaged(): undefined { return undefined; }
+				},
+			};
+			return supported;
+		}
+
+		for (const result of ['installed', 'notInstalled', 'error'] as const) {
+			test(`remote certificate refresh shows progress and handles ${result} without changing trust`, async () => {
+				const subscription = store.add(new TestSubscription());
+				subscription.setValue();
+				const chat = 'conversation://tenant/a%2Fb?revision%3D2#entry';
+				subscription.setCertificate(certificate, chat);
+				const service = new NotificationService();
+				const pending = new DeferredPromise<void>();
+				const calls: [string, string][] = [];
+				enableRefresh(async (chat, scopeId) => {
+					calls.push([chat, scopeId]);
+					await pending.p;
+					subscription.setCertificate({ ...certificate, state: result, canInstall: result !== 'error' }, chat);
+					if (result === 'error') {
+						throw new Error('Check failed');
+					}
+				});
+				focus(resource);
+				createNotification(resource, subscription, service);
+				const action = service.notifications.get(id)?.actions[0];
+				assert.ok(action?.kind === ChatInputNotificationActionKind.Command);
+				const command = CommandsRegistry.getCommand(action.commandId);
+				assert.ok(command);
+				const refreshing = instantiationService.invokeFunction(command.handler);
+				const progress = service.notifications.get(id);
+				await instantiationService.invokeFunction(command.handler);
+				await pending.complete();
+				await refreshing;
+				const remaining = service.notifications.get(id);
+				assert.deepStrictEqual({
+					label: action.label, calls,
+					progress: { message: progress?.message, shown: !!progress?.progress, actions: progress?.actions },
+					remaining: remaining && { message: remaining.message, actions: remaining.actions.map(action => action.label), progress: remaining.progress },
+					confirmations, errors: installationErrors, dispatched,
+				}, {
+					label: 'Refresh', calls: [[chat, 'host-runtime']],
+					progress: { message: 'Checking sandbox certificate status', shown: true, actions: [] },
+					remaining: result === 'installed' ? undefined : {
+						message: result === 'error' ? 'Sandbox certificate status is unavailable' : 'Sandbox trusted CA is not installed (optional)',
+						actions: ['Refresh'], progress: undefined,
+					},
+					confirmations: [], errors: result === 'error' ? ['Could not refresh sandbox certificate status: Check failed'] : [], dispatched: [],
+				});
+			});
+		}
+
+		test('remote certificate refresh retries errors and tracks changes to the host capability', async () => {
+			const subscription = store.add(new TestSubscription());
+			subscription.setValue();
+			subscription.setCertificate({ ...certificate, state: 'error', canInstall: false });
+			const service = new NotificationService();
+			let calls = 0;
+			const supported = enableRefresh(async () => {
+				calls++;
+				subscription.setCertificate(certificate);
+			});
+			focus(resource);
+			createNotification(resource, subscription, service);
+			const command = installCommand(service);
+			await instantiationService.invokeFunction(command.handler);
+			supported.set(false, undefined);
+			const withoutSupport = service.notifications.get(id)?.actions;
+			supported.set(true, undefined);
+			assert.deepStrictEqual({ calls, withoutSupport, actions: service.notifications.get(id)?.actions.map(action => action.label), errors: installationErrors }, {
+				calls: 1, withoutSupport: [], actions: ['Refresh'], errors: [],
+			});
+		});
+
+		for (const change of ['disconnect', 'hidden AI', 'disabled sandbox', 'unsupported host', 'disposed'] as const) {
+			test(`a stale remote certificate Refresh action does not run after ${change}`, async () => {
+				const subscription = store.add(new TestSubscription());
+				subscription.setValue();
+				subscription.setCertificate(certificate);
+				const service = new NotificationService();
+				let calls = 0;
+				const supported = enableRefresh(async () => { calls++; });
+				focus(resource);
+				const controller = createNotification(resource, subscription, service);
+				const command = installCommand(service);
+				switch (change) {
+					case 'disconnect': resolution = undefined; subscription.setError(); break;
+					case 'hidden AI': hiddenAI = true; sentimentChanged.fire(); break;
+					case 'disabled sandbox': subscription.setSandboxConfig('off', false); break;
+					case 'unsupported host': supported.set(false, undefined); break;
+					case 'disposed': controller.dispose(); break;
+				}
+				await instantiationService.invokeFunction(command.handler);
+				assert.deepStrictEqual({ calls, errors: installationErrors.length, confirmations }, {
+					calls: 0, errors: change === 'disposed' ? 0 : 1, confirmations: [],
+				});
+			});
+		}
+
+		for (const key of ['Enter', ' '] as const) {
+			test(`renders an accessible remote certificate Refresh button activated by ${key === ' ' ? 'Space' : key}`, async () => {
+				const subscription = store.add(new TestSubscription());
+				subscription.setValue();
+				subscription.setCertificate(certificate);
+				const service = new NotificationService();
+				let calls = 0;
+				enableRefresh(async () => { calls++; });
+				focus(resource);
+				createNotification(resource, subscription, service);
+				const commands: Parameters<ICommandService['executeCommand']>[] = [];
+				const widget = renderWarning(service, commands, inputUri);
+				const button = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-actions .monaco-button');
+				assert.ok(button);
+				const keyboard = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+				Object.defineProperty(keyboard, 'keyCode', { get: () => key === 'Enter' ? 13 : 32 });
+				button.dispatchEvent(keyboard);
+				assert.strictEqual(commands.length, 1);
+				const command = CommandsRegistry.getCommand(commands[0][0]);
+				assert.ok(command);
+				await instantiationService.invokeFunction(command.handler);
+				assert.deepStrictEqual({
+					label: button.textContent, role: button.getAttribute('role'), tabIndex: button.tabIndex,
+					ariaLabel: button.ariaLabel, calls, confirmations,
+				}, { label: 'Refresh', role: 'button', tabIndex: 0, ariaLabel: 'Sandbox trusted CA is not installed (optional) Refresh', calls: 1, confirmations: [] });
+			});
+		}
 
 		(isWeb ? test : test.skip)('web windows provide manual guidance and reject chat installation even through the default host service', async () => {
 			const subscription = store.add(new TestSubscription());
@@ -1690,7 +1825,7 @@ suite('AgentHostSandboxNotification', () => {
 		});
 	});
 
-	function renderWarning(service: NotificationService, commands: Parameters<ICommandService['executeCommand']>[] = []): ChatInputNotificationWidget {
+	function renderWarning(service: NotificationService, commands: Parameters<ICommandService['executeCommand']>[] = [], inputUri?: URI): ChatInputNotificationWidget {
 		const widgetInstantiationService = store.add(workbenchInstantiationService(undefined, store));
 		widgetInstantiationService.stub(IChatInputNotificationService, {
 			onDidChange: Event.None,
@@ -1705,6 +1840,7 @@ suite('AgentHostSandboxNotification', () => {
 			},
 		});
 		return store.add(widgetInstantiationService.createInstance(ChatInputNotificationWidget, {
+			inputUri,
 			hostVisible: constObservable(true),
 			modelTargetChatSessionType: constObservable('agent-host-copilot'),
 			sessionResource: constObservable(resource),

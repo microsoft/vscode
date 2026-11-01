@@ -4816,6 +4816,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await this._withSandboxCertificateRefresh(chat, session => session.removeSandboxCertificate(scopeId));
 	}
 
+	async refreshSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		await this._withSandboxCertificateRefresh(chat, session => session.refreshSandboxCertificate(scopeId));
+	}
+
 	private async _withSandboxCertificateRefresh(chat: string, operation: (session: CopilotAgentSession) => Promise<void>): Promise<void> {
 		const session = this._findChatByUri(chat);
 		if (!session) {
