@@ -382,6 +382,10 @@ export class SCMViewService implements ISCMViewService {
 					this._onDidChangeRepositories.fire({ added, removed: Iterable.empty() });
 				}
 
+				// Ignore the previous state for the rest of this load. Otherwise a repository
+				// that is discovered later, and that was visible in the previous session,
+				// would clear the selection of all of the repositories added so far.
+				this.previousState = undefined;
 				this.didSelectRepository = false;
 				return;
 			}
