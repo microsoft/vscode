@@ -3472,10 +3472,10 @@ export class Repository {
 
 	async getSubmodules(): Promise<Submodule[]> {
 		const gitmodulesPath = path.join(this.root, '.gitmodules');
+		let gitmodulesRaw: string;
 
 		try {
-			const gitmodulesRaw = await fs.readFile(gitmodulesPath, 'utf8');
-			return parseGitmodules(gitmodulesRaw);
+			gitmodulesRaw = await fs.readFile(gitmodulesPath, 'utf8');
 		} catch (err) {
 			if (/ENOENT/.test(err.message)) {
 				return [];
@@ -3483,6 +3483,29 @@ export class Repository {
 
 			throw err;
 		}
+
+		// .gitmodules may retain entries for expanded directories that are no longer gitlinks.
+		const submodules = parseGitmodules(gitmodulesRaw);
+		const gitlinkPaths = await this.getGitlinkPaths(submodules.map(submodule => submodule.path));
+		return submodules.filter(submodule => gitlinkPaths.has(submodule.path));
+	}
+
+	/**
+	 * Returns paths recorded as gitlinks (mode 160000) at any stage of the index.
+	 */
+	private async getGitlinkPaths(paths: string[]): Promise<Set<string>> {
+		const gitlinkPaths = new Set<string>();
+		const pathspecs = paths.map(path => `:(top,literal)${path}`);
+		for (const chunk of splitInChunks(pathspecs, MAX_CLI_LENGTH)) {
+			const { stdout } = await this.exec(['ls-files', '--stage', '-z', '--', ...chunk]);
+			for (const entry of stdout.split('\0')) {
+				if (entry.startsWith('160000 ')) {
+					gitlinkPaths.add(entry.substring(entry.indexOf('\t') + 1));
+				}
+			}
+		}
+
+		return gitlinkPaths;
 	}
 
 	private sanitizeRelativePath(filePath: string): string {
