@@ -1,0 +1,280 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Mutable } from '../../../../base/common/types.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { isLocalizedString } from '../../../../platform/action/common/action.js';
+import { ICommandStats, IKeybindingTeacherConfiguration, IKeybindingTeacherService, DEFAULT_CONFIG } from '../common/keybindingTeacher.js';
+import { KeybindingTeacherStorage } from '../common/keybindingTeacherStorage.js';
+import { localize } from '../../../../nls.js';
+
+/**
+ * Filter out high-frequency commands that users trigger very often.
+ * This pattern intentionally mirrors the high-frequency command filter in
+ * src/vs/platform/keybinding/common/abstractKeybindingService.ts, but also
+ * includes 'type' to better capture text-editing commands for the keybinding
+ * teacher's suggestion heuristics.
+ */
+
+const HIGH_FREQ_COMMANDS = /^(cursor|delete|undo|redo|tab|type|editor\.action\.clipboard)/;
+
+const IGNORED_COMMANDS = new Set([
+	'_extensionHost.command',
+	'vscode.executeCommand',
+	'extension.command',
+]);
+
+export class KeybindingTeacherService extends Disposable implements IKeybindingTeacherService {
+
+	declare readonly _serviceBrand: undefined;
+
+	private stats: Map<string, Mutable<ICommandStats>>;
+	private storage: KeybindingTeacherStorage;
+	private config: IKeybindingTeacherConfiguration;
+
+	constructor(
+		@ICommandService private readonly commandService: ICommandService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IStorageService storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
+		super();
+
+		this.storage = new KeybindingTeacherStorage(storageService);
+		this.stats = this.storage.loadStats();
+		this.config = this.loadConfiguration();
+
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.keybindingTeacher')) {
+				this.config = this.loadConfiguration();
+			}
+		}));
+
+		this._register(commandService.onDidExecuteCommand(e => {
+			if (this.keybindingService.currentlyDispatchingCommandId !== e.commandId) {
+				this.recordUICommandExecution(e.commandId);
+			}
+		}));
+	}
+
+	private loadConfiguration(): IKeybindingTeacherConfiguration {
+		const config = this.configurationService.getValue<Partial<IKeybindingTeacherConfiguration>>('workbench.keybindingTeacher') || {};
+		return {
+			...DEFAULT_CONFIG,
+			...config
+		};
+	}
+
+	recordUICommandExecution(commandId: string): void {
+		if (!this.config.enabled) {
+			return;
+		}
+
+		if (this.shouldIgnoreCommand(commandId)) {
+			return;
+		}
+
+		const stats = this.getOrCreateStats(commandId);
+		stats.uiExecutions++;
+
+		this.stats.set(commandId, stats);
+
+		if (this.shouldShowSuggestion(stats)) {
+			this.showKeybindingSuggestion(commandId, stats);
+		}
+	}
+
+	private shouldIgnoreCommand(commandId: string): boolean {
+		if (HIGH_FREQ_COMMANDS.test(commandId)) {
+			return true;
+		}
+
+		if (IGNORED_COMMANDS.has(commandId)) {
+			return true;
+		}
+
+		const keybinding = this.keybindingService.lookupKeybinding(commandId);
+		if (!keybinding) {
+			return true;
+		}
+
+		return false;
+	}
+
+	private getOrCreateStats(commandId: string): Mutable<ICommandStats> {
+		let stats = this.stats.get(commandId);
+		if (!stats) {
+			stats = {
+				commandId,
+				uiExecutions: 0,
+				lastNotified: undefined,
+				dismissed: false
+			};
+			this.stats.set(commandId, stats);
+		}
+		return stats;
+	}
+
+	private shouldShowSuggestion(stats: Mutable<ICommandStats>): boolean {
+		if (stats.dismissed) {
+			return false;
+		}
+
+		if (stats.uiExecutions < this.config.threshold || stats.uiExecutions % this.config.threshold !== 0) {
+			return false;
+		}
+
+		if (stats.lastNotified && this.config.cooldownMinutes > 0) {
+			const cooldownMs = this.config.cooldownMinutes * 60 * 1000;
+			const timeSinceLastNotified = Date.now() - stats.lastNotified;
+			if (timeSinceLastNotified < cooldownMs) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	private showKeybindingSuggestion(commandId: string, stats: Mutable<ICommandStats>): void {
+		const keybinding = this.keybindingService.lookupKeybinding(commandId);
+		if (!keybinding) {
+			return;
+		}
+
+		const keybindingLabel = keybinding.getLabel();
+		if (!keybindingLabel) {
+			return;
+		}
+
+		stats.lastNotified = Date.now();
+		this.stats.set(commandId, stats);
+		this.storage.saveStats(this.stats);
+
+		const commandLabel = this.getCommandLabel(commandId);
+
+		const message = localize(
+			'keybindingTeacher.suggestion',
+			"You can use \"{0}\" for \"{1}\"",
+			keybindingLabel,
+			commandLabel
+		);
+
+		const actions = [];
+
+		actions.push({
+			label: localize('keybindingTeacher.showKeybindings', "Show All Keybindings"),
+			run: () => {
+				this.commandService.executeCommand('workbench.action.openGlobalKeybindings');
+			}
+		});
+
+		actions.push({
+			label: localize('keybindingTeacher.dismiss', "Don't Show Again for This Command"),
+			run: () => {
+				this.dismissCommand(commandId);
+			}
+		});
+
+		this.notificationService.prompt(
+			Severity.Info,
+			message,
+			actions,
+			{
+				sticky: false
+			}
+		);
+	}
+
+	private getCommandLabel(commandId: string): string {
+		const menuCommand = MenuRegistry.getCommand(commandId);
+		if (menuCommand) {
+			const title = typeof menuCommand.title === 'string'
+				? menuCommand.title
+				: (isLocalizedString(menuCommand.title) ? menuCommand.title.value : undefined);
+
+			if (title) {
+				if (menuCommand.category) {
+					const category = typeof menuCommand.category === 'string'
+						? menuCommand.category
+						: (isLocalizedString(menuCommand.category) ? menuCommand.category.value : undefined);
+					if (category) {
+						return `${category}: ${title}`;
+					}
+				}
+				return title;
+			}
+		}
+
+		const command = CommandsRegistry.getCommand(commandId);
+		if (command?.metadata?.description) {
+			const description = command.metadata.description;
+			if (typeof description === 'string') {
+				return description;
+			} else if (isLocalizedString(description)) {
+				return description.value;
+			}
+		}
+
+		return commandId
+			.replace(/^workbench\.action\./, '')
+			.replace(/^editor\.action\./, '')
+			.replace(/\./g, ' ')
+			// Insert spaces between lower/digit and upper (e.g. showHTML -> show HTML)
+			.replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+			// Insert spaces between acronym and subsequent capitalized word (e.g. HTMLPreview -> HTML Preview)
+			.replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+			.trim()
+			.toLowerCase();
+	}
+
+	getCommandStats(commandId: string): ICommandStats | undefined {
+		return this.stats.get(commandId);
+	}
+
+	dismissCommand(commandId: string): void {
+		const stats = this.getOrCreateStats(commandId);
+		stats.dismissed = true;
+		this.stats.set(commandId, stats);
+		this.storage.saveStats(this.stats);
+	}
+
+	undismissCommand(commandId: string): void {
+		const stats = this.stats.get(commandId);
+		if (stats) {
+			stats.dismissed = false;
+			stats.uiExecutions = 0;
+			stats.lastNotified = undefined;
+			this.stats.set(commandId, stats);
+			this.storage.saveStats(this.stats);
+		}
+	}
+
+	getDismissedCommands(): string[] {
+		const dismissed: string[] = [];
+		for (const [commandId, stats] of this.stats.entries()) {
+			if (stats.dismissed) {
+				dismissed.push(commandId);
+			}
+		}
+		return dismissed.sort();
+	}
+
+	resetAllStats(): void {
+		this.stats.clear();
+		this.storage.clearStats();
+	}
+
+	override dispose(): void {
+		this.storage.saveStats(this.stats);
+		super.dispose();
+	}
+}
