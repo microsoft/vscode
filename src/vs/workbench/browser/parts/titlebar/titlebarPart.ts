@@ -446,7 +446,15 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			if (this.menubar && this.installedCompactMenubar !== wantCompact) {
 				this.uninstallMenubar();
 			}
-			this.installMenubar();
+			if (!this.menubar) {
+				this.installMenubar();
+
+				// Re-layout so the new menu bar is positioned without waiting for another layout pass
+				if (this.lastLayoutDimensions) {
+					this.layout(this.lastLayoutDimensions.width, this.lastLayoutDimensions.height);
+				}
+				this._onDidChange.fire(undefined);
+			}
 		} else if (this.menubar) {
 			this.uninstallMenubar();
 		}

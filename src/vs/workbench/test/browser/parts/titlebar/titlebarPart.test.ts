@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { setFullscreen } from '../../../../../base/browser/browser.js';
 import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -295,16 +296,74 @@ suite('Workbench - Titlebar Part', () => {
 		});
 	});
 
-	test('compact menu stays with the activity bar when the custom title bar is hidden', function () {
-		if (isWeb) {
-			this.skip(); // the custom title bar visibility setting does not apply on web
-		}
-		const configurationService = new TestConfigurationService({
-			window: { menuBarVisibility: 'compact', customTitleBarVisibility: 'never', titleBarStyle: 'native' },
+	function createHandoffConfiguration(): TestConfigurationService {
+		// A native title bar with a custom menu keeps the compact menu bar while allowing the custom title bar to be hidden.
+		return new TestConfigurationService({
+			window: { titleBarStyle: 'native', menuStyle: 'custom', menuBarVisibility: 'compact', customTitleBarVisibility: 'auto' },
 			workbench: { activityBar: { location: ActivityBarPosition.TOP } }
 		});
+	}
 
-		assert.strictEqual(isCompactMenuInTitlebar(configurationService), false);
+	function isHandoffSupported(configurationService: TestConfigurationService): boolean {
+		// The custom title bar visibility setting does not apply on web, and native macOS always uses the native menu.
+		return !isWeb && !isMacintosh && !hasNativeMenu(configurationService) && getMenuBarVisibility(configurationService) === 'compact';
+	}
+
+	function setSetting(configurationService: TestConfigurationService, key: string, value: string): void {
+		configurationService.setUserConfiguration(key, value);
+		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: (k: string) => k === key } as IConfigurationChangeEvent);
+	}
+
+	test('compact menu leaves the titlebar when the custom title bar is hidden and returns when it is shown', function () {
+		const configurationService = createHandoffConfiguration();
+		if (!isHandoffSupported(configurationService)) {
+			this.skip();
+		}
+		const { part, container } = createTitlebar(configurationService);
+
+		const states: Record<string, { owner: boolean; count: number; compact: boolean }> = {};
+		const record = (name: string) => states[name] = { owner: isCompactMenuInTitlebar(configurationService), ...menubarState(container) };
+		try {
+			record('initial');
+			setSetting(configurationService, 'window.customTitleBarVisibility', 'never');
+			record('hidden');
+			setSetting(configurationService, 'window.customTitleBarVisibility', 'auto');
+			record('shown');
+			setSetting(configurationService, 'window.customTitleBarVisibility', 'never');
+			record('hiddenAgain');
+			setSetting(configurationService, 'window.customTitleBarVisibility', 'auto');
+			record('shownAgain');
+
+			// 'windowed' hides the custom title bar only while the window is fullscreen.
+			setSetting(configurationService, 'window.customTitleBarVisibility', 'windowed');
+			record('windowed');
+			setFullscreen(true, mainWindow);
+			record('fullscreen');
+			setFullscreen(false, mainWindow);
+			record('exitFullscreen');
+			setFullscreen(true, mainWindow);
+			record('fullscreenAgain');
+			setFullscreen(false, mainWindow);
+			record('exitFullscreenAgain');
+		} finally {
+			setFullscreen(false, mainWindow);
+			part.dispose();
+		}
+
+		const owned = { owner: true, count: 1, compact: true };
+		const released = { owner: false, count: 0, compact: false };
+		assert.deepStrictEqual(states, {
+			initial: owned,
+			hidden: released,
+			shown: owned,
+			hiddenAgain: released,
+			shownAgain: owned,
+			windowed: owned,
+			fullscreen: released,
+			exitFullscreen: owned,
+			fullscreenAgain: released,
+			exitFullscreenAgain: owned,
+		});
 	});
 
 	function createTitlebar(configurationService: TestConfigurationService, partCtor: typeof BrowserTitlebarPart = BrowserTitlebarPart) {
