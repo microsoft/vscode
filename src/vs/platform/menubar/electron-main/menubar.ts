@@ -10,13 +10,14 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { mnemonicMenuLabel } from '../../../base/common/labels.js';
 import { isMacintosh, language } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import * as nls from '../../../nls.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { IMenubarData, IMenubarKeybinding, IMenubarMenu, IMenubarMenuRecentItemAction, isMenubarMenuItemAction, isMenubarMenuItemRecentAction, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, MenubarMenuItem } from '../common/menubar.js';
+import { IMenubarData, IMenubarKeybinding, IMenubarMenu, IMenubarMenuRecentItemAction, isMenubarMenuItemAction, isMenubarMenuItemRecentAction, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, MenubarMenuItem, pruneRecentMenuItems } from '../common/menubar.js';
 import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IStateService } from '../../state/node/state.js';
@@ -25,6 +26,7 @@ import { IUpdateService, StateType } from '../../update/common/update.js';
 import { INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable, hasNativeMenu } from '../../window/common/window.js';
 import { IWindowsCountChangedEvent, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { IWorkspacesHistoryMainService } from '../../workspaces/electron-main/workspacesHistoryMainService.js';
+import { isRecentFolder, isRecentWorkspace } from '../../workspaces/common/workspaces.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 
 const telemetryFrom = 'menu';
@@ -184,6 +186,10 @@ export class Menubar extends Disposable {
 		// Rebuild menu when update state changes so update menu items reflect
 		// the current state (e.g. "Restart to Update" instead of "Check for Updates...").
 		this._register(this.updateService.onStateChange(() => this.scheduleUpdateMenu()));
+
+		// Prune stale Open Recent entries when the MRU list changes (#332665).
+		this._register(this.workspacesHistoryMainService.onDidChangeRecentlyOpened(() => this.pruneStaleRecentMenuItems()));
+		this.pruneStaleRecentMenuItems();
 	}
 
 	private get currentEnableMenuBarMnemonics(): boolean {
@@ -220,6 +226,42 @@ export class Menubar extends Disposable {
 
 	private scheduleUpdateMenu(): void {
 		this.menuUpdater.schedule(); // buffer multiple attempts to update the menu
+	}
+
+	private async pruneStaleRecentMenuItems(): Promise<void> {
+		if (!isMacintosh && !this.showNativeMenu) {
+			return;
+		}
+
+		const mru = await this.workspacesHistoryMainService.getRecentlyOpened();
+		const isInRecentList = (item: IMenubarMenuRecentItemAction): boolean => {
+			const uri = URI.revive(item.uri);
+
+			if (item.id === 'openRecentFile') {
+				return mru.files.some(file => extUriBiasedIgnorePathCase.isEqual(file.fileUri, uri));
+			}
+
+			if (item.id === 'openRecentFolder') {
+				return mru.workspaces.some(workspace => isRecentFolder(workspace) && extUriBiasedIgnorePathCase.isEqual(workspace.folderUri, uri));
+			}
+
+			if (item.id === 'openRecentWorkspace') {
+				return mru.workspaces.some(workspace => isRecentWorkspace(workspace) && extUriBiasedIgnorePathCase.isEqual(workspace.workspace.configPath, uri));
+			}
+
+			return true;
+		};
+
+		if (!pruneRecentMenuItems(this.menubarMenus, isInRecentList)) {
+			return;
+		}
+
+		this.stateService.setItem(Menubar.lastKnownMenubarStorageKey, {
+			menus: this.menubarMenus,
+			keybindings: this.keybindings
+		});
+
+		this.scheduleUpdateMenu();
 	}
 
 	private doUpdateMenu(): void {
