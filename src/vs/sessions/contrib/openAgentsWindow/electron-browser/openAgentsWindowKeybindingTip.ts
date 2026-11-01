@@ -119,7 +119,7 @@ export class OpenAgentsWindowSystemWideKeybindingTip extends Disposable implemen
 
 	private async _doEnable(): Promise<void> {
 		const resolvedKeybinding = this._keybindingService.resolveUserBinding(OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING)[0];
-		const accelerator = resolvedKeybinding?.getElectronAccelerator();
+		const accelerator = resolvedKeybinding?.getElectronAccelerator('globalShortcut');
 		if (!accelerator) {
 			this._notificationService.error(localize('openAgentsWindowSystemWideKeybinding.unresolved', "Unable to enable the system-wide Agents window keybinding because the key combination could not be resolved."));
 			return;

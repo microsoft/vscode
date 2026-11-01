@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
+import { KeyChord, KeyCode, KeyMod, ScanCode } from '../../../../../base/common/keyCodes.js';
+import { Keybinding, ResolvedKeybinding, ScanCodeChord } from '../../../../../base/common/keybindings.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
 import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
 import { selectSystemWideKeybindings } from '../../electron-browser/systemWideKeybindings.js';
+import { MacLinuxKeyboardMapper } from '../../../../services/keybinding/common/macLinuxKeyboardMapper.js';
 
 suite('SystemWideKeybindings selection', () => {
 
@@ -98,6 +99,43 @@ suite('SystemWideKeybindings selection', () => {
 			duplicates: [{
 				commandId: 'second.loses',
 				userSettingsLabel: 'cmd+a',
+			}],
+		});
+	});
+
+	test('a menu-only plus does not reserve a global accelerator', () => {
+		const mapper = new MacLinuxKeyboardMapper(false, {
+			Equal: {
+				value: '+', valueIsDeadKey: false,
+				withShift: '*', withShiftIsDeadKey: false,
+				withAltGr: '', withAltGrIsDeadKey: false,
+				withShiftAltGr: '', withShiftAltGrIsDeadKey: false,
+			}
+		}, false, OperatingSystem.Macintosh);
+		const physicalPlus = mapper.resolveKeybinding(new Keybinding([new ScanCodeChord(false, false, false, true, ScanCode.Equal)]))[0];
+		assert.strictEqual(physicalPlus.getElectronAccelerator(), 'Cmd+Plus');
+
+		const selection = selectSystemWideKeybindings([
+			item(physicalPlus, 'unsupported.physicalPlus', { systemWide: true }),
+			item(resolve(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Equal), 'supported.shiftedEqual', { commandArgs: { foo: 1 }, when: 'editorFocus', systemWide: true }),
+			item(resolve(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Equal), 'duplicate.shiftedEqual', { systemWide: true }),
+		]);
+
+		assert.deepStrictEqual(selection, {
+			candidates: [{
+				accelerator: 'Shift+Cmd+=',
+				commandId: 'supported.shiftedEqual',
+				args: { foo: 1 },
+				userSettingsLabel: 'shift+cmd+=',
+				hasWhen: true,
+			}],
+			unsupported: [{
+				commandId: 'unsupported.physicalPlus',
+				userSettingsLabel: 'cmd+[Equal]',
+			}],
+			duplicates: [{
+				commandId: 'duplicate.shiftedEqual',
+				userSettingsLabel: 'shift+cmd+=',
 			}],
 		});
 	});
