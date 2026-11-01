@@ -595,9 +595,14 @@ async function mount(source: Source, root: string, connections: number, prepared
 			const file = path.join(temp, 'workspace-image.ext4');
 			log(await unpack(source, file, { sparse: true, existing: false, connections }));
 			await prepared;
-			run('sudo', ['mount', '-o', 'loop,noatime,noinit_itable', file, root]);
+			// Through the page cache, which holds the image: with direct I/O, the loop device would wait
+			// for the kernel to write the image to the disk first
+			const loop = run('sudo', ['losetup', '--find', '--show', '--direct-io=off', file], { stdio: ['ignore', 'pipe', 'inherit'] }).trim();
+			log(`attached the image to ${loop}`);
+			run('sudo', ['mount', '-o', 'noatime,noinit_itable', loop, root]);
 			return () => {
 				spawnSync('sudo', ['umount', root], { stdio: 'inherit' });
+				spawnSync('sudo', ['losetup', '--detach', loop], { stdio: 'inherit' });
 			};
 		}
 		case 'darwin': {
