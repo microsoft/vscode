@@ -298,7 +298,7 @@ class FakeCopilotCLISessionService extends mock<ICopilotCLISessionService>() {
 	private _sessionWorkingDirs = new Map<string, vscode.Uri>();
 	override tryGetPartialSessionHistory: ICopilotCLISessionService['tryGetPartialSessionHistory'] = vi.fn(async () => undefined);
 
-	override getSessionWorkingDirectory = vi.fn((sessionId: string): vscode.Uri | undefined => {
+	override getSessionWorkingDirectory = vi.fn(async (sessionId: string): Promise<vscode.Uri | undefined> => {
 		return this._sessionWorkingDirs.get(sessionId);
 	});
 

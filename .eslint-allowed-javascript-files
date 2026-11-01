@@ -32,13 +32,8 @@ extensions/copilot/script/electron/simulationWorkbenchMain.js
 extensions/copilot/src/extension/completions-core/vscode-node/extension/test/run.js
 extensions/copilot/src/extension/test/node/fixtures/gitdiff/generate-diffs.js
 extensions/copilot/src/platform/parser/test/node/fixtures/test.js
-extensions/copilot/test/scenarios/test-cli/wkspc1/sample.js
-extensions/copilot/test/scenarios/test-cli/wkspc1/stringUtils.js
-extensions/copilot/test/scenarios/test-cli/wkspc1/utils.js
-extensions/copilot/test/scenarios/test-cli/wkspc2/foobar.js
 extensions/copilot/test/simulation/fixtures/review/binary-search-1.js
 extensions/copilot/test/simulation/fixtures/review/binary-search-2.js
-extensions/copilot/test/simulationExtension/extension.js
 extensions/cpp/build/update-grammars.js
 extensions/css-language-features/server/test/index.js
 extensions/css-language-features/server/test/pathCompletionFixtures/.foo.js

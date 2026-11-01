@@ -7,6 +7,7 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -120,6 +121,68 @@ suite('Inbox evidence collection', () => {
 			images: collectInboxEvidence(session(), main, chatModel, 'request').images.map(image => image.name),
 			missing: collectInboxEvidence(session(), main, chatModel, 'previous').images,
 		}, { images: ['screenshot.png'], missing: [] });
+	});
+
+	for (const count of [1, 3, 4, 7]) {
+		test(`collapses artifact collections only past three entries (${count}) without losing sources or focus`, async () => {
+			const instantiation = store.add(new TestInstantiationService());
+			const artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', Array.from({ length: count }, (_, index) => ({
+				id: `artifact-${index}`, kind: SessionArtifactKind.File, label: `Report ${index}`, isArtifact: index % 2 === 0, uri: URI.file(`/report-${index}.txt`),
+			})));
+			const owner = { ...session(), artifacts };
+			const opened: URI[] = [];
+			instantiation.stub(IChatService, { onDidCreateModel: Event.None, getSession: () => undefined });
+			instantiation.stub(IFileService, {});
+			instantiation.stub(IChatImageCarouselService, {});
+			instantiation.stub(IOpenerService, { open: async uri => { opened.push(typeof uri === 'string' ? URI.parse(uri) : uri); return true; } });
+			instantiation.stub(ILogService, new NullLogService());
+			instantiation.stub(INotificationService, {});
+			const widget = store.add(instantiation.createInstance(InboxEvidenceWidget, owner, main, item, () => { }));
+			document.body.appendChild(widget.element);
+			store.add(toDisposable(() => widget.element.remove()));
+			const disclosure = widget.element.querySelector('details');
+			const initiallyCollapsed = disclosure ? !disclosure.open : false;
+			disclosure?.querySelector('summary')!.click();
+			const first = widget.element.querySelector<HTMLElement>('.inbox-evidence-files .monaco-button')!;
+			first.focus();
+			first.click();
+			artifacts.set(artifacts.get().map(artifact => ({ ...artifact, label: `${artifact.label} updated` })), undefined);
+			await timeout(0);
+			assert.deepStrictEqual({
+				initiallyCollapsed, count: widget.element.querySelectorAll('.inbox-evidence-files .monaco-button').length,
+				opened: opened.map(uri => uri.path),
+				focused: document.activeElement?.textContent,
+				expanded: widget.element.querySelector('details')?.open,
+				accessible: artifacts.get().every(artifact => widget.getAccessibleContent().includes(artifact.label)),
+			}, {
+				initiallyCollapsed: count > 3, count, opened: ['/report-0.txt'], focused: 'Report 0 updated',
+				expanded: count > 3 ? true : undefined, accessible: true,
+			});
+		});
+	}
+
+	test('omits only artifacts represented by pull request state rows', () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const pr = URI.parse('https://github.com/owner/repo/pull/42');
+		const reference = URI.parse('https://github.com/owner/repo/pull/43');
+		instantiation.stub(IChatService, { onDidCreateModel: Event.None, getSession: () => undefined });
+		instantiation.stub(IFileService, {});
+		instantiation.stub(IChatImageCarouselService, {});
+		instantiation.stub(IOpenerService, {});
+		instantiation.stub(ILogService, new NullLogService());
+		instantiation.stub(INotificationService, {});
+		const widget = store.add(instantiation.createInstance(InboxEvidenceWidget, session([
+			{ id: 'merged', kind: SessionArtifactKind.PullRequest, label: 'Merged PR', isArtifact: true, link: pr },
+			{ id: 'reference', kind: SessionArtifactKind.PullRequest, label: 'Other PR', isArtifact: false, link: reference },
+			{ id: 'report', kind: SessionArtifactKind.File, label: 'Report', isArtifact: true, uri: URI.file('/report.txt') },
+		]), main, { ...item, pullRequestStates: [{ label: '#42', repositoryLabel: 'owner/repo', statusLabel: 'Merged', icon: Codicon.gitMerge, pullRequestUri: pr }] }, () => { }));
+		assert.deepStrictEqual({
+			labels: [...widget.element.querySelectorAll('.inbox-evidence-files .monaco-button')].map(button => button.textContent),
+			accessible: widget.getAccessibleContent(),
+		}, {
+			labels: ['Reference: Other PR', 'Report'],
+			accessible: `Reference: Other PR: ${reference.toString(true)}\n\nReport: ${URI.file('/report.txt').toString(true)}`,
+		});
 	});
 
 	test('omits changed files and terminal output from visual and accessible evidence, including live updates', async () => {

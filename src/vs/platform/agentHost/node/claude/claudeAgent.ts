@@ -11,7 +11,7 @@ import { Limiter, retry, SequencerByKey } from '../../../../base/common/async.js
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -278,8 +278,8 @@ function _toPersistedChat(backing: IClaudeChatBacking): IPersistedChat {
 /**
  * Claude active-client handle, addressed to exactly one host-supplied chat.
  * Tools read/write through the live session's {@link SessionClientToolsModel};
- * customization assignment kicks off the agent's async sync (via the
- * provided closure). The handle caches the last assigned customization
+ * customization assignment notifies the agent to start its async sync.
+ * The handle caches the last assigned customization
  * inputs so the getter reflects what the client most recently published.
  *
  * There is no membership here: Agent Host addresses this handle to exactly
@@ -287,7 +287,13 @@ function _toPersistedChat(backing: IClaudeChatBacking): IPersistedChat {
  * customizations) applies to that chat alone. A sibling chat needs its own
  * handle, obtained through its own `getOrCreateActiveClient` call.
  */
-class ClaudeActiveClientHandle implements IActiveClient {
+class ClaudeActiveClientHandle extends Disposable implements IActiveClient {
+	private readonly _onDidChangeTools = this._register(new Emitter<readonly ToolDefinition[]>());
+	readonly onDidChangeTools = this._onDidChangeTools.event;
+
+	private readonly _onDidChangeCustomizations = this._register(new Emitter<readonly ClientPluginCustomization[]>());
+	readonly onDidChangeCustomizations = this._onDidChangeCustomizations.event;
+
 	private _tools: readonly ToolDefinition[] = [];
 	private _customizations: readonly ClientPluginCustomization[] = [];
 	private _customizationsAssigned = false;
@@ -304,16 +310,16 @@ class ClaudeActiveClientHandle implements IActiveClient {
 		readonly displayName: string | undefined,
 		/** The exact chat this handle's contributions are addressed to. */
 		readonly chat: URI,
-		private readonly _setTools: (chat: URI, tools: readonly ToolDefinition[]) => void,
-		private readonly _syncCustomizations: (chat: URI, customizations: readonly ClientPluginCustomization[], hostCustomizations: readonly Customization[] | undefined) => void,
-	) { }
+	) {
+		super();
+	}
 
 	get tools(): readonly ToolDefinition[] {
 		return this._tools;
 	}
 	set tools(tools: readonly ToolDefinition[]) {
 		this._tools = tools;
-		this._setTools(this.chat, tools);
+		this._onDidChangeTools.fire(tools);
 	}
 
 	get customizations(): readonly ClientPluginCustomization[] {
@@ -322,7 +328,7 @@ class ClaudeActiveClientHandle implements IActiveClient {
 	set customizations(customizations: readonly ClientPluginCustomization[]) {
 		this._customizations = customizations;
 		this._customizationsAssigned = true;
-		this._syncCustomizations(this.chat, customizations, this._hostCustomizations);
+		this._onDidChangeCustomizations.fire(customizations);
 	}
 
 	/** The last host snapshot, for syncs this client's own assignment triggers. */
@@ -343,9 +349,9 @@ class ClaudeActiveClientHandle implements IActiveClient {
 	 * up, so contributions made before the runtime existed still reach it.
 	 */
 	refresh(): void {
-		this._setTools(this.chat, this._tools);
+		this._onDidChangeTools.fire(this._tools);
 		if (this._customizationsAssigned) {
-			this._syncCustomizations(this.chat, this._customizations, this._hostCustomizations);
+			this._onDidChangeCustomizations.fire(this._customizations);
 		}
 	}
 }
@@ -457,7 +463,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * same session gets one independent handle per chat, each obtained
 	 * through its own {@link getOrCreateActiveClient} call.
 	 */
-	private readonly _activeClientHandles = new Map<string, ClaudeActiveClientHandle>();
+	private readonly _activeClientHandles = this._register(new DisposableMap<string, IReference<ClaudeActiveClientHandle>>());
 
 	/**
 	 * Fired once per session when {@link _materializeProvisional} promotes a
@@ -1851,9 +1857,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	/** Visits the active-client handles Agent Host registered for the exact `chat`. */
 	private _forEachActiveClientHandleForChat(chat: URI, visit: (handle: ClaudeActiveClientHandle) => void): void {
 		const prefix = `${chat.toString()}\u0000`;
-		for (const [key, handle] of this._activeClientHandles) {
+		for (const [key, registration] of this._activeClientHandles) {
 			if (key.startsWith(prefix)) {
-				visit(handle);
+				visit(registration.object);
 			}
 		}
 	}
@@ -1863,7 +1869,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const prefix = `${chat.toString()}\u0000`;
 		for (const key of [...this._activeClientHandles.keys()]) {
 			if (key.startsWith(prefix)) {
-				this._activeClientHandles.delete(key);
+				this._activeClientHandles.deleteAndDispose(key);
 			}
 		}
 	}
@@ -2372,7 +2378,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			// in-memory state afterwards. Durable data is untouched — Agent
 			// Host re-materializes each chat's backing on the next restore.
 			this._chatBackings.clear();
-			this._activeClientHandles.clear();
+			this._activeClientHandles.clearAndDisposeAll();
 		})();
 	}
 
@@ -2549,19 +2555,21 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	getOrCreateActiveClient(chat: URI, context: URI | IAgentChatContext, client: { readonly clientId: string; readonly displayName?: string }, hostCustomizations?: readonly Customization[]): IActiveClient {
 		const { owner } = resolveAgentChatContext(context, chat);
 		const key = `${chat.toString()}\u0000${client.clientId}`;
-		let handle = this._activeClientHandles.get(key);
+		let handle = this._activeClientHandles.get(key)?.object;
 		if (!handle) {
-			handle = new ClaudeActiveClientHandle(
-				client.clientId,
-				client.displayName,
-				chat,
-				(targetChat, tools) => {
-					this._logService.info(`[Claude:${AgentSession.id(owner.get())}] active client ${client.clientId} tools=[${tools.map(t => t.name).join(', ') || '(none)'}] chat=${targetChat.toString()}`);
-					this._findChatByUri(targetChat)?.setClientTools(client.clientId, tools);
-				},
-				(targetChat, customizations, snapshot) => { void this._syncClientCustomizations(targetChat, owner, client.clientId, [...customizations], snapshot); },
-			);
-			this._activeClientHandles.set(key, handle);
+			const subscriptions = new DisposableStore();
+			const newHandle = subscriptions.add(new ClaudeActiveClientHandle(client.clientId, client.displayName, chat));
+			this._activeClientHandles.set(key, { object: newHandle, dispose: () => subscriptions.dispose() });
+			subscriptions.add(newHandle.onDidChangeTools(tools => {
+				this._logService.info(`[Claude:${AgentSession.id(owner.get())}] active client ${client.clientId} tools=[${tools.map(t => t.name).join(', ') || '(none)'}] chat=${chat.toString()}`);
+				this._findChatByUri(chat)?.setClientTools(client.clientId, tools);
+			}));
+			subscriptions.add(newHandle.onDidChangeCustomizations(customizations => {
+				void this._syncClientCustomizations(chat, owner, client.clientId, [...customizations], newHandle.hostCustomizations).catch(err => {
+					this._logService.error(`[Claude] Failed to sync active client ${client.clientId} customizations`, err);
+				});
+			}));
+			handle = newHandle;
 		}
 		handle.setHostCustomizations(hostCustomizations);
 		return handle;
@@ -2569,9 +2577,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	removeActiveClient(chat: URI, _context: URI | IAgentChatContext, clientId: string): void {
 		const key = `${chat.toString()}\u0000${clientId}`;
-		if (!this._activeClientHandles.delete(key)) {
+		if (!this._activeClientHandles.has(key)) {
 			return;
 		}
+		this._activeClientHandles.deleteAndDispose(key);
 		const target = this._findChatByUri(chat);
 		if (!target) {
 			return;
@@ -2610,7 +2619,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 */
 	async syncClientCustomizations(chat: URI, context: URI | IAgentChatContext, clientId: string, customizations: ClientPluginCustomization[], options?: { readonly quiet?: boolean }): Promise<ISyncedCustomization[]> {
 		const { owner } = resolveAgentChatContext(context, chat);
-		const handle = this._activeClientHandles.get(`${chat.toString()}\u0000${clientId}`);
+		const handle = this._activeClientHandles.get(`${chat.toString()}\u0000${clientId}`)?.object;
 		return this._syncClientCustomizations(chat, owner, clientId, customizations, handle?.hostCustomizations, options);
 	}
 

@@ -186,7 +186,7 @@ export class SessionEnvironmentPicker extends Disposable {
 			dom.append(trigger, renderIcon(environment?.icon ?? Codicon.deviceDesktop));
 			const label = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
 			label.textContent = environment?.label ?? localize('environmentPicker.choose', "Environment");
-			const accessibleLabel = localize('environmentPicker.trigger', "Choose Environment, {0}", label.textContent);
+			const accessibleLabel = localize('environmentPicker.trigger', "Environment where the agent runs: {0}", label.textContent);
 			trigger.setAttribute('aria-label', accessibleLabel);
 			if (options?.focusCommand) {
 				registerPickerKeybindingPresentation(

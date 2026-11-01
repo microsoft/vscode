@@ -16,7 +16,6 @@ import { MarkdownString } from './extHostTypeConverters.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { hasKey, isString } from '../../../base/common/types.js';
-import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 export interface IExtHostTimeline extends ExtHostTimelineShape {
 	readonly _serviceBrand: undefined;
@@ -182,38 +181,38 @@ export class ExtHostTimeline implements IExtHostTimeline {
 		return registration?.provideTimeline(URI.revive(uri), options, token);
 	}
 
-	registerTimelineProvider(scheme: string | readonly string[], provider: vscode.TimelineProvider, extension: ExtensionIdentifier, commandConverter: CommandsConverter): IDisposable {
-		this._checkId(provider.id, extension, this._providers, this._workspaceProviders);
+	registerTimelineProvider(id: string, label: string, scheme: string | readonly string[], provider: vscode.TimelineProvider, extension: ExtensionIdentifier, commandConverter: CommandsConverter): IDisposable {
+		this._checkId(id, extension, this._providers, this._workspaceProviders);
 
-		const registration = new TimelineProviderRegistration(provider.id, extension, (uri, options, token) => uri ? provider.provideTimeline(uri, options, token) : undefined, commandConverter);
+		const registration = new TimelineProviderRegistration(id, extension, (uri, options, token) => uri ? provider.provideTimeline(uri, options, token) : undefined, commandConverter);
 		const onDidChange = provider.onDidChangeTimeline?.(e => {
 			const uris = e === undefined ? undefined : Array.isArray(e) ? e : [e];
-			this._proxy.$emitTimelineChangeEvent(provider.id, uris);
+			this._proxy.$emitTimelineChangeEvent(id, uris);
 		});
 
-		this._providers.set(provider.id, registration);
-		this._proxy.$registerTimelineProvider({ id: provider.id, label: provider.label, scheme });
+		this._providers.set(id, registration);
+		this._proxy.$registerTimelineProvider({ id, label, scheme });
 
 		return toDisposable(() => {
-			this._providers.delete(provider.id);
-			this._proxy.$unregisterTimelineProvider(provider.id);
+			this._providers.delete(id);
+			this._proxy.$unregisterTimelineProvider(id);
 			onDidChange?.dispose();
 			registration.dispose();
 		});
 	}
 
-	registerWorkspaceTimelineProvider(provider: vscode.WorkspaceTimelineProvider, extension: ExtensionIdentifier, commandConverter: CommandsConverter): IDisposable {
-		this._checkId(provider.id, extension, this._workspaceProviders, this._providers);
+	registerWorkspaceTimelineProvider(id: string, label: string, provider: vscode.WorkspaceTimelineProvider, extension: ExtensionIdentifier, commandConverter: CommandsConverter): IDisposable {
+		this._checkId(id, extension, this._workspaceProviders, this._providers);
 
-		const registration = new TimelineProviderRegistration(provider.id, extension, (_uri, options, token) => provider.provideWorkspaceTimeline(options, token), commandConverter);
-		const onDidChange = provider.onDidChangeWorkspaceTimeline?.(() => this._proxy.$emitWorkspaceTimelineChangeEvent(provider.id));
+		const registration = new TimelineProviderRegistration(id, extension, (_uri, options, token) => provider.provideWorkspaceTimeline(options, token), commandConverter);
+		const onDidChange = provider.onDidChangeWorkspaceTimeline?.(() => this._proxy.$emitWorkspaceTimelineChangeEvent(id));
 
-		this._workspaceProviders.set(provider.id, registration);
-		this._proxy.$registerWorkspaceTimelineProvider({ id: provider.id, label: provider.label });
+		this._workspaceProviders.set(id, registration);
+		this._proxy.$registerWorkspaceTimelineProvider({ id, label });
 
 		return toDisposable(() => {
-			this._workspaceProviders.delete(provider.id);
-			this._proxy.$unregisterWorkspaceTimelineProvider(provider.id);
+			this._workspaceProviders.delete(id);
+			this._proxy.$unregisterWorkspaceTimelineProvider(id);
 			onDidChange?.dispose();
 			registration.dispose();
 		});
@@ -230,7 +229,7 @@ export class ExtHostTimeline implements IExtHostTimeline {
 	}
 
 	private _resolveItem(context: TimelineActionContext, extension: IExtensionDescription | undefined): vscode.TimelineItem | undefined {
-		if (!extension || !isProposedApiEnabled(extension, 'timeline')) {
+		if (!extension) {
 			return undefined;
 		}
 

@@ -61,6 +61,17 @@ suite('copilotCliEventsUri', () => {
 			const otherLegacy = URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: '/sess-other' });
 			assert.deepStrictEqual(dedupe(legacy, otherLegacy, twin), [otherLegacy.toString(), twin.toString()]);
 		});
+
+		test('keeps the legacy row instead of an un-opened twin, and the un-opened twin once the legacy row is gone', () => {
+			const unopened = (...resources: URI[]) => dedupeMigratedCopilotCliSessions(resources, resource => resource, resource => resource === twin).map(resource => resource.toString());
+			assert.deepStrictEqual({
+				withLegacy: unopened(legacy, twin),
+				withoutLegacy: unopened(twin),
+			}, {
+				withLegacy: [legacy.toString()],
+				withoutLegacy: [twin.toString()],
+			});
+		});
 	});
 
 	suite('migratedCopilotCliResource', () => {

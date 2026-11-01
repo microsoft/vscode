@@ -13,8 +13,6 @@ import { MockRunCommandExecutionService } from '../../../platform/commands/commo
 import { IRunCommandExecutionService } from '../../../platform/commands/common/runCommandExecutionService';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../platform/configuration/common/defaultsOnlyConfigurationService';
-import { IDebugOutputService } from '../../../platform/debug/common/debugOutputService';
-import { DebugOutputServiceImpl } from '../../../platform/debug/vscode/debugOutputServiceImpl';
 import { IDialogService } from '../../../platform/dialog/common/dialogService';
 import { IDiffService } from '../../../platform/diff/common/diffService';
 import { DiffServiceImpl } from '../../../platform/diff/node/diffServiceImpl';
@@ -188,7 +186,6 @@ export function createExtensionTestingServices(): TestingServiceCollection {
 	testingServiceCollection.define(IAlternativeNotebookContentEditGenerator, new SyncDescriptor(AlternativeNotebookContentEditGenerator));
 	testingServiceCollection.define(IDiffService, new SyncDescriptor(DiffServiceImpl));
 	testingServiceCollection.define(ICompletionsFetchService, new SyncDescriptor(CompletionsFetchService));
-	testingServiceCollection.define(IDebugOutputService, new SyncDescriptor(DebugOutputServiceImpl));
 	testingServiceCollection.define(IUserFeedbackService, new SyncDescriptor(UserFeedbackService));
 	testingServiceCollection.define(ITerminalService, new SyncDescriptor(TerminalServiceImpl));
 	testingServiceCollection.define(IConversationStore, new SyncDescriptor(ConversationStore));

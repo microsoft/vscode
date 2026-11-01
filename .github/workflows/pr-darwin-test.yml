@@ -60,11 +60,19 @@ env:
 # - SMOKE_SHARD_INDEX and SMOKE_SHARD_TOTAL: the 1-based index of the Electron smoke test shard to run,
 #   and the number of shards
 # - ARTIFACT_NAME: identifies the job in the names of the artifacts that it publishes
+#
+# The jobs run on three runner groups, vscode-large-runners-macos-5-core-<0|1|2>, so that the macOS
+# checks are not limited by the size of one pool. Each group runs about a third of the runner
+# minutes of a pull request, and the two Electron smoke test shards run in different groups:
+# - 0: Remote, Electron-Unit, Browser-Unit, chat-lib - Test (macOS) of pr.yml, and the macOS cache
+#   warming job of pr-node-modules.yml
+# - 1: Electron, Electron-Smoke (shard 1/2)
+# - 2: Electron-Smoke (shard 2/2), Browser
 jobs:
   electron-unit:
     name: Electron-Unit
     if: ${{ inputs.electron_unit_affected }}
-    runs-on: macos-26-xlarge
+    runs-on: vscode-large-runners-macos-5-core-0
     env:
       ARTIFACT_NAME: electron-unit
       ELECTRON_TESTS: 'true'
@@ -77,7 +85,7 @@ jobs:
           lfs: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
 
@@ -368,7 +376,7 @@ jobs:
   electron:
     name: Electron
     if: ${{ inputs.electron_affected }}
-    runs-on: macos-26-xlarge
+    runs-on: vscode-large-runners-macos-5-core-1
     env:
       ARTIFACT_NAME: electron
       ELECTRON_TESTS: 'true'
@@ -385,7 +393,7 @@ jobs:
   electron-smoke-1:
     name: Electron-Smoke (shard 1/2)
     if: ${{ inputs.electron_smoke_affected }}
-    runs-on: macos-26-xlarge
+    runs-on: vscode-large-runners-macos-5-core-1
     env:
       ARTIFACT_NAME: electron-smoke-shard1
       ELECTRON_TESTS: 'true'
@@ -397,7 +405,7 @@ jobs:
   electron-smoke-2:
     name: Electron-Smoke (shard 2/2)
     if: ${{ inputs.electron_smoke_affected }}
-    runs-on: macos-26-xlarge
+    runs-on: vscode-large-runners-macos-5-core-2
     env:
       ARTIFACT_NAME: electron-smoke-shard2
       ELECTRON_TESTS: 'true'
@@ -409,7 +417,7 @@ jobs:
   browser-unit:
     name: Browser-Unit
     if: ${{ inputs.browser_unit_affected }}
-    runs-on: macos-26-xlarge
+    runs-on: vscode-large-runners-macos-5-core-0
     env:
       ARTIFACT_NAME: browser-unit
       BROWSER_TESTS: 'true'
@@ -420,7 +428,7 @@ jobs:
   browser:
     name: Browser
     if: ${{ inputs.browser_affected }}
-    runs-on: macos-26-xlarge
+    runs-on: vscode-large-runners-macos-5-core-2
     env:
       ARTIFACT_NAME: browser
       BROWSER_TESTS: 'true'
@@ -431,7 +439,7 @@ jobs:
   remote:
     name: Remote
     if: ${{ inputs.remote_affected }}
-    runs-on: macos-26-xlarge
+    runs-on: vscode-large-runners-macos-5-core-0
     env:
       ARTIFACT_NAME: remote
       REMOTE_TESTS: 'true'

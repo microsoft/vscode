@@ -71,6 +71,7 @@ import { MockContextKeyService, MockKeybindingService } from '../../../../../pla
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { INotification, INotificationHandle, INotificationService, NoOpNotification, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
+import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -424,6 +425,7 @@ function createTestPicker(
 		getMenuActions: () => [],
 	});
 	instantiationService.stub(INotificationService, notificationService);
+	instantiationService.stub(IProgressService, { withProgress: async (_options, task) => task({ report: () => { } }) });
 	instantiationService.stub(IWorkspacesService, workspacesService);
 	instantiationService.stub(ILogService, disposables.add(new NullLogService()));
 	instantiationService.stub(ISessionsRecentWorkspacesService, recentWorkspacesService ?? disposables.add(instantiationService.createInstance(SessionsRecentWorkspacesService)));
@@ -1018,6 +1020,35 @@ suite('WorkspacePicker - Environment', () => {
 		}, { resolutions: 1, providerId: base.id, folder: folderUri.toString() });
 	});
 
+	test('revalidates a remembered environment project before restoring it', () => {
+		const providers = disposables.add(new MockSessionsProvidersService());
+		providers.setProviders([createMockProvider('local-agent-host')]);
+		const picker = createTestPicker(disposables, providers, undefined, undefined, WorkspacePicker, {}, undefined, undefined, { restoreFromSessions: false });
+		const remembered = URI.file('/agent-host/remembered');
+		const current = URI.file('/agent-host/current');
+		const unavailable = URI.file('/remote/unavailable');
+		picker.clearSelection();
+		const restoredWithoutSelection = picker.getEnvironmentWorkspace(localEnvironment, undefined, remembered)?.workspace.folders[0].root;
+		const unavailableWithoutSelection = picker.getEnvironmentWorkspace(localEnvironment, undefined, unavailable);
+		const unsupportedContainer = picker.getEnvironmentWorkspace(containerEnvironment, undefined, remembered);
+		picker.setSelectedWorkspace(current, { fireEvent: false });
+		assert.deepStrictEqual({
+			restoredWithoutSelection,
+			unavailableWithoutSelection,
+			unsupportedContainer,
+			preferred: picker.getEnvironmentWorkspace(localEnvironment, undefined, remembered)?.workspace.folders[0].root,
+			fallback: picker.getEnvironmentWorkspace(localEnvironment, undefined, unavailable)?.workspace.folders[0].root,
+			missingProvider: picker.getEnvironmentWorkspace({ ...localEnvironment, providerIds: ['missing'] }, undefined, remembered),
+		}, {
+			restoredWithoutSelection: remembered,
+			unavailableWithoutSelection: undefined,
+			unsupportedContainer: undefined,
+			preferred: remembered,
+			fallback: current,
+			missingProvider: undefined,
+		});
+	});
+
 	test('finds a matching repository in later roots without selecting unrelated or unavailable roots', () => {
 		const providers = disposables.add(new MockSessionsProvidersService());
 		const sourceUri = URI.file('/agent-host/source');
@@ -1159,6 +1190,64 @@ suite('WorkspacePicker - Environment', () => {
 				}],
 				errors: scenario.errors,
 			}, scenario.name);
+		}
+	});
+
+	test('clones repositories in the selected remote environment without changing selection on failure or cancellation', async () => {
+		const repositoryUri = URI.parse('github-remote-file://github/microsoft/vscode/HEAD');
+		const clonedUri = URI.parse('vscode-agent-host://host/repos/vscode');
+		const newerUri = URI.parse('vscode-agent-host://host/repos/newer');
+		const environment: ISessionCreationEnvironment = { id: 'remote', kind: 'remote', label: 'GitHub Environment', icon: Codicon.remote, providerIds: ['remote'] };
+		for (const scenario of ['cloned', 'failed', 'cancelled', 'superseded', 'unsupported', 'context'] as const) {
+			const providers = disposables.add(new MockSessionsProvidersService());
+			const remote = createMockProvider('remote', { group: SESSION_WORKSPACE_GROUP_REMOTE });
+			const repositoryWorkspace = { ...createMockProvider('github').resolveWorkspace(repositoryUri)!, group: SESSION_WORKSPACE_GROUP_GITHUB };
+			const action: ISessionWorkspaceBrowseAction = {
+				...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Work in Repository...'),
+				supportsContextAttachment: true,
+				run: async () => repositoryWorkspace,
+			};
+			const calls: string[] = [];
+			providers.setProviders([
+				{ ...createMockProvider('github', { browseActions: [action] }), supportsLocalWorkspaces: true },
+				{
+					...remote,
+					cloneRepository: scenario === 'unsupported' ? undefined : async repository => {
+						calls.push(repository.toString());
+						if (scenario === 'failed') {
+							throw new Error('Clone failed');
+						}
+						if (scenario === 'cancelled') {
+							throw new CancellationError();
+						}
+						if (scenario === 'superseded') {
+							picker.setSelectedWorkspace(newerUri, { fireEvent: false, providerId: 'remote' });
+						}
+						return remote.resolveWorkspace(clonedUri)!;
+					},
+				},
+			]);
+			const notifications = new RecordingNotificationService();
+			const picker = createTestPicker(disposables, providers, undefined, notifications, DispatchingWorkspacePicker, {}, undefined, undefined, {
+				environment: constObservable(environment),
+				restoreFromSessions: false,
+			});
+			assert.ok(picker instanceof DispatchingWorkspacePicker);
+			picker.setSelectedWorkspace(newerUri, { fireEvent: false, providerId: 'remote' });
+			const accepted = await picker.dispatchItem({ browseAction: action, attachAsContext: scenario === 'context' });
+			assert.deepStrictEqual({
+				accepted,
+				folder: picker.selectedFolderUri?.toString(),
+				providerId: picker.selectedResolved?.providerId,
+				calls,
+				errors: notifications.errors.map(error => error instanceof Error ? error.message : error),
+			}, {
+				accepted: scenario === 'cloned' || scenario === 'context',
+				folder: scenario === 'cloned' ? clonedUri.toString() : newerUri.toString(),
+				providerId: 'remote',
+				calls: scenario === 'unsupported' || scenario === 'context' ? [] : ['https://github.com/microsoft/vscode'],
+				errors: scenario === 'failed' ? ['Could not clone the repository in GitHub Environment: Clone failed'] : [],
+			}, scenario);
 		}
 	});
 

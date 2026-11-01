@@ -32,6 +32,8 @@ export const ISessionCanvasRegistryService = createDecorator<ISessionCanvasRegis
 
 export interface ISessionCanvasRegistryService {
 	readonly _serviceBrand: undefined;
+	/** Whether canvases are enabled and the active chat supports them, even when no canvas type is registered. */
+	readonly supportsCanvases: IObservable<boolean>;
 	readonly availableCanvases: IObservable<readonly ISessionCanvasDefinition[]>;
 	openCanvas(canvas: ISessionCanvasDefinition): Promise<void>;
 }

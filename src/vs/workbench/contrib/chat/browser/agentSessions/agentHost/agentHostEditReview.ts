@@ -47,7 +47,7 @@ import { IChatService } from '../../../common/chatService/chatService.js';
 import { ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IEditSessionEntryDiff, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { ChatEditingModifiedDocumentEntry } from '../../chatEditing/chatEditingModifiedDocumentEntry.js';
-import { agentHostChangesetFileToEntryDiff } from './agentHostResponseFileChanges.js';
+import { agentHostChangesetFileToEntryDiff, getAgentHostResourceAuthority } from './agentHostResponseFileChanges.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { AgentHostCheckpointReview, IAgentHostCheckpointReviewSource } from './agentHostCheckpointReview.js';
 
@@ -79,7 +79,8 @@ interface IWorkingSetFile extends IWorkingSetFileChange {
 /** The session's Working Set changeset, while its host advertises one. */
 interface IWorkingSet {
 	readonly connection: IAgentConnection;
-	readonly connectionAuthority: string;
+	/** The authority of the agent host URIs of its files, as from {@link getAgentHostResourceAuthority}. */
+	readonly resourceAuthority: string;
 	readonly channel: URI;
 }
 
@@ -245,7 +246,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	private readonly _rawChanges = derived<IAgentHostCheckpointReviewSource | undefined>(this, reader => {
 		const workingSet = this._workingSet.read(reader);
 		const state = workingSet?.state.read(reader);
-		return workingSet ? { channel: workingSet.channel, ready: state?.status === ChangesetStatus.Ready, failed: workingSet.failed.read(reader) || state?.status === ChangesetStatus.Error, files: state ? toWorkingSetFileChanges(state, workingSet.connectionAuthority, workingSet.connection.resourceUris) : [] } : undefined;
+		return workingSet ? { channel: workingSet.channel, ready: state?.status === ChangesetStatus.Ready, failed: workingSet.failed.read(reader) || state?.status === ChangesetStatus.Error, files: state ? toWorkingSetFileChanges(state, workingSet.resourceAuthority) : [] } : undefined;
 	});
 	readonly fileChanges = derived(this, reader => {
 		const current = this._rawChanges.read(reader);
@@ -303,7 +304,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			const state = sessionState.read(reader).read(reader);
 			const changeset = state?.changesets?.find(candidate => candidate.changeKind === ChangesetKind.WorkingSet && !candidate.uriTemplate.includes('{'));
 			return current && changeset
-				? { connection: current.connection, connectionAuthority: current.connectionAuthority, channel: URI.parse(resolveChangesetUriTemplate(current.backendSession.toString(), changeset.uriTemplate)) }
+				? { connection: current.connection, resourceAuthority: getAgentHostResourceAuthority(current), channel: URI.parse(resolveChangesetUriTemplate(current.backendSession.toString(), changeset.uriTemplate)) }
 				: undefined;
 		});
 		this._workingSet = derived(this, reader => {
@@ -327,7 +328,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			retryBlockedFiles.read(reader);
 			const current = this._workingSet.read(reader);
 			const state = current?.state.read(reader);
-			const rawFiles = current && state ? toWorkingSetFileChanges(state, current.connectionAuthority, current.connection.resourceUris) : [];
+			const rawFiles = current && state ? toWorkingSetFileChanges(state, current.resourceAuthority) : [];
 			const files = current ? this._checkpointReview.read(reader)?.project(current.channel, rawFiles, reader) ?? rawFiles : rawFiles;
 			for (const file of files) {
 				if (file.editing) {
@@ -814,7 +815,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	}
 
 	private _findWorkingSetFile(state: ChangesetState, workingSet: IWorkingSet, entry: AgentHostEditReviewEntry): IWorkingSetFileChange | undefined {
-		return toWorkingSetFileChanges(state, workingSet.connectionAuthority, workingSet.connection.resourceUris)
+		return toWorkingSetFileChanges(state, workingSet.resourceAuthority)
 			.find(candidate => isEqual(this._uriIdentityService.asCanonicalUri(candidate.diff.modifiedURI), entry.modifiedURI));
 	}
 
@@ -987,9 +988,9 @@ function isSameWorkingSetFile(a: IWorkingSetFileChange, b: IWorkingSetFileChange
 }
 
 /** The files of a Working Set, with the version the host published for each. */
-function toWorkingSetFileChanges(state: ChangesetState, connectionAuthority: string, resourceUris?: IAgentHostResourceUriMapper): IWorkingSetFileChange[] {
+function toWorkingSetFileChanges(state: ChangesetState, resourceAuthority: string): IWorkingSetFileChange[] {
 	return state.files.map(file => {
-		const diff = agentHostChangesetFileToEntryDiff(file, connectionAuthority, resourceUris);
+		const diff = agentHostChangesetFileToEntryDiff(file, resourceAuthority);
 		return diff && { diff, nonce: file.nonce, editing: file.isEditing === true };
 	}).filter(isDefined);
 }
@@ -1036,6 +1037,6 @@ function resolutionEquals(a: IAgentHostSessionResolution | undefined, b: IAgentH
 function workingSetEquals(a: IWorkingSet | undefined, b: IWorkingSet | undefined): boolean {
 	return a === b || (!!a && !!b
 		&& a.connection === b.connection
-		&& a.connectionAuthority === b.connectionAuthority
+		&& a.resourceAuthority === b.resourceAuthority
 		&& isEqual(a.channel, b.channel));
 }

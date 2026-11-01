@@ -1063,6 +1063,24 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(thinking.id, 'r-1');
 		});
 
+		test('restores producer reasoning timing without inventing timing for older hosts', () => {
+			const history = turnsToHistory(URI.parse('external:/opaque/session'), [createTurn({
+				responseParts: [
+					{ kind: ResponsePartKind.Reasoning, id: 'timed', content: 'Measured', startedAt: '1970-01-01T00:00:01.000Z', duration: 45_000 },
+					{ kind: ResponsePartKind.Reasoning, id: 'zero', content: 'Immediate', duration: 0 },
+					{ kind: ResponsePartKind.Reasoning, id: 'unknown', content: 'Older host' },
+					{ kind: ResponsePartKind.Reasoning, id: 'invalid', content: 'Invalid metadata', startedAt: 'invalid', duration: -1 },
+				],
+			})], 'participant');
+
+			assert.deepStrictEqual(history[1].type === 'response' ? history[1].parts : undefined, [
+				{ kind: 'thinking', id: 'timed', value: 'Measured', reasoningTimingSource: 'provider', reasoningStartedAt: 1000, reasoningDurationMs: 45_000 },
+				{ kind: 'thinking', id: 'zero', value: 'Immediate', reasoningTimingSource: 'provider', reasoningDurationMs: 0 },
+				{ kind: 'thinking', id: 'unknown', value: 'Older host', reasoningTimingSource: 'provider' },
+				{ kind: 'thinking', id: 'invalid', value: 'Invalid metadata', reasoningTimingSource: 'provider' },
+			]);
+		});
+
 		test('generic completed tool call in history includes input/output details', () => {
 			const turn = createTurn({
 				responseParts: [{
@@ -1613,39 +1631,6 @@ suite('stateToProgressAdapter', () => {
 				input: '{"prompt":"Draw a fox"}',
 				output: [{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' }],
 			});
-		});
-
-		test('terminal tool call in history carries autoApproveRuleResolvable only when stamped', () => {
-			const turn = createTurn({
-				responseParts: [
-					{
-						kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
-							toolCallId: 'tc-marked',
-							toolInput: 'my-custom-script',
-							_meta: { toolKind: 'terminal', autoApproveRuleResolvable: true },
-							content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///marked', title: 'Terminal' }],
-							success: true,
-						})
-					} as ToolCallResponsePart,
-					{
-						kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
-							toolCallId: 'tc-unmarked',
-							toolInput: 'echo hello',
-							content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///unmarked', title: 'Terminal' }],
-							success: true,
-						})
-					} as ToolCallResponsePart,
-				],
-			});
-
-			const history = turnsToHistory(URI.file('/'), [turn], 'p');
-			const response = history[1];
-			assert.strictEqual(response.type, 'response');
-			if (response.type !== 'response') { return; }
-			assert.deepStrictEqual(
-				response.parts.map(part => getSerializedTerminalData(part as IChatToolInvocationSerialized).autoApproveRuleResolvable),
-				[true, undefined],
-				'flag is copied from tool call meta and absent otherwise');
 		});
 
 		test('terminal tool call in history carries the LM intention', () => {
@@ -4327,7 +4312,7 @@ suite('stateToProgressAdapter', () => {
 			]), undefined);
 
 			assert.deepStrictEqual(result, [
-				{ kind: 'thinking', id: 'reasoning', value: 'Assessing final output steps' },
+				{ kind: 'thinking', id: 'reasoning', value: 'Assessing final output steps', reasoningTimingSource: 'provider' },
 				{ kind: 'thinking', value: '' },
 			]);
 		});
@@ -4395,18 +4380,14 @@ suite('stateToProgressAdapter', () => {
 			const warning = result[0];
 			assert.ok(warning.kind === 'warning');
 
-			const rendered = renderMarkdown(warning.content);
-			try {
-				assert.deepStrictEqual({
-					links: [...rendered.element.querySelectorAll('a')].map(anchor => anchor.dataset.href),
-					text: rendered.element.textContent,
-				}, {
-					links: ['command:aiCustomization.openManagementEditor?%5B%22tools%22%5D'],
-					text: `Some tools were dropped. <${injected}> <a href="${injected}">hooks</a> &lt;b&gt; Configure Tools`,
-				});
-			} finally {
-				rendered.dispose();
-			}
+			const rendered = store.add(renderMarkdown(warning.content));
+			assert.deepStrictEqual({
+				links: [...rendered.element.querySelectorAll('a')].map(anchor => anchor.dataset.href),
+				text: rendered.element.textContent,
+			}, {
+				links: ['command:aiCustomization.openManagementEditor?%5B%22tools%22%5D'],
+				text: `Some tools were dropped. <${injected}> <a href="${injected}">hooks</a> &lt;b&gt; Configure Tools`,
+			});
 		});
 
 		test('keeps a managed plugin preparation failure visible and its host text inert', () => {
@@ -4422,22 +4403,18 @@ suite('stateToProgressAdapter', () => {
 			const warning = result[0];
 			assert.ok(warning.kind === 'warning');
 
-			const rendered = renderMarkdown(warning.content);
-			try {
-				assert.deepStrictEqual({
-					keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
-					links: rendered.element.querySelectorAll('a').length,
-					text: rendered.element.textContent,
-					plaintext: renderAsPlaintext(warning.content, { useLinkFormatter: true }),
-				}, {
-					keepVisibleWhenCollapsed: true,
-					links: 0,
-					text,
-					plaintext: text,
-				});
-			} finally {
-				rendered.dispose();
-			}
+			const rendered = store.add(renderMarkdown(warning.content));
+			assert.deepStrictEqual({
+				keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
+				links: rendered.element.querySelectorAll('a').length,
+				text: rendered.element.textContent,
+				plaintext: renderAsPlaintext(warning.content, { useLinkFormatter: true }),
+			}, {
+				keepVisibleWhenCollapsed: true,
+				links: 0,
+				text,
+				plaintext: text,
+			});
 		});
 
 		test('ends a managed plugin preparation failure with a trusted Retry link for its chat', () => {
@@ -4454,23 +4431,19 @@ suite('stateToProgressAdapter', () => {
 			const warning = result[0];
 			assert.ok(warning.kind === 'warning');
 
-			const rendered = renderMarkdown(warning.content);
-			try {
-				const links = [...rendered.element.querySelectorAll('a')].map(anchor => URI.parse(anchor.dataset.href!));
-				assert.deepStrictEqual({
-					isTrusted: warning.content.isTrusted,
-					keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
-					links: links.map(link => ({ scheme: link.scheme, command: link.path, args: JSON.parse(link.query) })),
-					text: rendered.element.textContent,
-				}, {
-					isTrusted: { enabledCommands: [AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID] },
-					keepVisibleWhenCollapsed: true,
-					links: [{ scheme: 'command', command: AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID, args: [target] }],
-					text: `${text} Retry`,
-				});
-			} finally {
-				rendered.dispose();
-			}
+			const rendered = store.add(renderMarkdown(warning.content));
+			const links = [...rendered.element.querySelectorAll('a')].map(anchor => URI.parse(anchor.dataset.href!));
+			assert.deepStrictEqual({
+				isTrusted: warning.content.isTrusted,
+				keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
+				links: links.map(link => ({ scheme: link.scheme, command: link.path, args: JSON.parse(link.query) })),
+				text: rendered.element.textContent,
+			}, {
+				isTrusted: { enabledCommands: [AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID] },
+				keepVisibleWhenCollapsed: true,
+				links: [{ scheme: 'command', command: AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID, args: [target] }],
+				text: `${text} Retry`,
+			});
 		});
 
 		test('styles workspace transitions as accessible transcript boundaries', () => {
@@ -4576,6 +4549,18 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(result.length, 1);
 			assert.strictEqual(result[0].kind, 'thinking');
 			assert.strictEqual((result[0] as IChatThinkingPart).id, 'r-1');
+		});
+
+		test('preserves completed and unfinished reasoning timing on reconnect', () => {
+			const result = activeTurnToProgress(URI.parse('external:/opaque/session'), createActiveTurnState([
+				{ kind: ResponsePartKind.Reasoning, id: 'completed', content: 'Already thought', startedAt: '1970-01-01T00:00:01.000Z', duration: 45_000 },
+				{ kind: ResponsePartKind.Reasoning, id: 'active', content: 'Still thinking', startedAt: '1970-01-01T00:01:00.000Z' },
+			]), 'remote-host');
+
+			assert.deepStrictEqual(result, [
+				{ kind: 'thinking', id: 'completed', value: 'Already thought', reasoningTimingSource: 'provider', reasoningStartedAt: 1000, reasoningDurationMs: 45_000 },
+				{ kind: 'thinking', id: 'active', value: 'Still thinking', reasoningTimingSource: 'provider', reasoningStartedAt: 60_000 },
+			]);
 		});
 
 		test('reasoning comes before streamed text when ordered that way', () => {
