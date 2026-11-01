@@ -120,7 +120,7 @@ import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationD
 import { appendSdkToolResultContent, getSdkMcpResultMeta, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents, persistSdkToolResultResources } from './mapSessionEvents.js';
 import { withPermissionDiff } from '../../common/meta/agentPermissionRequestMeta.js';
 import { COPILOT_FUSION_PHASE_AGENT_NAME, CopilotFusionProgress, formatFusionReviewContent, getFusionPhaseToolCallId, isProvisionalFusionConversationEvent, type CopilotFusionEvent, type FusionPhasePresentation, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
-import { CopilotFusionRequestCorrelation, getFusionEventKey, getFusionEventSdkTurnId, isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
+import { CopilotFusionRequestCorrelation, getFusionEventKey, getFusionEventSdkTurnId, isRemoteSteeredUserMessage, isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
 import { CopilotFusionMessageChunks, isLastAssistantMessageChunk } from './copilotFusionMessageChunks.js';
 import { addAttachmentDisplayKindToMimeType, addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
 import { appendGeneratedImagePaths, GENERATED_IMAGE_PRESENTATION_CONTEXT, getGeneratedImages, saveGeneratedImages } from './copilotGeneratedImages.js';
@@ -2607,6 +2607,23 @@ export class CopilotAgentSession extends Disposable {
 	 * rather than being folded into the original turn.
 	 */
 	private _beginSteeringTurn(steering: IPendingSteering): void {
+		const newTurnId = generateUuid();
+		steering.promotedTurnId = newTurnId;
+		this._startPreemptingTurn(newTurnId, {
+			startedAt: new Date().toISOString(),
+			message: steering.pendingMessage.message,
+			queuedMessageId: steering.pendingMessage.id,
+		}, steering.sender, false);
+	}
+
+	/**
+	 * Starts `turnId` for a user message that the SDK is already running
+	 * (local steering, or a Remote Control prompt echoed while a turn is
+	 * active). The running turn, if any, is completed first and its in-flight
+	 * Fusion state and active SDK turn are carried over, so subsequent SDK
+	 * events target the new turn rather than being folded into the old one.
+	 */
+	private _startPreemptingTurn(turnId: string, started: { readonly startedAt: string; readonly message: Message; readonly queuedMessageId?: string }, sender: IAgentPendingMessageSender | undefined, providerInitiated: boolean): void {
 		const previousTurnId = this._currentTurn.value?.id;
 		const activeSdkTurnId = this._currentTurn.value?.activeSdkTurnId;
 		// The SDK keeps running any in-flight HydraFusion workflow after a steering
@@ -2615,15 +2632,7 @@ export class CopilotAgentSession extends Disposable {
 		// longer be routed and stay invisible. A cancelled workflow is not kept.
 		const preservesFusionState = previousTurnId !== undefined && !this._fusionTurnCancelled;
 		this._completeActiveTurn(false, preservesFusionState);
-		const newTurnId = generateUuid();
-		steering.promotedTurnId = newTurnId;
-		this._emitAction({
-			type: ActionType.ChatTurnStarted,
-			turnId: newTurnId,
-			startedAt: new Date().toISOString(),
-			message: steering.pendingMessage.message,
-			queuedMessageId: steering.pendingMessage.id,
-		});
+		this._emitAction({ type: ActionType.ChatTurnStarted, turnId, ...started });
 		// Mirror `resetTurnState` so per-turn counters/mappings (usage total,
 		// streaming part ids) don't bleed from the preempted turn into the new
 		// steering turn. The SDK is already running the steering message (its
@@ -2633,14 +2642,14 @@ export class CopilotAgentSession extends Disposable {
 		// not-yet-started queued turn and leave it open.
 		if (preservesFusionState) {
 			// Phase chats stay open: like subagents, they outlive the root turn, and closing one would drop its running tools' results.
-			this._startTurn(newTurnId, steering.sender?.clientId, steering.sender?.clientContext);
-			this._transferFusionWorkflow(previousTurnId, newTurnId);
+			this._startTurn(turnId, sender?.clientId, sender?.clientContext, providerInitiated);
+			this._transferFusionWorkflow(previousTurnId, turnId);
 		} else {
-			this.resetTurnState(newTurnId, steering.sender?.clientId, steering.sender?.clientContext.clientType, steering.sender?.clientContext);
+			this.resetTurnState(turnId, sender?.clientId, sender?.clientContext.clientType, sender?.clientContext, providerInitiated);
 		}
 		const turn = this._currentTurn.value;
 		if (turn) {
-			turn.messageCharLen = steering.pendingMessage.message.text.length;
+			turn.messageCharLen = started.message.text.length;
 			turn.markRunning();
 		}
 		if (preservesFusionState) {
@@ -2648,14 +2657,14 @@ export class CopilotAgentSession extends Disposable {
 			if (resumedPhase) {
 				this._emitFusionProgress(resumedPhase);
 			}
-			this._transferProvisionalFusionToolCalls(previousTurnId, newTurnId);
+			this._transferProvisionalFusionToolCalls(previousTurnId, turnId);
 		}
 		if (activeSdkTurnId && turn) {
 			turn.activeSdkTurnId = activeSdkTurnId;
 			turn.sdkTurnIds.add(activeSdkTurnId);
 		}
 		if (activeSdkTurnId) {
-			this._recordHostSdkTurn(activeSdkTurnId, newTurnId);
+			this._recordHostSdkTurn(activeSdkTurnId, turnId);
 		}
 	}
 
@@ -2664,6 +2673,9 @@ export class CopilotAgentSession extends Disposable {
 	 * owning chat. Extensions can call the public `session.send()` API without a
 	 * preceding AHP `ChatTurnStarted`; without this bridge their tool calls and
 	 * response execute, but the interaction remains invisible to the user.
+	 *
+	 * Remote Control prompts (`command-…` source) take the same bridge; one echoed
+	 * while a turn is still running preempts that turn like local steering does.
 	 */
 	private _beginProviderInitiatedTurn(event: SessionEventPayload<'user.message'>): void {
 		const { messageId, turnId: sdkTurnId } = event.data;
@@ -2672,22 +2684,13 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 
-		const turnId = generateUuid();
-		this._emitAction({
-			type: ActionType.ChatTurnStarted,
-			turnId,
+		this._startPreemptingTurn(generateUuid(), {
 			startedAt: event.timestamp,
 			message: {
 				text: event.data.content,
 				origin: { kind: MessageKind.User },
 			},
-		});
-		this.resetTurnState(turnId, undefined, AgentHostClientType.Unknown, undefined, true);
-		const turn = this._currentTurn.value;
-		if (turn) {
-			turn.messageCharLen = event.data.content.length;
-			turn.markRunning();
-		}
+		}, undefined, true);
 	}
 
 	/** Clears unpromoted steering, including messages still preparing, on abort or disposal. */
@@ -9261,7 +9264,9 @@ export class CopilotAgentSession extends Disposable {
 				if (e.data.interactionId) {
 					this._currentTurn.value?.interactionIds.add(e.data.interactionId);
 				}
-			} else if (!this._currentTurn.value) {
+			} else if (!this._currentTurn.value || isRemoteSteeredUserMessage(e)) {
+				// A Remote Control prompt echoed while a turn is still running preempts
+				// it, as local steering does, instead of folding into the running turn.
 				this._beginProviderInitiatedTurn(e);
 			}
 			if (this._turnId) {
