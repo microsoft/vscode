@@ -391,8 +391,8 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			// language service. This is necessary as the language service currently does not track these
 			// settings itself and formats based on the forwarded configuration options.
 			const settings = {
-				...options,
 				...await getFormatterSettings(document),
+				...options,
 			};
 
 			const edits = getLanguageService(document).format(document, range ?? getFullRange(document), settings);
