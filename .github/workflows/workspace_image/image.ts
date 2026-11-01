@@ -88,7 +88,8 @@ function summary(line: string): void {
 }
 
 function run(command: string, args: readonly string[], options: SpawnSyncOptions = {}): string {
-	const result = spawnSync(command, args, { stdio: 'inherit', encoding: 'utf8', ...options });
+	// `git ls-files` lists over 1 MB, the default
+	const result = spawnSync(command, args, { stdio: 'inherit', encoding: 'utf8', maxBuffer: 1024 * 1024 * 1024, ...options });
 	if (result.error) {
 		throw result.error;
 	}
@@ -748,7 +749,7 @@ async function seed(): Promise<void> {
 	const commit = git('rev-parse', 'HEAD').trim();
 	git('tag', '--force', SEED_TAG, 'HEAD');
 	// No credentials in an image
-	const keys = spawnSync('git', ['-C', ws, 'config', '--local', '--name-only', '--get-regexp', '^(http\\..*\\.extraheader|includeif\\..*)$'], { encoding: 'utf8' }).stdout;
+	const keys = spawnSync('git', ['-C', ws, 'config', '--local', '--name-only', '--get-regexp', '^(http\\..*\\.extraheader|includeif\\..*)$'], { encoding: 'utf8' }).stdout ?? '';
 	for (const key of new Set(keys.split(/\r?\n/).filter(Boolean))) {
 		git('config', '--local', '--unset-all', key);
 	}

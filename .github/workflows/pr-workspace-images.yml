@@ -157,7 +157,7 @@ jobs:
         run: |
           set -euo pipefail
           root="$(dirname "$GITHUB_WORKSPACE")"
-          du -sh "$root"/.[!.]* "$root"/*/node_modules "$root"/*/.build "$root"/*/.git
+          du -sh "$root"/.[!.]* "$root"/*/node_modules "$root"/*/.build "$root"/*/.git || true
           time mksquashfs "$root" "$RUNNER_TEMP/workspace-image-linux-x64.sqfs" -noappend -b 128K -no-progress -quiet -comp lz4 -Xhc
           ls -la "$RUNNER_TEMP/workspace-image-linux-x64.sqfs"
 
@@ -232,9 +232,10 @@ jobs:
         run: |
           set -euo pipefail
           root="$(dirname "$GITHUB_WORKSPACE")"
-          du -sh "$root"/.[!.]* "$root"/*/node_modules "$root"/*/.build "$root"/*/.git
+          du -sh "$root"/.[!.]* "$root"/*/node_modules "$root"/*/.build "$root"/*/.git || true
           df -h "$root"
-          hdiutil detach "$root"
+          # Retried, in case Spotlight or a process that just ended still holds a file
+          hdiutil detach "$root" || { sleep 5; hdiutil detach -force "$root"; }
           ls -la "$RUNNER_TEMP/workspace-image.asif"
           node "$RUNNER_TEMP/workspace-image/image.ts" pack --in "$RUNNER_TEMP/workspace-image.asif" --out "$RUNNER_TEMP/workspace-image-darwin-arm64.img"
 
