@@ -8,6 +8,7 @@ import './media/accountWidget.css';
 import './media/accountTitleBarWidget.css';
 import '../../../../workbench/contrib/chat/browser/chatStatus/media/chatStatus.css';
 import Severity from '../../../../base/common/severity.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2, IMenuService } from '../../../../platform/actions/common/actions.js';
@@ -773,6 +774,26 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 		// stale until the panel is reopened.
 		panelStore.add(this.chatEntitlementService.onDidChangeQuotaRemaining(render));
 		panelStore.add(this.chatEntitlementService.onDidChangeEntitlement(render));
+
+		let resetRefreshTriggered = false;
+		panelStore.add(disposableWindowInterval(mainWindow, async () => {
+			const quota = this.chatEntitlementService.quotas.premiumChat ?? this.chatEntitlementService.quotas.chat;
+			const reset = getQuotaReset(quota, this.chatEntitlementService.quotas);
+			if (!reset || reset.date.getTime() > Date.now()) {
+				resetRefreshTriggered = false;
+				return;
+			}
+
+			if (!resetRefreshTriggered) {
+				resetRefreshTriggered = true;
+				render();
+				await this.chatEntitlementService.update(CancellationToken.None);
+
+				if (usage.isConnected) {
+					render();
+				}
+			}
+		}, 1000));
 	}
 
 	private renderCopilotUsage(usage: HTMLElement, store: DisposableStore): void {
@@ -860,7 +881,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 
 	private getCopilotResetLabel(quota: IQuotaSnapshot | undefined): string | undefined {
 		const reset = getQuotaReset(quota, this.chatEntitlementService.quotas);
-		if (!reset) {
+		if (!reset || reset.date.getTime() <= Date.now()) {
 			return undefined;
 		}
 
