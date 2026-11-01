@@ -7,7 +7,7 @@
 // Playwright browsers installed, which a test job mounts instead of installing them (see README.md).
 // Dependency-free, as the jobs download it from the API and run it before they check out.
 //
-//   node image.ts restore --name NAME [--branch main] [--connections 16]
+//   node image.ts restore --name NAME [--branch main] [--connections 32]
 //     Mounts the newest image NAME of a branch at the parent folder of the empty workspace, where
 //     actions/checkout then reuses its .git. Sets the output `used` to 'true' when it did, and warns
 //     instead of failing otherwise, as the job can still install everything.
@@ -467,6 +467,12 @@ async function unpack(source: Source, file: string, options: { readonly sparse: 
 	let wakeWriter: (() => void) | undefined;
 	let wakeWorkers: (() => void)[] = [];
 	let writtenBytes = 0;
+	// Summed over the workers: how long they waited for the network and for the thread pool
+	let downloadSeconds = 0;
+	let decompressSeconds = 0;
+	// How long the writer wrote, and how long it waited for the next chunk
+	let writeSeconds = 0;
+	let idleSeconds = 0;
 	const worker = async () => {
 		while (next < count) {
 			const index = next++;
@@ -474,7 +480,16 @@ async function unpack(source: Source, file: string, options: { readonly sparse: 
 				await new Promise<void>(resolve => wakeWorkers.push(resolve));
 			}
 			const [length] = header.chunks[index];
-			ready.set(index, length > 0 ? await zstdDecompress(await source.read(offsets[index], length), { chunkSize: ZLIB_CHUNK }) : undefined);
+			let data: Buffer | undefined;
+			if (length > 0) {
+				let time = performance.now();
+				const frame = await source.read(offsets[index], length);
+				downloadSeconds += (performance.now() - time) / 1000;
+				time = performance.now();
+				data = await zstdDecompress(frame, { chunkSize: ZLIB_CHUNK });
+				decompressSeconds += (performance.now() - time) / 1000;
+			}
+			ready.set(index, data);
 			wakeWriter?.();
 		}
 	};
@@ -484,9 +499,12 @@ async function unpack(source: Source, file: string, options: { readonly sparse: 
 	const writer = async () => {
 		await handle.truncate(0);
 		for (let index = 0; index < count; index++) {
+			const waited = performance.now();
 			while (!ready.has(index)) {
 				await new Promise<void>(resolve => wakeWriter = resolve);
 			}
+			idleSeconds += (performance.now() - waited) / 1000;
+			const writing = performance.now();
 			wakeWriter = undefined;
 			const data = ready.get(index);
 			ready.delete(index);
@@ -520,6 +538,7 @@ async function unpack(source: Source, file: string, options: { readonly sparse: 
 				await writeAll(handle, chunk, position);
 				writtenBytes += length;
 			}
+			writeSeconds += (performance.now() - writing) / 1000;
 			written = index + 1;
 			const waiting = wakeWorkers;
 			wakeWorkers = [];
@@ -532,7 +551,8 @@ async function unpack(source: Source, file: string, options: { readonly sparse: 
 	} finally {
 		await handle.close();
 	}
-	return `downloaded ${Math.round(source.size / 1e6)} MB and wrote ${Math.round(writtenBytes / 1e6)} MB of ${Math.round(header.rawSize / 1e6)} MB`;
+	const seconds = (value: number) => value.toFixed(1);
+	return `downloaded ${Math.round(source.size / 1e6)} MB and wrote ${Math.round(writtenBytes / 1e6)} MB of ${Math.round(header.rawSize / 1e6)} MB, with ${options.connections} connections (downloads ${seconds(downloadSeconds)} s and decompression ${seconds(decompressSeconds)} s in all, writes ${seconds(writeSeconds)} s, waits for chunks ${seconds(idleSeconds)} s)`;
 }
 
 //#endregion
@@ -625,7 +645,7 @@ async function mount(source: Source, root: string, connections: number): Promise
 async function restoreImage(args: Args): Promise<void> {
 	const name = required(args, 'name');
 	const branch = args.get('branch') || 'main';
-	const connections = Number(args.get('connections') ?? '16');
+	const connections = Number(args.get('connections') ?? '32');
 	const ws = workspace();
 	const root = imageRoot();
 	if (fs.readdirSync(ws).length) {
