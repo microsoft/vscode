@@ -531,6 +531,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 		// Track wheel events in mouse wheel classifier and update smoothScrolling when it changes
 		// as it must be disabled when a trackpad is used
+		// Classify in the capture phase before wheel zoom consumes the event.
 		ad.add(dom.addDisposableListener(this.raw.element, dom.EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
 			const classifier = MouseWheelClassifier.INSTANCE;
 			classifier.acceptStandardWheelEvent(new StandardWheelEvent(e));
@@ -539,7 +540,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				this._isPhysicalMouseWheel = value;
 				this._updateSmoothScrolling();
 			}
-		}, { passive: true }));
+		}, { capture: true, passive: true }));
 
 		this._refreshLigaturesAddon();
 
