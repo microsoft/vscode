@@ -3881,12 +3881,37 @@ suite('AgentHostProtocolClient', () => {
 	test('importSession sends the VS Code extension request without a turn', async () => {
 		const { client, transport } = createClient();
 		const result = client.importSession(URI.parse('copilotcli:/session-1'));
+		const takeOver = client.importSession(URI.parse('copilotcli:/session-2'), { takeOver: true });
 		assert.deepStrictEqual(transport.sentMessages, [{
 			jsonrpc: '2.0', id: 1, method: 'vscode/importSession',
 			params: { session: 'copilotcli:/session-1' },
+		}, {
+			jsonrpc: '2.0', id: 2, method: 'vscode/importSession',
+			params: { session: 'copilotcli:/session-2', takeOver: true },
 		}]);
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
-		await result;
+		transport.fireMessage({ jsonrpc: '2.0', id: 2, result: null });
+		await Promise.all([result, takeOver]);
+	});
+
+	test('importSession resolves to the session address the host reports, if any', async () => {
+		const { client, transport } = createClient();
+		const responses = [
+			{ session: 'ahp-session:/session-1' },
+			{ session: 'other-host://tenant/opaque' },
+			{},
+			null,
+			{ session: 42 },
+		];
+		const results = responses.map(() => client.importSession(URI.parse('copilotcli:/session-1')));
+		responses.forEach((result, index) => transport.fireMessage({ jsonrpc: '2.0', id: index + 1, result }));
+		assert.deepStrictEqual((await Promise.all(results)).map(uri => uri?.toString()), [
+			'ahp-session:/session-1',
+			'other-host://tenant/opaque',
+			undefined,
+			undefined,
+			undefined,
+		]);
 	});
 
 	test('importSession propagates unsupported host errors', async () => {
