@@ -788,6 +788,10 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 				resetRefreshTriggered = true;
 				render();
 				await this.chatEntitlementService.update(CancellationToken.None);
+
+				if (usage.isConnected) {
+					render();
+				}
 			}
 		}, 1000));
 	}

@@ -415,19 +415,32 @@ export class ChatStatusDashboard extends DomWidget {
 
 			let resetRefreshTriggered = false;
 			this._store.add(disposableWindowInterval(getWindow(container), async () => {
-				const hasExpiredReset = [chatQuota, premiumChatQuota, completionsQuota].some(quota => {
+				const { chat, premiumChat, completions } = this.chatEntitlementService.quotas;
+
+				const hasExpiredReset = [chat, premiumChat, completions].some(quota => {
 					const reset = getQuotaReset(quota, this.chatEntitlementService.quotas);
 					return !!reset && reset.date.getTime() <= Date.now();
 				});
+
 				if (!hasExpiredReset) {
 					resetRefreshTriggered = false;
 					return;
 				}
 
 				updateIndicators();
+
 				if (!resetRefreshTriggered) {
 					resetRefreshTriggered = true;
-					await this.chatEntitlementService.update(CancellationToken.None);
+					try {
+						await this.chatEntitlementService.update(token);
+
+						if (!token.isCancellationRequested) {
+							updateIndicators();
+						}
+					} catch (error) {
+						resetRefreshTriggered = false;
+						throw error;
+					}
 				}
 			}, 1000));
 		}
