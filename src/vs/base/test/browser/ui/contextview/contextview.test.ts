@@ -5,13 +5,31 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { $, getDomNodePagePosition, getWindow } from '../../../../browser/dom.js';
+import { $, getDomNodePagePosition, getWindow, isHTMLElement } from '../../../../browser/dom.js';
 import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLASS, CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS, ContextView, ContextViewDOMPosition, contextViewMenuCloseAnimation, getFocusedContextView, IContextViewRenderContext, IDelegate, isContextViewFocused } from '../../../../browser/ui/contextview/contextview.js';
 import { mainWindow } from '../../../../browser/window.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../common/errors.js';
 import { DeferredPromise, timeout } from '../../../../common/async.js';
-import { toDisposable } from '../../../../common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
+
+
+/**
+ * Replaces `navigator.windowControlsOverlay` on the given window so the real
+ * browser helpers observe a controlled overlay. Restores the original on dispose.
+ */
+function stubWindowControlsOverlay(targetWindow: Window, stub: { readonly visible: boolean; getTitlebarAreaRect(): DOMRect }): IDisposable {
+	const navigator = targetWindow.navigator as Navigator & { windowControlsOverlay?: unknown };
+	const original = Object.getOwnPropertyDescriptor(navigator, 'windowControlsOverlay');
+	Object.defineProperty(navigator, 'windowControlsOverlay', { configurable: true, get: () => stub });
+	return toDisposable(() => {
+		if (original) {
+			Object.defineProperty(navigator, 'windowControlsOverlay', original);
+		} else {
+			delete navigator.windowControlsOverlay;
+		}
+	});
+}
 
 suite('ContextView', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1149,6 +1167,211 @@ suite('ContextView', () => {
 			contextView.dispose();
 
 			assert.deepStrictEqual({ hides: hides.length, open: isOpen(view), inOwner: owner.contains(view) }, { hides: 1, open: false, inOwner: false });
+		});
+	});
+
+	suite('window controls overlay', () => {
+		let disposables: DisposableStore;
+		// One stub per window per test; layouts swap the rect source instead of re-stubbing
+		let overlaySources: Map<Window, { getRect: (targetWindow: Window) => DOMRect | undefined }>;
+
+		setup(() => {
+			disposables = new DisposableStore();
+			overlaySources = new Map();
+		});
+		teardown(() => disposables.dispose());
+
+		const allPositions = [
+			['ABSOLUTE', ContextViewDOMPosition.ABSOLUTE],
+			['FIXED', ContextViewDOMPosition.FIXED],
+			['FIXED_SHADOW', ContextViewDOMPosition.FIXED_SHADOW],
+			['POPOVER', ContextViewDOMPosition.POPOVER],
+			['POPOVER_SHADOW', ContextViewDOMPosition.POPOVER_SHADOW],
+		] as const;
+
+		const viewSize = { width: 40, height: 20 };
+
+		function layout(domPosition: ContextViewDOMPosition, anchor: HTMLElement | { x: number; y: number }, getRect: (targetWindow: Window) => DOMRect | undefined, targetDocument: Document = mainWindow.document) {
+			const container = targetDocument.createElement('div');
+			if (domPosition === ContextViewDOMPosition.POPOVER || domPosition === ContextViewDOMPosition.POPOVER_SHADOW) {
+				container.style.cssText = 'position: absolute; top: 0; left: 0; width: 1px; height: 1px;';
+			}
+			targetDocument.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
+			const containerWindow = getWindow(container);
+			const source = overlaySources.get(containerWindow);
+			if (source) {
+				source.getRect = getRect;
+			} else {
+				const newSource = { getRect };
+				overlaySources.set(containerWindow, newSource);
+				disposables.add(stubWindowControlsOverlay(containerWindow, {
+					get visible() { return newSource.getRect(containerWindow) !== undefined; },
+					getTitlebarAreaRect: () => newSource.getRect(containerWindow)!,
+				}));
+			}
+			const contextView = disposables.add(new ContextView(container, domPosition));
+			contextView.show({
+				getAnchor: () => isHTMLElement(anchor) ? anchor : { ...anchor, width: 1, height: 1 },
+				render: view => {
+					const content = view.appendChild(targetDocument.createElement('div'));
+					content.style.cssText = `display: block; width: ${viewSize.width}px; height: ${viewSize.height}px;`;
+					return null;
+				}
+			});
+			const view = contextView.getViewElement();
+			const read = () => {
+				const rect = view.getBoundingClientRect();
+				return { top: Math.round(rect.top), left: Math.round(rect.left), classes: ['top', 'bottom', 'left', 'right'].filter(c => view.classList.contains(c)) };
+			};
+			return { contextView, view, read };
+		}
+
+		/**
+		 * Measures the rendered view against the window-control strips, i.e. the
+		 * parts of the overlay band to the left and right of the titlebar area.
+		 */
+		function clearance(view: HTMLElement, overlay: DOMRect, targetWindow: Window) {
+			const rect = view.getBoundingClientRect();
+			const epsilon = 0.5;
+			const strips = [
+				{ left: 0, right: overlay.x },
+				{ left: overlay.x + overlay.width, right: targetWindow.innerWidth },
+			].filter(strip => strip.right > strip.left);
+			const verticalOverlap = rect.top < overlay.y + overlay.height - epsilon && rect.bottom > overlay.y + epsilon;
+			const coversButtons = verticalOverlap && strips.some(strip => rect.left < strip.right - epsilon && rect.right > strip.left + epsilon);
+			const inViewport = rect.left >= -epsilon && rect.top >= -epsilon && rect.right <= targetWindow.innerWidth + epsilon && rect.bottom <= targetWindow.innerHeight + epsilon;
+			return { coversButtons, inViewport, size: [Math.round(rect.width), Math.round(rect.height)] };
+		}
+
+		for (const [name, domPosition] of allPositions) {
+			test(`keeps the view clear of the window controls (${name})`, () => {
+				const width = mainWindow.innerWidth;
+				const overlay = new DOMRect(80, 0, width - 200, 30);
+				const withOverlay = () => overlay;
+				const none = () => undefined;
+				const measure = (anchor: { x: number; y: number }, getRect: () => DOMRect | undefined) => {
+					const { view, read } = layout(domPosition, anchor, getRect);
+					return { ...read(), ...clearance(view, overlay, mainWindow) };
+				};
+
+				assert.deepStrictEqual({
+					leftCorner: [measure({ x: 10, y: 0 }, withOverlay), measure({ x: 10, y: 0 }, none).coversButtons],
+					rightCorner: [measure({ x: width - 60, y: 0 }, withOverlay), measure({ x: width - 60, y: 0 }, none).coversButtons],
+					titlebarArea: [measure({ x: 200, y: 0 }, withOverlay), measure({ x: 200, y: 0 }, none)],
+					belowBand: [measure({ x: 10, y: 100 }, withOverlay), measure({ x: 10, y: 100 }, none)],
+				}, {
+					leftCorner: [{ top: 30, left: 10, classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] }, true],
+					rightCorner: [{ top: 30, left: width - 60, classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] }, true],
+					titlebarArea: [
+						{ top: 1, left: 200, classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] },
+						{ top: 1, left: 200, classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] },
+					],
+					belowBand: [
+						{ top: 101, left: 10, classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] },
+						{ top: 101, left: 10, classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] },
+					],
+				});
+			});
+
+			test(`keeps the view clear of the window controls when the page is scrolled (${name})`, () => {
+				const spacer = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+				spacer.style.cssText = `position: absolute; top: 0; left: 0; width: ${mainWindow.innerWidth * 3}px; height: ${mainWindow.innerHeight * 3}px;`;
+				disposables.add(toDisposable(() => {
+					spacer.remove();
+					mainWindow.scrollTo(0, 0);
+				}));
+				mainWindow.scrollTo(100, 200);
+				const overlay = new DOMRect(80, 0, mainWindow.innerWidth - 200, 30);
+
+				// Anchors are in page coordinates, the overlay in viewport coordinates
+				const { view, read } = layout(domPosition, { x: mainWindow.scrollX + 10, y: mainWindow.scrollY }, () => overlay);
+
+				assert.deepStrictEqual({ scrolled: mainWindow.scrollX > 0 && mainWindow.scrollY > 0, ...read(), ...clearance(view, overlay, mainWindow) }, {
+					scrolled: true, top: 30, left: 10, classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20]
+				});
+			});
+		}
+
+		for (const zoom of [2, 0.5]) {
+			test(`keeps the view clear of the window controls for a zoomed anchor (zoom ${zoom})`, () => {
+				const zoomed = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+				zoomed.style.cssText = `position: absolute; top: 0; left: 0; zoom: ${zoom};`;
+				disposables.add(toDisposable(() => zoomed.remove()));
+				const anchor = zoomed.appendChild(mainWindow.document.createElement('div'));
+				anchor.style.cssText = 'position: absolute; top: 0; left: 10px; width: 10px; height: 10px;';
+				// A band tall enough that the unadjusted view overlaps it at every zoom level
+				const overlay = new DOMRect(80, 0, mainWindow.innerWidth - 200, 100);
+				const measure = (getRect: () => DOMRect | undefined) => {
+					const { view } = layout(ContextViewDOMPosition.FIXED, anchor, getRect);
+					return clearance(view, overlay, mainWindow);
+				};
+
+				assert.deepStrictEqual({ withOverlay: measure(() => overlay), withoutOverlay: measure(() => undefined).coversButtons }, {
+					withOverlay: { coversButtons: false, inViewport: true, size: [40, 20] },
+					withoutOverlay: true,
+				});
+			});
+		}
+
+		test('reads the overlay and viewport of the container\'s window', () => {
+			const iframe = mainWindow.document.createElement('iframe');
+			iframe.style.cssText = 'position: absolute; top: 0; left: 0; width: 400px; height: 300px; border: 0;';
+			mainWindow.document.body.appendChild(iframe);
+			disposables.add(toDisposable(() => iframe.remove()));
+			const otherDocument = iframe.contentDocument!;
+			const otherWindow = iframe.contentWindow!;
+			otherDocument.body.style.margin = '0';
+			const collectRules = (sheet: CSSStyleSheet): string[] => Array.from(sheet.cssRules).flatMap(rule => rule instanceof CSSImportRule ? (rule.styleSheet ? collectRules(rule.styleSheet) : []) : [rule.cssText]);
+			otherDocument.head.appendChild(otherDocument.createElement('style')).textContent = Array.from(mainWindow.document.styleSheets).flatMap(collectRules).join('\n');
+			const overlay = new DOMRect(80, 0, 200, 30);
+			const windows: Window[] = [];
+
+			const { view, read } = layout(ContextViewDOMPosition.ABSOLUTE, { x: 340, y: 0 }, targetWindow => {
+				windows.push(targetWindow);
+				return overlay;
+			}, otherDocument);
+
+			assert.deepStrictEqual({
+				otherWindow: windows.length > 0 && windows.every(w => w === otherWindow),
+				viewport: [otherWindow.innerWidth, otherWindow.innerHeight],
+				...read(),
+				...clearance(view, overlay, otherWindow),
+			}, {
+				otherWindow: true,
+				viewport: [400, 300],
+				top: 30, left: 340, classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20]
+			});
+		});
+
+		test('re-reads the overlay on layout', () => {
+			let rect: DOMRect | undefined = undefined;
+			const { contextView, read } = layout(ContextViewDOMPosition.FIXED, { x: 10, y: 0 }, () => rect);
+			const before = read();
+			rect = new DOMRect(100, 0, mainWindow.innerWidth - 200, 30);
+			contextView.layout();
+			const shown = read();
+			rect = undefined;
+			contextView.layout();
+
+			assert.deepStrictEqual({ before, shown, after: read() }, {
+				before: { top: 1, left: 10, classes: ['bottom', 'left'] },
+				shown: { top: 30, left: 10, classes: ['bottom', 'left'] },
+				after: { top: 1, left: 10, classes: ['bottom', 'left'] },
+			});
+		});
+
+		test('restores the original overlay after multiple layouts', () => {
+			const original = Object.getOwnPropertyDescriptor(mainWindow.navigator, 'windowControlsOverlay');
+			const overlay = new DOMRect(80, 0, mainWindow.innerWidth - 200, 30);
+			layout(ContextViewDOMPosition.FIXED, { x: 10, y: 0 }, () => overlay);
+			layout(ContextViewDOMPosition.ABSOLUTE, { x: 10, y: 0 }, () => undefined);
+			layout(ContextViewDOMPosition.POPOVER, { x: 10, y: 0 }, () => overlay);
+			const stubbed = (mainWindow.navigator as Navigator & { windowControlsOverlay?: { readonly visible: boolean } }).windowControlsOverlay?.visible;
+
+			disposables.dispose();
+
+			assert.deepStrictEqual({ stubbed, restored: Object.getOwnPropertyDescriptor(mainWindow.navigator, 'windowControlsOverlay') }, { stubbed: true, restored: original });
 		});
 	});
 });
