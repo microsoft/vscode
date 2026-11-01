@@ -4,7 +4,7 @@
 #   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -Prepare
 #   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -MountFolder C:\a\vscode [-CachedIo] [-Trust]
 #   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -Create -MountFolder C:\a\vscode [-MaximumSizeGB 200] [-BlockSizeMB 1]
-#   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -Detach
+#   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -MountFolder C:\a\vscode -Detach
 #
 # -Prepare creates the empty file that image.ts restores a VHDX into, as a temporary file, whose data
 # Windows keeps in memory while it has enough instead of writing it to the disk.
@@ -13,7 +13,8 @@
 # data of the temporary file is read from memory. -Trust trusts the Dev Drive of the VHDX on this
 # machine, like a Dev Drive that it formats.
 # -Create creates a Dev Drive in a new dynamic VHDX with blocks of 1 MB, and mounts it at the empty
-# folder. -Detach flushes its volume and detaches it.
+# folder. -Detach flushes its volume, removes its mount point, which would be left dangling, and
+# detaches it.
 param(
 	[Parameter(Mandatory = $true)]
 	[string] $Path,
@@ -57,6 +58,11 @@ if ($Prepare) {
 if ($Detach) {
 	Get-DiskImage -ImagePath $Path | Get-Disk | Get-Partition | Get-Volume | Write-VolumeCache
 	Step 'flushed the volume'
+	if ($MountFolder) {
+		mountvol "$($MountFolder.TrimEnd('\'))\" /D
+		if ($LASTEXITCODE -ne 0) { throw "mountvol exited with $LASTEXITCODE" }
+		Step "unmounted $MountFolder"
+	}
 	Dismount-DiskImage -ImagePath $Path | Out-Null
 	Step "detached $Path"
 	return
