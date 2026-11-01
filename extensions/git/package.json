@@ -4325,12 +4325,17 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.scanFolderForRepositories%",
-        "when": "config.git.enabled && !git.missing && workbenchState == folder && workspaceFolderCount != 0 && git.state != initialized"
+        "when": "config.git.enabled && !git.missing && workbenchState == folder && workspaceFolderCount != 0 && git.state == uninitialized"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.scanWorkspaceForRepositories%",
-        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount != 0 && git.state != initialized"
+        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount != 0 && git.state == uninitialized"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.scanFailed%",
+        "when": "config.git.enabled && !git.missing && workspaceFolderCount != 0 && git.state == failed"
       },
       {
         "view": "scm",
