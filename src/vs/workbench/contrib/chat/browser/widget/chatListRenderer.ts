@@ -2913,10 +2913,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		let content: IChatRendererContent[] = [];
-		// Attachments shown as pills inline with the request text are not repeated above it.
+		// Attachments shown as pills inline with the request text are not repeated above it, except images:
+		// a pill only refers to its image, while the thumbnail above shows that the image is attached.
 		const inlineAttachments = this.getInlineRequestAttachments(element);
 		const inlineAttachmentIds = new Set(Array.from(inlineAttachments.values(), attachment => attachment.id));
-		const variables = inlineAttachmentIds.size ? element.variables.filter(variable => !inlineAttachmentIds.has(variable.id)) : element.variables;
+		const variables = inlineAttachmentIds.size ? element.variables.filter(variable => variable.kind === 'image' || !inlineAttachmentIds.has(variable.id)) : element.variables;
 		const explicitFileOrImageVariables = variables.filter(isExplicitFileOrImageVariableEntry);
 		const explicitImageVariables = explicitFileOrImageVariables.filter(variable => variable.kind === 'image');
 		const explicitFileOrDirectoryVariables = variables.filter(variable => variable.kind === 'file' || variable.kind === 'directory' || isPasteVariableEntry(variable));

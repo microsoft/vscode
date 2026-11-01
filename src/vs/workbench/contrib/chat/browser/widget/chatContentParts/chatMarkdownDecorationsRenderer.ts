@@ -7,8 +7,10 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
+import { escapeMarkdownSyntaxTokens } from '../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { escape } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -144,8 +146,9 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 							'';
 
 		const args: IDecorationWidgetArgs = inlineAttachment === undefined ? { title } : { title, inlineAttachment };
-		// The text of an attachment shown as a pill, such as a terminal command, can contain brackets that would end the link.
-		const text = inlineAttachment === undefined ? part.text : part.text.replace(/[\\[\]]/g, '\\$&');
+		// The text of an attachment shown as a pill is literal: a terminal command can contain brackets that would end the link,
+		// and the Markdown link that the prompt sent to the model read an attachment as would become a link of its own inside it.
+		const text = inlineAttachment === undefined ? part.text : escapeMarkdownSyntaxTokens(escape(part.text));
 		return `[${text}](${decorationRefUrl}?${encodeURIComponent(JSON.stringify(args))})`;
 	}
 

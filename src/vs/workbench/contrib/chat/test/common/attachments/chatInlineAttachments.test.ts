@@ -245,6 +245,38 @@ suite('Chat inline attachments', () => {
 		]);
 	});
 
+	test('recovers the links of attachments that history keeps elsewhere than the prompt said', () => {
+		// An agent host keeps its own copy of an image, and the copy of a pasted image may have no location at all.
+		const text = '[shot.png](file:///Downloads/shot.png) flickers, [pasted.png](file:///tmp/pasted.png) too, see [b.ts](file:///src/(old)/b.ts) and @attachment:old.png but not ![shot.png](file:///Downloads/shot.png), [shot.png]() or `[b.ts](file:///src/b.ts)`';
+		const message = { text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] };
+		const variables: IChatRequestVariableEntry[] = [
+			{ kind: 'image', id: 'shot', name: 'shot.png', value: URI.file('/history/1/shot.png'), isURL: true, references: [{ kind: 'reference', reference: URI.file('/history/1/shot.png') }] },
+			{ kind: 'image', id: 'pasted', name: 'pasted.png', value: new Uint8Array() },
+			{ kind: 'file', id: 'b', name: 'b.ts', value: URI.file('/worktree/src/b.ts') },
+			{ kind: 'image', id: 'old', name: 'old.png', value: new Uint8Array() },
+		];
+		const recovered = recoverAttachmentMentions(message, variables);
+		assert.deepStrictEqual({
+			parts: recovered.parts.map(part => part instanceof ChatRequestDynamicVariablePart ? `[${part.id}]` : part.text),
+			inline: [...getInlineRequestAttachments(recovered.parts, variables, text).values()].map(variable => variable.id),
+		}, {
+			parts: ['[shot]', ' flickers, ', '[pasted]', ' too, see ', '[b]', ' and ', '[old]', ' but not ![shot.png](file:///Downloads/shot.png), [shot.png]() or `[b.ts](file:///src/b.ts)`'],
+			inline: ['shot', 'pasted', 'b', 'old'],
+		});
+	});
+
+	test('binds a link to the attachment it links to before the others of its name', () => {
+		const text = 'compare [shot.png](file:///b/shot.png) with [shot.png](file:///a/shot.png)';
+		const message = { text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] };
+		const variables: IChatRequestVariableEntry[] = [
+			{ kind: 'image', id: 'a', name: 'shot.png', value: new Uint8Array(), references: [{ kind: 'reference', reference: URI.file('/a/shot.png') }] },
+			{ kind: 'image', id: 'b', name: 'shot.png', value: new Uint8Array(), references: [{ kind: 'reference', reference: URI.file('/b/shot.png') }] },
+		];
+		assert.deepStrictEqual(recoverAttachmentMentions(message, variables).parts.map(part => part instanceof ChatRequestDynamicVariablePart ? `[${part.id}]` : part.text), [
+			'compare ', '[b]', ' with ', '[a]',
+		]);
+	});
+
 	test('opens pills only when activating them does something', () => {
 		assert.deepStrictEqual([
 			{ kind: 'file', id: 'file', name: 'a.ts', value: URI.file('/a.ts') },
