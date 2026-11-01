@@ -259,4 +259,65 @@ suite('Replace Pattern test', () => {
 		actual = testObject.getReplaceString('Test-Regex', true);
 		assert.strictEqual(actual, 'New-Regex');
 	});
+
+	test('parse replace string with named groups', () => {
+		const testParse = (input: string, expected: string, expectedHasParameters: boolean) => {
+			const actual = new ReplacePattern(input, { pattern: 'somepattern', isRegExp: true });
+			assert.strictEqual(expected, actual.pattern);
+			assert.strictEqual(expectedHasParameters, actual.hasParameters);
+		};
+
+		// Valid named groups should have parameters
+		testParse('hello${name}', 'hello${name}', true);
+		testParse('${greeting} ${target}!', '${greeting} ${target}!', true);
+		testParse('${name_with_underscore}', '${name_with_underscore}', true);
+		testParse('${_name}', '${_name}', true);
+		testParse('${name123}', '${name123}', true);
+
+		// Invalid named groups - should NOT have parameters (treated as literal)
+		testParse('hello${}', 'hello${}', false); // empty name
+		testParse('hello${123}', 'hello${123}', false); // purely numeric
+		testParse('hello${invalid-name}', 'hello${invalid-name}', false); // contains hyphen
+		testParse('hello${name', 'hello${name', false); // unclosed brace
+	});
+
+	test('replace with named groups', () => {
+		let testObject = new ReplacePattern('${greeting}, ${target}!', { pattern: '(?<greeting>hello) (?<target>world)', isRegExp: true });
+		let actual = testObject.getReplaceString('hello world');
+		assert.strictEqual(actual, 'hello, world!');
+
+		// Mixed numbered and named groups
+		testObject = new ReplacePattern('${greeting} $2', { pattern: '(?<greeting>hello) (\\w+)', isRegExp: true });
+		actual = testObject.getReplaceString('hello world');
+		assert.strictEqual(actual, 'hello world');
+
+		// Named group with underscore in name
+		testObject = new ReplacePattern('${my_greeting}, ${my_target}!', { pattern: '(?<my_greeting>hello) (?<my_target>world)', isRegExp: true });
+		actual = testObject.getReplaceString('hello world');
+		assert.strictEqual(actual, 'hello, world!');
+	});
+
+	test('named groups with case operations', () => {
+		// Case operations with named groups
+		let testObject = new ReplacePattern('\\U${word}', { pattern: '(?<word>hello)', isRegExp: true });
+		let actual = testObject.getReplaceString('hello world');
+		assert.strictEqual(actual, 'HELLO');
+
+		testObject = new ReplacePattern('\\u${word}', { pattern: '(?<word>hello)', isRegExp: true });
+		actual = testObject.getReplaceString('hello world');
+		assert.strictEqual(actual, 'Hello');
+
+		testObject = new ReplacePattern('\\L${word}', { pattern: '(?<word>HELLO)', isRegExp: true });
+		actual = testObject.getReplaceString('HELLO world');
+		assert.strictEqual(actual, 'hello');
+
+		testObject = new ReplacePattern('\\l${word}', { pattern: '(?<word>HELLO)', isRegExp: true });
+		actual = testObject.getReplaceString('HELLO world');
+		assert.strictEqual(actual, 'hELLO');
+
+		// Combined case operations with named groups
+		testObject = new ReplacePattern('\\U${first} \\L${second}', { pattern: '(?<first>hello) (?<second>WORLD)', isRegExp: true });
+		actual = testObject.getReplaceString('hello WORLD');
+		assert.strictEqual(actual, 'HELLO world');
+	});
 });
