@@ -1,0 +1,6 @@
+dist/
+media/webview.js
+media/webview.css
+media/fonts/
+test/out/
+*.tsbuildinfo

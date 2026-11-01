@@ -1,0 +1,572 @@
+/* The Claude app look: sidebar, top bar, welcome screen, menus, settings. */
+/* ---------- Claude app shell ---------- */
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+}
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.icon-btn:disabled:hover {
+  background: none;
+  color: var(--muted);
+}
+.icon-btn.on {
+  color: var(--accent);
+}
+
+/* sidebar */
+.side-titlebar {
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  -webkit-app-region: drag;
+}
+.side-titlebar .icon-btn,
+.side-titlebar .menu-trigger {
+  padding: 6px;
+  color: var(--muted);
+  -webkit-app-region: no-drag;
+}
+.side-search {
+  margin: 6px 12px 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  min-width: 216px;
+}
+.side-search:focus-within {
+  border-color: var(--border-strong);
+}
+.side-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+.side-new {
+  margin: 4px 10px 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  background: none;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 14.5px;
+  text-align: left;
+  min-width: 216px;
+}
+.side-new:hover {
+  background: var(--hover);
+}
+.side-new-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--hover);
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+}
+.session-list {
+  padding: 0 10px 8px;
+  min-width: 240px;
+}
+.group-label {
+  font-size: 12.5px;
+  padding: 14px 10px 6px;
+}
+.session-item {
+  padding: 6px 10px;
+  font-size: 14.5px;
+  border-radius: 8px;
+}
+.session-item .more {
+  opacity: 0;
+}
+.session-item:hover .more,
+.session-item.active .more,
+.session-item .more:focus-within {
+  opacity: 1;
+}
+.more .menu-trigger {
+  padding: 0 4px;
+  color: var(--muted);
+}
+.side-account {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+  min-width: 240px;
+}
+.account-menu {
+  flex: 1;
+  min-width: 0;
+}
+.account-menu > .menu-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 14px;
+}
+.account-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.avatar {
+  width: 26px;
+  height: 26px;
+  font-size: 12.5px;
+}
+.side-account > .icon-btn {
+  padding: 6px;
+}
+
+/* chat top bar, which is also the drag area of the frameless window */
+.titlebar {
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 0 0 20px;
+  -webkit-app-region: drag;
+}
+.titlebar.floating {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding-left: 12px;
+}
+.header-actions {
+  display: flex;
+  gap: 2px;
+}
+.header-actions .icon-btn {
+  padding: 6px;
+}
+.title-menu > .menu-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  margin-left: -8px;
+  border-radius: 8px;
+  max-width: 50vw;
+}
+.chat-title {
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.title-edit {
+  font-size: 15px;
+  padding: 3px 8px;
+  width: min(420px, 50vw);
+}
+.env {
+  position: relative;
+  display: inline-grid;
+  color: var(--muted);
+}
+.env-dot {
+  position: absolute;
+  right: -3px;
+  top: -2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  border: 1.5px solid var(--bg);
+}
+.env-dot.on {
+  background: var(--ok);
+}
+.title-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.title-actions .icon-btn {
+  padding: 6px;
+}
+.pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: var(--hover);
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 14px;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pill-btn:hover {
+  background: var(--active);
+}
+/* room for the native minimize / maximize / close buttons */
+.wco-space {
+  width: 150px;
+  flex-shrink: 0;
+}
+.empty-main {
+  margin: auto;
+  text-align: center;
+  max-width: 480px;
+  padding: 24px;
+}
+.empty-main h1 {
+  font: 400 30px/1.25 var(--serif);
+  margin: 12px 0 8px;
+}
+.empty-main p {
+  color: var(--muted);
+}
+
+/* transcript width + tables and code like the app */
+.messages {
+  padding: 8px 24px 16px;
+}
+.messages-inner {
+  max-width: 860px;
+  gap: 18px;
+}
+.md table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  overflow: hidden;
+  width: 100%;
+  font-size: 15px;
+}
+.md th,
+.md td {
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 14px;
+}
+.md tr:last-child td {
+  border-bottom: 0;
+}
+.md th {
+  background: transparent;
+  font-weight: 600;
+}
+.codeblock {
+  position: relative;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--code-bg);
+}
+.codeblock pre {
+  padding: 18px 20px;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.codeblock-tools {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.codeblock:hover .codeblock-tools {
+  opacity: 1;
+}
+.codeblock-lang {
+  font-size: 11.5px;
+  color: #a8a59c;
+}
+.codeblock-tools .icon-btn {
+  font-size: 12px;
+  color: #cfcdc4;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 2px 8px;
+}
+
+/* composer: wide box with the send key inside, controls underneath */
+.composer-wrap {
+  position: relative;
+  padding: 0 24px 6px;
+}
+.composer-wrap > * {
+  max-width: 860px;
+}
+.composer {
+  border-radius: 16px;
+  padding: 10px 10px 10px 16px;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  box-shadow: none;
+}
+.composer:focus-within {
+  border-color: color-mix(in srgb, var(--text) 35%, transparent);
+}
+.composer.mode-acceptEdits,
+.composer.mode-plan,
+.composer.mode-auto,
+.composer.mode-bypassPermissions {
+  border-color: var(--border-strong);
+}
+.prompt-row {
+  align-items: center;
+}
+.composer-input {
+  font-size: 15.5px;
+  padding: 4px 0;
+}
+.send {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.send:not(:disabled) {
+  color: var(--text);
+}
+.send:not(:disabled):hover {
+  background: var(--hover);
+}
+.send:disabled {
+  opacity: 0.6;
+}
+.send.stop {
+  background: var(--text);
+  color: var(--bg);
+}
+.composer-below {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 4px 2px;
+  font-size: 14px;
+}
+.composer-below .icon-btn {
+  padding: 5px;
+}
+.disclaimer {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.below-menu > .menu-trigger {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 14.5px;
+}
+.model-name {
+  font-weight: 500;
+}
+.below-menu.mode-acceptEdits > .menu-trigger {
+  color: var(--mode-edits);
+}
+.below-menu.mode-plan > .menu-trigger {
+  color: var(--mode-plan);
+}
+.below-menu.mode-bypassPermissions > .menu-trigger {
+  color: var(--danger);
+}
+.to-bottom {
+  position: absolute;
+  left: 50%;
+  top: -48px;
+  transform: translateX(-50%);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elev);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  box-shadow: var(--shadow);
+  z-index: 5;
+}
+
+/* popover menus */
+.menu-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.menu-trigger {
+  border: 0;
+  background: none;
+  color: inherit;
+  border-radius: 8px;
+}
+.menu-trigger:hover,
+.menu-trigger.open {
+  background: var(--hover);
+}
+.menu-pop {
+  position: absolute;
+  z-index: 70;
+  min-width: 220px;
+  max-width: 340px;
+  max-height: 70vh;
+  overflow-y: auto;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+/* a long menu scrolls; its rows keep their height instead of being squeezed to fit */
+.menu-pop > * {
+  flex-shrink: 0;
+}
+.menu-pop.down {
+  top: calc(100% + 4px);
+}
+.menu-pop.up {
+  bottom: calc(100% + 6px);
+}
+.menu-pop.left {
+  left: 0;
+}
+.menu-pop.right {
+  right: 0;
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  background: none;
+  text-align: left;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text);
+}
+.menu-item:hover:not(:disabled) {
+  background: var(--hover);
+}
+.menu-item:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.menu-item.danger {
+  color: var(--danger);
+}
+.menu-label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.menu-hint {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.menu-check {
+  color: var(--accent);
+}
+.menu-section {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 6px 10px 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 2px;
+}
+.menu-footer {
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  padding: 8px 10px 4px;
+  font-size: 12.5px;
+}
+@media (max-width: 700px) {
+  .disclaimer,
+  .pill-btn {
+    display: none;
+  }
+  .wco-space {
+    width: 140px;
+  }
+}
+/* dialogs and popups sit over the drag area, so they must opt out of it to stay clickable */
+.modal-backdrop,
+.menu-pop,
+.sidebar-backdrop,
+.sidebar.overlay {
+  -webkit-app-region: no-drag;
+}
+.md table {
+  font-size: 16px;
+}
+
+/* font setting preview */
+.font-grid {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 320px);
+  justify-content: start;
+  gap: 8px 14px;
+  align-items: center;
+}
+.font-preview {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.font-preview-user {
+  align-self: flex-end;
+  background: var(--user-bubble);
+  border-radius: 14px;
+  padding: 6px 12px;
+  font-size: 15px;
+}
+.font-preview-reply {
+  font-family: var(--serif);
+  font-size: 17.5px;
+  line-height: 1.6;
+}

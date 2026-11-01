@@ -70,6 +70,8 @@ export const unicodeFilter = Object.freeze<string[]>([
 
 	// extensions/copilot has its own code style
 	'!extensions/copilot/**',
+	// extensions/localclaude keeps the code style of the LocalClaude app it comes from
+	'!extensions/localclaude/**',
 
 	'!src/vs/base/browser/dompurify/**',
 	'!src/vs/workbench/services/keybinding/browser/keyboardLayouts/**',
@@ -143,6 +145,8 @@ export const indentationFilter = Object.freeze<string[]>([
 
 	// extensions/copilot has its own code style
 	'!extensions/copilot/**',
+	// extensions/localclaude keeps the code style of the LocalClaude app it comes from
+	'!extensions/localclaude/**',
 
 	// except specific file types
 	'!src/vs/*/**/*.d.ts',
@@ -232,6 +236,8 @@ export const copyrightFilter = Object.freeze<string[]>([
 
 	// extensions/copilot has its own code style
 	'!extensions/copilot/**',
+	// extensions/localclaude keeps the code style of the LocalClaude app it comes from
+	'!extensions/localclaude/**',
 ]);
 
 export const tsFormattingFilter = Object.freeze<string[]>([
@@ -255,6 +261,8 @@ export const tsFormattingFilter = Object.freeze<string[]>([
 
 	// extensions/copilot has its own code style
 	'!extensions/copilot/**',
+	// extensions/localclaude keeps the code style of the LocalClaude app it comes from
+	'!extensions/localclaude/**',
 ]);
 
 export const eslintFilter = Object.freeze<string[]>([

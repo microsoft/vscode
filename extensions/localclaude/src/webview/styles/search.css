@@ -1,0 +1,68 @@
+/* Find in chat and search results. */
+/* ---------- find in chat (Ctrl+F) ---------- */
+.find-bar {
+  position: absolute;
+  top: 8px;
+  right: 24px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px 4px 10px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  color: var(--muted);
+}
+.find-input {
+  width: 200px;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  padding: 3px 4px;
+}
+.find-count {
+  min-width: 64px;
+  text-align: right;
+}
+.find-bar .icon-btn {
+  padding: 4px;
+}
+::highlight(lc-find) {
+  background-color: rgba(250, 204, 21, 0.35);
+}
+::highlight(lc-find-current) {
+  background-color: #f59e0b;
+  color: #1f1e1d;
+}
+
+/* ---------- search results inside messages ---------- */
+.search-hit {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.hit-title {
+  font-size: 14px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hit-snippet {
+  font-size: 12.5px;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.hit-snippet mark {
+  background: rgba(250, 204, 21, 0.3);
+  color: inherit;
+  border-radius: 2px;
+}

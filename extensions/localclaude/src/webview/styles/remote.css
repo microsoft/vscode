@@ -1,0 +1,103 @@
+/* Remote Control: the dialog, its QR code and the phone button in the top bar. */
+.remote-btn {
+  position: relative;
+}
+.remote-btn.on {
+  color: var(--ok);
+}
+.remote-dot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.remote-dialog {
+  width: min(600px, calc(100vw - 32px));
+}
+.remote-dialog .field {
+  margin: 0;
+}
+.remote-options > .field {
+  min-width: 0;
+}
+.remote-pill {
+  font-size: 12px;
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: var(--hover);
+  color: var(--muted);
+}
+.remote-pill.connected {
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+  color: var(--ok);
+}
+.remote-pill.consent,
+.remote-pill.untrusted,
+.remote-pill.connecting,
+.remote-pill.starting {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.remote-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--bg);
+}
+.remote-where {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ok);
+  font-weight: 600;
+}
+.remote-link-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.remote-qr {
+  flex-shrink: 0;
+  width: 132px;
+  height: 132px;
+  padding: 6px;
+  border-radius: 10px;
+  background: #fff;
+}
+.remote-qr svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.remote-link-text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.remote-url {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.remote-log {
+  min-width: 0;
+}
+.remote-log pre {
+  max-height: 160px;
+  overflow: auto;
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--code-bg);
+  color: var(--text);
+  white-space: pre-wrap;
+}

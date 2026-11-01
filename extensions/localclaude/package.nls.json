@@ -1,0 +1,16 @@
+{
+  "displayName": "LocalClaude",
+  "description": "Claude Code on your Claude subscription, as VS Code's AI: chats, projects, artifacts, design, memory and MCP, with everything stored on this machine.",
+  "untrustedWorkspaces": "LocalClaude runs Claude Code, which reads and edits files and runs commands in your workspace.",
+  "view.chat": "Chat",
+  "command.focus": "Focus",
+  "command.newChat": "New Chat",
+  "command.openInEditor": "Open in Editor Tab",
+  "command.askAboutSelection": "Ask About Selection",
+  "command.addFileToChat": "Add File to Chat",
+  "command.fixProblems": "Fix Problems in This File",
+  "command.signIn": "Sign In with Claude",
+  "command.showLog": "Show Log",
+  "config.browserPath": "Program file of the Chromium-based browser (Edge, Chrome, Chromium or Brave) used to export designs as PDF or PNG. Leave empty to find one automatically.",
+  "config.includeEditorContext": "Tell Claude which file is open in the editor, what is selected and which other files are open, with every message (not shown in the chat)."
+}

@@ -1,0 +1,253 @@
+/* Projects list and project page. */
+/* ---------- projects ---------- */
+.side-nav {
+  margin: 0 10px 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  background: none;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 14.5px;
+  text-align: left;
+  min-width: 216px;
+  color: var(--text);
+}
+.side-nav .icon {
+  color: var(--muted);
+  margin: 0 2px;
+}
+.side-nav:hover {
+  background: var(--hover);
+}
+.side-nav.active {
+  background: var(--active);
+}
+.crumb {
+  font-size: 15px;
+  color: var(--muted);
+}
+.crumb:hover {
+  color: var(--text);
+}
+.crumb-current {
+  font-size: 15px;
+}
+.page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.page-scroll {
+  flex: 1;
+  overflow-y: auto;
+}
+.page-inner {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 28px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.page-head h1,
+.project-title-row h1 {
+  font: 400 30px/1.25 var(--serif);
+  margin: 0;
+}
+.page-head .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.page-search {
+  margin: 0;
+  min-width: 0;
+}
+.project-form {
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg-elev);
+}
+.project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+.project-card {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elev);
+  border-radius: 14px;
+  padding: 16px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 120px;
+}
+.project-card:hover {
+  border-color: color-mix(in srgb, var(--text) 35%, transparent);
+}
+.project-card-name {
+  font-weight: 600;
+  font-size: 15.5px;
+}
+.project-card-desc {
+  color: var(--muted);
+  font-size: 14px;
+  flex: 1;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.empty-projects {
+  text-align: center;
+  padding: 40px 20px;
+  max-width: 520px;
+  margin: 0 auto;
+}
+.project-layout {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 28px 24px 40px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 28px;
+}
+.project-main {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+.project-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.project-title-row p {
+  margin: 6px 0 0;
+}
+.project-composer .composer-input {
+  min-height: 52px;
+}
+.project-chats {
+  display: flex;
+  flex-direction: column;
+}
+.project-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: none;
+  padding: 12px 6px;
+}
+.project-chat:hover {
+  background: var(--hover);
+}
+.project-chat-title {
+  font-size: 15px;
+}
+.project-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.side-card {
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg-elev);
+}
+.side-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  font-size: 14.5px;
+}
+.side-card-head .link-btn {
+  font-size: 13.5px;
+}
+.side-card-body {
+  font-size: 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow: auto;
+}
+.knowledge-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.knowledge-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  padding: 4px 0;
+}
+.knowledge-list .icon {
+  color: var(--muted);
+}
+.knowledge-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 1000px) {
+  .project-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* buttons that read as text: folder names you can open, the "main" tag you can change */
+.link-like {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.link-like:hover {
+  text-decoration: underline;
+}
+.project-dirs .knowledge-name {
+  display: block;
+}
+.project-folder-input {
+  min-width: 0;
+}
+.dir-main {
+  color: var(--muted);
+  font-size: 12px;
+}
+.dir-main:hover {
+  color: var(--text);
+}

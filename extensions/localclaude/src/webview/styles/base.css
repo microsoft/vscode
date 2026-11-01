@@ -1,0 +1,334 @@
+/* Colors and fonts (light/dark), resets, utilities, buttons, inputs, cards. */
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #faf9f5;
+  --bg-elev: #ffffff;
+  --sidebar: #f5f4ee;
+  --hover: rgba(31, 30, 29, 0.06);
+  --active: rgba(31, 30, 29, 0.1);
+  --border: rgba(31, 30, 29, 0.14);
+  --border-strong: rgba(31, 30, 29, 0.24);
+  --text: #1f1e1d;
+  --muted: #6f6c64;
+  --accent: #c2603e;
+  --accent-hover: #ad5333;
+  --accent-soft: rgba(194, 96, 62, 0.12);
+  --user-bubble: #efece3;
+  --code-bg: #1e1e1c;
+  --danger: #b4372e;
+  --warn: #a8660b;
+  --ok: #2f7d4f;
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+  --sans: 'DM Sans Variable', system-ui, 'Segoe UI', sans-serif;
+  --mono: ui-monospace, 'Cascadia Code', 'JetBrains Mono', Consolas, 'DejaVu Sans Mono', monospace;
+  --serif: 'Source Serif 4 Variable', Georgia, serif;
+  --diff-add: rgba(47, 125, 79, 0.13);
+  --diff-del: rgba(180, 55, 46, 0.11);
+  --mode-edits: #7b5fc4;
+  --mode-plan: #2f7a8c;
+  --code-inline: #9a4a2c;
+  --side-text: #2b2a27;
+  --faint: rgba(31, 30, 29, 0.3);
+  --new-icon-bg: rgba(31, 30, 29, 0.08);
+  --search-bg: #ffffff;
+  --search-border: rgba(31, 30, 29, 0.14);
+  --input-bg: #ffffff;
+  --input-border: rgba(31, 30, 29, 0.24);
+  --chip-bg: rgba(31, 30, 29, 0.06);
+}
+/* Dark: measured from Claude Code's desktop app, so the two look the same side by side. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #151515;
+  --bg-elev: #1d1d1d;
+  --sidebar: #111111;
+  --hover: rgba(255, 255, 255, 0.07);
+  --active: rgba(255, 255, 255, 0.15);
+  --border: #292929;
+  --border-strong: #3a3a3a;
+  --text: #f0efec;
+  --muted: #898781;
+  --accent: #d97757;
+  --accent-hover: #e48a6b;
+  --accent-soft: rgba(217, 119, 87, 0.16);
+  --user-bubble: #212121;
+  --code-bg: #1a1a19;
+  --danger: #ff2c56;
+  --warn: #e0a243;
+  --ok: #32d74b;
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.55);
+  --mono: ui-monospace, 'Cascadia Code', 'JetBrains Mono', Consolas, 'DejaVu Sans Mono', monospace;
+  --serif: 'Source Serif 4 Variable', Georgia, serif;
+  --diff-add: rgba(50, 215, 75, 0.13);
+  --diff-del: rgba(255, 44, 86, 0.13);
+  --mode-edits: #a990f0;
+  --mode-plan: #5fb6c9;
+  --code-inline: #e9a283;
+  --side-text: #c3c2b7;
+  --faint: #4d4c49;
+  --new-icon-bg: #2c2c2a;
+  --search-bg: #1d1d1d;
+  --search-border: #343434;
+  --input-bg: #20201f;
+  --input-border: #4d4d4c;
+  --chip-bg: #2d2d2d;
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.55 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+code,
+pre,
+.mono,
+textarea.code {
+  font-family: ui-monospace, 'Cascadia Code', 'JetBrains Mono', Consolas, 'DejaVu Sans Mono', monospace;
+}
+input,
+textarea,
+select {
+  font-family: var(--sans);
+}
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+a {
+  color: var(--accent);
+}
+::selection {
+  background: var(--accent-soft);
+}
+
+/* ---------- utility ---------- */
+.muted {
+  color: var(--muted);
+}
+.small {
+  font-size: 12.5px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.gap {
+  gap: 8px;
+}
+.end {
+  justify-content: flex-end;
+}
+.grow {
+  flex: 1;
+}
+.pad {
+  padding: 12px;
+}
+.danger-text {
+  color: var(--danger);
+}
+.warn-text {
+  color: var(--warn);
+}
+.splash,
+.center-screen {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+/* ---------- controls ---------- */
+.btn {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elev);
+  padding: 7px 14px;
+  border-radius: 9px;
+  transition: background 0.12s;
+}
+.btn:hover:not(:disabled) {
+  background: var(--hover);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.btn.ghost {
+  background: transparent;
+  border-color: transparent;
+}
+.btn.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: transparent;
+}
+.icon-btn {
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  padding: 3px 7px;
+  color: var(--muted);
+}
+.icon-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.link-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.link-btn:hover {
+  color: var(--text);
+}
+.input,
+.select {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elev);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font: inherit;
+  outline: none;
+}
+.input:focus,
+/* native dropdown lists follow the app theme */
+.select option {
+  background: var(--bg-elev);
+  color: var(--text);
+}
+.select:focus {
+  border-color: var(--accent);
+}
+textarea.input {
+  width: 100%;
+  resize: vertical;
+}
+textarea.code {
+  font-size: 12.5px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+button.chip:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+.chip.ghost {
+  border-style: dashed;
+  background: transparent;
+}
+.chip-x {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  padding: 0 0 0 4px;
+}
+.badge {
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  font-size: 11px;
+  display: grid;
+  place-items: center;
+  padding: 0 5px;
+}
+.badge.warn {
+  background: var(--accent);
+  color: #fff;
+}
+.notice {
+  border: 1px solid var(--border);
+  background: var(--accent-soft);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+.notice.error {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+.dot-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* ---------- cards / screens ---------- */
+.card {
+  width: min(560px, calc(100vw - 32px));
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: var(--shadow);
+}
+.card.narrow {
+  width: min(460px, calc(100vw - 32px));
+  text-align: center;
+  align-items: center;
+}
+.card h1 {
+  font: 500 22px/1.3 Georgia, 'Times New Roman', serif;
+  margin: 0;
+}
+.lock-icon {
+  font-size: 36px;
+}
+.empty-mark {
+  font-size: 34px;
+  color: var(--accent);
+  line-height: 1;
+}
+.login-log {
+  max-height: 180px;
+  overflow: auto;
+  background: var(--code-bg);
+  color: #e8e6df;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  margin: 0;
+}

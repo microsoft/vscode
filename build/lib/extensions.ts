@@ -155,7 +155,9 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string):
 	// Extensions built with esbuild can still externalize runtime dependencies.
 	// Ensure those externals are included in the packaged built-in extension.
 	const packagedDependenciesByExtension: Record<string, string[]> = {
-		'git': ['@vscode/fs-copyfile']
+		'git': ['@vscode/fs-copyfile'],
+		// the native Claude Code binary for the build's platform, and pdf.js (loaded on demand)
+		'localclaude': ['@anthropic-ai/claude-agent-sdk-*', 'unpdf'],
 	};
 	const packagedDependencies = packagedDependenciesByExtension[extensionName] ?? [];
 
@@ -631,6 +633,8 @@ const esbuildMediaScripts: { script: string; tsconfig: string }[] = [
 	{ script: 'mermaid-markdown-features/esbuild.webview.mts', tsconfig: 'mermaid-markdown-features/preview-src/tsconfig.json' },
 	{ script: 'notebook-renderers/esbuild.notebook.mts', tsconfig: 'notebook-renderers/tsconfig.json' },
 	{ script: 'simple-browser/esbuild.webview.mts', tsconfig: 'simple-browser/preview-src/tsconfig.json' },
+	// LocalClaude has no separate out/ step: its bundles (extension and webview) are built here in dev as well
+	{ script: 'localclaude/esbuild.mts', tsconfig: 'localclaude/tsconfig.webview.json' },
 ];
 
 export function buildExtensionMedia(isWatch: boolean, outputRoot?: string): Promise<void> {

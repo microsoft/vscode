@@ -1,0 +1,561 @@
+/* The Design page and a design's canvas beside its chat. */
+:root,
+:root[data-theme='light'] {
+  --canvas-bg: #efede6;
+  --canvas-dot: rgba(31, 30, 29, 0.13);
+  --device-bezel: #1f1e1d;
+}
+:root[data-theme='dark'] {
+  --canvas-bg: #0e0e0e;
+  --canvas-dot: rgba(255, 255, 255, 0.09);
+  --device-bezel: #3a3a3a;
+}
+
+/* ---------- a design: its chat on the left, the canvas on the right ---------- */
+.design-row > .chat {
+  min-width: 280px;
+}
+.design-kind-tag {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  line-height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--chip-bg);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.design-canvas {
+  position: relative;
+  flex-shrink: 0;
+  /* a chat width saved in a wider window can't squeeze the canvas away */
+  min-width: min(420px, 60%);
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: var(--bg);
+}
+.design-resizer {
+  position: absolute;
+  left: -4px;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  cursor: col-resize;
+  z-index: 6;
+}
+.design-resizer:hover,
+body.resizing-sidebar .design-resizer {
+  box-shadow: inset 3px 0 0 -1px var(--border-strong);
+}
+.design-toolbar {
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 14px;
+  border-bottom: 1px solid var(--border);
+  min-width: 0;
+}
+.design-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 14.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.design-pick-menu {
+  min-width: 0;
+}
+.design-pick-menu .menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 280px;
+  padding: 2px 6px;
+}
+.design-viewports button {
+  display: inline-flex;
+  padding: 3px 8px;
+}
+.design-zoom .menu-trigger {
+  padding: 3px 8px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.design-comment-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.design-comment-btn.on {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent);
+}
+.design-export .menu-trigger {
+  display: grid;
+  padding: 6px;
+}
+.design-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 14px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+  background: var(--hover);
+}
+.design-notice.error {
+  color: var(--danger);
+}
+.design-hint {
+  padding: 5px 14px;
+  font-size: 12.5px;
+  text-align: center;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--border);
+}
+/* narrow canvas: the button's label goes before the button does */
+@container chatrow (max-width: 900px) {
+  .design-comment-btn {
+    font-size: 0;
+    gap: 0;
+  }
+}
+
+/* the canvas: a dotted board with the design on it, drawn at its real width and scaled */
+.design-stage {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: auto;
+  display: flex;
+  padding: 28px;
+  background-color: var(--canvas-bg);
+  background-image: radial-gradient(var(--canvas-dot) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+.design-stage.artifact-code,
+.design-stage.artifact-doc {
+  display: block;
+  padding: 16px 20px;
+  background: var(--bg);
+}
+.design-frame {
+  margin: auto;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.12),
+    0 10px 30px rgba(0, 0, 0, 0.12);
+}
+.design-frame.device {
+  border-radius: 16px;
+  box-shadow:
+    0 0 0 7px var(--device-bezel),
+    0 14px 40px rgba(0, 0, 0, 0.28);
+}
+.design-frame iframe {
+  display: block;
+  border: 0;
+  background: #fff;
+  transform-origin: 0 0;
+}
+/* the page as Claude writes it, over the last finished version until the new one has loaded */
+.design-frame .design-draft {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+.design-writing {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 8;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 32px);
+  padding: 6px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--bg-elev);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.design-writing .spark-svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.design-stage.commenting .design-frame:not(.device) {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 3px;
+}
+.design-empty {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+}
+.design-empty p {
+  margin: 0;
+  max-width: 340px;
+}
+
+/* ---------- the board: frames in rows by section, panned and zoomed as one ---------- */
+.design-stage.design-board {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+  cursor: default;
+}
+.board-world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+.board-frame {
+  position: absolute;
+  overflow: hidden;
+  background: #fff;
+  box-shadow:
+    0 calc(1px / var(--z)) calc(3px / var(--z)) rgba(0, 0, 0, 0.14),
+    0 calc(8px / var(--z)) calc(28px / var(--z)) rgba(0, 0, 0, 0.14);
+}
+.board-frame.selected {
+  outline: calc(2px / var(--z)) solid var(--accent);
+  outline-offset: calc(3px / var(--z));
+}
+.board-frame iframe {
+  display: block;
+  border: 0;
+  background: #fff;
+  /* the board takes the mouse (to pan and pick frames); comment mode and an open frame hand it to the page */
+  pointer-events: none;
+}
+.design-board.commenting .board-frame iframe {
+  pointer-events: auto;
+}
+.board-frame .design-draft {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+.board-frame.pending {
+  background: var(--bg-elev);
+  border: calc(2px / var(--z)) dashed var(--border-strong);
+  box-shadow: none;
+}
+.board-pending {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  opacity: 0.8;
+}
+.board-section {
+  position: absolute;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.board-label {
+  position: absolute;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.board-label.selected {
+  color: var(--accent);
+}
+.board-label-text {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.board-label .icon-btn {
+  flex-shrink: 0;
+  padding: 3px;
+  opacity: 0;
+}
+.board-label:hover .icon-btn,
+.board-label.selected .icon-btn {
+  opacity: 1;
+}
+body.panning-board {
+  cursor: grabbing;
+  user-select: none;
+}
+body.selecting-board {
+  user-select: none;
+}
+body.panning-board iframe,
+body.selecting-board iframe {
+  pointer-events: none;
+}
+.design-board.hand {
+  cursor: grab;
+}
+/* the box you drag to select frames */
+.board-marquee {
+  position: absolute;
+  z-index: 9;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  pointer-events: none;
+}
+.design-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.design-count {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.design-present.on {
+  color: var(--accent);
+}
+/* presenting: the open frame fills the window */
+.design-canvas.presenting {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  border-left: 0;
+}
+
+/* the comment box under (or above) the element you clicked */
+.design-comment {
+  position: absolute;
+  z-index: 10;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--bg-elev);
+  box-shadow: var(--shadow);
+}
+.design-comment.above {
+  transform: translateY(-100%);
+}
+.design-comment-target {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.design-comment-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.design-comment textarea {
+  resize: none;
+  font-size: 14px;
+}
+
+/* ---------- the Design page ---------- */
+.page-inner.design-page {
+  max-width: 1040px;
+}
+.design-intro {
+  margin: -8px 0 0;
+}
+.design-start {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--input-border);
+  border-radius: 18px;
+  background: var(--input-bg);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+}
+.design-start.drag {
+  border-color: var(--accent);
+}
+.design-start .attachments {
+  margin: 0;
+}
+.design-kinds {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+.design-kind {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 9px;
+  align-items: center;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: none;
+  text-align: left;
+  color: var(--text);
+}
+.design-kind .icon {
+  grid-row: span 2;
+  color: var(--muted);
+}
+.design-kind-label {
+  font-weight: 600;
+  font-size: 14px;
+}
+.design-kind-hint {
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--muted);
+}
+.design-kind:hover {
+  background: var(--hover);
+}
+.design-kind.on {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  background: var(--accent-soft);
+}
+.design-kind.on .icon {
+  color: var(--accent);
+}
+.design-prompt {
+  min-height: 76px;
+  padding: 4px 2px;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.5;
+}
+.design-start-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.design-start-foot .btn.ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+.design-start-foot .btn.ghost:hover {
+  color: var(--text);
+}
+.design-folder-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 300px;
+  padding: 3px 6px 3px 10px;
+  border-radius: 999px;
+  background: var(--chip-bg);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.design-examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: -4px;
+}
+.design-list-head h2 {
+  margin: 10px 0 0;
+  font: 400 21px/1.3 var(--serif);
+}
+.design-list-head .page-search {
+  width: 240px;
+}
+.design-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+/* no overflow: hidden here, or the card's ⋯ menu is cut off; the preview rounds its own corners */
+.design-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: var(--bg-elev);
+  cursor: pointer;
+}
+.design-card:hover {
+  border-color: color-mix(in srgb, var(--text) 35%, transparent);
+}
+.design-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.design-thumb {
+  position: relative;
+  height: 168px;
+  overflow: hidden;
+  border-radius: 13px 13px 0 0;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+}
+.design-thumb iframe {
+  display: block;
+  border: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+.design-thumb.empty {
+  display: grid;
+  place-items: center;
+  background: var(--hover);
+  color: var(--muted);
+}
+.design-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 12px 12px;
+}
+.design-card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.design-card-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}

@@ -1,0 +1,69 @@
+/* Collapsible sidebar groups. */
+/* ---------- sidebar sections (collapsible, like the Claude app) ---------- */
+.side-section {
+  margin-bottom: 2px;
+}
+.group-row {
+  display: flex;
+  align-items: center;
+  padding-right: 4px;
+}
+.group-row .group-label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: none;
+  text-align: left;
+  color: var(--muted);
+  font-size: 12.5px;
+  padding: 14px 10px 6px;
+  border-radius: 6px;
+}
+.group-row .group-label:hover {
+  color: var(--text);
+}
+.group-row .group-label .chev-i {
+  opacity: 0;
+  transition: transform 0.15s, opacity 0.12s;
+}
+.group-row:hover .group-label .chev-i,
+.side-section.closed .group-label .chev-i {
+  opacity: 1;
+}
+.group-count {
+  font-size: 11px;
+  background: var(--hover);
+  border-radius: 999px;
+  padding: 0 7px;
+}
+.group-menu {
+  margin-top: 8px;
+}
+.group-menu > .menu-trigger {
+  color: var(--muted);
+  padding: 4px;
+  display: grid;
+  place-items: center;
+}
+.item-icon {
+  color: var(--muted);
+  display: inline-grid;
+  flex-shrink: 0;
+}
+.session-item:hover .item-icon {
+  display: none;
+}
+.item-lead {
+  color: var(--muted);
+  display: inline-grid;
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+.side-hint {
+  display: block;
+  margin: 10px 10px 4px;
+  font-size: 12px;
+  text-align: left;
+}

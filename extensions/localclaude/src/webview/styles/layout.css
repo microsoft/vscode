@@ -1,0 +1,77 @@
+/* The window: sidebar, main area, scrolling. */
+/* ---------- layout ---------- */
+.app {
+  display: flex;
+  height: 100%;
+}
+.sidebar {
+  width: 272px;
+  flex-shrink: 0;
+  background: var(--sidebar);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.session-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 8px 8px;
+}
+.group-label {
+  font-size: 11.5px;
+  color: var(--muted);
+  padding: 12px 8px 4px;
+}
+.session-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.session-item:hover {
+  background: var(--hover);
+}
+.session-item.active {
+  background: var(--active);
+}
+.session-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.session-item:hover .more,
+.session-item.active .more {
+  opacity: 1;
+}
+.rename {
+  width: 100%;
+  padding: 3px 6px;
+}
+.avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--text);
+  color: var(--bg);
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.empty-main h1,
+.chat-empty h2 {
+  font: 400 30px/1.25 Georgia, serif;
+  margin: 12px 0 8px;
+}

@@ -1,0 +1,183 @@
+/* Top bar over chat + panel, narrow windows, the row under the reply box, message actions. */
+/* ---------- chat layout: full-width top bar, then the chat and the artifact panel side by side ---------- */
+.chat-shell {
+  flex-direction: column;
+  min-width: 0;
+}
+.chat-row {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  position: relative;
+  container: chatrow / inline-size;
+}
+.chat-row > .chat {
+  flex: 1;
+  min-width: 0;
+  container: chat / inline-size;
+}
+.artifact-panel {
+  width: min(50%, 760px);
+  min-width: 340px;
+}
+/* the panel no longer touches the window's top edge, so it isn't a drag area */
+.artifact-head,
+.artifact-head > * {
+  -webkit-app-region: no-drag;
+}
+/* When the chat and the panel don't both fit, the panel slides over the chat instead of squeezing it. */
+@container chatrow (max-width: 880px) {
+  .artifact-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    min-width: 0;
+    z-index: 30;
+    box-shadow: var(--shadow);
+  }
+}
+
+/* ---------- top bar: everything shrinks and truncates instead of spilling over ---------- */
+.titlebar {
+  min-width: 0;
+  container: titlebar / inline-size;
+}
+.titlebar .crumb {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 32%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.crumb-sep {
+  flex-shrink: 0;
+}
+.title-menu {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.title-menu > .menu-trigger {
+  max-width: 100%;
+  min-width: 0;
+}
+.title-menu .chat-title {
+  min-width: 0;
+}
+.title-menu .env,
+.title-menu > .menu-trigger > .icon {
+  flex-shrink: 0;
+}
+.titlebar > .grow {
+  min-width: 8px;
+}
+.title-actions {
+  flex-shrink: 0;
+}
+.pill-btn {
+  max-width: 220px;
+}
+.pill-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@container titlebar (max-width: 760px) {
+  .pill-label {
+    display: none;
+  }
+  .pill-btn {
+    padding: 5px 8px;
+  }
+}
+@container titlebar (max-width: 540px) {
+  .titlebar .crumb,
+  .titlebar .crumb-sep {
+    display: none;
+  }
+}
+
+/* ---------- the row under the reply box ---------- */
+.below-menu {
+  flex-shrink: 0;
+}
+.below-menu > .menu-trigger {
+  white-space: nowrap;
+}
+.disclaimer {
+  min-width: 0;
+}
+@container chat (max-width: 560px) {
+  .disclaimer {
+    display: none;
+  }
+}
+.version-menu .menu-trigger .small {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* ---------- message actions (copy / edit / retry / rewind) ---------- */
+.msg-user {
+  align-items: flex-end;
+}
+.user-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: min(85%, 640px);
+  min-width: 0;
+}
+.user-col .bubble {
+  max-width: 100%;
+}
+.msg-actions {
+  display: flex;
+  gap: 2px;
+  margin-top: 4px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.msg-actions .icon-btn {
+  padding: 5px;
+  color: var(--muted);
+}
+.msg-actions .icon-btn:hover {
+  color: var(--text);
+}
+.msg-user:hover .msg-actions,
+.msg-actions:focus-within,
+.turn:hover > .turn-actions,
+.turn:last-child > .turn-actions {
+  opacity: 1;
+}
+.turn-actions {
+  margin-top: -4px;
+}
+.bubble.editing {
+  width: min(640px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.edit-input {
+  width: 100%;
+  border: 0;
+  outline: none;
+  resize: vertical;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 15.5px;
+}
+.chat-notice {
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+.choice-dialog {
+  width: min(460px, calc(100vw - 32px));
+}
