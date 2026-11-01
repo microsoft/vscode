@@ -259,7 +259,7 @@ suite('TabbedModelPicker', () => {
 			getLanguageModelGroups: () => [],
 			getModelsControlManifest: () => options.controlManifest ?? { free: {}, paid: {} },
 		}));
-		const changed = disposables.add(new Emitter<string>());
+		const changed = disposables.add(new Emitter<readonly string[]>());
 		const values = new Map<string, IStringDictionary<unknown>>();
 		const access: IModelConfigurationAccess = options.access ?? {
 			getModelConfiguration: id => values.get(id),
@@ -269,7 +269,7 @@ suite('TabbedModelPicker', () => {
 					await options.beforeSave(next);
 				}
 				values.set(id, { ...values.get(id), ...next });
-				changed.fire(id);
+				changed.fire([id]);
 			},
 			onDidChange: changed.event,
 		};
@@ -2765,7 +2765,7 @@ suite('TabbedModelPicker', () => {
 		const auto = model('auto');
 		const result = createPicker({ models: [auto, ...models], details: auto.identifier });
 		result.values.set(auto.identifier, { effort: 'high' });
-		result.changed.fire(auto.identifier);
+		result.changed.fire([auto.identifier]);
 		const tier = result.popup.querySelector('.tabbed-action-list-details [role="radio"][aria-checked="true"]')?.textContent;
 		goBack(result.popup);
 		assert.deepStrictEqual({
@@ -2783,7 +2783,7 @@ suite('TabbedModelPicker', () => {
 
 		const reopen = (configuration: IStringDictionary<unknown>) => {
 			result.values.set(currentModel.identifier, configuration);
-			result.changed.fire(currentModel.identifier);
+			result.changed.fire([currentModel.identifier]);
 			const row = Array.from(result.popup.querySelectorAll('.chat-model-picker-model')).find(row => row.querySelector('.title')?.textContent === currentModel.metadata.name)!;
 			const summary = row.querySelector('.action-label')?.textContent;
 			openDetails(result.popup, currentModel.metadata.name);
@@ -2812,7 +2812,7 @@ suite('TabbedModelPicker', () => {
 		const currentModel = models[0];
 		const providerSchema = currentModel.metadata.configurationSchema!;
 		let schema = providerSchema;
-		const changed = disposables.add(new Emitter<string>());
+		const changed = disposables.add(new Emitter<readonly string[]>());
 		const result = createPicker({
 			details: currentModel.identifier,
 			access: {
@@ -2830,7 +2830,7 @@ suite('TabbedModelPicker', () => {
 				context: { ...providerSchema.properties!.context, default: 64000 },
 			},
 		};
-		changed.fire(currentModel.identifier);
+		changed.fire([currentModel.identifier]);
 		openDetails(result.popup, currentModel.metadata.name);
 		assert.deepStrictEqual({
 			selected: Array.from(result.popup.querySelectorAll('.chat-model-card [role="radio"][aria-checked="true"]'), option => option.textContent),

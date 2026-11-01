@@ -175,6 +175,7 @@ const revealInOSLabel = isWindows
  * wraps its files in agent host URIs, which still name files on this device.
  */
 function toLocalFileUri(uri: URI): URI | undefined {
+	// eslint-disable-next-line local/code-agent-host-uri-mapping -- unwraps only legacy local artifact filesystem URIs for OS reveal actions
 	const resource = uri.scheme === AGENT_HOST_SCHEME && uri.authority === LOCAL_AGENT_HOST_AUTHORITY ? fromAgentHostUri(uri) : uri;
 	return resource.scheme === Schemas.file ? resource : undefined;
 }
@@ -420,7 +421,9 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 		: gitHubKind
 			? getGitHubResourcePresentation(link, gitHubKind, undefined, artifact.label)
 			: undefined;
+	const gitHubHover = gitHubDetails?.hover.read(reader);
 	const displayLabel = gitHubPresentation?.label ?? artifact.label;
+	const location = sessionArtifactLocationText(link, labelService);
 	const pullRequest = artifact.kind === SessionArtifactKind.PullRequest ? parseGitHubArtifactLink(artifact) : undefined;
 	const pullRequestChangesAction = pullRequest
 		? [createOpenPullRequestChangesAction(pullRequest, () => actions.openPullRequestChanges({
@@ -435,9 +438,11 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 		label: displayLabel,
 		icon,
 		toolbarActions: [...pullRequestChangesAction, ...copyLinkAction],
-		...sessionArtifactLocation(sessionArtifactLocationText(link, labelService), displayLabel),
+		...sessionArtifactLocation(location, displayLabel),
 		...gitHubPresentation,
-		...gitHubDetails?.hover,
+		...gitHubHover,
+		...(gitHubDetails ? { prefetch: gitHubDetails.prefetch } : {}),
+		...(gitHubDetails && !gitHubHover ? { ariaDescription: location === displayLabel ? undefined : location } : {}),
 		open: () => openArtifact(artifact, actions, () => actions.openExternal(link)),
 	}, actions);
 }

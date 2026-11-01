@@ -118,6 +118,38 @@ suite('SessionWorktreeCleanupService', () => {
 		});
 	});
 
+	for (const state of ['pending', 'running'] as const) {
+		for (const exists of [false, true, undefined]) {
+			test(`verifies discovered ${state} managed cleanup after disappearance with existence ${exists}`, async () => {
+				const unlinked = { ...managedWorktree(), cleanupStatus: { state } };
+				let inventory = [unlinked];
+				const checked: IManagedSessionWorktree[] = [];
+				const service = disposables.add(createService([], true, () => undefined,
+					undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+					listManagedWorktrees: async () => inventory,
+					managedWorktreeExists: async worktree => { checked.push(worktree); return exists; },
+					cleanupManagedWorktree: async () => { throw new Error('Must not schedule discovered cleanup again'); },
+				}));
+				const worktrees = await service.getWorktrees(0);
+				inventory = [];
+				const refreshed = await service.refreshPendingCleanup(worktrees.map(getWorktreeCleanupId), 0);
+				assert.deepStrictEqual({
+					checked,
+					rows: refreshed.map(worktree => ({
+						exists: worktree.worktreeExists,
+						size: worktree.sizeBytes,
+						listed: worktree.isListedByHost,
+						status: worktree.cleanupStatus,
+						unverified: !!worktree.cleanupStatusError,
+					})),
+				}, {
+					checked: [unlinked],
+					rows: [{ exists, size: exists === false ? 0 : undefined, listed: false, status: undefined, unverified: exists !== false }],
+				});
+			});
+		}
+	}
+
 	test('drops discovered worktrees no longer listed by the host rather than offering stale blocked rows', async () => {
 		const unlinked = managedWorktree();
 		let inventory = [unlinked];

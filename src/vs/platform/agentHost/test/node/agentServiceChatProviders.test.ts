@@ -21,6 +21,7 @@ import { AgentHostCodexEnabledConfigKey } from '../../common/agentHostSchema.js'
 import type { ResolveSessionConfigResult } from '../../common/state/protocol/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { buildChatUri, MessageKind } from '../../common/state/sessionState.js';
 import { decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
@@ -125,8 +126,8 @@ suite('AgentService - chats with their own agent', () => {
 	/** Completes a first turn in `chat`: a chat moves only once its first turn started. */
 	function startTurn(service: AgentService, chat: URI | string): void {
 		const stateManager = getTestAgentStateManager(service);
-		stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnStarted, turnId: 'first-turn', startedAt: new Date(0).toISOString(), message: { text: 'Hello', origin: { kind: MessageKind.User } } });
-		stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnComplete, turnId: 'first-turn', duration: 1 });
+		stateManager.dispatchServerAction(chat.toString(), chatTurnStarted('first-turn', 'Hello', new Date(0).toISOString()));
+		stateManager.dispatchServerAction(chat.toString(), chatTurnComplete('first-turn', 1));
 	}
 
 	async function rejection(promise: Promise<unknown>): Promise<string | undefined> {
@@ -515,7 +516,7 @@ suite('AgentService - chats with their own agent', () => {
 			await sendTurn(service, second, chat, 'copilot-model');
 			const ignored = { changed: second.changeModelCalls.map(call => call.model.id), sent: second.sendMessageCalls.length };
 			second.sendMessageCalls.length = 0;
-			getTestAgentStateManager(service).dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnComplete, turnId: 'turn-copilot-model', duration: 1 });
+			getTestAgentStateManager(service).dispatchServerAction(chat.toString(), chatTurnComplete('turn-copilot-model', 1));
 			await sendTurn(service, second, chat, 'second-model');
 
 			assert.deepStrictEqual({ ignored, applied: second.changeModelCalls.map(call => call.model.id), copilot: copilot.changeModelCalls.length }, {

@@ -31,6 +31,13 @@ export interface IChatPetImageDimensions {
 	readonly naturalHeight: number;
 }
 
+export interface IChatPetPropellerBounds {
+	readonly x: number;
+	readonly y: number;
+	readonly width: number;
+	readonly height: number;
+}
+
 export function getChatPetAccessoryImageSource(accessory: IChatPetAccessory): IChatPetAccessoryImageSource {
 	const cellSize = accessory.atlasCellSize ?? CHAT_PET_ACCESSORY_ATLAS_CELL_SIZE;
 	return {
@@ -64,6 +71,7 @@ export function drawChatPetComposite(
 	eyeAccessoryMirrorsWithFacing = true,
 	coversAntennae = false,
 	color?: ChatPetColor,
+	hasAnimatedPropeller = false,
 ): void {
 	context.clearRect(0, 0, frameWidth, frameHeight);
 	const sourceX = bodyFrameIndex * frameWidth;
@@ -88,6 +96,9 @@ export function drawChatPetComposite(
 					drawEyeAccessory(context, accessoryImage, rigFrame, getChatPetEyeAccessoryAnchor(state, rigFrameIndex, 'left', false, frameWidth));
 				}
 			}
+			if (hasAnimatedPropeller) {
+				clearChatPetPropeller(context, state, rigFrameIndex, facingDirection, frameWidth);
+			}
 		}
 		return;
 	}
@@ -108,6 +119,61 @@ export function drawChatPetComposite(
 			drawEyeAccessory(context, accessoryImage, rigFrame);
 		}
 	}
+	if (hasAnimatedPropeller) {
+		clearChatPetPropeller(context, state, rigFrameIndex, 'right', frameWidth);
+	}
+}
+
+export function getChatPetPropellerBounds(state: ChatPetState, frameIndex: number): IChatPetPropellerBounds | undefined {
+	const rigFrame = getChatPetAccessoryRigFrame(state, frameIndex);
+	if (!rigFrame.head) {
+		return undefined;
+	}
+	const [headPivotX, headPivotY] = wideHeadPivot[rigFrame.pose];
+	return {
+		x: rigFrame.head.x - headPivotX,
+		y: rigFrame.head.y - headPivotY + CHAT_PET_PROPELLER_ROTOR_SOURCE_Y,
+		width: CHAT_PET_WIDE_ACCESSORY_ATLAS_CELL_SIZE,
+		height: CHAT_PET_PROPELLER_ROTOR_HEIGHT,
+	};
+}
+
+export function drawChatPetPropeller(context: CanvasRenderingContext2D, accessoryImage: HTMLImageElement, state: ChatPetState, frameIndex: number): void {
+	context.clearRect(0, 0, context.canvas.width, context.canvas.height);
+	const bounds = getChatPetPropellerBounds(state, frameIndex);
+	if (!bounds) {
+		return;
+	}
+	const rigFrame = getChatPetAccessoryRigFrame(state, frameIndex);
+	const cellSize = getAtlasCellSize(accessoryImage);
+	context.save();
+	if (rigFrame.mirrorsHeadAccessory) {
+		context.translate(context.canvas.width, 0);
+		context.scale(-1, 1);
+	}
+	context.drawImage(
+		accessoryImage,
+		rigPoseColumn[rigFrame.pose] * cellSize,
+		cellSize + CHAT_PET_PROPELLER_ROTOR_SOURCE_Y,
+		cellSize,
+		CHAT_PET_PROPELLER_ROTOR_HEIGHT,
+		bounds.x,
+		bounds.y,
+		bounds.width,
+		bounds.height
+	);
+	context.restore();
+}
+
+function clearChatPetPropeller(context: CanvasRenderingContext2D, state: ChatPetState, frameIndex: number, facingDirection: 'left' | 'right', frameWidth: number): void {
+	const bounds = getChatPetPropellerBounds(state, frameIndex);
+	if (!bounds) {
+		return;
+	}
+	const rigFrame = getChatPetAccessoryRigFrame(state, frameIndex);
+	const mirrorsWithFacing = facingDirection === 'left' !== !!rigFrame.mirrorsHeadAccessory;
+	const x = mirrorsWithFacing ? frameWidth - bounds.x - bounds.width : bounds.x;
+	context.clearRect(x, bounds.y, bounds.width, bounds.height);
 }
 
 export function drawChatPetAccessory(context: CanvasRenderingContext2D, accessoryImage: HTMLImageElement, state: ChatPetState, frameIndex: number, facingDirection: 'left' | 'right'): void {
@@ -203,6 +269,9 @@ const wideHeadPivot: Record<ChatPetAccessoryRigPose, readonly [number, number]> 
 	impact: [48, 40],
 	splat: [48, 80],
 };
+
+const CHAT_PET_PROPELLER_ROTOR_SOURCE_Y = 8;
+const CHAT_PET_PROPELLER_ROTOR_HEIGHT = 8;
 
 function getAtlasCellSize(atlasImage: HTMLImageElement): number {
 	return atlasImage.naturalWidth / 4;

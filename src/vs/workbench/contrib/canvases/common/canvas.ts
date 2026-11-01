@@ -87,6 +87,7 @@ export interface ICanvasContext {
 export interface ICanvasOpenRequest {
 	readonly id: string;
 	readonly succeeded: boolean;
+	readonly pending?: boolean;
 }
 
 export interface ICanvasModelResolution {

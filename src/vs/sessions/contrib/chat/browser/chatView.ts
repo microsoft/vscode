@@ -209,6 +209,10 @@ export class NewChatView extends AbstractChatView {
 		return this._widget instanceof NewChatWidget && this._widget.preserveOnSessionClear;
 	}
 
+	override get inputContentElement(): HTMLElement | undefined {
+		return this._widget instanceof NewChatWidget ? this._widget.inputContentElement : undefined;
+	}
+
 	protected override doLayout(width: number, height: number, _top: number, _left: number): void {
 		this._widget.layout(height, width);
 	}
@@ -744,6 +748,10 @@ export class ChatView extends AbstractChatView {
 		return this._widget;
 	}
 
+	override get inputContentElement(): HTMLElement {
+		return this._widget.input.element;
+	}
+
 	override setChat(chat: IChat, historyKey?: string, session?: ISession, onInput?: () => void): void {
 		this.chatPillsDebugService.clear(this._chatPills);
 		const previousSession = this._currentSessionObs.get();
@@ -1161,6 +1169,11 @@ export class ChatView extends AbstractChatView {
 		}
 		this._comparisonResult.layout(width);
 		size(this._widgetContainer, width, widgetHeight);
+		if (this._inputOnly) {
+			// A content-sized host must not cap its own input to its previous height.
+			// The editor retains its normal intrinsic maximum height.
+			this._widget.setInputPartMaxHeightOverride(Number.POSITIVE_INFINITY);
+		}
 		this._widget.layout(widgetHeight, width);
 		this._layoutStickyScrollBackground();
 	}

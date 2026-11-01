@@ -152,7 +152,8 @@ export function getChatReferencePillPresentation(kind: ChatReferenceKind, refere
 			preserveLabelOnRefresh: title !== undefined,
 			ariaLabel: localize('chatPills.openResource', "Open {0}", resourceLabel),
 			dropdownAriaLabel,
-		} satisfies Pick<IChatPillEntry, 'label' | 'badge' | 'badgeBeforeLabel' | 'pillLabel' | 'className' | 'preserveLabelOnRefresh' | 'ariaLabel' | 'dropdownAriaLabel'>,
+			ariaDescription: undefined,
+		} satisfies Pick<IChatPillEntry, 'label' | 'badge' | 'badgeBeforeLabel' | 'pillLabel' | 'className' | 'preserveLabelOnRefresh' | 'ariaLabel' | 'dropdownAriaLabel' | 'ariaDescription'>,
 	};
 }
 
