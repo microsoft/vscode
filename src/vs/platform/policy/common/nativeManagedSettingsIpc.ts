@@ -11,7 +11,7 @@ import { equals } from '../../../base/common/objects.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { ILogService } from '../../log/common/log.js';
 import { INativeManagedSettingsService, ManagedSettingsData } from './copilotManagedSettings.js';
-import { PolicyDefinition } from './policy.js';
+import { PolicyDefinition, toSerializablePolicyDefinition } from './policy.js';
 
 export class NativeManagedSettingsChannel implements IServerChannel {
 
@@ -92,7 +92,8 @@ export class NativeManagedSettingsChannelClient extends Disposable implements IN
 	}
 
 	async updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<ManagedSettingsData> {
-		this.updateManagedSettings(await this.channel.call<ManagedSettingsData>('updatePolicyDefinitions', policyDefinitions), false);
+		const serializablePolicyDefinitions = Object.fromEntries(Object.entries(policyDefinitions).map(([name, definition]) => [name, toSerializablePolicyDefinition(definition)]));
+		this.updateManagedSettings(await this.channel.call<ManagedSettingsData>('updatePolicyDefinitions', serializablePolicyDefinitions), false);
 		return this._managedSettings;
 	}
 

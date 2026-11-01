@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { contextBridge, ipcRenderer } from 'electron';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { IChannel, IPCClient } from '../../../../../base/parts/ipc/common/ipc.js';
+import { IChannel, IPCClient, IStructuredCloneMessage } from '../../../../../base/parts/ipc/common/ipc.js';
 import { Protocol } from '../../../../../base/parts/ipc/common/ipc.electron.js';
 
 interface IConnection {
@@ -23,7 +22,7 @@ let connection: IConnection | undefined;
 contextBridge.exposeInMainWorld('gpuProcessTest', {
 	async connect() {
 		const store = new DisposableStore();
-		const protocol = new Protocol(ipcRenderer, Event.fromNodeEventEmitter<VSBuffer>(ipcRenderer, 'vscode:message', (_event: Electron.IpcRendererEvent, message: Uint8Array) => VSBuffer.wrap(message)));
+		const protocol = new Protocol(ipcRenderer, Event.fromNodeEventEmitter<IStructuredCloneMessage>(ipcRenderer, 'vscode:message', (_event: Electron.IpcRendererEvent, message: IStructuredCloneMessage) => message));
 		ipcRenderer.send('vscode:hello');
 		const client = store.add(new IPCClient(protocol, 'gpu-process-test'));
 		const channel = client.getChannel('nativeHost');
