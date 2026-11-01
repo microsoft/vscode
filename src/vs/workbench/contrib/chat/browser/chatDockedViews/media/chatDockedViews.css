@@ -1,0 +1,64 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Docked views float above the pills, whose container lets clicks fall through to the transcript. */
+.chat-docked-views {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	pointer-events: auto;
+}
+
+/* Padding rather than margin, so the measured height that the transcript reserves includes it. */
+.chat-docked-views:empty {
+	display: none;
+}
+
+.chat-docked-views:not(:empty) {
+	padding-bottom: 4px;
+}
+
+.chat-docked-view {
+	position: relative;
+	border: 1px solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
+	border-radius: 4px;
+	overflow: hidden;
+	background: var(--vscode-chat-list-background, var(--vscode-sideBar-background));
+}
+
+.chat-docked-view-body {
+	position: relative;
+}
+
+.chat-docked-view-error {
+	padding: 6px 8px;
+	color: var(--vscode-errorForeground);
+}
+
+.chat-docked-view-sash {
+	height: 6px;
+	cursor: ns-resize;
+	background: transparent;
+	border-bottom: 1px solid var(--vscode-widget-border, transparent);
+}
+
+.chat-docked-view-sash:hover,
+.chat-docked-view-sash.active {
+	background: var(--vscode-sash-hoverBorder);
+}
+
+.chat-docked-view.automatic-height .chat-docked-view-sash {
+	border-bottom-style: dashed;
+}
+
+.chat-pill-item.chat-docked-view-pill-open .chat-pill-button {
+	/* The pill button sets its colors inline. */
+	background: var(--vscode-inputOption-activeBackground) !important;
+	color: var(--vscode-inputOption-activeForeground) !important;
+	outline: 1px solid var(--vscode-inputOption-activeBorder);
+	outline-offset: -1px;
+}

@@ -69,6 +69,7 @@ import { openChatFileChanges } from '../../editorChatResponseFileChangesService.
 import { confirmUndoAllEdits } from '../../chatEditing/chatEditing.js';
 import { ChatInputPills, StandardChatInputPillSources } from '../../chatInputPills.js';
 import { ChatArtifactPillSource, mergeChatArtifactSections } from '../../chatArtifactPillSource.js';
+import { ChatDockedViewsControl } from '../../chatDockedViews/chatDockedViewsControl.js';
 import { SessionBackgroundShellsControl } from '../../sessionBackgroundShellsControl.js';
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry } from '../../sessionPullRequestPill.js';
 import { SessionCustomizations } from '../../sessionCustomizations.js';
@@ -1050,6 +1051,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			const chat = chatResource.read(reader);
 			return session && chat ? JSON.stringify([getLocalAgentHostSessionProvider(session), session.toString(), chat.toString()]) : undefined;
 		})));
+		const dockedViews = this._register(instantiationService.createInstance(ChatDockedViewsControl, this._widget.inputPart.persistentContentContainerElement, this._widget.domNode, sessionResource));
 		const inputPills = this._register(instantiationService.createInstance(ChatInputPills, this._widget.inputPart.persistentContentContainerElement, {
 			debugName: 'AgentHostSessionInputPills.content',
 			compact,
@@ -1060,9 +1062,10 @@ export class AgentHostSessionInputPills extends Disposable {
 					return sources.sources.filter(source => source.kind === SessionChatPillKind.Artifacts);
 				}
 				const offeredSources = canvases.offered.read(reader) ? sources.sources : sources.sources.filter(source => source.kind !== SessionChatPillKind.Canvases);
-				return changesPillHidden.read(reader)
+				const visibleSources = changesPillHidden.read(reader)
 					? offeredSources.filter(source => source.kind !== SessionChatPillKind.Changes)
 					: offeredSources;
+				return [...dockedViews.pillSources.read(reader), ...visibleSources];
 			}),
 			offeredKinds: SESSION_CHAT_PILL_KINDS,
 			focusFallback: () => this._widget.focusInput(),
@@ -1073,12 +1076,14 @@ export class AgentHostSessionInputPills extends Disposable {
 			onDidChange: inputPills.onDidChange,
 			getElements: () => inputPills.getPillElements(),
 		}));
-		const updateVisibility = (visible: boolean) => {
+		const pillsVisible = observableFromEvent(this, inputPills.onDidChangeVisibility, () => inputPills.visible);
+		this._register(autorun(reader => {
+			const visible = pillsVisible.read(reader);
+			// Docked views float with the pills, so the transcript reserves room for both.
+			const height = (visible ? CHAT_INPUT_PILLS_ROW_HEIGHT : 0) + dockedViews.height.read(reader);
 			this._widget.inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, visible);
-			this._widget.setPersistentContentHeight(visible ? CHAT_INPUT_PILLS_ROW_HEIGHT : undefined);
-		};
-		this._register(inputPills.onDidChangeVisibility(updateVisibility));
-		updateVisibility(inputPills.visible);
+			this._widget.setPersistentContentHeight(height > 0 ? height : undefined);
+		}));
 	}
 
 	/** Overridable so tests can drive customization resolution deterministically; `undefined` uses the idle scheduler. */
