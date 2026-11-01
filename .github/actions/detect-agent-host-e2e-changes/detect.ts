@@ -49,6 +49,8 @@ const exactPaths = new Set([
 	'scripts/test.sh',
 	'scripts/test.bat',
 	'src/vs/nls.ts',
+	// Paths added for CSS variable validation and schema integration:
+	'src/vs/editor/common/languages/modes/link.ts', 
 ]);
 
 const pathPrefixes = [
@@ -61,6 +63,8 @@ const pathPrefixes = [
 	'src/vs/platform/',
 	'test/unit/electron/',
 	'test/integration/agentHost/',
+	// Prefix support for CSS variable validation / schema modules:
+	'src/vs/editor/common/services/',
 ];
 
 const fullProfilePaths = new Set([...exactPaths].filter(path => path !== 'src/vs/nls.ts'));
