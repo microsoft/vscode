@@ -1,4 +1,4 @@
-{
+https://github.com/microsoft/vscode/actions/workflows/pr.yml/badge.svg{
 	"name": "Code - OSS",
 	"build": {
 		"dockerfile": "Dockerfile"
