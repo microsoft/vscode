@@ -784,6 +784,8 @@ suite('ChatWidget', () => {
 			{ provider: 'codex', hasRequests: false, intendedModelId: savedModelId },
 			{ provider: undefined, hasRequests: true, intendedModelId: savedModelId },
 			{ provider: 'codex', hasRequests: true, intendedModelId: undefined },
+			{ provider: 'codex', hasRequests: true, intendedModelId: savedModelId, userPicked: false },
+			{ provider: 'codex', hasRequests: true, intendedModelId: savedModelId, userPicked: true },
 		];
 		const selections = scenarios.map(scenario => {
 			const widget = Object.create(ChatWidget.prototype) as ChatWidget;
@@ -801,6 +803,7 @@ suite('ChatWidget', () => {
 					value: {
 						currentLanguageModel: fallbackModelId,
 						getModelConfiguration: () => configuration,
+						userPickedCurrentModel: scenario.userPicked,
 					},
 				},
 			});
@@ -813,6 +816,8 @@ suite('ChatWidget', () => {
 			selectedFallback,
 			selectedFallback,
 			selectedFallback,
+			selectedFallback,
+			{ userSelectedModelId: undefined, userSelectedModelConfiguration: undefined },
 			selectedFallback,
 		]);
 	});
@@ -2370,6 +2375,7 @@ suite('ChatWidget - acceptInput submission', () => {
 			currentModeKind: ChatModeKind.Ask,
 			currentModeInfo: upcastPartial<ChatInputPart['currentModeInfo']>({ kind: ChatModeKind.Ask, isBuiltin: true }),
 			currentLanguageModel: undefined,
+			userPickedCurrentModel: false,
 			hasPendingProgrammaticModelSelection: false,
 			isManagedSettingsRefreshBlocked: false,
 			generating: undefined,

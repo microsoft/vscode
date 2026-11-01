@@ -944,6 +944,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._currentLanguageModel.get()?.identifier;
 	}
 
+	/** Whether the picker's current model follows an explicit user pick in this input. */
+	get userPickedCurrentModel(): boolean {
+		return !this.options.hostModelSelection
+			&& this._modelSelectionController.selectionReason === ModelSelectionReason.UserSelection;
+	}
+
 	get selectedLanguageModel(): IObservable<ILanguageModelChatMetadataAndIdentifier | undefined> {
 		return this._currentLanguageModel;
 	}

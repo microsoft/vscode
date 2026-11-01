@@ -4364,7 +4364,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const modelId = this.input.currentLanguageModel;
 		const model = this.viewModel?.model;
 		const intendedModel = model?.inputModel.intendedModel;
-		if (this._lockedAgent?.agentHostProviderId && model?.getRequests().length && intendedModel && intendedModel.modelId !== modelId) {
+		// The model the user picked themselves always gets sent, even while editing.
+		// Code can also set the picker, though: restoring a session does, and editing
+		// a request sets it to that request's model. Those code-set values must not
+		// override the model an existing conversation already remembers.
+		if (this._lockedAgent?.agentHostProviderId && model?.getRequests().length
+			&& !!intendedModel && intendedModel.modelId !== modelId
+			&& !this.input.userPickedCurrentModel) {
 			return { userSelectedModelId: undefined, userSelectedModelConfiguration: undefined };
 		}
 		return {
