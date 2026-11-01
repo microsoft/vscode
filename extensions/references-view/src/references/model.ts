@@ -23,11 +23,18 @@ export class ReferencesTreeInput implements SymbolTreeInput<FileItem | Reference
 	async resolve(): Promise<SymbolTreeModel<FileItem | ReferenceItem> | undefined> {
 
 		let model: ReferencesModel;
+		// request definitions and references concurrently, definitions are optional annotations
+		const definitionsPromise = this._command === 'vscode.executeReferenceProvider'
+			? this._resolveDefinitions()
+			: Promise.resolve(undefined);
 		if (this._result) {
-			model = new ReferencesModel(this._result);
+			model = new ReferencesModel(this._result, await definitionsPromise);
 		} else {
-			const resut = await Promise.resolve(vscode.commands.executeCommand<vscode.Location[] | vscode.LocationLink[]>(this._command, this.location.uri, this.location.range.start));
-			model = new ReferencesModel(resut ?? []);
+			const [resut, definitions] = await Promise.all([
+				Promise.resolve(vscode.commands.executeCommand<vscode.Location[] | vscode.LocationLink[]>(this._command, this.location.uri, this.location.range.start)),
+				definitionsPromise
+			]);
+			model = new ReferencesModel(resut ?? [], definitions);
 		}
 
 		if (model.items.length === 0) {
@@ -47,9 +54,27 @@ export class ReferencesTreeInput implements SymbolTreeInput<FileItem | Reference
 		};
 	}
 
+	private async _resolveDefinitions(): Promise<DefinitionLocation[] | undefined> {
+		try {
+			const result = await Promise.resolve(vscode.commands.executeCommand<vscode.Location[] | vscode.LocationLink[]>('vscode.executeDefinitionProvider', this.location.uri, this.location.range.start));
+			// only a symbol (selection) range identifies the definition itself, a full
+			// declaration range (`targetRange`) is only used to mark the containing file
+			return result?.map(item => item instanceof vscode.Location
+				? { uri: item.uri, range: item.range }
+				: { uri: item.targetUri, range: item.targetSelectionRange });
+		} catch {
+			return undefined;
+		}
+	}
+
 	with(location: vscode.Location): ReferencesTreeInput {
 		return new ReferencesTreeInput(this.title, location, this._command);
 	}
+}
+
+interface DefinitionLocation {
+	readonly uri: vscode.Uri;
+	readonly range: vscode.Range | undefined;
 }
 
 export class ReferencesModel implements SymbolItemNavigation<FileItem | ReferenceItem>, SymbolItemEditorHighlights<FileItem | ReferenceItem>, SymbolItemDragAndDrop<FileItem | ReferenceItem> {
@@ -59,7 +84,7 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 
 	readonly items: FileItem[] = [];
 
-	constructor(locations: vscode.Location[] | vscode.LocationLink[]) {
+	constructor(locations: vscode.Location[] | vscode.LocationLink[], definitions?: DefinitionLocation[]) {
 		let last: FileItem | undefined;
 		for (const item of locations.sort(ReferencesModel._compareLocations)) {
 			const loc = item instanceof vscode.Location
@@ -68,9 +93,12 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 
 			if (!last || ReferencesModel._compareUriIgnoreFragment(last.uri, loc.uri) !== 0) {
 				last = new FileItem(loc.uri.with({ fragment: '' }), [], this);
+				// mark the declaring file even when the definition itself is not among the references
+				last.containsDefinition = !!definitions?.some(def => ReferencesModel._compareUriIgnoreFragment(def.uri, loc.uri) === 0);
 				this.items.push(last);
 			}
-			last.references.push(new ReferenceItem(loc, last));
+			const isDefinition = !!definitions?.some(def => def.range !== undefined && ReferencesModel._compareUriIgnoreFragment(def.uri, loc.uri) === 0 && def.range.intersection(loc.range) !== undefined);
+			last.references.push(new ReferenceItem(loc, last, isDefinition));
 		}
 	}
 
@@ -280,6 +308,12 @@ class ReferencesTreeDataProvider implements vscode.TreeDataProvider<FileItem | R
 			result.description = true;
 			result.iconPath = vscode.ThemeIcon.File;
 			result.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
+			if (element.containsDefinition) {
+				// highlight the file that contains the definition, see #64530
+				const name = element.uri.path.substring(element.uri.path.lastIndexOf('/') + 1);
+				result.label = { label: name, highlights: [[0, name.length]] };
+				result.tooltip = vscode.l10n.t('{0} (contains definition)', vscode.workspace.asRelativePath(element.uri));
+			}
 			return result;
 
 		} else {
@@ -296,6 +330,9 @@ class ReferencesTreeDataProvider implements vscode.TreeDataProvider<FileItem | R
 			const result = new vscode.TreeItem(label);
 			result.collapsibleState = vscode.TreeItemCollapsibleState.None;
 			result.contextValue = 'reference-item';
+			if (element.isDefinition) {
+				result.description = vscode.l10n.t('definition');
+			}
 			result.command = {
 				command: 'vscode.open',
 				title: vscode.l10n.t('Open Reference'),
@@ -331,6 +368,8 @@ export class FileItem {
 		readonly model: ReferencesModel
 	) { }
 
+	containsDefinition: boolean = false;
+
 	// --- adapter
 
 	remove(): void {
@@ -353,6 +392,7 @@ export class ReferenceItem {
 	constructor(
 		readonly location: vscode.Location,
 		readonly file: FileItem,
+		readonly isDefinition: boolean = false,
 	) { }
 
 	async getDocument(warmUpNext?: boolean) {
