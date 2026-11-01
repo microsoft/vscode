@@ -1146,8 +1146,8 @@ export class Repository implements Disposable {
 		return this.run(Operation.Config(true), () => this.repository.getConfigs('local'));
 	}
 
-	getConfig(key: string): Promise<string> {
-		return this.run(Operation.Config(true), () => this.repository.config('get', 'local', key));
+	getConfig(key: string, type?: string): Promise<string> {
+		return this.run(Operation.Config(true), () => this.repository.config('get', 'local', key, null, {}, type));
 	}
 
 	getGlobalConfig(key: string): Promise<string> {
