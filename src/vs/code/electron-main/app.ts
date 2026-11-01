@@ -993,7 +993,7 @@ export class CodeApplication extends Disposable {
 			detail: localize('confirmOpenDetail', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"),
 			checkboxLabel: openableUri.scheme === Schemas.file ? localize('doNotAskAgainLocal', "Allow opening local paths without asking") : localize('doNotAskAgainRemote', "Allow opening remote paths without asking"),
 			cancelId: 1
-		}, openableUri.scheme === Schemas.file ? 'local' : 'remote', windowsMainService, dialogMainService);
+		}, openableUri.scheme === Schemas.file ? 'local' : 'remote', windowsMainService, dialogMainService, this.auxiliaryWindowsMainService);
 	}
 
 	private getWindowOpenableFromProtocolUrl(uri: URI): IWindowOpenable | undefined {

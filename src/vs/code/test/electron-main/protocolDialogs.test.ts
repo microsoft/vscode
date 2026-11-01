@@ -6,6 +6,7 @@
 import assert from 'assert';
 import type { BrowserWindow, MessageBoxOptions, MessageBoxReturnValue } from 'electron';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { IAuxiliaryWindow } from '../../../platform/auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { ICodeWindow } from '../../../platform/window/electron-main/window.js';
 import { confirmProtocolOpenable, getProtocolDialogParentWindow } from '../../electron-main/protocolDialogs.js';
 
@@ -59,6 +60,15 @@ suite('Protocol dialogs', () => {
 			assert.strictEqual(parent, lastActive);
 		});
 
+		test('prefers a focused auxiliary window', () => {
+			const auxiliary = createBrowserWindow(3);
+			const results = [
+				getProtocolDialogParentWindow({ getFocusedWindow: () => createCodeWindow(createBrowserWindow(1)), getLastActiveWindow: () => undefined }, { getFocusedWindow: () => ({ win: auxiliary }) as IAuxiliaryWindow }),
+				getProtocolDialogParentWindow({ getFocusedWindow: () => createCodeWindow(createBrowserWindow(1)), getLastActiveWindow: () => undefined }, { getFocusedWindow: () => ({ win: createBrowserWindow(4, true) }) as IAuxiliaryWindow }),
+			];
+			assert.deepStrictEqual(results.map(window => window?.id), [3, 1]);
+		});
+
 		test('returns undefined without a usable window', () => {
 			assert.deepStrictEqual([
 				getProtocolDialogParentWindow({ getFocusedWindow: () => undefined, getLastActiveWindow: () => undefined }),
@@ -97,6 +107,42 @@ suite('Protocol dialogs', () => {
 				results.push({ blocked, sent: recorded.sent });
 			}
 			assert.deepStrictEqual(results, [{ blocked: true, sent: [] }, { blocked: true, sent: [] }]);
+		});
+
+		test('parents the dialog to a focused auxiliary window', async () => {
+			const { recorded, windowsMainService, dialogMainService } = createServices({ focused: createCodeWindow(createBrowserWindow(1)) }, { response: 0, checkboxChecked: false });
+			const blocked = await confirmProtocolOpenable(options, 'local', windowsMainService, dialogMainService, { getFocusedWindow: () => ({ win: createBrowserWindow(3) }) as IAuxiliaryWindow });
+			assert.deepStrictEqual({ blocked, recorded }, { blocked: false, recorded: { dialogs: [{ options, parentId: 3 }], sent: [] } });
+		});
+
+		test('blocks without disabling the prompt when the parent is destroyed while the dialog is open', async () => {
+			let destroyed = false;
+			const parent = { id: 1, isDestroyed: () => destroyed } as unknown as BrowserWindow;
+			const { recorded, windowsMainService } = createServices({ focused: createCodeWindow(parent) }, { response: 0, checkboxChecked: true });
+			const results = [];
+			for (const outcome of ['resolve', 'reject'] as const) {
+				destroyed = false;
+				const dialogMainService = {
+					showMessageBox: async (): Promise<MessageBoxReturnValue> => {
+						destroyed = true;
+						if (outcome === 'reject') {
+							throw new Error('Object has been destroyed');
+						}
+						return { response: 0, checkboxChecked: true };
+					}
+				};
+				results.push({ outcome, blocked: await confirmProtocolOpenable(options, 'local', windowsMainService, dialogMainService) });
+			}
+			assert.deepStrictEqual({ results, sent: recorded.sent }, {
+				results: [{ outcome: 'resolve', blocked: true }, { outcome: 'reject', blocked: true }],
+				sent: []
+			});
+		});
+
+		test('propagates dialog errors while the parent is alive', async () => {
+			const { windowsMainService } = createServices({ focused: createCodeWindow(createBrowserWindow(1)) }, { response: 0, checkboxChecked: false });
+			const dialogMainService = { showMessageBox: async (): Promise<MessageBoxReturnValue> => { throw new Error('dialog failed'); } };
+			await assert.rejects(() => confirmProtocolOpenable(options, 'local', windowsMainService, dialogMainService), /dialog failed/);
 		});
 
 		test('disables the prompt for the scheme when the checkbox is checked', async () => {
