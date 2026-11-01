@@ -29,7 +29,6 @@ import { FileEditorInput } from '../../../files/browser/editors/fileEditorInput.
 import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
 import { IChatContextPickService, IChatContextValueItem, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../attachments/chatContextPickService.js';
 import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
-import { IChatPhoneInputPresenter } from '../widget/input/chatPhoneInputPresenter.js';
 import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { isToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
 import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES } from '../../common/model/chatModel.js';
@@ -111,7 +110,6 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(FileContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ChatInstructionsPickerPick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(OpenEditorContextValuePick)));
-		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ClipboardImageContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ScreenshotContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(SessionReferenceContextPickerPick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(GitHubContextValuePick, 'issue')));
@@ -432,14 +430,15 @@ class OpenEditorContextValuePick implements IChatContextValueItem {
 }
 
 
-class ClipboardImageContextValuePick implements IChatContextValueItem {
+export class ClipboardImageContextValuePick implements IChatContextValueItem {
 	readonly type = 'valuePick';
 	readonly label = localize('imageFromClipboard', 'Image from Clipboard');
 	readonly icon = Codicon.fileMedia;
 
 	constructor(
+		private readonly readImageOnEnable: boolean,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@IChatPhoneInputPresenter private readonly _presentation: IChatPhoneInputPresenter,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) { }
 
 	async isEnabled(widget: IChatWidget) {
@@ -449,8 +448,7 @@ class ClipboardImageContextValuePick implements IChatContextValueItem {
 		if (!widget.input.selectedLanguageModel.get()?.metadata.capabilities?.vision) {
 			return false;
 		}
-		// Touch-first embedders read the clipboard only after an explicit tap.
-		if (this._presentation.deferClipboardImageRead) {
+		if (!this.readImageOnEnable) {
 			return true;
 		}
 		const imageData = await this._clipboardService.readImage();
@@ -459,7 +457,8 @@ class ClipboardImageContextValuePick implements IChatContextValueItem {
 
 	async asAttachment(): Promise<IImageVariableEntry | undefined> {
 		const fileBuffer = await this._clipboardService.readImage();
-		if (this._presentation.deferClipboardImageRead && !isImage(fileBuffer)) {
+		if (!isImage(fileBuffer)) {
+			this._notificationService.warn(localize('clipboardHasNoImage', "The clipboard does not contain an image."));
 			return undefined;
 		}
 		return {

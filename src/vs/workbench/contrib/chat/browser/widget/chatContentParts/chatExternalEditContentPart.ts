@@ -10,16 +10,14 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { localize } from '../../../../../../nls.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
-import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { IOpenEditorOptions } from '../../../../../../platform/editor/browser/editor.js';
-import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { IChatExternalEdit } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
-import { ChatEditPillElement, isResourceContentEmpty } from './chatEditPillElement.js';
-import { IChatEditPhonePresenter } from './chatEditPhonePresenter.js';
+import { ChatEditPillElement } from './chatEditPillElement.js';
+import { IChatEditPresentationService } from './chatEditPresentation.js';
+import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { IChatContentPart, IChatContentPartDiffData, IChatContentPartRenderContext } from './chatContentParts.js';
 
 /**
@@ -64,14 +62,14 @@ export class ChatExternalEditContentPart extends ChatEditPillElement implements 
 		@IModelService modelService: IModelService,
 		@ILanguageService languageService: ILanguageService,
 		@IHoverService hoverService: IHoverService,
-		@IEditorService private readonly editorService: IEditorService,
-		@ITextModelService private readonly textModelService: ITextModelService,
-		@IChatEditPhonePresenter private readonly chatEditPhonePresenter: IChatEditPhonePresenter,
+		@IChatEditPresentationService editPresentationService: IChatEditPresentationService,
 	) {
 		super(labelService, modelService, languageService, hoverService);
 
 		this.render(edit);
-		this._register(this.onDidClick(opts => this.openEdit(opts)));
+		this._register(this.onDidClick(opts => {
+			void editPresentationService.openExternalEdit(this.edit, opts).catch(onUnexpectedError);
+		}));
 	}
 
 	private render(edit: IChatExternalEdit): void {
@@ -113,41 +111,6 @@ export class ChatExternalEditContentPart extends ChatEditPillElement implements 
 		} else {
 			this.setDiff(undefined);
 			this.setAriaLabel(`${label} ${this.labelService.getUriBasenameLabel(edit.uri)}`);
-		}
-	}
-
-	private async openEdit({ editorOptions: options, openToSide }: IOpenEditorOptions): Promise<void> {
-		// On the phone the change opens in the phone diff overlay rather than an editor.
-		if (this.chatEditPhonePresenter.enabled.get() && await this.chatEditPhonePresenter.openDiff({
-			uri: this.edit.uri,
-			originalURI: this.edit.beforeContentUri,
-			modifiedURI: this.edit.editKind === 'delete' ? undefined : this.edit.afterContentUri ?? this.edit.uri,
-			added: this.edit.diff?.added ?? 0,
-			removed: this.edit.diff?.removed ?? 0,
-		})) {
-			return;
-		}
-
-		const group = openToSide ? SIDE_GROUP : undefined;
-		if (this.edit.beforeContentUri && this.edit.afterContentUri) {
-			// If the change is a pure addition into a file whose original version did not
-			// exist or was empty, there is nothing meaningful to diff against. Open the
-			// resulting file in a normal editor instead of a diff editor.
-			if (this.edit.editKind === 'edit' && (this.edit.diff?.removed ?? 0) === 0 && await isResourceContentEmpty(this.textModelService, this.edit.beforeContentUri)) {
-				this.editorService.openEditor({ resource: this.edit.uri, options }, group);
-				return;
-			}
-			this.editorService.openEditor({
-				original: { resource: this.edit.beforeContentUri },
-				modified: { resource: this.edit.afterContentUri },
-				options,
-			}, group);
-		} else if (this.edit.editKind === 'delete' && this.edit.beforeContentUri) {
-			// The file no longer exists on disk; show the pre-deletion
-			// content from the snapshot instead of opening the missing URI.
-			this.editorService.openEditor({ resource: this.edit.beforeContentUri, options }, group);
-		} else if (this.edit.editKind !== 'delete') {
-			this.editorService.openEditor({ resource: this.edit.uri, options }, group);
 		}
 	}
 

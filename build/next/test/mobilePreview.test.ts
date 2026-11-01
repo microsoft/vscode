@@ -138,6 +138,10 @@ suite('isolated mobile preview', () => {
 			'src/vs/sessions/test/web.test.ts',
 			'src/vs/workbench/contrib/newFeature/browser/newFeature.contribution.ts',
 			'src\\vs\\sessions\\contrib\\chat\\browser\\chat.desktop.contribution.ts',
+			'src/vs/sessions/services/presentation/browser/defaultSessionRepositoryPicker.ts',
+			'src/vs/sessions/services/presentation/browser/defaultSessionsListPresentation.ts',
+			'src/vs/workbench/contrib/chat/browser/chatDefaultPresentation.contribution.ts',
+			'src/vs/workbench/contrib/chat/browser/widget/chatContentParts/defaultChatEditPresentation.ts',
 		]) {
 			assert.throws(() => checkMobilePreviewDependencies([file]), /boundary failed/);
 		}

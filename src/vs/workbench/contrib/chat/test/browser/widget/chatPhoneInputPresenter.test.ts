@@ -21,15 +21,13 @@ suite('Chat phone input presentation isolation', () => {
 		return createServices(store.add(new DisposableStore()), [[IChatPhoneInputPresenter, descriptor.ctor]]).get(IChatPhoneInputPresenter);
 	}
 
-	test('defaults neither change editor metrics nor intercept configuration', async () => {
+	test('defaults do not intercept configuration', async () => {
 		const presenter = createPresenter();
 		await presenter.showCombinedModeAndModelSheet(dom.$('div'), { kind: 'session', getSessionContext: () => undefined });
 		assert.deepStrictEqual({
 			enabled: presenter.enabled.get(),
-			metrics: presenter.inputEditorMetrics,
-			deferClipboard: presenter.deferClipboardImageRead,
 			unified: presenter.supportsUnifiedConfiguration,
-		}, { enabled: false, metrics: undefined, deferClipboard: false, unified: false });
+		}, { enabled: false, unified: false });
 	});
 
 	test('optional behavior follows the registered implementation lifetime and enablement', () => {
@@ -37,20 +35,18 @@ suite('Chat phone input presentation isolation', () => {
 		const enabled = observableValue('enabled', false);
 		const registration = store.add(presenter.setImpl({
 			enabled,
-			inputEditorMetrics: { fontSize: 16, lineHeight: 24 },
-			deferClipboardImageRead: true,
 			supportsUnifiedConfiguration: true,
 			showCombinedModeAndModelSheet: async () => { },
 		}));
-		const snapshot = () => [presenter.enabled.get(), presenter.inputEditorMetrics, presenter.deferClipboardImageRead, presenter.supportsUnifiedConfiguration];
+		const snapshot = () => [presenter.enabled.get(), presenter.supportsUnifiedConfiguration];
 		const disabled = snapshot();
 		enabled.set(true, undefined);
 		const active = snapshot();
 		registration.dispose();
 		assert.deepStrictEqual([disabled, active, snapshot()], [
-			[false, undefined, false, false],
-			[true, { fontSize: 16, lineHeight: 24 }, true, true],
-			[false, undefined, false, false],
+			[false, false],
+			[true, true],
+			[false, false],
 		]);
 	});
 

@@ -29,7 +29,6 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
-import { IRepositoryPickResult } from '../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { TestChatEntitlementService } from '../../../../../workbench/test/common/workbenchTestServices.js';
@@ -93,7 +92,7 @@ suite('MobileRepositoryPicker', () => {
 		const layoutService = upcastPartial<IWorkbenchLayoutService>({ mainContainer: container });
 		const queries: string[] = [];
 		let browseCalls = 0;
-		const selected = new DeferredPromise<IRepositoryPickResult | undefined>();
+		const selected = new DeferredPromise<string | undefined>();
 		const browseAction: ISessionWorkspaceBrowseAction = {
 			label: 'GitHub', icon: Codicon.github, providerId: 'test-github', group: SESSION_WORKSPACE_GROUP_GITHUB,
 			run: async () => {
@@ -196,7 +195,7 @@ suite('MobileRepositoryPicker', () => {
 			accessibilityHelp: { applies: true, search: true, keyboard: true, verbosity: 'accessibility.verbosity.sessionsChat', restoresSearchFocus: true },
 			searchState: { rows: ['Mixed.Owner/Some-Repo'], quickInputs: 0 },
 			queries: ['', 'some-repo'], browseCalls: 1, errors: [],
-			selection: { repository: 'Mixed.Owner/Some-Repo' }, dialogs: 0, focusRestored: true, quickInputs: 0,
+			selection: 'Mixed.Owner/Some-Repo', dialogs: 0, focusRestored: true, quickInputs: 0,
 		});
 	});
 
@@ -224,7 +223,7 @@ suite('MobileRepositoryPicker', () => {
 		}, {
 			initial: { message: 'Loading repositories…', busy: 'true', focused: true },
 			labels: ['Mixed.Owner/Some-Repo', 'Zebra/Repo.Two'],
-			selection: { repository: 'Mixed.Owner/Some-Repo' },
+			selection: 'Mixed.Owner/Some-Repo',
 			open: false,
 			focusRestored: true,
 		});
@@ -260,7 +259,7 @@ suite('MobileRepositoryPicker', () => {
 		assert.deepStrictEqual({ accessible, focus, selection: await result, focusRestored: dom.getActiveElement() === trigger }, {
 			accessible: { title: 'Choose repository', modal: 'true', inputLabel: 'Search repositories' },
 			focus: [true, true, true, true, true, true, true],
-			selection: { repository: 'owner/last' },
+			selection: 'owner/last',
 			focusRestored: true,
 		});
 	});
@@ -317,7 +316,7 @@ suite('MobileRepositoryPicker', () => {
 			initiallyCancelled: true, oldCancelled: true,
 			beforeDebounce: { queries: ['', 'old'], rows: 0 },
 			labels: ['current/result'], queries: ['', 'old', 'latest'], errors: [],
-			selection: { repository: 'current/result' },
+			selection: 'current/result',
 		});
 	});
 
@@ -337,7 +336,7 @@ suite('MobileRepositoryPicker', () => {
 		await clock.tickAsync(0);
 		getRows(container)[0].click();
 		await clock.tickAsync(180);
-		assert.deepStrictEqual({ remainedOpen, selection: await result }, { remainedOpen: true, selection: { repository: 'new/repository' } });
+		assert.deepStrictEqual({ remainedOpen, selection: await result }, { remainedOpen: true, selection: 'new/repository' });
 	});
 
 	test('does not open a sheet or start a request when already cancelled or disposed', async () => {
@@ -440,7 +439,7 @@ suite('MobileRepositoryPicker', () => {
 			},
 			errors: [{ message: 'Error fetching repositories', error: failure }],
 			attempts: 2, recoveredState: { errors: 0, rows: ['owner/recovered'] },
-			selection: { repository: 'owner/recovered' },
+			selection: 'owner/recovered',
 		});
 	});
 
@@ -466,7 +465,7 @@ suite('MobileRepositoryPicker', () => {
 		getRows(container)[0].click();
 		await clock.tickAsync(180);
 		assert.deepStrictEqual({ rows, errors, selection: await result }, {
-			rows: ['current/repository'], errors: [], selection: { repository: 'current/repository' },
+			rows: ['current/repository'], errors: [], selection: 'current/repository',
 		});
 	});
 
@@ -509,7 +508,7 @@ suite('MobileRepositoryPicker', () => {
 			secondSelection: await secondPick, focusRestored: dom.getActiveElement() === trigger,
 		}, {
 			firstSelection: undefined, firstCancelled: true, secondFocused: true,
-			secondSelection: { repository: 'owner/second' }, focusRestored: true,
+			secondSelection: 'owner/second', focusRestored: true,
 		});
 	});
 
@@ -522,6 +521,6 @@ suite('MobileRepositoryPicker', () => {
 		const remainedOpen = !!container.querySelector('.mobile-picker-sheet:not(.closing)');
 		key(input, 'Enter');
 		await clock.tickAsync(180);
-		assert.deepStrictEqual({ remainedOpen, selection: await result }, { remainedOpen: true, selection: { repository: 'owner/repository' } });
+		assert.deepStrictEqual({ remainedOpen, selection: await result }, { remainedOpen: true, selection: 'owner/repository' });
 	});
 });

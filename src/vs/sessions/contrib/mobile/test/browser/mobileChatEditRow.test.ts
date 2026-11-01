@@ -21,7 +21,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { ChatEditCompareModelFactory, IChatEditPhoneDiff } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatEditPhonePresenter.js';
+import { ChatEditCompareModelFactory, IChatEditDiff } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatEditPresentation.js';
 import { IChatEditingService, IChatEditingSession, IModifiedFileEntry } from '../../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IChatTextEditGroup } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatResponseViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
@@ -54,7 +54,7 @@ suite('MobileChatEditRow', () => {
 				return { identical: false, quitEarly: false, changes: [new DetailedLineRangeMapping(new LineRange(1, 2), new LineRange(1, 4), undefined)], moves: [] };
 			},
 		}));
-		const opened: IChatEditPhoneDiff[] = [];
+		const opened: IChatEditDiff[] = [];
 		return {
 			comparisons, opened,
 			create: (factory: ChatEditCompareModelFactory) => store.add(instantiationService.createInstance(MobileChatEditRow, edit, response, factory, async diff => {

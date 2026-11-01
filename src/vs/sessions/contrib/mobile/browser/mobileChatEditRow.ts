@@ -12,7 +12,7 @@ import { IEditorWorkerService } from '../../../../editor/common/services/editorW
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatEditPillElement } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatEditPillElement.js';
-import { ChatEditCompareModelFactory, IChatEditPhoneDiff, IChatEditPresentation } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatEditPhonePresenter.js';
+import { ChatEditCompareModelFactory, IChatEditDiff, IChatEditPresentation } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatEditPresentation.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IChatTextEditGroup } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatResponseViewModel } from '../../../../workbench/contrib/chat/common/model/chatViewModel.js';
@@ -25,7 +25,7 @@ export class MobileChatEditRow extends Disposable implements IChatEditPresentati
 		edit: IChatTextEditGroup,
 		response: IChatResponseViewModel,
 		createModel: ChatEditCompareModelFactory,
-		openDiff: (diff: IChatEditPhoneDiff) => Promise<boolean>,
+		openDiff: (diff: IChatEditDiff) => Promise<boolean>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@IChatEditingService chatEditingService: IChatEditingService,
@@ -90,4 +90,6 @@ export class MobileChatEditRow extends Disposable implements IChatEditPresentati
 			}).catch(onUnexpectedError);
 		}));
 	}
+
+	layout(_width: number): void { }
 }
