@@ -32,6 +32,16 @@ export interface ITableTouchEvent<TRow> extends IListTouchEvent<TRow> { }
 export interface ITableGestureEvent<TRow> extends IListGestureEvent<TRow> { }
 export interface ITableContextMenuEvent<TRow> extends IListContextMenuEvent<TRow> { }
 
+export const enum SortOrder {
+	Ascending,
+	Descending
+}
+
+export interface ITableSortState {
+	readonly columnIndex: number;
+	readonly sortOrder: SortOrder;
+}
+
 export class TableError extends Error {
 
 	constructor(user: string, message: string) {
