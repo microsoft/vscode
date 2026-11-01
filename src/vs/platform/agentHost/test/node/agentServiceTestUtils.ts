@@ -30,7 +30,7 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
-import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
+import { AgentHostProxyResolver, IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentService } from '../../node/agentService.js';
 import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { IClaudeAgentSdkService } from '../../node/claude/claudeAgentSdkService.js';
@@ -187,6 +187,16 @@ export function createTestAgentHostWorktreeIsolation(overrides: Partial<IAgentHo
 			return typeof value === 'function' ? value.bind(source) : value;
 		},
 	});
+}
+
+/**
+ * An {@link AgentHostProxyResolver} that ignores the test process's proxy environment variables, such as those of a CI
+ * agent behind a proxy, so that proxies come only from its configuration and clients.
+ */
+export class ProxyEnvironmentIsolatedAgentHostProxyResolver extends AgentHostProxyResolver {
+	protected override _getProxyEnvironment(): NodeJS.ProcessEnv {
+		return {};
+	}
 }
 
 export function createTestAgentHostProxyResolver(fetchFn: typeof globalThis.fetch = globalThis.fetch): IAgentHostProxyResolver {

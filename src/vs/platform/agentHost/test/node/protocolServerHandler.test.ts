@@ -107,6 +107,7 @@ import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaK
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentHostChatOwnershipService, IAgentHostChatOwnershipService, type IChatOwnerResolution } from '../../node/agentHostChatOwnershipService.js';
 import { EmptyOwnershipDatabase, createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { ProxyEnvironmentIsolatedAgentHostProxyResolver } from './agentServiceTestUtils.js';
 import { FileSystemResources } from '../../node/resourceProviders/fileSystemResources.js';
 
 // ---- Mock helpers -----------------------------------------------------------
@@ -635,7 +636,7 @@ suite('ProtocolServerHandler', () => {
 		agentService.setStateManager(stateManager);
 		managedSettingsService = disposables.add(new AgentHostManagedSettingsService());
 		logService = new CountingLogService();
-		proxyResolver = disposables.add(new AgentHostProxyResolver(disposables.add(new AgentConfigurationService(stateManager, logService)), logService));
+		proxyResolver = disposables.add(new ProxyEnvironmentIsolatedAgentHostProxyResolver(disposables.add(new AgentConfigurationService(stateManager, logService)), logService));
 		telemetryService = new TestTelemetryService();
 		agentHostTelemetryService = disposables.add(new AgentHostTelemetryService(telemetryService));
 		clientConnections = disposables.add(new AgentHostClientConnectionService());

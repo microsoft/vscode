@@ -24,6 +24,7 @@ import { AgentHostProxyConfigKey } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostProxyResolver, IAgentHostProxyResolver, loadAgentHostCertificates } from '../../node/agentHostProxyResolver.js';
+import { ProxyEnvironmentIsolatedAgentHostProxyResolver } from './agentServiceTestUtils.js';
 import { AgentHostRequestService } from '../../node/agentHostRequestService.js';
 import { NetworkDiagnosticsService } from '../../node/networkDiagnosticsService.js';
 
@@ -421,7 +422,7 @@ suite('AgentHostProxyResolver', () => {
 	});
 
 	test('resolves proxies through a client sharing the network only while it is registered', async () => {
-		const resolver = disposables.add(new AgentHostProxyResolver(createAgentConfigurationService(disposables), new NullLogService()));
+		const resolver = disposables.add(new ProxyEnvironmentIsolatedAgentHostProxyResolver(createAgentConfigurationService(disposables), new NullLogService()));
 		let registrations = 0;
 		disposables.add(resolver.onDidRegisterConnection(() => registrations++));
 		const resolved: string[] = [];
@@ -445,7 +446,7 @@ suite('AgentHostProxyResolver', () => {
 	});
 
 	test('re-resolves proxies when a client sharing the network reports a change', async () => {
-		const resolver = disposables.add(new AgentHostProxyResolver(createAgentConfigurationService(disposables), new NullLogService()));
+		const resolver = disposables.add(new ProxyEnvironmentIsolatedAgentHostProxyResolver(createAgentConfigurationService(disposables), new NullLogService()));
 		let changes = 0;
 		disposables.add(resolver.onDidChangeConfiguration(() => changes++));
 		let clientProxy = 'PROXY first.example:8080';

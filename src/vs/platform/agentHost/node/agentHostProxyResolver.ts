@@ -372,11 +372,16 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 				// container has a client advertising `vscode.clientProxy`.
 				isUseHostProxyEnabled: () => this._connections.size > 0 || this._sharedNetworkClients.size > 0,
 				getNetworkInterfaceCheckInterval: () => 300 * 1000,
-				env: process.env,
+				env: this._getProxyEnvironment(),
 			};
 			this._proxyResolver = { params, resolver: createProxyResolver(params) };
 		}
 		return this._proxyResolver;
+	}
+
+	/** The environment whose proxy variables apply before the proxies of clients. */
+	protected _getProxyEnvironment(): NodeJS.ProcessEnv {
+		return process.env;
 	}
 
 	private async _hostResolveProxy(url: string): Promise<string | undefined> {
