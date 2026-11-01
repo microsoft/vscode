@@ -225,7 +225,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	const disposables = new DisposableStore();
 	let isDisposed = false;
 
-	const markedInstance = new marked.Marked(...(options.markedExtensions ?? []));
+	const markedInstance = new marked.Marked(gfmAutolinkEscapeExtension, ...(options.markedExtensions ?? []));
 	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(markedInstance, options, markdown);
 	const value = preprocessMarkdownString(markdown);
 
@@ -561,6 +561,31 @@ function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOp
 	}
 	return { renderer, codeBlocks, syncCodeBlocks };
 }
+
+/**
+ * GFM autolinks drop trailing punctuation, which can leave behind the backslash that
+ * escaped it, e.g. `https://example.com/page\.` (#137502). Give that backslash back
+ * to the escape so only the punctuation-free URL is linked.
+ */
+const gfmAutolinkEscapeExtension: marked.MarkedExtension = {
+	tokenizer: {
+		url(this: marked.Tokenizer, src: string) {
+			const token = marked.Tokenizer.prototype.url.call(this, src);
+			if (!token || !/(^|[^\\])(\\\\)*\\$/.test(token.raw) || !/^[!-/:-@[-`{-~]/.test(src.slice(token.raw.length))) {
+				return token;
+			}
+			const raw = token.raw.slice(0, -1);
+			const text = token.text.slice(0, -1);
+			return {
+				...token,
+				raw,
+				text,
+				href: token.href.slice(0, -1),
+				tokens: [{ type: 'text', raw: text, text }],
+			};
+		}
+	}
+};
 
 function preprocessMarkdownString(markdown: IMarkdownString) {
 	let value = markdown.value;
