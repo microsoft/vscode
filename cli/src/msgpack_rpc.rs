@@ -66,7 +66,13 @@ pub async fn start_msgpack_rpc<
 	loop {
 		tokio::select! {
 			r = read.read_buf(&mut decoder_buf) => {
-				r?;
+				let n = r?;
+				if n == 0 {
+					return Err(io::Error::new(
+						ErrorKind::UnexpectedEof,
+						"msgpack rpc stream ended",
+					));
+				}
 
 				while let Some(frame) = decoder.decode(&mut decoder_buf)? {
 					match dispatcher.dispatch_with_partial(&frame.vec, frame.obj) {
