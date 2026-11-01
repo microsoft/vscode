@@ -5,14 +5,17 @@
 
 import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
-import { IManagedHover, IManagedHoverContent } from '../../../../../base/browser/ui/hover/hover.js';
+import { IManagedHover, IManagedHoverContent, isManagedHoverTooltipHTMLElement } from '../../../../../base/browser/ui/hover/hover.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -25,15 +28,19 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
-import { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY } from '../../common/constants.js';
+import { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, ChatConfiguration } from '../../common/constants.js';
 import { OpenWorkspaceInAgentsContribution } from '../../electron-browser/agentSessions/agentSessionsActions.js';
 
 suite('Agents Window titlebar copy experiment', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const treatmentName = 'chatOpenInAgentsTitleBarLabel';
 	const expansionTreatmentName = 'chatOpenInAgentsTitleBarExpandOnHover';
+	const richHoverTreatmentName = `config.${ChatConfiguration.TitleBarOpenInAgentsWindowRichHover}`;
+	const cardTitle = 'All your agents, across all your projects, in one window';
+	const manyWindowsToOneCard = { title: cardTitle, graphic: 'many-windows-to-one' };
+	const windowComparisonCard = { title: cardTitle, graphic: 'window-comparison' };
 
-	function createHarness(sessionCount?: number) {
+	function createHarness(sessionCount?: number, richHover?: string) {
 		const instantiation = disposables.add(new TestInstantiationService());
 		const storage = disposables.add(new InMemoryStorageService());
 		if (sessionCount !== undefined) {
@@ -65,10 +72,15 @@ suite('Agents Window titlebar copy experiment', () => {
 		}();
 		let factory: IActionViewItemFactory | undefined;
 		let hoverContent: IManagedHoverContent;
+		let hoverHides = 0;
 		const hover = upcastPartial<IManagedHover>({
 			dispose: () => { },
 			update: content => { hoverContent = content; },
+			hide: () => { hoverHides++; },
 		});
+		const configuration = new TestConfigurationService(richHover === undefined ? {} : { [ChatConfiguration.TitleBarOpenInAgentsWindowRichHover]: richHover });
+		disposables.add(configuration.onDidChangeConfigurationEmitter);
+		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(IStorageService, storage);
 		instantiation.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
 		instantiation.stub(IProductService, upcastPartial<IProductService>({}));
@@ -104,11 +116,30 @@ suite('Agents Window titlebar copy experiment', () => {
 			await timeout(0);
 		};
 		const createFirstSession = () => storage.store(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, 1, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const setSessionCount = (count: number) => storage.store(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, count, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const setRichHover = async (value: string) => {
+			await configuration.setUserConfiguration(ChatConfiguration.TitleBarOpenInAgentsWindowRichHover, value);
+			configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string): boolean {
+					return section === ChatConfiguration.TitleBarOpenInAgentsWindowRichHover;
+				}
+			}());
+		};
+		/** The rich hover's card, rendered the way the managed hover renders it, or `undefined` for a simple tooltip. */
+		const hoverCard = () => isManagedHoverTooltipHTMLElement(hoverContent) ? hoverContent.element(CancellationToken.None) as HTMLElement : undefined;
+		const hoverState = () => {
+			const card = hoverCard();
+			return {
+				hover: card ? { title: card.querySelector('.agents-window-hover-card-title')?.textContent, graphic: card.querySelector('.agents-window-graphic')?.classList[1] } : hoverContent,
+				expandOnHover: container.classList.contains('expand-on-hover'),
+				noGrow: container.classList.contains('no-grow'),
+			};
+		};
 		const resolveExpansion = async (value: string | number | boolean | undefined, index = expansionRequests.length - 1) => {
 			await expansionRequests[index].complete(value);
 			await timeout(0);
 		};
-		return { storage, createFirstSession, refetched, requests, expansionRequests, queriedTreatments, warnings, item, container, resolve, resolveExpansion, snapshot, getActionRuns: () => actionRuns };
+		return { storage, createFirstSession, setSessionCount, setRichHover, hoverCard, hoverState, getHoverHides: () => hoverHides, refetched, requests, expansionRequests, queriedTreatments, warnings, item, container, resolve, resolveExpansion, snapshot, getActionRuns: () => actionRuns };
 	}
 
 	for (const value of [undefined, 'Try Agents']) {
@@ -238,7 +269,8 @@ suite('Agents Window titlebar copy experiment', () => {
 					before: true,
 					expandOnHover: value ?? true,
 					beforeHover: [],
-					triggers: [expansionTreatmentName],
+					// Users new to the Agents window could also see the rich hover, so it triggers in every arm.
+					triggers: sessionCount === 0 ? [richHoverTreatmentName, expansionTreatmentName] : [expansionTreatmentName],
 					ariaLabel: 'Open in Agents Window (shortcut)',
 				});
 			});
@@ -271,7 +303,7 @@ suite('Agents Window titlebar copy experiment', () => {
 			disabled,
 			refreshed: h.container.classList.contains('expand-on-hover'),
 			triggers: h.snapshot().triggers,
-		}, { disabled: false, refreshed: true, triggers: [expansionTreatmentName] });
+		}, { disabled: false, refreshed: true, triggers: [richHoverTreatmentName, expansionTreatmentName] });
 	});
 
 	test('ignores stale expansion assignments and does not update after disposal', async () => {
@@ -323,7 +355,7 @@ suite('Agents Window titlebar copy experiment', () => {
 				ariaLabel: 'Try Agents (shortcut)',
 				hoverContent: 'Try Agents (shortcut)',
 				actionLabel: 'Open in Agents',
-				triggers: [treatmentName, expansionTreatmentName],
+				triggers: [treatmentName, richHoverTreatmentName, expansionTreatmentName],
 			},
 			expandOnHover: false,
 			actionRuns: 1,
@@ -345,5 +377,77 @@ suite('Agents Window titlebar copy experiment', () => {
 			warnings: ['[OpenWorkspaceInAgentsTitleBarWidget] Failed to resolve treatments'],
 			triggers: [],
 		});
+	});
+
+	test('selects the hover by variant and session count, and triggers each experiment only where it applies', async () => {
+		const results: Record<string, unknown> = {};
+		for (const variant of ['none', 'manyWindowsToOne', 'windowComparison', 'unknown']) {
+			for (const sessionCount of [0, 1, 2]) {
+				const h = createHarness(sessionCount, variant);
+				if (h.requests.length) {
+					await h.resolve('Try Agents');
+				}
+				await h.resolveExpansion(true);
+				const beforeHover = h.snapshot().triggers;
+				h.container.dispatchEvent(new MouseEvent('mouseenter'));
+				h.container.dispatchEvent(new MouseEvent('mouseleave'));
+				h.container.dispatchEvent(new MouseEvent('mouseenter'));
+				results[`${variant}, ${sessionCount} sessions`] = { ...h.hoverState(), label: h.snapshot().label, ariaLabel: h.snapshot().ariaLabel, beforeHover, afterHover: h.snapshot().triggers.filter(trigger => !beforeHover.includes(trigger)) };
+				h.item.dispose();
+			}
+		}
+		const simple = (label: string, extra: object) => ({ hover: `${label} (shortcut)`, expandOnHover: true, noGrow: false, label, ariaLabel: `${label} (shortcut)`, ...extra });
+		const newUserSimple = simple('Try Agents', { beforeHover: [treatmentName], afterHover: [richHoverTreatmentName, expansionTreatmentName] });
+		const secondSessionSimple = { ...simple('Open in Agents', {}), hover: 'Open in Agents Window (shortcut)', ariaLabel: 'Open in Agents Window (shortcut)', beforeHover: [], afterHover: [richHoverTreatmentName, expansionTreatmentName] };
+		const existingUser = { ...simple('Open in Agents', {}), hover: 'Open in Agents Window (shortcut)', ariaLabel: 'Open in Agents Window (shortcut)', beforeHover: [], afterHover: [expansionTreatmentName] };
+		// The card replaces the growing label, so the button never grows and the label and expansion experiments neither apply nor trigger.
+		const card = (hover: object) => ({ hover, expandOnHover: false, noGrow: true, label: 'Open in Agents', ariaLabel: 'Open in Agents Window (shortcut)', beforeHover: [], afterHover: [richHoverTreatmentName] });
+		assert.deepStrictEqual(results, {
+			'none, 0 sessions': newUserSimple,
+			'none, 1 sessions': secondSessionSimple,
+			'none, 2 sessions': existingUser,
+			'manyWindowsToOne, 0 sessions': card(manyWindowsToOneCard),
+			'manyWindowsToOne, 1 sessions': card(manyWindowsToOneCard),
+			'manyWindowsToOne, 2 sessions': existingUser,
+			'windowComparison, 0 sessions': card(windowComparisonCard),
+			'windowComparison, 1 sessions': card(windowComparisonCard),
+			'windowComparison, 2 sessions': existingUser,
+			'unknown, 0 sessions': newUserSimple,
+			'unknown, 1 sessions': secondSessionSimple,
+			'unknown, 2 sessions': existingUser,
+		});
+	});
+
+	test('triggers the hover experiment on keyboard focus, and the card opens the Agents window', async () => {
+		const h = createHarness(1, 'manyWindowsToOne');
+		h.container.dispatchEvent(new FocusEvent('focus'));
+		const afterFocus = h.snapshot().triggers;
+		h.hoverCard()?.querySelector<HTMLElement>('.monaco-button')?.click();
+		await timeout(0);
+		assert.deepStrictEqual({ afterFocus, actionRuns: h.getActionRuns(), hoverHides: h.getHoverHides() }, {
+			afterFocus: [richHoverTreatmentName],
+			actionRuns: 1,
+			hoverHides: 1,
+		});
+	});
+
+	test('switches between the cards and the simple tooltip when the session count or variant changes', async () => {
+		const h = createHarness(1, 'manyWindowsToOne');
+		const states = [h.hoverState()];
+		h.setSessionCount(2);
+		states.push(h.hoverState());
+		h.setSessionCount(0);
+		states.push(h.hoverState());
+		await h.setRichHover('windowComparison');
+		states.push(h.hoverState());
+		await h.setRichHover('none');
+		states.push(h.hoverState());
+		assert.deepStrictEqual(states, [
+			{ hover: manyWindowsToOneCard, expandOnHover: false, noGrow: true },
+			{ hover: 'Open in Agents Window (shortcut)', expandOnHover: true, noGrow: false },
+			{ hover: manyWindowsToOneCard, expandOnHover: false, noGrow: true },
+			{ hover: windowComparisonCard, expandOnHover: false, noGrow: true },
+			{ hover: 'Open in Agents Window (shortcut)', expandOnHover: true, noGrow: false },
+		]);
 	});
 });

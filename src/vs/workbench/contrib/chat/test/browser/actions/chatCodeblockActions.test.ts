@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IActiveCodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { IBulkEditService } from '../../../../../../editor/browser/services/bulkEditService.js';
@@ -17,6 +18,7 @@ import { ILanguageService } from '../../../../../../editor/common/languages/lang
 import { CopyAction } from '../../../../../../editor/contrib/clipboard/browser/clipboard.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -50,7 +52,9 @@ suite('Chat code-block action telemetry', () => {
 	let context: ICodeBlockActionContext;
 	let editor: IActiveCodeEditor;
 
-	suiteSetup(() => registerChatCodeBlockActions());
+	let codeBlockActions: IDisposable;
+	suiteSetup(() => codeBlockActions = registerChatCodeBlockActions());
+	suiteTeardown(() => codeBlockActions.dispose());
 
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
@@ -64,6 +68,9 @@ suite('Chat code-block action telemetry', () => {
 			['custom-agent-session', 'custom-provider'],
 		].map(([type, agentHostProviderId]) => ({ type, agentHostProviderId, name: type, displayName: type, description: '' })));
 		instantiationService.stub(IChatSessionsService, chatSessionsService);
+		instantiationService.stub(IAgentHostConnectionsService, {
+			resolveSessionResourceIdentity: () => ({ connectionAuthority: 'private-host', backendSession: URI.parse('copilotcli:/backend-session') }),
+		});
 		accepted = [];
 		userActions = [];
 		clipboardWrites = [];
@@ -158,6 +165,7 @@ suite('Chat code-block action telemetry', () => {
 				method: data.acceptanceMethod,
 				requestId: data.sourceRequestId,
 				sessionId: data.chatSessionId,
+				agentSessionId: data.agentSessionId,
 				isAgentHostSession: data.isAgentHostSession,
 				provider: data.provider,
 				feature: data.feature,
@@ -166,6 +174,7 @@ suite('Chat code-block action telemetry', () => {
 				method,
 				requestId: 'request-origin',
 				sessionId,
+				agentSessionId: isAgentHostSession ? 'backend-session' : undefined,
 				isAgentHostSession,
 				provider,
 				feature: 'sideBarChat',

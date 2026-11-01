@@ -354,6 +354,8 @@ suite('AgentHostSandboxForwarder', () => {
 	for (const [key, hostKey] of [
 		[AgentSandboxSettingId.AgentSandboxMcpServers, AgentHostSandboxKey.SandboxMcpServers],
 		[AgentSandboxSettingId.AgentSandboxLspServers, AgentHostSandboxKey.SandboxLspServers],
+		[AgentSandboxSettingId.AgentSandboxAuthenticateGit, AgentHostSandboxKey.AuthenticateGit],
+		[AgentSandboxSettingId.AgentSandboxAuthenticateGh, AgentHostSandboxKey.AuthenticateGh],
 		[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess, AgentHostSandboxKey.AllowDevToolAccess],
 		[AgentSandboxSettingId.AgentSandboxAllowLocalNetwork, AgentHostSandboxKey.AllowLocalNetwork],
 	]) {
@@ -409,6 +411,26 @@ suite('AgentHostSandboxForwarder', () => {
 			type: ActionType.RootConfigChanged,
 			config: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.UserConfiguredPaths]: value } },
 		})));
+	});
+
+	test('does not forward the removed masked environment variables setting to local or remote hosts', async () => {
+		const key = 'chat.agent.sandbox.maskedEnvironmentVariables';
+		const initial = { envVars: { MY_API_TOKEN: { injectHosts: ['api.example.com'] } } };
+		const changed = { envVars: { MY_API_TOKEN: { injectHosts: ['other.example.com'] } } };
+		const { local, remote, configurationService } = setup(disposables, { [key]: initial });
+		local.setRootState(rootStateWithSandboxSchema());
+		const remoteConnection = remote.addConnection('remote.example:9000');
+		remoteConnection.setRootState(rootStateWithSandboxSchema());
+		for (const value of [changed, {}]) {
+			await configurationService.setUserConfiguration(key, value);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectsConfiguration: section => section === key,
+				affectedKeys: new Set([key]),
+				change: { keys: [key], overrides: [] },
+			});
+		}
+		assert.deepStrictEqual([local.dispatched, remoteConnection.dispatched], [[], []]);
 	});
 
 	test('does not re-push to existing connections when a new remote appears', () => {

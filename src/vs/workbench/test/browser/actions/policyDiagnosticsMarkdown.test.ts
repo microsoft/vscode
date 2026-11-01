@@ -59,23 +59,22 @@ suite('Policy diagnostics Markdown', () => {
 		assert.ok(output.includes('### Applied requirements needing verification (1)'));
 	});
 
-	test('merged host fixes are shown as verification concerns, not missing enforcement', () => {
+	test('readiness preserves runtime sandbox requirements and identity verification without legacy sandbox gaps', () => {
 		const output = agentHostPolicyReadiness([
-			{ policyName: 'ChatAgentSandboxEnabled', settingId: 'chat.agent.sandbox.enabled', status: 'partial', source: 'Device' },
 			{ policyName: 'CopilotOtelCaptureIdentity', settingId: 'chat.agentHost.otel.captureIdentity', status: 'partial', source: 'Device' },
-		], false);
+		], true);
 		assert.deepStrictEqual({
-			verification: output.includes('### Applied requirements needing verification (2)'),
+			verification: output.includes('### Applied requirements needing verification (1)'),
 			unsupported: output.includes('### Applied requirements not enforced'),
-			sandboxFloor: output.includes('blocks direct session Off overrides on supported platforms'),
-			sandboxLifecycle: output.includes('across disconnect-grace expiry'),
+			legacySandbox: output.includes('ChatAgentSandbox'),
+			runtimeSandbox: output.includes('Local cannot satisfy this runtime sandbox requirement'),
 			hostIdentity: output.includes('The Agent Host pipeline honors identity capture and suppression.'),
 			runtimeAttribution: output.includes('requires a runtime update and end-to-end verification'),
 		}, {
 			verification: true,
 			unsupported: false,
-			sandboxFloor: true,
-			sandboxLifecycle: true,
+			legacySandbox: false,
+			runtimeSandbox: true,
 			hostIdentity: true,
 			runtimeAttribution: true,
 		});

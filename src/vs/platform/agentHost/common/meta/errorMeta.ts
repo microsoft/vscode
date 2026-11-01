@@ -7,6 +7,8 @@ import type { ErrorInfo } from '../state/protocol/common/state.js';
 import { readCopilotErrorDetail } from './copilotd/copilotdMetadataReader.js';
 import { readAgentErrorTelemetryMeta as readVSCodeErrorTelemetryMeta, readForwardedChatError } from './vscode/agentErrorMeta.js';
 
+export { isPolicyResolutionErrorData, toPolicyResolutionErrorData } from './vscode/agentErrorMeta.js';
+
 export interface IAgentErrorTelemetryMeta {
 	readonly providerCallId?: string;
 	readonly serviceRequestId?: string;

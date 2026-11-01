@@ -153,6 +153,9 @@ export const enum AgentsWindowOpenSource {
 	CurrentChatHandoff = 'currentChatHandoff',
 	EmptyWorkspaceCurrentChatHandoff = 'emptyWorkspaceCurrentChatHandoff',
 	ParallelWorkEmptyChatHandoff = 'parallelWorkEmptyChatHandoff',
+	ContinueInAgentsWindow = 'continueInAgentsWindow',
+	ParallelWorkSameWindow = 'parallelWorkSameWindow',
+	ParallelWorkAllWindows = 'parallelWorkAllWindows',
 	WelcomeTryOut = 'welcomeTryOut',
 	WelcomeViewAll = 'welcomeViewAll',
 	CommandLine = 'commandLine',
@@ -169,6 +172,9 @@ export function isAgentsWindowOpenSource(value: unknown): value is AgentsWindowO
 		case AgentsWindowOpenSource.CurrentChatHandoff:
 		case AgentsWindowOpenSource.EmptyWorkspaceCurrentChatHandoff:
 		case AgentsWindowOpenSource.ParallelWorkEmptyChatHandoff:
+		case AgentsWindowOpenSource.ContinueInAgentsWindow:
+		case AgentsWindowOpenSource.ParallelWorkSameWindow:
+		case AgentsWindowOpenSource.ParallelWorkAllWindows:
 		case AgentsWindowOpenSource.WelcomeTryOut:
 		case AgentsWindowOpenSource.WelcomeViewAll:
 		case AgentsWindowOpenSource.CommandLine:

@@ -22,7 +22,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { hasConfigurationVariable } from '../../../../platform/configuration/common/configurationVariables.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IMcpServerIdentity } from '../../../../platform/mcp/common/allowedMcpServers.js';
+import { IMcpServerIdentity, McpServerPolicyValues } from '../../../../platform/mcp/common/allowedMcpServers.js';
 import { IAllowedMcpServersService } from '../../../../platform/mcp/common/mcpManagement.js';
 import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
 import { INotificationService, IPromptChoice, Severity } from '../../../../platform/notification/common/notification.js';
@@ -533,12 +533,11 @@ export class McpServer extends Disposable implements IMcpServer {
 		this._policyBlock = derived<McpConnectionState.Error | undefined>(this, reader => {
 			this._policyEpoch.read(reader);
 			const connection = this._connection.read(reader);
-			if (connection) {
-				// Authoritative: the connection carries the fully resolved launch.
-				return this._evaluatePolicy(this._identityFromLaunch(connection.launchDefinition));
-			}
 			const definition = this._fullDefinitions.read(reader).server;
 			const resolved = this._resolvedPolicyIdentity.read(reader);
+			if (connection) {
+				return this._evaluatePolicy({ ...this._identityFromLaunch(connection.launchDefinition), policyValues: resolved?.identity.policyValues });
+			}
 			if (resolved && definition && McpServerDefinition.equals(resolved.definition, definition)) {
 				return this._evaluatePolicy(resolved.identity);
 			}
@@ -750,7 +749,8 @@ export class McpServer extends Disposable implements IMcpServer {
 				const definition = this._fullDefinitions.get().server;
 				const identity = definition && this._identityFromLaunch(definition.launch);
 				const canResolveAgain = !errorOnUserInteraction && this._resolvedPolicyIdentity.get()
-					&& identity && McpServer._hasUnresolvedVariables(identity) && !this._evaluatePolicy(identity, 'definition');
+					&& identity && (McpServer._hasUnresolvedVariables(identity) || this._allowedMcpServersService.getServerPolicyVariableValues().length > 0)
+					&& !this._evaluatePolicy(identity, 'definition');
 				// Keep cached metadata blocked while an interactive retry resolves the current inputs.
 				if (!canResolveAgain) {
 					return preStartBlock;
@@ -804,7 +804,19 @@ export class McpServer extends Disposable implements IMcpServer {
 					return { state: McpConnectionState.Kind.Stopped };
 				}
 
-				const resolvedPolicyIdentity = { definition: connection.definition, identity: this._identityFromLaunch(connection.launchDefinition) };
+				const values = this._allowedMcpServersService.getServerPolicyVariableValues();
+				let policyValues: McpServerPolicyValues;
+				try {
+					policyValues = values.length ? await connection.resolvePolicyVariables(values) : {};
+				} catch (error) {
+					connection.dispose();
+					throw error;
+				}
+				if (this._store.isDisposed) {
+					connection.dispose();
+					return { state: McpConnectionState.Kind.Stopped };
+				}
+				const resolvedPolicyIdentity = { definition: connection.definition, identity: { ...this._identityFromLaunch(connection.launchDefinition), policyValues } };
 				transaction(tx => {
 					this._resolvedPolicyIdentity.set(resolvedPolicyIdentity, tx);
 					this._connection.set(connection, tx);
@@ -816,7 +828,8 @@ export class McpServer extends Disposable implements IMcpServer {
 			}
 
 			// Check the local resolved connection: reactive policy enforcement may already have cleared `_connection`.
-			const resolvedBlock = this._evaluatePolicy(this._identityFromLaunch(connection.launchDefinition));
+			const policyValues = this._resolvedPolicyIdentity.get()?.identity.policyValues ?? {};
+			const resolvedBlock = this._evaluatePolicy({ ...this._identityFromLaunch(connection.launchDefinition), policyValues });
 			if (resolvedBlock) {
 				this._connection.set(undefined, undefined); // dispose the just-resolved connection
 				return resolvedBlock;
@@ -844,7 +857,7 @@ export class McpServer extends Disposable implements IMcpServer {
 					r.dispose();
 					return r.value;
 				}
-			});
+			}, policyValues);
 
 			const policyBlock = this._policyBlock.get();
 			if (policyBlock) {
@@ -961,7 +974,8 @@ export class McpServer extends Disposable implements IMcpServer {
 			throw new UserInteractionRequiredError('sandbox-suggestion');
 		}
 
-		const existingSandboxConfig = this._fullDefinitions.get().collection?.sandbox;
+		const launch = this._fullDefinitions.get().server?.launch ?? cnx.definition.launch;
+		const existingSandboxConfig = launch.type === McpServerTransportType.Stdio ? launch.sandbox : undefined;
 		const suggestion = this._mcpSandboxService.getSandboxConfigSuggestionMessage(cnx.definition.label, potentialBlocks, existingSandboxConfig);
 		if (!suggestion) {
 			// clear potential blocks as there are no suggestions for them.

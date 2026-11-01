@@ -27,10 +27,12 @@ The clone is **slim**: workspace storage, browser caches, file history, cached V
     ```
 - A VS Code checkout with `node_modules/` installed (`npm install` if missing — do **not** symlink from a sibling worktree; that breaks builds in subtle ways).
 - A VS Code checkout with sources built. Run `npm run compile` once (one-shot) or `npm run watch` for incremental rebuilds. Both build the full client **and** all built-in extensions under `extensions/`. You must build the full product to run successfully, building just the client is not enough.
+  - The launcher compiles only when outputs are missing; it does **not** detect stale dependencies or `out/` files. After pulling, switching branches, or changing dependency manifests, run `npm install` when needed and rebuild before launching.
 - An authenticated Code OSS profile is recommended but not required. By default the launcher tries to seed from `~/.vscode-oss-dev` on macOS/Linux or `$env:USERPROFILE\.vscode-oss-dev` on Windows, which is the user-data-dir the repo's `launch.json` configs use. Only pass `--source-user-data-dir <path>` (or set `$CODE_OSS_DEV_AUTHED_USER_DATA_DIR`) when you specifically want to seed from a different profile (e.g. your regular `~/Library/Application Support/Code` install). If the source profile is missing, the launcher continues with an empty isolated profile.
 - `@playwright/cli` available (it's a devDependency in the vscode repo - `npm install` then use `npx @playwright/cli`).
 - For debugger work: `dap-cli` on `PATH`. If debugger support would be useful but the `dap-cli` skill is not present, prompt the user to install it from https://github.com/roblourens/dap-cli.
 - CSS selectors are internal implementation details. If a selector-based `eval` stops working, take a fresh `snapshot`, inspect the current DOM, and update the selector rather than assuming an old one still applies.
+- Code OSS cannot be launched or driven from a sandboxed agent terminal. On Windows the sandbox either cannot start without local network access or the launcher fails with `[launch.ps1] Access is denied`; enabling local network access alone is not enough. If your shell tool can request unsandboxed execution, use that for the launcher, `@playwright/cli`, and cleanup. Otherwise, before launching, ask the user once to turn off terminal sandboxing for this session (Permissions picker → "Sandboxing for terminal") and continue after they confirm.
 
 > The launcher **copies** the source profile to a temp dir and never mutates the original. Each launch gets its own isolated `--user-data-dir` and `--extensions-dir`.
 
@@ -197,7 +199,7 @@ $pid = $info.pid
 
 ## Drive the UI with @playwright/cli
 
-Use the dynamic `cdpPort` from the launch JSON. The normal loop is: attach, confirm the target, snapshot, interact, then re-snapshot after meaningful UI changes.
+Use the dynamic `cdpPort` from the launch JSON. The normal loop is: attach, confirm the target, inspect a screenshot, snapshot, interact, then re-snapshot after meaningful UI changes.
 
 If you are unsure about Playwright CLI syntax, run `npx @playwright/cli --help` or `npx @playwright/cli <command> --help` instead of guessing option names.
 
@@ -226,6 +228,12 @@ npx @playwright/cli -s=$PW_SESSION snapshot
 ```
 
 If a target looks stale after relaunching, run `npx @playwright/cli -s=$PW_SESSION close`, attach again with `$CDP`, and re-check `tab-list`.
+
+### Inspect the launched window before proceeding
+
+After every launch or relaunch, once the intended window has rendered, take a screenshot and open it with an image-viewing tool. Visually check that the expected surface, text, icons, and layout are intact **before interacting with the app or asking the user to sign in**. Saving a screenshot without inspecting it, reading a DOM/accessibility snapshot, or reaching the CDP endpoint does not satisfy this check.
+
+If the screenshot shows missing icons, blank content, or visibly broken layout, stop the scenario and investigate the observed problem before proceeding. After repair, relaunch and inspect again; do not wait for the user to point out the broken UI.
 
 ### Focusing the chat input
 
@@ -404,6 +412,14 @@ npx @playwright/cli -s=$PW_SESSION screenshot e42 --filename="$SHOTS/panel.png"
 
 On macOS, a screenshot "Permission denied" failure usually means the terminal lacks Screen Recording permission. Use text/state verification while resolving that permission issue.
 
+### Recording a video
+
+To record a demo video, use the attached session as the Playwright `page` for a general `page.screencast` recording workflow:
+
+- Write the whole scenario, including `page.screencast.start()` and `stop()`, as a bare `async page => { ... }` function in a file and run it with a single `npx @playwright/cli -s=$PW_SESSION run-code --filename=<file>` call. `page` is the attached workbench window.
+- Keep typed text short. Typing into Monaco key by key is visible but slow: about 400 characters produced a nearly four-minute video. Paste long setup text before recording starts.
+- To run a command, press `F1`, fill the `Type the name of a command to run.` textbox with `>Command Name`, and click the exact matching option. The list updates asynchronously, so pressing `Enter` right after filling can run a stale result.
+
 ## Debug with dap-cli
 
 To set breakpoints in VS Code source while the window is running, attach `dap-cli` to one of the ports. If `dap-cli` would help but the corresponding skill is unavailable, prompt the user to install it from https://github.com/roblourens/dap-cli before continuing with debugger-specific steps.
@@ -471,7 +487,7 @@ Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up.
 - **"Sent env to running instance. Terminating..."** - The dynamic `--user-data-dir` should prevent this. If you see it, another Code OSS is using the same profile path; pass `--source-user-data-dir` to a different source or check that the temp copy actually happened (`ls "$(node -p 'JSON.parse(process.argv[1]).userDataDir' "$INFO")"`).
 - **Renderer ESM errors / `import { Menu } from 'electron'`** - `ELECTRON_RUN_AS_NODE` is set in your env. The launcher unsets it for the child, but if you spawn `code.sh` yourself, do the same.
 - **`missing config value GIT_CONFIG_VALUE_*` from Git** - indexed Git configuration inherited from an agent runtime lost an empty value while the app processes were launched. The launcher unsets `GIT_CONFIG_COUNT` and `GIT_CONFIG_PARAMETERS` so host-only Git overrides do not affect Code OSS; do the same when invoking `code.sh` directly from such a runtime.
-- **Built-in extension fails to load (`Cannot find module .../extensions/.../out/extension.js`)** - extensions weren't compiled. Run `npm run compile` (one-shot, also rebuilds all built-in extensions) or `npm run watch` (incremental). A common cause: you ran `npm run transpile-client` to satisfy unit tests, which populated `out/` but not `extensions/*/out/`, so preLaunch's "is `out/` missing?" check skipped the compile.
+- **Built-in extension fails to load (`Cannot find module .../extensions/.../out/extension.js`)** - extensions weren't compiled. Run `npm run compile` (one-shot, also rebuilds all built-in extensions) or `npm run watch` (incremental). A common cause: you built only client output for unit tests (`npm run build-fast -- --client-only`), which populated `out/` but not `extensions/*/out/`, so preLaunch's "is `out/` missing?" check skipped the compile.
 - **`launch.sh` exits non-zero with a log tail** - either pre-launch failed, `code.sh` died before CDP came up, or CDP never opened within 90s. The tail printed to stderr is from `runDir/code.log` - read it to diagnose.
 - **Snapshot shows the wrong page or no expected controls** - use `tab-list`, switch with `tab-select <index>` if needed, then re-snapshot before interacting.
 - **CLI typing commands complete but the input stays empty** - run `playwrightScripts/focus-chat-input.ts`, use `press` or clipboard paste rather than `fill` / `type`, and verify the input state before sending.

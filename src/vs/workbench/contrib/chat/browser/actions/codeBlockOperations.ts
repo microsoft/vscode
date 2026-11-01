@@ -38,7 +38,8 @@ import { ICodeMapperCodeBlock, ICodeMapperRequest, ICodeMapperResponse, ICodeMap
 import { ChatUserAction, IChatService } from '../../common/chatService/chatService.js';
 import { getAgentHostProviderForTelemetry, IChatSessionsService, isAgentHostSessionResource } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
-import { getChatSessionTelemetryContext } from '../../common/chatService/chatServiceTelemetry.js';
+import { getChatSessionTelemetryIds } from '../../common/chatService/chatServiceTelemetry.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IChatRequestViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ICodeBlockActionContext } from '../widget/chatContentParts/codeBlockPart.js';
 
@@ -53,6 +54,7 @@ export class InsertCodeBlockOperation {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IAiEditTelemetryService private readonly aiEditTelemetryService: IAiEditTelemetryService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 	) {
 	}
 
@@ -96,7 +98,7 @@ export class InsertCodeBlockOperation {
 				applyCodeBlockSuggestionId: undefined,
 				source: undefined,
 				sourceRequestId: requestId,
-				chatSessionId: getChatSessionTelemetryContext(context.element.sessionResource).chatSessionId,
+				...getChatSessionTelemetryIds(context.element.sessionResource, this.agentHostConnectionsService),
 				isAgentHostSession: isAgentHostSessionResource(context.element.sessionResource),
 				provider: getAgentHostProviderForTelemetry(getChatSessionType(context.element.sessionResource), this.chatSessionsService),
 			});

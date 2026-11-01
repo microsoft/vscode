@@ -479,6 +479,8 @@
       	}
 	],
 	"colors": {
+		"banner.foreground": "#333333",
+		"banner.iconForeground": "#333333",
 		"focusBorder": "#9769dc",
 		// agent sessions
 		"agents.background": "#EDEDF5",

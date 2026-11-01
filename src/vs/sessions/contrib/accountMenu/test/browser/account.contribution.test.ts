@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -12,13 +11,14 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ChatPetAccessoryId, ChatPetAccessoryIds, ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { ChatPetVariant, IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
+import { ChatPetCustomizationTab } from '../../../../../workbench/contrib/chat/browser/chatPetAchievementsEditorInput.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { getChatGPTRateLimitResetHover, shouldShowAccountPanelSummary } from '../../browser/account.contribution.js';
 import { getSessionsChatPetAchievementBadges, SessionsChatPetAchievementBadges } from '../../browser/chatPetAchievementBadges.js';
@@ -101,6 +101,7 @@ suite('Sessions - Account Menu', () => {
 				{ id: ChatPetAchievementIds.ChatReferenceOpened, unlocked: false },
 				{ id: ChatPetAchievementIds.UsefulOutputCopied, unlocked: false },
 				{ id: ChatPetAchievementIds.AutopilotEnabled, unlocked: false },
+				{ id: ChatPetAchievementIds.Blobby, unlocked: false },
 			],
 			partial: [
 				{ id: ChatPetAchievementIds.FirstChatMessage, unlocked: true },
@@ -116,6 +117,7 @@ suite('Sessions - Account Menu', () => {
 				{ id: ChatPetAchievementIds.ChatReferenceOpened, unlocked: false },
 				{ id: ChatPetAchievementIds.UsefulOutputCopied, unlocked: false },
 				{ id: ChatPetAchievementIds.AutopilotEnabled, unlocked: false },
+				{ id: ChatPetAchievementIds.Blobby, unlocked: false },
 			],
 		});
 	});
@@ -131,23 +133,14 @@ suite('Sessions - Account Menu', () => {
 			override readonly enabled = constObservable(true);
 			override readonly unlockedAchievements = constObservable<readonly ChatPetAchievementId[]>([ChatPetAchievementIds.FirstChatMessage]);
 			override readonly selectedAccessory = selectedAccessory;
-			override readonly variant = variant;
+			override readonly color = variant;
 
 			override setAccessory(accessory: ChatPetAccessoryId | undefined): void {
 				selected = accessory;
 				selectedAccessory.set(accessory, undefined);
 			}
 		}();
-		const hoverService = new class extends mock<IHoverService>() {
-			override setupManagedHover(): IManagedHover {
-				return {
-					dispose() { },
-					show() { },
-					hide() { },
-					update() { },
-				};
-			}
-		}();
+		const hoverService = { ...NullHoverService };
 		store.add(new SessionsChatPetAchievementBadges(
 			parent,
 			() => { },
@@ -180,5 +173,30 @@ suite('Sessions - Account Menu', () => {
 			label: 'Welcome to the Wild West achievement badge: Cowboy Hat, wearing',
 			focusedAction: 'View Pet Achievements',
 		});
+	});
+
+	test('routes True Name and View Achievements through the account owner navigation callback', () => {
+		const parent = mainWindow.document.createElement('div');
+		store.add(toDisposable(() => parent.remove()));
+		const openedTabs: ChatPetCustomizationTab[] = [];
+		const seen: ChatPetAchievementId[] = [];
+		const chatPetService = new class extends mock<IChatPetService>() {
+			override readonly enabled = constObservable(true);
+			override readonly unlockedAchievements = constObservable<readonly ChatPetAchievementId[]>([ChatPetAchievementIds.Blobby]);
+			override readonly selectedAccessory = constObservable<ChatPetAccessoryId | undefined>(undefined);
+			override readonly color = constObservable<ChatPetVariant>('stable');
+			override markAchievementSeen(id: ChatPetAchievementId): boolean { seen.push(id); return true; }
+		}();
+		store.add(new SessionsChatPetAchievementBadges(
+			parent,
+			tab => openedTabs.push(tab),
+			chatPetService,
+			new TestThemeService(),
+			NullHoverService,
+			new NullLogService(),
+		));
+		parent.querySelector<HTMLElement>('[data-achievement-id="blobby"]')?.click();
+		parent.querySelector<HTMLElement>('.sessions-chat-pet-achievement-badges-actions .monaco-button')?.click();
+		assert.deepStrictEqual({ openedTabs, seen }, { openedTabs: ['color', 'achievements'], seen: [ChatPetAchievementIds.Blobby] });
 	});
 });

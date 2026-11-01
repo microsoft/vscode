@@ -61,6 +61,7 @@ const testModelService: IInlineEditsModelService = {
 	setCurrentModelId: async _modelId => { },
 	selectedModelConfiguration: () => testModelConfiguration,
 	defaultModelConfiguration: () => testModelConfiguration,
+	ensureModelSelection: async _cancellationToken => { },
 };
 
 interface ICallRecord {

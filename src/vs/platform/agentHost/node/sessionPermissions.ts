@@ -16,28 +16,36 @@ import { isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { extUri, extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/resources.js';
 import { isDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
+import { Promises } from '../../../base/node/pfs.js';
 import { localize } from '../../../nls.js';
 import { ALWAYS_CHECKED_EDIT_PATTERNS, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS } from '../../chat/common/chatSettings.js';
 import { ILogService } from '../../log/common/log.js';
 import { containsCmdDelayedExpansion } from '../../terminal/common/autoApprove/cmdDelayedExpansion.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
-import type { IAgentToolPendingConfirmationSignal } from '../common/agent.js';
+import { suggestAutoApproveRuleKeys } from '../../terminal/common/autoApprove/suggestAutoApproveRules.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey, type IPermissionsValue, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
+import { AgentPermissionKind, type IAgentToolPendingConfirmationSignal } from '../common/agent.js';
+import { getAttachedLocalPaths } from '../common/attachedLocalPaths.js';
 import { ISessionDataService, isSessionAttachmentPath } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import type { SessionConfigSchema } from '../common/state/protocol/commands.js';
+import { getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, readSessionApprovalLevel } from '../common/sessionConfigProperties.js';
+import { matchesPermissionRule, matchesShellCommandLine, matchesShellSubCommand, parsePermissionGrantOptionId, pathRule, permissionGrantOptionId, PermissionGrantScope, shellExactRule, shellPrefixRule, webFetchRule, type IPermissionRequest, type IPermissionRuleContext } from '../common/permissionRules.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
 import { ActionType, type IToolCallReadyAction } from '../common/state/sessionActions.js';
 import {
+	getInlineToolInput,
 	isAhpChatChannel,
-	parseRequiredSessionUriFromChatUri,
 	ResponsePartKind,
 	ToolCallConfirmationReason,
+	ToolCallStatus,
 	type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
-import { getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
+import { getEffectiveWorkingDirectories, IAgentConfigurationService, type IAgentChatConfigurationTarget } from './agentConfigurationService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import { CommandAutoApprover, type CommandApprovalResult } from './commandAutoApprover.js';
+import { CommandAutoApprover, type CommandApprovalResult, type IShouldAutoApproveOptions } from './commandAutoApprover.js';
 import { resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 /**
  * Event fields needed for auto-approval decisions.
@@ -46,9 +54,11 @@ import { resolveAgentHostSession } from '../common/agentHostSubscriptionService.
  */
 export interface IToolApprovalEvent {
 	readonly toolCallId: string;
+	readonly toolName?: string;
 	readonly session: URI;
-	readonly permissionKind?: IAgentToolPendingConfirmationSignal['permissionKind'];
+	readonly permissionKind?: AgentPermissionKind;
 	readonly permissionPath?: string;
+	readonly permissionUrl?: string;
 	readonly toolInput?: string;
 	readonly requestSandboxBypass?: boolean;
 	readonly shellLanguage?: IAgentToolPendingConfirmationSignal['shellLanguage'];
@@ -64,7 +74,15 @@ const CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [
 	SKIP_OPTION,
 ];
 const MANAGED_CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [ALLOW_ONCE_OPTION, SKIP_OPTION];
+const SANDBOX_CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [
+	{ ...ALLOW_ONCE_OPTION, label: localize('sessionPermissions.allow', "Allow") },
+	SKIP_OPTION,
+];
 const SANDBOX_BYPASS_META_KEY = 'agentHost.sandboxBypass';
+
+function permissionGrantOption(label: string, rules: readonly string[], scope: PermissionGrantScope = PermissionGrantScope.Session): ConfirmationOption {
+	return { id: permissionGrantOptionId(scope, rules), label, kind: ConfirmationOptionKind.Approve, group: 1 };
+}
 
 const HOME_DIR = URI.file(homedir());
 
@@ -180,24 +198,8 @@ async function resolveRealPathForNonexistent(resource: URI, realpath: (fsPath: s
 }
 
 /**
- * Single entry point for all tool-call approval logic in the agent host.
- *
- * Modeled after {@link ILanguageModelToolsConfirmationService} in the
- * workbench layer, this manager owns:
- *
- * - **Auto-approval** (`getAutoApproval`) — checks session-level config,
- *   per-tool session permissions, read/write path rules, and shell
- *   command rules. Returns a {@link ToolCallConfirmationReason} when
- *   the tool should be auto-approved, or `undefined` when user
- *   confirmation is needed.
- *
- * - **Confirmation options** (`createToolReadyAction`) — constructs the
- *   protocol action with the standard "Allow Once / Allow in this
- *   Session / Skip" options baked in.
- *
- * - **Post-confirmation side effects** (`handleToolCallConfirmed`) —
- *   persists the user's choice (e.g. adding a tool to the session
- *   permissions list).
+ * Owns deny/ask/allow decisions, implicit terminal defaults, scoped confirmation options, and persistent session or host grants.
+ * Global or session Allow All bypasses ask rules, but never deny rules.
  */
 export class SessionPermissionManager extends Disposable {
 
@@ -205,16 +207,19 @@ export class SessionPermissionManager extends Disposable {
 
 	private readonly _commandAutoApprover: CommandAutoApprover;
 	private readonly _realpath: (fsPath: string) => Promise<string>;
+	private readonly _exists: (fsPath: string) => Promise<boolean>;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
-		options: { realpath?: (fsPath: string) => Promise<string> },
+		options: { realpath?: (fsPath: string) => Promise<string>; exists?: (fsPath: string) => Promise<boolean> },
 		@IAgentConfigurationService private readonly _configService: IAgentConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 		this._realpath = options?.realpath ?? realpath;
+		this._exists = options?.exists ?? Promises.exists;
 		this._commandAutoApprover = this._register(new CommandAutoApprover(this._logService));
 	}
 
@@ -236,12 +241,15 @@ export class SessionPermissionManager extends Disposable {
 	 * required.
 	 *
 	 * Checks are evaluated in order:
+	 * 0. Sandbox bypass requires confirmation
 	 * 1. Global auto-approve setting (`chat.tools.global.autoApprove`)
 	 * 2. Session-level bypass (`autoApprove` config)
-	 * 3. Per-tool session permissions (`permissions.allow`)
+	 * 3. Permission ask rules, then allow rules (chat/session/host `permissions`)
 	 * 4. Read path rules (within working directory)
 	 * 5. Write path rules (within working directory + glob patterns)
-	 * 6. Shell command rules (tree-sitter parsed, default allow/deny)
+	 * 6. Explicit shell allow/ask rules, then implicit terminal defaults
+	 *
+	 * The caller rejects permission deny rules before checking auto-approval.
 	 */
 	async getAutoApproval(e: IToolApprovalEvent, sessionKey: ProtocolURI): Promise<ToolCallConfirmationReason | undefined> {
 		// `sessionKey` is the chat channel URI (see `_handleToolReady`), so the
@@ -262,7 +270,9 @@ export class SessionPermissionManager extends Disposable {
 		}
 
 		// 1. Global auto-approve setting
-		if (this.isGlobalAutoApproveEnabled()) {
+		const approvalConfig = this._sessionStateOf(sessionKey)?.config;
+		const hostPolicy = approvalConfig?.schema.properties.availableApprovalModes?.readOnly === true;
+		if (this.isGlobalAutoApproveEnabled() && (!hostPolicy || this.isSessionAutoApproveEnabled(sessionKey))) {
 			return ToolCallConfirmationReason.Setting;
 		}
 
@@ -271,9 +281,18 @@ export class SessionPermissionManager extends Disposable {
 			return ToolCallConfirmationReason.Setting;
 		}
 
-		// 3. Per-tool session permissions
-		if (this._isToolAllowedByPermissions(sessionKey, e.toolCallId)) {
-			return ToolCallConfirmationReason.Setting;
+		// Ask rules never override global or session Allow All.
+		const permissions = this._getPermissionRules(sessionKey);
+		const request = this._permissionRequest(e, sessionKey);
+		const context = this._permissionContext(sessionKey);
+		if (permissions.allow.length || permissions.ask?.length) {
+			const requests = await this._resolvePermissionRequests(request);
+			if (!requests || permissions.ask?.some(rule => requests.some(candidate => matchesPermissionRule(rule, candidate, context)))) {
+				return undefined;
+			}
+			if (e.permissionKind !== AgentPermissionKind.Shell && permissions.allow.some(rule => requests.every(candidate => matchesPermissionRule(rule, candidate, context)))) {
+				return ToolCallConfirmationReason.Setting;
+			}
 		}
 
 		// 3.5 Surface edit scope. A session created by a file-bound surface
@@ -290,7 +309,7 @@ export class SessionPermissionManager extends Disposable {
 		// chat does not override it.
 		const surfaceScope = this._getSurfaceEditScope(sessionKey);
 		if (surfaceScope) {
-			if ((e.permissionKind === 'write' || e.permissionKind === 'read')
+			if ((e.permissionKind === AgentPermissionKind.Write || e.permissionKind === AgentPermissionKind.Read)
 				&& e.permissionPath
 				&& surfaceScope.target
 				&& extUriBiasedIgnorePathCase.isEqual(URI.file(e.permissionPath), surfaceScope.target)
@@ -298,16 +317,15 @@ export class SessionPermissionManager extends Disposable {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving in-scope surface ${e.permissionKind} of ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
 			}
-			if (e.permissionKind === 'write' || e.permissionKind === 'shell') {
+			if (e.permissionKind === AgentPermissionKind.Write || e.permissionKind === AgentPermissionKind.Shell) {
 				this._logService.trace(`[SessionPermissionManager] Requiring confirmation for out-of-scope surface ${e.permissionKind}`);
 				return undefined;
 			}
 		}
 
 		// 4. Read auto-approval
-		if (e.permissionKind === 'read' && e.permissionPath) {
-			const sessionUri = URI.parse(isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey);
-			if (isSessionAttachmentPath(this._sessionDataService, sessionUri, e.permissionPath)) {
+		if (e.permissionKind === AgentPermissionKind.Read && e.permissionPath) {
+			if (this._isAttachmentPath(sessionKey, e.permissionPath)) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving session attachment read of ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
 			}
@@ -315,12 +333,17 @@ export class SessionPermissionManager extends Disposable {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving read of ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
 			}
+			// The user attached this file, or a folder containing it, to the chat: that is consent to read it.
+			if (await this._isReadAutoApproved(URI.file(e.permissionPath), this._getAttachedResources(sessionKey))) {
+				this._logService.trace(`[SessionPermissionManager] Auto-approving read of attached ${e.permissionPath}`);
+				return ToolCallConfirmationReason.NotNeeded;
+			}
 			return undefined;
 		}
 
 		// 5. Write auto-approval
-		if (e.permissionKind === 'write' && e.permissionPath) {
-			if (await this._isEditAutoApproved(URI.file(e.permissionPath), workingDirectories)) {
+		if (e.permissionKind === AgentPermissionKind.Write && e.permissionPath) {
+			if (await this._isEditAutoApproved(URI.file(e.permissionPath), workingDirectories, sessionKey)) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving write to ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
 			}
@@ -328,7 +351,7 @@ export class SessionPermissionManager extends Disposable {
 		}
 
 		// 6. Shell auto-approval
-		if (e.permissionKind === 'shell' && e.toolInput) {
+		if (e.permissionKind === AgentPermissionKind.Shell && e.toolInput) {
 			// Terminal-rule analysis needs an explicit shell dialect. Producers
 			// that omit `shellLanguage` (or fail to correlate one) must prompt.
 			if (!e.shellLanguage) {
@@ -338,10 +361,10 @@ export class SessionPermissionManager extends Disposable {
 			if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
 				return undefined;
 			}
-			const result = await this._evaluateShellAutoApproval(e.toolInput, e.shellLanguage, workingDirectories);
+			const result = await this._evaluateShellAutoApproval(e, workingDirectories, sessionKey);
 			if (result === 'approved') {
 				this._logService.trace('[SessionPermissionManager] Auto-approving shell command');
-				return ToolCallConfirmationReason.NotNeeded;
+				return permissions.allow.some(rule => matchesPermissionRule(rule, request, context)) ? ToolCallConfirmationReason.Setting : ToolCallConfirmationReason.NotNeeded;
 			}
 			if (result === 'denied') {
 				this._logService.trace('[SessionPermissionManager] Shell command denied by rule');
@@ -353,6 +376,44 @@ export class SessionPermissionManager extends Disposable {
 	}
 
 	/**
+	 * Rejects matching deny rules before any auto-approval or interactive confirmation.
+	 * Decides synchronously unless a read/write path must be resolved through symlinks,
+	 * so approvals that never touch the file system are not delayed by an extra tick.
+	 */
+	isDeniedByPermissions(e: IToolApprovalEvent, sessionKey: ProtocolURI): boolean | Promise<boolean> {
+		const rules = this._getPermissionRules(sessionKey).deny;
+		if (rules.length === 0) {
+			return false;
+		}
+		const request = this._permissionRequest(e, sessionKey);
+		const context = this._permissionContext(sessionKey);
+		if (rules.some(rule => matchesPermissionRule(rule, request, context))) {
+			return true;
+		}
+		if (e.permissionKind === AgentPermissionKind.Shell && e.toolInput) {
+			const language = e.shellLanguage ?? 'bash';
+			const commandLine = e.toolInput;
+			if (rules.some(rule => matchesShellCommandLine(rule, commandLine, language))) {
+				return true;
+			}
+			const subCommands = this._commandAutoApprover.evaluate(e.toolInput, { language }).subCommands ?? [e.toolInput.trim()];
+			return subCommands.some(command => rules.some(rule => matchesShellSubCommand(rule, command, language)));
+		}
+		if ((e.permissionKind === AgentPermissionKind.Read || e.permissionKind === AgentPermissionKind.Write) && e.permissionPath) {
+			return this._isPathDeniedByPermissions(request, rules, context);
+		}
+		return false;
+	}
+
+	private async _isPathDeniedByPermissions(request: IPermissionRequest, rules: readonly string[], context: IPermissionRuleContext): Promise<boolean> {
+		const requests = await this._resolvePermissionRequests(request);
+		if (!requests) {
+			return rules.some(rule => rule.trim().startsWith(request.kind === AgentPermissionKind.Read ? 'Read(' : 'Edit('));
+		}
+		return requests.some(candidate => rules.some(rule => matchesPermissionRule(rule, candidate, context)));
+	}
+
+	/**
 	 * The edit scope of a session created by a file-bound chat surface, or
 	 * `undefined` for surfaces that are not file-bound.
 	 *
@@ -361,8 +422,8 @@ export class SessionPermissionManager extends Disposable {
 	 * not fall back to unscoped editing, so no write auto-approves for it.
 	 */
 	private _getSurfaceEditScope(sessionKey: ProtocolURI): { readonly target: URI | undefined } | undefined {
-		const session = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
-		const surface = this._stateManager.getSessionSurfaceMeta(session);
+		const session = this._ownerOf(sessionKey);
+		const surface = session === undefined ? undefined : this._stateManager.getSessionSurfaceMeta(session);
 		if (surface?.surface !== 'editorInline') {
 			return undefined;
 		}
@@ -390,40 +451,86 @@ export class SessionPermissionManager extends Disposable {
 	 * primary defense there.
 	 */
 	isForbiddenSnapshotWrite(e: IToolApprovalEvent, sessionKey: ProtocolURI): boolean {
-		if (e.permissionKind !== 'write' || !e.permissionPath) {
+		if (e.permissionKind !== AgentPermissionKind.Write || !e.permissionPath) {
 			return false;
 		}
-		const sessionUri = URI.parse(isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey);
-		return isSessionAttachmentPath(this._sessionDataService, sessionUri, e.permissionPath);
+		return this._isAttachmentPath(sessionKey, e.permissionPath);
 	}
 
-	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this shell event. */
-	isAutoApproveRuleResolvable(e: IToolApprovalEvent, sessionKey: ProtocolURI): boolean {
-		if (e.permissionKind !== 'shell' || !e.toolInput || e.requestSandboxBypass || !e.shellLanguage) {
-			return false;
+	/** Whether `path` is an attachment snapshot of the chat (or session): in any directory its attachments are kept in. */
+	private _isAttachmentPath(sessionOrChat: ProtocolURI, path: string): boolean {
+		const owner = this._ownerOf(sessionOrChat);
+		const scopes = isAhpChatChannel(sessionOrChat) ? this._stateManager.getChatAttachmentScopes(sessionOrChat) : undefined;
+		return (scopes ?? (owner !== undefined ? [owner] : [])).some(scope => isSessionAttachmentPath(this._sessionDataService, URI.parse(scope), path));
+	}
+
+	/** The local files and folders the user attached to the chat's loaded turns, including the active one. */
+	private _getAttachedResources(sessionOrChat: ProtocolURI): URI[] {
+		if (!isAhpChatChannel(sessionOrChat)) {
+			return [];
 		}
-		if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
-			return false;
-		}
-		return this._commandAutoApprover.evaluate(e.toolInput, {
-			autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
-			language: e.shellLanguage,
-		}).autoApproveRuleResolvable;
+		const chat = this._stateManager.getChatState(sessionOrChat);
+		const messages = [...chat?.turns ?? [], ...chat?.activeTurn ? [chat.activeTurn] : []].map(turn => turn.message);
+		const attached = new Map(messages.flatMap(message => getAttachedLocalPaths(message.attachments)).map(uri => [uri.toString(), uri]));
+		return [...attached.values()];
 	}
 
 	/**
 	 * Returns whether VS Code's global auto-approve setting (`chat.tools.global.autoApprove`) is enabled.
 	 * When enabled, every tool call is auto-approved without changing the session's approval level in the permissions picker.
 	 */
+	/** The session that owns a chat, or the session itself; `undefined` for an unregistered chat. */
+	private _ownerOf(sessionOrChat: ProtocolURI): string | undefined {
+		return isAhpChatChannel(sessionOrChat) ? this._chatOwnership.getChatOwner(sessionOrChat) : sessionOrChat;
+	}
+
+	private _resolveSession(sessionOrChat: ProtocolURI): string | undefined {
+		return resolveAgentHostSession(URI.parse(sessionOrChat), chat => this._chatOwnership.getChatOwner(chat))?.toString();
+	}
+
+	private _sessionStateOf(sessionOrChat: ProtocolURI): ReturnType<AgentHostStateManager['getSessionState']> {
+		const session = this._resolveSession(sessionOrChat);
+		return session === undefined ? undefined : this._stateManager.getSessionState(session);
+	}
+
+	/** The chat whose config applies to a chat channel; `undefined` for a session or an unregistered chat. */
+	private _chatTargetOf(sessionOrChat: ProtocolURI): IAgentChatConfigurationTarget | undefined {
+		const session = isAhpChatChannel(sessionOrChat) ? this._resolveSession(sessionOrChat) : undefined;
+		return session === undefined ? undefined : { session, chat: sessionOrChat };
+	}
+
+	/** The effective config of a chat (its own values over the session's), or of a session. */
+	private _effectiveConfigOf(sessionOrChat: ProtocolURI): { readonly schema: SessionConfigSchema; readonly values: Record<string, unknown> } | undefined {
+		const config = this._sessionStateOf(sessionOrChat)?.config;
+		const target = this._chatTargetOf(sessionOrChat);
+		return config && { schema: config.schema, values: (target && this._configService.getChatConfigValues(target)) ?? config.values };
+	}
+
+	private _effectiveValue<K extends SessionConfigKey.AutoApprove | SessionConfigKey.Permissions>(sessionOrChat: ProtocolURI, key: K) {
+		const target = this._chatTargetOf(sessionOrChat);
+		return target
+			? this._configService.getChatEffectiveValue(target, platformSessionSchema, key)
+			: this._configService.getEffectiveValue(sessionOrChat, platformSessionSchema, key);
+	}
+
 	isGlobalAutoApproveEnabled(): boolean {
 		return this._configService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true;
 	}
 
 	getEffectiveApprovalLevel(sessionKey: ProtocolURI): string {
-		if (this._configService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
+		const config = this._effectiveConfigOf(sessionKey);
+		const policyOwned = config?.schema.properties.availableApprovalModes?.readOnly === true;
+		if (policyOwned) {
+			const approval = getSessionApprovalProperty(config.schema);
+			// A chat that chose its own approvals has them until its runtime reports the mode it applies.
+			const effective = approval && getEffectiveSessionApprovalValue(approval, config.schema, config.values);
+			return approval && typeof effective === 'string' && Array.isArray(config.values.availableApprovalModes) && getAvailableSessionApprovalValues(approval, config.schema, config.values).includes(effective)
+				? readSessionApprovalLevel(approval, effective) ?? 'default' : 'default';
+		}
+		if (!policyOwned && this._configService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
 			return 'default';
 		}
-		return this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default';
+		return this._effectiveValue(sessionKey, SessionConfigKey.AutoApprove) ?? 'default';
 	}
 
 	isSessionAutoApproveEnabled(sessionKey: ProtocolURI): boolean {
@@ -434,14 +541,15 @@ export class SessionPermissionManager extends Disposable {
 	// ---- Action construction (analogous to getPreConfirmActions) -------------
 
 	/**
-	 * Constructs a `ChatToolCallReady` action from an agent
-	 * `pending_confirmation` signal. When the tool needs user confirmation
-	 * (the protocol state carries `confirmationTitle`), the standard
-	 * confirmation options are baked in so clients can render them directly.
+	 * Constructs a ready action with scoped shell/URL/path options, or a tool-wide session option for other kinds.
+	 * Resolve path grants with {@link getPathConfirmationOptions} first; managed and sandbox asks remain one-time only.
 	 */
-	createToolReadyAction(e: IAgentToolPendingConfirmationSignal, _sessionKey: ProtocolURI, turnId: string): IToolCallReadyAction {
+	createToolReadyAction(e: IAgentToolPendingConfirmationSignal, sessionKey: ProtocolURI, turnId: string, pathOptions: readonly ConfirmationOption[] = []): IToolCallReadyAction {
 		const state = e.state;
 		if (state.confirmationTitle) {
+			const scoped = !e.managedApprovalRequired && !e.requestSandboxBypass && !e.requestSandboxPermissive
+				? this._scopedConfirmationOptions(e, sessionKey, pathOptions) : undefined;
+			const oneTimeOptions = e.requestSandboxBypass || e.requestSandboxPermissive ? SANDBOX_CONFIRMATION_OPTIONS : MANAGED_CONFIRMATION_OPTIONS;
 			return {
 				type: ActionType.ChatToolCallReady,
 				turnId,
@@ -460,11 +568,13 @@ export class SessionPermissionManager extends Disposable {
 				// Managed asks are one-time only. Other agents can supply tool-specific
 				// buttons (e.g. ExitPlanMode's `Approve`/`Deny`) via `state.options`;
 				// otherwise the standard session/once/skip set is used.
-				options: e.managedApprovalRequired || (e.requestSandboxBypass && !e.canAllowSessionSandboxBypass)
-					? MANAGED_CONFIRMATION_OPTIONS.slice()
-					: state.options
+				options: e.managedApprovalRequired
+					? oneTimeOptions.slice()
+					: e.requestSandboxBypass && readToolCallMeta(state)['vscode.sandboxPathGrant'] && state.options
 						? state.options.slice()
-						: CONFIRMATION_OPTIONS.slice(),
+						: e.requestSandboxPermissive || e.requestSandboxBypass
+							? oneTimeOptions.slice()
+							: scoped ?? (state.options ? state.options.slice() : CONFIRMATION_OPTIONS.slice()),
 			};
 		}
 		return {
@@ -484,23 +594,39 @@ export class SessionPermissionManager extends Disposable {
 
 	/**
 	 * Handles the side effect of a `ChatToolCallConfirmed` action when the
-	 * user selected "Allow in this Session": persist ordinary tool permissions.
-	 * Sandbox opt-outs are authorized by the provider's pending-request flow.
+	 * user selected a scoped grant: persist its rules on the owning session or host.
+	 * Sandbox bypass confirmations never persist tool permissions.
 	 */
 	handleToolCallConfirmed(chatChannel: ProtocolURI, toolCallId: string, selectedOptionId: string | undefined): void {
 		if (!isAhpChatChannel(chatChannel)) {
 			throw new Error(`Tool call confirmations must be handled on an AHP chat channel: ${chatChannel}`);
 		}
-		const sessionKey = resolveAgentHostSession(URI.parse(chatChannel)).toString();
-		if (selectedOptionId === ALLOW_SESSION_OPTION_ID) {
-			const part = this._stateManager.getSessionState(chatChannel)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === toolCallId);
-			if (part?.kind === ResponsePartKind.ToolCall && readToolCallMeta(part.toolCall)[SANDBOX_BYPASS_META_KEY] === true) {
-				return;
+		const sessionKey = this._resolveSession(chatChannel);
+		if (sessionKey === undefined) {
+			this._logService.trace(`[SessionPermissions] No owner recorded for ${chatChannel}; ignoring confirmation of ${toolCallId}`);
+			return;
+		}
+		const part = this._stateManager.getSessionState(chatChannel)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === toolCallId);
+		if (part?.kind !== ResponsePartKind.ToolCall || part.toolCall.status !== ToolCallStatus.Running) {
+			return;
+		}
+		const option = part.toolCall.selectedOption;
+		if (readToolCallMeta(part.toolCall)[SANDBOX_BYPASS_META_KEY] || option?.id !== selectedOptionId || option?.kind !== ConfirmationOptionKind.Approve) {
+			return;
+		}
+		const grant = parsePermissionGrantOptionId(option.id);
+		if (grant) {
+			if (grant.scope === PermissionGrantScope.Session) {
+				this._addRulesToSessionPermissions(sessionKey, grant.rules);
+			} else {
+				const permissions = this._configService.getRootValue(platformRootSchema, SessionConfigKey.Permissions) ?? { allow: [], deny: [] };
+				const allow = [...new Set([...permissions.allow, ...grant.rules])];
+				if (allow.length !== permissions.allow.length) {
+					this._configService.updateRootConfig({ [SessionConfigKey.Permissions]: { ...permissions, allow } });
+				}
 			}
-			const toolName = this._getToolNameForToolCall(chatChannel, toolCallId);
-			if (toolName) {
-				this._addToolToSessionPermissions(sessionKey, toolName);
-			}
+		} else if (option.id === ALLOW_SESSION_OPTION_ID) {
+			this._addRulesToSessionPermissions(sessionKey, [part.toolCall.toolName]);
 		}
 	}
 
@@ -551,31 +677,43 @@ export class SessionPermissionManager extends Disposable {
 	 * rules that govern write tool calls: the destination must resolve to a
 	 * path inside the working directory and must not match a denied glob.
 	 */
-	private async _evaluateShellAutoApproval(toolInput: string, shellLanguage: NonNullable<IToolApprovalEvent['shellLanguage']>, workingDirectories: readonly URI[] | undefined): Promise<CommandApprovalResult> {
+	private async _evaluateShellAutoApproval(e: IToolApprovalEvent, workingDirectories: readonly URI[] | undefined, sessionKey: ProtocolURI): Promise<CommandApprovalResult> {
 		const writeDestinations: string[] = [];
-		const result = this._commandAutoApprover.shouldAutoApprove(toolInput, {
-			autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
+		const result = this._commandAutoApprover.shouldAutoApprove(e.toolInput ?? '', {
+			...this._shellAutoApproveOptions(sessionKey, this._permissionRequest(e, sessionKey)),
 			isWriteDestApproved: dest => {
 				writeDestinations.push(dest);
 				return true;
 			},
-			language: shellLanguage,
 		});
 		if (result !== 'approved' || writeDestinations.length === 0) {
 			return result;
 		}
-		const approvals = await Promise.all(writeDestinations.map(dest => this._isShellWriteDestApproved(dest, workingDirectories)));
+		const approvals = await Promise.all(writeDestinations.map(dest => this._isShellWriteDestApproved(dest, workingDirectories, sessionKey)));
 		return approvals.every(approved => approved) ? 'approved' : 'noMatch';
 	}
 
-	private async _isShellWriteDestApproved(dest: string, workingDirectories: readonly URI[] | undefined): Promise<boolean> {
+	private _shellAutoApproveOptions(sessionKey: ProtocolURI, request: IPermissionRequest): IShouldAutoApproveOptions {
+		const permissions = this._getPermissionRules(sessionKey);
+		const context = this._permissionContext(sessionKey);
+		const language = request.shellLanguage ?? 'bash';
+		const classify = (matches: (rule: string) => boolean): 'allow' | 'ask' | undefined => permissions.ask?.some(matches) ? 'ask' : permissions.allow.some(matches) ? 'allow' : undefined;
+		return {
+			language,
+			defaultRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey) === true ? {} : undefined,
+			classify: command => classify(rule => matchesPermissionRule(rule, request, context) || matchesShellSubCommand(rule, command, language)),
+			classifyCommandLine: commandLine => classify(rule => matchesShellCommandLine(rule, commandLine, language)),
+		};
+	}
+
+	private async _isShellWriteDestApproved(dest: string, workingDirectories: readonly URI[] | undefined, sessionKey: ProtocolURI): Promise<boolean> {
 		// A shell command runs in exactly one process cwd = the primary root
 		// (index 0), so a *relative* redirect can only resolve against that cwd.
 		const resource = this._resolveShellRedirectResource(dest, workingDirectories?.[0]);
 		if (!resource) {
 			return false;
 		}
-		return this._isEditAutoApproved(resource, workingDirectories);
+		return this._isEditAutoApproved(resource, workingDirectories, sessionKey);
 	}
 
 	/**
@@ -633,7 +771,7 @@ export class SessionPermissionManager extends Disposable {
 	 *    `~/Library`, `%APPDATA%`, ...).
 	 * 5. The path must match the edit auto-approve glob rules.
 	 */
-	private async _isEditAutoApproved(resource: URI, workingDirectories: readonly URI[] | undefined): Promise<boolean> {
+	private async _isEditAutoApproved(resource: URI, workingDirectories: readonly URI[] | undefined, sessionKey: ProtocolURI): Promise<boolean> {
 		if (!workingDirectories || workingDirectories.length === 0) {
 			// A write is never auto-approved without a working directory to
 			// contain it (matches the previous behaviour).
@@ -645,10 +783,35 @@ export class SessionPermissionManager extends Disposable {
 		if (resourcesToCheck === undefined) {
 			return false;
 		}
+		if (await this._matchesSensitiveEditLocations(resourcesToCheck, workingDirectories, sessionKey)) {
+			return false;
+		}
 		// Approve if ANY root clears the write checks for every resource
 		// candidate. `_checkWriteResource` is synchronous, so a plain `.some`
 		// already short-circuits — there is no per-root async work to parallelize.
 		return workingDirectories.some(workingDirectory => resourcesToCheck.every(candidate => this._checkWriteResource(candidate, workingDirectory)));
+	}
+
+	private async _matchesSensitiveEditLocations(resources: readonly URI[], workingDirectories: readonly URI[], sessionKey: ProtocolURI): Promise<boolean> {
+		const locations = this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.SensitiveEditLocations);
+		if (!locations?.length) {
+			return false;
+		}
+
+		for (const workingDirectory of workingDirectories) {
+			for (const location of locations) {
+				const literalLocation = URI.joinPath(workingDirectory, location.path);
+				const resolvedLocations = await this._resolveResourcesForApproval(literalLocation) ?? [literalLocation];
+				for (const resource of resources) {
+					if (resolvedLocations.some(candidate => location.isDirectory
+						? extUriBiasedIgnorePathCase.isEqualOrParent(resource, candidate)
+						: extUriBiasedIgnorePathCase.isEqual(resource, candidate))) {
+						return true;
+					}
+				}
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -731,20 +894,135 @@ export class SessionPermissionManager extends Disposable {
 		return approved;
 	}
 
-	private _isToolAllowedByPermissions(sessionKey: ProtocolURI, toolCallId: string): boolean {
-		const toolName = this._getToolNameForToolCall(sessionKey, toolCallId);
-		if (!toolName) {
-			return false;
+	/** Permission lists are additive across chat, owning session, and host scopes. */
+	private _getPermissionRules(sessionKey: ProtocolURI): IPermissionsValue {
+		const session = this._resolveSession(sessionKey);
+		const values = [
+			this._effectiveValue(sessionKey, SessionConfigKey.Permissions),
+			session === undefined ? undefined : this._configService.getEffectiveValue(session, platformSessionSchema, SessionConfigKey.Permissions),
+			this._configService.getRootValue(platformRootSchema, SessionConfigKey.Permissions),
+		];
+		return {
+			allow: [...new Set(values.flatMap(value => value?.allow ?? []))],
+			deny: [...new Set(values.flatMap(value => value?.deny ?? []))],
+			ask: [...new Set(values.flatMap(value => value?.ask ?? []))],
+		};
+	}
+
+	private _permissionRequest(e: IToolApprovalEvent, sessionKey: ProtocolURI): IPermissionRequest {
+		return {
+			kind: e.permissionKind,
+			toolName: this._getToolNameForToolCall(sessionKey, e.toolCallId) ?? e.toolName ?? '',
+			shellLanguage: e.shellLanguage,
+			url: e.permissionUrl,
+			path: e.permissionPath,
+		};
+	}
+
+	private async _resolvePermissionRequests(request: IPermissionRequest): Promise<readonly IPermissionRequest[] | undefined> {
+		if ((request.kind === AgentPermissionKind.Read || request.kind === AgentPermissionKind.Write) && request.path) {
+			const resources = await this._resolveResourcesForApproval(URI.file(request.path));
+			return resources?.map(resource => ({ ...request, path: resource.fsPath }));
 		}
-		// `getEffectiveValue` walks session → parent → host, so sessions
-		// that haven't materialized their own `permissions` yet transparently
-		// inherit from the host-level allow/deny lists.
-		const permissions = this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.Permissions);
-		const allowed = permissions?.allow.includes(toolName) ?? false;
-		if (allowed) {
-			this._logService.trace(`[SessionPermissionManager] Auto-approving "${toolName}" via permissions`);
+		return [request];
+	}
+
+	private _permissionContext(sessionKey: ProtocolURI): IPermissionRuleContext {
+		const directory = getEffectiveWorkingDirectories(this._stateManager, sessionKey)?.[0];
+		return { workingDirectory: directory ? URI.parse(directory).fsPath : undefined, homeDirectory: homedir(), ignorePathCase: isWindows || isMacintosh };
+	}
+
+	/** Builds file and nearest Git-root (or parent-folder) session grants without resolving symlinks. */
+	async getPathConfirmationOptions(e: IAgentToolPendingConfirmationSignal): Promise<readonly ConfirmationOption[]> {
+		if ((e.permissionKind !== AgentPermissionKind.Read && e.permissionKind !== AgentPermissionKind.Write) || !e.permissionPath || !e.state.confirmationTitle
+			|| e.managedApprovalRequired || e.requestSandboxBypass || e.requestSandboxPermissive) {
+			return [];
 		}
-		return allowed;
+		const tool = e.permissionKind === AgentPermissionKind.Write ? 'Edit' : 'Read';
+		const fileRule = pathRule(tool, e.permissionPath, false);
+		const pathLib = path.win32.isAbsolute(e.permissionPath) && !path.posix.isAbsolute(e.permissionPath) ? path.win32 : path.posix;
+		const parent = pathLib.dirname(e.permissionPath);
+		let folder = parent;
+		if (!pathLib.isAbsolute(e.permissionPath)) {
+			return [];
+		}
+		for (let current = parent; ; current = pathLib.dirname(current)) {
+			if (await this._exists(pathLib.join(current, '.git'))) {
+				folder = current;
+				break;
+			}
+			if (pathLib.dirname(current) === current) {
+				break;
+			}
+		}
+		const folderRule = pathRule(tool, folder, true);
+		const options: ConfirmationOption[] = [];
+		if (fileRule) {
+			const basename = pathLib.basename(e.permissionPath) || e.permissionPath;
+			options.push(permissionGrantOption(e.permissionKind === AgentPermissionKind.Write
+				? localize('sessionPermissions.allowFileEdits', "Allow Edits to {0} in this Session", basename)
+				: localize('sessionPermissions.allowFileReads', "Allow Reading {0} in this Session", basename), [fileRule]));
+		}
+		if (folderRule) {
+			const basename = pathLib.basename(folder) || folder;
+			options.push(permissionGrantOption(e.permissionKind === AgentPermissionKind.Write
+				? localize('sessionPermissions.allowFolderEdits', "Allow Edits in {0} in this Session", basename)
+				: localize('sessionPermissions.allowFolderReads', "Allow Reading Files in {0} in this Session", basename), [folderRule]));
+		}
+		return options;
+	}
+
+	private _scopedConfirmationOptions(e: IAgentToolPendingConfirmationSignal, sessionKey: ProtocolURI, pathOptions: readonly ConfirmationOption[]): ConfirmationOption[] | undefined {
+		if (e.permissionKind !== AgentPermissionKind.Shell && e.permissionKind !== AgentPermissionKind.Url && e.permissionKind !== AgentPermissionKind.Read && e.permissionKind !== AgentPermissionKind.Write) {
+			return undefined;
+		}
+		const options: ConfirmationOption[] = [ALLOW_ONCE_OPTION];
+		const add = (label: string, rules: string[]) => {
+			options.push(permissionGrantOption(label, rules));
+		};
+		if (e.permissionKind === AgentPermissionKind.Shell && e.shellLanguage && this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) !== false) {
+			const commandLine = e.shellCommand ?? getInlineToolInput(e.state.toolInput);
+			if (commandLine) {
+				const evaluation = this._commandAutoApprover.evaluate(commandLine, this._shellAutoApproveOptions(sessionKey, {
+					kind: AgentPermissionKind.Shell,
+					toolName: this._getToolNameForToolCall(sessionKey, e.state.toolCallId) ?? e.state.toolName,
+					shellLanguage: e.shellLanguage,
+				}));
+				if (!evaluation.hasUnsafeSubCommand && !evaluation.hasAskRule && evaluation.unapprovedSubCommands?.length) {
+					const { subCommandKeys, offerExactCommandLine } = suggestAutoApproveRuleKeys(commandLine, evaluation.unapprovedSubCommands);
+					const alwaysOptions: ConfirmationOption[] = [];
+					if (subCommandKeys.length) {
+						const commands = subCommandKeys.map(key => `\`${key} …\``).join(', ');
+						const label = subCommandKeys.length === 1 ? commands : localize('sessionPermissions.commands', "Commands {0}", commands);
+						const rules = subCommandKeys.map(key => shellPrefixRule(key));
+						add(localize('sessionPermissions.allowCommand', "Allow {0} in this Session", label), rules);
+						alwaysOptions.push(permissionGrantOption(localize('sessionPermissions.alwaysAllowCommand', "Always Allow {0}", label), rules, PermissionGrantScope.Host));
+					}
+					const exactRules = evaluation.unapprovedSubCommands.map(command => shellExactRule(command));
+					if (offerExactCommandLine && exactRules.every(isDefined)) {
+						add(localize('sessionPermissions.allowExactCommand', "Allow Exact Command in this Session"), exactRules);
+						alwaysOptions.push(permissionGrantOption(localize('sessionPermissions.alwaysAllowExactCommand', "Always Allow Exact Command"), exactRules, PermissionGrantScope.Host));
+					}
+					options.push(...alwaysOptions);
+				}
+			}
+		} else if (e.permissionKind === AgentPermissionKind.Url && e.permissionUrl) {
+			try {
+				const hostname = new URL(e.permissionUrl).hostname;
+				if (hostname) {
+					const rules = [webFetchRule(hostname)];
+					add(localize('sessionPermissions.allowDomain', "Allow Fetching {0} in this Session", hostname), rules);
+					options.push(permissionGrantOption(localize('sessionPermissions.alwaysAllowDomain', "Always Allow Fetching {0}", hostname), rules, PermissionGrantScope.Host));
+				}
+			} catch {
+				// Malformed URLs offer only one-time approval.
+			}
+		}
+		if (e.permissionKind === AgentPermissionKind.Read || e.permissionKind === AgentPermissionKind.Write) {
+			options.push(...pathOptions);
+		}
+		options.push(SKIP_OPTION);
+		return options;
 	}
 
 	private _getToolNameForToolCall(sessionKey: ProtocolURI, toolCallId: string): string | undefined {
@@ -761,18 +1039,17 @@ export class SessionPermissionManager extends Disposable {
 		return undefined;
 	}
 
-	private _addToolToSessionPermissions(sessionKey: ProtocolURI, toolName: string): void {
-		const permissions = this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.Permissions)
-			?? { allow: [], deny: [] };
-		if (permissions.allow.includes(toolName)) {
+	/** Appends deduplicated grants to the session's own permissions, preserving its deny and ask rules. */
+	private _addRulesToSessionPermissions(session: ProtocolURI, rules: readonly string[]): void {
+		const stored = this._configService.getSessionConfigValues(session)?.[SessionConfigKey.Permissions];
+		const permissions = platformSessionSchema.validate(SessionConfigKey.Permissions, stored) ? stored : { allow: [], deny: [] };
+		const allow = [...new Set([...permissions.allow, ...rules])];
+		if (allow.length === permissions.allow.length) {
 			return;
 		}
-		this._configService.updateSessionConfig(sessionKey, {
-			[SessionConfigKey.Permissions]: {
-				allow: [...permissions.allow, toolName],
-				deny: [...permissions.deny],
-			},
+		this._configService.updateSessionConfig(session, {
+			[SessionConfigKey.Permissions]: { ...permissions, allow },
 		});
-		this._logService.info(`[SessionPermissionManager] Added "${toolName}" to session permissions for ${sessionKey}`);
+		this._logService.info(`[SessionPermissionManager] Added permission rules to ${session}`);
 	}
 }

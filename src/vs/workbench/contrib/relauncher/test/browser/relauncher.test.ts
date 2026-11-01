@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -18,7 +17,7 @@ import { SettingsChangeRelauncher } from '../../browser/relauncher.contribution.
 
 suite('SettingsChangeRelauncher', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let restartCount: number;
 	let confirmResult: boolean;
@@ -66,10 +65,6 @@ suite('SettingsChangeRelauncher', () => {
 		confirmResult = false;
 	});
 
-	teardown(() => {
-		disposables.clear();
-	});
-
 	test('prompts to restart when chat.agentHost.claudeAgent.enabled changes', async () => {
 		confirmResult = true;
 		await changeSetting(
@@ -79,6 +74,16 @@ suite('SettingsChangeRelauncher', () => {
 
 		assert.strictEqual(confirmCount, 1, 'should prompt to restart');
 		assert.strictEqual(restartCount, 1, 'should restart when confirmed');
+	});
+
+	test('prompts to restart when chat.agentHost.computerUse.enabled changes', async () => {
+		confirmResult = true;
+		await changeSetting(
+			'chat.agentHost.computerUse.enabled',
+			() => ({ chat: { agentHost: { computerUse: { enabled: false } } } }),
+			c => c.chat.agentHost.computerUse.enabled = true);
+
+		assert.deepStrictEqual({ confirmCount, restartCount }, { confirmCount: 1, restartCount: 1 });
 	});
 
 	test('does not prompt to restart when chat.agentHost.codexAgent.enabled changes', async () => {
@@ -137,5 +142,4 @@ suite('SettingsChangeRelauncher', () => {
 		assert.strictEqual(restartCount, 0);
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
 });

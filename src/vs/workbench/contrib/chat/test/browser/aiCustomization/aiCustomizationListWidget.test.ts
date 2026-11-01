@@ -21,7 +21,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getTargetedCreateActionLabel, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
+import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getCustomizationSearchAriaLabel, getMultiRootWorkspaceRelativeFilename, getTargetedCreateActionLabel, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
 import { AICustomizationItemNormalizer, IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, splitPathLabel, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
@@ -34,10 +34,13 @@ import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/se
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from '../../../browser/aiCustomization/customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, focusFirstCustomizationTreeItem, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection, stopListRowActionKeyDownPropagation } from '../../../browser/aiCustomization/customizationCardList.js';
+import { getAICustomizationWorkspaceGroupForResource, getAICustomizationWorkspaceGroups } from '../../../browser/aiCustomization/aiCustomizationWorkspaceGroups.js';
+import { getCustomizationGroupAriaLabel } from '../../../browser/aiCustomization/customizationGroupHeaderRenderer.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 
 suite('aiCustomizationListWidget', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('uses tree presentations for the redesigned customization sections', () => {
 		assert.deepStrictEqual({
@@ -53,6 +56,52 @@ suite('aiCustomizationListWidget', () => {
 			hooks: true,
 			prompts: true,
 		});
+	});
+
+	test('provides section-specific search labels', () => {
+		assert.deepStrictEqual([
+			getCustomizationSearchAriaLabel(AICustomizationManagementSection.Agents),
+			getCustomizationSearchAriaLabel(AICustomizationManagementSection.Skills),
+			getCustomizationSearchAriaLabel(AICustomizationManagementSection.Instructions),
+			getCustomizationSearchAriaLabel(AICustomizationManagementSection.Hooks),
+			getCustomizationSearchAriaLabel(AICustomizationManagementSection.Prompts),
+		], [
+			'Search agents...',
+			'Search skills...',
+			'Search instructions...',
+			'Search hooks...',
+			'Search prompts...',
+		]);
+	});
+
+	test('group labels include their descriptions', () => {
+		assert.strictEqual(
+			getCustomizationGroupAriaLabel('User', 2, 'Customizations available across workspaces.'),
+			'User, 2 items. Customizations available across workspaces.',
+		);
+	});
+
+	test('focuses the first item when a customization tree receives focus', () => {
+		type Entry = { type: 'group-header' } | { type: 'item'; id: string };
+		const group: Entry = { type: 'group-header' };
+		const firstItem: Entry = { type: 'item', id: 'first' };
+		const secondItem: Entry = { type: 'item', id: 'second' };
+		let focus: Entry[] = [];
+		const focusChanges: Entry[][] = [];
+		const list = {
+			getFocus: () => focus,
+			setFocus: (entries: Entry[]) => {
+				focus = entries;
+				focusChanges.push(entries);
+			},
+		};
+
+		focusFirstCustomizationTreeItem(list, [group, firstItem, secondItem], entry => entry.type === 'item');
+		focusFirstCustomizationTreeItem(list, [group, firstItem, secondItem], entry => entry.type === 'item');
+		focus = [];
+		focusFirstCustomizationTreeItem(list, [group], entry => entry.type === 'item');
+
+		assert.deepStrictEqual(focusChanges, [[firstItem], [group]]);
 	});
 
 	test('keeps editable source sections visible until search filtering starts', () => {
@@ -71,6 +120,96 @@ suite('aiCustomizationListWidget', () => {
 			filtered: [],
 			prompts: [PromptsStorage.local, PromptsStorage.user],
 		});
+
+	});
+
+	test('search filter matches dashed and spaced queries with highlights', () => {
+		const items = [
+			{ id: '1', uri: URI.file('/skills/typescript-setup/SKILL.md'), name: 'typescript-setup', filename: 'SKILL.md', description: 'Set up TypeScript', promptType: PromptsType.skill, storage: PromptsStorage.local },
+			{ id: '2', uri: URI.file('/skills/other/SKILL.md'), name: 'other', filename: 'SKILL.md', description: 'Unrelated', promptType: PromptsType.skill, storage: PromptsStorage.local },
+		] as unknown as IAICustomizationListItem[];
+		const filter = (searchQuery: string) => (AICustomizationListWidget.prototype as unknown as {
+			applySearchFilter(this: { searchQuery: string }, items: readonly IAICustomizationListItem[]): IAICustomizationListItem[];
+		}).applySearchFilter.call({ searchQuery }, items).map(item => [item.name, item.nameMatches]);
+
+		assert.deepStrictEqual({
+			spaced: filter('typescript setup'),
+			dashed: filter('typescript-setup'),
+			underscored: filter('TypeScript_Setup'),
+		}, {
+			spaced: [['typescript-setup', [{ start: 0, end: 10 }, { start: 11, end: 16 }]]],
+			dashed: [['typescript-setup', [{ start: 0, end: 16 }]]],
+			underscored: [['typescript-setup', [{ start: 0, end: 16 }]]],
+		});
+	});
+
+	test('splits workspace groups only for multi-root workspaces', () => {
+		const firstUri = URI.file('/workspace/first');
+		const secondUri = URI.file('/workspace/second');
+		const createWorkspaceService = (folders: IWorkspaceFolder[]) => new class extends mock<IWorkspaceContextService>() {
+			override getWorkspace() {
+				return { id: 'test', folders };
+			}
+			override getWorkspaceFolder(resource: URI) {
+				return folders.find(folder => resource.path.startsWith(folder.uri.path)) ?? null;
+			}
+		}();
+		const singleRoot = createWorkspaceService([{ uri: firstUri, name: 'First', index: 0, toResource: path => URI.joinPath(firstUri, path) }]);
+		const multiRoot = createWorkspaceService([
+			{ uri: firstUri, name: 'First', index: 0, toResource: path => URI.joinPath(firstUri, path) },
+			{ uri: secondUri, name: 'Second', index: 1, toResource: path => URI.joinPath(secondUri, path) },
+		]);
+
+		assert.deepStrictEqual({
+			singleRoot: getAICustomizationWorkspaceGroups(singleRoot),
+			multiRoot: getAICustomizationWorkspaceGroups(multiRoot).map(group => ({ label: group.label, uri: group.uri.path })),
+			secondOwner: getAICustomizationWorkspaceGroupForResource(URI.joinPath(secondUri, '.github/skills/review/SKILL.md'), multiRoot)?.label,
+		}, {
+			singleRoot: [],
+			multiRoot: [
+				{ label: 'First', uri: '/workspace/first' },
+				{ label: 'Second', uri: '/workspace/second' },
+			],
+			secondOwner: 'Second',
+		});
+	});
+
+	test('removes the workspace prefix from paths only in multi-root workspaces', () => {
+		const firstUri = URI.file('/workspace/first');
+		const secondUri = URI.file('/workspace/second');
+		const createWorkspaceService = (folders: IWorkspaceFolder[]) => new class extends mock<IWorkspaceContextService>() {
+			override getWorkspace() {
+				return { id: 'test', folders };
+			}
+			override getWorkspaceFolder(resource: URI) {
+				return folders.find(folder => resource.path.startsWith(folder.uri.path)) ?? null;
+			}
+		}();
+		const firstFolder = { uri: firstUri, name: 'First', index: 0, toResource: (path: string) => URI.joinPath(firstUri, path) };
+		const secondFolder = { uri: secondUri, name: 'Second', index: 1, toResource: (path: string) => URI.joinPath(secondUri, path) };
+		const item: IAICustomizationListItem = {
+			id: 'agents',
+			uri: URI.joinPath(firstUri, 'AGENTS.md'),
+			name: 'AGENTS.md',
+			filename: 'First \u2022 AGENTS.md',
+			source: PromptsStorage.local,
+			promptType: PromptsType.instructions,
+			disabled: false,
+		};
+		const labelService = new class extends mock<ILabelService>() {
+			override getUriLabel(resource: URI, options?: Parameters<ILabelService['getUriLabel']>[1]): string {
+				assert.deepStrictEqual(options, { relative: true, noPrefix: true });
+				return resource.path.slice(firstUri.path.length + 1);
+			}
+		}();
+
+		assert.deepStrictEqual({
+			singleRoot: getMultiRootWorkspaceRelativeFilename(item, createWorkspaceService([firstFolder]), labelService),
+			multiRoot: getMultiRootWorkspaceRelativeFilename(item, createWorkspaceService([firstFolder, secondFolder]), labelService),
+		}, {
+			singleRoot: 'First \u2022 AGENTS.md',
+			multiRoot: 'AGENTS.md',
+		});
 	});
 
 	test('uses localized compact labels instead of parsing display labels', () => {
@@ -84,7 +223,7 @@ suite('aiCustomizationListWidget', () => {
 	});
 
 	test('collapsible sections are expanded by default and only the disclosure toggles them', () => {
-		const disposables = new DisposableStore();
+		const disposables = store.add(new DisposableStore());
 		const heading = document.createElement('div');
 		const content = document.createElement('div');
 		const headerAction = document.createElement('button');
@@ -92,65 +231,61 @@ suite('aiCustomizationListWidget', () => {
 		const changes: boolean[] = [];
 		const toggle = setupCollapsibleSection(heading, content, 'Workspace', disposables, false, collapsed => changes.push(collapsed));
 
-		try {
-			headerAction.click();
-			const initiallyExpanded = {
-				expanded: toggle.getAttribute('aria-expanded'),
-				controlsContent: toggle.getAttribute('aria-controls') === content.id,
-				hidden: content.hidden,
-				display: content.style.display,
-				changes: [...changes],
-			};
-			toggle.click();
-			const collapsed = {
+		headerAction.click();
+		const initiallyExpanded = {
+			expanded: toggle.getAttribute('aria-expanded'),
+			controlsContent: toggle.getAttribute('aria-controls') === content.id,
+			hidden: content.hidden,
+			display: content.style.display,
+			changes: [...changes],
+		};
+		toggle.click();
+		const collapsed = {
+			expanded: toggle.getAttribute('aria-expanded'),
+			label: toggle.getAttribute('aria-label'),
+			hidden: content.hidden,
+			display: content.style.display,
+			changes: [...changes],
+		};
+		toggle.click();
+
+		assert.deepStrictEqual({
+			initiallyExpanded,
+			collapsed,
+			expandedAgain: {
 				expanded: toggle.getAttribute('aria-expanded'),
 				label: toggle.getAttribute('aria-label'),
 				hidden: content.hidden,
 				display: content.style.display,
-				changes: [...changes],
-			};
-			toggle.click();
-
-			assert.deepStrictEqual({
-				initiallyExpanded,
-				collapsed,
-				expandedAgain: {
-					expanded: toggle.getAttribute('aria-expanded'),
-					label: toggle.getAttribute('aria-label'),
-					hidden: content.hidden,
-					display: content.style.display,
-					changes,
-				},
-			}, {
-				initiallyExpanded: {
-					expanded: 'true',
-					controlsContent: true,
-					hidden: false,
-					display: '',
-					changes: [],
-				},
-				collapsed: {
-					expanded: 'false',
-					label: 'Expand Workspace',
-					hidden: true,
-					display: 'none',
-					changes: [true],
-				},
-				expandedAgain: {
-					expanded: 'true',
-					label: 'Collapse Workspace',
-					hidden: false,
-					display: '',
-					changes: [true, false],
-				},
-			});
-		} finally {
-			disposables.dispose();
-		}
+				changes,
+			},
+		}, {
+			initiallyExpanded: {
+				expanded: 'true',
+				controlsContent: true,
+				hidden: false,
+				display: '',
+				changes: [],
+			},
+			collapsed: {
+				expanded: 'false',
+				label: 'Expand Workspace',
+				hidden: true,
+				display: 'none',
+				changes: [true],
+			},
+			expandedAgain: {
+				expanded: 'true',
+				label: 'Collapse Workspace',
+				hidden: false,
+				display: '',
+				changes: [true, false],
+			},
+		});
 	});
 
 	test('collapsible sections create disclosures outside auxiliary document realms', () => {
-		const disposables = new DisposableStore();
+		const disposables = store.add(new DisposableStore());
 		const auxiliaryDocument = document.implementation.createHTMLDocument();
 		const heading = auxiliaryDocument.createElement('div');
 		const content = auxiliaryDocument.createElement('div');
@@ -161,20 +296,16 @@ suite('aiCustomizationListWidget', () => {
 			},
 		});
 
-		try {
-			const toggle = setupCollapsibleSection(heading, content, 'Workspace', disposables, false, () => { });
-			assert.deepStrictEqual({
-				ownerDocument: toggle.ownerDocument === auxiliaryDocument,
-				parent: toggle.parentElement === heading,
-				expanded: toggle.getAttribute('aria-expanded'),
-			}, {
-				ownerDocument: true,
-				parent: true,
-				expanded: 'true',
-			});
-		} finally {
-			disposables.dispose();
-		}
+		const toggle = setupCollapsibleSection(heading, content, 'Workspace', disposables, false, () => { });
+		assert.deepStrictEqual({
+			ownerDocument: toggle.ownerDocument === auxiliaryDocument,
+			parent: toggle.parentElement === heading,
+			expanded: toggle.getAttribute('aria-expanded'),
+		}, {
+			ownerDocument: true,
+			parent: true,
+			expanded: 'true',
+		});
 	});
 
 	test('collapsed groups are scoped to their customization page', () => {
@@ -226,6 +357,27 @@ suite('aiCustomizationListWidget', () => {
 			focused: [0, 0, -1],
 			unfocused: [-1, -1, -1],
 		});
+	});
+
+	test('virtualized row actions isolate keyboard activation from the list', () => {
+		const row = document.createElement('div');
+		const actions = document.createElement('div');
+		const action = document.createElement('button');
+		actions.appendChild(action);
+		row.appendChild(actions);
+		const disposable = stopListRowActionKeyDownPropagation(actions);
+		const bubbledKeys: string[] = [];
+		row.addEventListener('keydown', event => bubbledKeys.push(event.key));
+		const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+		const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+
+		store.add(toDisposable(() => disposable.dispose()));
+		action.dispatchEvent(enterEvent);
+		action.dispatchEvent(escapeEvent);
+		assert.deepStrictEqual(
+			{ bubbledKeys, enterDefaultPrevented: enterEvent.defaultPrevented, escapeDefaultPrevented: escapeEvent.defaultPrevented },
+			{ bubbledKeys: ['Escape'], enterDefaultPrevented: false, escapeDefaultPrevented: false },
+		);
 	});
 
 	test('virtualized section height is redistributed when a sibling collapses', () => {
@@ -371,7 +523,7 @@ suite('aiCustomizationListWidget', () => {
 	});
 
 	test('card lists use roving focus and expose focused-row actions', async () => {
-		const disposables = new DisposableStore();
+		const disposables = store.add(new DisposableStore());
 		const list = document.createElement('div');
 		document.body.appendChild(list);
 		const controller = disposables.add(new CustomizationCardListController(list, 'Customizations'));
@@ -401,47 +553,43 @@ suite('aiCustomizationListWidget', () => {
 		controller.addItem({ row: remoteRow, primaryAction: remoteRow, label: 'Remote', actions: [remoteAction], contextMenuAction: remoteAction });
 		controller.finalize();
 
-		try {
-			alpha.primaryAction.focus();
-			alpha.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-			beta.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
-			beta.action.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
-			const spaceKeyEvent = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true });
-			beta.primaryAction.dispatchEvent(spaceKeyEvent);
-			disabledActionPrimary.focus();
-			disabledActionPrimary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
-			const disabledActionTabTarget = document.activeElement;
-			beta.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
-			enabledAction.tabIndex = 0;
-			await new Promise(resolve => setTimeout(resolve, 0));
+		store.add(toDisposable(() => list.remove()));
+		alpha.primaryAction.focus();
+		alpha.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+		beta.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+		beta.action.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
+		const spaceKeyEvent = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true });
+		beta.primaryAction.dispatchEvent(spaceKeyEvent);
+		disabledActionPrimary.focus();
+		disabledActionPrimary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+		const disabledActionTabTarget = document.activeElement;
+		beta.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+		enabledAction.tabIndex = 0;
+		await new Promise(resolve => setTimeout(resolve, 0));
 
-			assert.deepStrictEqual({
-				listRole: list.getAttribute('role'),
-				rowRoles: [alpha.row.getAttribute('role'), beta.row.getAttribute('role'), disabledActionRow.getAttribute('role'), remoteRow.getAttribute('role')],
-				positions: [alpha.row.getAttribute('aria-posinset'), beta.row.getAttribute('aria-posinset')],
-				remotePosition: remoteRow.getAttribute('aria-posinset'),
-				setSizes: [alpha.row.getAttribute('aria-setsize'), beta.row.getAttribute('aria-setsize'), disabledActionRow.getAttribute('aria-setsize'), remoteRow.getAttribute('aria-setsize')],
-				tabIndexes: [alpha.primaryAction.tabIndex, beta.primaryAction.tabIndex, remoteRow.tabIndex, alpha.action.tabIndex, beta.action.tabIndex, remoteAction.tabIndex],
-				spaceDefaultPrevented: spaceKeyEvent.defaultPrevented,
-				disabledActionTabIndexes: [disabledAction.tabIndex, enabledAction.tabIndex],
-				disabledActionTabTarget,
-				activeElement: document.activeElement,
-			}, {
-				listRole: 'list',
-				rowRoles: ['listitem', 'listitem', 'listitem', 'listitem'],
-				positions: ['1', '2'],
-				remotePosition: '4',
-				setSizes: ['4', '4', '4', '4'],
-				tabIndexes: [0, -1, -1, -1, -1, -1],
-				spaceDefaultPrevented: false,
-				disabledActionTabIndexes: [-1, -1],
-				disabledActionTabTarget: enabledAction,
-				activeElement: alpha.primaryAction,
-			});
-		} finally {
-			disposables.dispose();
-			list.remove();
-		}
+		assert.deepStrictEqual({
+			listRole: list.getAttribute('role'),
+			rowRoles: [alpha.row.getAttribute('role'), beta.row.getAttribute('role'), disabledActionRow.getAttribute('role'), remoteRow.getAttribute('role')],
+			positions: [alpha.row.getAttribute('aria-posinset'), beta.row.getAttribute('aria-posinset')],
+			remotePosition: remoteRow.getAttribute('aria-posinset'),
+			setSizes: [alpha.row.getAttribute('aria-setsize'), beta.row.getAttribute('aria-setsize'), disabledActionRow.getAttribute('aria-setsize'), remoteRow.getAttribute('aria-setsize')],
+			tabIndexes: [alpha.primaryAction.tabIndex, beta.primaryAction.tabIndex, remoteRow.tabIndex, alpha.action.tabIndex, beta.action.tabIndex, remoteAction.tabIndex],
+			spaceDefaultPrevented: spaceKeyEvent.defaultPrevented,
+			disabledActionTabIndexes: [disabledAction.tabIndex, enabledAction.tabIndex],
+			disabledActionTabTarget,
+			activeElement: document.activeElement,
+		}, {
+			listRole: 'list',
+			rowRoles: ['listitem', 'listitem', 'listitem', 'listitem'],
+			positions: ['1', '2'],
+			remotePosition: '4',
+			setSizes: ['4', '4', '4', '4'],
+			tabIndexes: [0, -1, -1, -1, -1, -1],
+			spaceDefaultPrevented: false,
+			disabledActionTabIndexes: [-1, -1],
+			disabledActionTabTarget: enabledAction,
+			activeElement: alpha.primaryAction,
+		});
 	});
 
 	suite('truncateToFirstLine', () => {
@@ -667,8 +815,8 @@ suite('aiCustomizationListWidget', () => {
 				welcomePageFeatures: { showGettingStartedBanner: false },
 				getSkillUIIntegrations: () => new Map(),
 				hasOverrideProjectRoot: observableValue('test', false),
-				commitFiles: async () => { },
-				deleteFiles: async () => { },
+				commitFiles: async () => true,
+				deleteFiles: async () => true,
 				generateCustomization: async () => { },
 				setOverrideProjectRoot: () => { },
 				clearOverrideProjectRoot: () => { },
@@ -724,6 +872,25 @@ suite('aiCustomizationListWidget', () => {
 			widget.dispose();
 			const result = await widget.generateDebugReport();
 			assert.strictEqual(result, '');
+		});
+
+		test('shared creation actions preserve generation and user creation without a workspace', () => {
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			const events: { type: PromptsType; target: string }[] = [];
+			disposables.add(widget.onDidRequestCreateManual(({ type, target }) => events.push({ type, target })));
+			const actions = widget.getCreateActions();
+			actions.find(action => action.target === 'user')?.run();
+
+			assert.deepStrictEqual({
+				actions: actions.map(action => ({ label: action.label, enabled: action.enabled, target: action.target })),
+				events,
+			}, {
+				actions: [
+					{ label: 'Generate with AI', enabled: true, target: undefined },
+					{ label: 'New Agent (User)', enabled: true, target: 'user' },
+				],
+				events: [{ type: PromptsType.agent, target: 'user' }],
+			});
 		});
 
 		test('uses the rendered container height for list layout when available', () => {

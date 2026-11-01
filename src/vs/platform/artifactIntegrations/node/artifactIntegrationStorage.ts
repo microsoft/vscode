@@ -1,0 +1,82 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { promises as fs } from 'fs';
+import { dirname } from '../../../base/common/path.js';
+import { isWindows } from '../../../base/common/platform.js';
+import { Schemas } from '../../../base/common/network.js';
+import { hasKey } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { ArtifactStorageCommitError, IArtifactIntegrationStorage } from '../common/artifactRuntime.js';
+
+export class FileArtifactIntegrationStorage implements IArtifactIntegrationStorage {
+	private value: string | undefined;
+
+	constructor(
+		private readonly resource: URI | undefined,
+		private readonly fileSystem: Pick<typeof fs, 'readFile' | 'mkdir' | 'open' | 'rename' | 'unlink'> = fs,
+	) {
+		if (resource && resource.scheme !== Schemas.file) {
+			throw new Error('Artifact file storage requires a local file URI');
+		}
+	}
+
+	async read(): Promise<string | undefined> {
+		if (!this.resource) {
+			return this.value;
+		}
+		try {
+			return await this.fileSystem.readFile(this.resource.fsPath, 'utf8');
+		} catch (error) {
+			if (error && typeof error === 'object' && hasKey(error, { code: true }) && error.code === 'ENOENT') {
+				return undefined;
+			}
+			throw error;
+		}
+	}
+
+	async write(value: string): Promise<void> {
+		if (!this.resource) {
+			this.value = value;
+			return;
+		}
+		const path = this.resource.fsPath;
+		await this.fileSystem.mkdir(dirname(path), { recursive: true });
+		const temporary = `${path}.${generateUuid()}.tmp`;
+		let renamed = false;
+		try {
+			const handle = await this.fileSystem.open(temporary, 'wx', 0o600);
+			try {
+				await handle.writeFile(value, 'utf8');
+				await handle.sync();
+			} finally {
+				await handle.close();
+			}
+			await this.fileSystem.rename(temporary, path);
+			renamed = true;
+			if (!isWindows) {
+				const directory = await this.fileSystem.open(dirname(path), 'r');
+				try {
+					await directory.sync();
+				} finally {
+					await directory.close();
+				}
+			}
+		} catch (error) {
+			if (renamed) {
+				throw new ArtifactStorageCommitError(error);
+			}
+			try {
+				await this.fileSystem.unlink(temporary);
+			} catch (cleanupError) {
+				if (!cleanupError || typeof cleanupError !== 'object' || !hasKey(cleanupError, { code: true }) || cleanupError.code !== 'ENOENT') {
+					throw new AggregateError([error, cleanupError], 'Artifact ledger write and temporary-file cleanup failed');
+				}
+			}
+			throw error;
+		}
+	}
+}

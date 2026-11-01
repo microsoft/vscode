@@ -151,10 +151,13 @@ class DiscoveryFileService extends mock<IFileService>() {
 
 class DiscoveryCatalog {
 	readonly sessions = new Set<string>();
+	readonly incomplete = new Set<string>();
 	readonly calls: { ids: string[] | undefined; time: number }[] = [];
 	readonly published: string[] = [];
 	started: DeferredPromise<void> | undefined;
 	gate: Promise<void> | undefined;
+	/** Runs after the SDK snapshot is taken and before candidates are prepared, like a writer racing the listing. */
+	onListed: ((call: number) => void) | undefined;
 	failures = 0;
 	active = 0;
 	maxActive = 0;
@@ -164,7 +167,9 @@ class DiscoveryCatalog {
 		this.calls.push({ ids: ids ? [...ids].sort() : undefined, time: Date.now() });
 		this.maxActive = Math.max(this.maxActive, ++this.active);
 		const snapshot = [...this.sessions].filter(id => !ids || ids.has(id));
+		const incomplete = new Set(this.incomplete);
 		try {
+			this.onListed?.(this.calls.length);
 			await Promise.all(snapshot.map(id => scan.prepare(id)));
 			this.started?.complete();
 			await this.gate;
@@ -174,7 +179,9 @@ class DiscoveryCatalog {
 			}
 			const completed = new Set<string>();
 			await Promise.all(snapshot.map(async id => {
-				if (await scan.validate(id)) {
+				if (incomplete.has(id)) {
+					scan.waitForChange(id);
+				} else if (await scan.validate(id)) {
 					completed.add(id);
 				}
 			}));
@@ -234,7 +241,7 @@ suite('CopilotChatDiscovery', () => {
 		files.mkdir('external');
 		files.write('external', 'events.jsonl');
 		catalog.sessions.add('external');
-		await timeout(501);
+		await timeout(60_001);
 		assert.deepStrictEqual({
 			hostWork: {
 				scans: afterHostCreation.scans - baseline.scans,
@@ -244,12 +251,11 @@ suite('CopilotChatDiscovery', () => {
 			externalWork: {
 				request: catalog.calls[1].ids,
 				enumerations: files.resolveCalls - baseline.enumerations,
-				stats: files.statCalls.length - baseline.stats,
 			},
 			scans: catalog.calls.length, maxWatches: files.maxWatches, remainingWatches: files.watches.size,
 		}, {
 			hostWork: { scans: 0, enumerations: 0, stats: 0 },
-			externalWork: { request: ['external'], enumerations: 0, stats: 4 },
+			externalWork: { request: ['external'], enumerations: 1 },
 			scans: 2, maxWatches: 33, remainingWatches: 1,
 		});
 	});
@@ -262,7 +268,7 @@ suite('CopilotChatDiscovery', () => {
 		const emptyScans = catalog.calls.length;
 		catalog.sessions.add('empty');
 		files.write('empty', 'events.jsonl');
-		await timeout(501);
+		await timeout(60_001);
 		assert.deepStrictEqual({ emptyScans, scans: catalog.calls.map(call => call.ids), published: catalog.published }, {
 			emptyScans: 1, scans: [undefined, ['empty']], published: ['empty'],
 		});
@@ -298,7 +304,7 @@ suite('CopilotChatDiscovery', () => {
 		await timeout(1_000);
 		const scansDuringFork = catalog.calls.length;
 		await fork;
-		await timeout(501);
+		await timeout(60_001);
 		assert.deepStrictEqual({
 			scansDuringFork, calls: catalog.calls.map(call => call.ids), published: catalog.published, maxWatches: files.maxWatches,
 		}, {
@@ -331,7 +337,7 @@ suite('CopilotChatDiscovery', () => {
 			catalog.sessions.add('external');
 			throw new Error('fork failed');
 		}), /fork failed/);
-		await timeout(501);
+		await timeout(60_001);
 		assert.deepStrictEqual({ scans: catalog.calls.map(call => call.ids), published: catalog.published }, {
 			scans: [undefined, ['external']], published: ['external'],
 		});
@@ -346,7 +352,7 @@ suite('CopilotChatDiscovery', () => {
 		await timeout(501);
 		files.write('cli', 'events.jsonl');
 		catalog.sessions.add('cli');
-		await timeout(501);
+		await timeout(5_001);
 		assert.deepStrictEqual({
 			start: log.messages.some(message => /Scan 3 started: initial=false, candidates=1, reasons=\{"journalCreated":1\}, watched=1, pending=1, ignoredHostEvents=1$/.test(message)),
 			finish: log.messages.some(message => /Scan 3 finished: elapsedMs=\d+, completed=1, pending=0, watched=0, overflow=0, ignoredHostEvents=1$/.test(message)),
@@ -383,7 +389,7 @@ suite('CopilotChatDiscovery', () => {
 		});
 	});
 
-	testDiscovery('coalesces a burst within 500 ms and ignores transcript, artifact and lock noise', async (files, catalog, discovery) => {
+	testDiscovery('coalesces a burst within the fast scan interval and ignores transcript, artifact and lock noise', async (files, catalog, discovery) => {
 		await discovery.start();
 		const changedAt = Date.now();
 		for (const id of ['a', 'b', 'c']) {
@@ -391,7 +397,7 @@ suite('CopilotChatDiscovery', () => {
 			files.write(id, 'events.jsonl');
 			catalog.sessions.add(id);
 		}
-		await timeout(499);
+		await timeout(4_999);
 		const callsBeforeDeadline = catalog.calls.length;
 		await timeout(2);
 		files.write('a', 'events.jsonl');
@@ -404,12 +410,12 @@ suite('CopilotChatDiscovery', () => {
 			callsBeforeDeadline, calls: catalog.calls.map(call => call.ids), delay: catalog.calls[1].time - changedAt,
 			published: catalog.published, maxActive: catalog.maxActive, watches: [...files.watches.keys()],
 		}, {
-			callsBeforeDeadline: 1, calls: [undefined, ['a', 'b', 'c']], delay: 500,
+			callsBeforeDeadline: 1, calls: [undefined, ['a', 'b', 'c']], delay: 5_000,
 			published: ['a', 'b', 'c'], maxActive: 1, watches: [root.path],
 		});
 	});
 
-	testDiscovery('metadata hints advance readiness retries without waiting for the slow retry', async (files, catalog, discovery) => {
+	testDiscovery('metadata hints preserve readiness during the catalog cooldown', async (files, catalog, discovery) => {
 		files.mkdir('delayed');
 		await discovery.start();
 		files.write('delayed', 'events.jsonl');
@@ -418,11 +424,111 @@ suite('CopilotChatDiscovery', () => {
 		const callsBeforeReady = catalog.calls.length;
 		catalog.sessions.add('delayed');
 		files.write('delayed', 'workspace.yaml');
-		await timeout(501);
+		await timeout(60_001);
 		assert.deepStrictEqual({
 			beforeReady, published: catalog.published, addedCalls: catalog.calls.length - callsBeforeReady,
 			watches: [...files.watches.keys()],
 		}, { beforeReady: [], published: ['delayed'], addedCalls: 1, watches: [root.path] });
+	});
+
+	testDiscovery('unchanged incomplete markers stop SDK retries and recover through watchers and overflow probes', async (files, catalog, discovery) => {
+		for (let index = 0; index < 40; index++) {
+			const id = `incomplete-${index}`;
+			files.mkdir(id);
+			files.write(id, 'events.jsonl');
+			files.write(id, 'vscode.metadata.json');
+			catalog.sessions.add(id);
+			catalog.incomplete.add(id);
+		}
+		await discovery.start();
+		await timeout(10 * 60_000);
+		const idleScans = catalog.calls.length;
+		for (const id of ['incomplete-0', 'incomplete-39']) {
+			catalog.incomplete.delete(id);
+			files.write(id, 'vscode.metadata.json');
+		}
+		await timeout(120_001);
+		assert.deepStrictEqual({
+			idleScans,
+			published: [...catalog.published].sort(),
+			retried: catalog.calls.slice(1).flatMap(call => call.ids ?? []).sort(),
+			maxWatches: files.maxWatches,
+			maxActiveStats: files.maxActiveStats,
+		}, {
+			// Overflow candidates without a pre-listing fingerprint need one confirming scan before they park.
+			idleScans: 2,
+			published: ['incomplete-0', 'incomplete-39'],
+			retried: ['incomplete-0', 'incomplete-32', 'incomplete-33', 'incomplete-34', 'incomplete-35', 'incomplete-36', 'incomplete-37', 'incomplete-38', 'incomplete-39', 'incomplete-39'],
+			maxWatches: 33,
+			maxActiveStats: 4,
+		});
+	});
+
+	testDiscovery('bounds repeated successful catalog scans for history despite retries and fresh file events', async (files, catalog, discovery) => {
+		files.mkdir('unresolved');
+		files.write('unresolved', 'events.jsonl');
+		await discovery.start();
+		for (let index = 0; index < 18; index++) {
+			files.write('unresolved', 'workspace.yaml');
+			await timeout(10_000);
+		}
+		await timeout(1);
+		assert.deepStrictEqual(catalog.calls.map(call => call.time - catalog.calls[0].time), [0, 60_000, 120_000, 180_000]);
+	});
+
+	testDiscovery('gives a new unresolved session a few fast catalog scans before the slow cadence', async (files, catalog, discovery) => {
+		await discovery.start();
+		files.mkdir('unresolved');
+		files.write('unresolved', 'events.jsonl');
+		for (let index = 0; index < 18; index++) {
+			files.write('unresolved', 'workspace.yaml');
+			await timeout(10_000);
+		}
+		await timeout(1);
+		assert.deepStrictEqual(catalog.calls.map(call => call.time - catalog.calls[0].time), [0, 5_000, 10_000, 15_000, 20_000, 80_000, 140_000]);
+	});
+
+	testDiscovery('backs unresolved candidates off beyond the one-minute catalog cadence', async (files, catalog, discovery) => {
+		files.mkdir('unlisted');
+		files.write('unlisted', 'events.jsonl');
+		await discovery.start();
+		await timeout(30 * 60_000);
+		assert.deepStrictEqual(catalog.calls.map(call => call.time - catalog.calls[0].time), [0, 60_000, 120_000, 180_000, 240_000, 540_000, 1_440_000]);
+	});
+
+	testDiscovery('ready overflow history that the SDK omits never earns fast catalog scans', async (files, catalog, discovery) => {
+		for (let index = 0; index < 160; index++) {
+			files.mkdir(`history-${index}`, false);
+			files.write(`history-${index}`, 'events.jsonl', false);
+		}
+		await discovery.start();
+		await timeout(2 * 60_000 + 1);
+		assert.deepStrictEqual(catalog.calls.map(call => call.time - catalog.calls[0].time), [0, 60_000, 120_000]);
+	});
+
+	testDiscovery('metadata completed while the catalog is listed does not park an overflow candidate', async (files, catalog, discovery) => {
+		for (let index = 0; index < 40; index++) {
+			const id = `incomplete-${index}`;
+			files.mkdir(id);
+			files.write(id, 'events.jsonl');
+			catalog.sessions.add(id);
+			catalog.incomplete.add(id);
+		}
+		files.mkdir('late');
+		files.write('late', 'events.jsonl');
+		await discovery.start();
+		await timeout(30_000);
+		catalog.sessions.add('late');
+		catalog.incomplete.add('late');
+		const racedCall = catalog.calls.length + 1;
+		catalog.onListed = call => {
+			if (call === racedCall) {
+				catalog.incomplete.delete('late');
+				files.write('late', 'workspace.yaml');
+			}
+		};
+		await timeout(10 * 60_000);
+		assert.deepStrictEqual({ raced: catalog.calls[racedCall - 1]?.ids?.includes('late'), published: catalog.published }, { raced: true, published: ['late'] });
 	});
 
 	testDiscovery('rejects stale in-flight results and runs one trailing scan', async (files, catalog, discovery) => {
@@ -441,7 +547,7 @@ suite('CopilotChatDiscovery', () => {
 		release.complete();
 		await timeout(0);
 		const beforeTrailing = { published: [...catalog.published], watches: files.watches.size };
-		await timeout(501);
+		await timeout(60_001);
 		assert.deepStrictEqual({
 			beforeTrailing, calls: catalog.calls.map(call => call.ids), published: catalog.published, maxActive: catalog.maxActive,
 		}, {
@@ -460,7 +566,7 @@ suite('CopilotChatDiscovery', () => {
 		const probeCalls = files.statCalls.length - beforeProbe;
 		catalog.sessions.add('idle-39');
 		files.write('idle-39', 'events.jsonl');
-		await timeout(10_000);
+		await timeout(60_001);
 		assert.deepStrictEqual({
 			maxWatches: files.maxWatches, probeCalls, maxActiveStats: files.maxActiveStats,
 			published: catalog.published, calls: catalog.calls.map(call => call.ids),
@@ -506,7 +612,7 @@ suite('CopilotChatDiscovery', () => {
 			files.mkdir('recovered');
 			files.write('recovered', 'events.jsonl');
 			catalog.sessions.add('recovered');
-			await timeout(60_001);
+			await timeout(90_000);
 			const recoveredRootWatches = files.watchRequests.filter(resource => isEqual(resource, root)).length;
 			const enumerations = files.resolveCalls;
 			const calls = catalog.calls.length;
@@ -549,12 +655,12 @@ suite('CopilotChatDiscovery', () => {
 				files.write('replaced', 'events.jsonl');
 				catalog.sessions.add('replaced');
 			}
-			await timeout(501);
+			await timeout(60_001);
 			const watchingReplacement = files.watches.has(URI.joinPath(root, 'replaced').path);
 			if (!readyImmediately) {
 				files.write('replaced', 'events.jsonl');
 				catalog.sessions.add('replaced');
-				await timeout(501);
+				await timeout(60_001);
 			}
 			await timeout(60_001);
 			assert.deepStrictEqual({
@@ -573,7 +679,7 @@ suite('CopilotChatDiscovery', () => {
 		await discovery.start();
 		catalog.sessions.add('arming');
 		files.write('arming', 'events.jsonl');
-		await timeout(5_001);
+		await timeout(60_001);
 		assert.deepStrictEqual({ published: catalog.published, calls: catalog.calls.length }, { published: ['arming'], calls: 2 });
 	});
 

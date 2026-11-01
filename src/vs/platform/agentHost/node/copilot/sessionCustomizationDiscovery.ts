@@ -12,22 +12,29 @@ import { Disposable, type IDisposable } from '../../../../base/common/lifecycle.
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { joinPath, dirname as uriDirname, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { compare as compareStrings } from '../../../../base/common/strings.js';
+import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename, isAbsolute, dirname as nodeDirname } from '../../../../base/common/path.js';
-import { FileOperationResult, IFileService, IFileStat, IFileStatWithMetadata, toFileOperationResult } from '../../../files/common/files.js';
+import { FileChangesEvent, FileChangeType, FileOperationResult, IFileService, IFileStat, toFileOperationResult } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
-import { detectPluginFormat, parsePlugin, parseSkillFile, readPluginManifest, toSkillInvocationFlags } from '../../../agentPlugins/common/pluginParsers.js';
-import { AgentCustomization, ChildCustomization, CustomizationLoadStatus, CustomizationType, DirectoryCustomization, HookCustomization, PluginCustomization, RuleCustomization, SkillCustomization, customizationId } from '../../common/state/sessionState.js';
-import { ChildCustomizationType } from '../../common/state/protocol/state.js';
+import { detectPluginFormat, hasPluginManifest, parsePlugin, parseSkillFile, readPluginManifest, toSkillInvocationFlags } from '../../../agentPlugins/common/pluginParsers.js';
+import { AgentCustomization, ChildCustomization, CustomizationLoadStatus, CustomizationType, DirectoryCustomization, McpServerCustomization, PluginCustomization, RuleCustomization, SkillCustomization, customizationId } from '../../common/state/sessionState.js';
+import { ChildCustomizationType, McpServerStatus } from '../../common/state/protocol/state.js';
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
+import { withSkillArgumentHintMeta } from '../../common/meta/skillCustomizationMeta.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { toChildCustomizations } from './copilotPluginConverters.js';
+import { AGENT_DISCOVERY_CUSTOMIZATION_SCHEME } from '../../common/agentHostCustomizationUri.js';
+import { readCustomizationDiscoveryMeta, withCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
+import { withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
 
 type AgentsDiscoverRequest = Parameters<CopilotClient['rpc']['agents']['discover']>[0];
+type HooksDiscoveryResult = Awaited<ReturnType<CopilotClient['rpc']['hooks']['discover']>>;
 type InstructionSource = Awaited<ReturnType<CopilotClient['rpc']['instructions']['discover']>>['sources'][number];
-export type SessionDiscoveredCustomization = DirectoryCustomization | (PluginCustomization & {
+export type SessionDiscoveredCustomization = DirectoryCustomization | ((PluginCustomization | McpServerCustomization) & {
 	readonly contents?: undefined;
 	readonly writable?: undefined;
+	readonly children?: ChildCustomization[];
 });
 
 /**
@@ -62,10 +69,6 @@ function compareDiscoveredDirectory(a: IDiscoveredDirectory, b: IDiscoveredDirec
 	if (byType !== 0) {
 		return byType;
 	}
-	return compareStrings(a.uri.toString(), b.uri.toString());
-}
-
-function compareDiscoveredFile(a: IDiscoveredFile, b: IDiscoveredFile): number {
 	return compareStrings(a.uri.toString(), b.uri.toString());
 }
 
@@ -121,9 +124,26 @@ function throwIfCancelled(token: CancellationToken): void {
 	}
 }
 
+/**
+ * How a change to a trigger URI is matched. Ordered from narrowest to
+ * broadest so that merging two triggers for the same URI keeps the broader one.
+ *
+ * Note: `IFileService.onDidFilesChange` delivers events from every watcher in
+ * the process (not just the ones created here), so triggers must be matched
+ * precisely to avoid unrelated changes causing a rediscovery.
+ */
+const enum WatchTrigger {
+	/** Only the creation or deletion of the resource itself. Used for ancestors of discovered locations. */
+	Existence = 1,
+	/** Any change to the resource itself. Used for discovered files. */
+	Resource = 2,
+	/** Any change to the resource or any of its descendants. Used for discovered customization directories. */
+	Subtree = 3,
+}
+
 interface IWatchSpec {
 	readonly recursive: boolean;
-	readonly resourcesToWatch: ResourceSet;
+	readonly resourcesToWatch: ResourceMap<WatchTrigger>;
 }
 
 /**
@@ -131,16 +151,24 @@ interface IWatchSpec {
  * trigger URIs. If a non-recursive entry already exists and `recursive` is
  * true, upgrade it to recursive while preserving the accumulated trigger URIs.
  */
-function addWatch(map: ResourceMap<IWatchSpec>, watchUri: URI, recursive: boolean, resourceToWatch: URI): void {
+function addWatch(map: ResourceMap<IWatchSpec>, watchUri: URI, recursive: boolean, resourceToWatch: URI, trigger: WatchTrigger): void {
 	let entry = map.get(watchUri);
 	if (!entry) {
-		entry = { recursive, resourcesToWatch: new ResourceSet() };
+		entry = { recursive, resourcesToWatch: new ResourceMap<WatchTrigger>() };
 		map.set(watchUri, entry);
 	} else if (recursive && !entry.recursive) {
 		entry = { recursive: true, resourcesToWatch: entry.resourcesToWatch };
 		map.set(watchUri, entry);
 	}
-	entry.resourcesToWatch.add(resourceToWatch);
+	entry.resourcesToWatch.set(resourceToWatch, Math.max(trigger, entry.resourcesToWatch.get(resourceToWatch) ?? 0));
+}
+
+function isTriggered(e: FileChangesEvent, resource: URI, trigger: WatchTrigger): boolean {
+	switch (trigger) {
+		case WatchTrigger.Existence: return e.contains(resource, FileChangeType.ADDED, FileChangeType.DELETED);
+		case WatchTrigger.Resource: return e.contains(resource);
+		case WatchTrigger.Subtree: return e.affects(resource);
+	}
 }
 
 /**
@@ -177,8 +205,11 @@ export class SessionCustomizationDiscovery extends Disposable {
 		this._register({ dispose: () => this._disposeAllWatchers() });
 		this._register(this._fileService.onDidFilesChange(e => {
 			for (const watcher of this._watchers.values()) {
-				for (const uri of watcher.resourcesToWatch) {
-					if (e.affects(uri)) {
+				for (const [uri, trigger] of watcher.resourcesToWatch) {
+					if (isTriggered(e, uri, trigger)) {
+						// Recompute the discovered locations on the next discover() so that
+						// added or removed customization locations are picked up.
+						this._discoveredDirectories = undefined;
 						this._scheduleRefresh();
 						return;
 					}
@@ -454,8 +485,10 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 			const dirUri = discoveredDir.uri;
 			const recursive = recursiveByDirectory.get(dirUri) ?? false;
-			if (existingDirectories.has(dirUri)) {
-				addWatch(nextWatchRootUris, dirUri, recursive, dirUri);
+			// Agent-instruction entries only group their files under a root (the
+			// workspace folder or user home); watch the files, not the root itself.
+			if (discoveredDir.type !== DiscoveredType.AgentInstruction && existingDirectories.has(dirUri)) {
+				addWatch(nextWatchRootUris, dirUri, recursive, dirUri, WatchTrigger.Subtree);
 			}
 
 			let current = dirUri;
@@ -465,7 +498,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 					break;
 				}
 				if (existingDirectories.has(parent)) {
-					addWatch(nextWatchRootUris, parent, false, current);
+					addWatch(nextWatchRootUris, parent, false, current, WatchTrigger.Existence);
 				}
 				current = parent;
 			}
@@ -480,7 +513,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 						break;
 					}
 					if (existingDirectories.has(parent)) {
-						addWatch(nextWatchRootUris, parent, false, currentFilePath);
+						addWatch(nextWatchRootUris, parent, false, currentFilePath, currentFilePath === file.uri ? WatchTrigger.Resource : WatchTrigger.Existence);
 					}
 					currentFilePath = parent;
 				}
@@ -497,8 +530,9 @@ export class SessionCustomizationDiscovery extends Disposable {
 			workingDirectories: this._workingDirectories.map(d => d.toString()),
 			userHome: this._userHome.toString(),
 		});
-		if (!this._discoveredDirectories) {
-			this._discoveredDirectories = await this.getDiscoveredDirectories(client, token);
+		let discoveredDirectories = this._discoveredDirectories;
+		if (!discoveredDirectories) {
+			discoveredDirectories = this._discoveredDirectories = await this.getDiscoveredDirectories(client, token);
 		}
 
 		throwIfCancelled(token);
@@ -507,26 +541,37 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 		try {
 			const pluginFiles = new ResourceSet();
-			const [agents, rules, skills, hooks] = await Promise.all([
+			const [agents, rules, skills, hooks, mcpDiscovery] = await Promise.all([
 				this.discoverAgents(p, client, pluginFiles, token),
-				this.discoverRules(p, client, pluginFiles, token),
+				this.discoverRules(p, client, pluginFiles, discoveredDirectories, token),
 				this.discoverSkills(p, client, pluginFiles, token),
-				this.discoverHooks(token),
-				this._updateWatchers(this._discoveredDirectories, token)
+				this.discoverHooks(client, token),
+				this.discoverMcpServers(client, token),
+				this._updateWatchers(discoveredDirectories, token)
 			]);
 			throwIfCancelled(token);
-			const pluginCustomizations = await this.toPluginCustomizations(pluginFiles, token);
+			const mcpServers = mcpDiscovery.servers;
+			for (const server of mcpServers) {
+				if (readCustomizationDiscoveryMeta(server)?.source === 'plugin' && URI.parse(server.uri).scheme !== AGENT_DISCOVERY_CUSTOMIZATION_SCHEME) {
+					pluginFiles.add(URI.parse(server.uri));
+				}
+			}
+			const pluginCustomizations = await this.toPluginCustomizations(pluginFiles, agents, mcpServers, token);
+			const nestedMcpNames = new Set(pluginCustomizations.flatMap(plugin => plugin.children?.filter(child => child.type === CustomizationType.McpServer).map(child => child.name) ?? []));
 			const isPluginChild = (customization: ChildCustomization) => pluginCustomizations.some(plugin =>
 				extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(customization.uri), URI.parse(plugin.uri))
 			);
 			const result: DirectoryCustomization[] = [];
-			await this.toDirectoryCustomizations(CustomizationType.Agent, agents.filter(agent => !isPluginChild(agent)), this._discoveredDirectories, result);
-			await this.toDirectoryCustomizations(CustomizationType.Rule, rules.filter(rule => !isPluginChild(rule)), this._discoveredDirectories, result);
-			await this.toDirectoryCustomizations(CustomizationType.Skill, skills.filter(skill => !isPluginChild(skill)), this._discoveredDirectories, result);
-			await this.toDirectoryCustomizations(CustomizationType.Hook, hooks, this._discoveredDirectories, result);
+			await this.toDirectoryCustomizations(CustomizationType.Agent, agents.filter(agent => !pluginFiles.has(URI.parse(agent.uri)) && !isPluginChild(agent)), discoveredDirectories, result);
+			await this.toDirectoryCustomizations(CustomizationType.Rule, rules.filter(rule => !isPluginChild(rule)), discoveredDirectories, result);
+			await this.toDirectoryCustomizations(CustomizationType.Skill, skills.filter(skill => !isPluginChild(skill)), discoveredDirectories, result);
+			await this.toDirectoryCustomizations(CustomizationType.Hook, [], discoveredDirectories, result);
 			const sortedResult: SessionDiscoveredCustomization[] = [
 				...result.sort(compareDirectoryCustomization),
+				...(hooks ? [hooks] : []),
+				...(mcpDiscovery.error ? [mcpDiscovery.error] : []),
 				...pluginCustomizations.sort((a, b) => compareStrings(a.uri, b.uri)),
+				...mcpServers.filter(server => !nestedMcpNames.has(server.name)),
 			];
 			await this.writeCustomizationDiscoveryDebugLog({
 				method: 'discover',
@@ -534,7 +579,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 					type: customization.type,
 					contents: customization.type === CustomizationType.Directory ? customization.contents : undefined,
 					uri: customization.uri,
-					children: (customization.children ?? []).map(child => ({ type: child.type, uri: child.uri, name: child.name })),
+					children: customization.type === CustomizationType.McpServer ? undefined : (customization.children ?? []).map(child => ({ type: child.type, uri: child.uri, name: child.name })),
 				})),
 			});
 			return sortedResult;
@@ -557,7 +602,6 @@ export class SessionCustomizationDiscovery extends Disposable {
 				const uri = this._pathToUri(agent.path);
 				if (agent.source === 'plugin') {
 					pluginFiles.add(uri);
-					continue;
 				}
 				if (agent.source === 'builtin') {
 					continue;
@@ -568,7 +612,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 		return agents;
 	}
 
-	private async discoverRules(discoveryRequest: AgentsDiscoverRequest, client: CopilotClient, pluginFiles: ResourceSet, token: CancellationToken): Promise<RuleCustomization[]> {
+	private async discoverRules(discoveryRequest: AgentsDiscoverRequest, client: CopilotClient, pluginFiles: ResourceSet, discoveredDirectories: readonly IDiscoveredDirectory[], token: CancellationToken): Promise<RuleCustomization[]> {
 		const rules: RuleCustomization[] = [];
 		const seenRuleUris = new Set<string>();
 
@@ -612,7 +656,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 			seenRuleUris.add(uriString);
 		}
 
-		for (const directory of this._discoveredDirectories ?? []) {
+		for (const directory of discoveredDirectories) {
 			if (directory.type !== DiscoveredType.AgentInstruction) {
 				continue;
 			}
@@ -661,6 +705,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 				return undefined;
 			}
 			const parsed = await parseSkillFile(uri, this._fileService);
+			const meta = withSkillArgumentHintMeta(undefined, skill.argumentHint?.trim() || parsed.argumentHint);
 			return {
 				type: CustomizationType.Skill,
 				uri: uri.toString(),
@@ -669,6 +714,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 				description: skill.description,
 				enabled: skill.enabled,
 				...toSkillInvocationFlags(skill.userInvocable, parsed.disableModelInvocation),
+				...(meta ? { _meta: meta } : {}),
 			} satisfies SkillCustomization;
 		}));
 		throwIfCancelled(token);
@@ -685,10 +731,11 @@ export class SessionCustomizationDiscovery extends Disposable {
 	 * part of any SDK contract. `plugins.list()` cannot stand in for this: it
 	 * reports name/marketplace/version/enabled, but no installed root.
 	 *
-	 * Consequence: a plugin that contributes *only* hooks or MCP servers has
-	 * no SDK-reported file to anchor on and is therefore not projected here.
+	 * MCP effective-source files can also anchor a plugin; hook source labels
+	 * cannot establish a concrete plugin root.
 	 */
-	private async toPluginCustomizations(pluginFiles: ResourceSet, token: CancellationToken): Promise<PluginCustomization[]> {
+	private async toPluginCustomizations(pluginFiles: ResourceSet, agents: readonly AgentCustomization[], mcpServers: readonly McpServerCustomization[], token: CancellationToken): Promise<PluginCustomization[]> {
+		const agentsByUri = new ResourceMap<AgentCustomization>(agents.map(agent => [URI.parse(agent.uri), agent] as const));
 		const pluginRoots = new ResourceSet();
 		for (const file of pluginFiles) {
 			const root = await this.findPluginRoot(file, token);
@@ -714,7 +761,20 @@ export class SessionCustomizationDiscovery extends Disposable {
 					name: typeof manifest?.name === 'string' ? manifest.name : basename(root.path),
 					version: typeof manifest?.version === 'string' ? manifest.version : undefined,
 					load: { kind: CustomizationLoadStatus.Loaded },
-					children: toChildCustomizations([parsed]),
+					children: toChildCustomizations([parsed]).flatMap<ChildCustomization>(child => {
+						if (child.type === CustomizationType.Hook) {
+							return [];
+						}
+						if (child.type === CustomizationType.McpServer) {
+							const discovered = mcpServers.find(server => server.name === child.name && extUriBiasedIgnorePathCase.isEqual(URI.parse(server.uri), URI.parse(child.uri)));
+							return discovered ? [{ ...child, ...discovered, id: child.id }] : [];
+						}
+						if (child.type !== CustomizationType.Agent) {
+							return [child];
+						}
+						const agent = agentsByUri.get(URI.parse(child.uri));
+						return agent ? [{ ...child, ...agent, name: child.name }] : [];
+					}),
 				});
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
@@ -735,11 +795,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 		let current = uriDirname(file);
 		while (true) {
 			throwIfCancelled(token);
-			if (
-				await this._fileService.exists(joinPath(current, '.plugin', 'plugin.json'))
-				|| await this._fileService.exists(joinPath(current, '.claude-plugin', 'plugin.json'))
-				|| await this._fileService.exists(joinPath(current, 'plugin.json'))
-			) {
+			if (await hasPluginManifest(current, this._fileService)) {
 				return current;
 			}
 			const parent = uriDirname(current);
@@ -750,79 +806,141 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}
 	}
 
-	private async discoverHooks(token: CancellationToken): Promise<HookCustomization[]> {
-		const seen = new ResourceSet();
-		const discoveredDirectories: IDiscoveredDirectory[] = [];
-
-		const hookRootsWorkspace = searchRoots.workspace.filter(root => root.type === DiscoveredType.Hook);
-		const hookRootsUser = searchRoots.user.filter(root => root.type === DiscoveredType.Hook);
-		const fixedHookFilesWorkspace = fixedDiscoveryFiles.workspace.filter(root => root.type === DiscoveredType.Hook);
-		const fixedHookFilesUser = fixedDiscoveryFiles.user.filter(root => root.type === DiscoveredType.Hook);
-
-		await Promise.all([
-			// Hooks: primary working directory only (Copilot limitation — see _hookWorkingDirectories).
-			...this._hookWorkingDirectories.flatMap(workingDirectory =>
-				hookRootsWorkspace.map(root => this._discoverHookRoot(workingDirectory, root, seen, discoveredDirectories, token))),
-			...hookRootsUser.map(root => this._discoverHookRoot(this._userHome, root, seen, discoveredDirectories, token)),
-			...this._hookWorkingDirectories.map(workingDirectory =>
-				this._discoverFixedHookFiles(workingDirectory, fixedHookFilesWorkspace, seen, discoveredDirectories, token)),
-			this._discoverFixedHookFiles(this._userHome, fixedHookFilesUser, seen, discoveredDirectories, token),
-		]);
-
-		const hooks: HookCustomization[] = [];
-		for (const directory of discoveredDirectories) {
-			for (const file of directory.files) {
-				const uri = file.uri.toString();
-				hooks.push({
-					type: CustomizationType.Hook,
-					id: customizationId(uri),
-					uri,
-					name: basename(file.uri.path),
-				});
-			}
-		}
-		hooks.sort((a, b) => compareStrings(a.uri, b.uri));
-		return hooks;
-	}
-
-	private async _discoverHookRoot(base: URI, root: ISearchRoot, seen: ResourceSet, result: IDiscoveredDirectory[], token: CancellationToken): Promise<void> {
-		const rootUri = joinPath(base, ...root.path);
-		let stat: IFileStatWithMetadata | undefined = undefined;
+	private async discoverHooks(client: CopilotClient, token: CancellationToken): Promise<DirectoryCustomization | undefined> {
+		const uri = URI.from({ scheme: AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, authority: 'copilot', path: '/hooks' });
 		try {
-			stat = await this._fileService.resolve(rootUri, { resolveMetadata: true });
-		} catch {
-			// Root does not exist (or is unreadable) — still discover as an empty source folder.
+			const discovered = await raceCancellationError(client.rpc.hooks.discover({
+				projectPaths: this._hookWorkingDirectories.map(directory => directory.fsPath),
+			}), token);
+			const result = await this.discoverWorkspaceHooksFallback(client, discovered, token);
+			for (const warning of result.warnings) {
+				this._logService.warn(`[SessionCustomizationDiscovery] Hook discovery: ${warning}`);
+			}
+			for (const error of result.errors) {
+				this._logService.error(`[SessionCustomizationDiscovery] Hook discovery: ${error}`);
+			}
+			const diagnostics = [...result.errors, ...result.warnings];
+			if (result.hooks.length === 0 && diagnostics.length === 0) {
+				return undefined;
+			}
+			return {
+				type: CustomizationType.Directory, id: customizationId(uri.toString()), uri: uri.toString(),
+				name: localize('copilot.discoveredHooks', "Copilot hooks"), contents: CustomizationType.Hook,
+				enabled: true, writable: false,
+				load: diagnostics.length ? { kind: CustomizationLoadStatus.Degraded, message: diagnostics.join('\n') } : { kind: CustomizationLoadStatus.Loaded },
+				children: result.hooks.map(hook => ({
+					type: CustomizationType.Hook,
+					id: hook.id,
+					uri: uri.with({ fragment: hook.id }).toString(),
+					name: hook.hookType,
+					enabled: hook.enabled,
+					_meta: withCustomizationDiscoveryMeta(undefined, { source: hook.origin, sourceLabel: hook.source, hookType: hook.hookType }),
+				})),
+			};
+		} catch (error) {
+			if (error instanceof CancellationError) {
+				throw error;
+			}
+			const message = error instanceof Error ? error.message : String(error);
+			this._logService.error(`[SessionCustomizationDiscovery] Hook discovery failed: ${message}`);
+			return {
+				type: CustomizationType.Directory, id: customizationId(uri.toString()), uri: uri.toString(),
+				name: localize('copilot.discoveredHooks', "Copilot hooks"), contents: CustomizationType.Hook,
+				enabled: true, writable: false, load: { kind: CustomizationLoadStatus.Error, message }, children: [],
+			};
 		}
-		await this._discoverHooksInRoot(root, rootUri, stat, seen, result, token);
 	}
 
-	private async _discoverFixedHookFiles(base: URI, roots: readonly IFixedDiscoveryFile[], seen: ResourceSet, result: IDiscoveredDirectory[], token: CancellationToken): Promise<void> {
-		for (const root of roots) {
-			throwIfCancelled(token);
-
-			const rootUri = joinPath(base, ...root.path);
-			const files: IDiscoveredFile[] = [];
-			let stat: IFileStatWithMetadata | undefined = undefined;
-			try {
-				stat = await this._fileService.resolve(rootUri, { resolveMetadata: true });
-			} catch {
-				// Root does not exist (or is unreadable) — still discover as an empty source folder.
-			}
-
-			for (const child of stat?.children ?? []) {
-				throwIfCancelled(token);
-
-				if (child.isFile && root.filenames.includes(child.name)) {
-					if (!seen.has(child.resource)) {
-						seen.add(child.resource);
-						files.push({ uri: child.resource, etag: child.etag });
+	/** TODO: Remove when https://github.com/github/copilot-agent-runtime/issues/30644 is fixed. */
+	private async discoverWorkspaceHooksFallback(client: CopilotClient, discovered: HooksDiscoveryResult, token: CancellationToken): Promise<HooksDiscoveryResult> {
+		if (discovered.hooks.some(hook => hook.origin === 'repository')) {
+			return discovered;
+		}
+		try {
+			const hookDirectories: string[] = [];
+			for (const directory of this._hookWorkingDirectories) {
+				for (const root of searchRoots.workspace.filter(root => root.type === DiscoveredType.Hook)) {
+					throwIfCancelled(token);
+					const uri = joinPath(directory, ...root.path);
+					try {
+						if ((await raceCancellationError(this._fileService.resolve(uri), token)).isDirectory) {
+							hookDirectories.push(uri.fsPath);
+						}
+					} catch (error) {
+						if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+							throw error;
+						}
 					}
 				}
 			}
-			if (files.length > 0) {
-				result.push({ uri: rootUri, type: DiscoveredType.Hook, files: files.sort(compareDiscoveredFile), name: basename(rootUri.path), writable: true });
+			if (hookDirectories.length === 0) {
+				return discovered;
 			}
+			const fallback = await raceCancellationError(client.rpc.hooks.discover({
+				projectPaths: this._hookWorkingDirectories.map(directory => directory.fsPath),
+				hookDirectories,
+			}), token);
+			const seen = new Set(discovered.hooks.map(hook => hook.id));
+			return {
+				hooks: [...discovered.hooks, ...fallback.hooks.filter(hook => {
+					if (hook.origin !== 'user' || seen.has(hook.id)) {
+						return false;
+					}
+					seen.add(hook.id);
+					return true;
+				}).map(hook => ({ ...hook, origin: 'repository' as const }))],
+				warnings: [...new Set([...discovered.warnings, ...fallback.warnings])],
+				errors: [...new Set([...discovered.errors, ...fallback.errors])],
+			};
+		} catch (error) {
+			if (error instanceof CancellationError) {
+				throw error;
+			}
+			const message = error instanceof Error ? error.message : String(error);
+			return { ...discovered, errors: [...discovered.errors, localize('copilot.workspaceHooksFallbackFailed', "Workspace hook discovery failed: {0}", message)] };
 		}
+	}
+
+	private async discoverMcpServers(client: CopilotClient, token: CancellationToken): Promise<{ servers: McpServerCustomization[]; error?: DirectoryCustomization }> {
+		let result;
+		try {
+			result = await raceCancellationError(client.rpc.mcp.discover({
+				workingDirectory: this._workingDirectories[0]?.fsPath,
+				includeEffectiveSource: true,
+			}), token);
+		} catch (error) {
+			if (error instanceof CancellationError) {
+				throw error;
+			}
+			const message = error instanceof Error ? error.message : String(error);
+			this._logService.error(`[SessionCustomizationDiscovery] MCP discovery failed: ${message}`);
+			const uri = URI.from({ scheme: AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, authority: 'copilot', path: '/mcp' }).toString();
+			return {
+				servers: [], error: {
+					type: CustomizationType.Directory, id: customizationId(uri), uri,
+					name: localize('copilot.discoveredMcpServers', "Copilot MCP servers"), contents: CustomizationType.McpServer,
+					enabled: true, writable: false, load: { kind: CustomizationLoadStatus.Error, message }, children: [],
+				}
+			};
+		}
+		return {
+			servers: result.servers.map(server => {
+				const source = server.effectiveSource;
+				const id = URI.from({ scheme: AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, authority: 'copilot', path: '/mcp', fragment: server.name }).toString();
+				const file = source?.file && URI.parse(source.file.uri);
+				return {
+					type: CustomizationType.McpServer,
+					id,
+					uri: file ? (file.scheme === 'file' ? this._pathToUri(file.fsPath) : file).toString() : id,
+					name: server.name,
+					state: { kind: McpServerStatus.Stopped },
+					_meta: withCustomizationDiscoveryMeta(
+						withMcpServerSourcePluginMeta(withMcpServerSourceMeta(undefined, server.source), source?.plugin?.name ?? server.sourcePlugin),
+						{ source: server.source, sourceId: source?.id, pluginId: source?.plugin?.id, defaultEnabled: server.enabled },
+					),
+				};
+			})
+		};
 	}
 
 	private async toDirectoryCustomizations(type: ChildCustomizationType, customizations: readonly ChildCustomization[], allDiscoveredDirectories: readonly IDiscoveredDirectory[], result: DirectoryCustomization[]): Promise<void> {
@@ -966,8 +1084,8 @@ export class SessionCustomizationDiscovery extends Disposable {
 			if (existing) {
 				// Refresh trigger URIs in place; the underlying watcher is unchanged.
 				existing.resourcesToWatch.clear();
-				for (const uri of next.resourcesToWatch) {
-					existing.resourcesToWatch.add(uri);
+				for (const [uri, trigger] of next.resourcesToWatch) {
+					existing.resourcesToWatch.set(uri, trigger);
 				}
 				continue;
 			}
@@ -987,40 +1105,6 @@ export class SessionCustomizationDiscovery extends Disposable {
 		this._watchers.clear();
 	}
 
-	private async _discoverHooksInRoot(root: ISearchRoot, rootUri: URI, stat: IFileStatWithMetadata | undefined, seen: ResourceSet, result: IDiscoveredDirectory[], token: CancellationToken): Promise<void> {
-		const files: IDiscoveredFile[] = [];
-		// hooks are recursively discovered as `*.json` under the root.
-		const findHooks = async (directoryStat: IFileStatWithMetadata, recursionLevel: number): Promise<void> => {
-			throwIfCancelled(token);
-
-			for (const child of directoryStat.children ?? []) {
-				throwIfCancelled(token);
-
-				if (child.isFile) {
-					const name = child.name.toLowerCase();
-					if (name.endsWith(HOOK_FILE_SUFFIX) && !seen.has(child.resource)) {
-						seen.add(child.resource);
-						files.push({ uri: child.resource, etag: child.etag });
-					}
-				} else if (child.isDirectory && recursionLevel < MAX_HOOKS_RECURSION_DEPTH) {
-					let childStat: IFileStatWithMetadata | undefined = undefined;
-					try {
-						childStat = await this._fileService.resolve(child.resource, { resolveMetadata: true });
-					} catch {
-						// Ignore unreadable subdirectories.
-					}
-					if (childStat) {
-						await findHooks(childStat, recursionLevel + 1);
-					}
-				}
-			}
-		};
-		if (stat) {
-			await findHooks(stat, 0);
-		}
-		result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile), name: root.name, writable: true });
-
-	}
 }
 
 /**

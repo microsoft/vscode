@@ -20,6 +20,10 @@ class OutlineService implements IOutlineService {
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
+	notifyOutlineChanged(): void {
+		this._onDidChange.fire();
+	}
+
 	canCreateOutline(pane: IEditorPane): boolean {
 		for (const factory of this._factories) {
 			if (factory.matches(pane)) {

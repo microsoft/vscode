@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { spy } from 'sinon';
-import { addDisposableListener } from '../../../../base/browser/dom.js';
+import { addDisposableListener, isActiveElement } from '../../../../base/browser/dom.js';
+import { getBaseLayerHoverDelegate, setBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { SubmenuAction, toAction } from '../../../../base/common/actions.js';
@@ -14,6 +15,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Event as CommonEvent } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { IContextViewService } from '../../../contextview/browser/contextView.js';
@@ -89,6 +91,10 @@ function createActionListWidget(disposables: ReturnType<typeof ensureNoDisposabl
 	}
 	document.body.appendChild(widget.domNode);
 	disposables.add({ dispose: () => widget.domNode.remove() });
+	if (widget.footerContainer) {
+		document.body.appendChild(widget.footerContainer);
+		disposables.add({ dispose: () => widget.footerContainer?.remove() });
+	}
 	widget.layout(200, 200);
 
 	return widget;
@@ -197,6 +203,169 @@ function createActionList(disposables: ReturnType<typeof ensureNoDisposablesAreL
 suite('ActionListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('the footer name is independently keyboard-operable without selecting a row', () => {
+		let renames = 0;
+		let selections = 0;
+		const widget = createActionListWidget(disposables, {
+			onSelect: () => selections++,
+			listOptions: {
+				showFilter: false,
+				footerText: 'Shared as \'Workstation\'.',
+				footerAction: toAction({ id: 'rename', label: 'Workstation', tooltip: 'Rename Remote Environment', run: () => renames++ }),
+			},
+		});
+		widget.focus();
+		const list = widget.domNode.querySelector<HTMLElement>('.monaco-list')!;
+		const link = widget.footerContainer!.querySelector<HTMLElement>('.monaco-link')!;
+		dispatchKeyDown(list, { key: 'Tab' });
+		const tabFocus = isActiveElement(link);
+		dispatchKeyDown(link, { key: 'Tab', shiftKey: true });
+		const shiftTabFocus = isActiveElement(list);
+		dispatchKeyDown(list, { key: 'Tab' });
+		dispatchKeyDown(link, { key: 'Enter', keyCode: 13 });
+		assert.deepStrictEqual({
+			tabFocus, shiftTabFocus, renames, selections,
+			label: link.getAttribute('aria-label'),
+			popup: link.getAttribute('aria-haspopup'),
+			text: widget.footerContainer?.textContent,
+		}, {
+			tabFocus: true, shiftTabFocus: true, renames: 1, selections: 0,
+			label: 'Rename Remote Environment', popup: 'dialog', text: 'Shared as \'Workstation\'.',
+		});
+	});
+
+	test('footer navigation only intercepts forward Tab from the list and Shift+Tab from the link', () => {
+		const widget = createActionListWidget(disposables, {
+			listOptions: {
+				showFilter: true,
+				footerText: 'Shared as Workstation',
+				footerAction: toAction({ id: 'rename', label: 'Workstation', run: () => { } }),
+			},
+		});
+		widget.focus();
+		const list = widget.domNode.querySelector<HTMLElement>('.monaco-list')!;
+		const link = widget.footerContainer!.querySelector<HTMLElement>('.monaco-link')!;
+		const reverseFromList = dispatchKeyDown(list, { key: 'Tab', shiftKey: true });
+		const reverseKeptListFocus = isActiveElement(list);
+		const forwardFromList = dispatchKeyDown(list, { key: 'Tab' });
+		const forwardFocusedLink = isActiveElement(link);
+		const forwardFromLink = dispatchKeyDown(link, { key: 'Tab' });
+		const reverseFromLink = dispatchKeyDown(link, { key: 'Tab', shiftKey: true });
+		assert.deepStrictEqual({
+			reverseFromList: reverseFromList.defaultPrevented,
+			reverseKeptListFocus,
+			forwardFromList: forwardFromList.defaultPrevented,
+			forwardFocusedLink,
+			forwardFromLink: forwardFromLink.defaultPrevented,
+			reverseFromLink: reverseFromLink.defaultPrevented,
+			reverseFocusedList: isActiveElement(list),
+		}, {
+			reverseFromList: false,
+			reverseKeptListFocus: true,
+			forwardFromList: true,
+			forwardFocusedLink: true,
+			forwardFromLink: false,
+			reverseFromLink: true,
+			reverseFocusedList: true,
+		});
+	});
+
+	test('the footer links the name rather than matching text in the status prefix', () => {
+		const widget = createActionListWidget(disposables, {
+			listOptions: {
+				footerText: 'Registered as GitHub environment \'GitHub\'.',
+				footerAction: toAction({ id: 'rename', label: 'GitHub', run: () => { } }),
+			},
+		});
+		assert.deepStrictEqual({
+			before: widget.footerContainer?.firstChild?.textContent,
+			link: widget.footerContainer?.querySelector('.monaco-link')?.textContent,
+		}, { before: 'Registered as GitHub environment \'', link: 'GitHub' });
+	});
+
+	test('label icons are decorative, preserve the selection icon, and reset when a row is reused', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('GitHub Environments'), labelIcon: Codicon.github, group: { title: '', icon: Codicon.check } }],
+			listOptions: { showFilter: false },
+		});
+		const before = {
+			check: !!widget.domNode.querySelector('.codicon-check'),
+			icon: !!widget.domNode.querySelector('.action-list-label-icon.codicon-github'),
+			decorative: widget.domNode.querySelector('.action-list-label-icon')?.getAttribute('aria-hidden'),
+			label: widget.domNode.querySelector('.title')?.textContent,
+		};
+		widget.updateItems([action('Off')]);
+		assert.deepStrictEqual({
+			before,
+			after: {
+				staleIcon: !!widget.domNode.querySelector('.codicon-github'),
+				iconWidth: widget.domNode.querySelector('.action-list-label-icon')?.getBoundingClientRect().width,
+				label: widget.domNode.querySelector('.title')?.textContent,
+			},
+		}, {
+			before: { check: true, icon: true, decorative: 'true', label: 'GitHub Environments' },
+			after: { staleIcon: false, iconWidth: 0, label: 'Off' },
+		});
+	});
+
+	test('wrapped details resize rows without clipping or overlapping subsequent items', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('Remote environment'), detail: 'Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot. '.repeat(3) }, action('Next')],
+			listOptions: { showFilter: false, wrapDetails: true },
+		});
+		const wrapper = document.createElement('div');
+		wrapper.classList.add('action-widget');
+		widget.domNode.parentElement?.insertBefore(wrapper, widget.domNode);
+		wrapper.appendChild(widget.domNode);
+		disposables.add({ dispose: () => wrapper.remove() });
+		widget.layout(600, 180);
+		const rows = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row.action');
+		const detail = rows[0].querySelector<HTMLElement>('.detail')!;
+		const narrowHeight = rows[0].getBoundingClientRect().height;
+		const narrow = {
+			wraps: detail.getBoundingClientRect().height > 14,
+			fitsWidth: detail.scrollWidth <= detail.clientWidth,
+			fitsHeight: detail.getBoundingClientRect().bottom <= rows[0].getBoundingClientRect().bottom,
+			noOverlap: rows[1].getBoundingClientRect().top >= rows[0].getBoundingClientRect().bottom,
+		};
+		widget.layout(600, 360);
+		assert.deepStrictEqual({
+			...narrow,
+			shrinksWhenWidened: rows[0].getBoundingClientRect().height < narrowHeight,
+			measuredTotal: widget.computeListHeight() === [...rows].reduce((sum, row) => sum + row.getBoundingClientRect().height, 0),
+		}, { wraps: true, fitsWidth: true, fitsHeight: true, noOverlap: true, shrinksWhenWidened: true, measuredTotal: true });
+	});
+
+	test('wrapped details release the explicit width before a natural-width layout', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('Remote environment'), detail: 'A wrapping description for this remote environment.' }],
+			listOptions: { showFilter: false, wrapDetails: true },
+		});
+		const wrapper = document.createElement('div');
+		wrapper.classList.add('action-widget');
+		wrapper.style.width = '240px';
+		widget.domNode.parentElement?.insertBefore(wrapper, widget.domNode);
+		wrapper.appendChild(widget.domNode);
+		disposables.add({ dispose: () => wrapper.remove() });
+		widget.layout(200, 180);
+		const explicitWidth = widget.domNode.style.width;
+		widget.layout(200);
+		const naturalWidth = { style: widget.domNode.style.width, measured: widget.domNode.getBoundingClientRect().width };
+		widget.layout(200, 300);
+		assert.deepStrictEqual({ explicitWidth, naturalWidth, updatedWidth: widget.domNode.style.width }, {
+			explicitWidth: '180px', naturalWidth: { style: '', measured: 240 }, updatedWidth: '300px',
+		});
+	});
+
+	test('the footer describes the list for screen readers', () => {
+		const widget = createActionListWidget(disposables, { listOptions: { footerText: 'Shared as Test Machine' } });
+		const describedBy = widget.domNode.querySelector('[aria-describedby]')?.getAttribute('aria-describedby');
+		assert.deepStrictEqual({
+			describedBy: describedBy === widget.footerContainer?.id,
+			text: widget.footerContainer?.textContent,
+		}, { describedBy: true, text: 'Shared as Test Machine' });
+	});
+
 	test('keeps shared badges borderless and sized without workbench size tokens', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [{ ...action('model'), badge: 'Preview' }],
@@ -274,6 +443,29 @@ suite('ActionListWidget', () => {
 				afterTitle: true,
 				additionalBadges: [],
 			},
+		});
+	});
+
+	test('keeps leading badges in visual and accessible order when rows resolve or are reused', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('Pull Request'), badge: '#123', badgeBeforeLabel: true }],
+			listOptions: { showFilter: false },
+		});
+		const read = () => {
+			const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row.action')!;
+			return {
+				ariaLabel: row.ariaLabel,
+				order: [...row.children].filter(element => element.classList.contains('title') || element.classList.contains('action-item-badge')).map(element => element.textContent),
+			};
+		};
+		const initial = read();
+		widget.updateItems([{ ...action('Resolved title'), badge: '#123', badgeBeforeLabel: true }]);
+		const resolved = read();
+		widget.updateItems([{ ...action('Ordinary action'), badge: 'New' }]);
+		assert.deepStrictEqual({ initial, resolved, reused: read() }, {
+			initial: { ariaLabel: '#123, Pull Request', order: ['#123', 'Pull Request'] },
+			resolved: { ariaLabel: '#123, Resolved title', order: ['#123', 'Resolved title'] },
+			reused: { ariaLabel: 'Ordinary action, New', order: ['Ordinary action', 'New'] },
 		});
 	});
 
@@ -388,6 +580,33 @@ suite('ActionListWidget', () => {
 
 		rows[2].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'third');
+	});
+
+	test('pointer movement to a disabled hover row restores list focus before hiding the previous toolbar', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{ ...action('enabled'), toolbarActions: [toAction({ id: 'configure', label: 'Configure', run: () => { } })] },
+				{ ...action('disabled'), disabled: true, hover: { content: 'Unavailable' } },
+			],
+			listOptions: { showFilter: false, tabThroughItemActions: true },
+		});
+		const rows = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row');
+		widget.focus();
+		rows[0].dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+		widget.domNode.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!.focus();
+		const before = widget.getFocusedElement()?.item?.id;
+		rows[1].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		rows[1].dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+		const after = widget.getFocusedElement()?.item?.id;
+		const focusRestored = document.activeElement === widget.domNode.querySelector('.monaco-list');
+		widget.focusNext();
+
+		assert.deepStrictEqual({ before, after, focusRestored, keyboardRecovered: widget.getFocusedElement()?.item?.id }, {
+			before: 'enabled',
+			after: undefined,
+			focusRestored: true,
+			keyboardRecovered: 'enabled',
+		});
 	});
 
 	for (const filterAsCombobox of [false, true]) {
@@ -688,6 +907,30 @@ suite('ActionListWidget', () => {
 		assert.notStrictEqual(panel.style.display, 'none');
 	}));
 
+	for (const { name, preserveHover, remove, expected } of [
+		{ name: 'preserves pending hover through replacement', preserveHover: true, remove: false, expected: 'Updated details' },
+		{ name: 'cancels pending hover when its entry is removed', preserveHover: true, remove: true, expected: '' },
+		{ name: 'cancels pending hover when preservation is disabled', preserveHover: false, remove: false, expected: '' },
+	]) {
+		test(name, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const widget = createActionListWidget(disposables, {
+				items: [{ ...action('entry'), hover: { content: 'Initial details' } }],
+				listOptions: { showFilter: false },
+			});
+			widget.focus();
+			const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!;
+			const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+			row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+			await timeout(100);
+			widget.updateItems(remove ? [] : [{ ...action('entry'), hover: { content: 'Updated details' } }], undefined, { preserveHover });
+			await timeout(399);
+			const beforeDelay = panel.textContent;
+			await timeout(1);
+			assert.deepStrictEqual({ beforeDelay, afterDelay: panel.textContent }, { beforeDelay: '', afterDelay: expected });
+		}));
+	}
+
 	for (const count of [1, 3, 30]) {
 		test(`opening ${count} interactive previews stays quiet until intentional hover`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			let rendered = 0;
@@ -898,6 +1141,108 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('shows only the row hover for a standalone toggle row that has one', () => {
+		const switchHovers = new Map<HTMLElement, string | undefined>();
+		const previous = getBaseLayerHoverDelegate();
+		setBaseLayerHoverDelegate({
+			...previous,
+			setupDelayedHover: (target, options, lifecycleOptions) => {
+				if (target.classList.contains('monaco-switch')) {
+					const content = (typeof options === 'function' ? options() : options).content;
+					switchHovers.set(target, typeof content === 'string' ? content : undefined);
+				}
+				return previous.setupDelayedHover(target, options, lifecycleOptions);
+			},
+		});
+		disposables.add(toDisposable(() => setBaseLayerHoverDelegate(previous)));
+
+		const required = 'Sandboxing is required by your organization';
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{
+					...action('Locked'),
+					disabled: true,
+					hover: { content: required },
+					standaloneToggle: { label: 'Locked', title: required, checked: true, disabled: true, onChange: () => { } },
+				},
+				{
+					...action('Unlocked'),
+					standaloneToggle: { label: 'Unlocked', title: 'Run commands in a sandbox', checked: false, onChange: () => { } },
+				},
+				{
+					...action('Default'),
+					hover: { content: 'Copilot asks before running tools' },
+					inlineToggle: { label: 'Sandboxing for terminal', title: 'Managed by your organization', checked: true, disabled: true, onChange: () => { } },
+				},
+			],
+			listOptions: { showFilter: false },
+		});
+
+		assert.deepStrictEqual([...widget.domNode.querySelectorAll<HTMLElement>('.monaco-switch')].map(toggle => ({
+			ariaLabel: toggle.getAttribute('aria-label'),
+			switchHover: switchHovers.get(toggle),
+		})), [
+			{ ariaLabel: required, switchHover: undefined },
+			{ ariaLabel: 'Run commands in a sandbox', switchHover: 'Run commands in a sandbox' },
+			{ ariaLabel: 'Managed by your organization', switchHover: 'Managed by your organization' },
+		]);
+	});
+
+	test('renders an optional information icon after the standalone toggle label', () => {
+		const label = 'Sandboxing in Dev Container';
+		const title = 'This relaxes the outer container isolation.';
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action(label),
+				hover: { content: title },
+				standaloneToggle: { label, title, checked: true, showInfoIcon: true, onChange: () => { } },
+			}],
+			listOptions: { showFilter: false },
+		});
+		const labelElement = widget.domNode.querySelector('.title');
+		const icon = labelElement?.querySelector('.codicon-info');
+		assert.ok(icon);
+		assert.deepStrictEqual({
+			label: labelElement?.firstChild?.textContent,
+			iconAfterLabel: labelElement?.lastChild === icon,
+			hiddenFromScreenReaders: icon.getAttribute('aria-hidden'),
+			switchDescription: widget.domNode.querySelector('.monaco-switch')?.getAttribute('aria-label'),
+		}, { label, iconAfterLabel: true, hiddenFromScreenReaders: 'true', switchDescription: title });
+
+		widget.updateItems([{
+			...action('Sandboxing for terminal'),
+			standaloneToggle: { label: 'Sandboxing for terminal', checked: true, onChange: () => { } },
+		}]);
+		assert.strictEqual(widget.domNode.querySelector('.action-list-item-toggle-info'), null);
+	});
+
+	for (const fontSize of [13, 16, 18]) {
+		test(`centers the toggle information icon beside its label at ${fontSize}px`, () => {
+			const label = 'Sandboxing in Dev Container';
+			const widget = createActionListWidget(disposables, {
+				items: [{
+					...action(label),
+					standaloneToggle: { label, checked: true, showInfoIcon: true, onChange: () => { } },
+				}],
+				listOptions: { showFilter: false },
+			});
+			widget.domNode.classList.add('action-widget');
+			widget.domNode.style.setProperty('--vscode-fontSize-body1', `${fontSize}px`);
+			widget.domNode.style.font = `${fontSize}px/20px "Segoe UI", sans-serif`;
+			widget.layout(400, 200);
+			const labelElement = widget.domNode.querySelector('.title');
+			const icon = labelElement?.querySelector('.codicon-info');
+			assert.ok(labelElement?.firstChild);
+			assert.ok(icon);
+			const textRange = document.createRange();
+			textRange.selectNodeContents(labelElement.firstChild);
+			const textBounds = textRange.getBoundingClientRect();
+			const iconBounds = icon.getBoundingClientRect();
+			const offset = iconBounds.top + iconBounds.height / 2 - textBounds.top - textBounds.height / 2;
+			assert.ok(Math.abs(offset) <= 1, `Information icon is vertically offset by ${offset}px at ${fontSize}px`);
+		});
+	}
+
 	test('nested action groups expose a keyboard-accessible submenu and select the parent item', () => {
 		const selected: string[] = [];
 		const widget = createActionListWidget(disposables, {
@@ -1022,6 +1367,25 @@ suite('ActionListWidget', () => {
 		await timeout(0);
 		assert.ok(widget.domNode.textContent?.includes('server-ranked-result'));
 	}));
+
+	test('matches nonvisual filter text without rendering it', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{ ...action('shared'), filterText: 'owner-one/shared' },
+				{ ...action('shared'), filterText: 'owner-two/shared' },
+			],
+		});
+
+		typeFilter(widget, 'owner-one/shared');
+
+		assert.deepStrictEqual({
+			rows: getVisibleRowText(widget),
+			nonvisualTextRendered: widget.domNode.textContent?.includes('owner-one/shared'),
+		}, {
+			rows: ['shared'],
+			nonvisualTextRendered: false,
+		});
+	});
 
 	test('ignores stale dynamic filter results', async () => {
 		const firstResult = new DeferredPromise<readonly IActionListItem<ITestActionItem>[]>();
@@ -1720,6 +2084,49 @@ suite('ActionListWidget', () => {
 		]);
 	}));
 
+	test('full-height filtered menus scroll only when content exceeds the available space', async () => {
+		const items = Array.from({ length: Math.floor(mainWindow.innerHeight * 0.6 / 24) }, (_, index) => ({
+			...action(`workspace-${index}`),
+			item: { id: `workspace-${index}`, checked: index === 0 },
+		}));
+		const states = [];
+		for (const { useFullHeight, anchorTop } of [
+			{ useFullHeight: false, anchorTop: 20 },
+			{ useFullHeight: true, anchorTop: 20 },
+			{ useFullHeight: true, anchorTop: mainWindow.innerHeight - 180 },
+		]) {
+			const list = createActionList(disposables, items, {
+				anchor: { x: 10, y: anchorTop, width: 100, height: 20 },
+				listOptions: { showFilter: true, anchorPosition: AnchorPosition.BELOW, useFullHeight },
+			});
+			list.layout(260);
+			const scrollable = list.domNode.querySelector<HTMLElement>('.monaco-scrollable-element')!;
+			const scrollbar = scrollable.querySelector<HTMLElement>('.scrollbar.vertical')!;
+			const rows = scrollable.querySelector<HTMLElement>('.monaco-list-rows')!;
+			scrollable.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			await timeout(0);
+			const initial = {
+				allRowsFit: list.domNode.clientHeight === rows.clientHeight,
+				scrollbarVisible: scrollbar.classList.contains('visible'),
+				fitsAvailableSpace: list.domNode.parentElement!.getBoundingClientRect().height <= mainWindow.innerHeight - anchorTop - 20 - 30,
+			};
+			list.setFilter('workspace-0');
+			await settleLayout();
+			states.push({
+				initial,
+				filtered: {
+					height: list.domNode.clientHeight,
+					scrollbarVisible: scrollbar.classList.contains('visible'),
+				},
+			});
+		}
+		assert.deepStrictEqual(states, [
+			{ initial: { allRowsFit: false, scrollbarVisible: true, fitsAvailableSpace: true }, filtered: { height: 24, scrollbarVisible: false } },
+			{ initial: { allRowsFit: true, scrollbarVisible: false, fitsAvailableSpace: true }, filtered: { height: 24, scrollbarVisible: false } },
+			{ initial: { allRowsFit: false, scrollbarVisible: true, fitsAvailableSpace: true }, filtered: { height: 24, scrollbarVisible: false } },
+		]);
+	});
+
 	test('max visible items caps the height at the rows through that many actions, recomputed after filtering', () => withWindowInnerHeight(600, () => {
 		const list = createActionList(disposables, [
 			action('first'),
@@ -1812,6 +2219,38 @@ suite('ActionListWidget', () => {
 				panelLabel: 'auto',
 			},
 		);
+	});
+
+	test('a submenu beneath hover content is still advertised by its chevron and popup state', () => {
+		const child = toAction({ id: 'child', label: 'Child', run: () => { } });
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('menu'), hover: { content: 'About this item' }, submenuActions: [child] }, { ...action('hover'), hover: { content: 'About this item' } }],
+			listOptions: { showFilter: false },
+		});
+		const rows = () => Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row.action')).filter(row => !row.closest('.action-list-submenu-panel'));
+		const state = () => rows().map(row => ({
+			chevron: !!row.querySelector('.action-list-submenu-indicator.has-submenu'),
+			haspopup: row.getAttribute('aria-haspopup'),
+			expanded: row.getAttribute('aria-expanded'),
+		}));
+
+		const initial = state();
+		rows()[0].querySelector<HTMLElement>('.action-list-submenu-indicator.has-submenu')?.click();
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel');
+
+		assert.deepStrictEqual({
+			initial,
+			opened: state()[0].expanded,
+			panel: {
+				hover: panel?.querySelector('.action-list-submenu-hover-header')?.textContent,
+				actions: Array.from(panel?.querySelectorAll('.monaco-list-row.action .title') ?? [], title => title.textContent),
+			},
+		}, {
+			// A row with only hover content has no menu to advertise.
+			initial: [{ chevron: true, haspopup: 'menu', expanded: 'false' }, { chevron: false, haspopup: null, expanded: null }],
+			opened: 'true',
+			panel: { hover: 'About this item', actions: ['Child'] },
+		});
 	});
 
 	test('the submenu gutter follows the items the list currently holds', () => {
@@ -2378,6 +2817,50 @@ suite('ActionListWidget', () => {
 		}, { panelVisible: true, layouts: 1 });
 	}));
 
+	test('notifies initially visible rows once when scrolling begins', async () => {
+		const visible: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: Array.from({ length: 20 }, (_, index): IActionListItem<ITestActionItem> => ({
+				...action(`item-${index}`),
+				onDidBecomeVisible: () => visible.push(`item-${index}`),
+			})),
+			listOptions: { showFilter: false },
+		});
+		widget.layout(47, 200);
+		await settleLayout();
+		const list = (widget as unknown as { _list: { scrollTop: number } })._list;
+		list.scrollTop = 1;
+		await settleLayout();
+		list.scrollTop = 0;
+		await settleLayout();
+		assert.deepStrictEqual(visible, ['item-0', 'item-1']);
+	});
+
+	test('notifies virtualized items when scrolling makes them visible', async () => {
+		const visible: string[] = [];
+		const items = Array.from({ length: 20 }, (_, index): IActionListItem<ITestActionItem> => ({
+			...action(`item-${index}`),
+			onDidBecomeVisible: () => visible.push(`item-${index}`),
+		}));
+		const widget = createActionListWidget(disposables, {
+			items,
+			listOptions: { showFilter: false },
+		});
+		widget.layout(48, 200);
+		await settleLayout();
+		const list = (widget as unknown as { _list: { scrollTop: number } })._list;
+		list.scrollTop = 240;
+		await settleLayout();
+		widget.updateItems(items.map(item => ({ ...item })), undefined, { preserveScrollPosition: true });
+		list.scrollTop = 241;
+		list.scrollTop = 242;
+		await settleLayout();
+
+		assert.ok(visible.length > 0);
+		assert.ok(visible.every(id => Number(id.slice('item-'.length)) >= 9));
+		assert.strictEqual(new Set(visible).size, visible.length, 'Already visible rows must not be notified again after metadata or pixel scroll updates');
+	});
+
 	test('tabs through a focused row toolbar and hover panel while preserving list navigation', () => {
 		const createPanel = (id: string) => {
 			const panel = document.createElement('div');
@@ -2645,6 +3128,68 @@ suite('ActionListWidget', () => {
 		);
 	});
 
+	test('expanding search results preserves filter focus through layout', () => {
+		const list = createActionList(disposables, [action('Recent')], {
+			listOptions: {
+				focusFilterOnOpen: true,
+				onDidChangeFilter: () => list.updateItems([action('Recent'), action('Older')]),
+			},
+		});
+		list.layout(200);
+		list.focus();
+		const input = list.filterInput!;
+		let blurs = 0;
+		disposables.add(addDisposableListener(input, 'blur', () => blurs++));
+		input.value = 'o';
+		input.dispatchEvent(new Event('input'));
+
+		assert.deepStrictEqual({
+			focused: isActiveElement(input),
+			blurs,
+			query: input.value,
+			rows: Array.from(list.domNode.querySelectorAll('.monaco-list-row')).map(row => row.textContent),
+		}, { focused: true, blurs: 0, query: 'o', rows: ['Older'] });
+	});
+
+	test('clearing a filter refreshes dynamically supplied items', () => {
+		const queries: string[] = [];
+		const list = createActionList(disposables, [action('Recent')], {
+			listOptions: {
+				focusFilterOnOpen: true,
+				onDidChangeFilter: value => {
+					queries.push(value);
+					list.updateItems([action(value ? 'Older' : 'Recent')]);
+				},
+			},
+		});
+		list.layout(200);
+		list.focus();
+		const input = list.filterInput!;
+		input.value = 'Older';
+		input.dispatchEvent(new Event('input'));
+
+		const cleared = list.clearFilter();
+		const clearedAgain = list.clearFilter();
+
+		assert.deepStrictEqual({
+			cleared,
+			clearedAgain,
+			queries,
+			query: input.value,
+			focused: isActiveElement(input),
+			rows: Array.from(list.domNode.querySelectorAll('.monaco-list-row')).map(row => row.textContent),
+		}, { cleared: true, clearedAgain: false, queries: ['Older', ''], query: '', focused: true, rows: ['Recent'] });
+	});
+
+	test('layout moves a misplaced filter above the list', () => {
+		const list = createActionList(disposables, [action('Recent')]);
+		list.domNode.parentElement!.appendChild(list.filterContainer!);
+
+		list.layout(200);
+
+		assert.strictEqual(list.filterContainer?.nextSibling, list.domNode);
+	});
+
 	test('rebuilding the items in place leaves focus alone when the list does not have it', () => {
 		const widget = createActionListWidget(disposables, { items: [action('one'), action('two')] });
 		const outside = document.createElement('button');
@@ -2660,21 +3205,34 @@ suite('ActionListWidget', () => {
 		);
 	});
 
-	test('rebuilding the items in place can preserve the scroll position', () => {
-		const items = Array.from({ length: 20 }, (_, index) => action(`item-${index}`));
-		const widget = createActionListWidget(disposables, {
-			items: items.map((item, index) => index === 0 ? { ...item, item: { id: 'item-0', checked: true } } : item),
-			listOptions: { showFilter: true, focusFilterOnOpen: true },
+	for (const { focusItemId, focusFilter } of [
+		{ focusItemId: undefined, focusFilter: false },
+		{ focusItemId: 'item-15', focusFilter: false },
+		{ focusItemId: 'item-15', focusFilter: true },
+	]) {
+		test(`rebuilding the items in place preserves scroll and combobox focus (focused item: ${focusItemId}, focus filter: ${focusFilter})`, async () => {
+			const items = Array.from({ length: 20 }, (_, index) => action(`item-${index}`));
+			const widget = createActionListWidget(disposables, {
+				items: items.map((item, index) => index === 0 ? { ...item, item: { id: 'item-0', checked: true } } : item),
+				listOptions: { showFilter: true, focusFilterOnOpen: true, filterAsCombobox: true },
+			});
+			widget.layout(120, 200);
+			widget.focus();
+			if (focusFilter) {
+				widget.domNode.querySelector<HTMLElement>('.monaco-list')!.focus();
+			}
+			const list = (widget as unknown as { _list: { scrollTop: number } })._list;
+			list.scrollTop = 120;
+
+			widget.updateItems(items.map(item => ({ ...item })), focusItemId, { preserveScrollPosition: true, focusFilter });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				scrollTop: list.scrollTop,
+				filterFocused: widget.filterInput && isActiveElement(widget.filterInput),
+			}, { scrollTop: 120, filterFocused: true });
 		});
-		widget.layout(120, 200);
-		widget.focus();
-		const list = (widget as unknown as { _list: { scrollTop: number } })._list;
-		list.scrollTop = 120;
-
-		widget.updateItems(items.map(item => ({ ...item })), undefined, { preserveScrollPosition: true });
-
-		assert.strictEqual(list.scrollTop, 120);
-	});
+	}
 
 	test('refreshing an open submenu keeps its row focused while the filter has focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const submenuAction = toAction({ id: 'child', label: 'Child', run: () => { } });
@@ -2974,6 +3532,38 @@ suite('ActionListWidget', () => {
 		});
 	}));
 
+	for (const side of ['left', 'right'] as const) {
+		test(`Chat submenu tolerates diagonal pointer travel into the ${side} flyout`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { widget, panel, hover } = createPersistentPreview(side, true);
+			widget.updateItems([{
+				...action('Chat'),
+				hover: { preserveVerticalPosition: true, alignToAnchorTop: true },
+				submenuActions: ['This Computer', 'ah1', 'ah2', 'ah3', 'ah4', 'sh1', 'sh2', 'sh3', 'sh4'].map(label =>
+					toAction({ id: label, label, run: () => { } })),
+				openSubmenuOnClick: true,
+			}, action('workspace'), action('another workspace'), action('Remote')]);
+
+			const origin = hover(0);
+			const initialContents = panel.textContent;
+			hover(2, origin.x + (side === 'right' ? 60 : -60));
+			const duringTravel = panel.textContent;
+			panel.dispatchEvent(new MouseEvent('mouseenter'));
+			await timeout(350);
+
+			assert.deepStrictEqual({
+				opened: initialContents?.includes('sh4'),
+				preservedDuringTravel: duringTravel === initialContents,
+				preservedAfterEntering: panel.textContent === initialContents,
+				visible: panel.style.display !== 'none',
+			}, {
+				opened: true,
+				preservedDuringTravel: true,
+				preservedAfterEntering: true,
+				visible: true,
+			});
+		}));
+	}
+
 	test('pointer travel grace is bounded across multiple crossed rows', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { panel, hover } = createPersistentPreview();
 		const origin = hover(0);
@@ -3003,6 +3593,53 @@ suite('ActionListWidget', () => {
 			afterDelay: 'Details for third',
 		});
 	}));
+
+	for (const { name, crossWorkspace, enterSubmenu } of [
+		{ name: 'returning to its trigger', crossWorkspace: true, enterSubmenu: false },
+		{ name: 'returning to its trigger and entering it', crossWorkspace: true, enterSubmenu: true },
+		{ name: 'entering it after the pointer leaves', crossWorkspace: false, enterSubmenu: true },
+	]) {
+		test(`keyboard navigation cancels pending submenu dismissal when ${name}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { widget, panel } = createPersistentPreview('right', true);
+			widget.updateItems([{
+				...action('Chat'),
+				submenuActions: [toAction({ id: 'local', label: 'This Computer', run: () => { } })],
+			}, action('workspace')]);
+			const parentList = widget.domNode.querySelector<HTMLElement>('.monaco-list')!;
+			const hoverRow = (index: number) => {
+				const row = parentList.querySelectorAll<HTMLElement>('.monaco-list-row')[index];
+				const bounds = row.getBoundingClientRect();
+				const point = { clientX: bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2 };
+				row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, ...point }));
+				row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1, ...point }));
+			};
+			parentList.focus();
+			hoverRow(0);
+			if (crossWorkspace) {
+				hoverRow(1);
+				widget.focusPrevious();
+			} else {
+				panel.dispatchEvent(new MouseEvent('mouseleave'));
+			}
+			if (enterSubmenu) {
+				dispatchKeyDown(parentList, { key: 'ArrowRight', keyCode: 39 });
+			}
+			const immediateFocus = enterSubmenu ? panel.contains(document.activeElement) : document.activeElement === parentList;
+			await timeout(350);
+
+			assert.deepStrictEqual({
+				immediateFocus,
+				retainedFocus: enterSubmenu ? panel.contains(document.activeElement) : document.activeElement === parentList,
+				visible: panel.style.display !== 'none',
+				content: panel.querySelector('.title')?.textContent,
+			}, {
+				immediateFocus: true,
+				retainedFocus: true,
+				visible: true,
+				content: 'This Computer',
+			});
+		}));
+	}
 
 	test('disposing a persistent preview cancels pending pointer travel', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { widget, panel, hover } = createPersistentPreview();

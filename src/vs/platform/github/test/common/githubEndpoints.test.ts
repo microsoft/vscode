@@ -12,6 +12,7 @@ suite('githubEndpoints', () => {
 
 	const DOT_COM = {
 		apiBaseUri: 'https://api.github.com',
+		rawBaseUri: 'https://raw.githubusercontent.com',
 		graphQlUri: 'https://api.github.com/graphql',
 		oauthServer: 'https://github.com/login/oauth',
 		enterpriseHost: undefined,

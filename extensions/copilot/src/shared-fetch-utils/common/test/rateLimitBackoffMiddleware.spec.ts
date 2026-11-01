@@ -5,7 +5,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { HttpHeaders, HttpRequest, HttpResponse } from '../fetchTypes';
-import { RateLimitBackoffError, rateLimitBackoffMiddleware } from '../middleware/rateLimitBackoffMiddleware';
+import { parseRetryAfter, RateLimitBackoffError, rateLimitBackoffMiddleware } from '../middleware/rateLimitBackoffMiddleware';
 
 function makeHeaders(entries: Record<string, string> = {}): HttpHeaders {
 	const map = new Map(Object.entries(entries).map(([key, value]) => [key.toLowerCase(), value]));
@@ -157,5 +157,18 @@ describe('rateLimitBackoffMiddleware', () => {
 		// Back to the initial delay rather than continuing to double.
 		status = 429;
 		expect(await expectBlocked(fetchFn)).toBe(60_000);
+	});
+});
+
+describe('parseRetryAfter', () => {
+	it('converts seconds and HTTP dates to milliseconds', () => {
+		const now = Date.parse('Tue, 06 Oct 2026 15:00:00 GMT');
+		expect([
+			parseRetryAfter('120', now),
+			parseRetryAfter('Tue, 06 Oct 2026 15:01:00 GMT', now),
+			parseRetryAfter('Tue, 06 Oct 2026 14:59:00 GMT', now),
+			parseRetryAfter('soon', now),
+			parseRetryAfter(undefined, now),
+		]).toEqual([120_000, 60_000, 0, undefined, undefined]);
 	});
 });

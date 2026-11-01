@@ -12,7 +12,7 @@ import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { localize } from '../../../../../nls.js';
 import { NEW_SESSION_ONBOARDING_SEEN_KEY } from './newSessionTour.js';
-import { IsNewChatSessionContext, NewSessionOnboardingHandoffContext, SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
+import { IsNewChatSessionContext, NewSessionOnboardingHandoffContext, SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionsWelcomeVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
 
 /**
  * Spotlight steps that walk a brand-new user through the new-session view the
@@ -92,7 +92,7 @@ const newSessionViewPayload: ISpotlightPayload = {
  * {@link NewSessionViewTourContribution}, which flips it once an eligible
  * (brand-new) user has the new-session view open and rendered.
  * `ChatContextKeys.enabled` keeps the tour hidden when AI features are disabled.
- * The modal-editor gate keeps the tour hidden while a modal editor is showing.
+ * Modal-editor and welcome gates keep the tour hidden while either is showing.
  *
  * Shares {@link NEW_SESSION_ONBOARDING_SEEN_KEY} with the pulsing-button
  * {@link createNewSessionTour} variant, so a user who has seen either tour is
@@ -102,7 +102,13 @@ export function createNewSessionViewTour(signal: IObservable<boolean>): IOnboard
 	return {
 		id: NEW_SESSION_VIEW_TOUR_ID,
 		seenKey: NEW_SESSION_ONBOARDING_SEEN_KEY,
-		when: ContextKeyExpr.and(ChatContextKeys.enabled, IsNewChatSessionContext, EditorPartModalVisibleContext.toNegated(), NewSessionOnboardingHandoffContext.toNegated()),
+		when: ContextKeyExpr.and(
+			ChatContextKeys.enabled,
+			IsNewChatSessionContext,
+			EditorPartModalVisibleContext.toNegated(),
+			NewSessionOnboardingHandoffContext.toNegated(),
+			SessionsWelcomeVisibleContext.toNegated(),
+		),
 		trigger: { kind: 'observable', signal },
 		priority: 100,
 		experiment: NEW_SESSION_VIEW_EXPERIMENT,

@@ -22,12 +22,14 @@ import { ToolDataSource } from '../../../../common/tools/languageModelToolsServi
 suite('ChatToolAuthenticationSubPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('can disable the MCP server for the session', async () => {
+	test('uses the presentation name while actions target the MCP server id', async () => {
 		const sessionResource = URI.parse('chat-session://local/session');
 		const enabledChanges: boolean[] = [];
+		const authenticationTargets: string[] = [];
 		const server = upcastPartial<IAgentHostMcpServer>({
-			id: 'local/docs',
-			name: 'Documentation',
+			id: 'local/github-copilot-connector-94d26095770df60673dd',
+			name: 'github-copilot-connector-94d26095770df60673dd',
+			displayName: 'GitHub [Enterprise]',
 			enabled: true,
 			status: McpServerStatus.AuthRequired,
 			state: {
@@ -44,6 +46,11 @@ suite('ChatToolAuthenticationSubPart', () => {
 			override getMcpServers(resource: URI): readonly IAgentHostMcpServer[] {
 				assert.strictEqual(resource, sessionResource);
 				return [server];
+			}
+			override authenticateMcpServer(resource: URI, serverId: string): Promise<boolean> {
+				assert.strictEqual(resource, sessionResource);
+				authenticationTargets.push(serverId);
+				return Promise.resolve(true);
 			}
 		}
 		let focused = false;
@@ -72,15 +79,31 @@ suite('ChatToolAuthenticationSubPart', () => {
 		const part = store.add(instantiationService.createInstance(ChatToolAuthenticationSubPart, invocation, context));
 
 		const buttons = [...part.domNode.querySelectorAll<HTMLElement>('.monaco-button')];
-		assert.deepStrictEqual(buttons.map(button => button.textContent), ['Authenticate', 'Cancel', 'Disable for This Session']);
+		const presentation = {
+			title: part.domNode.querySelector('.chat-query-title-part')?.textContent?.trim().replace(/\u00a0/g, ' '),
+			message: part.domNode.querySelector('.chat-confirmation-widget-message')?.textContent?.replace(/\u00a0/g, ' '),
+			messageLinks: part.domNode.querySelectorAll('.chat-confirmation-widget-message a').length,
+			buttons: buttons.map(button => button.textContent),
+		};
+		buttons[0].click();
+		await timeout(0);
 		buttons[2].click();
 		await timeout(0);
 
 		assert.deepStrictEqual({
+			presentation,
+			authenticationTargets,
 			enabledChanges,
 			focused,
 			cancelled,
 		}, {
+			presentation: {
+				title: 'MCP authentication requiredGitHub [Enterprise] (Connector)',
+				message: 'The MCP server GitHub [Enterprise] (Connector) requires authentication to continue this tool call.',
+				messageLinks: 0,
+				buttons: ['Authenticate', 'Cancel', 'Disable for This Session'],
+			},
+			authenticationTargets: [server.id],
 			enabledChanges: [false],
 			focused: true,
 			cancelled: true,

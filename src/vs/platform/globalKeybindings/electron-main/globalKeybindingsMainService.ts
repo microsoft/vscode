@@ -59,7 +59,9 @@ export class GlobalKeybindingsMainService extends Disposable implements IGlobalK
 	) {
 		super();
 
-		this._register(this.windowsMainService.onDidDestroyWindow(window => this.onDidDestroyWindow(window)));
+		// `onBeforeCloseWindow` covers normal closes; `onDidDestroyWindow` covers crashed or unresponsive windows
+		this._register(lifecycleMainService.onBeforeCloseWindow(window => this.removeWindowKeybindings(window)));
+		this._register(this.windowsMainService.onDidDestroyWindow(window => this.removeWindowKeybindings(window)));
 		this._register(lifecycleMainService.onWillShutdown(() => this.unregisterAll()));
 		this._register(toDisposable(() => this.unregisterAll()));
 	}
@@ -200,7 +202,7 @@ export class GlobalKeybindingsMainService extends Disposable implements IGlobalK
 		target.sendWhenReady('vscode:runAction', CancellationToken.None, payload);
 	}
 
-	private onDidDestroyWindow(window: ICodeWindow): void {
+	private removeWindowKeybindings(window: ICodeWindow): void {
 		if (this.registry.delete(window.id)) {
 			this.reconcile();
 		}

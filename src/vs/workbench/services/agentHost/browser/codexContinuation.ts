@@ -11,12 +11,15 @@ import { parseCodexModelSelection, toCodexModelSelectionId } from '../../../../p
 import { isSessionStatusArchived, SessionModelInfo } from '../../../../platform/agentHost/common/state/sessionState.js';
 
 export const CODEX_CONTINUATION_MAX_AGE = 5 * 60 * 1000;
+export const CODEX_CONTINUATION_DEFAULT_THRESHOLD = 90;
 export type CodexContinuationSurface = 'agentsWindow' | 'editorWindow';
 export interface ICodexLimitBoundary {
 	readonly duration: number;
 	readonly until: number;
 	readonly observedAt: number;
 	readonly reliable: boolean;
+	/** Threshold when this boundary was shown; omitted by older, fixed-90-percent episodes. */
+	readonly thresholdPercent?: number;
 }
 export interface ICodexContinuationEpisode {
 	readonly limits: readonly ICodexLimitBoundary[];
@@ -29,7 +32,7 @@ export interface ICodexContinuationCandidate {
 	readonly target: SessionModelInfo;
 }
 
-export function getCodexTriggeringLimits(account: ICodexAccountInfo, now: number): ICodexLimitBoundary[] {
+export function getCodexTriggeringLimits(account: ICodexAccountInfo, now: number, thresholdPercent = CODEX_CONTINUATION_DEFAULT_THRESHOLD): ICodexLimitBoundary[] {
 	const observedAt = account.observedAt;
 	if (account.status !== 'signedIn' || !isPaidChatGPTPlan(account.planType)
 		|| observedAt === undefined || !Number.isFinite(observedAt) || observedAt > now || now - observedAt > CODEX_CONTINUATION_MAX_AGE) {
@@ -37,26 +40,29 @@ export function getCodexTriggeringLimits(account: ICodexAccountInfo, now: number
 	}
 	return (account.rateLimits ?? (account.rateLimit ? [account.rateLimit] : [])).flatMap(limit => {
 		const duration = limit.windowDurationMins;
-		if ((duration !== 300 && duration !== 10080) || !Number.isFinite(limit.usedPercent) || limit.usedPercent < 90 || limit.usedPercent > 100) {
+		if ((duration !== 300 && duration !== 10080) || !Number.isFinite(limit.usedPercent) || limit.usedPercent < thresholdPercent || limit.usedPercent > 100) {
 			return [];
 		}
 		const until = limit.resetsAt !== undefined ? limit.resetsAt * 1000 : observedAt + duration * 60 * 1000;
-		return Number.isFinite(until) && until > now ? [{ duration, until, observedAt, reliable: limit.resetsAt !== undefined }] : [];
+		return Number.isFinite(until) && until > now ? [{ duration, until, observedAt, reliable: limit.resetsAt !== undefined, thresholdPercent }] : [];
 	});
 }
 
-/** Overlapping windows extend an episode; unknown resets never slide on repeated observations. */
-export function updateCodexEpisode(episode: ICodexContinuationEpisode | undefined, account: ICodexAccountInfo, now: number): ICodexContinuationEpisode | undefined {
+/**
+ * Overlapping windows extend an episode; unknown resets never slide on repeated observations.
+ * Recovery uses the saved threshold because other windows can have different assignments.
+ */
+export function updateCodexEpisode(episode: ICodexContinuationEpisode | undefined, account: ICodexAccountInfo, now: number, thresholdPercent = CODEX_CONTINUATION_DEFAULT_THRESHOLD): ICodexContinuationEpisode | undefined {
 	if (!episode) {
 		return undefined;
 	}
 	const fresh = account.observedAt !== undefined && account.observedAt <= now && now - account.observedAt <= CODEX_CONTINUATION_MAX_AGE;
 	const retained = episode.limits.filter(boundary => boundary.until > now && (boundary.reliable || !fresh || !(account.rateLimits ?? (account.rateLimit ? [account.rateLimit] : [])).some(limit =>
-		limit.windowDurationMins === boundary.duration && limit.usedPercent < 90 && account.observedAt! > boundary.observedAt)));
+		limit.windowDurationMins === boundary.duration && limit.usedPercent < (boundary.thresholdPercent ?? CODEX_CONTINUATION_DEFAULT_THRESHOLD) && account.observedAt! > boundary.observedAt)));
 	if (!retained.length) {
 		return undefined;
 	}
-	for (const boundary of getCodexTriggeringLimits(account, now)) {
+	for (const boundary of getCodexTriggeringLimits(account, now, thresholdPercent)) {
 		const index = retained.findIndex(previous => previous.duration === boundary.duration);
 		if (index < 0) {
 			retained.push(boundary);
@@ -70,7 +76,7 @@ export function updateCodexEpisode(episode: ICodexContinuationEpisode | undefine
 export function getCodexContinuationCandidates(sessions: readonly IAgentSessionMetadata[], models: readonly SessionModelInfo[], activeSession?: string): ICodexContinuationCandidate[] {
 	const candidates: ICodexContinuationCandidate[] = [];
 	for (const session of sessions) {
-		if (AgentSession.provider(session.session) !== 'codex' || !session.model || isSessionStatusArchived(session.status)) {
+		if ((session.provider ?? AgentSession.provider(session.session)) !== 'codex' || !session.model || isSessionStatusArchived(session.status)) {
 			continue;
 		}
 		const selection = parseCodexModelSelection(session.model);

@@ -6,24 +6,26 @@
 import assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, clientOwnedApprovalRootConfigKeys, createSchema, platformRootSchema, schemaProperty } from '../../common/agentHostSchema.js';
-import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY, automationRootConfigSchema } from '../../common/automationConfig.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, clientOwnedApprovalRootConfigKeys, createSchema, platformRootSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, automationRootConfigSchema } from '../../common/automationConfig.js';
 import { AGENT_CUSTOMIZATION_SETTINGS_META_KEY, getAgentCustomizationSettingsEntries } from '../../common/agentCustomizationSettings.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigState } from '../../common/state/protocol/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildSubagentSessionUri, SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
-import { AgentConfigurationService, getEffectiveWorkingDirectories, getEffectiveWorkingDirectory } from '../../node/agentConfigurationService.js';
+import { buildDefaultChatUri, buildChatUri, buildSubagentSessionUri, ChatOriginKind, SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
+import { AgentConfigurationService, seedMultipleChatProvidersFromEnvironment, getEffectiveWorkingDirectories, getEffectiveWorkingDirectory, getSessionSummaryWorkingDirectories } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { ChatProvidersConfigKey, chatProvidersRootConfigSchema } from '../../common/agentHostChatProviders.js';
+import { AgentHostMultipleChatProvidersEnabledEnvVar, buildAgentSdkEnv } from '../../common/agentService.js';
 
 suite('AgentConfigurationService', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let manager: AgentHostStateManager;
 	let service: AgentConfigurationService;
 
@@ -52,7 +54,7 @@ suite('AgentConfigurationService', () => {
 		};
 	}
 
-	function makeSummary(resource: string, ...workingDirectories: string[]): SessionSummary {
+	function makeSummary(resource: string, ...workingDirectories: string[]): SessionSummary & { readonly defaultChat: string } {
 		return {
 			resource,
 			provider: 'copilot',
@@ -62,6 +64,7 @@ suite('AgentConfigurationService', () => {
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///project', displayName: 'Project' },
 			workingDirectories: workingDirectories.length > 0 ? workingDirectories : undefined,
+			defaultChat: buildDefaultChatUri(resource),
 		};
 	}
 
@@ -69,10 +72,6 @@ suite('AgentConfigurationService', () => {
 		manager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		service = disposables.add(new AgentConfigurationService(manager, new NullLogService()));
 	});
-
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('rejects a chat channel when reading session config', () => {
 		const session = URI.from({ scheme: 'copilot', path: '/chat-owner' }).toString();
@@ -101,7 +100,7 @@ suite('AgentConfigurationService', () => {
 			assert.strictEqual(service.getEffectiveValue(uri, schema, 'level'), 'low');
 		});
 
-		test('inherits from parent subagent session', () => {
+		test('never inherits from a parent derived from the shape of a session URI', () => {
 			const parent = URI.from({ scheme: 'copilot', path: '/parent' }).toString();
 			manager.createSession(makeSummary(parent));
 			seedSessionConfig(parent, { level: 'high' });
@@ -109,7 +108,7 @@ suite('AgentConfigurationService', () => {
 			const child = buildSubagentSessionUri(parent, 'toolcall-1');
 			manager.createSession(makeSummary(child));
 
-			assert.strictEqual(service.getEffectiveValue(child, schema, 'level'), 'high');
+			assert.strictEqual(service.getEffectiveValue(child, schema, 'level'), undefined);
 		});
 
 		test('session value takes precedence over parent and host', () => {
@@ -138,6 +137,210 @@ suite('AgentConfigurationService', () => {
 			manager.createSession(makeSummary(uri));
 			seedSessionConfig(uri, {});
 			assert.strictEqual(service.getEffectiveValue(uri, schema, 'level'), undefined);
+		});
+	});
+
+	// ---- chat config -----------------------------------------------------
+
+	suite('chat config', () => {
+
+		const chatSchema = createSchema({
+			level: schemaProperty<'low' | 'high'>({ type: 'string', title: 'level', enum: ['low', 'high'], sessionMutable: true, chatMutable: true }),
+			limit: schemaProperty<number>({ type: 'number', title: 'limit', sessionMutable: true }),
+		});
+		const session = URI.from({ scheme: 'copilot', path: '/chats' }).toString();
+		const defaultChat = buildDefaultChatUri(session);
+		const peer = buildChatUri(session, 'peer');
+		const subagent = buildChatUri(session, 'subagent');
+		const nested = buildChatUri(session, 'nested');
+		const lookalike = buildChatUri(session, 'subagent/lookalike');
+
+		function setUpSession(values: Record<string, unknown>): void {
+			manager.createSession(makeSummary(session));
+			manager.setSessionConfig(session, { schema: chatSchema.toProtocol(), values });
+			manager.addChat(session, peer, peer, { config: { values: { level: 'high', limit: 9 } } });
+			manager.addChat(session, subagent, peer, { origin: { kind: ChatOriginKind.Tool, chat: peer, toolCallId: 'tc-1' } });
+			manager.addChat(session, nested, peer, { origin: { kind: ChatOriginKind.Tool, chat: subagent, toolCallId: 'tc-2' } });
+			manager.addChat(session, lookalike, lookalike);
+		}
+
+		function effective(chat: string): unknown {
+			return service.getChatEffectiveValue({ session, chat }, chatSchema, 'level');
+		}
+
+		test('reads own values, then the recorded spawning chats, then the session and the host', () => {
+			setUpSession({ level: 'low', limit: 1 });
+			seedRootConfig({ level: 'high' });
+			assert.deepStrictEqual({
+				defaultChat: effective(defaultChat),
+				peer: effective(peer),
+				subagent: effective(subagent),
+				nested: effective(nested),
+				lookalike: effective(lookalike),
+				peerValues: service.getChatConfigValues({ session, chat: peer }),
+				nestedOwn: service.getChatOwnConfigValues({ session, chat: nested }),
+			}, {
+				defaultChat: 'low',
+				peer: 'high',
+				subagent: 'high',
+				nested: 'high',
+				lookalike: 'low',
+				// `limit` is not settable per chat, so the chat's stray value is ignored.
+				peerValues: { level: 'high', limit: 1 },
+				nestedOwn: { level: 'high' },
+			});
+		});
+
+		test('values hold the chat, spawning-chat and session layers; the effective value also falls back to the host, as for a session', () => {
+			manager.createSession(makeSummary(session));
+			manager.setSessionConfig(session, { schema: chatSchema.toProtocol(), values: {} });
+			manager.addChat(session, peer, peer);
+			seedRootConfig({ level: 'high', limit: 4 });
+			const read = () => ({
+				values: service.getChatConfigValues({ session, chat: peer }),
+				effective: [service.getChatEffectiveValue({ session, chat: peer }, chatSchema, 'level'), service.getChatEffectiveValue({ session, chat: peer }, chatSchema, 'limit')],
+				session: [service.getEffectiveValue(session, chatSchema, 'level'), service.getEffectiveValue(session, chatSchema, 'limit')],
+			});
+			const hostOnly = read();
+			manager.dispatchServerAction(session, { type: ActionType.SessionConfigChanged, config: { limit: 2 } });
+			manager.dispatchServerAction(peer, { type: ActionType.ChatConfigChanged, config: { level: 'low' } });
+			assert.deepStrictEqual({ hostOnly, layered: read() }, {
+				hostOnly: { values: {}, effective: ['high', 4], session: ['high', 4] },
+				layered: { values: { level: 'low', limit: 2 }, effective: ['low', 2], session: ['high', 2] },
+			});
+		});
+
+		test('a write to a chat that is neither registered nor being created changes only the session', () => {
+			setUpSession({ level: 'low', limit: 1 });
+			const gone = buildChatUri(session, 'disposed');
+			const events: string[] = [];
+			disposables.add(service.onDidChatConfigChange(e => events.push(e.chat)));
+			service.updateChatConfig({ session, chat: gone }, { level: 'high', limit: 5 });
+			assert.deepStrictEqual({
+				own: manager.getChatConfig(gone),
+				values: service.getChatConfigValues({ session, chat: gone }),
+				session: service.getSessionConfigValues(session),
+				goneEvents: events.filter(chat => chat === gone),
+			}, {
+				own: undefined,
+				values: { level: 'low', limit: 5 },
+				session: { level: 'low', limit: 5 },
+				goneEvents: [],
+			});
+		});
+
+		test('a malformed own value falls back to the session', () => {
+			setUpSession({ level: 'low' });
+			manager.dispatchServerAction(peer, { type: ActionType.ChatConfigChanged, config: { level: 'bogus' } });
+			assert.strictEqual(effective(peer), 'low');
+		});
+
+		test('with chats with their own agents on, a malformed own value falls back to the schema\'s default and the host, not the session', async () => {
+			service.updateRootConfig({ [ChatProvidersConfigKey.Enabled]: true });
+			setUpSession({ level: 'low' });
+			// A chat registered with its session's config takes its complete values once registered.
+			await Promise.resolve();
+			manager.dispatchServerAction(peer, { type: ActionType.ChatConfigChanged, config: { level: 'bogus' } });
+			const withoutHost = effective(peer);
+			seedRootConfig({ level: 'high', [ChatProvidersConfigKey.Enabled]: true });
+			assert.deepStrictEqual([withoutHost, effective(peer)], [undefined, 'high']);
+		});
+
+		test('updates route settable properties to the chat (a subagent\'s to its spawning chat) and the rest to the session', () => {
+			setUpSession({ level: 'low', limit: 1 });
+			service.updateChatConfig({ session, chat: nested }, { level: 'low', limit: 2 });
+			service.updateChatConfig({ session, chat: defaultChat }, { level: 'high' });
+			assert.deepStrictEqual({
+				peer: manager.getChatConfig(peer),
+				subagent: manager.getChatConfig(subagent),
+				nested: manager.getChatConfig(nested),
+				defaultChat: manager.getChatConfig(defaultChat),
+				session: service.getSessionConfigValues(session),
+			}, {
+				peer: { values: { level: 'low', limit: 9 } },
+				subagent: undefined,
+				nested: undefined,
+				defaultChat: { values: { level: 'high' } },
+				session: { level: 'low', limit: 2 },
+			});
+		});
+
+		for (const complete of [false, true]) {
+			test(`fires chat changes for the changed chat and its subagents, and session changes for chats that do not set the key${complete ? ' (with chats with their own agents on, only session-wide properties reach chats other than the default chat: their values are their complete config)' : ''}`, async () => {
+				if (complete) {
+					service.updateRootConfig({ [ChatProvidersConfigKey.Enabled]: true });
+				}
+				setUpSession({ level: 'low', limit: 1 });
+				await Promise.resolve();
+				const events: string[] = [];
+				disposables.add(service.onDidChatConfigChange(e => events.push(`${e.chat.substring(session.length)} ${JSON.stringify(e.config)}`)));
+				service.updateChatConfig({ session, chat: peer }, { level: 'low' });
+				service.updateSessionConfig(session, { level: 'high', limit: 3 });
+				assert.deepStrictEqual(events, [
+					`${peer.substring(session.length)} {"level":"low"}`,
+					`${subagent.substring(session.length)} {"level":"low"}`,
+					`${nested.substring(session.length)} {"level":"low"}`,
+					`${defaultChat.substring(session.length)} {"level":"high","limit":3}`,
+					`${peer.substring(session.length)} {"limit":3}`,
+					`${subagent.substring(session.length)} {"limit":3}`,
+					`${nested.substring(session.length)} {"limit":3}`,
+					`${lookalike.substring(session.length)} ${complete ? '{"limit":3}' : '{"level":"high","limit":3}'}`,
+				]);
+			});
+		}
+
+		test('a replacement fans out the keys it removed, from the session and from a chat', () => {
+			setUpSession({ level: 'low', limit: 1 });
+			const events: string[] = [];
+			disposables.add(service.onDidChatConfigChange(e => {
+				if (e.chat === peer || e.chat === defaultChat) {
+					events.push(`${e.chat === peer ? 'peer' : 'default'} ${Object.keys(e.config).sort().join(',')}`);
+				}
+			}));
+			manager.dispatchServerAction(session, { type: ActionType.SessionConfigChanged, config: { level: 'low' }, replace: true });
+			manager.dispatchServerAction(peer, { type: ActionType.ChatConfigChanged, config: {}, replace: true });
+			assert.deepStrictEqual(events, ['default level,limit', 'peer limit', 'peer level,limit']);
+		});
+
+		test('without chats with their own agents, a session write leaves the default chat\'s own value, as before', async () => {
+			setUpSession({ level: 'low', limit: 1 });
+			service.updateChatConfig({ session, chat: defaultChat }, { level: 'high' });
+			manager.dispatchClientAction(session, { type: ActionType.SessionConfigChanged, config: { level: 'low' } }, { clientId: 'client', clientSeq: 1 });
+			await Promise.resolve();
+			assert.deepStrictEqual({ effective: effective(defaultChat), published: manager.getChatConfig(defaultChat)?.values }, { effective: 'high', published: { level: 'high' } });
+		});
+
+		test('with chats with their own agents on, a session write replaces the default chat\'s own value of a property it may set, persisted cleared; a peer keeps its own', async () => {
+			service.updateRootConfig({ [ChatProvidersConfigKey.Enabled]: true });
+			setUpSession({ level: 'low', limit: 1 });
+			await Promise.resolve();
+			service.updateChatConfig({ session, chat: defaultChat }, { level: 'high' });
+			const before = { effective: effective(defaultChat), persisted: service.getChatPersistedConfigValues(defaultChat) };
+			manager.dispatchClientAction(session, { type: ActionType.SessionConfigChanged, config: { level: 'low' } }, { clientId: 'client', clientSeq: 1 });
+			assert.deepStrictEqual({
+				before,
+				effective: effective(defaultChat),
+				published: manager.getChatConfig(defaultChat)?.values,
+				persisted: service.getChatPersistedConfigValues(defaultChat),
+				peer: [effective(peer), service.getChatOwnConfigValues({ session, chat: peer })],
+			}, {
+				before: { effective: 'high', persisted: { level: 'high' } },
+				effective: 'low',
+				published: { level: 'low' },
+				persisted: {},
+				peer: ['high', { level: 'high' }],
+			});
+		});
+
+		test('a seed gives a chat being created its values until it is registered', () => {
+			setUpSession({ level: 'low' });
+			const fork = buildChatUri(session, 'fork');
+			const seed = service.seedChatConfig(fork, { level: 'high' });
+			const during = effective(fork);
+			service.updateChatConfig({ session, chat: fork }, { level: 'low' });
+			const values = seed.values;
+			seed.dispose();
+			assert.deepStrictEqual({ during, values, after: effective(fork) }, { during: 'high', values: { level: 'low' }, after: 'low' });
 		});
 	});
 
@@ -190,6 +393,45 @@ suite('AgentConfigurationService', () => {
 			const uri = URI.from({ scheme: 'copilot', path: '/a' }).toString();
 			manager.createSession(makeSummary(uri));
 			assert.strictEqual(getEffectiveWorkingDirectories(manager, uri), undefined);
+		});
+	});
+
+	// ---- getSessionSummaryWorkingDirectories ------------------------------
+
+	suite('getSessionSummaryWorkingDirectories', () => {
+
+		const session = URI.from({ scheme: 'copilot', path: '/summary' }).toString();
+		const defaultChat = buildDefaultChatUri(session);
+
+		function addChat(name: string, options: { workingDirectories?: string[]; origin?: { kind: ChatOriginKind.Tool | ChatOriginKind.SideChat; chat: string } } = {}): string {
+			const chat = buildChatUri(session, name);
+			manager.addChat(session, chat, chat, {
+				workingDirectories: options.workingDirectories,
+				origin: options.origin?.kind === ChatOriginKind.Tool ? { kind: ChatOriginKind.Tool, chat: options.origin.chat, toolCallId: name }
+					: options.origin ? { kind: ChatOriginKind.SideChat, chat: options.origin.chat, turnId: 'turn' } : undefined,
+			});
+			return chat;
+		}
+
+		test('covers the session and the folders of chats in use, not those of archived chats or the folders subagents are pinned to', () => {
+			manager.createSession(makeSummary(session, 'file:///default'));
+			addChat('visible', { workingDirectories: ['file:///visible'] });
+			const archived = addChat('archived', { workingDirectories: ['file:///archived'] });
+			addChat('archived-subagent', { origin: { kind: ChatOriginKind.Tool, chat: archived }, workingDirectories: ['file:///deleted-worktree'] });
+			const visibleSubagentParent = addChat('with-subagent', { workingDirectories: ['file:///spawner'] });
+			addChat('pinned-subagent', { origin: { kind: ChatOriginKind.Tool, chat: visibleSubagentParent }, workingDirectories: ['file:///pinned'] });
+			manager.dispatchServerAction(archived, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+
+			assert.deepStrictEqual(getSessionSummaryWorkingDirectories(manager, session), ['file:///default', 'file:///visible', 'file:///spawner']);
+		});
+
+		test('keeps the default chat and a side chat of a chat in use', () => {
+			manager.createSession(makeSummary(session, 'file:///default'));
+			const peer = addChat('peer', { workingDirectories: ['file:///peer'] });
+			addChat('side', { origin: { kind: ChatOriginKind.SideChat, chat: peer }, workingDirectories: ['file:///side'] });
+			manager.dispatchServerAction(defaultChat, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+
+			assert.deepStrictEqual(getSessionSummaryWorkingDirectories(manager, session), ['file:///default', 'file:///peer', 'file:///side']);
 		});
 	});
 
@@ -310,31 +552,49 @@ suite('AgentConfigurationService', () => {
 		fs.rmSync(directory, { recursive: true, force: true });
 	});
 
+	test('persists MCP sampling approval and revocation across host restarts', async () => {
+		const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-sampling-config-'));
+		const resource = URI.file(join(directory, 'agent-host-config.json'));
+		disposables.add(toDisposable(() => fs.rmSync(directory, { recursive: true, force: true })));
+		const firstManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const firstService = disposables.add(new AgentConfigurationService(firstManager, new NullLogService(), resource));
+		firstService.updateRootConfig({ [AgentHostMcpSamplingAllowedServersConfigKey]: ['test-server'] });
+		await firstService.whenIdle();
+		const persisted = JSON.parse(fs.readFileSync(resource.fsPath, 'utf8')) as Record<string, unknown>;
+		firstService.dispose();
+
+		const restartedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const restartedService = disposables.add(new AgentConfigurationService(restartedManager, new NullLogService(), resource));
+		const restored = restartedService.getRootValue(platformRootSchema, AgentHostMcpSamplingAllowedServersConfigKey);
+		restartedService.updateRootConfig({ [AgentHostMcpSamplingAllowedServersConfigKey]: [] });
+		await restartedService.whenIdle();
+		restartedService.dispose();
+
+		const revokedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const revokedService = disposables.add(new AgentConfigurationService(revokedManager, new NullLogService(), resource));
+		assert.deepStrictEqual({
+			persisted: persisted[AgentHostMcpSamplingAllowedServersConfigKey],
+			restored,
+			revoked: revokedService.getRootValue(platformRootSchema, AgentHostMcpSamplingAllowedServersConfigKey),
+		}, { persisted: ['test-server'], restored: ['test-server'], revoked: [] });
+	});
+
 	for (const enabled of [true, false]) {
-		test(`restores Automation enablement ${enabled} and timeout without a client reconnect`, async () => {
+		test(`restores Automation enablement ${enabled} without a client reconnect`, async () => {
 			const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-config-'));
-			try {
-				const resource = URI.file(join(directory, 'agent-host-config.json'));
-				const firstManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-				const firstService = disposables.add(new AgentConfigurationService(firstManager, new NullLogService(), resource));
-				firstService.updateRootConfig({
-					[AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: enabled,
-					[AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY]: 42,
-				});
-				await firstService.whenIdle();
-				const restartedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-				const restartedService = disposables.add(new AgentConfigurationService(restartedManager, new NullLogService(), resource));
-				assert.deepStrictEqual({
-					enabled: restartedService.getRootValue(automationRootConfigSchema, AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY),
-					timeout: restartedService.getRootValue(automationRootConfigSchema, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY),
-				}, { enabled, timeout: 42 });
-			} finally {
-				fs.rmSync(directory, { recursive: true, force: true });
-			}
+			disposables.add(toDisposable(() => fs.rmSync(directory, { recursive: true, force: true })));
+			const resource = URI.file(join(directory, 'agent-host-config.json'));
+			const firstManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const firstService = disposables.add(new AgentConfigurationService(firstManager, new NullLogService(), resource));
+			firstService.updateRootConfig({ [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: enabled });
+			await firstService.whenIdle();
+			const restartedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const restartedService = disposables.add(new AgentConfigurationService(restartedManager, new NullLogService(), resource));
+			assert.strictEqual(restartedService.getRootValue(automationRootConfigSchema, AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY), enabled);
 		});
 	}
 
-	test('does not restore client-owned approval settings when the host restarts', async () => {
+	test('restores host permission rules and the default-rule opt-out but not client-owned approvals on restart', async () => {
 		const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-config-'));
 		const resource = URI.file(join(directory, 'agent-host-config.json'));
 		const firstManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -342,11 +602,11 @@ suite('AgentConfigurationService', () => {
 		// A permissive snapshot that a user, workspace, or policy could tighten
 		// while the host is stopped.
 		firstService.updateRootConfig({
-			[SessionConfigKey.Permissions]: { allow: ['revoked-rule'], deny: [] },
+			[SessionConfigKey.Permissions]: { allow: ['WebFetch(example.com)'], deny: ['WebFetch(blocked.test)'], ask: ['Shell(rm *)'] },
 			[AgentHostGlobalAutoApproveEnabledConfigKey]: true,
 			[AgentHostAutoApprovePolicyRestrictedConfigKey]: false,
 			[AgentHostTerminalAutoApproveEnabledConfigKey]: true,
-			[AgentHostTerminalAutoApproveRulesConfigKey]: { rm: true },
+			[AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey]: true,
 			[AgentHostEditAutoApprovePatternsConfigKey]: { '**/*': true },
 			[AgentHostAutoReplyEnabledConfigKey]: true,
 			[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(directory).toString()] },
@@ -360,13 +620,18 @@ suite('AgentConfigurationService', () => {
 
 		assert.deepStrictEqual({
 			persistedKeys: [...clientOwnedApprovalRootConfigKeys].filter(key => persisted[key] !== undefined).sort(),
-			// The state manager seeds empty permissions; nothing else survives.
 			restoredKeys: [...clientOwnedApprovalRootConfigKeys].filter(key => restored[key] !== undefined).sort(),
-			permissions: restored[SessionConfigKey.Permissions],
+			persistedPermissions: persisted[SessionConfigKey.Permissions],
+			restoredPermissions: restored[SessionConfigKey.Permissions],
+			persistedIgnoreDefaults: persisted[AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey],
+			restoredIgnoreDefaults: restored[AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey],
 		}, {
 			persistedKeys: [...clientOwnedApprovalRootConfigKeys].sort(),
-			restoredKeys: [SessionConfigKey.Permissions],
-			permissions: { allow: [], deny: [] },
+			restoredKeys: [],
+			persistedPermissions: { allow: ['WebFetch(example.com)'], deny: ['WebFetch(blocked.test)'], ask: ['Shell(rm *)'] },
+			restoredPermissions: { allow: ['WebFetch(example.com)'], deny: ['WebFetch(blocked.test)'], ask: ['Shell(rm *)'] },
+			persistedIgnoreDefaults: true,
+			restoredIgnoreDefaults: true,
 		});
 		fs.rmSync(directory, { recursive: true, force: true });
 	});
@@ -396,5 +661,23 @@ suite('AgentConfigurationService', () => {
 		};
 
 		assert.deepStrictEqual(getAgentCustomizationSettingsEntries(manager.rootState).map(entry => entry.provider), ['valid']);
+	});
+
+	test('a local host is seeded with chats with their own agents from its starter\'s environment, only when the setting is on', () => {
+		const sdkEnv = (multipleChatProvidersEnabled: boolean | undefined, inherited: Record<string, string | undefined> = {}) => buildAgentSdkEnv({ multipleChatProvidersEnabled }, inherited)[AgentHostMultipleChatProvidersEnabledEnvVar];
+		const seeded = (env: Record<string, string | undefined>) => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const configuration = disposables.add(new AgentConfigurationService(stateManager, new NullLogService()));
+			seedMultipleChatProvidersFromEnvironment(configuration, env);
+			return configuration.getRootValue(chatProvidersRootConfigSchema, ChatProvidersConfigKey.Enabled);
+		};
+		assert.deepStrictEqual({
+			starter: [sdkEnv(true), sdkEnv(false), sdkEnv(undefined), sdkEnv(true, { [AgentHostMultipleChatProvidersEnabledEnvVar]: 'false' })],
+			host: [seeded({ [AgentHostMultipleChatProvidersEnabledEnvVar]: 'true' }), seeded({}), seeded({ [AgentHostMultipleChatProvidersEnabledEnvVar]: 'false' })],
+		}, {
+			// Forwarded only when on; a developer's own value wins.
+			starter: ['true', undefined, undefined, undefined],
+			host: [true, undefined, undefined],
+		});
 	});
 });

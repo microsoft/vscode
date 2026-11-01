@@ -14,13 +14,17 @@ import { Registry } from '../../../registry/common/platform.js';
 import { AgentSandboxSettingId } from '../../../sandbox/common/settings.js';
 import { getAgentHostPolicyGapImpact, getAgentHostPolicyGaps } from '../../common/agentHostPolicyReadiness.js';
 import { agentHostPolicySupport } from '../../common/agentHostPolicySupport.js';
+import { AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOutfileSettingId } from '../../common/agentService.js';
 
 suite('AgentHostPolicyReadiness', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
-		sinon.stub(Registry.as<IConfigurationRegistry>(Extensions.Configuration), 'getPolicyConfigurations')
-			.returns(new Map(Object.keys(agentHostPolicySupport).map(name => [name, name])));
+		const policyConfigurations = new Map(Object.keys(agentHostPolicySupport).map(name => [name, name]));
+		policyConfigurations.set('CopilotOtelEnabled', AgentHostOTelEnabledSettingId);
+		policyConfigurations.set('CopilotOtelProtocol', AgentHostOTelExporterTypeSettingId);
+		policyConfigurations.set('CopilotOtelOutfile', AgentHostOTelOutfileSettingId);
+		sinon.stub(Registry.as<IConfigurationRegistry>(Extensions.Configuration), 'getPolicyConfigurations').returns(policyConfigurations);
 	});
 	teardown(() => sinon.restore());
 
@@ -53,7 +57,6 @@ suite('AgentHostPolicyReadiness', () => {
 			ChatAgentMode: true,
 			ChatToolsTerminalEnableAutoApprove: true,
 			ChatAgentSandboxEnabled: 'off',
-			ChatAgentSandboxAllowAutoApprove: true,
 			ChatPluginsEnabled: true,
 			ChatHooks: true,
 			CopilotOtelEnabled: true,
@@ -63,7 +66,6 @@ suite('AgentHostPolicyReadiness', () => {
 			ChatToolsEligibleForAutoApproval: { tool: true },
 			ChatAllowedMcpServers: null,
 			ChatDeniedMcpServers: [],
-			ChatStrictMarketplaces: null,
 			ChatEnabledPlugins: {},
 			ChatExtraMarketplaces: {},
 			CopilotOtelHeaders: {},
@@ -71,25 +73,46 @@ suite('AgentHostPolicyReadiness', () => {
 		})), []);
 	});
 
+	test('OTel requirements follow the active registered-policy composition', () => {
+		const policies: Record<string, unknown> = {
+			[AgentHostOTelEnabledSettingId]: false,
+			[AgentHostOTelExporterTypeSettingId]: 'file',
+			[AgentHostOTelOutfileSettingId]: '/managed/synthetic-otel.jsonl',
+		};
+		const service = configuration(policies, {
+			[AgentHostOTelOutfileSettingId]: '/personal/synthetic-otel.jsonl',
+		});
+		const gaps = () => getAgentHostPolicyGaps(service).filter(gap => gap.policyName.startsWith('CopilotOtel')).map(gap => gap.policyName);
+
+		assert.deepStrictEqual([
+			gaps(),
+			(delete policies[AgentHostOTelEnabledSettingId], gaps()),
+			(delete policies[AgentHostOTelOutfileSettingId], gaps()),
+			(policies[AgentHostOTelExporterTypeSettingId] = 'otlp-grpc', gaps()),
+			(delete policies[AgentHostOTelExporterTypeSettingId], gaps()),
+		], [
+			[],
+			[],
+			['CopilotOtelProtocol'],
+			['CopilotOtelProtocol'],
+			[],
+		]);
+	});
+
 	test('restrictive values and required functionality are covered for each gap', () => {
 		const policies = {
 			ChatMCP: 'registry',
 			ChatAgentMode: false,
 			ChatToolsTerminalEnableAutoApprove: false,
-			ChatAgentSandboxEnabled: 'on',
-			ChatAgentSandboxAllowAutoApprove: false,
 			ChatPluginsEnabled: false,
 			ChatHooks: false,
 			CopilotOtelCaptureIdentity: false,
-			CopilotOtelEnabled: false,
-			CopilotOtelProtocol: 'otlp-http',
 			ChatAllowManagedMcpServersOnly: true,
 			ChatAllowManagedHooksOnly: true,
 			ChatStrictPluginOnlyCustomization: true,
 			ChatToolsEligibleForAutoApproval: { tool: false },
 			ChatAllowedMcpServers: [],
 			ChatDeniedMcpServers: [{ serverName: 'blocked' }],
-			ChatStrictMarketplaces: [],
 			ChatEnabledPlugins: { required: true },
 			ChatExtraMarketplaces: { required: 'owner/repository' },
 			CopilotOtelHeaders: { authorization: 'test-placeholder' },
@@ -138,18 +161,28 @@ suite('AgentHostPolicyReadiness', () => {
 		})), []);
 	});
 
-	test('merged sandbox and identity fixes retain only lifecycle and runtime verification concerns', () => {
-		const service = configuration({ ChatAgentSandboxEnabled: 'on', CopilotOtelCaptureIdentity: true });
+	test('retired legacy sandbox policies are outside Agent Host readiness scope', () => {
+		for (const enabled of ['on', 'off', true, false]) {
+			for (const allowed of [true, false]) {
+				assert.deepStrictEqual(getAgentHostPolicyGaps(configuration({
+					ChatAgentSandboxEnabled: enabled,
+					ChatAgentSandboxAllowNetwork: allowed,
+					ChatAgentSandboxAllowUnsandboxedCommands: allowed,
+				})), []);
+			}
+		}
+	});
+
+	test('retired sandbox policies do not suppress unrelated policy verification', () => {
+		const service = configuration({
+			ChatAgentSandboxEnabled: 'on',
+			CopilotOtelCaptureIdentity: true,
+		});
 		assert.deepStrictEqual(getAgentHostPolicyGaps(service).map(gap => ({
 			policyName: gap.policyName,
 			status: gap.status,
 			impact: getAgentHostPolicyGapImpact(gap.policyName),
 		})), [
-			{
-				policyName: 'ChatAgentSandboxEnabled',
-				status: 'partial',
-				impact: 'Policy-required sandboxing blocks direct session Off overrides on supported platforms. Verify delayed policy loading and loss/reapplication of the last client\'s requirement across disconnect-grace expiry.',
-			},
 			{
 				policyName: 'CopilotOtelCaptureIdentity',
 				status: 'partial',

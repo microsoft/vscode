@@ -180,6 +180,14 @@ export interface IAuthenticationService {
 	readonly onDidAdoAuthenticationChange: Event<void>;
 
 	/**
+	 * Checks if there is currently any Azure DevOps session available in the cache. Does not make any network
+	 * requests and does not call out to the underlying authentication provider.
+	 *
+	 * @note For best practice of handling of the user's authentication state, you should react to {@link onDidAdoAuthenticationChange}.
+	 */
+	readonly anyAdoSession: AuthenticationSession | undefined;
+
+	/**
 	 * Returns a valid Azure DevOps session for the user
 	 */
 	getAdoAccessTokenBase64(options?: AuthenticationGetSessionOptions): Promise<string | undefined>;

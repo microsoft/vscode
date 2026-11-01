@@ -12,6 +12,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { GitHubService } from '../../common/githubService.js';
 import { RequestFetch } from '../../common/types.js';
+import { getGitHubClientInternals } from './githubClientTestUtils.js';
 
 suite('GitHub bootstrap clients', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -58,6 +59,29 @@ suite('GitHub bootstrap clients', () => {
 		});
 	});
 
+	for (const accountId of [undefined, '101']) {
+		test(`a generic 403 does not throttle ${accountId ? 'known' : 'unknown'} bootstrap credentials`, () => runWithFakedTimers({}, async () => {
+			const requests: string[] = [];
+			const blockedUntil: number[] = [];
+			const service = create(async input => {
+				const path = new URL(String(input)).pathname;
+				requests.push(path);
+				return path === '/denied'
+					? Response.json({ message: 'Rate Limit Exceeded' }, { status: 403, headers: { 'x-ratelimit-remaining': '4999' } })
+					: Response.json({ ok: true });
+			});
+			const first = store.add(service.acquireBootstrapClient({ apiBaseUri, token: 'first', accountId }));
+			await assert.rejects(first.object.get('/denied', signal()), { kind: 'authorization', statusCode: 403 });
+			await first.object.get('/after', signal(), { deadline: Date.now() + 100, onBlockedUntil: time => blockedUntil.push(time) });
+			first.dispose();
+			const second = store.add(service.acquireBootstrapClient({ apiBaseUri, token: 'second', accountId })).object;
+			await second.get('/replacement', signal(), { deadline: Date.now() + 100, onBlockedUntil: time => blockedUntil.push(time) });
+			assert.deepStrictEqual({ requests, hasCooldown: blockedUntil.some(time => time > Date.now()) }, {
+				requests: ['/denied', '/after', '/replacement'], hasCooldown: false,
+			});
+		}));
+	}
+
 	test('unknown credentials retain a shared origin cooldown across disposal and token changes', () => runWithFakedTimers({}, async () => {
 		let calls = 0;
 		const service = create(async () => { calls++; return new Response(null, { status: 429, headers: { 'Retry-After': '60' } }); });
@@ -84,10 +108,10 @@ suite('GitHub bootstrap clients', () => {
 			authorization: { providerId: 'test', sessionId: 'repository', scopes: ['repo'] },
 			apiBaseUri, graphQlUri: `${apiBaseUri}/graphql`,
 		})).object;
-		await assert.rejects(repository.transport.rest({ host: 'api.github.com', accountId: '101' }, 'repository', {
+		await assert.rejects(getGitHubClientInternals(repository).transport.rest({ host: 'api.github.com', accountId: '101' }, 'repository', {
 			method: 'GET', url: `${apiBaseUri}/repos/owner/repo`, deadline: Date.now() + 100,
 		}, signal()), { kind: 'timeout' });
-		await repository.transport.rest({ host: 'api.github.com', accountId: '202' }, 'peer', {
+		await getGitHubClientInternals(repository).transport.rest({ host: 'api.github.com', accountId: '202' }, 'peer', {
 			method: 'GET', url: `${apiBaseUri}/repos/peer/repo`,
 		}, signal());
 		assert.deepStrictEqual(requests, ['/copilot_internal/user', '/repos/peer/repo']);
@@ -136,19 +160,23 @@ suite('GitHub bootstrap clients', () => {
 	});
 
 	test('bootstrap reads participate in the same origin concurrency limit', async () => {
-		const gate = new DeferredPromise<Response>();
+		const gate = new DeferredPromise<void>();
 		const requests: string[] = [];
 		const service = create(async input => {
 			requests.push(String(input));
-			return requests.length === 1 ? gate.p : Response.json({});
+			await gate.p;
+			return Response.json({});
 		});
 		const first = store.add(service.acquireBootstrapClient({ apiBaseUri, token: 'first' })).object;
 		const second = store.add(service.acquireBootstrapClient({ apiBaseUri, token: 'second' })).object;
-		const reads = [first.get('/first', signal()), second.get('/second', signal())];
+		const paths = Array.from({ length: 12 }, (_, index) => `/request-${index}`);
+		const reads = paths.map((path, index) => (index % 2 ? first : second).get(path, signal(), { caller: `caller-${index % 2}` }));
 		await timeout(0);
-		assert.strictEqual(requests.length, 1);
-		await gate.complete(Response.json({}));
+		const initiallyStarted = requests.length;
+		await gate.complete();
 		await Promise.all(reads);
-		assert.deepStrictEqual(requests, [`${apiBaseUri}/first`, `${apiBaseUri}/second`]);
+		assert.deepStrictEqual({ initiallyStarted, requests: requests.sort() }, {
+			initiallyStarted: 10, requests: paths.map(path => `${apiBaseUri}${path}`).sort(),
+		});
 	});
 });

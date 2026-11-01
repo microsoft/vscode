@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { getPullRequestUrlKey, parseGitHubCommitTarget, parseGitHubIssueUrl, parseGitHubLinkTarget, parseGitHubPullRequestUrl, parsePullRequestUrl } from '../../common/githubUrls.js';
 
-suite('GitHub URL parsers', () => {
+suite('GitHub URL helpers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('pull request keys preserve the host and number while normalizing case and trailing slashes', () => {

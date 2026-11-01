@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -22,8 +23,8 @@ import { IChatService } from '../../../../workbench/contrib/chat/common/chatServ
 import { aggregateChatUsage } from '../../../../workbench/contrib/chat/common/chatUsage.js';
 import { isActiveSessionStatus, ISession, SessionStatus } from '../common/session.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
-import { getSessionComparisonAttemptLabel, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
+import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
+import { getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
 import { getSessionsTelemetryAgentId, getSessionsTelemetryModelId, getSessionsTelemetryProviderId, hashSessionIdForTelemetry, logSessionComparisonAttemptCompleted, logSessionComparisonModelOutcome } from '../../../common/sessionsTelemetry.js';
 
 interface IStoredSessionComparisonParticipant extends Omit<ISessionComparisonParticipant, 'sessionResource'> {
@@ -31,15 +32,10 @@ interface IStoredSessionComparisonParticipant extends Omit<ISessionComparisonPar
 }
 
 interface IStoredSessionComparison extends Omit<ISessionComparison, 'workspace' | 'attachedContext' | 'participants'> {
-	readonly workspace: string;
+	readonly version?: number;
+	readonly workspace?: string;
 	readonly attachedContext?: readonly IChatRequestVariableEntry[];
 	readonly participants: readonly IStoredSessionComparisonParticipant[];
-}
-
-function isDecisionAssessment(value: SessionComparisonDecisionAssessment | undefined): value is SessionComparisonDecisionAssessment {
-	return value === SessionComparisonDecisionAssessment.Better
-		|| value === SessionComparisonDecisionAssessment.Neutral
-		|| value === SessionComparisonDecisionAssessment.Worse;
 }
 
 function getAttemptUnavailableMessage(): string {
@@ -89,6 +85,12 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			this._migrateLegacyAttemptTitles(activeComparisons);
 			this._checkComparisons(activeComparisons);
 		}));
+		this._register(this.sessionsManagementService.onDidArchiveSession(session => {
+			const comparison = this.getComparisonForSession(session.resource);
+			if (comparison) {
+				this._archiveFullyArchivedComparisons([comparison]);
+			}
+		}));
 		this._register(this.sessionsManagementService.onDidDeleteSession(session => this._markParticipantDeleted(session)));
 		this._register(this.sessionGroupsService.onDidChange(event => {
 			if (event.groupsChanged) {
@@ -99,8 +101,14 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	}
 
 	async startComparison(options: IStartSessionComparisonOptions, token: CancellationToken = CancellationToken.None): Promise<ISessionComparison> {
-		if (options.attempts.length < 2) {
-			throw new Error('A session comparison requires at least two attempts.');
+		if (options.attempts.length < 2 || options.attempts.length > SESSION_COMPARISON_MAX_ATTEMPTS) {
+			throw new Error('A session comparison requires between two and ten attempts.');
+		}
+		if (options.synthesisHarness && !options.judgeHarness) {
+			throw new Error('A synthesis model requires a Judge model.');
+		}
+		if (!options.workspace && (options.judgeHarness || options.synthesisHarness)) {
+			throw new Error('Folderless comparisons do not support a Judge or Synthesizer.');
 		}
 		if (new Set(options.attempts.map(attempt => attempt.id)).size !== options.attempts.length) {
 			throw new Error('Session comparison attempt identifiers must be unique.');
@@ -124,7 +132,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			prompt: options.prompt,
 			launching: true,
 			attachedContext,
-			branch: options.branch,
+			branch: options.workspace ? options.branch : undefined,
 			permissionLevel: options.permissionLevel,
 			judgeHarness: options.judgeHarness,
 			synthesisHarness: options.synthesisHarness,
@@ -133,9 +141,10 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		this._addComparison(comparison);
 
 		const attemptPromises = attempts.map(async (participant, index): Promise<ISessionComparisonParticipant> => {
+			await timeout(0);
 			const harness = participant.harness;
 			try {
-				const session = await this.sessionsManagementService.createAndSendNewChatRequest(options.workspace, {
+				const session = await this._createAndSendRequest(options.workspace, {
 					query: options.prompt,
 					attachedContext: comparison.attachedContext ? [...comparison.attachedContext] : undefined,
 					title: getSessionComparisonHarnessLabel(participant),
@@ -143,11 +152,12 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				}, {
 					...this._createOptions(harness, options, id, index),
 					onSessionCreated: createdSession => {
-						this._updateComparisonParticipant(id, participant.id, currentParticipant => ({
+						const updated = this._updateComparisonParticipant(id, participant.id, currentParticipant => ({
 							...currentParticipant,
 							sessionResource: createdSession.resource,
 							launchError: undefined,
 						}));
+						this._groupCreatedSession(updated, createdSession);
 					},
 				}, token);
 				return {
@@ -178,7 +188,6 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		};
 		this._ensureComparisonGroupMembership([comparison]);
 		this._replaceComparison(comparison);
-		this._checkComparison(comparison);
 		const successfulAttemptCount = launchedAttempts.filter(participant => participant.sessionResource).length;
 		if (successfulAttemptCount < 2) {
 			this._removeComparison(comparison.id);
@@ -195,7 +204,12 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				launchFailures
 			));
 		}
-		return comparison;
+		this._archiveFullyArchivedComparisons([comparison]);
+		const reconciled = this.getComparison(comparison.id) ?? comparison;
+		if (reconciled.archivedAt === undefined) {
+			this._checkComparison(reconciled);
+		}
+		return reconciled;
 	}
 
 	getComparison(comparisonId: string): ISessionComparison | undefined {
@@ -260,22 +274,6 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		if (verdict.attempts.some(attempt => !attemptIds.has(attempt.participantId))) {
 			throw new Error('The comparison verdict contains an unknown attempt.');
 		}
-		const sectionIds = new Set<string>();
-		for (const section of verdict.decisionSections ?? []) {
-			const optionIds = new Set(section.options.map(option => option.participantId));
-			const hasAssessments = section.options.some(option => option.assessment !== undefined);
-			const recommendedOption = section.options.find(option => option.participantId === section.recommendedParticipantId);
-			if (sectionIds.has(section.id)
-				|| !attemptIds.has(section.recommendedParticipantId)
-				|| !optionIds.has(section.recommendedParticipantId)
-				|| optionIds.size !== section.options.length
-				|| section.options.some(option => !attemptIds.has(option.participantId))
-				|| hasAssessments && (recommendedOption?.assessment !== SessionComparisonDecisionAssessment.Better
-					|| section.options.some(option => !isDecisionAssessment(option.assessment)))) {
-				throw new Error('The comparison verdict contains an invalid synthesis decision section.');
-			}
-			sectionIds.add(section.id);
-		}
 		const updated = { ...comparison, verdict, synthesisPlan: undefined };
 		this._replaceComparison(updated);
 		this._reportOutcomeTelemetry(comparison, verdict);
@@ -285,6 +283,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	canRetryJudge(comparisonId: string): boolean {
 		const comparison = this.getComparison(comparisonId);
 		return !!comparison
+			&& !!comparison.judgeHarness
 			&& comparison.cancelledAt === undefined
 			&& comparison.archivedAt === undefined
 			&& !this._judgeStarting.has(comparisonId)
@@ -321,18 +320,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			&& (plan.instructions.trim().length === 0 || plan.instructions.length > SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH)) {
 			throw new Error('The synthesis plan contains invalid additional instructions.');
 		}
-		const sections = new Map((comparison.verdict?.decisionSections ?? []).map(section => [section.id, section]));
-		const selectedSectionIds = new Set<string>();
-		for (const selection of plan.selections) {
-			const section = sections.get(selection.sectionId);
-			if (!section
-				|| selectedSectionIds.has(selection.sectionId)
-				|| selection.participantId !== undefined && !section.options.some(option => option.participantId === selection.participantId)) {
-				throw new Error('The synthesis plan contains an invalid section selection.');
-			}
-			selectedSectionIds.add(selection.sectionId);
-		}
-		this._replaceComparison({ ...comparison, synthesisPlan: plan });
+		this._replaceComparison({ ...comparison, synthesisPlan: { instructions: plan.instructions } });
 	}
 
 	async synthesize(comparisonId: string): Promise<void> {
@@ -355,15 +343,19 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		if (!recommended) {
 			throw new Error('A selected or recommended attempt is required before synthesis.');
 		}
-		const harness = comparison.synthesisHarness ?? recommended.harness;
+		const harness = comparison.synthesisHarness;
+		if (!harness || !comparison.verdict) {
+			throw new Error('A configured synthesis model and a Judge verdict are required before synthesis.');
+		}
 		const synthesisParticipantId = generateUuid();
 
 		this._synthesisStarting.add(comparisonId);
 		try {
+			const otherAttemptStrengthsPrompt = this._getOtherAttemptStrengthsPrompt(comparison);
 			const synthesisPlanPrompt = this._getSynthesisPlanPrompt(comparison);
-			const session = await this.sessionsManagementService.createAndSendNewChatRequest(comparison.workspace, {
-				query: localize('sessionComparison.synthesisPrompt', "Synthesize the strongest parts of comparison `{0}` into a new implementation.\n\n## Process\n1. Call `#readAttemptComparison` exactly once with this comparison ID.\n2. Read implementation code only from the authoritative worktrees in the manifest. If `changedFilesStatus` is unavailable, read the Git diff from that worktree.\n3. Treat every selected synthesis approach and additional instruction below, plus the synthesis plan in the manifest, as explicit user requirements. Resolve cross-section dependencies coherently instead of copying hunks mechanically.\n4. Call `get_session_context` only with an exact `sessionContextTarget` returned by the manifest and only for rationale or validation evidence. Never recover implementation code or paths from a transcript.\n5. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior and resolve the Judge's reported conflicts.\n\n## Judge recommendation\n{1}{2}\n\n## Completion\n- Run the relevant validation.\n- Respond concisely with **Changes**, **Validation**, and **Remaining issues** sections using bullet points.", comparison.id, this._getVerdictRecommendation(comparison), synthesisPlanPrompt),
-				attachedContext: comparison.attachedContext ? [...comparison.attachedContext] : undefined,
+			const session = await this._createAndSendRequest(comparison.workspace, {
+				query: localize('sessionComparison.synthesisPrompt', "Synthesize the strongest parts of comparison `{0}` into a new implementation.\n\n## Process\n1. Call `#readAttemptComparison` exactly once with this comparison ID.\n2. Read implementation code only from the authoritative worktrees in the manifest. If `changedFilesStatus` is unavailable, read the Git diff from that worktree.\n3. Treat additional instructions below and in the manifest as explicit user requirements. Reconcile the strongest approaches coherently instead of copying hunks mechanically.\n4. When provided, consider the strong points from other attempts below and incorporate them when they improve the solution without conflicting with user requirements.\n5. Call `get_session_context` only with an exact `sessionContextTarget` returned by the manifest and only for rationale or validation evidence. Never recover implementation code or paths from a transcript.\n6. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior and resolve the Judge's reported conflicts.\n\n## Judge recommendation\n{1}{2}{3}\n\n## Completion\n- Run the relevant validation.\n- Respond concisely with **Changes**, **Validation**, and **Remaining issues** sections using bullet points.", comparison.id, this._getVerdictRecommendation(comparison), otherAttemptStrengthsPrompt, synthesisPlanPrompt),
+				attachedContext: comparison.attachedContext?.slice(),
 				title: localize('sessionComparison.synthesisTitle', "Synthesis: {0}", comparison.title),
 				background: true,
 			}, {
@@ -372,7 +364,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				modelId: harness.modelId,
 				modelConfiguration: harness.modelConfiguration,
 				...this._permissionOptions(harness, comparison.permissionLevel),
-				isolationMode: 'worktree',
+				isolationMode: comparison.workspace ? 'worktree' : undefined,
 				branch: comparison.branch,
 				metadata: withSessionComparisonMetadata(undefined, {
 					id: hashSessionIdForTelemetry(comparison.id),
@@ -390,7 +382,9 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 						harness,
 						sessionResource: createdSession.resource,
 					};
-					this._replaceComparison({ ...current, participants: [...current.participants, synthesis] });
+					const updated = { ...current, participants: [...current.participants, synthesis] };
+					this._replaceComparison(updated);
+					this._groupCreatedSession(updated, createdSession);
 				},
 			});
 			const current = this.getComparison(comparisonId);
@@ -462,6 +456,18 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		return updated;
 	}
 
+	private _groupCreatedSession(comparison: ISessionComparison | undefined, session: ISession): void {
+		if (comparison && comparison.archivedAt === undefined) {
+			this.sessionGroupsService.addToGroup(session.sessionId, comparison.groupId);
+		}
+	}
+
+	private _createAndSendRequest(workspace: URI | undefined, options: ISendRequestOptions, createOptions: ICreateNewSessionOptions, token?: CancellationToken): Promise<ISession | undefined> {
+		return workspace
+			? this.sessionsManagementService.createAndSendNewChatRequest(workspace, options, createOptions, token)
+			: this.sessionsManagementService.createAndSendQuickChatRequest(options, createOptions, token);
+	}
+
 	private _createOptions(harness: ISessionComparisonHarness, options: IStartSessionComparisonOptions, comparisonId: string, attemptIndex: number) {
 		return {
 			providerId: harness.providerId,
@@ -469,8 +475,8 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			modelId: harness.modelId,
 			modelConfiguration: harness.modelConfiguration,
 			...this._permissionOptions(harness, options.permissionLevel),
-			isolationMode: 'worktree',
-			branch: options.branch,
+			isolationMode: options.workspace ? 'worktree' : undefined,
+			branch: options.workspace ? options.branch : undefined,
 			metadata: withSessionComparisonMetadata(undefined, {
 				id: hashSessionIdForTelemetry(comparisonId),
 				role: 'attempt',
@@ -668,16 +674,22 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		}
 	}
 
+	restoreComparison(comparisonId: string): string {
+		const comparison = this._requireComparison(comparisonId);
+		const group = this.sessionGroupsService.getGroup(comparison.groupId) ?? this.sessionGroupsService.createGroup(comparison.title);
+		this._replaceComparison({ ...comparison, groupId: group.id, archivedAt: undefined });
+		return group.id;
+	}
+
 	private async _startJudge(comparison: ISessionComparison, judgeParticipantId: string): Promise<void> {
 		const judge = comparison.participants.find(participant => participant.id === judgeParticipantId && participant.role === SessionComparisonParticipantRole.Judge);
 		if (!judge) {
 			return;
 		}
 		const harness = judge.harness;
-		const query = createSessionComparisonJudgePrompt(comparison.id);
-		const session = await this.sessionsManagementService.createAndSendNewChatRequest(comparison.workspace, {
-			query,
-			attachedContext: comparison.attachedContext ? [...comparison.attachedContext] : undefined,
+		const session = await this._createAndSendRequest(comparison.workspace, {
+			query: createSessionComparisonJudgePrompt(comparison.id),
+			attachedContext: comparison.attachedContext?.slice(),
 			title: localize('sessionComparison.judgeTitle', "Judge: {0}", comparison.title),
 			background: true,
 		}, {
@@ -686,7 +698,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			modelId: harness.modelId,
 			modelConfiguration: harness.modelConfiguration,
 			...this._permissionOptions(harness, comparison.permissionLevel),
-			isolationMode: 'worktree',
+			isolationMode: comparison.workspace ? 'worktree' : undefined,
 			branch: comparison.branch,
 			metadata: withSessionComparisonMetadata(undefined, {
 				id: hashSessionIdForTelemetry(comparison.id),
@@ -694,11 +706,12 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				attemptCount: comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt).length,
 			}),
 			onSessionCreated: createdSession => {
-				this._updateComparisonParticipant(comparison.id, judgeParticipantId, participant => ({
+				const updated = this._updateComparisonParticipant(comparison.id, judgeParticipantId, participant => ({
 					...participant,
 					sessionResource: createdSession.resource,
 					launchError: undefined,
 				}));
+				this._groupCreatedSession(updated, createdSession);
 			},
 		});
 		const current = this.getComparison(comparison.id);
@@ -752,33 +765,36 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		if (!plan) {
 			return '';
 		}
-		const blocks: string[] = [];
-		const sections = new Map((comparison.verdict?.decisionSections ?? []).map(section => [section.id, section]));
+		return plan.instructions
+			? localize('sessionComparison.additionalSynthesisInstructionsPrompt', "\n\n## Additional synthesis instructions\n{0}", plan.instructions)
+			: '';
+	}
+
+	private _getOtherAttemptStrengthsPrompt(comparison: ISessionComparison): string {
+		const verdict = comparison.verdict;
+		if (!verdict) {
+			return '';
+		}
+		const findings = new Map(verdict.attempts.map(attempt => [attempt.participantId, attempt]));
 		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
-		const attemptNumbers = new Map(attempts.map((attempt, index) => [attempt.id, index + 1]));
-		const selections = plan.selections.flatMap(selection => {
-			const section = sections.get(selection.sectionId);
-			if (!section) {
+		const strengths = attempts.flatMap((attempt, index) => {
+			if (attempt.id === verdict.recommendedParticipantId) {
 				return [];
 			}
-			if (!selection.participantId) {
-				return [localize('sessionComparison.synthesizerSelectsApproachPrompt', "- **{0}**: Synthesizer decides.", section.title)];
-			}
-			const participant = attempts.find(attempt => attempt.id === selection.participantId);
-			const option = section.options.find(option => option.participantId === selection.participantId);
-			const attemptNumber = attemptNumbers.get(selection.participantId);
-			if (!participant || !option || !attemptNumber) {
+			const finding = findings.get(attempt.id);
+			if (!finding) {
 				return [];
 			}
-			return [localize('sessionComparison.selectedApproachPrompt', "- **{0}**: Follow {1}. {2}", section.title, getSessionComparisonAttemptLabel(participant, attemptNumber), option.approach)];
-		});
-		if (selections.length > 0) {
-			blocks.push(localize('sessionComparison.selectedSynthesisApproachesPrompt', "\n\n## Selected synthesis approaches\n{0}", selections.join('\n')));
-		}
-		if (plan.instructions) {
-			blocks.push(localize('sessionComparison.additionalSynthesisInstructionsPrompt', "\n\n## Additional synthesis instructions\n{0}", plan.instructions));
-		}
-		return blocks.join('');
+			const attemptLabel = getSessionComparisonAttemptLabel(attempt, index + 1);
+			return finding.notableDifferences
+				.map(strength => strength.trim())
+				.filter(strength => strength.length > 0)
+				.map(strength => ({ attemptLabel, strength }));
+		}).slice(0, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS).map(({ attemptLabel, strength }) =>
+			localize('sessionComparison.otherAttemptStrengthPrompt', "- **{0}**: {1}", attemptLabel, getBoundedSessionComparisonManifestText(strength)));
+		return strengths.length
+			? localize('sessionComparison.otherAttemptStrengthsPrompt', "\n\n## Strong points from other attempts\n{0}", strengths.join('\n'))
+			: '';
 	}
 
 	private _getVerdictRecommendation(comparison: ISessionComparison): string {
@@ -805,11 +821,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	}
 
 	private _getJudgeHarness(comparison: ISessionComparison): ISessionComparisonHarness | undefined {
-		return comparison.judgeHarness
-			?? comparison.participants.find(participant =>
-				participant.role === SessionComparisonParticipantRole.Coordinator)?.harness
-			?? comparison.participants.find(participant =>
-				participant.role === SessionComparisonParticipantRole.Attempt && participant.sessionResource)?.harness;
+		return comparison.judgeHarness;
 	}
 
 	private _ensureComparisonGroupMembership(comparisons: readonly ISessionComparison[]): void {
@@ -819,7 +831,9 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			}
 			const sessionIds = comparison.participants
 				.map(participant => participant.sessionResource ? this.sessionsManagementService.getSession(participant.sessionResource)?.sessionId : undefined)
-				.filter(sessionId => sessionId !== undefined);
+				.filter((sessionId): sessionId is string => sessionId !== undefined
+					&& !this.sessionGroupsService.getGroupOfSession(sessionId)
+					&& !this.sessionGroupsService.isExplicitlyUngrouped(sessionId));
 			this.sessionGroupsService.addToGroup(sessionIds, comparison.groupId);
 		}
 	}
@@ -847,16 +861,21 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 
 	private _archiveFullyArchivedComparisons(comparisons: readonly ISessionComparison[]): void {
 		for (const comparison of comparisons) {
-			if (comparison.archivedAt !== undefined) {
+			if (comparison.archivedAt !== undefined || comparison.launching) {
 				continue;
 			}
 			const participantResources = comparison.participants
-				.map(participant => participant.sessionResource)
-				.filter(resource => resource !== undefined);
-			const sessions = participantResources
-				.map(resource => this.sessionsManagementService.getSession(resource))
-				.filter(session => session !== undefined);
-			if (sessions.length === 0 || sessions.length !== participantResources.length || sessions.some(session => !session.isArchived.get())) {
+				.flatMap(participant => participant.sessionResource ? [{ participant, resource: participant.sessionResource }] : []);
+			const participantSessions = participantResources.map(({ participant, resource }) => ({
+				participant,
+				session: this.sessionsManagementService.getSession(resource),
+			}));
+			const sessions = participantSessions.flatMap(({ session }) => session ? [session] : []);
+			if (
+				sessions.length === 0
+				|| participantSessions.some(({ participant, session }) => !session && !participant.launchError)
+				|| sessions.some(session => !session.isArchived.get())
+			) {
 				continue;
 			}
 			this.archiveComparison(comparison.id);
@@ -1013,8 +1032,20 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			const stored = parse(raw) as readonly IStoredSessionComparison[];
 			return stored.map(comparison => ({
 				...comparison,
+				judgeHarness: comparison.judgeHarness ?? (comparison.version === undefined
+					? comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Coordinator)?.harness
+					?? comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Attempt && participant.sessionResource)?.harness
+					: undefined),
+				synthesisPlan: comparison.synthesisPlan?.instructions ? { instructions: comparison.synthesisPlan.instructions } : undefined,
+				verdict: comparison.verdict ? {
+					recommendedParticipantId: comparison.verdict.recommendedParticipantId,
+					explanation: comparison.verdict.explanation,
+					rationale: comparison.verdict.rationale,
+					conflicts: comparison.verdict.conflicts,
+					attempts: comparison.verdict.attempts,
+				} : undefined,
 				launching: undefined,
-				workspace: URI.parse(comparison.workspace),
+				workspace: comparison.workspace ? URI.parse(comparison.workspace) : undefined,
 				attachedContext: comparison.attachedContext?.map(IChatRequestVariableEntry.fromExport),
 				participants: comparison.participants.map(participant => ({
 					...participant,
@@ -1034,7 +1065,8 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	private _save(): void {
 		const stored: readonly IStoredSessionComparison[] = this._comparisons.get().map(comparison => ({
 			...comparison,
-			workspace: comparison.workspace.toString(),
+			version: 1,
+			workspace: comparison.workspace?.toString(),
 			attachedContext: comparison.attachedContext?.map(IChatRequestVariableEntry.toExport),
 			participants: comparison.participants.map(participant => ({
 				...participant,

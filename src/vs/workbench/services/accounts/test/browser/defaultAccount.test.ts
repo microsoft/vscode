@@ -6,11 +6,13 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -31,6 +33,7 @@ import { IWorkbenchEnvironmentService } from '../../../environment/common/enviro
 import { IExtensionService } from '../../../extensions/common/extensions.js';
 import { IHostService } from '../../../host/browser/host.js';
 import { DefaultAccountProvider, DefaultAccountService } from '../../browser/defaultAccount.js';
+import { IManagedSettingsResponse } from '../../browser/managedSettings.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
 import { AccountPolicyGateState, AccountPolicyService } from '../../../policies/common/accountPolicyService.js';
 
@@ -640,6 +643,38 @@ suite('DefaultAccountProvider', () => {
 		});
 	});
 
+	test('refreshing to Local-only permission or empty settings clears cached raw governance', async () => {
+		let response: IManagedSettingsResponse = { futureControl: {} };
+		const requestService = new TestRequestService(async options => {
+			if (options.url?.endsWith('/copilot_internal/user')) {
+				return jsonResponse({ chat_enabled: true });
+			}
+			if (options.url?.includes('/copilot_internal/managed_settings')) {
+				return jsonResponse(response);
+			}
+			throw new Error(`Unexpected request: ${options.url}`);
+		});
+		const provider = await createProvider(requestService, {}, {},
+			'https://api.github.com/copilot_internal/managed_settings', { getSessions: async () => sessions });
+		const responses: IManagedSettingsResponse[] = [
+			{ futureControl: {} },
+			{ vscode: { temporaryAllowLocalHarness: false } },
+			{ vscode: { temporaryAllowLocalHarness: true }, futureControl: {} },
+			{},
+		];
+		const results = [];
+		for (response of responses) {
+			await provider.refresh({ forceRefresh: true });
+			const refreshed = provider.policyData?.managedSettingsActive;
+			await provider.refresh();
+			results.push({ refreshed, cached: provider.policyData?.managedSettingsActive });
+		}
+		assert.deepStrictEqual(results, [
+			{ refreshed: true, cached: true }, { refreshed: false, cached: false },
+			{ refreshed: true, cached: true }, { refreshed: false, cached: false },
+		]);
+	});
+
 	test('truthy non-boolean server refresh control remains non-blocking after an endpoint outage', async () => {
 		let managedSettingsRequestCount = 0;
 		const requestService = new TestRequestService(async options => {
@@ -1108,6 +1143,89 @@ suite('DefaultAccountProvider', () => {
 			failure: ManagedSettingsFreshnessFailure.NoToken,
 		});
 	});
+
+	test('a failed session lookup keeps the signed-in account and satisfied refresh gate', () => runWithFakedTimers({}, async () => {
+		let sessionLookupFails = false;
+		const requestService = new TestRequestService(async options => {
+			if (options.url?.endsWith('/copilot_internal/user')) {
+				return jsonResponse({ chat_enabled: true });
+			}
+			if (options.url?.includes('/copilot_internal/managed_settings')) {
+				return jsonResponse({ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true });
+			}
+			throw new Error(`Unexpected request: ${options.url}`);
+		});
+		const provider = await createProvider(requestService, {}, {}, undefined, {
+			getSessions: async () => {
+				if (sessionLookupFails) {
+					// Mirrors the extension host restart race: the provider's RPC is torn down mid-lookup.
+					throw new CancellationError();
+				}
+				return sessions;
+			},
+		});
+		const observedSessionIds: Array<string | null> = [];
+		disposables.add(provider.onDidChangeDefaultAccount(account => observedSessionIds.push(account?.sessionId ?? null)));
+		const snapshot = () => ({
+			account: provider.defaultAccount?.sessionId,
+			freshness: describeFreshness(provider.managedSettingsFreshness),
+			forceRemoteSettingsRefresh: provider.policyData?.managedSettings?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY],
+		});
+		const expected = () => ({
+			account: 'session',
+			freshness: {
+				state: ManagedSettingsFreshnessState.Satisfied,
+				source: 'server',
+				scope: { accountId, authenticationProviderId: 'github', endpointOrigin: 'https://api.github.com' },
+				hasLastAttempt: true,
+				hasSatisfiedAt: true,
+			},
+			forceRemoteSettingsRefresh: true,
+		});
+		const beforeLookupFailure = snapshot();
+
+		sessionLookupFails = true;
+		await provider.refresh();
+
+		assert.deepStrictEqual({
+			beforeLookupFailure,
+			afterLookupFailure: snapshot(),
+			observedSessionIds,
+		}, {
+			beforeLookupFailure: expected(),
+			afterLookupFailure: expected(),
+			observedSessionIds: [],
+		});
+	}));
+
+	test('a failed session lookup without a known account still reports a missing token', () => runWithFakedTimers({}, async () => {
+		const provider = await createProvider(
+			new TestRequestService(async options => {
+				throw new Error(`Unexpected request: ${options.url}`);
+			}),
+			{ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true },
+			{},
+			undefined,
+			{
+				getSessions: async () => {
+					throw new CancellationError();
+				},
+			}
+		);
+
+		assert.deepStrictEqual({
+			account: provider.defaultAccount,
+			freshness: describeFreshness(provider.managedSettingsFreshness),
+		}, {
+			account: null,
+			freshness: {
+				state: ManagedSettingsFreshnessState.Blocked,
+				source: 'nativeMdm',
+				failure: ManagedSettingsFreshnessFailure.NoToken,
+				hasLastAttempt: false,
+			},
+		});
+	}));
 
 	test('native false disables a cached server refresh requirement', async () => {
 		const requestService = new TestRequestService(async () => {
@@ -1635,6 +1753,49 @@ suite('DefaultAccountProvider', () => {
 			policy: { model: 'api.b.ghe.com' },
 			hosts: Array.from({ length: 4 }, () => 'api.b.ghe.com'),
 		});
+	});
+
+	test('MCP registry policy survives failed refreshes and is cleared only by an affirmative answer', async () => {
+		const refreshWithRegistryResponse = async (registryResponse: () => IRequestContext) => {
+			let useRegistryResponse = false;
+			const requestService = new TestRequestService(async request => useRegistryResponse && request.callSite === 'defaultAccount.mcpRegistryProvider' ? registryResponse() : enterpriseResponse(request));
+			const provider = await createProvider(requestService, {}, {}, undefined, { getSessions: async () => [enterpriseSession('b')] }, enterpriseConfiguration());
+			const fetchedAt = provider['_policyData']?.mcpRegistryDataFetchedAt;
+			useRegistryResponse = true;
+			await provider.refresh({ forceRefresh: true });
+			return {
+				url: provider.policyData?.mcpRegistryUrl,
+				access: provider.policyData?.mcpAccess,
+				keptFetchedAt: fetchedAt !== undefined && provider['_policyData']?.mcpRegistryDataFetchedAt === fetchedAt,
+			};
+		};
+		const failures: { name: string; response: () => IRequestContext }[] = [
+			{ name: 'no response', response: () => { throw new Error('MCP registry unavailable'); } },
+			{ name: 'malformed', response: () => jsonResponse({}) },
+			{ name: '401', response: () => jsonResponse({}, 401) },
+			{ name: '403', response: () => jsonResponse({}, 403) },
+			{ name: '429', response: () => jsonResponse({}, 429) },
+			{ name: '500', response: () => jsonResponse({}, 500) },
+		];
+		const answers: { name: string; response: () => IRequestContext }[] = [
+			{ name: '404', response: () => jsonResponse({}, 404) },
+			{ name: 'no registries', response: () => jsonResponse({ mcp_registries: [] }) },
+		];
+
+		const outcomes = [];
+		for (const { name, response } of failures) {
+			outcomes.push({ name, ...await refreshWithRegistryResponse(response) });
+		}
+		for (const { name, response } of answers) {
+			const { url, access } = await refreshWithRegistryResponse(response);
+			outcomes.push({ name, url, access });
+		}
+
+		// A failure keeps the last known registry policy and its original timestamp; only an answer from the service clears it.
+		assert.deepStrictEqual(outcomes, [
+			...failures.map(({ name }) => ({ name, url: 'https://registry.example.test', access: 'registry_only', keptFetchedAt: true })),
+			...answers.map(({ name }) => ({ name, url: undefined, access: undefined })),
+		]);
 	});
 
 	function enterpriseSession(host: string): AuthenticationSession {

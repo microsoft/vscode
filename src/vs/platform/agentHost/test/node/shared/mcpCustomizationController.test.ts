@@ -10,24 +10,26 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { AgentSession } from '../../../common/agent.js';
 import { isCustomizationEnabled } from '../../../common/customizationEnablement.js';
-import { readMcpServerSource, withMcpServerSourceMeta } from '../../../common/meta/mcpCustomizationMeta.js';
+import { readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../../common/meta/mcpCustomizationMeta.js';
+import { readCustomizationDiscoveryMeta, withCustomizationDiscoveryMeta } from '../../../common/meta/customizationDiscoveryMeta.js';
 import { ActionType } from '../../../common/state/protocol/common/actions.js';
 import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionStatus, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
-import { buildChatUri } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildChatUri } from '../../../common/state/sessionState.js';
 import type { SessionAction } from '../../../common/state/sessionActions.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
-import { applyMcpServerRuntimeStates, buildMcpChannel, getEffectiveMcpServerCustomizations, mergeMcpServerCustomizations, McpCustomizationController, findMcpChildId, findMcpServerName, parseMcpChannelUri, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
+import { applyMcpServerEnablement, applyMcpServerRuntimeStates, buildMcpChannel, getEffectiveMcpServerCustomizations, mergeMcpServerCustomizations, McpCustomizationController, findMcpChildId, findMcpServerName, parseMcpChannelUri, type IMcpServerProvenance, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
 
 const SESSION_URI = AgentSession.uri('copilot', 'session-1');
 const CHAT_URI = URI.parse(buildChatUri(SESSION_URI, 'chat-1'));
-const MCP_FS_CHANNEL = buildMcpChannel(CHAT_URI, 'fs');
-const MCP_SEARCH_CHANNEL = buildMcpChannel(CHAT_URI, 'search');
+const MCP_FS_CHANNEL = buildMcpChannel(CHAT_URI, 'fs', 'copilot');
+const MCP_SEARCH_CHANNEL = buildMcpChannel(CHAT_URI, 'search', 'copilot');
 
 function harness(store: Pick<DisposableStore, 'add'>, opts: {
 	customizations?: readonly Customization[];
 	desiredEnabled?: boolean;
 	pluginMcpServerSources?: () => ReadonlyMap<string, string> | undefined;
 	resolveEnablement?: (server: McpServerCustomization, owningPluginUri: string | undefined) => readonly CustomizationEnablement[] | undefined;
+	provenance?: ReadonlyMap<string, IMcpServerProvenance>;
 } = {}) {
 	const actions: SessionAction[] = [];
 	const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
@@ -40,6 +42,7 @@ function harness(store: Pick<DisposableStore, 'add'>, opts: {
 		status: SessionStatus.Idle,
 		createdAt: new Date().toISOString(),
 		modifiedAt: new Date().toISOString(),
+		defaultChat: buildDefaultChatUri(session),
 	});
 	if (opts.desiredEnabled !== undefined || opts.customizations !== undefined) {
 		stateManager.dispatchServerAction(session, {
@@ -56,9 +59,11 @@ function harness(store: Pick<DisposableStore, 'add'>, opts: {
 	}
 	const controller = new McpCustomizationController({
 		chatUri: CHAT_URI,
+		sessionUri: SESSION_URI,
 		emit: a => actions.push(a),
 		pluginMcpServerSources: opts.pluginMcpServerSources,
 		resolveEnablement: opts.resolveEnablement,
+		resolveProvenance: opts.provenance && (name => opts.provenance?.get(name)),
 	}, stateManager);
 	return {
 		controller,
@@ -112,8 +117,65 @@ const PLUGIN_CUSTOMIZATIONS: readonly Customization[] = [
 ];
 
 suite('McpCustomizationController', () => {
+	for (const provider of ['copilotcli', 'codex', 'claude']) {
+		test(`standard chat channels carry explicit ${provider} routing`, () => {
+			const chat = URI.parse(buildChatUri('ahp-session:/fresh', 'peer'));
+			const channel = buildMcpChannel(chat, 'search', provider);
+			const route = parseMcpChannelUri(channel);
+			assert.deepStrictEqual(route && { ...route, chatUri: route.chatUri.toString() }, { providerId: provider, chatUri: chat.toString(), serverName: 'search' });
+		});
+	}
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('confirmed SDK defaults update nested publication and survive later runtime updates', () => {
+		const child: McpServerCustomization = {
+			type: CustomizationType.McpServer, id: 'native-child', uri: 'file:///plugin/.mcp.json', name: 'native',
+			state: stopped(), _meta: withCustomizationDiscoveryMeta(undefined, { source: 'plugin', defaultEnabled: true }),
+		};
+		const plugin: PluginCustomization = { type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///plugin', name: 'plugin', children: [child] };
+		const { controller, actions } = harness(store, {
+			customizations: [plugin],
+			resolveEnablement: server => [{ kind: CustomizationEnablementKind.Global, enabled: readCustomizationDiscoveryMeta(server)?.defaultEnabled ?? true }],
+		});
+		store.add(controller);
+		controller.applyOne({ name: 'native', state: ready(), enabled: true });
+		controller.applyOne({ name: 'native', state: stopped(), enabled: false, defaultEnabled: false });
+		controller.applyOne({ name: 'native', state: starting() });
+		const publication = actions.find(action => action.type === ActionType.SessionCustomizationUpdated);
+		const updated = publication?.customization.type === CustomizationType.Plugin ? publication.customization.children?.[0] : undefined;
+		const overlay = applyMcpServerRuntimeStates(plugin, controller.runtimeStates.get());
+		assert.deepStrictEqual({
+			defaultEnabled: updated && readCustomizationDiscoveryMeta(updated)?.defaultEnabled,
+			enablement: updated?.type === CustomizationType.McpServer ? updated.enablement : undefined,
+			retainedDefault: overlay.children?.[0] && readCustomizationDiscoveryMeta(overlay.children[0])?.defaultEnabled,
+			toggles: actions.filter(action => action.type === ActionType.SessionCustomizationToggled),
+		}, {
+			defaultEnabled: false, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			retainedDefault: false, toggles: [],
+		});
+	});
+
+	test('live state preserves SDK discovery provenance and does not restore stale provider enablement', () => {
+		const declaration: McpServerCustomization = {
+			type: CustomizationType.McpServer, id: 'mcp-top-level:copilot:session-1:search',
+			uri: 'file:///host/mcp.json', name: 'search', state: stopped(),
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			_meta: withCustomizationDiscoveryMeta(withMcpServerSourcePluginMeta(withMcpServerSourceMeta(undefined, 'plugin'), 'native'), { source: 'plugin', defaultEnabled: false }),
+		};
+		const { controller } = harness(store, { customizations: [declaration] });
+		store.add(controller);
+		controller.applyAll([server('search', ready())]);
+		const live = controller.topLevelCustomizations();
+		const merged = applyMcpServerEnablement(mergeMcpServerCustomizations([declaration], live), [{ ...declaration, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] }]);
+		assert.deepStrictEqual({
+			live: live.map(item => ({ uri: item.uri, source: readMcpServerSource(item), plugin: readMcpServerSourcePlugin(item), state: item.state })),
+			merged: merged.filter(item => item.type === CustomizationType.McpServer).map(item => ({ id: item.id, enabled: isCustomizationEnabled(item) })),
+		}, {
+			live: [{ uri: declaration.uri, source: 'plugin', plugin: 'native', state: ready() }],
+			merged: [{ id: declaration.id, enabled: false }],
+		});
+	});
 
 	test('merges discovered and live native MCP identities while retaining metadata and distinct sources', () => {
 		const declaration: McpServerCustomization = {
@@ -127,9 +189,9 @@ suite('McpCustomizationController', () => {
 			_meta: { declaration: true },
 		};
 		const distinct: McpServerCustomization = { ...declaration, id: 'another-source', uri: 'file:///other/.mcp.json' };
-		const { controller } = harness(store, { customizations: [declaration, distinct] });
+		const { controller } = harness(store, { customizations: [declaration, distinct], provenance: new Map([['search', { source: 'workspace' }]]) });
 		store.add(controller);
-		controller.applyAll([{ name: 'search', state: ready(), source: 'workspace' }, server('runtime-only', stopped())]);
+		controller.applyAll([server('search', ready()), server('runtime-only', stopped())]);
 		const live = controller.topLevelCustomizations();
 		const merged = mergeMcpServerCustomizations([declaration, distinct], live);
 
@@ -148,6 +210,216 @@ suite('McpCustomizationController', () => {
 		assert.deepStrictEqual({ count: merged.length, enabled: isCustomizationEnabled(merged[0]), state: merged[0].state }, { count: 1, enabled: true, state: ready() });
 	});
 
+	test('late SDK plugin discovery enriches the retained live identity and subsequent runtime updates', () => {
+		const child: McpServerCustomization = {
+			type: CustomizationType.McpServer, id: 'opaque-child', uri: 'file:///plugins/native/.mcp.json', name: 'search',
+			range: { start: { line: 1, character: 0 }, end: { line: 4, character: 0 } },
+			state: stopped(), enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			_meta: withCustomizationDiscoveryMeta(withMcpServerSourceMeta(undefined, 'plugin'), { source: 'plugin', pluginId: 'opaque-plugin', defaultEnabled: false }),
+		};
+		const plugin: PluginCustomization = { type: CustomizationType.Plugin, id: 'native', uri: 'file:///plugins/native', name: 'native', children: [child] };
+		let resolvedOwner: string | undefined;
+		const { controller, actions, setCustomizations } = harness(store, {
+			resolveEnablement: (server, owner) => {
+				resolvedOwner = owner;
+				const enabled = readCustomizationDiscoveryMeta(server)?.defaultEnabled;
+				return enabled === undefined ? [] : [{ kind: CustomizationEnablementKind.Global, enabled }];
+			},
+		});
+		store.add(controller);
+		controller.applyOne(server('search', ready()));
+		const retainedId = controller.customizationIdForServer('search');
+		const merged = mergeMcpServerCustomizations([plugin], controller.topLevelCustomizations());
+		setCustomizations(merged);
+		const published = controller.topLevelCustomizations()[0];
+		controller.applyOne(server('search', stopped()));
+		const update = actions.at(-1);
+		const updated = update?.type === ActionType.SessionCustomizationUpdated ? update.customization : undefined;
+		assert.deepStrictEqual({
+			mergedIds: merged.map(item => item.id),
+			published: { id: published.id, uri: published.uri, range: published.range, enabled: isCustomizationEnabled(published), state: published.state, channel: published.channel, meta: readCustomizationDiscoveryMeta(published) },
+			updated: updated?.type === CustomizationType.McpServer ? { id: updated.id, uri: updated.uri, enabled: isCustomizationEnabled(updated), state: updated.state, defaultEnabled: readCustomizationDiscoveryMeta(updated)?.defaultEnabled } : undefined,
+			owner: controller.pluginMcpServerSources?.get('search'),
+			resolvedOwner,
+		}, {
+			mergedIds: [plugin.id, retainedId],
+			published: { id: retainedId, uri: child.uri, range: child.range, enabled: false, state: ready(), channel: MCP_SEARCH_CHANNEL, meta: readCustomizationDiscoveryMeta(child) },
+			updated: { id: retainedId, uri: child.uri, enabled: false, state: stopped(), defaultEnabled: false },
+			owner: plugin.uri,
+			resolvedOwner: plugin.uri,
+		});
+		setCustomizations([]);
+		assert.strictEqual(controller.pluginMcpServerSources, undefined);
+	});
+
+	for (const source of ['user', 'builtin', 'workspace'] as const) {
+		test(`late SDK plugin discovery does not claim a ${source} runtime server`, () => {
+			const child: McpServerCustomization = {
+				type: CustomizationType.McpServer, id: 'native-child', uri: 'file:///plugins/native/.mcp.json', name: 'search', state: stopped(),
+				_meta: withCustomizationDiscoveryMeta(undefined, { source: 'plugin', defaultEnabled: false }),
+			};
+			const plugin: PluginCustomization = { type: CustomizationType.Plugin, id: 'native', uri: 'file:///plugins/native', name: 'native', children: [child] };
+			const { controller, setCustomizations } = harness(store, { provenance: new Map([['search', { source }]]) });
+			store.add(controller);
+			controller.applyOne(server('search', ready()));
+			const live = controller.topLevelCustomizations();
+			const merged = mergeMcpServerCustomizations([plugin], live);
+			setCustomizations(merged);
+			assert.deepStrictEqual({
+				merged, live: controller.topLevelCustomizations(), owner: controller.pluginMcpServerSources,
+			}, { merged: [plugin, ...live], live, owner: undefined });
+		});
+	}
+
+	test('late plugin matching leaves unmarked and ambiguous same-name declarations distinct', () => {
+		for (const nativeCount of [0, 2]) {
+			const plugins: PluginCustomization[] = ['first', 'second'].map(name => ({
+				type: CustomizationType.Plugin, id: name, uri: `file:///plugins/${name}`, name,
+				children: [{
+					type: CustomizationType.McpServer, id: `${name}-child`, uri: `file:///plugins/${name}/.mcp.json`, name: 'search', state: stopped(),
+					_meta: nativeCount ? withCustomizationDiscoveryMeta(undefined, { source: 'plugin', defaultEnabled: false }) : undefined,
+				}],
+			}));
+			const { controller, setCustomizations } = harness(store);
+			store.add(controller);
+			controller.applyOne(server('search', ready()));
+			const live = controller.topLevelCustomizations();
+			const merged = mergeMcpServerCustomizations(plugins, live);
+			setCustomizations(merged);
+			assert.deepStrictEqual({ merged, live: controller.topLevelCustomizations(), owner: controller.pluginMcpServerSources }, {
+				merged: [...plugins, ...live], live, owner: undefined,
+			});
+		}
+	});
+
+	test('late plugin matching rejects a different known plugin', () => {
+		const child: McpServerCustomization = {
+			type: CustomizationType.McpServer, id: 'b-child', uri: 'file:///plugins/b/.mcp.json', name: 'search', state: stopped(),
+			_meta: withCustomizationDiscoveryMeta(withMcpServerSourcePluginMeta(undefined, 'B'), { source: 'plugin', pluginId: 'b', defaultEnabled: false }),
+		};
+		const plugin: PluginCustomization = { type: CustomizationType.Plugin, id: 'b', uri: 'file:///plugins/b', name: 'B', children: [child] };
+		const { controller, setCustomizations } = harness(store, { provenance: new Map([['search', { source: 'plugin', sourcePlugin: 'A' }]]) });
+		store.add(controller);
+		controller.applyOne(server('search', ready()));
+		const live = controller.topLevelCustomizations();
+		const merged = mergeMcpServerCustomizations([plugin], live);
+		setCustomizations(merged);
+		controller.applyOne(server('search', stopped()));
+		const published = controller.topLevelCustomizations()[0];
+		assert.deepStrictEqual({
+			merged, owner: controller.pluginMcpServerSources,
+			published: { uri: published.uri, plugin: readMcpServerSourcePlugin(published), discovery: readCustomizationDiscoveryMeta(published), enabled: isCustomizationEnabled(published) },
+		}, {
+			merged: [plugin, ...live], owner: undefined,
+			published: { uri: live[0].uri, plugin: 'A', discovery: undefined, enabled: true },
+		});
+	});
+
+	for (const source of ['user', 'workspace', 'builtin', 'plugin'] as const) {
+		test(`adopted plugin metadata is cleared when provenance changes to ${source}`, () => {
+			const child: McpServerCustomization = {
+				type: CustomizationType.McpServer, id: 'a-child', uri: 'file:///plugins/a/.mcp.json', name: 'search', state: stopped(),
+				range: { start: { line: 1, character: 0 }, end: { line: 2, character: 0 } },
+				_meta: withCustomizationDiscoveryMeta(withMcpServerSourcePluginMeta(undefined, 'A'), { source: 'plugin', pluginId: 'a', defaultEnabled: false }),
+			};
+			const plugin: PluginCustomization = { type: CustomizationType.Plugin, id: 'a', uri: 'file:///plugins/a', name: 'A', children: [child] };
+			const provenance = new Map<string, IMcpServerProvenance>();
+			const { controller, actions, setCustomizations } = harness(store, {
+				provenance,
+				resolveEnablement: server => [{ kind: CustomizationEnablementKind.Global, enabled: readCustomizationDiscoveryMeta(server)?.defaultEnabled ?? true }],
+			});
+			store.add(controller);
+			controller.applyOne(server('search', ready()));
+			const live = controller.topLevelCustomizations();
+			setCustomizations(mergeMcpServerCustomizations([plugin], live));
+			controller.applyOne({ name: 'search', state: ready(), defaultEnabled: false });
+			const adopted = controller.topLevelCustomizations()[0];
+			setCustomizations([plugin, { ...adopted, _meta: { ...adopted._meta, 'test.opaque': 42 } }]);
+			provenance.set('search', { source, ...(source === 'plugin' ? { sourcePlugin: 'B' } : {}), ...(source === 'user' ? { sourceUri: 'file:///user/mcp.json' } : {}) });
+			controller.refreshProvenance();
+			const update = actions.at(-1);
+			assert.ok(update?.type === ActionType.SessionCustomizationUpdated);
+			setCustomizations([plugin, update.customization]);
+			controller.applyOne(server('search', stopped()));
+			const published = controller.topLevelCustomizations()[0];
+			assert.deepStrictEqual({
+				adoptedDefault: readCustomizationDiscoveryMeta(adopted)?.defaultEnabled,
+				id: published.id, uri: published.uri, range: published.range, source: readMcpServerSource(published),
+				plugin: readMcpServerSourcePlugin(published), discovery: readCustomizationDiscoveryMeta(published),
+				enabled: isCustomizationEnabled(published), opaque: published._meta?.['test.opaque'],
+				owner: controller.pluginMcpServerSources, runtimeDefault: controller.runtimeStates.get().get(published.id)?.defaultEnabled,
+			}, {
+				adoptedDefault: false,
+				id: live[0].id, uri: source === 'user' ? 'file:///user/mcp.json' : live[0].uri, range: undefined, source,
+				plugin: source === 'plugin' ? 'B' : undefined, discovery: undefined,
+				enabled: true, opaque: 42, owner: undefined, runtimeDefault: undefined,
+			});
+		});
+	}
+
+	test('known plugin identity disambiguates children and honors a new confirmed default after a change', () => {
+		const plugins: PluginCustomization[] = ['A', 'B'].map(name => ({
+			type: CustomizationType.Plugin, id: name, uri: `file:///plugins/${name}`, name,
+			children: [{
+				type: CustomizationType.McpServer, id: `${name}-child`, uri: `file:///plugins/${name}/.mcp.json`, name: 'search', state: stopped(),
+				_meta: withCustomizationDiscoveryMeta(withMcpServerSourcePluginMeta(undefined, name), { source: 'plugin', pluginId: name, defaultEnabled: true }),
+			}],
+		}));
+		const provenance = new Map<string, IMcpServerProvenance>([['search', { source: 'plugin', sourcePlugin: 'A' }]]);
+		const { controller, actions, setCustomizations } = harness(store, {
+			provenance,
+			resolveEnablement: server => [{ kind: CustomizationEnablementKind.Global, enabled: readCustomizationDiscoveryMeta(server)?.defaultEnabled ?? true }],
+		});
+		store.add(controller);
+		controller.applyOne(server('search', ready()));
+		setCustomizations(mergeMcpServerCustomizations(plugins, controller.topLevelCustomizations()));
+		controller.applyOne({ name: 'search', state: ready(), defaultEnabled: false });
+		const adopted = controller.topLevelCustomizations()[0];
+		setCustomizations([...plugins, adopted]);
+		provenance.set('search', { source: 'plugin', sourcePlugin: 'B' });
+		controller.applyOne({ name: 'search', state: stopped(), defaultEnabled: false });
+		const update = actions.at(-1);
+		assert.ok(update?.type === ActionType.SessionCustomizationUpdated);
+		const updated = update.customization;
+		assert.ok(updated.type === CustomizationType.McpServer);
+		assert.deepStrictEqual({
+			previousOwner: readMcpServerSourcePlugin(adopted),
+			newOwner: readMcpServerSourcePlugin(updated), uri: updated.uri,
+			defaultEnabled: readCustomizationDiscoveryMeta(updated)?.defaultEnabled, enabled: isCustomizationEnabled(updated),
+		}, { previousOwner: 'A', newOwner: 'B', uri: 'file:///plugins/B/.mcp.json', defaultEnabled: false, enabled: false });
+	});
+
+	for (const mergeFirst of [false, true]) {
+		test(`fallback plugin identity preserves a confirmed default after ${mergeFirst ? 'publication merge' : 'controller adoption'}`, () => {
+			const child: McpServerCustomization = {
+				type: CustomizationType.McpServer, id: 'child', uri: 'file:///plugin/.mcp.json', name: 'search', state: stopped(),
+				_meta: withCustomizationDiscoveryMeta(undefined, { source: 'plugin', pluginId: 'opaque-plugin', defaultEnabled: true }),
+			};
+			const plugin: PluginCustomization = { type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///plugin', name: 'Plugin', children: [child] };
+			const provenance = new Map<string, IMcpServerProvenance>();
+			const { controller, setCustomizations } = harness(store, {
+				provenance,
+				resolveEnablement: server => [{ kind: CustomizationEnablementKind.Global, enabled: readCustomizationDiscoveryMeta(server)?.defaultEnabled ?? true }],
+			});
+			store.add(controller);
+			controller.applyOne(server('search', ready()));
+			const live = controller.topLevelCustomizations();
+			const initial = mergeFirst ? mergeMcpServerCustomizations([plugin], live) : [plugin, ...live];
+			setCustomizations(initial);
+			controller.applyOne({ name: 'search', state: ready(), defaultEnabled: false });
+			const adopted = controller.topLevelCustomizations()[0];
+			setCustomizations([plugin, adopted]);
+			provenance.set('search', { source: 'plugin', sourcePlugin: 'Plugin' });
+			controller.refreshProvenance();
+			const updated = controller.topLevelCustomizations()[0];
+			assert.deepStrictEqual({
+				mergedIdentity: mergeFirst ? readMcpServerSourcePlugin(initial.find(item => item.type === CustomizationType.McpServer)) : 'Plugin',
+				adoptedIdentity: readMcpServerSourcePlugin(adopted), updatedIdentity: readMcpServerSourcePlugin(updated),
+				defaultEnabled: readCustomizationDiscoveryMeta(updated)?.defaultEnabled, enabled: isCustomizationEnabled(updated),
+			}, { mergedIdentity: 'Plugin', adoptedIdentity: 'Plugin', updatedIdentity: 'Plugin', defaultEnabled: false, enabled: false });
+		});
+	}
+
 	test('empty inventory dispatches nothing', () => {
 		const { controller, actions } = harness(store);
 		store.add(controller);
@@ -158,74 +430,97 @@ suite('McpCustomizationController', () => {
 		assert.deepStrictEqual(controller.topLevelCustomizations(), []);
 	});
 
-	test('retains source through lifecycle updates and republishes source-only inventory changes', () => {
-		const { controller, actions } = harness(store);
+	test('derives provenance from configuration on every build, never from the update that triggered it', () => {
+		const provenance = new Map<string, IMcpServerProvenance>();
+		const { controller, actions } = harness(store, { provenance });
 		store.add(controller);
 		const snapshot = () => controller.topLevelCustomizations().map(item => ({
-			id: item.id, source: readMcpServerSource(item), state: item.state.kind,
+			displayName: readMcpServerDisplayName(item), source: readMcpServerSource(item), state: item.state.kind,
 		}));
 
 		controller.applyOne(server('search', starting()));
-		controller.applyAll([{ ...server('search', starting()), source: 'user' }]);
-		const afterInventory = snapshot();
+		const beforeConfigKnown = snapshot();
+		provenance.set('search', { source: 'user' });
+		controller.refreshProvenance();
+		controller.refreshProvenance();
+		const afterConfigKnown = snapshot();
+		controller.applyAll([{ ...server('search', starting()), displayName: 'Connector Search' }]);
 		controller.applyOne(server('search', ready()));
 		const afterLifecycle = snapshot();
-		controller.applyAll([{ ...server('search', ready()), source: 'workspace' }]);
+		provenance.set('search', { source: 'workspace' });
+		controller.refreshProvenance();
 
 		assert.deepStrictEqual({
-			afterInventory,
+			beforeConfigKnown,
+			afterConfigKnown,
 			afterLifecycle,
 			afterSourceChange: snapshot(),
 			publishedSources: actions.flatMap(action => action.type === ActionType.SessionCustomizationUpdated && action.customization.type === CustomizationType.McpServer ? [readMcpServerSource(action.customization)] : []),
 		}, {
-			afterInventory: [{ id: 'mcp-top-level:copilot:session-1:search', source: 'user', state: McpServerStatus.Starting }],
-			afterLifecycle: [{ id: 'mcp-top-level:copilot:session-1:search', source: 'user', state: McpServerStatus.Ready }],
-			afterSourceChange: [{ id: 'mcp-top-level:copilot:session-1:search', source: 'workspace', state: McpServerStatus.Ready }],
-			publishedSources: [undefined, 'user', 'user', 'workspace'],
+			beforeConfigKnown: [{ displayName: undefined, source: undefined, state: McpServerStatus.Starting }],
+			afterConfigKnown: [{ displayName: undefined, source: 'user', state: McpServerStatus.Starting }],
+			afterLifecycle: [{ displayName: 'Connector Search', source: 'user', state: McpServerStatus.Ready }],
+			afterSourceChange: [{ displayName: 'Connector Search', source: 'workspace', state: McpServerStatus.Ready }],
+			publishedSources: [undefined, 'user', 'user', 'user', 'workspace'],
 		});
 	});
 
-	test('publishes source locations without changing identity and retains them across lifecycle updates', () => {
-		const { controller, actions } = harness(store);
-		store.add(controller);
+	test('publishes source locations without changing identity and drops them when configuration no longer declares the server', () => {
 		const id = 'mcp-top-level:copilot:session-1:search';
 		const uri = URI.file('/home/test/.copilot/mcp-config.json').toString();
+		const provenance = new Map<string, IMcpServerProvenance>([['search', { source: 'user', sourceUri: uri }]]);
+		const { controller, actions } = harness(store, { provenance });
+		store.add(controller);
 		const snapshot = () => controller.topLevelCustomizations().map(item => ({
 			id: item.id, uri: item.uri, state: item.state.kind,
 		}));
 
 		controller.applyOne(server('search', starting()));
-		controller.applyAll([{ ...server('search', starting()), source: 'user', sourceUri: uri }]);
-		const afterInventory = snapshot();
+		const configured = snapshot();
 		controller.applyOne(server('search', ready()));
 		const afterLifecycle = snapshot();
-		controller.applyAll([{ ...server('search', ready()), source: 'builtin', sourceUri: null }]);
-		const afterClearing = snapshot();
+		provenance.delete('search');
+		controller.refreshProvenance();
+		const afterRemoval = snapshot();
 		controller.applyOne(server('search', stopped()));
 
 		assert.deepStrictEqual({
-			afterInventory,
+			configured,
 			afterLifecycle,
-			afterClearing,
+			afterRemoval,
 			afterNextLifecycle: snapshot(),
 			publishedUris: actions.flatMap(action => action.type === ActionType.SessionCustomizationUpdated ? [action.customization.uri] : []),
 		}, {
-			afterInventory: [{ id, uri, state: McpServerStatus.Starting }],
+			configured: [{ id, uri, state: McpServerStatus.Starting }],
 			afterLifecycle: [{ id, uri, state: McpServerStatus.Ready }],
-			afterClearing: [{ id, uri: id, state: McpServerStatus.Ready }],
+			afterRemoval: [{ id, uri: id, state: McpServerStatus.Ready }],
 			afterNextLifecycle: [{ id, uri: id, state: McpServerStatus.Stopped }],
-			publishedUris: [id, uri, uri, id, id],
+			publishedUris: [uri, uri, id, id],
 		});
 	});
 
-	test('preserves restored source locations and ranges until the location changes', () => {
+	test('configured provenance wins over stale published provenance', () => {
+		const { controller, setCustomizations } = harness(store, { provenance: new Map([['search', { source: 'workspace' }]]) });
+		store.add(controller);
+		controller.applyOne(server('search', starting()));
+		const provisional = controller.topLevelCustomizations()[0];
+		setCustomizations([{ ...provisional, _meta: withMcpServerSourceMeta(undefined, 'user') }]);
+		controller.applyOne(server('search', ready()));
+		assert.deepStrictEqual(controller.topLevelCustomizations().map(item => ({ source: readMcpServerSource(item), state: item.state.kind })), [
+			{ source: 'workspace', state: McpServerStatus.Ready },
+		]);
+	});
+
+	test('preserves restored ranges until the configured location changes', () => {
 		const id = 'restored-search';
 		const uri = URI.file('/home/test/.copilot/mcp-config.json').toString();
 		const range = { start: { line: 2, character: 1 }, end: { line: 4, character: 2 } };
+		const provenance = new Map<string, IMcpServerProvenance>([['search', { source: 'user', sourceUri: uri }]]);
 		const { controller } = harness(store, {
 			customizations: [{
 				type: CustomizationType.McpServer, id, uri, range, name: 'search', state: stopped(),
 			}],
+			provenance,
 		});
 		store.add(controller);
 		const snapshot = () => controller.topLevelCustomizations().map(item => ({
@@ -234,19 +529,17 @@ suite('McpCustomizationController', () => {
 
 		controller.applyOne(server('search', ready()));
 		const restored = snapshot();
-		controller.applyAll([{ ...server('search', ready()), source: 'user', sourceUri: uri }]);
-		const unchanged = snapshot();
 		const newUri = URI.file('/custom/copilot/mcp-config.json').toString();
-		controller.applyAll([{ ...server('search', ready()), source: 'user', sourceUri: newUri }]);
+		provenance.set('search', { source: 'user', sourceUri: newUri });
+		controller.refreshProvenance();
 
-		assert.deepStrictEqual({ restored, unchanged, relocated: snapshot() }, {
+		assert.deepStrictEqual({ restored, relocated: snapshot() }, {
 			restored: [{ id, uri, range }],
-			unchanged: [{ id, uri, range }],
 			relocated: [{ id, uri: newUri, range: undefined }],
 		});
 	});
 
-	test('retains restored sources and opaque metadata while replacing only the source slot', () => {
+	test('keeps restored opaque metadata while replacing restored provenance with configured provenance', () => {
 		const restored = (id: string, name: string, meta: Record<string, unknown> | undefined): McpServerCustomization => ({
 			type: CustomizationType.McpServer,
 			id,
@@ -255,17 +548,20 @@ suite('McpCustomizationController', () => {
 			state: stopped(),
 			_meta: meta,
 		});
+		const provenance = new Map<string, IMcpServerProvenance>([['search', { source: 'user' }]]);
 		const { controller, actions } = harness(store, {
 			customizations: [
 				restored('restored-search', 'search', withMcpServerSourceMeta({ 'test.opaque': 'kept' }, 'user')),
-				restored('restored-fs', 'fs', { 'test.opaque': 'kept' }),
-			]
+				restored('restored-fs', 'fs', withMcpServerSourceMeta({ 'test.opaque': 'kept' }, 'user')),
+			],
+			provenance,
 		});
 		store.add(controller);
 
 		controller.applyOne(server('search', ready()));
 		controller.applyOne(server('fs', ready()));
-		controller.applyAll([{ ...server('search', ready()), source: 'workspace' }, server('fs', ready())]);
+		provenance.set('search', { source: 'workspace' });
+		controller.refreshProvenance();
 
 		assert.deepStrictEqual(actions.flatMap(action => action.type === ActionType.SessionCustomizationUpdated ? [{
 			id: action.customization.id, meta: action.customization._meta,
@@ -274,6 +570,50 @@ suite('McpCustomizationController', () => {
 			{ id: 'restored-fs', meta: { 'test.opaque': 'kept' } },
 			{ id: 'restored-search', meta: { 'test.opaque': 'kept', 'agentHost.mcpServerSource': 'workspace' } },
 		]);
+	});
+
+	test('publishes source plugins through lifecycle updates and clears them when configuration does', () => {
+		const provenance = new Map<string, IMcpServerProvenance>([
+			['computer-use', { source: 'builtin', sourcePlugin: 'computer-use' }],
+			['acme-server', { source: 'plugin', sourcePlugin: 'acme' }],
+		]);
+		const { controller } = harness(store, {
+			customizations: [{
+				type: CustomizationType.McpServer,
+				id: 'restored-computer-use',
+				uri: 'mcp-top-level:copilot:session-1:computer-use',
+				name: 'computer-use',
+				state: stopped(),
+				_meta: withMcpServerSourcePluginMeta({ 'test.opaque': 'kept' }, 'computer-use'),
+			}],
+			provenance,
+		});
+		store.add(controller);
+		const snapshot = () => controller.topLevelCustomizations().map(item => ({ name: item.name, sourcePlugin: readMcpServerSourcePlugin(item) }));
+
+		controller.applyAll([server('computer-use', ready()), server('acme-server', ready())]);
+		const inventory = snapshot();
+		controller.applyOne(server('acme-server', stopped()));
+		const lifecycle = snapshot();
+		provenance.set('computer-use', { source: 'builtin' });
+		provenance.set('acme-server', { source: 'user' });
+		controller.refreshProvenance();
+
+		assert.deepStrictEqual({ inventory, lifecycle, cleared: snapshot(), restoredMeta: controller.topLevelCustomizations()[0]._meta }, {
+			inventory: [
+				{ name: 'computer-use', sourcePlugin: 'computer-use' },
+				{ name: 'acme-server', sourcePlugin: 'acme' },
+			],
+			lifecycle: [
+				{ name: 'computer-use', sourcePlugin: 'computer-use' },
+				{ name: 'acme-server', sourcePlugin: 'acme' },
+			],
+			cleared: [
+				{ name: 'computer-use', sourcePlugin: undefined },
+				{ name: 'acme-server', sourcePlugin: undefined },
+			],
+			restoredMeta: { 'test.opaque': 'kept', 'agentHost.mcpServerSource': 'builtin' },
+		});
 	});
 
 	test('reapplying an unchanged inventory dispatches nothing', () => {
@@ -516,7 +856,7 @@ suite('McpCustomizationController', () => {
 
 		assert.deepStrictEqual(controller.topLevelCustomizations(), []);
 		assert.deepStrictEqual(controller.runtimeStates.get(), new Map([
-			['mcp-child:workiq:workiq-me', { state: ready(), channel: buildMcpChannel(CHAT_URI, 'workiq-me') }],
+			['mcp-child:workiq:workiq-me', { state: ready(), channel: buildMcpChannel(CHAT_URI, 'workiq-me', 'copilot') }],
 			['mcp-child:workiq:calendar', { state: authRequired(), channel: undefined }],
 			['mcp-child:workiq:mail', { state: authRequired(), channel: undefined }],
 		]));
@@ -699,7 +1039,7 @@ suite('McpCustomizationController', () => {
 
 	test('parseMcpChannelUri decodes URL-encoded path segments', () => {
 		const chatUri = URI.parse(buildChatUri(AgentSession.uri('copilot', 'session/1'), 'chat with spaces'));
-		const route = parseMcpChannelUri(buildMcpChannel(chatUri, 'my server'));
+		const route = parseMcpChannelUri(buildMcpChannel(chatUri, 'my server', 'copilot'));
 		assert.deepStrictEqual(route && { ...route, chatUri: route.chatUri.toString() }, {
 			providerId: 'copilot',
 			chatUri: chatUri.toString(),
@@ -713,7 +1053,6 @@ suite('McpCustomizationController', () => {
 		assert.strictEqual(parseMcpChannelUri('mcp:///session/server'), undefined);
 		assert.strictEqual(parseMcpChannelUri('mcp://copilot/session-only'), undefined);
 		assert.strictEqual(parseMcpChannelUri('mcp://copilot/session/'), undefined);
-		assert.strictEqual(parseMcpChannelUri(MCP_FS_CHANNEL.replace('mcp://copilot/', 'mcp://codex/')), undefined);
 		// Bad percent escapes must not throw — caller turns undefined
 		// into a clean Method not found, not an internal error.
 		assert.strictEqual(parseMcpChannelUri('mcp://copilot/bad%/server'), undefined);

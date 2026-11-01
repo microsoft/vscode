@@ -25,7 +25,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { IActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
-import { resolveRemoteAuthority } from '../openInVSCodeUtils.js';
+import { resolveRemoteAuthority, resolveRemoteFolderUri } from '../openInVSCodeUtils.js';
 import { OpenInVSCodeTitleBarWidget } from '../widget/openInVSCodeWidget.js';
 
 export class OpenInVSCodeAction extends Action2 {
@@ -77,11 +77,12 @@ export class OpenInVSCodeAction extends Action2 {
 		const folder = workspace?.folders[0];
 		const rawFolderUri = workspace?.isVirtualWorkspace ? undefined : folder?.workingDirectory;
 
-		if (!rawFolderUri) {
+		if (!rawFolderUri || !resolveRemoteFolderUri(rawFolderUri, activeSession.providerId, sessionsProvidersService, remoteAgentHostService)) {
 			await openerService.open(URI.from({ scheme, query: params.toString() }), { openExternal: true });
 			return;
 		}
 
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- opens the remote folder in a new window from its wrapped host URI
 		const folderUri = rawFolderUri.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(rawFolderUri) : rawFolderUri;
 		const remoteAuthority = resolveRemoteAuthority(
 			activeSession.providerId, sessionsProvidersService, remoteAgentHostService);

@@ -45,6 +45,8 @@ const $ = dom.$;
 
 const VIEWSTATE_STORAGE_KEY = 'workbench.quickInput.viewState';
 const QUICK_INPUT_MOTION_CLOSING_CLASS = 'quick-input-widget-closing';
+const QUICK_INPUT_MOTION_SETTLED_CLASS = 'quick-input-widget-motion-settled';
+const QUICK_INPUT_MOTION_OPEN_ANIMATION = 'quick-input-widget-open';
 const QUICK_INPUT_OVERLAY_CLASS = 'quick-input-widget-overlay';
 const QUICK_INPUT_CLOSE_ANIMATION_DURATION = 150;
 const QUICK_INPUT_MOTION_ANCESTOR_CLASSES = ['modern-ui', 'monaco-enable-motion'];
@@ -166,6 +168,11 @@ export class QuickInputController extends Disposable {
 		const container = dom.append(this._container, $('.quick-input-widget.show-file-icons'));
 		container.tabIndex = -1;
 		container.style.display = 'none';
+		this._register(dom.addDisposableListener(container, 'animationend', (e: AnimationEvent) => {
+			if (e.target === container && e.animationName === QUICK_INPUT_MOTION_OPEN_ANIMATION) {
+				this.settleOpenAnimation(container);
+			}
+		}));
 
 		const styleSheet = domStylesheetsJs.createStyleSheet(container);
 
@@ -175,7 +182,8 @@ export class QuickInputController extends Disposable {
 			hoverDelegate: this.options.hoverDelegate,
 			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle),
 			icon: true,
-			label: false
+			label: false,
+			renderDropdownAsPopover: true
 		}));
 		leftActionBar.getElement().classList.add('quick-input-left-action-bar');
 
@@ -185,7 +193,8 @@ export class QuickInputController extends Disposable {
 			hoverDelegate: this.options.hoverDelegate,
 			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle),
 			icon: true,
-			label: false
+			label: false,
+			renderDropdownAsPopover: true
 		}));
 		rightActionBar.getElement().classList.add('quick-input-right-action-bar');
 
@@ -223,7 +232,8 @@ export class QuickInputController extends Disposable {
 			hoverDelegate: this.options.hoverDelegate,
 			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle),
 			icon: true,
-			label: false
+			label: false,
+			renderDropdownAsPopover: true
 		}));
 		inlineActionBar.getElement().classList.add('quick-input-inline-action-bar');
 
@@ -254,6 +264,9 @@ export class QuickInputController extends Disposable {
 		// List
 		const listId = this.idPrefix + 'list';
 		const list = this._register(this.instantiationService.createInstance(QuickInputList, container, this.options.hoverDelegate, this.options.linkOpenerDelegate, listId, this.styles));
+		// The item hover is positioned relative to the viewport, which requires that the
+		// widget is not a containing block for it when it is measured
+		this._register(list.onWillShowItemHover(() => this.settleOpenAnimation(container)));
 		inputBox.setAttribute('aria-controls', listId);
 		this._register(list.onDidChangeFocus(() => {
 			if (inputBox.hasFocus()) {
@@ -724,6 +737,11 @@ export class QuickInputController extends Disposable {
 			controller.anchorPosition = anchorScope.anchorPosition;
 		}
 		const ui = this.getUI(true);
+		// Only a hidden widget plays the entrance animation when shown, a visible widget whose
+		// controller is replaced stays settled so the animation does not replay
+		if (ui.container.style.display === 'none') {
+			ui.container.classList.remove(QUICK_INPUT_MOTION_SETTLED_CLASS);
+		}
 		const oldController = this.controller;
 		this.controller = controller;
 		oldController?.didHide();
@@ -854,7 +872,9 @@ export class QuickInputController extends Disposable {
 		controller.willHide(reason);
 
 		const container = this.ui?.container;
-		const focusChanged = container && !dom.isAncestorOfActiveElement(container);
+		// The active element of the container's own root: not the deep active element,
+		// because focus inside a menu hosted in the container is in a nested shadow root
+		const focusChanged = container && !dom.isAncestor((dom.getShadowRoot(container) ?? container.ownerDocument).activeElement, container);
 		this.controller = null;
 		this.onHideEmitter.fire();
 		if (container) {
@@ -904,6 +924,14 @@ export class QuickInputController extends Disposable {
 			container.classList.remove(QUICK_INPUT_MOTION_CLOSING_CLASS);
 			container.style.display = 'none';
 		}
+	}
+
+	/**
+	 * Ends the entrance animation of the widget early (or marks it as ended), so that the widget
+	 * no longer establishes a containing block for fixed-position descendants such as item hovers.
+	 */
+	private settleOpenAnimation(container: HTMLElement): void {
+		container.classList.add(QUICK_INPUT_MOTION_SETTLED_CLASS);
 	}
 
 	override dispose(): void {

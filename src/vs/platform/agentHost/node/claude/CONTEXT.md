@@ -174,12 +174,16 @@ Anthropic-canonical IDs (`claude-opus-4-6-20250929`). Translation is
 
 - `filterSupportedBetas()` in `node/claude/anthropicBetas.ts` accepts the
   `SUPPORTED_ANTHROPIC_BETAS` families: `interleaved-thinking`,
-  `context-management`, `advanced-tool-use`, and `per-turn-control`.
+  `context-management`, `advanced-tool-use`, `per-turn-control`, and
+  `thinking-display-updates`.
   Allowlist match is prefix + `-` (date-suffix discipline).
 - The filter only forwards supported betas supplied by the SDK; it does not
   inject compatibility betas.
 - The SDK's `per-turn-control` beta is passed through so CAPI can accept
   per-message `output_config`.
+- The SDK's `thinking-display-updates` beta is passed through so CAPI can
+  accept `thinking: { type: 'adaptive', display: 'updates' }`. Without it,
+  CAPI returns 400 and the SDK retries the request without `display`.
 - Applied at `POST /v1/messages` after auth, before model translation.
   If the filtered result is a non-empty string, set it on the outbound
   `ICopilotApiServiceRequestOptions.headers['anthropic-beta']`. If
@@ -1268,10 +1272,7 @@ Mapping that to the IAgent lifecycle:
 | Forked session (`forkSession` already wrote the file) | Yes | `resume: <forkedSessionId>` — SDK resumes the on-disk transcript |
 | Restored / imported session (already on disk from a prior process) | Yes | `resume: <sessionId>` |
 
-The agent must track "is this session id backed by an on-disk file
-yet?" across its provisional/materialize lifecycle so it picks the
-correct field. The fork path flips the bit at `forkSession` return
-time; the fresh path flips it at `query({ sessionId })` return time.
+Rebuilds preserve fresh mode until the pipeline receives `system/init`; starting a warm subprocess alone does not establish a resumable conversation. Forked and restored chats retain resume mode even when rebuilt before their first send in the current process. Configuration changes during startup must therefore select resume mode using both the materialization context and the pipeline's initialization state.
 
 #### Fork sub-flow
 
