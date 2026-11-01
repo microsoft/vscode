@@ -86,6 +86,7 @@ export class InstallFromSourceAction extends Action2 {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const fileDialogService = accessor.get(IFileDialogService);
 		const customizationHarnessService = accessor.get(ICustomizationHarnessService);
+		const notificationService = accessor.get(INotificationService);
 
 		const store = new DisposableStore();
 		const inputBox = store.add(quickInputService.createInputBox());
@@ -140,7 +141,7 @@ export class InstallFromSourceAction extends Action2 {
 					const result = await pluginInstallService.installPluginFromSource(source);
 					success = result.success;
 					if (!success && result.message) {
-						inputBox.validationMessage = result.message;
+						notificationService.error(result.message);
 					}
 				}
 				if (!success) {
@@ -156,11 +157,8 @@ export class InstallFromSourceAction extends Action2 {
 					store.dispose();
 				}
 			} catch (e) {
-				// An unexpected failure (e.g. cancelled trust prompt) would otherwise
-				// leave the hidden input box and awaited promise stuck. Re-show it with
-				// the error so the user can retry or cancel.
 				const detail = e instanceof Error ? e.message : String(e);
-				inputBox.validationMessage = localize('installFromSourceFailed', "Failed to install plugin: {0}", detail);
+				notificationService.error(localize('installFromSourceFailed', "Failed to install plugin: {0}", detail));
 				inputBox.show();
 			} finally {
 				installing = false;

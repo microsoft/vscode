@@ -2714,7 +2714,7 @@ suite('AICustomizationDiscoveryPage', () => {
 	});
 
 	for (const connector of [false, true]) {
-		test(`failed ${connector ? 'connector reconnect' : 'skill repair'} updates installed row actions and error hover`, async () => {
+		test(`failed ${connector ? 'connector reconnect' : 'skill repair'} shows a notification`, async () => {
 			const candidate = resource('repair-item', connector ? {
 				displayName: 'Mail',
 				sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
@@ -2755,15 +2755,17 @@ suite('AICustomizationDiscoveryPage', () => {
 				repaired: action().textContent,
 				repairedHover: fixture.getHoverContent(action()),
 				repairs: fixture.repairs,
+				notifications: fixture.notifications,
 			}, {
 				failure: {
-					label: connector ? 'Retry' : 'Retry Repair',
-					ariaLabel: connector ? 'Retry Mail' : 'Retry Repair Mail skill',
-					hover: connector ? 'Could not reconnect Mail. Test repair failed' : 'Could not repair Mail skill. Test repair failed',
+					label: connector ? 'Reconnect' : 'Repair',
+					ariaLabel: connector ? 'Reconnect Mail' : 'Repair Mail skill',
+					hover: undefined,
 				},
 				repaired: connector ? 'Disconnect' : 'Uninstall',
 				repairedHover: undefined,
 				repairs: ['repair-item', 'repair-item'],
+				notifications: [connector ? 'Could not reconnect Mail. Test repair failed' : 'Could not repair Mail skill. Test repair failed'],
 			});
 		});
 	}
