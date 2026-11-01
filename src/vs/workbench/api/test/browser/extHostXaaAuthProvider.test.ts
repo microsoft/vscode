@@ -5,12 +5,13 @@
 
 import assert from 'assert';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { IAuthorizationTokenResponse } from '../../../../base/common/oauth.js';
+import { IAuthorizationTokenResponse, TOKEN_TYPE_ID_TOKEN, TOKEN_TYPE_REFRESH_TOKEN } from '../../../../base/common/oauth.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import {
 	cacheKey,
 	IDP_SCOPES,
 	isExpired,
+	resolveSubjectToken,
 	toSession,
 } from '../../common/extHostXaaAuthProvider.js';
 
@@ -95,5 +96,62 @@ suite('XaaAuthProvider toSession', () => {
 		const token: IAuthorizationTokenResponse = { access_token: jwt({ sub: 'resource-sub', preferred_username: 'do-not-use' }), token_type: 'Bearer' };
 		const session = toSession(token, ['mcp:proxy']);
 		assert.deepStrictEqual(session.account, { id: 'unknown', label: 'XAA' });
+	});
+});
+
+suite('resolveSubjectToken', () => {
+	const session = (accessToken: string, idToken?: string) => ({ accessToken, idToken });
+	const stored = (access_token: string, refresh_token?: string) => ({ access_token, refresh_token });
+
+	test('prefers refresh_token as subject when present in the token store', () => {
+		const result = resolveSubjectToken(
+			session('at-1', 'id-tok'),
+			[stored('at-1', 'rt-1')],
+		);
+		assert.strictEqual(result?.subjectToken, 'rt-1');
+		assert.strictEqual(result?.subjectTokenType, TOKEN_TYPE_REFRESH_TOKEN);
+	});
+
+	test('falls back to id_token when no refresh_token is stored', () => {
+		const result = resolveSubjectToken(
+			session('at-1', 'id-tok'),
+			[stored('at-1')],
+		);
+		assert.strictEqual(result?.subjectToken, 'id-tok');
+		assert.strictEqual(result?.subjectTokenType, TOKEN_TYPE_ID_TOKEN);
+	});
+
+	test('returns undefined when neither refresh_token nor id_token is available', () => {
+		const result = resolveSubjectToken(session('at-1'), [stored('at-1')]);
+		assert.strictEqual(result, undefined);
+	});
+
+	test('returns undefined when the session has no matching entry in the token store', () => {
+		const result = resolveSubjectToken(session('at-1', 'id-tok'), [stored('at-other', 'rt-other')]);
+		assert.strictEqual(result, undefined);
+	});
+
+	test('still uses refresh_token even when id_token is present (handles silently-expired id_token)', () => {
+		// id_token JWT exp may have passed without the cached session appearing expired to isExpired()
+		// (which only checks expires_in, not the JWT exp claim). The refresh_token is always preferred
+		// so an expired id_token never reaches the token exchange endpoint.
+		const result = resolveSubjectToken(
+			session('at-1', 'id-tok-expired'),
+			[stored('at-1', 'rt-1')],
+		);
+		assert.strictEqual(result?.subjectToken, 'rt-1');
+		assert.strictEqual(result?.subjectTokenType, TOKEN_TYPE_REFRESH_TOKEN);
+	});
+
+	test('finds refresh_token by the rotated access_token after a silent token refresh', () => {
+		// When the base class refreshes the IdP access_token via the refresh_token grant, the session's
+		// accessToken is updated to the new value. resolveSubjectToken must match on the current
+		// accessToken so that silent re-mint continues to work after rotation.
+		const result = resolveSubjectToken(
+			session('at-rotated', undefined),
+			[stored('at-rotated', 'rt-1')],
+		);
+		assert.strictEqual(result?.subjectToken, 'rt-1');
+		assert.strictEqual(result?.subjectTokenType, TOKEN_TYPE_REFRESH_TOKEN);
 	});
 });
