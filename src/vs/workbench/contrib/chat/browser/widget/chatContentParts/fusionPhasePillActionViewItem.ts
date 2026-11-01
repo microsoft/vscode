@@ -161,7 +161,7 @@ export class FusionPhasePillActionViewItem extends OpenSubagentChatActionViewIte
 	protected override getTooltip(): string {
 		const modelName = this.modelName;
 		return [
-			localize('chat.phase.title', "HydraFusion phase: {0}", this.pillContext?.title ?? this.action.label),
+			localize('chat.phase.title', "Copilot Fusion phase: {0}", this.pillContext?.title ?? this.action.label),
 			this.statusLabel,
 			modelName ? localize('chat.phase.modelTooltip', "Model: {0}", modelName) : undefined,
 		].filter(Boolean).join('\n');

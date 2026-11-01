@@ -9162,7 +9162,7 @@ suite('AgentHostChatContribution', () => {
 		for (const cancelled of [false, true]) {
 			test(`Fusion response footer keeps the selected workflow model (cancelled: ${cancelled})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const languageModels = new Map<string, ILanguageModelChatMetadata>([
-					['agent-host-copilot:hydrafusion', upcastPartial<ILanguageModelChatMetadata>({ name: 'HydraFusion' })],
+					['agent-host-copilot:hydrafusion', upcastPartial<ILanguageModelChatMetadata>({ name: 'Copilot Fusion High' })],
 					['agent-host-copilot:gpt-5.6-sol', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.6 Sol' })],
 				]);
 				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels, provider: 'copilotcli' });
@@ -9181,7 +9181,7 @@ suite('AgentHostChatContribution', () => {
 				assert.deepStrictEqual({
 					details: result.details, actualModelId: usage?.actualModelId, credits: usage?.copilotCredits,
 				}, {
-					details: 'HydraFusion • 15.5 credits', actualModelId: 'agent-host-copilot:gpt-5.6-sol', credits: 15.5,
+					details: 'Copilot Fusion High • 15.5 credits', actualModelId: 'agent-host-copilot:gpt-5.6-sol', credits: 15.5,
 				});
 			}));
 		}
@@ -13046,7 +13046,7 @@ suite('AgentHostChatContribution', () => {
 			};
 			assert.deepStrictEqual({ copilotCli: await footers('copilotcli'), other: await footers('claude') }, {
 				copilotCli: {
-					details: ['HydraFusion • 15.5 credits', 'GPT-5.6 Sol • 15.5 credits', 'HydraFusion Max • 15.5 credits', 'HydraFusion • 15.5 credits'],
+					details: ['Copilot Fusion High • 15.5 credits', 'GPT-5.6 Sol • 15.5 credits', 'Copilot Fusion Max • 15.5 credits', 'Copilot Fusion High • 15.5 credits'],
 					activeActualModel: 'agent-host-copilot:gpt-5.6-sol',
 				},
 				other: {

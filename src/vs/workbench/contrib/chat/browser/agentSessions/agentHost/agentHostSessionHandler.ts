@@ -167,7 +167,8 @@ import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, chatUsageToSessionCost, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, reasoningPartToThinking, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, turnToResultMetadata, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
-import { COPILOT_HYDRA_FUSION_MODEL_NAMES, isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { getFusionAutoModeTierLabel } from '../../../../../../platform/agentHost/common/autoModeTiers.js';
 import { getFusionTierLabel } from '../../widget/input/modelPicker/modelPickerPresentation.js';
 import { autoAuthenticateMcpServer, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
 import { AgentHostSubagentProgress, isUnstartedSubagent } from './agentHostSubagentProgress.js';
@@ -7517,6 +7518,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const model = { identifier: resolved.identifier, metadata: resolved.model };
 			return getLanguageModelDisplayNameWithSubscriptionSource(model, getLanguageModelDisplayNameWithProvider(model, this._languageModelsService));
 		};
+		// A HydraFusion model is one of Copilot Fusion's effort levels; without its published row, it still reads as Fusion.
+		const fusionModelName = (rawModelId: string) => localize({ key: 'agentHost.fusionTierResponseModelFallback', comment: ['{0} is an effort level of Copilot Fusion, e.g. Max'] }, "Copilot Fusion {0}", getFusionAutoModeTierLabel(rawModelId));
 		// On-device attribution: what actually ran, from the turn's usage, named from host status.
 		const localTurn = (usage: UsageInfo | undefined) => this._localModels.getTurnPresentation(usage, fallbackRawModelId, rawModelId => {
 			const resolved = lookupRawModel(rawModelId);
@@ -7536,8 +7539,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// resolvedFromRaw=false means we fell back to the picked model; surface billedModelId so
 				// e.g. an "Auto" pick reads "Auto (raptor-mini)".
 				const billedModelId = resolved && !resolved.resolvedFromRaw ? billedId : undefined;
-				const fusionModelName = responseModelId === undefined ? undefined : COPILOT_HYDRA_FUSION_MODEL_NAMES.get(responseModelId);
-				const fusion = fusionModelName ? lookupRawModel(AUTO_RAW_MODEL_ID) : undefined;
+				const isFusionTier = isCopilotHydraFusionModelId(responseModelId);
+				const fusion = isFusionTier ? lookupRawModel(AUTO_RAW_MODEL_ID) : undefined;
 				const fusionTier = fusion && responseModelId ? getFusionTierLabel(fusion.model, responseModelId) : undefined;
 				// Token prices are model rates, not the credits consumed by this turn.
 				const pricing = resolved?.model.multiplierNumeric !== undefined ? resolved.model.pricing : undefined;
@@ -7547,7 +7550,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				} : resolved ? {
 					name: displayName(resolved),
 					pricing,
-				} : fusionModelName ? { name: fusionModelName } : undefined;
+				} : isFusionTier && responseModelId ? { name: fusionModelName(responseModelId) } : undefined;
 				return formatTurnResponseDetails(responseModel, billedModelId, usage);
 			},
 			toBilledModelInfo: usage => {
@@ -7564,7 +7567,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const { billedId, resolved } = resolveBilledModel(chosenModel ?? usage?.model, usage);
 				const knownModel = resolved && (resolved.resolvedFromRaw || !billedId) ? resolved : undefined;
 				const modelId = knownModel?.identifier ?? this._toLanguageModelId(sessionResource, billedId ?? fallbackRawModelId);
-				const modelName = knownModel ? displayName(knownModel) : billedId ?? fallbackRawModelId;
+				const rawBilledId = billedId ?? fallbackRawModelId;
+				const modelName = knownModel ? displayName(knownModel) : rawBilledId && isCopilotHydraFusionModelId(rawBilledId) ? fusionModelName(rawBilledId) : rawBilledId;
 				return modelId && modelName ? { modelId, modelName, ...(runtimeModelConfiguration ? { runtimeModelConfiguration } : {}) } : undefined;
 			},
 			toAutoModeResolution: usage => {

@@ -59,7 +59,7 @@ suite('CopilotFusionProgress', () => {
 			model: 'model-a',
 			phaseContent: [{ type: 'text', text: 'Fix-up&nbsp;pass&nbsp;completed\n\nDuration:&nbsp;2s' }],
 			completedPart: undefined,
-			degradedContent: { markdown: 'HydraFusion&nbsp;workflow&nbsp;completed&nbsp;with&nbsp;a&nbsp;fallback' },
+			degradedContent: { markdown: 'Copilot&nbsp;Fusion&nbsp;workflow&nbsp;completed&nbsp;with&nbsp;a&nbsp;fallback' },
 		});
 	});
 
@@ -69,7 +69,7 @@ suite('CopilotFusionProgress', () => {
 			content: ended?.part?.content,
 			status: ended?.part && readAgentSystemNotificationMeta(ended.part).fusionStatus,
 		}, {
-			content: { markdown: 'HydraFusion&nbsp;workflow&nbsp;ended:&nbsp;failed' },
+			content: { markdown: 'Copilot&nbsp;Fusion&nbsp;workflow&nbsp;ended:&nbsp;failed' },
 			status: 'degraded',
 		});
 	});
