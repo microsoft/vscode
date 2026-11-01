@@ -2542,6 +2542,66 @@ suite('ChatService', () => {
 		});
 	});
 
+	for (const action of ['stop', 'send now'] as const) {
+		test(`${action === 'stop' ? 'stopping a request drops' : 'sending a queued message now keeps'} the system notifications queued while it ran`, async () => {
+			const firstStarted = new DeferredPromise<void>();
+			const invokedMessages: string[] = [];
+			const agentId = 'stopAgent';
+			testDisposables.add(chatAgentService.registerAgent(agentId, { ...getAgentData(agentId), isDefault: true }));
+			testDisposables.add(chatAgentService.registerAgentImplementation(agentId, {
+				async invoke(request, _progress, _history, token) {
+					invokedMessages.push(request.message);
+					if (invokedMessages.length === 1) {
+						firstStarted.complete();
+						await new Promise<void>(resolve => {
+							const listener = token.onCancellationRequested(() => { listener.dispose(); resolve(); });
+						});
+					}
+					return {};
+				},
+			}));
+
+			const testService = createChatService();
+			const model = testDisposables.add(startSessionModel(testService)).object;
+			const first = await testService.sendRequest(model.sessionResource, 'first request', { agentId });
+			ChatSendResult.assertSent(first);
+			await firstStarted.p;
+
+			const notificationText = '[Terminal terminal-1 notification: command completed.]\nTerminal output:\nDONE';
+			const steering = await testService.sendRequest(model.sessionResource, 'steering message', { agentIdSilent: agentId, queue: ChatRequestQueueKind.Steering });
+			const notification = await testService.sendRequest(model.sessionResource, notificationText, { agentIdSilent: agentId, queue: ChatRequestQueueKind.Steering, isSystemInitiated: true, terminalExecutionId: 'terminal-1' });
+			assert.ok(ChatSendResult.isQueued(steering) && ChatSendResult.isQueued(notification));
+
+			if (action === 'stop') {
+				await testService.cancelCurrentRequestForSession(model.sessionResource, 'cancelAction');
+				await first.data.responseCompletePromise;
+
+				// The user's own message stays queued; the notification for the stopped request is gone.
+				assert.deepStrictEqual({
+					notification: await notification.deferred,
+					pending: model.getPendingRequests().map(pending => pending.request.message.text),
+					invokedMessages,
+				}, {
+					notification: { kind: 'rejected', reason: 'Request was removed from queue' },
+					pending: ['steering message'],
+					invokedMessages: ['first request'],
+				});
+			} else {
+				await testService.sendPendingRequestImmediately(model.sessionResource, model.getPendingRequests()[0].request.id);
+				for (const pending of [steering, notification]) {
+					const result = await pending.deferred;
+					ChatSendResult.assertSent(result);
+					await result.data.responseCompletePromise;
+				}
+
+				assert.deepStrictEqual({ invokedMessages, pending: model.getPendingRequests().length }, {
+					invokedMessages: ['first request', 'steering message', notificationText],
+					pending: 0,
+				});
+			}
+		});
+	}
+
 	test('does not locally dequeue pending requests for remote agent host sessions', async () => {
 		const sessionType = 'remote-neat-cat-copilotcli';
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session-server-managed-queue' });
