@@ -33,7 +33,7 @@ import { IUpdateService, StateType } from '../../../../../platform/update/common
 import { CustomMenubarControl } from '../../../../browser/parts/titlebar/menubarControl.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { getMenuBarVisibility, hasNativeMenu } from '../../../../../platform/window/common/window.js';
+import { getMenuBarVisibility, hasNativeMenu, hasNativeTitlebar } from '../../../../../platform/window/common/window.js';
 import { isMacintosh, isWeb } from '../../../../../base/common/platform.js';
 import { setFullscreen } from '../../../../../base/browser/browser.js';
 
@@ -830,13 +830,14 @@ suite('ActivitybarPart', () => {
 	// Compact menus are unsupported where the platform forces a native menu (e.g. native macOS).
 	const compactSupported = getMenuBarVisibility(new TestConfigurationService({ 'window.menuBarVisibility': 'compact' })) === 'compact';
 
-	function createActivityBarCompositeBar(menuBarVisibility: string, activityBarLocation: string, sideBarLocation = 'left', extraConfig: Record<string, string> = {}) {
+	function createActivityBarCompositeBar(menuBarVisibility: string, activityBarLocation: string, sideBarLocation = 'left', windowConfig: Record<string, string> = {}) {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		// `window` settings are nested because helpers such as `hasNativeTitlebar` read `getValue('window')`.
+		const windowConfiguration: Record<string, string> = { menuBarVisibility, ...windowConfig };
 		const configurationService = new TestConfigurationService({
-			'window.menuBarVisibility': menuBarVisibility,
+			window: windowConfiguration,
 			[LayoutSettings.ACTIVITY_BAR_LOCATION]: activityBarLocation,
 			'workbench.sideBar.location': sideBarLocation,
-			...extraConfig,
 		});
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IWorkbenchLayoutService, new TestFloatingPanelsLayoutService());
@@ -863,14 +864,11 @@ suite('ActivitybarPart', () => {
 			configurationService.setUserConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION, location);
 			fireConfigChange(configurationService, LayoutSettings.ACTIVITY_BAR_LOCATION);
 		};
-		const setVisibility = (visibility: string) => {
-			configurationService.setUserConfiguration('window.menuBarVisibility', visibility);
-			fireConfigChange(configurationService, 'window.menuBarVisibility');
+		const setWindowSetting = (name: string, value: string) => {
+			windowConfiguration[name] = value;
+			fireConfigChange(configurationService, `window.${name}`);
 		};
-		const setSetting = (key: string, value: string) => {
-			configurationService.setUserConfiguration(key, value);
-			fireConfigChange(configurationService, key);
-		};
+		const setVisibility = (visibility: string) => setWindowSetting('menuBarVisibility', visibility);
 
 		return {
 			bar,
@@ -878,7 +876,7 @@ suite('ActivitybarPart', () => {
 			configurationService,
 			setLocation,
 			setVisibility,
-			setSetting,
+			setWindowSetting,
 			menubars: () => parent.querySelectorAll('.menubar').length,
 			focusCount: () => focusCount,
 		};
@@ -914,28 +912,29 @@ suite('ActivitybarPart', () => {
 	});
 
 	test('activity bar takes the compact menu when the custom title bar is hidden and releases it when shown', function () {
-		const extraConfig = {
-			'window.titleBarStyle': 'native',
-			'window.menuStyle': 'custom',
-			'window.customTitleBarVisibility': 'auto',
+		const windowConfig = {
+			titleBarStyle: 'native',
+			menuStyle: 'custom',
+			customTitleBarVisibility: 'auto',
 		};
-		const precondition = new TestConfigurationService({ 'window.menuBarVisibility': 'compact', ...extraConfig });
-		if (isWeb || isMacintosh || hasNativeMenu(precondition) || getMenuBarVisibility(precondition) !== 'compact') {
+		const precondition = new TestConfigurationService({ window: { menuBarVisibility: 'compact', ...windowConfig } });
+		if (isWeb || isMacintosh) {
 			this.skip();
 		}
-		const harness = createActivityBarCompositeBar('compact', 'top', 'left', extraConfig);
+		assert.deepStrictEqual({ nativeTitlebar: hasNativeTitlebar(precondition), nativeMenu: hasNativeMenu(precondition), menuBarVisibility: getMenuBarVisibility(precondition) }, { nativeTitlebar: true, nativeMenu: false, menuBarVisibility: 'compact' });
+		const harness = createActivityBarCompositeBar('compact', 'top', 'left', windowConfig);
 		const observed: { step: string; activityBarMenubars: number; titlebarOwns: boolean }[] = [];
 		const record = (step: string) => observed.push({ step, activityBarMenubars: harness.menubars(), titlebarOwns: isCompactMenuInTitlebar(harness.configurationService) });
 
 		try {
 			record('initial');
-			harness.setSetting('window.customTitleBarVisibility', 'never');
+			harness.setWindowSetting('customTitleBarVisibility', 'never');
 			record('hidden');
-			harness.setSetting('window.customTitleBarVisibility', 'auto');
+			harness.setWindowSetting('customTitleBarVisibility', 'auto');
 			record('shown');
-			harness.setSetting('window.customTitleBarVisibility', 'never');
+			harness.setWindowSetting('customTitleBarVisibility', 'never');
 			record('hiddenAgain');
-			harness.setSetting('window.customTitleBarVisibility', 'windowed');
+			harness.setWindowSetting('customTitleBarVisibility', 'windowed');
 			record('windowed');
 			setFullscreen(true, mainWindow);
 			record('fullscreen');
