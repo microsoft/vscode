@@ -173,6 +173,10 @@ export class LoopbackAuthServer implements ILoopbackServer {
 				deferredPromise.complete();
 			}
 		});
+		// `server.close()` only invokes its callback once all open connections have ended. The
+		// browser keeps the OAuth callback socket alive via HTTP keep-alive, so force those
+		// lingering connections to close to let `close()` complete promptly.
+		server.closeAllConnections();
 		// If the server is not closed within 5 seconds, reject the promise
 		setTimeout(() => {
 			if (!deferredPromise.isResolved) {
