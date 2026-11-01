@@ -108,7 +108,12 @@ export function truncate(value: string, maxLength: number, suffix = Ellipsis): s
 		return value;
 	}
 
-	return `${value.substr(0, maxLength)}${suffix}`;
+	// don't cut a surrogate pair in half, like truncateMiddle
+	if (maxLength > 0 && isHighSurrogate(value.charCodeAt(maxLength - 1)) && isLowSurrogate(value.charCodeAt(maxLength))) {
+		maxLength--;
+	}
+
+	return `${value.substring(0, maxLength)}${suffix}`;
 }
 
 export function truncateMiddle(value: string, maxLength: number, suffix = Ellipsis): string {
