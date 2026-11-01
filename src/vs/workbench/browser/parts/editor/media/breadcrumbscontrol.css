@@ -63,6 +63,10 @@
 	padding-right: 6px;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item {
+	min-width: 0;
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item .monaco-icon-label {
 	overflow: hidden;
 	text-overflow: ellipsis;

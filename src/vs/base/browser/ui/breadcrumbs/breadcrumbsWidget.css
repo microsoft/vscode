@@ -17,7 +17,6 @@
 	display: flex;
 	align-items: center;
 	flex: 0 1 auto;
-	min-width: 0;
 	white-space: nowrap;
 	cursor: pointer;
 	align-self: center;
