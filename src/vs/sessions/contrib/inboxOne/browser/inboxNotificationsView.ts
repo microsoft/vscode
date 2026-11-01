@@ -456,6 +456,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	constructor(
 		intersectionObserver: typeof IntersectionObserver = mainWindow.IntersectionObserver,
 		resizeObserverCtor: typeof ResizeObserver | undefined = undefined,
+		private readonly now: () => number = Date.now,
 		@IInboxNotificationsService private readonly inboxNotificationsService: IInboxNotificationsService,
 		@IChatService private readonly chatService: IChatService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
@@ -716,7 +717,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		this.newSessionElement.setAttribute('role', 'region');
 		this.newSessionElement.setAttribute('aria-label', localize('inboxNotifications.newSession', "New session"));
 		const header = container.appendChild($('.inbox-notifications-header'));
-		const hour = new Date().getHours();
+		const hour = new Date(this.now()).getHours();
 		header.appendChild($('h2.inbox-notifications-greeting', undefined, hour < 12
 			? localize('inbox.greeting.morning', "Good morning")
 			: hour < 18 ? localize('inbox.greeting.afternoon', "Good afternoon") : localize('inbox.greeting.evening', "Good evening")));

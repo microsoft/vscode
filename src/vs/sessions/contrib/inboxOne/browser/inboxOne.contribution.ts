@@ -90,7 +90,7 @@ export class InboxNotificationsCanvasContribution extends Disposable implements 
 					id: INBOX_CANVAS_ID,
 					title: localize('inbox.canvas.title', "Inbox"),
 					icon: Codicon.inbox,
-					ctor: new SyncDescriptor(InboxNotificationsView, [undefined, undefined]),
+					ctor: new SyncDescriptor(InboxNotificationsView, [undefined, undefined, undefined]),
 					retainFocusOnRestore: true,
 				});
 			} else {

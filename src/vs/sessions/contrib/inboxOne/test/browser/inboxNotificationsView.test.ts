@@ -157,6 +157,7 @@ suite('InboxNotificationsView', () => {
 		options: {
 			intersectionObserver?: typeof IntersectionObserver;
 			resizeObserver?: typeof ResizeObserver;
+			now?: () => number;
 			previewRequests?: string[];
 			events?: string[];
 			telemetry?: { event: string; data: { actionId?: string; interaction?: string; answerKind?: string; answerCharCount?: number } }[];
@@ -257,7 +258,7 @@ suite('InboxNotificationsView', () => {
 			options.events?.push(event);
 			options.telemetry?.push({ event, data });
 		});
-		const view = disposables.add(instantiationService.createInstance(InboxNotificationsView, options.intersectionObserver, options.resizeObserver));
+		const view = disposables.add(instantiationService.createInstance(InboxNotificationsView, options.intersectionObserver, options.resizeObserver, options.now));
 		const container = document.createElement('div');
 		container.style.cssText = 'width: 900px; height: 400px';
 		document.body.appendChild(container);
@@ -287,6 +288,15 @@ suite('InboxNotificationsView', () => {
 			);
 		});
 	}
+
+	test('greets by the time of day from the injected clock', () => {
+		const greetings = [11, 12, 17, 18].map(hour => {
+			const { view, container } = createView(constObservable([]), { now: () => new Date(2026, 4, 14, hour).getTime() });
+			view.render(container);
+			return container.querySelector('.inbox-notifications-greeting')?.textContent;
+		});
+		assert.deepStrictEqual(greetings, ['Good morning', 'Good afternoon', 'Good afternoon', 'Good evening']);
+	});
 
 	test('New Session keeps a pet-free composer anchored below notifications and preserves its draft', async () => {
 		const { view, container, instantiationService, newChatViews, newChatOptions } = createView(constObservable([]));

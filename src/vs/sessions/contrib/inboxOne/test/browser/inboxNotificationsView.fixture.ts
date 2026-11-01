@@ -36,6 +36,9 @@ import { InboxNotificationsView } from '../../browser/inboxNotificationsView.js'
 import { IInboxCanvasHostService, UnsupportedInboxCanvasHostService } from '../../browser/inboxCanvasHost.js';
 import { IInboxDetailSummary, IInboxNotificationItem, IInboxNotificationsService, IInboxSessionRow, InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode, InboxTab } from '../../common/inboxNotificationsService.js';
 
+/** Local noon, so the time-of-day greeting is the same in every time zone, including for fixtures that run on real time. */
+const fixtureNow = new Date(2026, 4, 14, 12).getTime();
+
 const actions = [
 	{ id: 'open', label: 'Open Session', kind: InboxNotificationActionKind.OpenSession },
 	{ id: 'done', label: '$(check)', ariaLabel: 'Mark as Done', kind: InboxNotificationActionKind.MarkDone },
@@ -319,7 +322,7 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 	ctx.container.style.width = `${width}px`;
 	const height = state === 'short' ? 360 : 820;
 	ctx.container.style.height = `${height}px`;
-	const view = ctx.disposableStore.add(instantiationService.createInstance(InboxNotificationsView, undefined, undefined));
+	const view = ctx.disposableStore.add(instantiationService.createInstance(InboxNotificationsView, undefined, undefined, () => fixtureNow));
 	view.render(ctx.container);
 	view.layout(width, height);
 	await view.openNewSession();
