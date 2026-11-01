@@ -18,13 +18,13 @@ The workspace of an image is at the path of the workspaces of the jobs, because 
 
 | Platform | Image | Restore |
 | -------- | ----- | ------- |
-| Linux | ext4 volume without a journal in a sparse file | Recreated from chunks of zstd, then mounted through a loop device, which first writes the image to the disk |
+| Linux | ext4 volume without a journal in a sparse file | Attached to a loop device while still empty, recreated from chunks of zstd, then mounted with `barrier=0`, while the kernel writes the image to the disk |
 | macOS | APFS volume in a sparse ASIF image | Recreated from chunks of zstd, then attached |
 | Windows | Dev Drive in a VHDX with blocks of 1 MB | Recreated from chunks of zstd into a temporary file, which Windows keeps in memory, then attached through the file system cache with the virtual disk API ([Vhd.cs](Vhd.cs)) |
 
 All three are writable volumes. A squashfs under an overlay, which Linux mounts without writing it, took seconds to look up the files of a checkout or `node_modules` for the first time, as squashfs reads its metadata past the caches of the kernel.
 
-The chunks of 32 MB download and decompress in parallel, and the restore writes them in order as they arrive, without the pages of zeros where the file can be sparse: the disks of the runners set the pace, as Windows writes 250-650 MB/s, and Linux writes the image to the disk before its loop device attaches it. Images keep everything of the workspace: the checkout of their commit with HEAD detached (`image.ts seed`), the files that pnpm installed, and the `.build` folder (Electron, and on Linux the sysroots and compilers of `setup-env.sh`).
+The chunks of 32 MB download and decompress in parallel, and the restore writes them in order as they arrive, without the pages of zeros where the file can be sparse. On Windows, the disk sets the pace, at 250-650 MB/s, as a VHDX can be neither sparse nor written later. On Linux, attaching a file to a loop device waits for the kernel to write the file to the disk, so the restore attaches the empty file while the image downloads, and drops what udev read from it before it mounts the volume. With `barrier=0`, an fsync in the volume doesn't wait for the rest of the image to reach the disk either. Images keep everything of the workspace: the checkout of their commit with HEAD detached (`image.ts seed`), the files that pnpm installed, and the `.build` folder (Electron, and on Linux the sysroots and compilers of `setup-env.sh`).
 
 ## Trust
 

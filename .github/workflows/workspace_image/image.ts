@@ -23,7 +23,7 @@
 //
 // `restore` reads the API with the token in GH_TOKEN, which needs `actions: read`.
 
-import { spawn, spawnSync, type SpawnSyncOptions } from 'child_process';
+import { execFile, spawn, spawnSync, type SpawnSyncOptions } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -440,9 +440,10 @@ async function pack(args: Args): Promise<void> {
 
 /**
  * Recreates a disk image from a packed one: downloads, decompresses and writes its chunks at the
- * same time, in order. With `sparse`, the pages of zeros stay holes of the file.
+ * same time, in order. With `sparse`, the pages of zeros stay holes of the file. With `sized`, the
+ * file gets the size of the image first, and `sized` is called before the chunks are written.
  */
-async function unpack(source: Source, file: string, options: { readonly sparse: boolean; readonly existing: boolean; readonly connections: number }): Promise<string> {
+async function unpack(source: Source, file: string, options: { readonly sparse: boolean; readonly existing: boolean; readonly connections: number; readonly sized?: () => void }): Promise<string> {
 	let head = await source.read(0, Math.min(source.size, PAGE));
 	if (!head.subarray(0, IMAGE_MAGIC.length).equals(IMAGE_MAGIC)) {
 		throw new Error('Not a packed image');
@@ -501,6 +502,10 @@ async function unpack(source: Source, file: string, options: { readonly sparse: 
 		// doesn't need
 		if (options.existing) {
 			await handle.truncate(0);
+		}
+		if (options.sized) {
+			await handle.truncate(header.rawSize);
+			options.sized();
 		}
 		for (let index = 0; index < count; index++) {
 			const waited = performance.now();
@@ -582,14 +587,37 @@ async function mount(source: Source, root: string, connections: number): Promise
 	const ws = workspace();
 	switch (process.platform) {
 		case 'linux': {
-			// An ext4 volume in a sparse file. noinit_itable leaves the inode tables that mkfs left to
-			// initialize alone, as they are zeros already, instead of writing them during the job.
+			// An ext4 volume in a sparse file. The loop device attaches the file while the image
+			// downloads, as attaching a file waits for the kernel to write its changes to the disk. udev
+			// reads the volume when it appears, before the image is in it, so the restore drops what udev
+			// read before the mount. barrier=0 keeps an fsync in the volume from making the loop device
+			// wait for all of the image to reach the disk, which the kernel writes while the job goes on.
+			// noinit_itable leaves the inode tables that mkfs left to initialize alone, as they are zeros
+			// already, instead of writing them during the job.
 			const file = path.join(temp, 'workspace-image.ext4');
-			log(await unpack(source, file, { sparse: true, existing: false, connections }));
-			// The kernel writes what is left of the image to the disk before it attaches it
-			const loop = run('sudo', ['losetup', '--find', '--show', file], { stdio: ['ignore', 'pipe', 'inherit'] }).trim();
-			log(`attached the image to ${loop}`);
-			run('sudo', ['mount', '-o', 'noatime,noinit_itable', loop, root]);
+			const sized = Promise.withResolvers<void>();
+			const attached = sized.promise.then(async () => {
+				const device = (await promisify(execFile)('sudo', ['losetup', '--find', '--show', file])).stdout.trim();
+				log(`attached the image to ${device}`);
+				return device;
+			});
+			// Awaited once the image is written
+			attached.catch(() => { });
+			let loop: string;
+			try {
+				log(await unpack(source, file, { sparse: true, existing: false, connections, sized: () => sized.resolve() }));
+				loop = await attached;
+				spawnSync('udevadm', ['settle', '--timeout=5'], { stdio: 'inherit' });
+				run('sudo', ['blockdev', '--flushbufs', loop]);
+				run('sudo', ['mount', '-o', 'noatime,noinit_itable,barrier=0', loop, root]);
+			} catch (err) {
+				sized.reject(err);
+				const device = await attached.catch(() => undefined);
+				if (device) {
+					spawnSync('sudo', ['losetup', '--detach', device], { stdio: 'inherit' });
+				}
+				throw err;
+			}
 			return () => {
 				spawnSync('sudo', ['umount', root], { stdio: 'inherit' });
 				spawnSync('sudo', ['losetup', '--detach', loop], { stdio: 'inherit' });
