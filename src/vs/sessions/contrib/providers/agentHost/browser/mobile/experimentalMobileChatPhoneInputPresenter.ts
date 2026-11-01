@@ -137,8 +137,6 @@ function getActionKey(action: ChatPhonePickerAction): string {
 class ExperimentalMobileChatPhoneInputPresenter extends Disposable implements IChatPhonePresenterImpl {
 
 	readonly enabled: IObservable<boolean>;
-	readonly inputEditorMetrics = { fontSize: 16, lineHeight: 24 };
-	readonly deferClipboardImageRead = true;
 	readonly supportsUnifiedConfiguration = true;
 	private readonly _openSheet = this._register(new MutableDisposable<DisposableStore>());
 

@@ -27,7 +27,7 @@ import { EditorInput } from '../../../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
-import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
+import { ChatInputPart, getChatInputEditorMetrics } from '../../../../browser/widget/input/chatInputPart.js';
 import { ChatSessionWorkingSetKeptChanges } from '../../../../browser/widget/input/chatSessionWorkingSet.js';
 import { ChatSessionReviewPreferencesService, IChatSessionReviewPreferencesService } from '../../../../common/editing/chatSessionReviewPreferences.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
@@ -51,6 +51,16 @@ import '../../../../browser/widget/media/chat.css';
 
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('editor construction and height measurement share the component metrics', () => {
+		assert.deepStrictEqual([
+			getChatInputEditorMetrics(undefined),
+			getChatInputEditorMetrics({ fontSize: 16, lineHeight: 24 }),
+		], [
+			{ fontSize: 13, lineHeight: 20 },
+			{ fontSize: 16, lineHeight: 24 },
+		]);
+	});
 
 	for (const { preserveFocus, moveFocus } of [
 		{ preserveFocus: undefined, moveFocus: false },

@@ -31,7 +31,6 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
-import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
@@ -73,7 +72,8 @@ import { extUri } from '../../../../../../base/common/resources.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { RepositoryPicker } from '../../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
-import { DefaultSessionsPresentation, ISessionsPresentation } from '../../../../../services/presentation/browser/sessionsPresentation.js';
+import { ISessionRepositoryPicker } from '../../../../../services/presentation/browser/sessionRepositoryPicker.js';
+import { DefaultSessionRepositoryPicker } from '../../../../../services/presentation/browser/defaultSessionRepositoryPicker.js';
 import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
 import { IPullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
 import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest, IGitHubRepository } from '../../../../github/common/types.js';
@@ -87,8 +87,7 @@ import { IWorkbenchGitHubService } from '../../../../../../workbench/services/gi
 import { SessionModelSelection } from '../../../../chat/browser/sessionModelSelection.js';
 import { VisibleSession } from '../../../../../services/sessions/browser/visibleSessions.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { MobileSessionsPresentation } from '../../../../mobile/browser/mobileSessionsPresentation.js';
+import { MobileRepositoryPicker } from '../../../../mobile/browser/mobileRepositoryPicker.js';
 
 // ---- Helpers ----------------------------------------------------------------
 
@@ -230,7 +229,7 @@ interface ICreateProviderOptions {
 	readonly providerMode?: 'default' | 'sandbox';
 	readonly commandService?: ICommandService;
 	readonly repositoryPicker?: Pick<RepositoryPicker, 'pickRepository' | 'dispose'>;
-	readonly sessionsPresentation?: ISessionsPresentation;
+	readonly sessionRepositoryPicker?: ISessionRepositoryPicker;
 	readonly quickInputService?: IQuickInputService;
 	readonly notificationErrors?: string[];
 	readonly getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined;
@@ -380,7 +379,6 @@ function createProviderWithConfig(
 	instantiationService.stub(ILogService, opts?.logService ?? new NullLogService());
 	instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
 	instantiationService.stub(IStorageService, opts?.storageService ?? disposables.add(new TestStorageService()));
-	instantiationService.stub(ISessionsPresentation, opts?.sessionsPresentation ?? new DefaultSessionsPresentation());
 	if (opts?.quickInputService) {
 		instantiationService.stub(IQuickInputService, opts.quickInputService);
 	}
@@ -430,6 +428,7 @@ function createProviderWithConfig(
 	if (opts?.repositoryPicker) {
 		instantiationService.stubInstance(RepositoryPicker, opts.repositoryPicker);
 	}
+	instantiationService.stub(ISessionRepositoryPicker, opts?.sessionRepositoryPicker ?? instantiationService.createInstance(DefaultSessionRepositoryPicker));
 
 	const provider = disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider, opts?.providerMode ?? 'default'));
 	return { provider, configService, labelService };
@@ -481,7 +480,7 @@ function createProviderForSendTests(
 	instantiationService.stub(ILogService, NullLogService);
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(IStorageService, opts?.storageService ?? disposables.add(new TestStorageService()));
-	instantiationService.stub(ISessionsPresentation, new DefaultSessionsPresentation());
+	instantiationService.stub(ISessionRepositoryPicker, { pickRepository: async () => assert.fail('Repository selection is not expected while sending') });
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
 	instantiationService.stub(IAgentSessionsService, {
@@ -737,7 +736,7 @@ suite('CopilotChatSessionsProvider', () => {
 	});
 
 	for (const providerMode of ['default', 'sandbox'] as const) {
-		(isWeb ? test : test.skip)(`uses an opted-in repository presenter after authentication (${providerMode})`, async () => {
+		(isWeb ? test : test.skip)(`uses the entry-selected repository picker after authentication (${providerMode})`, async () => {
 			const steps: string[] = [];
 			const gitHubService = new class extends TestGitHubService {
 				override async authenticateForRepositoryAccess(): Promise<void> {
@@ -748,15 +747,15 @@ suite('CopilotChatSessionsProvider', () => {
 					return [{ owner: 'microsoft', name: 'vscode', fullName: 'microsoft/vscode', defaultBranch: 'main', isPrivate: false, description: '' }];
 				}
 			}();
-			const sessionsPresentation = new class extends DefaultSessionsPresentation {
-				async pickRepository(getRepositories: (query: string, token: CancellationToken) => Promise<readonly string[]>, token: CancellationToken) {
+			const sessionRepositoryPicker = new class extends mock<ISessionRepositoryPicker>() {
+				override async pickRepository(getRepositories: (query: string, token: CancellationToken) => Promise<readonly string[]>, token: CancellationToken) {
 					steps.push('presentation');
 					const repositories = await getRepositories('https://github.com/microsoft/vscode.git', token);
-					return { repository: repositories[0] };
+					return repositories[0];
 				}
 			}();
 			const provider = createProvider(disposables, model, {
-				providerMode, gitHubService, sessionsPresentation,
+				providerMode, gitHubService, sessionRepositoryPicker,
 				repositoryPicker: { pickRepository: async () => assert.fail('Must not open the default picker'), dispose: () => { } },
 			});
 			const workspace = await provider.browseActions[0].run();
@@ -767,7 +766,7 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 	}
 
-	function createMobileRepositoryPresentation() {
+	function createMobileRepositoryPicker() {
 		const container = dom.append(mainWindow.document.body, dom.$('div'));
 		disposables.add(toDisposable(() => container.remove()));
 		let quickPickCalls = 0;
@@ -782,16 +781,14 @@ suite('CopilotChatSessionsProvider', () => {
 		instantiationService.stub(ILayoutService, { mainContainer: container });
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IQuickInputService, quickInputService);
-		instantiationService.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() { }());
-		instantiationService.stub(ITextModelService, new class extends mock<ITextModelService>() { }());
-		const sessionsPresentation = disposables.add(instantiationService.createInstance(MobileSessionsPresentation));
-		return { container, sessionsPresentation, quickInputService, getQuickPickCalls: () => quickPickCalls };
+		const sessionRepositoryPicker = disposables.add(instantiationService.createInstance(MobileRepositoryPicker));
+		return { container, sessionRepositoryPicker, quickInputService, getQuickPickCalls: () => quickPickCalls };
 	}
 
 	for (const providerMode of ['default', 'sandbox'] as const) {
 		(isWeb ? test : test.skip)(`uses the entry-owned repository sheet without creating quick input (${providerMode})`, async () => {
 			await runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const mobile = createMobileRepositoryPresentation();
+				const mobile = createMobileRepositoryPicker();
 				const steps: string[] = [];
 				const gitHubService = new class extends TestGitHubService {
 					override async authenticateForRepositoryAccess(): Promise<void> {
@@ -832,7 +829,7 @@ suite('CopilotChatSessionsProvider', () => {
 	for (const disposeProvider of [false, true]) {
 		(isWeb ? test : test.skip)(`cancelling the entry-owned repository sheet does not fall back to quick input (dispose provider: ${disposeProvider})`, async () => {
 			await runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const mobile = createMobileRepositoryPresentation();
+				const mobile = createMobileRepositoryPicker();
 				const repository = new DeferredPromise<readonly IGitHubRepository[]>();
 				let requestToken = CancellationToken.None;
 				const gitHubService = new class extends TestGitHubService {
@@ -862,7 +859,7 @@ suite('CopilotChatSessionsProvider', () => {
 	for (const changesWhilePicking of [false, true]) {
 		(isWeb ? test : test.skip)(`keeps enterprise-host validation around the entry-owned repository sheet (changes during picker: ${changesWhilePicking})`, async () => {
 			await runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const mobile = createMobileRepositoryPresentation();
+				const mobile = createMobileRepositoryPicker();
 				const gitHubService = new class extends TestGitHubService {
 					override async getRepositories(): Promise<readonly IGitHubRepository[]> {
 						return [{ owner: 'owner', name: 'repo', fullName: 'owner/repo', defaultBranch: 'main', isPrivate: true, description: '' }];
@@ -889,7 +886,7 @@ suite('CopilotChatSessionsProvider', () => {
 	}
 
 	(isWeb ? test : test.skip)('provider disposal during authentication never opens the entry-owned repository sheet', async () => {
-		const mobile = createMobileRepositoryPresentation();
+		const mobile = createMobileRepositoryPicker();
 		const authentication = new DeferredPromise<void>();
 		const gitHubService = new class extends TestGitHubService {
 			override authenticateForRepositoryAccess(): Promise<void> {

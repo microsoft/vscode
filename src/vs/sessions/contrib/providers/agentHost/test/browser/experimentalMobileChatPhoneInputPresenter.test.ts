@@ -291,7 +291,6 @@ suite('ExperimentalMobileChatPhoneInputPresenter', () => {
 		store.add(instantiationService.get(ISessionsProvidersService).registerProvider(provider));
 		const presenter = instantiationService.get(IChatPhoneInputPresenter);
 		const enabledBefore = presenter.enabled.get();
-		const defaultsBefore = { metrics: presenter.inputEditorMetrics, deferClipboard: presenter.deferClipboardImageRead };
 		const contribution = store.add(instantiationService.createInstance(ExperimentalMobileChatPhoneInputPresenterContribution));
 		const delegates: ChatPhoneInputPresenterRequest = {
 			kind: 'delegates',
@@ -334,7 +333,7 @@ suite('ExperimentalMobileChatPhoneInputPresenter', () => {
 		};
 		const close = () => currentSheet()?.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click();
 		return {
-			container, presenter, contribution, enabledBefore, defaultsBefore, delegates, session, open, close, currentSheet, row, writes, access, currentModel,
+			container, presenter, contribution, enabledBefore, delegates, session, open, close, currentSheet, row, writes, access, currentModel,
 			switchChat: () => {
 				context = { ...context, chatResource: URI.parse('chat:/two') };
 				activeChat.set(upcastPartial<IChat>({ resource: context.chatResource }), undefined);
@@ -488,17 +487,6 @@ suite('ExperimentalMobileChatPhoneInputPresenter', () => {
 		const enabledDuring = presenter.enabled.get();
 		contribution.dispose();
 		assert.deepStrictEqual([enabledBefore, enabledDuring, presenter.enabled.get()], [false, true, false]);
-	});
-
-	test('font metrics and clipboard behavior change only while the experimental presenter is installed', () => {
-		const { presenter, contribution, defaultsBefore } = createHarness();
-		const active = { metrics: presenter.inputEditorMetrics, deferClipboard: presenter.deferClipboardImageRead };
-		contribution.dispose();
-		assert.deepStrictEqual({ before: defaultsBefore, active, after: { metrics: presenter.inputEditorMetrics, deferClipboard: presenter.deferClipboardImageRead } }, {
-			before: { metrics: undefined, deferClipboard: false },
-			active: { metrics: { fontSize: 16, lineHeight: 24 }, deferClipboard: true },
-			after: { metrics: undefined, deferClipboard: false },
-		});
 	});
 
 	test('the factory renders the mobile button and coalesces keyboard, click and tap activation', async () => {

@@ -14,7 +14,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { ISessionsPresentation } from '../../../services/presentation/browser/sessionsPresentation.js';
 
 const $ = dom.$;
 
@@ -33,9 +32,9 @@ export class NoAgentHostEmptyState extends Disposable {
 	private _root: HTMLElement | undefined;
 
 	constructor(
+		private readonly showIcon: boolean = !isMobile,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IProductService private readonly _productService: IProductService,
-		@ISessionsPresentation private readonly _presentation: ISessionsPresentation,
 	) {
 		super();
 	}
@@ -50,7 +49,7 @@ export class NoAgentHostEmptyState extends Disposable {
 		this._root.tabIndex = -1;
 
 		// --- Hero icon (skipped on phone-layout viewports for vertical room)
-		if (!(this._presentation.omitEmptyStateIcon ?? isMobile)) {
+		if (this.showIcon) {
 			const iconWrap = dom.append(this._root, $('.no-agent-host-icon'));
 			iconWrap.append(...renderLabelWithIcons(`$(${Codicon.remote.id})`));
 		}

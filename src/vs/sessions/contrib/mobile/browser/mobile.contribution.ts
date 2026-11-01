@@ -18,9 +18,15 @@ import { MobileKeybindingService } from './mobileKeybindingService.js';
 import { MobileNullAgentHostTerminalService } from './mobileNullAgentHostTerminalService.js';
 import { MobileNullAquariumService } from './mobileNullAquariumService.js';
 import { MobileQuickInputService } from './mobileQuickInputService.js';
-import { ISessionsPresentation } from '../../../services/presentation/browser/sessionsPresentation.js';
-import { MobileSessionsPresentation } from './mobileSessionsPresentation.js';
-import './mobileChatEditPresenter.js';
+import { ISessionsListPresentation } from '../../../services/presentation/browser/sessionsListPresentation.js';
+import { ISessionRepositoryPicker } from '../../../services/presentation/browser/sessionRepositoryPicker.js';
+import { MobileSessionsListPresentation } from './mobileSessionsListPresentation.js';
+import { MobileRepositoryPicker } from './mobileRepositoryPicker.js';
+import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
+import { MobileChatViewFactory } from './mobileChatViewFactory.js';
+import { IChatEditPresentationService } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatEditPresentation.js';
+import { MobileChatEditPresenter } from './mobileChatEditPresenter.js';
+import './mobileClipboardImageContext.js';
 import './mobileBackgroundNotifier.js';
 import { mobileConfigurationDefaults } from './mobileConfigurationDefaults.js';
 
@@ -57,4 +63,7 @@ registerSingleton(IAgentHostTerminalService, MobileNullAgentHostTerminalService,
 
 // The aquarium easter egg does not exist on the phone. See MobileNullAquariumService.
 registerSingleton(IAquariumService, MobileNullAquariumService, InstantiationType.Delayed);
-registerSingleton(ISessionsPresentation, MobileSessionsPresentation, InstantiationType.Delayed);
+registerSingleton(ISessionsListPresentation, MobileSessionsListPresentation, InstantiationType.Delayed);
+registerSingleton(ISessionRepositoryPicker, MobileRepositoryPicker, InstantiationType.Delayed);
+registerSingleton(IChatViewFactory, MobileChatViewFactory, InstantiationType.Delayed);
+registerSingleton(IChatEditPresentationService, MobileChatEditPresenter, InstantiationType.Delayed);

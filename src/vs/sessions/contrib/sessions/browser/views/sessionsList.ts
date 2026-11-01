@@ -59,7 +59,7 @@ import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/c
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { ISessionsPresentation } from '../../../../services/presentation/browser/sessionsPresentation.js';
+import { ISessionsListPresentation } from '../../../../services/presentation/browser/sessionsListPresentation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, getHighestPriorityPullRequestIcon, getSessionFolderGitHubRepository, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind, hasMixedChatHarnesses } from '../../../../services/sessions/common/session.js';
@@ -4080,6 +4080,7 @@ function toDropReaction(feedback: ISessionDropFeedback | undefined): ITreeDragOv
 //#region Sessions List Control
 
 interface ISessionsListControlBaseOptions {
+	readonly sectionRowHeight?: number;
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly grouping: () => SessionsGrouping;
 	readonly sorting: () => SessionsSorting;
@@ -4425,7 +4426,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILogService private readonly logService: ILogService,
-		@ISessionsPresentation private readonly presentation: ISessionsPresentation,
+		@ISessionsListPresentation private readonly presentation: ISessionsListPresentation,
 	) {
 		super();
 		this.groupAppearancePicker = this._register(instantiationService.createInstance(SessionGroupAppearancePicker));
@@ -4685,7 +4686,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			false /* aggregateChatApprovals */,
 			true /* useInsetRowSpacing */,
 			session => this.renderedComparisonAttemptLabels.has(session.sessionId),
-			this.presentation.sectionRowHeight,
+			this.options.sectionRowHeight,
 		);
 		this._delegate = delegate;
 
@@ -6885,16 +6886,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private createGroup(groupSessions: ISession[], parentId?: string): void {
 		const defaultName = localize('newGroupName', "New Group");
-		if (this.presentation.promptForName) {
-			void this.presentation.promptForName('newGroup', defaultName).then(name => {
-				if (name === undefined || this._store.isDisposed || (parentId !== undefined && !this.canHoldSubgroups(parentId))) {
-					return;
-				}
+		this.presentation.editName('newGroup', defaultName, () => {
+			this.finishCreateGroup(groupSessions, defaultName, parentId, true);
+			return true;
+		}, name => {
+			if (!this._store.isDisposed && (parentId === undefined || this.canHoldSubgroups(parentId))) {
 				this.finishCreateGroup(groupSessions, name || defaultName, parentId, false);
-			}).catch(onUnexpectedError);
-			return;
-		}
-		this.finishCreateGroup(groupSessions, defaultName, parentId, true);
+			}
+		});
 	}
 
 	private finishCreateGroup(groupSessions: ISession[], name: string, parentId: string | undefined, renameInline: boolean): void {
@@ -6929,17 +6928,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (!group || this.isComparisonGroup(groupId)) {
 			return;
 		}
-		if (this.presentation.promptForName) {
-			void this.presentation.promptForName('group', group.name).then(name => {
-				if (name) {
-					this._sessionGroupsService.renameGroup(groupId, name);
-					this.update();
-				}
-			}).catch(onUnexpectedError);
-			return;
-		}
-		this._editingGroupId = groupId;
-		this.update();
+		this.presentation.editName('group', group.name, () => {
+			this._editingGroupId = groupId;
+			this.update();
+			return true;
+		}, name => {
+			if (name && !this._store.isDisposed) {
+				this._sessionGroupsService.renameGroup(groupId, name);
+				this.update();
+			}
+		});
 	}
 
 	private async beginOpenRequest(session: ISession, chat: IChat | undefined, preserveFocus: boolean, sideBySide: boolean): Promise<boolean> {
@@ -7023,21 +7021,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (!target) {
 			return false;
 		}
-		if (this.presentation.promptForName) {
-			void this.presentation.promptForName('session', target.title.get()).then(title => {
-				if (title) {
-					this._sessionsManagementService.renameSession(target, title).catch(onUnexpectedError);
-				}
-			}).catch(onUnexpectedError);
-			return true;
-		}
-		if (this.tree.getRelativeTop(target) === null) {
-			this.tree.reveal(target, 0.5);
-		}
-		if (!this._sessionRenderer.beginRename(target)) {
-			return false;
-		}
-		return true;
+		return this.presentation.editName('session', target.title.get(), () => {
+			if (this.tree.getRelativeTop(target) === null) {
+				this.tree.reveal(target, 0.5);
+			}
+			return this._sessionRenderer.beginRename(target);
+		}, async title => {
+			if (title && !this._store.isDisposed) {
+				await this._sessionsManagementService.renameSession(target, title);
+			}
+		});
 	}
 
 	beginRenameChat(item: ISessionChatItem): boolean {
@@ -7049,21 +7042,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (!target) {
 			return false;
 		}
-		if (this.presentation.promptForName) {
-			void this.presentation.promptForName('chat', target.chat.title.get()).then(title => {
-				if (title) {
-					this._sessionsManagementService.renameChat(target.session, target.chat.resource, title).catch(onUnexpectedError);
-				}
-			}).catch(onUnexpectedError);
-			return true;
-		}
-		if (this.tree.getRelativeTop(target) === null) {
-			this.tree.reveal(target, 0.5);
-		}
-		if (!this._chatRenderer.beginRename(target)) {
-			return false;
-		}
-		return true;
+		return this.presentation.editName('chat', target.chat.title.get(), () => {
+			if (this.tree.getRelativeTop(target) === null) {
+				this.tree.reveal(target, 0.5);
+			}
+			return this._chatRenderer.beginRename(target);
+		}, async title => {
+			if (title && !this._store.isDisposed) {
+				await this._sessionsManagementService.renameChat(target.session, target.chat.resource, title);
+			}
+		});
 	}
 
 	private findTreeElement<T extends SessionListItem>(predicate: (element: SessionListItem) => element is T): T | undefined {

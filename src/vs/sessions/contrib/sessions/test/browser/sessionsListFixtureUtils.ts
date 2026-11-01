@@ -63,7 +63,8 @@ import { TestQuickInputService } from '../../../../../workbench/test/browser/wor
 import { Menus } from '../../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../common/contextkeys.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { DefaultSessionsPresentation, ISessionsPresentation } from '../../../../services/presentation/browser/sessionsPresentation.js';
+import { ISessionsListPresentation } from '../../../../services/presentation/browser/sessionsListPresentation.js';
+import { DefaultSessionsListPresentation } from '../../../../services/presentation/browser/defaultSessionsListPresentation.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
@@ -625,7 +626,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(IProductService, TestProductService);
 			reg.defineInstance(ISessionsManagementService, new FixtureSessionsManagementService(sessions));
-			reg.define(ISessionsPresentation, DefaultSessionsPresentation);
+			reg.define(ISessionsListPresentation, DefaultSessionsListPresentation);
 			reg.define(ISessionsListModelService, SessionsListModelService);
 			reg.define(ISessionGroupsService, SessionGroupsService);
 			reg.define(ISessionSectionOrderService, SessionSectionOrderService);

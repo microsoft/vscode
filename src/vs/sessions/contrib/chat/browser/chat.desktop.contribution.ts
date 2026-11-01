@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import '../../../../workbench/contrib/chat/browser/chatDefaultPresentation.contribution.js';
 import { SessionsChatPetAchievementContribution } from './chatPetAchievements.js';
 import { RegisterDefaultSessionTaskRunnersContribution } from './registerDefaultSessionTaskRunners.js';
 import { RunScriptContribution } from './runScriptAction.js';
