@@ -22,7 +22,7 @@ import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/tel
 import { AgentSession, type IAgentModelInfo } from '../../common/agent.js';
 import { AGENT_HOST_FILE_SCHEME } from '../../common/agentPluginManager.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
-import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import { byokLmModelToolSearchDeclaration, getByokLmSelectionModelId, isByokLmAgentModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../common/localModel.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema, type AgentHostMcpServers, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
 import { isAgentHostWorkspaceTrusted } from '../../common/agentHostWorkspaceTrust.js';
@@ -1402,6 +1402,21 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	}
 
 	/**
+	 * The renderer's explicit tool-search declaration for a BYOK selection id
+	 * (`vendor/[group/]id`), or `undefined` when no matching model declares it.
+	 * Non-BYOK ids never match — the registry only holds renderer BYOK models —
+	 * so this only refines the gate for models the id heuristic cannot recognize.
+	 */
+	private _byokModelToolSearchDeclaration(modelId: string | undefined): boolean | undefined {
+		if (!modelId || !isByokLmAgentModelId(modelId)) {
+			return undefined;
+		}
+		const vendor = modelId.slice(0, modelId.indexOf('/'));
+		const selectionId = modelId.slice(vendor.length + 1);
+		return byokLmModelToolSearchDeclaration(this._byokLmBridgeRegistry.getModels(), vendor, selectionId);
+	}
+
+	/**
 	 * Release the memoized BYOK loopback proxy handle (if any) and clear it so
 	 * the next session launch mints a fresh nonce. Idempotent.
 	 *
@@ -1556,8 +1571,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (modelFamily) {
 			this._logService.info(`[Copilot:${plan.sessionId}] Model capability override: routing prompt for '${describeModelId(model)}' as family '${modelFamily}'`);
 		}
+		// The BYOK declaration is resolved from the selected model's own id: a
+		// family override aliases the heuristic's prompt/tool profile, but the
+		// alias id is not a BYOK selection id, and an explicit declaration must
+		// win over the aliased family's heuristic either way.
+		const byokToolSearchDeclaration = this._byokModelToolSearchDeclaration(model?.id);
 		const toolSearchEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchEnabled) === true
-			&& agentHostModelSupportsToolSearch(effectiveModel?.id);
+			&& (byokToolSearchDeclaration ?? agentHostModelSupportsToolSearch(effectiveModel?.id));
 		const toolSearchDeferThreshold = normalizeToolSearchDeferThreshold(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchDeferThreshold));
 		const resolveToolSearch = (names: ReadonlySet<string>): NonNullable<SessionConfig['toolSearch']> =>
 			toolSearchEnabled && names.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME) ? { enabled: true, deferThreshold: toolSearchDeferThreshold } : { enabled: false };

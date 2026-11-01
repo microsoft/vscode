@@ -321,6 +321,13 @@ export interface ILanguageModelChatMetadata {
 		readonly editTools?: ReadonlyArray<string>;
 		readonly apiType?: 'chatCompletions' | 'responses' | 'messages';
 		readonly adaptiveThinking?: boolean;
+		/**
+		 * Whether the model supports client-executed tool search, letting the
+		 * runtime defer tools instead of sending every tool in each request.
+		 * Set only when the provider declared it explicitly; `undefined` leaves
+		 * the model-id heuristic in charge.
+		 */
+		readonly toolSearch?: boolean;
 	};
 	/**
 	 * When set, this model is only shown in the model picker for the specified chat session type.
