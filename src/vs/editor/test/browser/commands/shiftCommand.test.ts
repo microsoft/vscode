@@ -996,4 +996,37 @@ suite('Editor Commands - ShiftCommand', () => {
 		}
 	});
 
+	test('issue #5394: shift and unshift with mixed indentation (tab size 8, indent size 2)', () => {
+		function assertMixedShift(text: string, isUnshift: boolean, expectedLine: string): void {
+			withEditorModel([text], (model) => {
+				const testLanguageConfigurationService = new TestLanguageConfigurationService();
+				const op = new ShiftCommand(new Selection(1, 1, 1, 1), {
+					isUnshift: isUnshift,
+					tabSize: 8,
+					indentSize: 2,
+					insertSpaces: false,
+					useTabStops: true,
+					autoIndent: EditorAutoIndentStrategy.Full,
+				}, testLanguageConfigurationService);
+				model.pushEditOperations(null, getEditOperation(model, op), null);
+				assert.strictEqual(model.getLineContent(1), expectedLine);
+				testLanguageConfigurationService.dispose();
+			});
+		}
+
+		// shifting 2 columns of indent: no tabs fit, 2 spaces
+		assertMixedShift('  x', false, '    x');
+		// shifting 8 columns of indent by 2: one tab + 2 spaces
+		assertMixedShift('        x', false, '\t  x');
+		// shifting 10 columns of indent: one tab + 2 spaces
+		assertMixedShift('\t  x', false, '\t    x');
+
+		// unshifting 4 columns of indent: 2 columns remain
+		assertMixedShift('    x', true, '  x');
+		// unshifting 10 columns of indent -> 8 columns: one tab + 2 spaces
+		assertMixedShift('\t    x', true, '\t  x');
+		// unshifting 8 columns of indent -> 6 columns
+		assertMixedShift('\tx', true, '      x');
+	});
+
 });
