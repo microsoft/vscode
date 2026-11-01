@@ -681,9 +681,14 @@ export function convertCarouselAnswers(raw: IChatQuestionAnswers, questions: rea
 				};
 			} else if (single.freeformValue) {
 				// Freeform-only answer (no selection)
+				const questionKind = questionKinds.get(qId);
 				answers[qId] = {
 					state: ChatInputAnswerState.Submitted,
-					value: { kind: ChatInputAnswerValueKind.Text, value: single.freeformValue },
+					value: questionKind === ChatInputQuestionKind.SingleSelect
+						? { kind: ChatInputAnswerValueKind.Selected, value: '', freeformValues: [single.freeformValue] }
+						: questionKind === ChatInputQuestionKind.MultiSelect
+							? { kind: ChatInputAnswerValueKind.SelectedMany, value: [], freeformValues: [single.freeformValue] }
+							: { kind: ChatInputAnswerValueKind.Text, value: single.freeformValue },
 				};
 			}
 		}

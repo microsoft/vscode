@@ -86,6 +86,56 @@ suite('convertCarouselAnswers', () => {
 		});
 	});
 
+	for (const selectedValue of [undefined, '']) {
+		test(`converts freeform-only single-select answer with selectedValue ${JSON.stringify(selectedValue)}`, () => {
+			const result = convertCarouselAnswers({ 'color-question': { selectedValue, freeformValue: 'Green' } }, [{
+				kind: ChatInputQuestionKind.SingleSelect,
+				id: 'color-question',
+				message: 'Choose a color',
+				options: [{ id: 'red-option', label: 'Red' }, { id: 'blue-option', label: 'Blue' }],
+				allowFreeformInput: true,
+			}]);
+			assert.deepStrictEqual(result, {
+				'color-question': {
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Selected, value: '', freeformValues: ['Green'] }
+				}
+			});
+		});
+	}
+
+	for (const selectedValues of [undefined, []]) {
+		test(`converts freeform-only multi-select answer with selectedValues ${JSON.stringify(selectedValues)}`, () => {
+			const result = convertCarouselAnswers({ 'color-question': { selectedValues, freeformValue: 'Green' } }, [{
+				kind: ChatInputQuestionKind.MultiSelect,
+				id: 'color-question',
+				message: 'Choose colors',
+				options: [{ id: 'red-option', label: 'Red' }, { id: 'blue-option', label: 'Blue' }],
+				allowFreeformInput: true,
+			}]);
+			assert.deepStrictEqual(result, {
+				'color-question': {
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.SelectedMany, value: [], freeformValues: ['Green'] }
+				}
+			});
+		});
+	}
+
+	test('converts freeform-only text answer with question metadata', () => {
+		const result = convertCarouselAnswers({ 'q1': { freeformValue: 'something' } }, [{
+			kind: ChatInputQuestionKind.Text,
+			id: 'q1',
+			message: 'Enter text',
+		}]);
+		assert.deepStrictEqual(result, {
+			'q1': {
+				state: ChatInputAnswerState.Submitted,
+				value: { kind: ChatInputAnswerValueKind.Text, value: 'something' }
+			}
+		});
+	});
+
 	test('handles multiple questions', () => {
 		const result = convertCarouselAnswers({
 			'q1': 'text',
