@@ -110,7 +110,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 5
         working-directory: ${{ runner.temp }}
-        run: node "$RUNNER_TEMP/workspace-image/image.ts" restore --name workspace-image-linux-x64.sqfs --branch "$WORKSPACE_IMAGE_BRANCH"
+        run: node "$RUNNER_TEMP/workspace-image/image.ts" restore --name workspace-image-linux-x64.img --branch "$WORKSPACE_IMAGE_BRANCH"
         env:
           GH_TOKEN: ${{ github.token }}
           WORKSPACE_IMAGE_BRANCH: ${{ inputs.workspace_image_branch }}

@@ -43,8 +43,8 @@ jobs:
       NPM_ARCH: x64
       VSCODE_ARCH: x64
     steps:
-      # The macOS and Windows jobs create the volume of their image before the checkout, so all three
-      # download the scripts the way the test jobs do
+      # The volume of an image exists before the checkout, so the jobs download the scripts the way
+      # the test jobs do
       - &download-scripts
         name: Download the workspace image scripts
         id: image-scripts
@@ -73,6 +73,19 @@ jobs:
         with:
           node-version: ${{ steps.image-scripts.outputs.node-version }}
 
+      # An ext4 volume in a sparse file, mounted at the parent folder of the workspace like in the jobs:
+      # without a journal or reserved blocks, and with the inode tables left to initialize, so that
+      # they stay zeros, which the image doesn't store
+      - name: Create the volume of the image
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          root="$(dirname "$GITHUB_WORKSPACE")"
+          truncate -s 64G "$RUNNER_TEMP/workspace-image.ext4"
+          mkfs.ext4 -q -F -O ^has_journal -m 0 -E "lazy_itable_init=1,root_owner=$(id -u):$(id -g)" "$RUNNER_TEMP/workspace-image.ext4"
+          sudo mount -o loop,noatime,noinit_itable "$RUNNER_TEMP/workspace-image.ext4" "$root"
+          mkdir "$GITHUB_WORKSPACE"
+
       - &checkout
         name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -82,8 +95,7 @@ jobs:
           persist-credentials: false
 
       # pnpm/action-setup itself instead of .github/actions/setup-pnpm: the runner reads the action.yml
-      # of a local action again for its post step, after the macOS and Windows jobs detached the volume
-      # of the workspace
+      # of a local action again for its post step, after the jobs unmounted the volume of the workspace
       - &setup-pnpm
         name: Setup pnpm
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
@@ -98,7 +110,7 @@ jobs:
         run: |
           set -e
           ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
-          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config libxkbfile-dev libkrb5-dev squashfs-tools
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config libxkbfile-dev libkrb5-dev
 
       - name: Install build dependencies
         working-directory: build
@@ -155,19 +167,20 @@ jobs:
         shell: bash
         run: node "$RUNNER_TEMP/workspace-image/image.ts" seed
 
-      # A squashfs, which the jobs mount without writing it: the kernel decompresses what they read
       - name: Build the image
+        working-directory: ${{ runner.temp }}
         run: |
           set -euo pipefail
           root="$(dirname "$GITHUB_WORKSPACE")"
           du -sh "$root"/.[!.]* "$root"/*/node_modules "$root"/*/.build "$root"/*/.git || true
-          time mksquashfs "$root" "$RUNNER_TEMP/workspace-image-linux-x64.sqfs" -noappend -b 128K -no-progress -quiet -comp lz4 -Xhc
-          ls -la "$RUNNER_TEMP/workspace-image-linux-x64.sqfs"
+          df -h "$root"
+          sudo umount "$root"
+          node "$RUNNER_TEMP/workspace-image/image.ts" pack --in "$RUNNER_TEMP/workspace-image.ext4" --out "$RUNNER_TEMP/workspace-image-linux-x64.img"
 
       - name: Upload the image
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          path: ${{ runner.temp }}/workspace-image-linux-x64.sqfs
+          path: ${{ runner.temp }}/workspace-image-linux-x64.img
           archive: false
           retention-days: 2
           if-no-files-found: error
@@ -330,7 +343,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $root = Split-Path $env:GITHUB_WORKSPACE -Parent
           fsutil volume diskfree $root | Out-Host
-          & "$env:RUNNER_TEMP\workspace-image\vhd.ps1" -Path "$env:RUNNER_TEMP\workspace-image.vhdx" -MountFolder $root -Detach
+          & "$env:RUNNER_TEMP\workspace-image\vhd.ps1" -Path "$env:RUNNER_TEMP\workspace-image.vhdx" -MountFolder $root -Detach -Compact
           # The next steps start in the workspace
           New-Item -ItemType Directory -Path $env:GITHUB_WORKSPACE -Force | Out-Null
           Get-Item "$env:RUNNER_TEMP\workspace-image.vhdx" | Format-List Name, Length

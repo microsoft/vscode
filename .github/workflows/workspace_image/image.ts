@@ -343,25 +343,6 @@ async function readAll(handle: fs.promises.FileHandle, length: number, position:
 	return buffer;
 }
 
-/** Downloads the file of a source with concurrent range requests */
-async function download(source: Source, file: string, connections: number): Promise<string> {
-	const chunk = 8 * 1024 * 1024;
-	const chunks = Math.ceil(source.size / chunk);
-	const handle = await fs.promises.open(file, 'w');
-	let next = 0;
-	try {
-		await Promise.all(Array.from({ length: Math.min(connections, chunks) }, async () => {
-			while (next < chunks) {
-				const offset = next++ * chunk;
-				await writeAll(handle, await source.read(offset, Math.min(chunk, source.size - offset)), offset);
-			}
-		}));
-	} finally {
-		await handle.close();
-	}
-	return `downloaded ${Math.round(source.size / 1e6)} MB`;
-}
-
 //#endregion
 
 //#region packed disk images
@@ -574,31 +555,13 @@ async function mount(source: Source, root: string, connections: number): Promise
 	const ws = workspace();
 	switch (process.platform) {
 		case 'linux': {
-			// A compressed squashfs that the kernel reads on demand, under an overlay that takes the writes
-			const file = path.join(temp, 'workspace-image.sqfs');
-			log(await download(source, file, connections));
-			const lower = '/mnt/workspace-image';
-			const upper = path.join(temp, 'workspace-image-overlay', 'upper');
-			const work = path.join(temp, 'workspace-image-overlay', 'work');
-			fs.mkdirSync(upper, { recursive: true });
-			fs.mkdirSync(work, { recursive: true });
-			// Through the page cache, which holds the file that was just downloaded, instead of the disk
-			const loop = run('sudo', ['losetup', '--find', '--show', '--read-only', '--direct-io=off', file], { stdio: ['ignore', 'pipe', 'inherit'] }).trim();
-			log(`attached the image to ${loop}`);
-			run('sudo', ['mkdir', '-p', lower]);
-			run('sudo', ['mount', '-t', 'squashfs', '-o', 'ro', loop, lower]);
-			log(`mounted ${loop} at ${lower}`);
-			try {
-				run('sudo', ['mount', '-t', 'overlay', 'overlay', '-o', `lowerdir=${lower},upperdir=${upper},workdir=${work}`, root]);
-			} catch (err) {
-				spawnSync('sudo', ['umount', lower]);
-				spawnSync('sudo', ['losetup', '--detach', loop]);
-				throw err;
-			}
+			// An ext4 volume in a sparse file. noinit_itable leaves the inode tables that mkfs left to
+			// initialize alone, as they are zeros already, instead of writing them during the job.
+			const file = path.join(temp, 'workspace-image.ext4');
+			log(await unpack(source, file, { sparse: true, existing: false, connections }));
+			run('sudo', ['mount', '-o', 'loop,noatime,noinit_itable', file, root]);
 			return () => {
 				spawnSync('sudo', ['umount', root], { stdio: 'inherit' });
-				spawnSync('sudo', ['umount', lower], { stdio: 'inherit' });
-				spawnSync('sudo', ['losetup', '--detach', loop], { stdio: 'inherit' });
 			};
 		}
 		case 'darwin': {

@@ -4,7 +4,7 @@
 #   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -Prepare [-WaitFor C:\a\_temp\workspace-image.vhdx.ready -MountFolder C:\a\vscode [-CachedIo] [-Trust]]
 #   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -MountFolder C:\a\vscode [-CachedIo] [-Trust]
 #   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -Create -MountFolder C:\a\vscode [-MaximumSizeGB 200] [-BlockSizeMB 1]
-#   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -MountFolder C:\a\vscode -Detach
+#   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -MountFolder C:\a\vscode -Detach [-Compact]
 #
 # -Prepare creates the empty file that image.ts restores a VHDX into, as a temporary file, whose data
 # Windows keeps in memory while it has enough instead of writing it to the disk. With -WaitFor, the
@@ -16,7 +16,7 @@
 # machine, like a Dev Drive that it formats.
 # -Create creates a Dev Drive in a new dynamic VHDX with blocks of 1 MB, and mounts it at the empty
 # folder. -Detach flushes its volume, removes its mount point, which would be left dangling, and
-# detaches it.
+# detaches it. -Compact first trims the volume, and then compacts the VHDX.
 param(
 	[Parameter(Mandatory = $true)]
 	[string] $Path,
@@ -27,6 +27,7 @@ param(
 	[switch] $Trust,
 	[switch] $Create,
 	[switch] $Detach,
+	[switch] $Compact,
 	[int] $MaximumSizeGB = 200,
 	[int] $BlockSizeMB = 1
 )
@@ -61,7 +62,17 @@ if ($Prepare) {
 }
 
 if ($Detach) {
-	Get-DiskImage -ImagePath $Path | Get-Disk | Get-Partition | Get-Volume | Write-VolumeCache
+	$volume = Get-DiskImage -ImagePath $Path | Get-Disk | Get-Partition | Get-Volume
+	if ($Compact) {
+		# Unmaps the blocks of the files that the build deleted, which the VHDX would keep otherwise
+		try {
+			$volume | Optimize-Volume -ReTrim
+			Step 'trimmed the volume'
+		} catch {
+			Write-Output "::warning::The volume was not trimmed: $_"
+		}
+	}
+	$volume | Write-VolumeCache
 	Step 'flushed the volume'
 	if ($MountFolder) {
 		mountvol "$($MountFolder.TrimEnd('\'))\" /D
@@ -70,6 +81,14 @@ if ($Detach) {
 	}
 	Dismount-DiskImage -ImagePath $Path | Out-Null
 	Step "detached $Path"
+	if ($Compact) {
+		$before = (Get-Item $Path).Length
+		$script = Join-Path ([IO.Path]::GetTempPath()) 'workspace-image-diskpart.txt'
+		@("select vdisk file=`"$Path`"", 'attach vdisk readonly', 'compact vdisk', 'detach vdisk') | Set-Content $script
+		diskpart /s $script | Out-Host
+		if ($LASTEXITCODE -ne 0) { Write-Output "::warning::diskpart exited with $LASTEXITCODE" }
+		Step ("compacted $Path from {0:N1} to {1:N1} GB" -f ($before / 1GB), ((Get-Item $Path).Length / 1GB))
+	}
 	return
 }
 

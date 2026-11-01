@@ -79,7 +79,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: Linux, runner: vscode-large-runners-ubuntu-8-core, image: workspace-image-linux-x64.sqfs, arch: x64 }
+          - { os: Linux, runner: vscode-large-runners-ubuntu-8-core, image: workspace-image-linux-x64.img, arch: x64 }
           - { os: macOS, runner: vscode-large-runners-macos-5-core-0, image: workspace-image-darwin-arm64.img, arch: arm64 }
           - { os: Windows, runner: vscode-large-runners-windows-8-core, image: workspace-image-win32-x64.img, arch: x64 }
     env:

@@ -18,11 +18,13 @@ The workspace of an image is at the path of the workspaces of the jobs, because 
 
 | Platform | Image | Restore |
 | -------- | ----- | ------- |
-| Linux | squashfs with lz4hc | Mounted read-only, under an overlay that takes the writes: the kernel decompresses what the job reads |
+| Linux | ext4 volume without a journal in a sparse file | Recreated from chunks of zstd, then mounted through a loop device |
 | macOS | APFS volume in a sparse ASIF image | Recreated from chunks of zstd, then attached |
 | Windows | Dev Drive in a VHDX with blocks of 1 MB | Recreated from chunks of zstd into a temporary file, which Windows keeps in memory, then attached through the file system cache with the virtual disk API ([Vhd.cs](Vhd.cs)) |
 
-The chunks of 32 MB download and decompress in parallel, and the restore writes them in order as they arrive: the disk of the Windows runners, which writes 250-650 MB/s, sets the pace. Images keep everything of the workspace: the checkout of their commit with HEAD detached (`image.ts seed`), the files that pnpm installed, and the `.build` folder (Electron, and on Linux the sysroots and compilers of `setup-env.sh`).
+All three are writable volumes. A squashfs under an overlay, which Linux mounts without writing it, took seconds to look up the files of a checkout or `node_modules` for the first time, as squashfs reads its metadata past the caches of the kernel.
+
+The chunks of 32 MB download and decompress in parallel, and the restore writes them in order as they arrive, without the pages of zeros where the file can be sparse: the disk of the Windows runners, which writes 250-650 MB/s, sets the pace. Images keep everything of the workspace: the checkout of their commit with HEAD detached (`image.ts seed`), the files that pnpm installed, and the `.build` folder (Electron, and on Linux the sysroots and compilers of `setup-env.sh`).
 
 ## Trust
 
