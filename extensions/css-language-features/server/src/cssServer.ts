@@ -75,15 +75,20 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	// does not track these settings itself and formats based on the forwarded configuration options.
 	const formatterSettings: { [language: string]: LanguageSettings['format'] } = {};
 
-	function getFormatterSettings(document: TextDocument): LanguageSettings['format'] {
-		let settings = formatterSettings[document.languageId];
+	async function getFormatterSettings(document: TextDocument): Promise<LanguageSettings['format']> {
+		let globalSettings = formatterSettings[document.languageId];
 
 		if (!languageServices[document.languageId]) {
 			connection.console.log(`Document language is '${document.languageId}' (unsupported), using 'css' settings instead.`);
-			settings = formatterSettings['css'];
+			globalSettings = formatterSettings['css'];
 		}
 
-		return settings ?? {};
+		const documentSettings = await getDocumentSettings(document);
+
+		return {
+			...globalSettings,
+			...documentSettings?.format,
+		};
 	}
 
 	// After the server has started the client sends an initialize request. The server receives
@@ -387,7 +392,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			// settings itself and formats based on the forwarded configuration options.
 			const settings = {
 				...options,
-				...getFormatterSettings(document),
+				...await getFormatterSettings(document),
 			};
 
 			const edits = getLanguageService(document).format(document, range ?? getFullRange(document), settings);
