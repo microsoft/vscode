@@ -85,51 +85,67 @@ export function tryParseClaudeModelId(modelId: string): ParsedClaudeModelId | un
 	return result;
 }
 
+const CONTEXT_SUFFIX_RE = /^(?<base>.*)(?<context>\[[12]m\])$/;
+
 const DATE_SUFFIX_RE = /^(?<base>.*)-(?<date>\d{8})$/;
 
+const MODIFIER_PATTERN = '(?:-(?<mod>[a-z0-9]+(?:-[a-z0-9]+)*))?';
+const NAME_MAJOR_MINOR_RE = new RegExp(String.raw`^claude-(?<name>\w+)-(?<major>\d+)-(?<minor>\d+)${MODIFIER_PATTERN}$`);
+const MAJOR_MINOR_NAME_RE = new RegExp(String.raw`^claude-(?<major>\d+)-(?<minor>\d+)-(?<name>\w+)${MODIFIER_PATTERN}$`);
+const NAME_DOTTED_VERSION_RE = new RegExp(String.raw`^claude-(?<name>\w+)-(?<major>\d+)\.(?<minor>\d+)${MODIFIER_PATTERN}$`);
+const NAME_MAJOR_RE = new RegExp(String.raw`^claude-(?<name>\w+)-(?<major>\d+)${MODIFIER_PATTERN}$`);
+const MAJOR_NAME_RE = new RegExp(String.raw`^claude-(?<major>\d+)-(?<name>\w+)${MODIFIER_PATTERN}$`);
+
 function doParse(lower: string): ParsedClaudeModelId | undefined {
+	let contextSuffix = '';
 	let dateSuffix = '';
 	let base = lower;
 
-	const dateMatch = DATE_SUFFIX_RE.exec(lower);
+	const contextMatch = CONTEXT_SUFFIX_RE.exec(base);
+	if (contextMatch?.groups) {
+		base = contextMatch.groups.base;
+		contextSuffix = contextMatch.groups.context;
+	}
+
+	const dateMatch = DATE_SUFFIX_RE.exec(base);
 	if (dateMatch?.groups) {
 		base = dateMatch.groups.base;
 		dateSuffix = dateMatch.groups.date;
 	}
 
 	// Pattern 1: claude-{name}-{major}-{minor}[-{mod}] (e.g. claude-opus-4-5, claude-opus-4-6-1m)
-	const p1 = base.match(/^claude-(?<name>\w+)-(?<major>\d+)-(?<minor>\d+)(?:-(?<mod>.+))?$/);
+	const p1 = base.match(NAME_MAJOR_MINOR_RE);
 	if (p1?.groups) {
-		return makeResult(p1.groups.name, p1.groups.major, p1.groups.minor, joinModifiers(p1.groups.mod, dateSuffix));
+		return makeResult(p1.groups.name, p1.groups.major, p1.groups.minor, joinModifiers(p1.groups.mod, dateSuffix), contextSuffix);
 	}
 
 	// Pattern 2: claude-{major}-{minor}-{name}[-{mod}] (e.g. claude-3-5-sonnet)
-	const p2 = base.match(/^claude-(?<major>\d+)-(?<minor>\d+)-(?<name>\w+)(?:-(?<mod>.+))?$/);
+	const p2 = base.match(MAJOR_MINOR_NAME_RE);
 	if (p2?.groups) {
-		return makeResult(p2.groups.name, p2.groups.major, p2.groups.minor, joinModifiers(p2.groups.mod, dateSuffix));
+		return makeResult(p2.groups.name, p2.groups.major, p2.groups.minor, joinModifiers(p2.groups.mod, dateSuffix), contextSuffix);
 	}
 
 	// Pattern 3: claude-{name}-{major}.{minor}[-{mod}] (e.g. claude-opus-4.5, claude-opus-4.6-1m)
-	const p3 = base.match(/^claude-(?<name>\w+)-(?<major>\d+)\.(?<minor>\d+)(?:-(?<mod>.+))?$/);
+	const p3 = base.match(NAME_DOTTED_VERSION_RE);
 	if (p3?.groups) {
-		return makeResult(p3.groups.name, p3.groups.major, p3.groups.minor, joinModifiers(p3.groups.mod, dateSuffix));
+		return makeResult(p3.groups.name, p3.groups.major, p3.groups.minor, joinModifiers(p3.groups.mod, dateSuffix), contextSuffix);
 	}
 
 	// Pattern 4: claude-{name}-{major}[-{mod}] (e.g. claude-sonnet-4, claude-sonnet-4-1m)
-	const p4 = base.match(/^claude-(?<name>\w+)-(?<major>\d+)(?:-(?<mod>.+))?$/);
+	const p4 = base.match(NAME_MAJOR_RE);
 	if (p4?.groups) {
-		return makeResult(p4.groups.name, p4.groups.major, undefined, joinModifiers(p4.groups.mod, dateSuffix));
+		return makeResult(p4.groups.name, p4.groups.major, undefined, joinModifiers(p4.groups.mod, dateSuffix), contextSuffix);
 	}
 
 	// Pattern 5: claude-{major}-{name}[-{mod}] (e.g. claude-3-opus)
-	const p5 = base.match(/^claude-(?<major>\d+)-(?<name>\w+)(?:-(?<mod>.+))?$/);
+	const p5 = base.match(MAJOR_NAME_RE);
 	if (p5?.groups) {
-		return makeResult(p5.groups.name, p5.groups.major, undefined, joinModifiers(p5.groups.mod, dateSuffix));
+		return makeResult(p5.groups.name, p5.groups.major, undefined, joinModifiers(p5.groups.mod, dateSuffix), contextSuffix);
 	}
 
 	// Pattern 6: bare model name with no version (e.g. nectarine)
 	const p6 = base.match(/^(?<name>\w+)$/);
-	if (p6?.groups) {
+	if (p6?.groups && !contextSuffix) {
 		return makeBareResult(p6.groups.name);
 	}
 
@@ -160,14 +176,14 @@ function makeBareResult(name: string): ParsedClaudeModelId {
 	};
 }
 
-function makeResult(name: string, major: string, minor: string | undefined, modifiers: string): ParsedClaudeModelId {
+function makeResult(name: string, major: string, minor: string | undefined, modifiers: string, contextSuffix: string): ParsedClaudeModelId {
 	const version = minor !== undefined ? `${major}.${minor}` : major;
 	const validSuffix = extractValidSuffix(name, modifiers);
 	return {
 		name,
 		version,
 		modifiers,
-		toSdkModelId: () => formatModelId(name, major, minor, '-', validSuffix),
+		toSdkModelId: () => formatModelId(name, major, minor, '-', validSuffix) + contextSuffix,
 		toEndpointModelId: () => formatModelId(name, major, minor, '.', validSuffix),
 	};
 }
