@@ -58,7 +58,8 @@ export class CanvasService extends Disposable implements ICanvasService {
 	private readonly presentations = new Map<string, ICanvasPresentation>();
 	private readonly presentationsBySerializationId = new Map<string, ICanvasPresentation>();
 	private readonly requests = new Map<string, string | undefined>();
-	private readonly opening = new Map<CanvasInput, { readonly value: Promise<void>; readonly restoreFallback: boolean }>();
+	private readonly pendingRequests = new Map<string, string>();
+	private readonly opening = new Map<CanvasInput, { readonly value: Promise<void>; readonly restoreFallback: boolean; readonly preserveFocus: boolean }>();
 	private readonly programmaticCloses = new Set<CanvasInput>();
 	private readonly workingSetSuspensions = new Set<CanvasInput>();
 	private readonly dismissedChanged = observableSignal(this);
@@ -155,10 +156,23 @@ export class CanvasService extends Disposable implements ICanvasService {
 						this.requests.set(key, request?.id);
 					}
 					const requestId = this.requests.get(key);
+					if (request?.pending) {
+						this.pendingRequests.set(key, request.id);
+					} else if (request && !request.succeeded && this.pendingRequests.get(key) === request.id) {
+						this.pendingRequests.delete(key);
+					}
+					if (presentation?.requestId === requestId && this.pendingRequests.get(key) === requestId) {
+						this.pendingRequests.delete(key);
+					}
 					const dismissed = this.dismissed.get(key);
+					const modalActive = this.editorGroupsService.activeModalEditorPart !== undefined;
+					const freshRequest = request?.succeeded && this.pendingRequests.get(key) === requestId && requestId !== presentation?.requestId && requestId !== dismissed?.requestId;
 					if (!visible || !workingSetPresented || canvas.source === undefined
 						|| (dismissed && (dismissed.requestId === requestId || !request?.succeeded))
 						|| (presentation?.opened && (presentation.requestId === requestId || !request?.succeeded))) {
+						continue;
+					}
+					if (modalActive && request?.pending) {
 						continue;
 					}
 					const input = existingInput ?? this.getOrCreateInput(reference, canvas);
@@ -166,11 +180,13 @@ export class CanvasService extends Disposable implements ICanvasService {
 						continue;
 					}
 					this.deleteDismissed(key);
-					if (presentation?.opened && request?.succeeded && this.editorService.isVisible(input)) {
+					if (!(modalActive && freshRequest) && presentation?.opened && request?.succeeded && this.editorService.isVisible(input)) {
 						presentation.requestId = requestId;
+						this.pendingRequests.delete(key);
 						continue;
 					}
-					void this.openInput(key, input, presentation?.admitted === true && !presentation.opened)
+					const restoreFallback = presentation?.admitted === true && !presentation.opened;
+					void this.openInput(key, input, restoreFallback, restoreFallback || modalActive && !freshRequest)
 						.catch(error => this.reportError('Failed to reveal canvas', error));
 				}
 			}
@@ -178,6 +194,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 				if (knownOwners.has(canvasOwnerKey(dismissed.reference)) && !liveKeys.has(key)) {
 					this.deleteDismissed(key);
 					this.requests.delete(key);
+					this.pendingRequests.delete(key);
 				}
 			}
 			if (!enabled) {
@@ -188,6 +205,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 			for (const key of this.requests.keys()) {
 				if (!liveKeys.has(key) && !this.inputs.has(key) && !this.dismissed.has(key) && !this.presentations.has(key)) {
 					this.requests.delete(key);
+					this.pendingRequests.delete(key);
 				}
 			}
 			for (const [key, input] of this.inputs) {
@@ -310,25 +328,29 @@ export class CanvasService extends Disposable implements ICanvasService {
 		return true;
 	}
 
-	private openInput(key: string, input: CanvasInput, restoreFallback = false): Promise<void> {
+	private openInput(key: string, input: CanvasInput, restoreFallback = false, preserveFocus = restoreFallback): Promise<void> {
 		const pending = this.opening.get(input);
 		if (pending) {
-			if (!restoreFallback && pending.restoreFallback) {
+			if (!preserveFocus && pending.preserveFocus) {
 				return pending.value.then(() => this.openInput(key, input, false));
 			}
 			return pending.value;
 		}
-		const opening = this.doOpenInput(key, input, restoreFallback).finally(() => this.opening.delete(input));
-		this.opening.set(input, { value: opening, restoreFallback });
+		const opening = this.doOpenInput(key, input, restoreFallback, preserveFocus).finally(() => {
+			this.opening.delete(input);
+			this.presentationsChanged.trigger(undefined);
+		});
+		this.opening.set(input, { value: opening, restoreFallback, preserveFocus });
 		return opening;
 	}
 
-	private async doOpenInput(key: string, input: CanvasInput, restoreFallback: boolean): Promise<void> {
+	private async doOpenInput(key: string, input: CanvasInput, restoreFallback: boolean, preserveFocus: boolean): Promise<void> {
 		const canvas = input.canvas.get();
 		if (!canvas) {
 			throw new Error(localize('canvas.closed', "This canvas is no longer available."));
 		}
 		const presentation = this.getOrCreatePresentation(input.reference, canvas);
+		const requestId = this.requests.get(key);
 		const suppression = restoreFallback ? this.contextService.workingSets?.suppressEditorPartAutoVisibility() : undefined;
 		try {
 			if (!this.isOwnerPresentable(input.reference)) {
@@ -341,7 +363,15 @@ export class CanvasService extends Disposable implements ICanvasService {
 					inactive: !presentation.restoreActive,
 					activation: EditorActivation.PRESERVE,
 				}
-				: { pinned: true, revealIfOpened: true, preserveFocus: false };
+				: preserveFocus
+					? {
+						pinned: true,
+						revealIfOpened: true,
+						preserveFocus: true,
+						inactive: true,
+						activation: EditorActivation.PRESERVE,
+					}
+					: { pinned: true, revealIfOpened: true, preserveFocus: false };
 			const group = this.contextService.getEditorGroup(input.reference, input, restoreFallback);
 			const pane = this.moveToGroup(input, options, group) ? undefined : await this.editorService.openEditor(input, options, group);
 			if (this._store.isDisposed || input.isDisposed() || this.inputs.get(key) !== input || this.presentations.get(key) !== presentation) {
@@ -355,7 +385,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 			presentation.admitted = true;
 			presentation.opened = true;
 			presentation.restoreActive = false;
-			presentation.requestId = this.requests.get(key);
+			presentation.requestId = requestId;
 			input.setSerializationId(presentation.serializationId);
 			this.presentationsChanged.trigger(undefined);
 			if (!this.isOwnerPresentable(input.reference)) {
@@ -516,6 +546,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 			if (isCanvasOwner(dismissed.reference, owner)) {
 				this.deleteDismissed(key);
 				this.requests.delete(key);
+				this.pendingRequests.delete(key);
 			}
 		}
 		for (const [key, input] of this.inputs) {
@@ -541,6 +572,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 		} else {
 			this.deletePresentation(key);
 			this.requests.delete(key);
+			this.pendingRequests.delete(key);
 		}
 		try {
 			await this.closeEditors(input);

@@ -10,6 +10,7 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derived, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastDeepPartial, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -1221,19 +1222,16 @@ suite('VoiceSessionController', () => {
 
 	test('bounds a stalled availability check with the connect watchdog', async () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			const availability = new DeferredPromise<boolean>();
-			const voiceClientService = new TestVoiceClientService();
-			voiceClientService.gptLiveAvailability = availability.p;
-			const controller = createController(voiceClientService);
-			const connection = controller.connect(mainWindow);
-			await clock.tickAsync(60_000);
-			availability.complete(true);
-			await connection;
-			assert.deepStrictEqual({ connecting: controller.isConnecting.get(), connectCalls: voiceClientService.connectCalls }, { connecting: false, connectCalls: 0 });
-		} finally {
-			clock.restore();
-		}
+		store.add(toDisposable(() => clock.restore()));
+		const availability = new DeferredPromise<boolean>();
+		const voiceClientService = new TestVoiceClientService();
+		voiceClientService.gptLiveAvailability = availability.p;
+		const controller = createController(voiceClientService);
+		const connection = controller.connect(mainWindow);
+		await clock.tickAsync(60_000);
+		availability.complete(true);
+		await connection;
+		assert.deepStrictEqual({ connecting: controller.isConnecting.get(), connectCalls: voiceClientService.connectCalls }, { connecting: false, connectCalls: 0 });
 	});
 
 	test('keeps a BYOK session on a free plan when the Copilot entitlement refreshes', async () => {

@@ -67,7 +67,7 @@ import { readSessionSandboxPolicy, type ISessionSandboxPolicy } from '../../../.
 import { readChatSandboxState, readChatSandboxStates, readSessionSandboxState, type ISessionSandboxState } from '../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema, type SessionConfigSchema, type SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, ChangesSummary, type ChatConfigState, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type CanvasState, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, type CustomizationEnablement, McpServerStatus, MessageKind, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, ChangesSummary, type ChatConfigState, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type CanvasState, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, type CustomizationEnablement, McpServerStatus, MessageKind, ModelSelection, type PluginCustomization, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { SessionOriginKind, type SessionOrigin } from '../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import { isActionKnownToVersion } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChanges } from '../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -93,6 +93,7 @@ import { ChatMode } from '../../../../../workbench/contrib/chat/common/chatModes
 import { IChatSendRequestOptions, IChatService, type IChatModelReference } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { assertAutomationSessionTemplate, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { fromAgentHostFileUri, getAgentHostCustomizationUri } from '../../../../../workbench/contrib/chat/common/agentHostSessionCustomizations.js';
 import { AutomationModelConfiguration } from '../../../automations/browser/automationModelConfiguration.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, isChatPermissionLevel, type IChatDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { getAgentHostApprovalDefault, getChatDefaultConfiguration, isAutoApprovePolicyRestricted, normalizeAgentHostApprovalConfig, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
@@ -112,7 +113,9 @@ import { IArtifactModel } from '../../../../../platform/artifactIntegrations/com
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import type { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, ISessionChatMoveDestination, SessionMoveRefusedError, IDeleteChatOptions, type INestedChatFolderInfo, type INestedChatWorkspace, type INestedChatWorkspaceSupport, NestedChatWorkspaceError, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, ICreateNewChatOptions, IHarnessPresentation } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, ISessionChatMoveDestination, SessionMoveRefusedError, IDeleteChatOptions, type INestedChatFolderInfo, type INestedChatWorkspace, type INestedChatWorkspaceSupport, NestedChatWorkspaceError, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, ICreateNewChatOptions, IHarnessPresentation, type SessionResourceResolveReason } from '../../../../services/sessions/common/sessionsProvider.js';
+import type { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { LEGACY_MIGRATION_OPEN_TIMEOUT_MS, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, reportLegacyMigrationOpen } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
 import { AgentHostChatMoveTracker } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatMoveTracker.js';
 import type { AgentChatMoveDestination } from '../../../../../platform/agentHost/common/agentHostChatMove.js';
 import { toChatMoveError } from './agentHostChatMoveErrors.js';
@@ -4541,6 +4544,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * reconstruct every `IAgentSessionMetadata` field from observables.
 	 */
 	private readonly _metadataBySession = new Map<string, IAgentSessionMetadata>();
+	/** Un-adopted legacy Copilot CLI rows opened from this list, watched until the host adopts them. */
+	private readonly _adoptableRowOpens = this._register(new DisposableMap<string, DisposableStore>());
 
 	/**
 	 * Set when {@link _sessionCache} has changed since the last persist. The
@@ -5536,6 +5541,50 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			sessions.set(pendingSession.resource.toString(), pendingSession);
 		}
 		return [...sessions.values()];
+	}
+
+	/**
+	 * Reports `agentHost.legacyCopilotCliMigrationOpen` when `resource` is an
+	 * un-adopted legacy Copilot CLI row of this list being opened, and returns
+	 * whether it is one. Opening such a row subscribes to the session, which the
+	 * host adopts without the client probe; without delaying the open, this
+	 * waits for the adopted summary that clears the row's adoptable marker.
+	 */
+	protected _reportAdoptableRowOpen(resource: URI, reason: SessionResourceResolveReason | undefined, telemetryService: ITelemetryService): boolean {
+		this._ensureSessionCache();
+		let rawId: string | undefined;
+		let backendSession: URI | undefined;
+		for (const [key, cached] of this._sessionCache) {
+			if (isEqual(cached.resource, resource)) {
+				rawId = key;
+				backendSession = cached.backendUri;
+				break;
+			}
+		}
+		if (rawId === undefined || backendSession === undefined || !readSessionEhcliAdoptable(this._metadataBySession.get(rawId)?._meta)) {
+			return false;
+		}
+		if (this._adoptableRowOpens.has(rawId)) {
+			// The open that started the watch reports it.
+			return true;
+		}
+		const key = rawId;
+		const source = reason ?? 'open';
+		const row = { entry: 'agentHostRow', backendSession } as const;
+		const store = new DisposableStore();
+		this._adoptableRowOpens.set(key, store);
+		const settle = (adopted: boolean) => {
+			this._adoptableRowOpens.deleteAndDispose(key);
+			reportLegacyMigrationOpen(telemetryService, source, resource, adopted, undefined, row);
+		};
+		store.add(disposableTimeout(() => settle(false), source === 'restore' ? LEGACY_MIGRATION_RESTORE_TIMEOUT_MS : LEGACY_MIGRATION_OPEN_TIMEOUT_MS));
+		store.add(this._onDidChangeSessionsImmediately(() => {
+			// A row the host replaces while adopting it is briefly absent; only the time limit decides it was not adopted.
+			if (this._sessionCache.has(key) && !readSessionEhcliAdoptable(this._metadataBySession.get(key)?._meta)) {
+				settle(true);
+			}
+		}));
+		return true;
 	}
 
 	getSessionByResource(resource: URI): ISession | undefined {
@@ -7200,8 +7249,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const newSession = this._getNewSession(sessionId);
 		if (newSession) {
 			const published = getEffectiveAgents(this._lastSessionStates.get(sessionId)?.customizations);
-			const sources = agent ? newSession.getClientCustomAgents().filter(source =>
-				isEqual(URI.parse(this._resolvePublishedDraftAgent(newSession, source, published)?.uri ?? source.uri), URI.parse(agent.uri))) : [];
+			const agentUri = agent && URI.parse(agent.uri);
+			// Callers pass either the picker's client-space URI or a published host-space URI from getCustomAgents().
+			const sources = agentUri ? newSession.getClientCustomAgents().filter(source => {
+				const resolved = this._resolvePublishedDraftAgent(newSession, source, published);
+				return resolved
+					? isEqual(URI.parse(resolved.uri), agentUri) || isEqual(this._toClientAgentUri(resolved), agentUri)
+					: isEqual(URI.parse(source.uri), agentUri);
+			}) : [];
 			const previous = newSession.getSelectedAgent();
 			const source = sources.length === 1 ? sources[0]
 				: agent && previous && isEqual(URI.parse(agent.uri), URI.parse(previous.uri)) ? newSession.getSelectedAgentSource() : agent;
@@ -7242,16 +7297,28 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return [...agentsByUri.values()].sort((a, b) => a.name.localeCompare(b.name) || a.uri.toString().localeCompare(b.uri.toString()));
 	}
 
+	/** The client-space identity the picker and chat modes use for a published, host-authored agent. */
+	private _toClientAgentUri(agent: AgentCustomization): URI {
+		return this.mapAgentHostResource(URI.parse(agent.uri));
+	}
+
+	/** Whether a published plugin contains a client-space agent source, comparing in client space. */
+	private _pluginContainsClientSource(connection: IAgentConnection, plugin: PluginCustomization, source: URI): boolean {
+		const pluginUri = getAgentHostCustomizationUri(URI.parse(plugin.uri), connection, plugin);
+		return !!pluginUri && isEqualOrParent(source, pluginUri);
+	}
+
 	private _resolvePublishedDraftAgent(newSession: NewSession, agent: ISessionAgentRef, published: readonly AgentCustomization[]): AgentCustomization | undefined {
 		const uri = URI.parse(agent.uri);
-		const exact = published.find(candidate => isEqual(URI.parse(candidate.uri), uri));
+		const exact = published.find(candidate => isEqual(URI.parse(candidate.uri), uri) || isEqual(this._toClientAgentUri(candidate), uri));
 		if (exact) {
 			return exact;
 		}
 		const source = newSession.getClientAgentSourceUri(uri);
 		const matches = published.filter(candidate => {
 			const sourceUri = readAgentCustomizationMeta(candidate)['vscode.sourceUri'];
-			return sourceUri !== undefined && isEqual(URI.parse(sourceUri), source);
+			// The host derives the source from the published plugin URI, which is host-local for same-host plugins.
+			return sourceUri !== undefined && isEqual(fromAgentHostFileUri(URI.parse(sourceUri), { fromAgentHost: resource => this.mapAgentHostResource(resource) }), source);
 		});
 		return matches.length === 1 ? matches[0] : undefined;
 	}
@@ -7274,8 +7341,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const published = getEffectiveAgents(this._lastSessionStates.get(newSession.sessionId)?.customizations);
 		const source = newSession.getSelectedAgentSource() ?? selected;
 		const resolved = this._resolvePublishedDraftAgent(newSession, source, published);
-		if (resolved && !isEqual(URI.parse(resolved.uri), URI.parse(selected.uri))) {
-			newSession.setSelectedAgent({ uri: resolved.uri, name: resolved.name }, source);
+		const resolvedUri = resolved ? this._toClientAgentUri(resolved) : undefined;
+		if (resolved && resolvedUri && !isEqual(resolvedUri, URI.parse(selected.uri))) {
+			newSession.setSelectedAgent({ uri: resolvedUri.toString(), name: resolved.name }, source);
 		}
 	}
 
@@ -8632,6 +8700,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(this._notConnectedSendErrorMessage());
 		}
 		this._refreshSettingsDerivedNewSessionConfig(newSession);
+		const connection = this.connection;
 
 		// A picked client file is not a host identity until its containing plugin has finished loading.
 		await waitForState(derived(this, reader => {
@@ -8646,7 +8715,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				customization.type === CustomizationType.Plugin
 				&& isCustomizationEnabled(customization)
 				&& customization.load?.kind === CustomizationLoadStatus.Loading
-				&& isEqualOrParent(source, URI.parse(customization.uri)));
+				&& this._pluginContainsClientSource(connection, customization, source));
 		}), loading => !loading, undefined, newSession.cancellationToken);
 		this._reconcileNewSessionAgent(newSession);
 		const selectedModelId = this._resolveSendModelId(chatId, newSession.getSelectedModelId());
@@ -8658,7 +8727,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (this.getCustomizations(newSession.sessionId).some(customization =>
 				customization.type === CustomizationType.Plugin
 				&& customization.load?.kind === CustomizationLoadStatus.Error
-				&& isEqualOrParent(source, URI.parse(customization.uri)))) {
+				&& this._pluginContainsClientSource(connection, customization, source))) {
 				throw new Error(localize('agentHost.selectedAgentUnavailable', "The selected agent could not be loaded. Fix its customization or select another agent before sending."));
 			}
 		}

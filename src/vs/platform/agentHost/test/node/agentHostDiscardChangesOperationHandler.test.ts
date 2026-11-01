@@ -22,8 +22,9 @@ import { TestAgentHostGitService } from '../common/testAgentHostGitService.js';
 import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildWorkingSetChangesetUri, ChangesetKind } from '../../common/changesetUri.js';
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { AHP_SESSION_NOT_FOUND, AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildChatUri, buildDefaultChatUri, FileEditKind, MessageKind, SessionStatus, type ISessionFileDiff, type TextRange } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, FileEditKind, SessionStatus, type ISessionFileDiff, type TextRange } from '../../common/state/sessionState.js';
 import { AgentHostDiscardChangesOperationHandler } from '../../node/agentHostDiscardChangesOperationHandler.js';
 import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { AgentHostDiscardChangesOperationContribution } from '../../node/agentHostDiscardChangesOperationProvider.js';
@@ -146,17 +147,12 @@ function makeResourceTarget(resource: URI): InvokeChangesetOperationParams['targ
 }
 
 function startTurn(stateManager: AgentHostStateManager, chat: string, turnId: string): void {
-	stateManager.dispatchServerAction(chat, {
-		type: ActionType.ChatTurnStarted,
-		turnId,
-		startedAt: new Date(1).toISOString(),
-		message: { text: 'Edit files', origin: { kind: MessageKind.User } },
-	});
+	stateManager.dispatchServerAction(chat, chatTurnStarted(turnId, 'Edit files', new Date(1).toISOString()));
 }
 
 function addTurn(stateManager: AgentHostStateManager, chat: string, turnId: string): void {
 	startTurn(stateManager, chat, turnId);
-	stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId, duration: 1 });
+	stateManager.dispatchServerAction(chat, chatTurnComplete(turnId, 1));
 }
 
 suite('AgentHostDiscardChangesOperationHandler', () => {
