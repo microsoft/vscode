@@ -31,6 +31,32 @@ async page => {
 		return firstVisible;
 	};
 
+	const getDiagnostics = async () => {
+		const diagnostics = [];
+		for (const selector of selectors) {
+			const candidates = page.locator(selector);
+			const count = await candidates.count();
+			let visibleCount = 0;
+			let excludedCount = 0;
+
+			for (let index = 0; index < count; index++) {
+				const candidate = candidates.nth(index);
+				const isVisible = await candidate.isVisible();
+				const isExcluded = await candidate.evaluate(element => Boolean(element.closest('.inline-chat-widget, .automation-form-prompt-host')));
+
+				if (isVisible) {
+					visibleCount++;
+				}
+				if (isExcluded) {
+					excludedCount++;
+				}
+			}
+
+			diagnostics.push(`[${selector}: total=${count}, visible=${visibleCount}, excluded=${excludedCount}]`);
+		}
+		return diagnostics.join('; ');
+	};
+
 	const isFocused = input => input.evaluate(element => document.activeElement === element);
 	const focusIfNeeded = async input => {
 		if (await isFocused(input)) {
@@ -82,7 +108,8 @@ async page => {
 	}
 
 	if (!match) {
-		throw new Error(`No visible chat input found after invoking ${shortcut} and the command palette fallback`);
+		const diagnosticsSummary = await getDiagnostics();
+		throw new Error(`No visible chat input found after invoking ${shortcut} and the command palette fallback. Diagnostics: ${diagnosticsSummary}`);
 	}
 
 	const focusInvoked = await focusIfNeeded(match.input);
