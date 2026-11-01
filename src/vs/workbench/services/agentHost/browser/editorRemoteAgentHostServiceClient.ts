@@ -25,6 +25,7 @@ import { IAgentHostEnablementService } from '../../../../platform/agentHost/comm
 import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/browser/agentHostIpcChannelTransport.js';
 import { AgentHostClientConnectionKind } from '../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../../../platform/agentHost/browser/agentHostProtocolClient.js';
+import { AgentHostClientProxy } from '../../../../platform/agentHost/browser/agentHostClientProxy.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
@@ -136,15 +137,16 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		);
 		const address = `vscode-remote://${connection.remoteAuthority}`;
 		const clientInfo = environmentService.isSessionsWindow ? agentsWindowAgentHostClientInfo : editorWindowAgentHostClientInfo;
+		// Like the remote extension host, a WSL or container remote with `useHostProxy` shares this client's network.
+		const sharesClientNetwork = () => this._useHostProxy && ['wsl', 'dev-container', 'attached-container'].includes(getRemoteName(connection.remoteAuthority));
 		this._protocolClient = this._register(instantiationService.createInstance(AgentHostProtocolClient, address, createTransport, {
 			clientInfo,
 			resourceUris: createEditorRemoteAgentHostResourceUriMapper(connection.remoteAuthority, agentHostAuthority(address)),
 			clientCertificates: {
-				isEnabled: () => this._useHostProxy
-					&& ['wsl', 'dev-container', 'attached-container'].includes(getRemoteName(connection.remoteAuthority))
-					&& configurationService.getValue<boolean>('http.systemCertificates') === true,
+				isEnabled: () => sharesClientNetwork() && configurationService.getValue<boolean>('http.systemCertificates') === true,
 				loadCertificates: () => requestService.loadCertificates(),
 			},
+			clientProxy: instantiationService.createInstance(AgentHostClientProxy, sharesClientNetwork),
 		}));
 		// Resources this client hands out (e.g. debug-log artifacts) are stamped with the
 		// address-derived authority, so register it for reads. The ambient `local` authority

@@ -20,6 +20,7 @@ import { supportsAgentHostDevContainers } from '../../../../../platform/agentHos
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
+import { AgentHostClientProxy } from '../../../../../platform/agentHost/browser/agentHostClientProxy.js';
 import { DEV_CONTAINER_AGENT_HOST_CHANNEL, IDevContainerAgentHostConfig, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { findDevContainerSample, IDevContainerSampleSource } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { ReconnectingRelayTransport, type IRelayConnectionHandle, type IRelayMessage } from '../../../../../platform/agentHost/common/relayTransport.js';
@@ -484,9 +485,10 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				repository: result.repository,
 				sandboxSupported: result.sandboxSupported,
 				clientCertificates: remoteService ? undefined : {
-					isEnabled: () => result.forwardClientCertificates === true && this._configurationService.getValue<boolean>('http.systemCertificates') !== false,
+					isEnabled: () => result.sharesClientNetwork === true && this._configurationService.getValue<boolean>('http.systemCertificates') !== false,
 					loadCertificates: () => this._requestService.loadCertificates(),
 				},
+				clientProxy: remoteService ? undefined : this._instantiationService.createInstance(AgentHostClientProxy, () => result.sharesClientNetwork === true),
 				transportFactory,
 				transportDisposable: combinedDisposable(
 					connectionStore,

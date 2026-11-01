@@ -19,7 +19,7 @@ export interface IElectronConfiguration {
 }
 
 export async function resolveElectronConfiguration(options: LaunchOptions): Promise<IElectronConfiguration> {
-	const { codePath, workspacePath, extensionsPath, userDataDir, remote, logger, logsPath, crashesPath, extraArgs, extraEnv } = options;
+	const { codePath, workspacePath, extensionsPath, userDataDir, remote, remoteAuthority, logger, logsPath, crashesPath, extraArgs, extraEnv } = options;
 	const env = { ...process.env };
 
 	const args: string[] = [
@@ -61,7 +61,10 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 			throw new Error('Workspace path is required when running remote');
 		}
 		// Replace workspace path with URI
-		args[0] = `--${workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=vscode-remote://test+test/${URI.file(workspacePath).path}`;
+		const workspaceUri = remoteAuthority
+			? URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: URI.file(workspacePath).path }).toString()
+			: `vscode-remote://test+test/${URI.file(workspacePath).path}`;
+		args[0] = `--${workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=${workspaceUri}`;
 
 		if (codePath) {
 			if (!extensionsPath) {

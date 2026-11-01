@@ -257,6 +257,15 @@ function getCopilotNoProxy(proxy: string | undefined, noProxy: string | undefine
 	return noProxy ?? (proxy ? 'localhost,127.0.0.1,::1,::ffff:127.0.0.1' : undefined);
 }
 
+/**
+ * The proxy a Kerberos principal from the Copilot runtime names. The runtime asks for its proxy's principal, `HTTP/host`
+ * or a configured override, optionally with `@REALM`; clients derive the principal for a proxy themselves.
+ */
+function getKerberosPrincipalProxyUrl(spn: string): string | undefined {
+	const host = /^HTTP\/(?<host>[^/@\s]+)(?:@\S+)?$/i.exec(spn)?.groups?.host;
+	return host ? `http://${host}` : undefined;
+}
+
 async function validateCopilotRuntimePath(runtimePath: string): Promise<void> {
 	if (!isAbsolute(runtimePath)) {
 		throw new Error(`Invalid chat.agentHost.copilot.runtimePath: expected an absolute path, got '${runtimePath}'`);
@@ -4456,6 +4465,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 
 			const clientOptions: CopilotClientOptions = {
+				// The runtime tries its own tickets first. A client sharing this agent host's network, such as the Windows
+				// client of a WSL agent host, can then supply its own, as for a remote extension host using the local proxy
+				// configuration. The runtime process belongs to this agent host, so its shared background traffic may use them too.
+				kerberosAuth: {
+					mode: 'fallback',
+					scope: 'runtime',
+					callback: (request: { readonly spn: string }) => this._lookupClientKerberosToken(request.spn),
+				},
 				useLoggedInUser: false,
 				gitHubToken,
 				...(scoped ? {
@@ -9148,6 +9165,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _readConfiguredProxy(): string | undefined {
 		return this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.Proxy)?.trim() || undefined;
+	}
+
+	/** A base64 initial SPNEGO token for the runtime's proxy principal from a client sharing this agent host's network. */
+	private async _lookupClientKerberosToken(spn: string): Promise<string | undefined> {
+		const proxyUrl = getKerberosPrincipalProxyUrl(spn);
+		const authorization = proxyUrl ? await this._proxyResolver.lookupClientKerberosAuthorization(proxyUrl) : undefined;
+		return authorization ? /^Negotiate (?<token>\S+)$/i.exec(authorization)?.groups?.token : undefined;
 	}
 
 	private _readCopilotProxyState(): ICopilotClientProxyState {

@@ -31,6 +31,8 @@ export interface LaunchOptions {
 	useInMemorySecretStorage?: boolean;
 	readonly extraArgs?: string[];
 	readonly remote?: boolean;
+	/** The authority a `remote` window opens its workspace with, `test+test` by default. */
+	readonly remoteAuthority?: string;
 	readonly web?: boolean;
 	readonly tracing?: boolean;
 	snapshots?: boolean;

@@ -1383,6 +1383,18 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 		});
 	}
 
+	registerSharedNetworkClient(): IDisposable {
+		return Disposable.None;
+	}
+
+	notifySharedNetworkClientChanged(): void { }
+
+	readonly clientKerberosLookups: string[] = [];
+	async lookupClientKerberosAuthorization(proxyUrl: string): Promise<string | undefined> {
+		this.clientKerberosLookups.push(proxyUrl);
+		return 'Negotiate client-ticket';
+	}
+
 	getConfigurationValue<T>(_key: string): T | undefined {
 		return undefined;
 	}
@@ -13851,6 +13863,32 @@ suite('CopilotAgent', () => {
 				noProxy: '127.0.0.1,localhost',
 				lowercaseNoProxy: undefined,
 			});
+		});
+
+		test('registers a runtime-scoped fallback Kerberos callback backed by clients sharing the network', async () => {
+			const proxyResolver = new TestProxyResolver();
+			const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), proxyResolver });
+			try {
+				await agent.listChatsToMigrate();
+				const callback = getCreatedClientOptions(agent).at(-1)?.kerberosAuth;
+				const signal = new AbortController().signal;
+				assert.deepStrictEqual({
+					mode: callback?.mode,
+					scope: callback?.scope,
+					tokens: [
+						await callback?.callback({ spn: 'HTTP/proxy.example@EXAMPLE.COM' }, signal),
+						await callback?.callback({ spn: 'ldap/directory.example' }, signal),
+					],
+					lookups: proxyResolver.clientKerberosLookups,
+				}, {
+					mode: 'fallback',
+					scope: 'runtime',
+					tokens: ['client-ticket', undefined],
+					lookups: ['http://proxy.example'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
 		});
 
 		test('forwards the configured Kerberos proxy SPN to the Copilot runtime', async () => {

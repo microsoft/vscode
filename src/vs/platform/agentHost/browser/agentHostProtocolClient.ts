@@ -32,6 +32,8 @@ import { AgentHostChannelScheduler, readChannelFlowControl } from '../common/age
 import { AgentHostTcpBudget, AgentHostTcpConnection, agentHostTcpReceiveLimits, type IAgentHostTcpConnection } from '../common/agentHostTcpConnection.js';
 import { LoadClientCertificatesExtensionMethod, type IAgentHostClientCertificatesProvider } from '../common/clientCertificatesProtocol.js';
 import { AgentHostClientCertificatesCapabilityMetaKey } from '../common/meta/agentHostClientCertificatesMeta.js';
+import { ClientProxyChangedExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, type IAgentHostClientProxyProvider } from '../common/clientProxyProtocol.js';
+import { AgentHostClientProxyCapabilityMetaKey, servesAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
@@ -275,6 +277,8 @@ export interface IAgentHostProtocolClientOptions {
 	readonly resolveAdvertisedAuthentication?: (agents: readonly AgentInfo[]) => Promise<readonly AuthenticateParams[]>;
 	/** Serves client trust roots on demand only for remotes sharing the client's network. */
 	readonly clientCertificates?: IAgentHostClientCertificatesProvider;
+	/** Serves proxy resolution and proxy Kerberos tickets only for remotes sharing the client's network. */
+	readonly clientProxy?: IAgentHostClientProxyProvider;
 	/** Releases resources owned by the logical protocol client after its final disposal. */
 	readonly onDispose?: () => void;
 }
@@ -288,6 +292,16 @@ export class InitialAuthenticationError extends Error {
 }
 
 class AuthenticationEncryptionError extends Error { }
+
+/** Kerberos is only offered for HTTP proxies. */
+function isHttpUrl(value: string): boolean {
+	try {
+		const { protocol, hostname } = new URL(value);
+		return (protocol === 'http:' || protocol === 'https:') && !!hostname;
+	} catch {
+		return false;
+	}
+}
 
 const mcpAuthenticationRequestValidator = vObj({
 	serverName: vString(),
@@ -544,6 +558,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _resolveInitialAuthentication: (() => Promise<AuthenticateParams | undefined>) | undefined;
 	private readonly _resolveAdvertisedAuthentication: IAgentHostProtocolClientOptions['resolveAdvertisedAuthentication'];
 	private readonly _clientCertificates: IAgentHostProtocolClientOptions['clientCertificates'];
+	private readonly _clientProxy: IAgentHostProtocolClientOptions['clientProxy'];
 	private readonly _onDispose: (() => void) | undefined;
 	private _didDispose = false;
 
@@ -625,6 +640,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._trustedAuthenticationTokenSealer = options?.sealAuthenticationToken;
 		this._resolveAdvertisedAuthentication = options?.resolveAdvertisedAuthentication;
 		this._clientCertificates = options?.clientCertificates;
+		this._clientProxy = options?.clientProxy;
+		if (this._clientProxy) {
+			this._register(this._clientProxy.onDidChange(() => this._notifyClientProxyChanged()));
+		}
 		this._onDispose = options?.onDispose;
 
 		if (typeof transportOrFactory === 'function') {
@@ -1511,6 +1530,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		const sendIdentity = telemetryLevel >= TelemetryLevel.USAGE;
 		return {
 			...(this._clientCertificates?.isEnabled() ? { [AgentHostClientCertificatesCapabilityMetaKey]: true } : {}),
+			...(this._clientProxy?.isEnabled() ? { [AgentHostClientProxyCapabilityMetaKey]: true } : {}),
 			...toAgentHostClientMeta(
 				this._transport.clientConnectionKind,
 				telemetryLevel,
@@ -2063,6 +2083,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (supportsChatUserInteractionTiming(this.initializeResult.get())) {
 			await this._sendExtensionRequest(ReportChatUserInteractionExtensionMethod, timing);
 		}
+	}
+
+	/** Lets a host serving this client's proxy support refresh the proxy it applies after this client's settings change. */
+	private _notifyClientProxyChanged(): void {
+		if (!this._clientProxy?.isEnabled() || !servesAgentHostClientProxy(this._initializeResult.get())) {
+			return;
+		}
+		this._sendExtensionRequest(ClientProxyChangedExtensionMethod, {}).catch(error => this._logService.debug('[AgentHostProtocolClient] Failed to report a client proxy change', error));
 	}
 
 	async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
@@ -3220,6 +3248,31 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					case LoadClientCertificatesExtensionMethod: {
 						const certificates = this._clientCertificates?.isEnabled() ? await this._clientCertificates.loadCertificates() : [];
 						sendResult({ certificates: [...certificates] } satisfies IAgentHostExtensionServerCommandMap[typeof LoadClientCertificatesExtensionMethod]['result']);
+						return;
+					}
+					case ResolveClientProxyExtensionMethod: {
+						if (!this._clientProxy?.isEnabled()) {
+							throw new Error('This client does not resolve proxies for this agent host');
+						}
+						const { url } = resolveClientProxyParamsValidator.validateOrThrow(params);
+						sendResult({ proxy: await this._clientProxy.resolveProxy(url) } satisfies IAgentHostExtensionServerCommandMap[typeof ResolveClientProxyExtensionMethod]['result']);
+						return;
+					}
+					case LookupClientProxyKerberosAuthorizationExtensionMethod: {
+						if (!this._clientProxy?.isEnabled()) {
+							throw new Error('This client does not provide Kerberos credentials for this agent host');
+						}
+						const { proxyUrl } = lookupClientProxyKerberosAuthorizationParamsValidator.validateOrThrow(params);
+						if (!isHttpUrl(proxyUrl)) {
+							throw new Error('Unsupported proxy URL');
+						}
+						let authorization: string | undefined;
+						try {
+							authorization = await this._clientProxy.lookupKerberosAuthorization(proxyUrl);
+						} catch {
+							throw new Error('Kerberos credential lookup failed');
+						}
+						sendResult({ authorization } satisfies IAgentHostExtensionServerCommandMap[typeof LookupClientProxyKerberosAuthorizationExtensionMethod]['result']);
 						return;
 					}
 					case ClientArtifactIntegrationExtensionMethod: {

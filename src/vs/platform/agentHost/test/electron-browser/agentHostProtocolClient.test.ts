@@ -23,6 +23,8 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { ArtifactIntegrationRequest, ArtifactIntegrationUpdate } from '../../../artifactIntegrations/common/artifactIntegrationProtocol.js';
 import { ArtifactIntegrationsSettingId, type ArtifactIntegrationDescriptor } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
+import { AgentHostClientProxyCapabilityMetaKey } from '../../common/meta/agentHostClientProxyMeta.js';
+import { ClientProxyChangedExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, ResolveClientProxyExtensionMethod, type IAgentHostClientProxyProvider } from '../../common/clientProxyProtocol.js';
 import { WebPubSubRelayTransport, type IWebSocketLike } from '../../browser/webPubSubRelayTransport.js';
 import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
@@ -4284,6 +4286,108 @@ suite('AgentHostProtocolClient', () => {
 		await rejected;
 	});
 
+	suite('client proxy', () => {
+		function createProxyClient(calls: string[][], enabled = true) {
+			const transport = disposables.add(new TestProtocolTransport());
+			const trust = createWorkspaceTrustServices();
+			const onDidChange = disposables.add(new Emitter<void>());
+			const clientProxy: IAgentHostClientProxyProvider = {
+				isEnabled: () => enabled,
+				onDidChange: onDidChange.event,
+				resolveProxy: async url => {
+					calls.push(['resolveProxy', url]);
+					return 'PROXY proxy.example:8080';
+				},
+				lookupKerberosAuthorization: async proxyUrl => {
+					calls.push(['lookupKerberosAuthorization', proxyUrl]);
+					if (proxyUrl.includes('failing')) {
+						throw new Error('secret failure detail');
+					}
+					return 'Negotiate ticket';
+				},
+			};
+			const client = disposables.add(new AgentHostProtocolClient('wsl-test', transport, { clientProxy }, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trust.management, trust.request));
+			return { client, transport, onDidChange };
+		}
+
+		async function sendRequest(transport: TestProtocolTransport, id: number, method: string, params: Record<string, unknown>): Promise<unknown> {
+			transport.fireExtensionRequest(id, method, params);
+			await timeout(0);
+			const response = transport.sentMessages.at(-1) as { result?: unknown; error?: { message: string } };
+			return response.error ? response.error.message : response.result;
+		}
+
+		test('advertises the capability and serves proxy resolution and Kerberos lookups', async () => {
+			const calls: string[][] = [];
+			const { client, transport } = createProxyClient(calls);
+			await connectClient(client, transport);
+			const initialize = transport.sentMessages[0] as JsonRpcRequest;
+			const results = [
+				await sendRequest(transport, 51, ResolveClientProxyExtensionMethod, { url: 'https://example.com/path' }),
+				await sendRequest(transport, 52, LookupClientProxyKerberosAuthorizationExtensionMethod, { proxyUrl: 'http://proxy.example:8080' }),
+				await sendRequest(transport, 53, LookupClientProxyKerberosAuthorizationExtensionMethod, { proxyUrl: 'http://failing.example:8080' }),
+			];
+			assert.deepStrictEqual({
+				advertised: (initialize.params as { _meta: Record<string, unknown> })._meta[AgentHostClientProxyCapabilityMetaKey],
+				calls,
+				results,
+			}, {
+				advertised: true,
+				calls: [
+					['resolveProxy', 'https://example.com/path'],
+					['lookupKerberosAuthorization', 'http://proxy.example:8080'],
+					['lookupKerberosAuthorization', 'http://failing.example:8080'],
+				],
+				results: [{ proxy: 'PROXY proxy.example:8080' }, { authorization: 'Negotiate ticket' }, 'Kerberos credential lookup failed'],
+			});
+		});
+
+		test('rejects Kerberos lookups for non-HTTP proxy URLs without invoking the provider', async () => {
+			const calls: string[][] = [];
+			const { client, transport } = createProxyClient(calls);
+			await connectClient(client, transport);
+			const proxyUrls = ['socks5://proxy.example:1080', 'HTTP/proxy.example', 'http://', ''];
+			const errors: unknown[] = [];
+			for (const [index, proxyUrl] of proxyUrls.entries()) {
+				errors.push(await sendRequest(transport, 60 + index, LookupClientProxyKerberosAuthorizationExtensionMethod, { proxyUrl }));
+			}
+			assert.deepStrictEqual({ calls, errors }, { calls: [], errors: Array(proxyUrls.length).fill('Unsupported proxy URL') });
+		});
+
+		test('neither advertises nor serves proxy lookups when disabled or not supplied', async () => {
+			const calls: string[][] = [];
+			const disabled = createProxyClient(calls, false);
+			await connectClient(disabled.client, disabled.transport);
+			const ordinary = createClient();
+			await connectClient(ordinary.client, ordinary.transport);
+			const meta = (transport: TestProtocolTransport) => ((transport.sentMessages[0] as JsonRpcRequest).params as { _meta: Record<string, unknown> })._meta[AgentHostClientProxyCapabilityMetaKey];
+			assert.deepStrictEqual({
+				advertised: [meta(disabled.transport), meta(ordinary.transport)],
+				errors: [
+					await sendRequest(disabled.transport, 51, ResolveClientProxyExtensionMethod, { url: 'https://example.com' }),
+					await sendRequest(ordinary.transport, 52, LookupClientProxyKerberosAuthorizationExtensionMethod, { proxyUrl: 'http://proxy.example:8080' }),
+				],
+				calls,
+			}, {
+				advertised: [undefined, undefined],
+				errors: ['This client does not resolve proxies for this agent host', 'This client does not provide Kerberos credentials for this agent host'],
+				calls: [],
+			});
+		});
+
+		test('reports proxy changes only to hosts that confirm serving the client proxy', async () => {
+			const sentChanges = (transport: TestProtocolTransport) => transport.sentMessages.filter(message => (message as JsonRpcRequest).method === ClientProxyChangedExtensionMethod).length;
+			const confirmed = createProxyClient([]);
+			await connectClient(confirmed.client, confirmed.transport, { [AgentHostClientProxyCapabilityMetaKey]: true });
+			const unconfirmed = createProxyClient([]);
+			await connectClient(unconfirmed.client, unconfirmed.transport);
+
+			confirmed.onDidChange.fire();
+			unconfirmed.onDidChange.fire();
+
+			assert.deepStrictEqual({ confirmed: sentChanges(confirmed.transport), unconfirmed: sentChanges(unconfirmed.transport) }, { confirmed: 1, unconfirmed: 0 });
+		});
+	});
 	suite('reverse MCP authentication', () => {
 		const request = {
 			serverName: 'Docs',
