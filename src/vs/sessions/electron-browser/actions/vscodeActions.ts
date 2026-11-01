@@ -133,7 +133,8 @@ async function revealRecentEditorWindow(nativeHostService: INativeHostService, w
 	const recent = (await workspacesService.getRecentlyOpened()).workspaces.find(recent => isRecentFolder(recent) || !isEqual(recent.workspace.configPath, agentSessionsWorkspace));
 	if (recent) {
 		const toOpen: IWindowOpenable = isRecentFolder(recent) ? { folderUri: recent.folderUri, label: recent.label } : { workspaceUri: recent.workspace.configPath, label: recent.label };
-		return nativeHostService.openWindow([toOpen], { forceNewWindow: true });
+		// Like Open Recent, reconnect to the entry's remote, since its URI may not encode it.
+		return nativeHostService.openWindow([toOpen], { forceNewWindow: true, remoteAuthority: recent.remoteAuthority || null });
 	}
 
 	return nativeHostService.openWindow();

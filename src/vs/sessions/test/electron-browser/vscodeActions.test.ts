@@ -125,10 +125,10 @@ suite('VS Code Actions', () => {
 		const agentsWindow: IOpenedMainWindow = { ...createWindow(agentsWindowId), lastFocusTime: 3 };
 		const editorWindows: IOpenedMainWindow[] = [{ ...createWindow(agentsWindowId + 1), lastFocusTime: 1 }, { ...createWindow(agentsWindowId + 2), lastFocusTime: 2 }];
 		const recentFolder: IRecentFolder = { folderUri: URI.file('/recent'), label: 'recent' };
-		const recentWorkspace: IRecentWorkspace = { workspace: { id: 'recent', configPath: URI.file('/recent.code-workspace') }, label: 'recent workspace' };
+		const recentWorkspace: IRecentWorkspace = { workspace: { id: 'recent', configPath: URI.file('/recent.code-workspace') }, label: 'recent workspace', remoteAuthority: 'ssh-remote+host' };
 		const agentsWindowWorkspace: IRecentWorkspace = { workspace: { id: 'agents', configPath: instantiationService.invokeFunction(accessor => accessor.get(IEnvironmentService).agentSessionsWorkspace) }, label: 'Agents Window' };
 		const run = async (treatment: boolean | undefined, windows: IOpenedMainWindow[], recents: (IRecentWorkspace | IRecentFolder)[], session = createSession('folderless', true)) => {
-			const calls: { focus?: number; open?: string[]; forceNewWindow?: boolean; empty?: true }[] = [];
+			const calls: { focus?: number; open?: string[]; forceNewWindow?: boolean; remoteAuthority?: string | null; empty?: true }[] = [];
 			const telemetryService = new TestExperimentTriggerTelemetryService();
 			instantiationService.stub(ITelemetryService, telemetryService);
 			instantiationService.stub(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() {
@@ -150,7 +150,7 @@ suite('VS Code Actions', () => {
 				}
 				override async openWindow(toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
 					calls.push(Array.isArray(toOpen)
-						? { open: toOpen.map(openable => (isFolderToOpen(openable) ? openable.folderUri : isWorkspaceToOpen(openable) ? openable.workspaceUri : openable.fileUri).toString()), forceNewWindow: options?.forceNewWindow }
+						? { open: toOpen.map(openable => (isFolderToOpen(openable) ? openable.folderUri : isWorkspaceToOpen(openable) ? openable.workspaceUri : openable.fileUri).toString()), forceNewWindow: options?.forceNewWindow, ...(options?.remoteAuthority !== undefined ? { remoteAuthority: options.remoteAuthority } : {}) }
 						: { empty: true });
 				}
 			}());
@@ -173,9 +173,9 @@ suite('VS Code Actions', () => {
 			control: { calls: [{ empty: true }], triggers: triggered },
 			unassigned: { calls: [{ empty: true }], triggers: triggered },
 			treatment: { calls: [{ focus: agentsWindowId + 2 }], triggers: triggered },
-			treatmentWithoutEditorWindowsAndRecentFolder: { calls: [{ open: ['file:///recent'], forceNewWindow: true }], triggers: triggered },
-			treatmentWithoutEditorWindowsAndRecentWorkspace: { calls: [{ open: ['file:///recent.code-workspace'], forceNewWindow: true }], triggers: triggered },
-			treatmentWithoutEditorWindowsAfterAgentsWindowRecent: { calls: [{ open: ['file:///recent'], forceNewWindow: true }], triggers: triggered },
+			treatmentWithoutEditorWindowsAndRecentFolder: { calls: [{ open: ['file:///recent'], forceNewWindow: true, remoteAuthority: null }], triggers: triggered },
+			treatmentWithoutEditorWindowsAndRecentWorkspace: { calls: [{ open: ['file:///recent.code-workspace'], forceNewWindow: true, remoteAuthority: 'ssh-remote+host' }], triggers: triggered },
+			treatmentWithoutEditorWindowsAfterAgentsWindowRecent: { calls: [{ open: ['file:///recent'], forceNewWindow: true, remoteAuthority: null }], triggers: triggered },
 			treatmentWithoutEditorWindowsOrRecents: { calls: [{ empty: true }], triggers: triggered },
 			treatmentForSessionWithFolder: { calls: [{ open: ['file:///repo'], forceNewWindow: true }], triggers: [] },
 		});
