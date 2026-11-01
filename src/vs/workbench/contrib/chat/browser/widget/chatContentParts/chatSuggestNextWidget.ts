@@ -134,6 +134,7 @@ export class ChatSuggestNextWidget extends Disposable {
 
 		const titleElement = dom.append(button, dom.$('.chat-welcome-view-suggested-prompt-title'));
 		titleElement.textContent = handoff.label;
+		titleElement.title = handoff.label;
 
 		// Optional showContinueOn behaves like send: only present if specified
 		const showContinueOn = handoff.showContinueOn ?? true;
@@ -257,6 +258,7 @@ export class ChatSuggestNextWidget extends Disposable {
 
 		const titleElement = dom.append(button, dom.$('.chat-welcome-view-suggested-prompt-title'));
 		titleElement.textContent = label;
+		titleElement.title = label;
 
 		disposables.add(dom.addDisposableListener(button, 'click', () => {
 			const currentHandoff = getCurrentHandoff();
