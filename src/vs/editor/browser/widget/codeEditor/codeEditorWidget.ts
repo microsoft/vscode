@@ -11,7 +11,7 @@ import { Color } from '../../../../base/common/color.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, EmitterOptions, Event, EventDeliveryQueue, createEventDeliveryQueue } from '../../../../base/common/event.js';
 import { hash } from '../../../../base/common/hash.js';
-import { Disposable, DisposableStore, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import './editor.css';
 import { applyFontInfo } from '../../config/domFontInfo.js';
@@ -235,6 +235,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private readonly _domElement: HTMLElement;
 	private readonly _overflowWidgetsDomNode: HTMLElement | undefined;
+	private readonly _scopedOverflowWidgetsDomNode: HTMLElement | undefined;
 	private readonly _id: number;
 	private readonly _configuration: IEditorConfiguration;
 	private _contributionsDisposable: IDisposable | undefined;
@@ -292,6 +293,14 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._domElement = domElement;
 		this._userInteractionService = userInteractionService;
 		this._overflowWidgetsDomNode = options.overflowWidgetsDomNode;
+		if (this._overflowWidgetsDomNode) {
+			// Overflow widgets need an editor-specific focus and context scope when the host is shared.
+			const overflowWidgetsDomNode = this._overflowWidgetsDomNode.ownerDocument.createElement('div');
+			this._scopedOverflowWidgetsDomNode = this._overflowWidgetsDomNode.appendChild(overflowWidgetsDomNode);
+			this._register(toDisposable(() => overflowWidgetsDomNode.remove()));
+		} else {
+			this._scopedOverflowWidgetsDomNode = undefined;
+		}
 		delete options.overflowWidgetsDomNode;
 		this._id = (++EDITOR_ID);
 		this._decorationTypeKeysToIds = {};
@@ -316,6 +325,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}));
 
 		this._contextKeyService = this._register(contextKeyService.createScoped(this._domElement));
+		if (this._scopedOverflowWidgetsDomNode) {
+			this._register(this._contextKeyService.createScoped(this._scopedOverflowWidgetsDomNode));
+		}
 		if (codeEditorWidgetOptions.contextKeyValues) {
 			for (const [key, value] of Object.entries(codeEditorWidgetOptions.contextKeyValues)) {
 				this._contextKeyService.createKey(key, value);
@@ -2002,7 +2014,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._themeService.getColorTheme(),
 			viewModel,
 			viewUserInputEvents,
-			this._overflowWidgetsDomNode,
+			this._scopedOverflowWidgetsDomNode,
 			this._instantiationService,
 			this._userInteractionService,
 		);
