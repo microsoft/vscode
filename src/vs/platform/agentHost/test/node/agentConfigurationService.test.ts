@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -554,48 +555,42 @@ suite('AgentConfigurationService', () => {
 	test('persists MCP sampling approval and revocation across host restarts', async () => {
 		const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-sampling-config-'));
 		const resource = URI.file(join(directory, 'agent-host-config.json'));
-		try {
-			const firstManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-			const firstService = disposables.add(new AgentConfigurationService(firstManager, new NullLogService(), resource));
-			firstService.updateRootConfig({ [AgentHostMcpSamplingAllowedServersConfigKey]: ['test-server'] });
-			await firstService.whenIdle();
-			const persisted = JSON.parse(fs.readFileSync(resource.fsPath, 'utf8')) as Record<string, unknown>;
-			firstService.dispose();
+		disposables.add(toDisposable(() => fs.rmSync(directory, { recursive: true, force: true })));
+		const firstManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const firstService = disposables.add(new AgentConfigurationService(firstManager, new NullLogService(), resource));
+		firstService.updateRootConfig({ [AgentHostMcpSamplingAllowedServersConfigKey]: ['test-server'] });
+		await firstService.whenIdle();
+		const persisted = JSON.parse(fs.readFileSync(resource.fsPath, 'utf8')) as Record<string, unknown>;
+		firstService.dispose();
 
-			const restartedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-			const restartedService = disposables.add(new AgentConfigurationService(restartedManager, new NullLogService(), resource));
-			const restored = restartedService.getRootValue(platformRootSchema, AgentHostMcpSamplingAllowedServersConfigKey);
-			restartedService.updateRootConfig({ [AgentHostMcpSamplingAllowedServersConfigKey]: [] });
-			await restartedService.whenIdle();
-			restartedService.dispose();
+		const restartedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const restartedService = disposables.add(new AgentConfigurationService(restartedManager, new NullLogService(), resource));
+		const restored = restartedService.getRootValue(platformRootSchema, AgentHostMcpSamplingAllowedServersConfigKey);
+		restartedService.updateRootConfig({ [AgentHostMcpSamplingAllowedServersConfigKey]: [] });
+		await restartedService.whenIdle();
+		restartedService.dispose();
 
-			const revokedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-			const revokedService = disposables.add(new AgentConfigurationService(revokedManager, new NullLogService(), resource));
-			assert.deepStrictEqual({
-				persisted: persisted[AgentHostMcpSamplingAllowedServersConfigKey],
-				restored,
-				revoked: revokedService.getRootValue(platformRootSchema, AgentHostMcpSamplingAllowedServersConfigKey),
-			}, { persisted: ['test-server'], restored: ['test-server'], revoked: [] });
-		} finally {
-			fs.rmSync(directory, { recursive: true, force: true });
-		}
+		const revokedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const revokedService = disposables.add(new AgentConfigurationService(revokedManager, new NullLogService(), resource));
+		assert.deepStrictEqual({
+			persisted: persisted[AgentHostMcpSamplingAllowedServersConfigKey],
+			restored,
+			revoked: revokedService.getRootValue(platformRootSchema, AgentHostMcpSamplingAllowedServersConfigKey),
+		}, { persisted: ['test-server'], restored: ['test-server'], revoked: [] });
 	});
 
 	for (const enabled of [true, false]) {
 		test(`restores Automation enablement ${enabled} without a client reconnect`, async () => {
 			const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-config-'));
-			try {
-				const resource = URI.file(join(directory, 'agent-host-config.json'));
-				const firstManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-				const firstService = disposables.add(new AgentConfigurationService(firstManager, new NullLogService(), resource));
-				firstService.updateRootConfig({ [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: enabled });
-				await firstService.whenIdle();
-				const restartedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-				const restartedService = disposables.add(new AgentConfigurationService(restartedManager, new NullLogService(), resource));
-				assert.strictEqual(restartedService.getRootValue(automationRootConfigSchema, AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY), enabled);
-			} finally {
-				fs.rmSync(directory, { recursive: true, force: true });
-			}
+			disposables.add(toDisposable(() => fs.rmSync(directory, { recursive: true, force: true })));
+			const resource = URI.file(join(directory, 'agent-host-config.json'));
+			const firstManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const firstService = disposables.add(new AgentConfigurationService(firstManager, new NullLogService(), resource));
+			firstService.updateRootConfig({ [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: enabled });
+			await firstService.whenIdle();
+			const restartedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const restartedService = disposables.add(new AgentConfigurationService(restartedManager, new NullLogService(), resource));
+			assert.strictEqual(restartedService.getRootValue(automationRootConfigSchema, AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY), enabled);
 		});
 	}
 

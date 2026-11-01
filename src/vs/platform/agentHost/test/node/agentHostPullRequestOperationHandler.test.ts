@@ -41,7 +41,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import { AgentHostAuthenticationService, type IAgentHostAuthenticationService, type IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
-import { ActionType } from '../../common/state/sessionActions.js';
+import { chatTurnStarted } from '../common/chatActionBuilders.js';
 import type { IAgentBranchNameGenerator, IAgentBranchNameGeneratorRequest } from '../../node/shared/agentBranchNameGenerator.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
@@ -475,10 +475,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		const chat = buildDefaultChatUri(session.toString());
 		authentication.bindSessionCredentials(session.toString(), first, chat);
 		client.onMutation = () => {
-			stateManager.dispatchServerAction(chat, {
-				type: ActionType.ChatTurnStarted, turnId: 'active', startedAt: new Date().toISOString(),
-				message: { text: 'Continue on the original credential', origin: { kind: MessageKind.User } },
-			});
+			stateManager.dispatchServerAction(chat, chatTurnStarted('active', 'Continue on the original credential'));
 		};
 		await handler.invoke({
 			channel: buildSessionChangesetUri(session.toString()), operationId: 'create-pr',

@@ -1158,6 +1158,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		widget.focusInput();
 	}
 
+	public createCanvas(): Promise<void> {
+		return this.runMarketplacePrompt('/create-canvas ');
+	}
+
 	private createBackArrowButton(
 		onClick?: () => void,
 		ariaLabel = localize('backToOverview', "Back to overview"),

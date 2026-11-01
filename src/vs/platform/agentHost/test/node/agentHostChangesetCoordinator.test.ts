@@ -774,6 +774,7 @@ suite('ChangesetSessionCoordinator', () => {
 		await environment.gitService.waitForRootLookups(2);
 		await tick();
 		environment.changesets.clearRefreshes();
+		environment.gitStateService.clearRefreshes();
 
 		environment.monitor.fire(root);
 		await tick();
@@ -810,6 +811,30 @@ suite('ChangesetSessionCoordinator', () => {
 		assert.deepStrictEqual(environment.monitor.disposals, []);
 		environment.coordinator.onLastSubscriber(URI.parse(buildUncommittedChangesetUri(secondSession)));
 		assert.deepStrictEqual(environment.monitor.disposals, ['file:///repo']);
+	});
+
+	test('catches up Git state missed while no client observed the uncommitted changeset', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const root = URI.file('/repo');
+		const environment = createEnvironment(root);
+		createSession(environment.stateManager, session, 'file:///repo/worktree');
+		const changeset = URI.parse(buildUncommittedChangesetUri(session));
+
+		environment.coordinator.onFirstSubscriber(changeset);
+		await environment.monitor.waitForAcquisitions(1);
+		environment.coordinator.onLastSubscriber(changeset);
+		environment.gitStateService.clearRefreshes();
+
+		// E.g. a `git pull` in a terminal: the root is no longer watched.
+		environment.monitor.fire(root);
+		environment.coordinator.onFirstSubscriber(changeset);
+		await environment.monitor.waitForAcquisitions(2);
+		await tick();
+
+		assert.deepStrictEqual({ disposals: environment.monitor.disposals, gitStateRefreshes: environment.gitStateService.refreshed }, {
+			disposals: ['file:///repo'],
+			gitStateRefreshes: [session],
+		});
 	});
 
 	test('attaches deferred watch interest on materialization without re-querying an unchanged root', async () => {
@@ -1047,7 +1072,117 @@ suite('ChangesetSessionCoordinator', () => {
 		assert.deepStrictEqual({ acquisitions: environment.monitor.acquisitions, disposals: environment.monitor.disposals, uncommittedRefreshes: environment.changesets.uncommittedRefreshes }, {
 			acquisitions: ['file:///repo', 'file:///repo'],
 			disposals: ['file:///repo'],
-			uncommittedRefreshes: [firstSession, secondSession],
+			// The idle session catches up once the root is watched again, then follows the next root change.
+			uncommittedRefreshes: [firstSession, firstSession, secondSession],
+		});
+	});
+
+	for (const ending of ['completes', 'is disposed'] as const) {
+		test(`catches up an idle session sharing a root once another session's turn ${ending}`, async () => {
+			const idleSession = AgentSession.uri('mock', 'session-1').toString();
+			const activeSession = AgentSession.uri('mock', 'session-2').toString();
+			const root = URI.file('/repo');
+			const environment = createEnvironment(root);
+			createSession(environment.stateManager, idleSession, 'file:///repo/worktree-a');
+			createSession(environment.stateManager, activeSession, 'file:///repo/worktree-b');
+
+			environment.coordinator.onFirstSubscriber(URI.parse(buildUncommittedChangesetUri(idleSession)));
+			await environment.monitor.waitForAcquisitions(1);
+			environment.coordinator.onSessionTurnActiveChanged(activeSession, true);
+			await environment.gitService.waitForRootLookups(2);
+			await tick();
+			environment.gitStateService.clearRefreshes();
+
+			// E.g. a `git pull` in a terminal while the shared root is suspended.
+			environment.monitor.fire(root);
+			if (ending === 'is disposed') {
+				// Deleting a session disposes it before its turn's end is reported.
+				environment.coordinator.onSessionDisposed(activeSession);
+			}
+			environment.coordinator.onSessionTurnActiveChanged(activeSession, false);
+			await tick();
+
+			assert.deepStrictEqual({ acquisitions: environment.monitor.acquisitions, gitStateRefreshes: environment.gitStateService.refreshed }, {
+				acquisitions: ['file:///repo', 'file:///repo'],
+				gitStateRefreshes: [idleSession],
+			});
+		});
+
+		test(`catches up an idle session only once across shared roots when another session's turn ${ending}`, async () => {
+			const idleSession = AgentSession.uri('mock', 'session-1').toString();
+			const activeSession = AgentSession.uri('mock', 'session-2').toString();
+			const primaryRoot = URI.file('/projects/repoA');
+			const secondaryRoot = URI.file('/projects/repoB');
+			const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+				[primaryRoot.toString(), primaryRoot],
+				[secondaryRoot.toString(), secondaryRoot],
+			])));
+			for (const session of [idleSession, activeSession]) {
+				createMultiRootSession(environment.stateManager, session, [primaryRoot.toString(), secondaryRoot.toString()]);
+			}
+
+			environment.coordinator.onFirstSubscriber(URI.parse(buildUncommittedChangesetUri(idleSession)));
+			await environment.monitor.waitForAcquisitions(2);
+			environment.coordinator.onSessionTurnActiveChanged(activeSession, true);
+			await environment.monitor.waitForDisposals(2);
+			await tick();
+			environment.gitStateService.clearRefreshes();
+			environment.changesets.clearRefreshes();
+
+			if (ending === 'is disposed') {
+				environment.coordinator.onSessionDisposed(activeSession);
+			}
+			environment.coordinator.onSessionTurnActiveChanged(activeSession, false);
+			await environment.monitor.waitForAcquisitions(4);
+			await tick();
+
+			assert.deepStrictEqual({
+				acquisitions: environment.monitor.acquisitions,
+				refreshedWith: environment.gitStateService.refreshedWith,
+				recomputed: environment.changesets.recomputed,
+			}, {
+				acquisitions: [primaryRoot.toString(), secondaryRoot.toString(), primaryRoot.toString(), secondaryRoot.toString()],
+				refreshedWith: [{ sessionKey: idleSession, workingDirectory: primaryRoot.toString() }],
+				recomputed: [idleSession],
+			});
+		});
+	}
+
+	test('catches up a shared root only after its last active turn ends', async () => {
+		const idleSession = AgentSession.uri('mock', 'session-1').toString();
+		const firstActiveSession = AgentSession.uri('mock', 'session-2').toString();
+		const secondActiveSession = AgentSession.uri('mock', 'session-3').toString();
+		const environment = createEnvironment();
+		for (const session of [idleSession, firstActiveSession, secondActiveSession]) {
+			createSession(environment.stateManager, session, 'file:///repo/worktree');
+		}
+
+		environment.coordinator.onFirstSubscriber(URI.parse(buildUncommittedChangesetUri(idleSession)));
+		await environment.monitor.waitForAcquisitions(1);
+		environment.coordinator.onSessionTurnActiveChanged(firstActiveSession, true);
+		environment.coordinator.onSessionTurnActiveChanged(secondActiveSession, true);
+		await environment.gitService.waitForRootLookups(5);
+		await tick();
+		environment.gitStateService.clearRefreshes();
+
+		environment.coordinator.onSessionTurnActiveChanged(firstActiveSession, false);
+		await tick();
+		const whileActive = {
+			acquisitions: [...environment.monitor.acquisitions],
+			refreshed: [...environment.gitStateService.refreshed],
+		};
+		environment.coordinator.onSessionTurnActiveChanged(secondActiveSession, false);
+		await environment.monitor.waitForAcquisitions(2);
+		await tick();
+
+		assert.deepStrictEqual({
+			whileActive,
+			acquisitions: environment.monitor.acquisitions,
+			refreshed: environment.gitStateService.refreshed,
+		}, {
+			whileActive: { acquisitions: ['file:///repo'], refreshed: [] },
+			acquisitions: ['file:///repo', 'file:///repo'],
+			refreshed: [idleSession],
 		});
 	});
 
@@ -1076,7 +1211,8 @@ suite('ChangesetSessionCoordinator', () => {
 		assert.deepStrictEqual({ acquisitions: environment.monitor.acquisitions, disposals: environment.monitor.disposals, refreshes: environment.changesets.uncommittedRefreshes }, {
 			acquisitions: ['file:///repo', 'file:///repo'],
 			disposals: ['file:///repo'],
-			refreshes: [parentSession],
+			// The parent catches up on the subagent's turn, then follows the next root change.
+			refreshes: [parentSession, parentSession],
 		});
 	});
 

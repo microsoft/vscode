@@ -211,4 +211,31 @@ suite('IconSelectBox', () => {
 			highlights: [...box.domNode.querySelectorAll('.icon-select-id-label .highlight')].map(element => element.textContent),
 		}, { caption: 'Icon name: rocket', highlights: ['rock'] });
 	});
+
+	test('icon selection uses its own neutral colors without overriding Quick Input tokens', () => {
+		const { box, grid } = setup();
+		for (const [name, value] of [
+			['quickInputList-focusBackground', '#0000ff'],
+			['quickInputList-focusForeground', '#ffffff'],
+			['list-inactiveSelectionBackground', '#dddddd'],
+			['list-inactiveSelectionForeground', '#111111'],
+		]) {
+			box.domNode.style.setProperty(`--vscode-${name}`, value);
+		}
+		const colors = () => {
+			const style = mainWindow.getComputedStyle(grid.querySelector<HTMLElement>('.focused')!);
+			return { background: style.backgroundColor, foreground: style.color };
+		};
+		const searching = colors();
+		box.focusNextRow();
+		assert.deepStrictEqual({
+			searching,
+			navigating: colors(),
+			quickInputBackground: mainWindow.getComputedStyle(grid).getPropertyValue('--vscode-quickInputList-focusBackground'),
+		}, {
+			searching: { background: 'rgb(221, 221, 221)', foreground: 'rgb(17, 17, 17)' },
+			navigating: { background: 'rgb(221, 221, 221)', foreground: 'rgb(17, 17, 17)' },
+			quickInputBackground: '#0000ff',
+		});
+	});
 });

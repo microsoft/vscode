@@ -30,7 +30,7 @@ import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { buildDefaultChatUri, createErrorResponsePart, MessageKind, SessionStatus, withSessionGitHubState, withSessionGitState } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, createErrorResponsePart, SessionStatus, withSessionGitHubState, withSessionGitState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
@@ -38,6 +38,7 @@ import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentMergeController } from '../../node/agentMergeController.js';
 import { AgentMergeTools } from '../../node/agentMergeTools.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 
 const ref: PullRequestRef = { host: 'api.github.com', accountId: '1', owner: 'octo', repo: 'repo', number: 1 };
 const pullRequestUrl = 'https://github.com/octo/repo/pull/1';
@@ -897,12 +898,7 @@ class RerunTestHarness extends Disposable {
 			{
 				startTurn: (chat, turnId, prompt) => {
 					this.prompts.push(prompt);
-					this.stateManager.dispatchServerAction(chat, {
-						type: ActionType.ChatTurnStarted,
-						turnId,
-						startedAt: new Date().toISOString(),
-						message: { text: prompt, origin: { kind: MessageKind.User } },
-					});
+					this.stateManager.dispatchServerAction(chat, chatTurnStarted(turnId, prompt));
 					return true;
 				},
 				cancelTurn: (chat, turnId) => this.stateManager.dispatchServerAction(chat, {
@@ -933,11 +929,7 @@ class RerunTestHarness extends Disposable {
 	async completeTurn(): Promise<void> {
 		const context = this.controller.getTurnContext(this.session);
 		assert.ok(context);
-		this.stateManager.dispatchServerAction(buildDefaultChatUri(this.session), {
-			type: ActionType.ChatTurnComplete,
-			turnId: context.turnId,
-			duration: 0,
-		});
+		this.stateManager.dispatchServerAction(buildDefaultChatUri(this.session), chatTurnComplete(context.turnId, 0));
 		await timeout(1);
 	}
 

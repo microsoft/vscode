@@ -24,24 +24,14 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationMarketplaceManagementProvider, ICustomizationMarketplaceSearchProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationMarketplaceWorkbenchService, getProviderMarketplaceSourceId } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
 import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
+import { TestDataTelemetryService } from '../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 
 suite('CustomizationMarketplaceWorkbenchService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-
-	class TestTelemetryService extends NullTelemetryServiceShape {
-		readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
-
-		override publicLog2(eventName?: string, data?: Record<string, unknown>): void {
-			if (eventName && data) {
-				this.events.push({ name: eventName, data });
-			}
-		}
-	}
 
 	function createConnector(name: string, displayName = `Mail ${name}`): ICopilotConnector {
 		return {
@@ -108,7 +98,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		marketplaceManagementProvider?: ICustomizationMarketplaceManagementProvider,
 		pluginMarketplaceReferences: readonly IMarketplaceReference[] = [],
 		marketplacePolicy: { active: boolean; onDidChange: Event<void> } = { active: false, onDidChange: Event.None },
-		telemetryService = new TestTelemetryService(),
+		telemetryService = new TestDataTelemetryService(),
 		defaultAccountService: IDefaultAccountService = new class extends mock<IDefaultAccountService>() {
 			override readonly onDidChangeDefaultAccount = Event.None;
 		}(),
@@ -230,7 +220,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		const clock = sinon.useFakeTimers({ now: 1_000 });
 		store.add(toDisposable(() => clock.restore()));
 		const configuration = createConfiguration([]);
-		const telemetryService = new TestTelemetryService();
+		const telemetryService = new TestDataTelemetryService();
 		const sourceId = CustomizationMarketplaceSources.McpGallery.id;
 		const platformService = new class extends mock<ICustomizationMarketplaceService>() {
 			override readonly sources = [CustomizationMarketplaceSources.McpGallery];
@@ -823,7 +813,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		const clock = sinon.useFakeTimers();
 		store.add(toDisposable(() => clock.restore()));
 		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
-		const telemetryService = new TestTelemetryService();
+		const telemetryService = new TestDataTelemetryService();
 		let requestCount = 0;
 		const service = createService(
 			configuration,
@@ -953,7 +943,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			undefined,
 			[],
 			{ active: false, onDidChange: Event.None },
-			new TestTelemetryService(),
+			new TestDataTelemetryService(),
 			new class extends mock<IDefaultAccountService>() {
 				override readonly currentDefaultAccount = defaultAccount;
 				override readonly onDidChangeDefaultAccount = Event.None;

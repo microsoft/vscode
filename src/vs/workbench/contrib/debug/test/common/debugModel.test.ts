@@ -17,7 +17,7 @@ import { MockDebugStorage } from './mockDebug.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 
 suite('DebugModel', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('FunctionBreakpoint', () => {
 		test('Id is saved', () => {
@@ -47,97 +47,85 @@ suite('DebugModel', () => {
 		// reference+offset must still succeed when the caller supplies the
 		// resolved address.
 		test('removeInstructionBreakpoints prefers address match when instructionReference has changed', () => {
-			const disposable = new DisposableStore();
-			try {
-				const model = createModel(disposable);
-				const address = BigInt(0x1000);
-				model.addInstructionBreakpoint({
-					instructionReference: 'oldRef',
-					offset: 0,
-					address,
-					canPersist: false,
-					enabled: true,
-					hitCondition: undefined,
-					condition: undefined,
-					logMessage: undefined,
-				});
+			const disposable = store.add(new DisposableStore());
+			const model = createModel(disposable);
+			const address = BigInt(0x1000);
+			model.addInstructionBreakpoint({
+				instructionReference: 'oldRef',
+				offset: 0,
+				address,
+				canPersist: false,
+				enabled: true,
+				hitCondition: undefined,
+				condition: undefined,
+				logMessage: undefined,
+			});
 
-				assert.strictEqual(model.getInstructionBreakpoints().length, 1);
+			assert.strictEqual(model.getInstructionBreakpoints().length, 1);
 
-				// Simulate the disassembly view asking for removal after the
-				// debug adapter handed out a new instruction reference.
-				model.removeInstructionBreakpoints('newRef', 0, address);
+			// Simulate the disassembly view asking for removal after the
+			// debug adapter handed out a new instruction reference.
+			model.removeInstructionBreakpoints('newRef', 0, address);
 
-				assert.strictEqual(model.getInstructionBreakpoints().length, 0);
-			} finally {
-				disposable.dispose();
-			}
+			assert.strictEqual(model.getInstructionBreakpoints().length, 0);
 		});
 
 		test('removeInstructionBreakpoints falls back to instructionReference+offset when address not supplied', () => {
-			const disposable = new DisposableStore();
-			try {
-				const model = createModel(disposable);
-				model.addInstructionBreakpoint({
-					instructionReference: 'ref',
-					offset: 4,
-					address: BigInt(0x2000),
-					canPersist: false,
-					enabled: true,
-					hitCondition: undefined,
-					condition: undefined,
-					logMessage: undefined,
-				});
+			const disposable = store.add(new DisposableStore());
+			const model = createModel(disposable);
+			model.addInstructionBreakpoint({
+				instructionReference: 'ref',
+				offset: 4,
+				address: BigInt(0x2000),
+				canPersist: false,
+				enabled: true,
+				hitCondition: undefined,
+				condition: undefined,
+				logMessage: undefined,
+			});
 
-				// Non-matching reference leaves the breakpoint in place.
-				model.removeInstructionBreakpoints('other', 4);
-				assert.strictEqual(model.getInstructionBreakpoints().length, 1);
+			// Non-matching reference leaves the breakpoint in place.
+			model.removeInstructionBreakpoints('other', 4);
+			assert.strictEqual(model.getInstructionBreakpoints().length, 1);
 
-				// Matching reference+offset removes it.
-				model.removeInstructionBreakpoints('ref', 4);
-				assert.strictEqual(model.getInstructionBreakpoints().length, 0);
-			} finally {
-				disposable.dispose();
-			}
+			// Matching reference+offset removes it.
+			model.removeInstructionBreakpoints('ref', 4);
+			assert.strictEqual(model.getInstructionBreakpoints().length, 0);
 		});
 
 		test('removeInstructionBreakpoints with only address removes the matching entry and leaves others', () => {
-			const disposable = new DisposableStore();
-			try {
-				const model = createModel(disposable);
-				const keep: IInstructionBreakpoint[] = [];
+			const disposable = store.add(new DisposableStore());
+			const model = createModel(disposable);
+			const keep: IInstructionBreakpoint[] = [];
 
-				model.addInstructionBreakpoint({
-					instructionReference: 'refA',
-					offset: 0,
-					address: BigInt(0x3000),
-					canPersist: false,
-					enabled: true,
-					hitCondition: undefined,
-					condition: undefined,
-					logMessage: undefined,
-				});
-				model.addInstructionBreakpoint({
-					instructionReference: 'refB',
-					offset: 0,
-					address: BigInt(0x4000),
-					canPersist: false,
-					enabled: true,
-					hitCondition: undefined,
-					condition: undefined,
-					logMessage: undefined,
-				});
+			model.addInstructionBreakpoint({
+				instructionReference: 'refA',
+				offset: 0,
+				address: BigInt(0x3000),
+				canPersist: false,
+				enabled: true,
+				hitCondition: undefined,
+				condition: undefined,
+				logMessage: undefined,
+			});
+			model.addInstructionBreakpoint({
+				instructionReference: 'refB',
+				offset: 0,
+				address: BigInt(0x4000),
+				canPersist: false,
+				enabled: true,
+				hitCondition: undefined,
+				condition: undefined,
+				logMessage: undefined,
+			});
 
-				model.removeInstructionBreakpoints(undefined, undefined, BigInt(0x3000));
+			model.removeInstructionBreakpoints(undefined, undefined, BigInt(0x3000));
 
-				const remaining = model.getInstructionBreakpoints();
-				assert.strictEqual(remaining.length, 1);
-				assert.strictEqual(remaining[0].address, BigInt(0x4000));
-				keep.push(...remaining);
-				assert.strictEqual(keep.length, 1);
-			} finally {
-				disposable.dispose();
-			}
+			const remaining = model.getInstructionBreakpoints();
+			assert.strictEqual(remaining.length, 1);
+			assert.strictEqual(remaining[0].address, BigInt(0x4000));
+			keep.push(...remaining);
+			assert.strictEqual(keep.length, 1);
 		});
 	});
 
