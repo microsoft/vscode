@@ -7398,7 +7398,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const path = groupTree.getPath(target.group.id);
 			const parentId = path.at(-2)?.id;
 			if (parentId === undefined) {
-				return { kind: 'topLevel', targetId: getSessionGroupSectionId(target.group.id), position };
+				const targetSectionId = getSessionGroupSectionId(target.group.id);
+				return this._topLevelOrder.includes(targetSectionId)
+					? { kind: 'topLevel', targetId: targetSectionId, position }
+					: undefined;
 			}
 			return canNestIn(parentId)
 				? { kind: 'subgroup', parentId, depth: path.length - 1, placement: { siblingId: target.group.id, position } }
@@ -7412,7 +7415,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const parentId = this.getSectionParentId(target.id);
 			const position = sectorToPosition(sector);
 			return parentId === undefined
-				? { kind: 'topLevel', targetId: target.id, position }
+				? (this._topLevelOrder.includes(target.id) ? { kind: 'topLevel', targetId: target.id, position } : undefined)
 				: canNestIn(parentId)
 					? { kind: 'subgroup', parentId, depth: groupTree.getPath(parentId).length, placement: { siblingId: this.getSectionGroupKey(target.id), position } }
 					: undefined;
@@ -7471,6 +7474,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return;
 			case 'topLevel': {
 				const topLevelOrder = this._topLevelOrder;
+				if (!topLevelOrder.includes(drop.targetId)) {
+					return;
+				}
 				if (groupId !== undefined) {
 					this._sessionGroupsService.moveGroup(groupId, undefined);
 				} else {
