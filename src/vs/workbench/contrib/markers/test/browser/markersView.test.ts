@@ -11,7 +11,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { MarkerService } from '../../../../../platform/markers/common/markerService.js';
-import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
+import { getMarkerMessageText, IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { IViewContainerModel, IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../common/views.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -115,7 +115,7 @@ suite('MarkersView', () => {
 					assert.deepStrictEqual({
 						obsolete: obsolete.map(marker => view['markersViewModel'].getViewModel(marker) !== null),
 						messages: current.map(marker => marker.marker.message),
-						rendered: current.map(marker => view.element.textContent?.includes(marker.marker.message)),
+						rendered: current.map(marker => view.element.textContent?.includes(getMarkerMessageText(marker.marker.message))),
 						multiline: current.map(marker => view['markersViewModel'].getViewModel(marker)?.multiline),
 						viewMode: view['markersViewModel'].viewMode,
 						filter: view.filterWidget.getFilterText(),

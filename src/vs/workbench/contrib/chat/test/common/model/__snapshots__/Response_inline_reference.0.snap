@@ -1,7 +1,9 @@
 [
   {
     content: {
-      value: "text before ",
+      _value: "text before ",
+      _plainTextValueIsExplicit: false,
+      _plainTextValue: "text before ",
       isTrusted: false,
       supportThemeIcons: false,
       supportHtml: false,
@@ -15,7 +17,9 @@
   },
   {
     content: {
-      value: " text after",
+      _value: " text after",
+      _plainTextValueIsExplicit: false,
+      _plainTextValue: " text after",
       isTrusted: false,
       supportThemeIcons: false,
       supportHtml: false,
