@@ -9,7 +9,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { basename, dirname, extUri, getComparisonKey, isEqual, joinPath } from '../../../../base/common/resources.js';
 import { isObject, isStringArray } from '../../../../base/common/types.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -20,6 +20,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentSession, type IAgentModelInfo } from '../../common/agent.js';
+import { AGENT_HOST_FILE_SCHEME } from '../../common/agentPluginManager.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../common/localModel.js';
@@ -47,7 +48,7 @@ import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyServi
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServers } from './copilotConnectors.js';
-import { mapCopilotCustomAgentTools, toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories } from './copilotPluginConverters.js';
+import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories, type ISdkCustomAgentResource } from './copilotPluginConverters.js';
 import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilotBuiltinAgents.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from './copilotSessionWrapper.js';
 import type { ILocalModelProvider, ILocalModelSessionConfigContribution } from './localModelBridge/localModelProvider.js';
@@ -225,17 +226,53 @@ function clientToolRegistrationNames(tools: readonly ToolDefinition[]): Readonly
 	}));
 }
 
-export function getCopilotCustomAgents(customizations: ICopilotAppliedCustomizations): readonly IParsedAgent[] {
+export function getCopilotCustomAgents(customizations: ICopilotAppliedCustomizations): readonly (IParsedAgent & ISdkCustomAgentResource)[] {
 	return [
-		...customizations.plugins.flatMap(plugin => plugin.agents),
+		...customizations.plugins.flatMap(plugin => plugin.agents.map(agent => ({ ...agent, sdkName: getSdkCustomAgentName(agent.uri, plugin) }))),
 		...customizations.discoveredAgents,
-	];
+	].filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.name));
 }
 
-export function getCopilotAgentSelectionName(customizations: ICopilotAppliedCustomizations, uri: string): string | undefined {
+export function getCopilotAgentSelection(customizations: ICopilotAppliedCustomizations, uri: string, restoreLegacyFlatSelection = false): { readonly uri: string; readonly name: string } | undefined {
 	const resource = URI.parse(uri);
-	return customizations.nativeAgents?.find(agent => isEqual(URI.parse(agent.uri), resource))?.id
-		?? getCopilotCustomAgents(customizations).find(agent => isEqual(agent.uri, resource))?.name;
+	const native = customizations.nativeAgents?.find(agent => isEqual(URI.parse(agent.uri), resource));
+	if (native) {
+		return { uri, name: native.id };
+	}
+	const agents = getCopilotCustomAgents(customizations);
+	const forwarded = agents.find(agent => isEqual(agent.uri, resource));
+	if (forwarded) {
+		return { uri, name: forwarded.sdkName ?? getSdkCustomAgentName(forwarded.uri) };
+	}
+	if (!restoreLegacyFlatSelection || resource.scheme !== Schemas.file || resource.query || resource.fragment) {
+		return undefined;
+	}
+	const matches = new Map<string, { uri: string; name: string }>();
+	for (const plugin of customizations.plugins) {
+		const materializedRoot = plugin.pluginDir ?? plugin.resourceDir;
+		const root = materializedRoot && URI.parse(materializedRoot.toString());
+		if (!plugin.sourceUri || plugin.sourceUri.scheme === AGENT_HOST_FILE_SCHEME || !plugin.nonce || !root || root.scheme !== Schemas.file || basename(root) !== plugin.nonce
+			|| !extUri.isEqualOrParent(resource, dirname(root))) {
+			continue;
+		}
+		// The host materializer owns this cache namespace; only restore a flat file in another revision of it.
+		const parts = extUri.relativePath(dirname(root), resource)?.split('/');
+		if (parts?.length !== 3 || !parts[0] || parts[0] === '..' || parts[0] === '.' || parts[1] !== 'agents') {
+			continue;
+		}
+		const current = joinPath(root, parts[1], parts[2]);
+		const agent = agents.find(candidate => isEqual(candidate.uri, current));
+		if (agent) {
+			matches.set(getComparisonKey(agent.uri), {
+				uri: agent.uri.toString(), name: agent.sdkName ?? getSdkCustomAgentName(agent.uri),
+			});
+		}
+	}
+	return matches.size === 1 ? matches.values().next().value : undefined;
+}
+
+export function getCopilotAgentSelectionName(customizations: ICopilotAppliedCustomizations, uri: string, restoreLegacyFlatSelection = false): string | undefined {
+	return getCopilotAgentSelection(customizations, uri, restoreLegacyFlatSelection)?.name;
 }
 
 /**
@@ -950,7 +987,7 @@ function isManagedSandboxPolicyConflict(err: unknown): boolean {
 }
 
 /** Applies sandbox configuration, returning a reportable conflict when the runtime retains its policy. */
-export async function applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig, sessionId: string, logService: ILogService, rejectPolicyConflicts = false): Promise<{ applied: true } | { applied: false; message: string }> {
+export async function applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig, sessionId: string, logService: ILogService, rejectPolicyConflicts = false, isSessionClosed?: () => boolean): Promise<{ applied: true } | { applied: false; message: string }> {
 	try {
 		const result = await session.rpc.options.update({ sandboxConfig });
 		if (!result.success) {
@@ -959,6 +996,9 @@ export async function applySandboxConfig(session: CopilotSessionWrapper['session
 		logService.info(`[Copilot:${sessionId}] Applied SDK sandboxConfig via session.options.update`);
 		return { applied: true };
 	} catch (err) {
+		if (isSessionClosed?.()) {
+			return { applied: false, message: getErrorMessage(err) };
+		}
 		if (!rejectPolicyConflicts && isManagedSandboxPolicyConflict(err)) {
 			logService.warn(`[Copilot:${sessionId}] SDK sandboxConfig update conflicts with managed policy; continuing with the runtime's existing sandbox configuration`, err);
 			return { applied: false, message: getErrorMessage(err) };
@@ -1542,7 +1582,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true,
 			bridgedPermissions).permissions;
 		const additionalDirectories = plan.additionalDirectories?.map(d => d.fsPath);
-		const authoredCustomAgents = pluginCustomAgents.filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.name));
+		const authoredCustomAgents = pluginCustomAgents.filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.displayName ?? agent.name));
 		const resolveToolConfiguration = (published: readonly ToolDefinition[], clientTools: readonly Tool[] = []): ICopilotResolvedClientToolConfiguration => {
 			// Withheld tools are absent from every derived setting, so the runtime keeps its built-in replacement excluded.
 			const definitions = withheldClientToolNames.size ? published.filter(tool => !isWithheldClientTool(tool, withheldClientToolNames)) : published;

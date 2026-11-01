@@ -337,9 +337,16 @@ export function buildInjectedAutoRequest(request: ILocalModelBufferedRequest, bo
 
 // #region `/auto` response handling
 
-/** The validated, chat-capable cloud fallback model `F` of an `/auto` answer. */
+/**
+ * The CAPI API a cloud fallback is called through: `chatCompletions` sends the runtime's request as it is;
+ * `responses` (a fallback that serves only the Responses API) translates it and the answer.
+ */
+export type LocalModelFallbackEndpoint = 'chatCompletions' | 'responses';
+
+/** The validated cloud fallback model `F` of an `/auto` answer. */
 export interface ILocalModelFallbackModel {
 	readonly id: string;
+	readonly endpoint: LocalModelFallbackEndpoint;
 	readonly maxContextWindowTokens?: number;
 	readonly maxPromptTokens?: number;
 	readonly maxOutputTokens?: number;
@@ -379,12 +386,14 @@ export function computeLocalModelLimits(props: ILocalModelServerProps, tags: ILo
 	return { maxContextWindowTokens, maxPromptTokens, maxOutputTokens };
 }
 
-/** Reads `F`; `undefined` unless it has a non-local string id and supports `/chat/completions`. */
+/** Reads `F`; `undefined` unless it has a non-local string id and supports `/chat/completions` (preferred) or `/responses`. */
 export function readFallbackModel(value: unknown): ILocalModelFallbackModel | undefined {
 	if (!isObject(value) || typeof value.id !== 'string' || !value.id || isLocalCapiModelId(value.id)) {
 		return undefined;
 	}
-	if (value.supported_endpoints !== undefined && (!Array.isArray(value.supported_endpoints) || !value.supported_endpoints.includes('/chat/completions'))) {
+	const endpoints = Array.isArray(value.supported_endpoints) ? value.supported_endpoints : [];
+	const endpoint: LocalModelFallbackEndpoint | undefined = endpoints.includes('/chat/completions') ? 'chatCompletions' : endpoints.includes('/responses') ? 'responses' : undefined;
+	if (!endpoint) {
 		return undefined;
 	}
 	const capabilities = isObject(value.capabilities) ? value.capabilities : undefined;
@@ -393,6 +402,7 @@ export function readFallbackModel(value: unknown): ILocalModelFallbackModel | un
 	const efforts = Array.isArray(supports?.reasoning_effort) ? supports.reasoning_effort.filter((effort): effort is string => typeof effort === 'string') : undefined;
 	return {
 		id: value.id,
+		endpoint,
 		maxContextWindowTokens: isPositiveNumber(limits?.max_context_window_tokens) ? Math.floor(limits.max_context_window_tokens) : undefined,
 		maxPromptTokens: isPositiveNumber(limits?.max_prompt_tokens) ? Math.floor(limits.max_prompt_tokens) : undefined,
 		maxOutputTokens: isPositiveNumber(limits?.max_output_tokens) ? Math.floor(limits.max_output_tokens) : undefined,
@@ -420,7 +430,10 @@ export function patchSelectedModel(selected: LocalModelJsonBody, limits: ILocalM
 	};
 }
 
-/** Why a local pick is answered with the cloud-only re-issue instead of a patch. */
+/**
+ * Why a local pick is answered with the cloud-only re-issue instead of a patch. `fallbackNotChat`: the fallback is
+ * malformed, an on-device id, or serves neither `/chat/completions` nor `/responses`.
+ */
 export type AutoReissueReason = 'noFallback' | 'fallbackNotChat' | 'noSessionToken' | 'limits' | 'otherLocalModel';
 
 export type AutoResponseOutcome =
@@ -641,10 +654,115 @@ export function buildFallbackChatRequest(original: ILocalModelBufferedRequest, b
 	if (fallback.maxOutputTokens !== undefined && typeof next.max_tokens === 'number' && next.max_tokens > fallback.maxOutputTokens) {
 		next.max_tokens = fallback.maxOutputTokens;
 	}
+	return { url: original.url, method: original.method, headers: fallbackHeaders(original, sessionToken), body: encodeJsonBody(next), redirect: original.redirect };
+}
+
+/**
+ * The cloud fallback request for a fallback that serves only the Responses API: the runtime's chat completions request
+ * as a non-streaming request to the sibling `/responses` path, with `model := F.id`, `store: false`, function tools
+ * only, `reasoning_effort` mapped or dropped, `max_output_tokens` clamped to F and the route's `Copilot-Session-Token`;
+ * every other header is kept. Earlier reasoning is not replayed: nothing tells which model produced it. Throws for a
+ * message role the Responses API has no item for.
+ */
+export function buildFallbackResponsesRequest(original: ILocalModelBufferedRequest, body: LocalModelJsonBody, fallback: ILocalModelFallbackModel, sessionToken: string): ILocalModelBufferedRequest {
+	const next: LocalModelJsonBody = { model: fallback.id, input: toResponsesInput(body.messages), store: false, stream: false };
+	const tools = Array.isArray(body.tools) ? body.tools.flatMap((tool): LocalModelJsonBody[] => {
+		const fn = isObject(tool) && tool.type === 'function' && isObject(tool.function) ? tool.function : undefined;
+		return fn ? [{ type: 'function', name: fn.name, description: fn.description, parameters: fn.parameters ?? { type: 'object', properties: {} }, strict: fn.strict === true }] : [];
+	}) : [];
+	if (tools.length) {
+		next.tools = tools;
+		next.tool_choice = typeof body.tool_choice === 'string' ? body.tool_choice : undefined;
+		next.parallel_tool_calls = body.parallel_tool_calls;
+	}
+	const maxTokens = body.max_completion_tokens ?? body.max_tokens;
+	if (typeof maxTokens === 'number') {
+		next.max_output_tokens = Math.min(maxTokens, fallback.maxOutputTokens ?? Infinity);
+	}
+	const effort = typeof body.reasoning_effort === 'string' ? mapReasoningEffort(body.reasoning_effort, fallback.reasoningEfforts) : undefined;
+	if (effort) {
+		next.reasoning = { effort };
+	}
+	const url = new URL(original.url.href);
+	url.pathname = url.pathname.replace(/\/chat\/completions$/, '/responses');
+	return { url, method: original.method, headers: fallbackHeaders(original, sessionToken), body: encodeJsonBody(next), redirect: original.redirect };
+}
+
+function fallbackHeaders(original: ILocalModelBufferedRequest, sessionToken: string): Headers {
 	const headers = new Headers(original.headers);
 	headers.delete('content-length');
 	headers.set('copilot-session-token', sessionToken);
-	return { url: original.url, method: original.method, headers, body: encodeJsonBody(next), redirect: original.redirect };
+	return headers;
+}
+
+/** The text of chat message content: the string, or its text parts joined. */
+function chatContentText(content: unknown): string {
+	if (typeof content === 'string') {
+		return content;
+	}
+	return Array.isArray(content) ? content.map(part => isObject(part) && part.type === 'text' && typeof part.text === 'string' ? part.text : '').join('') : '';
+}
+
+/** Chat messages as Responses input items; text and image parts are the only content with an equivalent. */
+function toResponsesInput(messages: unknown): LocalModelJsonBody[] {
+	return (Array.isArray(messages) ? messages : []).flatMap((message): LocalModelJsonBody[] => {
+		if (!isObject(message)) {
+			return [];
+		}
+		switch (message.role) {
+			case 'system':
+			case 'developer':
+			case 'user': {
+				const content = Array.isArray(message.content) ? message.content.flatMap((part): LocalModelJsonBody[] => {
+					if (isObject(part) && part.type === 'text') {
+						return [{ type: 'input_text', text: part.text }];
+					}
+					return isObject(part) && part.type === 'image_url' && isObject(part.image_url) ? [{ type: 'input_image', image_url: part.image_url.url, detail: part.image_url.detail ?? 'auto' }] : [];
+				}) : [{ type: 'input_text', text: chatContentText(message.content) }];
+				return [{ type: 'message', role: message.role, content }];
+			}
+			case 'assistant': {
+				const text = chatContentText(message.content);
+				const calls = (Array.isArray(message.tool_calls) ? message.tool_calls : []).flatMap((call): LocalModelJsonBody[] =>
+					isObject(call) && isObject(call.function) ? [{ type: 'function_call', call_id: call.id, name: call.function.name, arguments: call.function.arguments }] : []);
+				return [...(text ? [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text }] }] : []), ...calls];
+			}
+			case 'tool':
+				return [{ type: 'function_call_output', call_id: message.tool_call_id, output: chatContentText(message.content) }];
+			default:
+				throw new Error('A message role has no Responses API equivalent');
+		}
+	});
+}
+
+/**
+ * The fallback's Responses API answer as a `chat.completion`, or as the single `chat.completion.chunk` a streaming
+ * request gets: output text as `content`, function calls as `tool_calls`, and usage. `undefined` unless the response
+ * completed or stopped early (`incomplete`, reported as `length`). Pure.
+ */
+export function toChatCompletionFromResponses(response: LocalModelJsonBody, fallbackModel: string, stream: boolean): LocalModelJsonBody | undefined {
+	if (response.status !== 'completed' && response.status !== 'incomplete') {
+		return undefined;
+	}
+	let content = '';
+	const toolCalls: LocalModelJsonBody[] = [];
+	for (const item of Array.isArray(response.output) ? response.output : []) {
+		if (isObject(item) && item.type === 'message' && Array.isArray(item.content)) {
+			content += item.content.map(part => isObject(part) && part.type === 'output_text' && typeof part.text === 'string' ? part.text : '').join('');
+		} else if (isObject(item) && item.type === 'function_call') {
+			toolCalls.push({ ...(stream ? { index: toolCalls.length } : {}), id: item.call_id, type: 'function', function: { name: item.name, arguments: item.arguments } });
+		}
+	}
+	const message = { role: 'assistant', content: content || (toolCalls.length ? null : ''), ...(toolCalls.length ? { tool_calls: toolCalls } : {}) };
+	const usage = isObject(response.usage) ? response.usage : undefined;
+	return {
+		id: response.id,
+		object: stream ? 'chat.completion.chunk' : 'chat.completion',
+		created: response.created_at,
+		model: typeof response.model === 'string' ? response.model : fallbackModel,
+		choices: [{ index: 0, [stream ? 'delta' : 'message']: message, finish_reason: response.status === 'incomplete' ? 'length' : toolCalls.length ? 'tool_calls' : 'stop' }],
+		...(usage ? { usage: { prompt_tokens: usage.input_tokens, completion_tokens: usage.output_tokens, total_tokens: usage.total_tokens } } : {}),
+	};
 }
 
 // #endregion

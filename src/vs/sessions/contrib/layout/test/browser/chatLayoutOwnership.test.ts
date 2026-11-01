@@ -7,7 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -19,6 +19,7 @@ import { ViewContainerLocation } from '../../../../../workbench/common/views.js'
 import { IActiveSession, IChatDeletedEvent } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { DesktopLayoutController } from '../../browser/desktopLayoutController.js';
+import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { ChatLayoutOwnerKeyRegistry } from '../../browser/chatLayoutOwnerKeys.js';
 import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
 
@@ -179,7 +180,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 					source: sameResource
 						? { composition: { editor: false, auxiliaryBar: false }, preHide: { editor: false, auxiliaryBar: true } }
 						: { composition: undefined, preHide: undefined },
-					reopened: mode === 'chat-shared' ? { editor: true, auxiliaryBar: false } : { editor: false, auxiliaryBar: true },
+					reopened: mode === 'chat-shared' ? { editor: true, auxiliaryBar: false } : { editor: true, auxiliaryBar: true },
 				});
 			});
 		}
@@ -251,7 +252,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		{ editor: true, auxiliaryBar: true },
 	]) {
 		for (const panel of [false, true]) {
-			test(`session/chat default parity: Editor=${composition.editor} Details=${composition.auxiliaryBar} bottom=${panel}`, async () => {
+			test(`chat keeps empty Existing defaults hidden: Editor=${composition.editor} Details=${composition.auxiliaryBar} bottom=${panel}`, async () => {
 				const snapshots = [];
 				for (const mode of ['session-shared', 'chat'] as const) {
 					const session = makeSession(URI.parse(`session:defaults-${mode}`));
@@ -268,9 +269,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 						const peer = addPeerChat(session, URI.parse('chat:default-peer'));
 						setActiveChat(session, peer);
 						await settle();
-						const peerComposition = composition.editor && composition.auxiliaryBar
-							? { editor: false, auxiliaryBar: false }
-							: composition;
+						const peerComposition = { editor: false, auxiliaryBar: false };
 						snapshots.push({
 							composition: visible(), panel: harness.layoutService.isVisible(Parts.PANEL_PART),
 						});
@@ -288,13 +287,10 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 					}
 					controller.dispose();
 				}
-				const peerComposition = composition.editor && composition.auxiliaryBar
-					? { editor: false, auxiliaryBar: false }
-					: composition;
 				assert.deepStrictEqual(snapshots, [
 					{ composition, panel },
-					{ composition, panel },
-					{ composition: peerComposition, panel },
+					{ composition: { editor: false, auxiliaryBar: false }, panel },
+					{ composition: { editor: false, auxiliaryBar: false }, panel },
 				]);
 			});
 		}
@@ -306,6 +302,8 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 			const controller = createDesktopController({ chatLayoutMode: mode });
 			harness.activeSessionObs.set(makeSession(URI.parse(`session:toggles-${mode}`)), undefined);
 			await settle();
+			openOrdinaryEditors('toggles');
+			setVisible(true, false);
 			const sequence = [visible()];
 			controller.toggleDetails();
 			await settle();
@@ -517,7 +515,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 			}, { composition, ordinaryEditors: [] });
 		});
 
-		test(`chat settled managed tabs use Existing defaults for first-peer Editor=${composition.editor} Details=${composition.auxiliaryBar}`, async () => {
+		test(`chat settled managed tabs keep empty first-peer defaults hidden for Editor=${composition.editor} Details=${composition.auxiliaryBar}`, async () => {
 			createDesktopController({
 				chatLayoutMode: 'chat', activateAux: true,
 				sidePaneVisibilityState: { editorVisible: composition.editor, auxiliaryBarVisible: composition.auxiliaryBar },
@@ -531,13 +529,10 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 			await settle();
 			setActiveChat(session, peer);
 			await settle();
-			const expectedComposition = composition.editor && composition.auxiliaryBar
-				? { editor: false, auxiliaryBar: false }
-				: composition;
 			assert.deepStrictEqual({
 				composition: visible(),
 				ordinaryEditors: harness.activeGroupEditors.filter(editor => editor.resource?.scheme === Schemas.file).map(editor => editor.resource?.path),
-			}, { composition: expectedComposition, ordinaryEditors: [] });
+			}, { composition: { editor: false, auxiliaryBar: false }, ordinaryEditors: [] });
 		});
 	}
 
@@ -654,7 +649,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		setActiveChat(session, peer);
 		await settle();
 		assert.deepStrictEqual(editorState(), {
-			resources: [], active: undefined, composition: { editor: true, auxiliaryBar: false }, panel: true,
+			resources: [], active: undefined, composition: { editor: false, auxiliaryBar: false }, panel: true,
 		});
 		openOrdinaryEditors('peer');
 		setVisible(true, false);
@@ -721,12 +716,12 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 
 		await reload('chat');
 		assert.deepStrictEqual({ composition: visible(), panel: harness.layoutService.isVisible(Parts.PANEL_PART) }, {
-			composition: { editor: true, auxiliaryBar: true }, panel: false,
+			composition: { editor: false, auxiliaryBar: false }, panel: false,
 		});
 		setActiveChat(session, peer);
 		await settle();
 		assert.deepStrictEqual({ composition: visible(), panel: harness.layoutService.isVisible(Parts.PANEL_PART) }, {
-			composition: { editor: false, auxiliaryBar: true }, panel: true,
+			composition: { editor: false, auxiliaryBar: false }, panel: true,
 		});
 		assert.deepStrictEqual([
 			'sessions.sharedChatLayout.sidePaneComposition', 'sessions.sharedChatLayout.sidePanePreHideComposition', 'sessions.singlePane.sharedChatLayoutState',
@@ -1071,6 +1066,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		harness.visibleSessionsObs.set([session], undefined);
 		await settle();
 
+		openOrdinaryEditors('tab-main');
 		setVisible(true, true);
 		await settle();
 		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: true });
@@ -1078,8 +1074,9 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 
 		setActiveChat(session, peer);
 		await settle();
-		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: false }, 'a first-visit peer uses the Existing defaults, not a forced hidden pane or the main chat\'s saved composition');
+		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: false }, 'a first-visit peer without editors keeps the pane closed');
 
+		setVisible(true, false);
 		setVisible(false, false);
 		await settle();
 		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: false });
@@ -1148,6 +1145,281 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 
 		assert.deepStrictEqual({ composition: visible(), savedB: controller.composition(controller.ownerKeyFor(sessionB)) }, { composition: { editor: false, auxiliaryBar: false }, savedB: undefined });
 	});
+
+	for (const dockedOnly of [false, true]) {
+		for (const peerChat of [false, true]) {
+			test(`chat: opening an existing ${peerChat ? 'peer' : 'session'} with ${dockedOnly ? 'docked-only' : 'empty'} editors keeps the side pane closed`, async () => {
+				createDesktopController({ chatLayoutMode: 'chat', activateAux: true });
+				const session = makeSession(URI.parse('session:empty-sidepane'));
+				const main = session.mainChat.get();
+				const peer = addPeerChat(session, URI.parse('chat:empty-sidepane'));
+				const other = makeSession(URI.parse('session:other-sidepane'));
+				harness.activeSessionObs.set(session, undefined);
+				if (peerChat) {
+					setActiveChat(session, peer);
+				}
+				await settle();
+				if (dockedOnly) {
+					const files = store.add(harness.instaService.createInstance(EmptyFileEditorInput, session.workspace.get()));
+					harness.activeGroupEditors = [files];
+					harness.activeEditorInput = files;
+				}
+				setVisible(!dockedOnly, dockedOnly);
+				await settle();
+				if (peerChat) {
+					setActiveChat(session, main);
+				} else {
+					harness.activeSessionObs.set(other, undefined);
+				}
+				await settle();
+				openOrdinaryEditors('outgoing');
+				setVisible(true, false);
+				await settle();
+				if (peerChat) {
+					setActiveChat(session, peer);
+				} else {
+					harness.activeSessionObs.set(session, undefined);
+				}
+				await settle();
+				const afterOpen = visible();
+				harness.layoutService.toggleSidePane();
+				await settle();
+				assert.deepStrictEqual({ afterOpen, explicitlyOpened: harness.layoutService.isSidePaneVisible() }, {
+					afterOpen: { editor: false, auxiliaryBar: false },
+					explicitlyOpened: true,
+				});
+			});
+		}
+	}
+
+	for (const sameResource of [false, true]) {
+		for (const activeAtSubmit of [false, true]) {
+			test(`chat: docked-only draft submission preserves only the active transition (sameResource=${sameResource}, active=${activeAtSubmit})`, async () => {
+				createDesktopController({ chatLayoutMode: 'chat', activateAux: true });
+				const isCreated = observableValue('isCreated', false);
+				const draft = { ...makeSession(URI.parse('session:docked-draft'), { isCreated: false }), isCreated };
+				const other = makeSession(URI.parse('session:docked-other'));
+				harness.activeSessionObs.set(draft, undefined);
+				await settle();
+				setVisible(false, false);
+				harness.layoutService.toggleSidePane();
+				await settle();
+				const draftVisible = visible();
+				if (!activeAtSubmit) {
+					harness.activeSessionObs.set(other, undefined);
+					await settle();
+				}
+				const beforeSubmit = visible();
+				const committed = makeSession(sameResource ? draft.resource : URI.parse('session:docked-committed'));
+				transaction(tx => {
+					isCreated.set(true, tx);
+					harness.onDidReplaceSession.fire({ from: draft, to: committed });
+					if (activeAtSubmit) {
+						harness.activeSessionObs.set(committed, tx);
+					}
+				});
+				await settle();
+				const afterSubmit = visible();
+				harness.activeSessionObs.set(other, undefined);
+				await settle();
+				harness.activeSessionObs.set(committed, undefined);
+				await settle();
+				assert.deepStrictEqual({ draftVisible, beforeSubmit, afterSubmit, reopened: visible() }, {
+					draftVisible: { editor: false, auxiliaryBar: true },
+					beforeSubmit: activeAtSubmit ? draftVisible : { editor: false, auxiliaryBar: false },
+					afterSubmit: activeAtSubmit ? draftVisible : { editor: false, auxiliaryBar: false },
+					reopened: { editor: false, auxiliaryBar: false },
+				});
+			});
+		}
+	}
+
+	for (const sameResource of [false, true]) {
+		test(`chat: a session submitted with a closed pane explicitly reopens both areas (sameResource=${sameResource})`, async () => {
+			createDesktopController({ chatLayoutMode: 'chat', activateAux: true });
+			const isCreated = observableValue('isCreated', false);
+			const draft = { ...makeSession(URI.parse('session:closed-submit'), { isCreated: false }), isCreated };
+			harness.activeSessionObs.set(draft, undefined);
+			await settle();
+			setVisible(false, true);
+			harness.layoutService.toggleSidePane();
+			await settle();
+			harness.layoutService.toggleSidePane();
+			await settle();
+			const draftReopened = visible();
+			harness.layoutService.toggleSidePane();
+			await settle();
+			const committed = makeSession(sameResource ? draft.resource : URI.parse('session:closed-committed'));
+			transaction(tx => {
+				isCreated.set(true, tx);
+				harness.onDidReplaceSession.fire({ from: draft, to: committed });
+				harness.activeSessionObs.set(committed, tx);
+			});
+			await settle();
+			const afterSubmit = visible();
+			harness.layoutService.toggleSidePane();
+			await settle();
+			assert.deepStrictEqual({ draftReopened, afterSubmit, explicitlyOpened: visible() }, {
+				draftReopened: { editor: false, auxiliaryBar: true },
+				afterSubmit: { editor: false, auxiliaryBar: false },
+				explicitlyOpened: { editor: true, auxiliaryBar: true },
+			});
+		});
+	}
+
+	test('chat: a nested session submitted with a closed pane explicitly reopens both areas', async () => {
+		createDesktopController({ chatLayoutMode: 'chat', activateAux: true });
+		const session = makeSession(URI.parse('session:nested-closed-submit'));
+		const status = observableValue('nestedStatus', SessionStatus.Untitled);
+		const nested = addPeerChat(session, URI.parse('chat:nested-closed-submit'), { status });
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+		setActiveChat(session, nested);
+		await settle();
+		setVisible(false, true);
+		harness.layoutService.toggleSidePane();
+		harness.layoutService.toggleSidePane();
+		await settle();
+		const draftReopened = visible();
+		harness.layoutService.toggleSidePane();
+		status.set(SessionStatus.Completed, undefined);
+		await settle();
+		const afterSubmit = visible();
+		harness.layoutService.toggleSidePane();
+		await settle();
+		assert.deepStrictEqual({ draftReopened, afterSubmit, explicitlyOpened: visible() }, {
+			draftReopened: { editor: false, auxiliaryBar: true },
+			afterSubmit: { editor: false, auxiliaryBar: false },
+			explicitlyOpened: { editor: true, auxiliaryBar: true },
+		});
+	});
+
+	test('chat: a new nested session keeps its docked-only pane through submission but not a later visit', async () => {
+		createDesktopController({ chatLayoutMode: 'chat', activateAux: true });
+		const session = makeSession(URI.parse('session:nested-draft'));
+		const main = session.mainChat.get();
+		const status = observableValue('nestedStatus', SessionStatus.Untitled);
+		const nested = addPeerChat(session, URI.parse('chat:nested-draft'), { status });
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+		setVisible(false, true);
+		setActiveChat(session, nested);
+		await settle();
+		setVisible(false, true);
+		await settle();
+		setActiveChat(session, main);
+		await settle();
+		setActiveChat(session, nested);
+		await settle();
+		const draftReopened = visible();
+		const beforeSubmit = visible();
+		status.set(SessionStatus.Completed, undefined);
+		await settle();
+		const afterSubmit = visible();
+		setActiveChat(session, main);
+		await settle();
+		setActiveChat(session, nested);
+		await settle();
+		assert.deepStrictEqual({ draftReopened, beforeSubmit, afterSubmit, reopened: visible() }, {
+			draftReopened: { editor: false, auxiliaryBar: true },
+			beforeSubmit: { editor: false, auxiliaryBar: true },
+			afterSubmit: { editor: false, auxiliaryBar: true },
+			reopened: { editor: false, auxiliaryBar: false },
+		});
+	});
+
+	for (const auxiliaryBarVisible of [false, true]) {
+		test(`chat: a nested draft does not reveal an empty Editor from Existing defaults (Details=${auxiliaryBarVisible})`, async () => {
+			createDesktopController({
+				chatLayoutMode: 'chat', activateAux: true,
+				sidePaneVisibilityState: { editorVisible: true, auxiliaryBarVisible },
+			});
+			const session = makeSession(URI.parse('session:nested-empty-defaults'));
+			const nested = addPeerChat(session, URI.parse('chat:nested-empty-defaults'), { status: observableValue('nestedStatus', SessionStatus.Untitled) });
+			harness.activeSessionObs.set(session, undefined);
+			await settle();
+			setActiveChat(session, nested);
+			await settle();
+			assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: false });
+		});
+	}
+
+	test('chat: a nested draft keeps its saved docked-only pane while workspace restoration is pending', async () => {
+		createDesktopController({ chatLayoutMode: 'chat', activateAux: true });
+		const session = makeSession(URI.parse('session:nested-pending'));
+		const main = session.mainChat.get();
+		const nested = addPeerChat(session, URI.parse('chat:nested-pending'), { status: observableValue('nestedStatus', SessionStatus.Untitled) });
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+		setActiveChat(session, nested);
+		await settle();
+		setVisible(false, true);
+		await settle();
+		setActiveChat(session, main);
+		await settle();
+		setVisible(false, true);
+		harness.workspaceFolders = [];
+		harness.onDidChangeWorkspaceFolders.fire();
+		setActiveChat(session, nested);
+		await settle();
+		const whilePending = visible();
+		harness.workspaceFolders = [{ uri: URI.file('/repo') }];
+		harness.onDidChangeWorkspaceFolders.fire();
+		await settle();
+		assert.deepStrictEqual({ whilePending, restored: visible() }, {
+			whilePending: { editor: false, auxiliaryBar: true },
+			restored: { editor: false, auxiliaryBar: true },
+		});
+	});
+
+	test('chat: explicitly opening the pane while workspace restoration is pending keeps it open', async () => {
+		createDesktopController({ chatLayoutMode: 'chat' });
+		const target = makeSession(URI.parse('session:delayed-target'));
+		const other = makeSession(URI.parse('session:delayed-other'));
+		harness.activeSessionObs.set(target, undefined);
+		await settle();
+		setVisible(true, false);
+		harness.activeSessionObs.set(other, undefined);
+		await settle();
+		openOrdinaryEditors('delayed-outgoing');
+		setVisible(true, false);
+		harness.workspaceFolders = [];
+		harness.onDidChangeWorkspaceFolders.fire();
+		harness.activeSessionObs.set(target, undefined);
+		await settle();
+		const whilePending = visible();
+		harness.layoutService.toggleSidePane();
+		harness.workspaceFolders = [{ uri: URI.file('/repo') }];
+		harness.onDidChangeWorkspaceFolders.fire();
+		await settle();
+		assert.deepStrictEqual({ whilePending, explicitlyOpened: harness.layoutService.isSidePaneVisible() }, {
+			whilePending: { editor: false, auxiliaryBar: false },
+			explicitlyOpened: true,
+		});
+	});
+
+	for (const editor of [false, true]) {
+		test(`chat: explicitly revealing ${editor ? 'Editor' : 'Details'} during working-set application keeps it open`, async () => {
+			createDesktopController({ chatLayoutMode: 'chat' });
+			const target = makeSession(URI.parse('session:applying-target'));
+			const other = makeSession(URI.parse('session:applying-other'));
+			harness.activeSessionObs.set(target, undefined);
+			await settle();
+			setVisible(true, false);
+			harness.activeSessionObs.set(other, undefined);
+			await settle();
+			harness.onApplyWorkingSet = () => {
+				if (editor) {
+					harness.layoutService.revealEditorPartExplicitly();
+				} else {
+					harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+				}
+			};
+			harness.activeSessionObs.set(target, undefined);
+			await settle();
+			assert.deepStrictEqual(visible(), { editor, auxiliaryBar: !editor });
+		});
+	}
 
 	test('[R5] a fresh controller backed by an independently reconstructed storage service restores A\'s own normal-toggle last-open composition, not B\'s, with no geometry involved', async () => {
 		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], chatLayoutMode: 'chat' });
@@ -1229,6 +1501,10 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		for (const c of cases) {
 			setActiveChat(session, c.chat);
 			await settle();
+			if (c.editor) {
+				openOrdinaryEditors(c.chat.resource.path);
+			}
+			setVisible(true, false);
 			setVisible(c.editor, c.auxiliaryBar);
 			await settle();
 		}
@@ -1240,7 +1516,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 				visible: visible(),
 				stored: controller.composition(controller.ownerKeyFor(session)),
 			}, {
-				visible: { editor: c.editor, auxiliaryBar: c.auxiliaryBar },
+				visible: { editor: c.editor, auxiliaryBar: c.editor && c.auxiliaryBar },
 				stored: { editor: c.editor, auxiliaryBar: c.auxiliaryBar },
 			}, `focusing ${c.chat.resource.toString()} must restore its saved composition`);
 		}
@@ -1262,6 +1538,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 
 		harness.activeSessionObs.set(sessionB, undefined);
 		await settle();
+		setVisible(true, false);
 		setVisible(false, false);
 		await settle();
 		const keyB = controller.ownerKeyFor(sessionB);
@@ -1749,6 +2026,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		harness.activeSessionObs.set(session, undefined);
 		await settle();
 
+		openOrdinaryEditors('phone-main');
 		setVisible(true, true);
 		await settle();
 		setVisible(true, false);
@@ -1852,6 +2130,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		const sessionB = makeSession(URI.parse('session:b'));
 		harness.activeSessionObs.set(sessionA, undefined);
 		await settle();
+		openOrdinaryEditors('phone-session-a');
 		setVisible(true, false);
 		await settle();
 		const keyA = controller.ownerKeyFor(sessionA);
@@ -1886,6 +2165,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		const session = makeSession(URI.parse('session:a'));
 		harness.activeSessionObs.set(session, undefined);
 		await settle();
+		openOrdinaryEditors('phone-same-owner');
 		setVisible(true, true);
 		await settle();
 		setVisible(true, false);

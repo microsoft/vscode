@@ -74,6 +74,7 @@ import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
 import { ChatSendResult, IChatCommandButton, IChatCompleteResponse, IChatModelReference, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
 import { CloudSandboxStartupError } from '../../../browser/remoteAgentHost/cloudSandboxStartupError.js';
+import { ICloudSandboxTelemetryService } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
@@ -133,6 +134,9 @@ class TestEditorCloudSandboxContribution extends EditorCloudSandboxSessionContri
 	onCommit: () => void = () => { };
 	activate(): Promise<boolean> {
 		return this._waitForActivation(sessionType);
+	}
+	protected override _pollJitter(): number {
+		return 0;
 	}
 	protected override _pickRepository(): Promise<string | undefined> {
 		return this.pickRepository();
@@ -361,6 +365,9 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(IAgentHostService, new class extends mock<IAgentHostService>() { }());
 	instantiationService.stub(IConfigurationService, configuration);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
+	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
+		override reportSessionFeed() { }
+	}());
 	instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 		override readonly onDidAddWidget = widgetAdded.event;
 		override readonly onDidRemoveWidget = widgetRemoved.event;
@@ -2753,7 +2760,7 @@ suite('Editor cloud sandbox discovery', () => {
 		const h = createHarness(store);
 		await h.refresh();
 		h.state.result = { kind: 'incremental', sessions: [], removedTaskIds: [] };
-		await timeout(61_000);
+		await timeout(5 * 60_000 + 1_000);
 		h.focusChanged.fire(true);
 		await timeout(0);
 		assert.deepStrictEqual({ modes: h.discoveryModes, items: h.items().map(item => item.resource.toString()) }, {

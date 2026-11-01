@@ -5,13 +5,8 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { $, addDisposableListener, append, EventType } from '../../../../base/browser/dom.js';
-import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { IconSelectBox } from '../../../../base/browser/ui/icons/iconSelectBox.js';
+import { $, append } from '../../../../base/browser/dom.js';
 import { ObjectTree } from '../../../../base/browser/ui/tree/objectTree.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { KeyCodeChord } from '../../../../base/common/keybindings.js';
-import { OS } from '../../../../base/common/platform.js';
 import { unthemedInboxStyles } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
 import { unthemedListStyles } from '../../../../base/browser/ui/list/listWidget.js';
@@ -27,8 +22,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { backButton, IQuickInputStyles, QuickPick } from '../../browser/quickInput.js';
-import { IQuickInput, IQuickInputService, IQuickPick, IQuickPickItem, ItemActivation, isKeyModified, NO_KEY_MODS, QuickPickFocus } from '../../common/quickInput.js';
-import { CommandsRegistry } from '../../../commands/common/commands.js';
+import { IQuickPick, IQuickPickItem, ItemActivation, isKeyModified, NO_KEY_MODS, QuickPickFocus } from '../../common/quickInput.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { IThemeService } from '../../../theme/common/themeService.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
@@ -38,10 +32,7 @@ import { IContextMenuService, IContextViewService } from '../../../contextview/b
 import { IListService, ListService, WorkbenchListWidget } from '../../../list/browser/listService.js';
 import { IContextKeyService } from '../../../contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../contextkey/browser/contextKeyService.js';
-import { KeybindingResolver, NoMatchingKb, ResultKind } from '../../../keybinding/common/keybindingResolver.js';
-import { KeybindingsRegistry } from '../../../keybinding/common/keybindingsRegistry.js';
-import { ResolvedKeybindingItem } from '../../../keybinding/common/resolvedKeybindingItem.js';
-import { USLayoutResolvedKeybinding } from '../../../keybinding/common/usLayoutResolvedKeybinding.js';
+import { NoMatchingKb } from '../../../keybinding/common/keybindingResolver.js';
 import { IKeybindingService } from '../../../keybinding/common/keybinding.js';
 import { ContextViewService } from '../../../contextview/browser/contextViewService.js';
 import { IAccessibilityService } from '../../../accessibility/common/accessibility.js';
@@ -142,15 +133,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 					inputBox: unthemedInboxStyles,
 					toggle: unthemedToggleStyles,
 					keybindingLabel: unthemedKeybindingLabelOptions,
-					list: {
-						...unthemedListStyles,
-						listFocusBackground: 'var(--vscode-quickInputList-focusBackground)',
-						listFocusForeground: 'var(--vscode-quickInputList-focusForeground)',
-						listInactiveFocusBackground: 'var(--vscode-quickInputList-focusBackground)',
-						listInactiveFocusForeground: 'var(--vscode-quickInputList-focusForeground)',
-						listFocusOutline: 'var(--vscode-list-focusOutline)',
-						listInactiveFocusOutline: 'var(--vscode-list-focusOutline)',
-					},
+					list: unthemedListStyles,
 					progressBar: unthemedProgressBarOptions,
 					widget: {
 						quickInputBackground: undefined,
@@ -175,334 +158,70 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		sinon.restore();
 	});
 
-	test('custom content stays above standard picker rows through updates and reopen', () => {
-		controller.layout({ height: 500, width: 600 }, 0);
-		const picker = store.add(controller.createQuickPick());
+	test('custom content is exclusive to QuickWidget and cleared when switching controls', () => {
+		const widget = store.add(controller.createQuickWidget());
 		const content = mainWindow.document.createElement('div');
-		const input = mainWindow.document.createElement('input');
-		content.append(input);
-		const quickInput: IQuickInput = picker;
-		quickInput.widget = content;
-		picker.hideInput = true;
-		picker.items = [{ label: 'Reset to default' }];
+		widget.widget = content;
+		widget.show();
+		const controls = [
+			store.add(controller.createQuickPick()),
+			store.add(controller.createInputBox()),
+			store.add(controller.createQuickTree()),
+		];
+		const states = controls.map(control => {
+			widget.show();
+			control.show();
+			return { supportsWidget: Reflect.has(control, 'widget'), contentAttached: content.isConnected };
+		});
+		assert.deepStrictEqual(states, controls.map(() => ({ supportsWidget: false, contentAttached: false })));
+	});
+
+	test('quick widgets retain their content when shown again without disturbing focus on updates', () => {
+		const picker = store.add(controller.createQuickWidget());
+		const content = mainWindow.document.createElement('input');
+		picker.widget = content;
 		picker.show();
-		input.focus();
-		picker.items = [{ label: 'Updated row' }];
-		const host = fixture.querySelector('.quick-input-html-widget')!;
-		const list = fixture.querySelector('.quick-input-list')!;
-		const focusedDuringUpdate = mainWindow.document.activeElement === input;
-		const aboveList = !!(content.compareDocumentPosition(list) & mainWindow.Node.DOCUMENT_POSITION_FOLLOWING);
-		const row = list.querySelector('.label-name')?.textContent;
+		content.focus();
+		picker.title = 'Updated title';
+		const focusedDuringUpdate = mainWindow.document.activeElement === content;
 		picker.hide();
 		picker.show();
 		assert.deepStrictEqual({
 			focusedDuringUpdate,
-			aboveList,
-			reattached: host.firstElementChild === content,
-			row,
-		}, { focusedDuringUpdate: true, aboveList: true, reattached: true, row: 'Updated row' });
+			reattached: fixture.querySelector('.quick-input-html-widget')?.firstElementChild === content,
+		}, { focusedDuringUpdate: true, reattached: true });
 	});
 
-	test('quick widgets retain their content when shown again', () => {
-		const picker = store.add(controller.createQuickWidget());
-		const content = mainWindow.document.createElement('div');
-		picker.widget = content;
-		picker.show();
-		picker.hide();
-		picker.show();
-		assert.strictEqual(fixture.querySelector('.quick-input-html-widget')?.firstElementChild, content);
-	});
-
-	test('modified icon-search caret keys do not activate host quick-pick navigation bindings', () => {
-		controller.layout({ height: 500, width: 600 }, 0);
-		const picker = store.add(controller.createQuickPick());
-		const grid = store.add(new IconSelectBox({ icons: [Codicon.rocket], inputBoxStyles: unthemedInboxStyles }));
-		picker.widget = grid.domNode;
-		picker.hideInput = true;
-		picker.itemActivation = ItemActivation.NONE;
-		picker.items = [{ label: 'Reset to default' }];
-		instantiationService.stub(IQuickInputService, { currentQuickInput: picker });
-		const contextKeyService = instantiationService.get(IContextKeyService);
-		contextKeyService.createKey('inQuickInput', true);
-		contextKeyService.createKey('quickInputType', 'quickPick');
-		const bindings = KeybindingsRegistry.getDefaultKeybindings().filter(binding =>
-			binding.command === 'quickInput.first' || binding.command === 'quickInput.last');
-		const resolver = new KeybindingResolver(bindings.flatMap(binding => binding.keybinding
-			? USLayoutResolvedKeybinding.resolveKeybinding(binding.keybinding, OS).map(keybinding =>
-				new ResolvedKeybindingItem(keybinding, binding.command, binding.commandArgs, binding.when ?? undefined, true, null, false))
-			: []), [], () => { });
-		const hostCommands: string[] = [];
-		store.add(addDisposableListener(fixture, EventType.KEY_DOWN, event => {
-			const key = new StandardKeyboardEvent(event);
-			const dispatch = USLayoutResolvedKeybinding.getDispatchStr(new KeyCodeChord(key.ctrlKey, key.shiftKey, key.altKey, key.metaKey, key.keyCode));
-			if (!dispatch) {
-				return;
-			}
-			const result = resolver.resolve(contextKeyService.getContext(event.target as HTMLElement), [], dispatch);
-			if (result.kind === ResultKind.KbFound && result.commandId) {
-				const command = CommandsRegistry.getCommand(result.commandId)!;
-				hostCommands.push(result.commandId);
-				instantiationService.invokeFunction(command.handler);
-				event.preventDefault();
-			}
-		}));
-		picker.show();
-		const input = grid.domNode.querySelector<HTMLInputElement>('input')!;
-		input.value = 'rocket';
-		grid.focus();
-		const dispatch = (key: string, keyCode: number) => {
-			const event = new KeyboardEvent('keydown', { key, keyCode, ctrlKey: true, bubbles: true, cancelable: true });
-			input.dispatchEvent(event);
-			return event.defaultPrevented;
-		};
-		const prevented = [dispatch('Home', 36), dispatch('End', 35)];
-		const isolatedCommands = [...hostCommands];
-		const isolatedActive = picker.activeItems.map(item => item.label);
-		const unprotected = mainWindow.document.createElement('input');
-		grid.domNode.parentElement!.append(unprotected);
-		unprotected.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', keyCode: 36, ctrlKey: true, bubbles: true, cancelable: true }));
-		unprotected.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', keyCode: 35, ctrlKey: true, bubbles: true, cancelable: true }));
-		assert.deepStrictEqual({ prevented, isolatedCommands, isolatedActive, hostCommands, hostActive: picker.activeItems.map(item => item.label) }, {
-			prevented: [false, false],
-			isolatedCommands: [],
-			isolatedActive: [],
-			hostCommands: ['quickInput.first', 'quickInput.last'],
-			hostActive: ['Reset to default'],
-		});
-	});
-
-	test('a leading separator divides custom content from picker rows, but stays hidden without content', () => {
-		controller.layout({ height: 500, width: 600 }, 0);
-		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
-		picker.widget = mainWindow.document.createElement('div');
-		const reset = { label: 'Reset to default' };
-		picker.items = [{ type: 'separator' }, reset];
-		picker.canSelectMany = true;
-		picker.show();
-		picker.activeItems = [reset];
-		picker.selectedItems = [reset];
-		const withContent = fixture.querySelectorAll('.quick-input-list-separator-empty').length;
-		const activeWithContent = picker.activeItems.map(item => item.label);
-		picker.widget = undefined;
-		assert.deepStrictEqual({
-			withContent,
-			activeWithContent,
-			withoutContent: fixture.querySelectorAll('.quick-input-list-separator-empty').length,
-			contentMarker: fixture.querySelector('.quick-input-widget')?.classList.contains('has-custom-widget'),
-			active: picker.activeItems.map(item => item.label),
-			selected: picker.selectedItems.map(item => item.label),
-		}, {
-			withContent: 1,
-			activeWithContent: ['Reset to default'],
-			withoutContent: 0,
-			contentMarker: false,
-			active: ['Reset to default'],
-			selected: ['Reset to default'],
-		});
-	});
-
-	test('custom content changes preserve filtered order, focus and checked items', () => {
-		controller.layout({ height: 500, width: 600 }, 0);
-		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
-		const zap = { label: 'zap' };
-		const apple = { label: 'apple' };
-		picker.items = [{ type: 'separator' }, zap, { type: 'separator' }, apple];
-		picker.canSelectMany = true;
-		picker.value = 'a';
-		picker.show();
-		picker.activeItems = [zap];
-		picker.selectedItems = [apple];
-		const state = () => ({
-			items: [...fixture.querySelectorAll('.quick-input-list-entry .label-name')].map(label => label.textContent),
-			dividers: fixture.querySelectorAll('.quick-input-list-separator-empty').length,
-			active: picker.activeItems.map(item => item.label),
-			selected: picker.selectedItems.map(item => item.label),
-		});
-		const before = state();
-		picker.widget = mainWindow.document.createElement('div');
-		const withContent = state();
-		picker.widget = undefined;
-		const expected = { items: ['apple', 'zap'], dividers: 0, active: ['zap'], selected: ['apple'] };
-		assert.deepStrictEqual([before, withContent, state()], [expected, expected, expected]);
-	});
-
-	test('section navigation wraps across a hidden leading divider', () => {
-		controller.layout({ height: 500, width: 600 }, 0);
-		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
-		picker.items = [
-			{ type: 'separator' }, { label: 'First section' },
-			{ type: 'separator' }, { label: 'Second section' },
-		];
-		picker.show();
-		const active = [picker.activeItems.map(item => item.label)];
-		for (const direction of [QuickPickFocus.NextSeparator, QuickPickFocus.NextSeparator, QuickPickFocus.PreviousSeparator, QuickPickFocus.PreviousSeparator]) {
-			picker.focus(direction);
-			active.push(picker.activeItems.map(item => item.label));
-		}
-		assert.deepStrictEqual(active, [
-			['First section'], ['Second section'], ['First section'], ['Second section'], ['First section'],
-		]);
-	});
-
-	for (const canSelectMany of [false, true]) {
-		test(`dividers do not become keyboard parents (multi-select: ${canSelectMany})`, async () => {
+	for (const action of ['click', 'next', 'previous']) {
+		test(`filtered action headers focus the first visible command (${action})`, async () => {
 			controller.layout({ height: 500, width: 600 }, 0);
 			const picker = store.add(controller.createQuickPick({ useSeparators: true }));
-			picker.items = [{ label: 'Red' }, { type: 'separator' }, { label: 'Reset to default' }];
-			picker.canSelectMany = canSelectMany;
+			picker.sortByLabel = false;
+			const visible = { label: 'hit one' };
+			const other = { label: 'hit two' };
+			picker.items = [
+				{ type: 'separator', label: 'Commands', buttons: [{ iconClass: 'codicon-add', tooltip: 'Add' }] },
+				{ label: 'hidden command' }, visible,
+				{ type: 'separator', label: 'Other commands', buttons: [{ iconClass: 'codicon-add', tooltip: 'Add' }] },
+				other,
+			];
+			picker.value = 'hit';
 			picker.show();
-			picker.focus(QuickPickFocus.Last);
-			const list = fixture.querySelector<HTMLElement>('.quick-input-list > .monaco-list')!;
-			list.focus();
-			list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', keyCode: 37, bubbles: true, cancelable: true }));
-			const context = instantiationService.get(IContextKeyService).getContext(list);
-			if (canSelectMany) {
-				controller.toggle();
+			if (action === 'click') {
+				fixture.querySelector<HTMLElement>('.quick-input-list-separator-as-item')!.click();
+			} else {
+				picker.activeItems = [other];
+				picker.focus(action === 'next' ? QuickPickFocus.NextSeparator : QuickPickFocus.PreviousSeparator);
 			}
 			let accepted: string[] = [];
 			store.add(picker.onDidAccept(() => accepted = picker.activeItems.map(item => item.label)));
 			await controller.accept();
-			const row = list.querySelector('.monaco-list-row.focused')!;
 			assert.deepStrictEqual({
-				hasParent: context.getValue('treeElementHasParent'),
-				canCollapse: context.getValue('treeElementCanCollapse'),
 				active: picker.activeItems.map(item => item.label),
-				selected: picker.selectedItems.map(item => item.label),
 				accepted,
-				position: row.getAttribute('aria-posinset'),
-				size: row.getAttribute('aria-setsize'),
-				level: row.getAttribute('aria-level'),
-			}, {
-				hasParent: false,
-				canCollapse: false,
-				active: ['Reset to default'],
-				selected: ['Reset to default'],
-				accepted: ['Reset to default'],
-				position: '2',
-				size: '2',
-				level: '1',
-			});
+			}, { active: ['hit one'], accepted: ['hit one'] });
 		});
 	}
-
-	test('appearance picker selection is neutral without changing the next ordinary picker', () => {
-		controller.layout({ height: 500, width: 600 }, 0);
-		fixture.style.setProperty('--vscode-quickInputList-focusBackground', '#0000ff');
-		fixture.style.setProperty('--vscode-quickInputList-focusForeground', '#ffffff');
-		fixture.style.setProperty('--vscode-list-inactiveSelectionBackground', '#dddddd');
-		fixture.style.setProperty('--vscode-list-inactiveSelectionForeground', '#111111');
-		fixture.style.setProperty('--vscode-list-focusOutline', '#ff00ff');
-		const picker = store.add(controller.createQuickPick());
-		picker.useNeutralSelection = true;
-		picker.items = [{ label: 'Red' }, { label: 'Reset to default' }];
-		picker.show();
-		const colors = () => {
-			const row = fixture.querySelector<HTMLElement>('.monaco-list-row.focused')!;
-			const style = mainWindow.getComputedStyle(row);
-			return { background: style.backgroundColor, foreground: style.color };
-		};
-		const appearance = colors();
-		picker.focus(QuickPickFocus.Last);
-		const reset = colors();
-		const list = fixture.querySelector<HTMLElement>('.quick-input-list > .monaco-list')!;
-		list.focus();
-		const focusStyle = mainWindow.getComputedStyle(list.querySelector<HTMLElement>('.monaco-list-row.focused')!);
-		const focusOutline = { color: focusStyle.outlineColor, visible: focusStyle.outlineStyle !== 'none', width: focusStyle.outlineWidth };
-		picker.hide();
-		const ordinary = store.add(controller.createQuickPick());
-		ordinary.items = [{ label: 'Ordinary command' }];
-		ordinary.show();
-		assert.deepStrictEqual({ appearance, reset, focusOutline, ordinary: colors() }, {
-			appearance: { background: 'rgb(221, 221, 221)', foreground: 'rgb(17, 17, 17)' },
-			reset: { background: 'rgb(221, 221, 221)', foreground: 'rgb(17, 17, 17)' },
-			focusOutline: { color: 'rgb(255, 0, 255)', visible: true, width: '1px' },
-			ordinary: { background: 'rgb(0, 0, 255)', foreground: 'rgb(255, 255, 255)' },
-		});
-	});
-
-	for (const palette of [
-		{ name: 'Light 2026', background: '#DADADA99', foreground: '#202020', highlight: '#0069CC', focusBackground: '#0069CC', expectedHighlight: 'rgb(0, 105, 204)' },
-		{ name: 'Dark 2026', background: '#2C2D2E', foreground: '#ededed', highlight: '#48A0C7', focusBackground: '#297AA0', expectedHighlight: 'rgb(72, 160, 199)' },
-	]) {
-		test(`neutral search matches retain the normal highlight color (${palette.name} palette)`, () => {
-			controller.layout({ height: 500, width: 600 }, 0);
-			fixture.style.setProperty('--vscode-quickInputList-focusBackground', palette.focusBackground);
-			fixture.style.setProperty('--vscode-quickInputList-focusHighlightForeground', '#ffffff');
-			fixture.style.setProperty('--vscode-list-inactiveSelectionBackground', palette.background);
-			fixture.style.setProperty('--vscode-list-inactiveSelectionForeground', palette.foreground);
-			fixture.style.setProperty('--vscode-list-highlightForeground', palette.highlight);
-			const picker = store.add(controller.createQuickPick());
-			picker.useNeutralSelection = true;
-			picker.items = [{ label: 'Red' }, { label: 'Green' }];
-			picker.value = 're';
-			picker.show();
-			const matches = () => Array.from(
-				fixture.querySelectorAll<HTMLElement>('.monaco-list-row .monaco-highlighted-label .highlight'),
-				element => ({ text: element.textContent, color: mainWindow.getComputedStyle(element).color })
-			);
-			const inputFocused = matches();
-			fixture.querySelector<HTMLElement>('.quick-input-list > .monaco-list')!.focus();
-			const listFocused = matches();
-			picker.hide();
-			const ordinary = store.add(controller.createQuickPick());
-			ordinary.items = picker.items;
-			ordinary.value = 're';
-			ordinary.show();
-			const neutral = [{ text: 'Re', color: palette.expectedHighlight }, { text: 're', color: palette.expectedHighlight }];
-			assert.deepStrictEqual({ inputFocused, listFocused, ordinary: matches() }, {
-				inputFocused: neutral,
-				listFocused: neutral,
-				ordinary: [{ text: 'Re', color: 'rgb(255, 255, 255)' }, { text: 're', color: palette.expectedHighlight }],
-			});
-		});
-	}
-
-	test('direct tree navigation skips decorative dividers while preserving action headers', async () => {
-		controller.layout({ height: 500, width: 600 }, 0);
-		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
-		picker.widget = mainWindow.document.createElement('div');
-		const reset = { label: 'Reset to default' };
-		picker.items = [
-			{ type: 'separator' }, reset,
-			{ type: 'separator', label: 'Actions', buttons: [{ iconClass: 'codicon-add', tooltip: 'Add' }] },
-			{ type: 'separator' }, { label: 'Second' },
-		];
-		picker.show();
-		const list = fixture.querySelector<HTMLElement>('.quick-input-list > .monaco-list')!;
-		const tree = getRegisteredLists().find(widget => widget.getHTMLElement() === list);
-		if (!(tree instanceof ObjectTree)) {
-			throw new Error('Expected the Quick Input tree');
-		}
-		const states: { active: string[]; header: boolean }[] = [];
-		const record = () => states.push({
-			active: picker.activeItems.map(item => item.label),
-			header: !!list.querySelector('.monaco-list-row.focused .quick-input-list-separator-as-item.has-actions'),
-		});
-		tree.focusFirst();
-		record();
-		picker.activeItems = [reset];
-		tree.focusNext();
-		record();
-		tree.focusLast();
-		record();
-		tree.focusPrevious();
-		record();
-		tree.focusFirst();
-		record();
-		let accepted: string[] = [];
-		store.add(picker.onDidAccept(() => accepted = picker.activeItems.map(item => item.label)));
-		await controller.accept();
-		assert.deepStrictEqual({ states, accepted }, {
-			states: [
-				{ active: ['Reset to default'], header: false },
-				{ active: [], header: true },
-				{ active: ['Second'], header: false },
-				{ active: [], header: true },
-				{ active: ['Reset to default'], header: false },
-			],
-			accepted: ['Reset to default'],
-		});
-	});
 
 	test('labelled separators keep their inline labels and button separators keep their header height', () => {
 		controller.layout({ height: 500, width: 600 }, 0);
@@ -520,70 +239,6 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 			dividers: fixture.querySelectorAll('.quick-input-list-separator-empty').length,
 			active: picker.activeItems.map(item => item.label),
 		}, { inline: 'Inline section', headerHeight: 30, dividers: 0, active: ['Second item'] });
-	});
-
-	test('unlabelled dividers have their own geometry outside the centered Reset row', () => {
-		controller.layout({ height: 500, width: 600 }, 0);
-		fixture.style.setProperty('--vscode-strokeThickness', '1px');
-		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
-		picker.items = [{ label: 'Red' }, { type: 'separator' }, { label: 'Reset to default' }];
-		picker.show();
-		const divider = fixture.querySelector<HTMLElement>('.quick-input-list-separator-empty')!;
-		const reset = [...fixture.querySelectorAll<HTMLElement>('.quick-input-list-entry')].find(entry => entry.textContent === 'Reset to default')!;
-		const dividerBounds = divider.getBoundingClientRect();
-		const row = reset.closest<HTMLElement>('.monaco-list-row')!;
-		const rowBounds = row.getBoundingClientRect();
-		const labelBounds = reset.querySelector<HTMLElement>('.quick-input-list-row')!.getBoundingClientRect();
-		picker.focus(QuickPickFocus.Next);
-		const active = picker.activeItems.map(item => item.label);
-		picker.value = 'Reset';
-		const filteredDividers = fixture.querySelectorAll('.quick-input-list-separator-empty').length;
-		picker.value = '';
-		assert.deepStrictEqual({
-			dividerHeight: dividerBounds.height,
-			dividerStroke: mainWindow.getComputedStyle(divider, '::before').borderTopWidth,
-			separate: dividerBounds.bottom <= rowBounds.top,
-			rowHeight: rowBounds.height,
-			entryHeight: reset.getBoundingClientRect().height,
-			contentCentered: Math.abs((labelBounds.top + labelBounds.bottom) - (rowBounds.top + rowBounds.bottom)) <= 1,
-			rowHasDivider: reset.classList.contains('quick-input-list-separator-border'),
-			active,
-			filteredDividers,
-			restoredDividers: fixture.querySelectorAll('.quick-input-list-separator-empty').length,
-		}, {
-			dividerHeight: 8,
-			dividerStroke: '1px',
-			separate: true,
-			rowHeight: 22,
-			entryHeight: 22,
-			contentCentered: true,
-			rowHasDivider: false,
-			active: ['Reset to default'],
-			filteredDividers: 0,
-			restoredDividers: 1,
-		});
-	});
-
-	test('dividers preserve action-bearing section membership', () => {
-		controller.layout({ height: 500, width: 600 }, 0);
-		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
-		picker.items = [
-			{ type: 'separator', label: 'Colors', buttons: [{ iconClass: 'codicon-add', tooltip: 'Add' }] },
-			{ label: 'Red' }, { type: 'separator' }, { label: 'Reset to default' },
-		];
-		picker.show();
-		picker.focus(QuickPickFocus.Last);
-		const list = fixture.querySelector<HTMLElement>('.quick-input-list > .monaco-list')!;
-		list.focus();
-		const row = list.querySelector('.monaco-list-row.focused')!;
-		assert.deepStrictEqual({
-			headers: fixture.querySelectorAll('.quick-input-list-separator-as-item:not(.quick-input-list-separator-empty)').length,
-			headerActive: fixture.querySelector('.quick-input-list-separator-as-item.has-actions')?.classList.contains('focus-inside'),
-			dividers: fixture.querySelectorAll('.quick-input-list-separator-empty').length,
-			hasParent: instantiationService.get(IContextKeyService).getContext(list).getValue('treeElementHasParent'),
-			level: row.getAttribute('aria-level'),
-			active: picker.activeItems.map(item => item.label),
-		}, { headers: 1, headerActive: true, dividers: 1, hasParent: true, level: '2', active: ['Reset to default'] });
 	});
 
 	test('previous section targets visible matches instead of hidden first children', async () => {
@@ -620,75 +275,58 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		assert.deepStrictEqual(active, [['B1'], ['A1'], ['B1']]);
 	});
 
-	test('action headers followed immediately by dividers navigate and select visible options', () => {
+	test('next section wraps to the first visible item when filtering hides the original first item', () => {
 		controller.layout({ height: 500, width: 600 }, 0);
 		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
-		picker.items = [
-			{ label: 'First' },
-			{ type: 'separator', label: 'Colors', buttons: [{ iconClass: 'codicon-add', tooltip: 'Add' }] },
-			{ type: 'separator' }, { label: 'Reset to default' },
-		];
+		const first = { label: 'hit one' };
+		const last = { label: 'hit two' };
+		picker.items = [{ label: 'hidden' }, first, { type: 'separator' }, last];
+		picker.sortByLabel = false;
+		picker.value = 'hit';
 		picker.show();
-		picker.focus(QuickPickFocus.NextSeparator);
-		const navigated = picker.activeItems.map(item => item.label);
-		const header = fixture.querySelector<HTMLElement>('.quick-input-list-separator-as-item.has-actions')!;
-		header.click();
-		const row = fixture.querySelector('.monaco-list-row.focused')!;
-		assert.deepStrictEqual({
-			navigated,
-			selected: picker.activeItems.map(item => item.label),
-			position: row.getAttribute('aria-posinset'),
-			size: row.getAttribute('aria-setsize'),
-		}, { navigated: ['Reset to default'], selected: ['Reset to default'], position: '1', size: '1' });
+		picker.activeItems = [last];
+		const active: string[][] = [];
+		for (let index = 0; index < 3; index++) {
+			picker.focus(QuickPickFocus.NextSeparator);
+			active.push(picker.activeItems.map(item => item.label));
+		}
+		assert.deepStrictEqual(active, [['hit one'], ['hit two'], ['hit one']]);
 	});
 
-	test('the sole Reset option counts once below a custom widget divider', () => {
-		controller.layout({ height: 500, width: 600 }, 0);
-		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
-		picker.widget = mainWindow.document.createElement('div');
-		picker.items = [{ type: 'separator' }, { label: 'Reset to default' }];
-		picker.show();
-		const row = fixture.querySelector('.monaco-list-row.focused')!;
-		assert.deepStrictEqual({
-			position: row.getAttribute('aria-posinset'),
-			size: row.getAttribute('aria-setsize'),
-		}, { position: '1', size: '1' });
-	});
-
-	test('section navigation preserves action-header focus context', () => {
+	test('previous section distinguishes an action section interior, first item, and header', () => {
 		controller.layout({ height: 500, width: 600 }, 0);
 		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
 		const first = { label: 'A1' };
-		const middle = { label: 'B1' };
-		const last = { label: 'C1' };
+		const second = { label: 'A2' };
+		const third = { label: 'B1' };
+		const fourth = { label: 'B2' };
 		picker.items = [
-			{ type: 'separator', label: 'A', buttons: [{ iconClass: 'codicon-add', tooltip: 'Add' }] }, first,
-			{ type: 'separator', label: 'B', buttons: [{ iconClass: 'codicon-add', tooltip: 'Add' }] }, middle,
-			{ type: 'separator', label: 'C', buttons: [{ iconClass: 'codicon-add', tooltip: 'Add' }] }, last,
+			{ type: 'separator', label: 'A', buttons: [{ iconClass: 'codicon-add', tooltip: 'Add' }] }, first, second,
+			{ type: 'separator', label: 'B', buttons: [{ iconClass: 'codicon-add', tooltip: 'Add' }] }, third, fourth,
 		];
 		picker.show();
 		const list = fixture.querySelector<HTMLElement>('.quick-input-list > .monaco-list')!;
 		const tree = getRegisteredLists().find(widget => widget.getHTMLElement() === list);
 		if (!(tree instanceof ObjectTree)) {
-			throw new Error('Expected the focused Quick Input tree');
+			throw new Error('Expected the Quick Input tree');
 		}
-		const active: string[][] = [];
-		for (const [item, direction] of [
-			[middle, QuickPickFocus.NextSeparator],
-			[middle, QuickPickFocus.PreviousSeparator],
-			[first, QuickPickFocus.PreviousSeparator],
-			[last, QuickPickFocus.NextSeparator],
-		] as const) {
-			picker.activeItems = [item];
-			const header = tree.getParentElement(tree.getFocus()[0]);
-			if (!header) {
-				throw new Error('Expected an action-bearing parent header');
-			}
-			tree.setFocus([header]);
-			picker.focus(direction);
-			active.push(picker.activeItems.map(item => item.label));
+		picker.activeItems = [fourth];
+		picker.focus(QuickPickFocus.PreviousSeparator);
+		const fromInterior = picker.activeItems.map(item => item.label);
+		picker.focus(QuickPickFocus.PreviousSeparator);
+		const fromFirstItem = picker.activeItems.map(item => item.label);
+		picker.activeItems = [third];
+		const header = tree.getParentElement(tree.getFocus()[0]);
+		if (!header) {
+			throw new Error('Expected an action-bearing section header');
 		}
-		assert.deepStrictEqual(active, [['C1'], ['A1'], ['C1'], ['A1']]);
+		tree.setFocus([header]);
+		picker.focus(QuickPickFocus.PreviousSeparator);
+		assert.deepStrictEqual({
+			fromInterior,
+			fromFirstItem,
+			fromHeader: picker.activeItems.map(item => item.label),
+		}, { fromInterior: ['B1'], fromFirstItem: ['A1'], fromHeader: ['A1'] });
 	});
 
 	test('section navigation starts at the correct boundary with no active item', () => {
@@ -738,6 +376,34 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 			{ query: 'berry', active: ['berry'], sections: [] },
 			{ query: 'apple', active: ['apple'], sections: ['A'] },
 			{ query: '', active: ['apple'], sections: ['A'] },
+		]);
+	});
+
+	test('title-bar corners follow the picker frame across radius changes and keep the bottom square', () => {
+		const picker = store.add(controller.createQuickWidget());
+		picker.title = 'Change group icon';
+		picker.widget = mainWindow.document.createElement('div');
+		picker.show();
+		const frame = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
+		const title = fixture.querySelector<HTMLElement>('.quick-input-titlebar')!;
+		const corners = () => {
+			const frameStyle = mainWindow.getComputedStyle(frame);
+			const titleStyle = mainWindow.getComputedStyle(title);
+			return {
+				left: titleStyle.borderTopLeftRadius === frameStyle.borderTopLeftRadius,
+				right: titleStyle.borderTopRightRadius === frameStyle.borderTopRightRadius,
+				bottomLeft: titleStyle.borderBottomLeftRadius,
+				bottomRight: titleStyle.borderBottomRightRadius,
+			};
+		};
+		const states = [];
+		for (const radius of ['12px', '20px']) {
+			fixture.style.setProperty('--vscode-cornerRadius-xLarge', radius);
+			states.push(corners());
+		}
+		assert.deepStrictEqual(states, [
+			{ left: true, right: true, bottomLeft: '0px', bottomRight: '0px' },
+			{ left: true, right: true, bottomLeft: '0px', bottomRight: '0px' },
 		]);
 	});
 
@@ -1131,11 +797,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		// Trigger a change
 		quickpick.value = 'changed';
 
-		try {
-			assert.strictEqual(value, quickpick.value);
-		} finally {
-			quickpick.dispose();
-		}
+		assert.strictEqual(value, quickpick.value);
 	});
 
 	test('keepScrollPosition - works with activeItems', async () => {

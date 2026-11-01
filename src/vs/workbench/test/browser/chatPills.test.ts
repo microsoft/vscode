@@ -64,6 +64,7 @@ suite('ChatPills', () => {
 						preserveLabelOnRefresh: title !== undefined,
 						ariaLabel: `Open ${typeLabel} #123${title ? ': Live title' : ''}`,
 						dropdownAriaLabel: `#123, Open ${typeLabel}${title ? ': Live title' : ''}`,
+						ariaDescription: undefined,
 					},
 				});
 			});
@@ -80,6 +81,20 @@ suite('ChatPills', () => {
 				labels: ['Recorded title', 'Live title'],
 				identity: Array.from({ length: 2 }, () => ({ badge: '#123', badgeBeforeLabel: true, pillLabel: '#123' })),
 				preserveLabelOnRefresh: [false, true],
+			});
+		});
+
+		test(`${kind} replaces a generic URL description with reference semantics`, () => {
+			const url = `https://github.com/microsoft/vscode/${kind === 'pullRequest' ? 'pull' : 'issues'}/123`;
+			const entry: Pick<IChatPillEntry, 'ariaLabel' | 'ariaDescription'> = { ariaDescription: url };
+			Object.assign(entry, getChatReferencePillPresentation(kind, '#123', undefined, 'Recorded title').entry);
+
+			assert.deepStrictEqual({
+				ariaLabel: entry.ariaLabel,
+				ariaDescription: entry.ariaDescription,
+			}, {
+				ariaLabel: `Open ${typeLabel} #123: Recorded title`,
+				ariaDescription: undefined,
 			});
 		});
 	}

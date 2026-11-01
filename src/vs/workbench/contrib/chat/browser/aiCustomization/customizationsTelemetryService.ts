@@ -102,7 +102,7 @@ export class CustomizationsTelemetryService implements ICustomizationsTelemetryS
 					const type = toTelemetryType(child.type);
 					if (type && type !== 'mcpServer') {
 						const source = syntheticBundle
-							? this.getSyncedChildSource(customization, child)
+							? this.getSyncedChildSource(sessionResource, customization, child)
 							: AICustomizationSources.plugin;
 						incrementSource(counts[type], source);
 					}
@@ -156,8 +156,11 @@ export class CustomizationsTelemetryService implements ICustomizationsTelemetryS
 		}
 	}
 
-	private getSyncedChildSource(plugin: PluginCustomization, child: ChildCustomization): AICustomizationSource {
-		const pluginUri = URI.parse(plugin.uri);
+	private getSyncedChildSource(sessionResource: URI, plugin: PluginCustomization, child: ChildCustomization): AICustomizationSource {
+		const pluginUri = this.agentHostCustomizationService.getClientPluginUri(sessionResource, plugin);
+		if (!pluginUri) {
+			return AICustomizationSources.plugin;
+		}
 		const childUri = URI.parse(child.uri);
 		const syncedUri = child.type === CustomizationType.Skill
 			? URI.joinPath(pluginUri, 'skills', basename(dirname(childUri)), basename(childUri))

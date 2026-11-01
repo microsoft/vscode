@@ -17,7 +17,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, IAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, createEditorRemoteAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, IAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { createSessionState, SessionState, SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -26,6 +26,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IFileService, IFileWriteOptions } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -1126,8 +1127,7 @@ suite('CustomizationMigrationService', () => {
 			const sourceUri = URI.from({ scheme: Schemas.vscodeUserData, path: '/profile/mcp.json' });
 			const targetUri = URI.file('/custom-copilot/mcp-config.json');
 			let currentTarget = targetUri;
-			const fileService = store.add(new FileService(new NullLogService()));
-			store.add(fileService.registerProvider(Schemas.vscodeUserData, store.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(store, Schemas.vscodeUserData);
 			store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
 			await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node"},"null-env":{"command":"node","env":{"REMOVE_ME":null}}}}'));
 			const workspaceSnapshot = createWorkspaceMcpSupportSnapshot(URI.file('/workspace'));
@@ -1193,8 +1193,7 @@ suite('CustomizationMigrationService', () => {
 	test('migrates profile MCP servers with ${env:} references and explains unsupported ones', async () => {
 		const sourceUri = URI.from({ scheme: Schemas.vscodeUserData, path: '/profile/mcp.json' });
 		const targetUri = URI.file('/custom-copilot/mcp-config.json');
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.vscodeUserData, store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.vscodeUserData);
 		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node","env":{"TOKEN":"${env:TOKEN}"}},"header-name":{"type":"http","url":"https://example.com/mcp","headers":{"${env:HEADER}":"value"}}}}'));
 		const [workspaceServer] = createWorkspaceMcpSupportSnapshot(URI.file('/workspace')).servers;
@@ -1251,8 +1250,7 @@ suite('CustomizationMigrationService', () => {
 	test('migrates profile MCP servers with ${input:} references, and explains unsupported ones', async () => {
 		const sourceUri = URI.from({ scheme: Schemas.vscodeUserData, path: '/profile/mcp.json' });
 		const targetUri = URI.file('/custom-copilot/mcp-config.json');
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.vscodeUserData, store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.vscodeUserData);
 		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
 		const servers = {
 			server: { command: 'node', env: { TOKEN: '${input:token}' } },
@@ -1335,8 +1333,7 @@ suite('CustomizationMigrationService', () => {
 	test('migrates profile MCP servers with ${config:} references to their current values, and explains unsupported ones', async () => {
 		const sourceUri = URI.from({ scheme: Schemas.vscodeUserData, path: '/profile/mcp.json' });
 		const targetUri = URI.file('/custom-copilot/mcp-config.json');
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.vscodeUserData, store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.vscodeUserData);
 		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
 		const servers = {
 			local: { command: '${config:mcp.command}', args: ['--level=${input:level}'], env: { PORT: '${config:mcp.port}', TOKEN: '${env:TOKEN}' } },
@@ -1434,8 +1431,7 @@ suite('CustomizationMigrationService', () => {
 		const root = URI.file('/workspace');
 		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
 		const targetUri = URI.joinPath(root, '.mcp.json');
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node","args":["--port=${config:mcp.port}","--token=${config:user.token}"]}}}'));
 		const configurationService = store.add(createMigrationConfiguration());
 		await configurationService.setUserConfiguration('mcp.port', 1);
@@ -2204,8 +2200,7 @@ suite('CustomizationMigrationService', () => {
 
 	test('preserves disabled state on each migrated server in its own workspace folder', async () => {
 		const roots = [URI.file('/root-one'), URI.file('/root-two')];
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		for (const root of roots) {
 			await fileService.writeFile(URI.joinPath(root, '.vscode', 'mcp.json'), VSBuffer.fromString('{"servers":{"server":{"command":"node"}}}'));
 		}
@@ -2258,8 +2253,7 @@ suite('CustomizationMigrationService', () => {
 	for (const [selection, label] of [['winner', 'only the server that takes precedence'], ['shadowed', 'only the shadowed server'], ['both', 'both servers']] as const) {
 		test(`keeps same-named server precedence when migrating ${label}`, async () => {
 			const roots = [URI.file('/root-one'), URI.file('/root-two')];
-			const fileService = store.add(new FileService(new NullLogService()));
-			store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(store, Schemas.file);
 			for (const root of roots) {
 				await fileService.writeFile(URI.joinPath(root, '.vscode', 'mcp.json'), VSBuffer.fromString('{"servers":{"server":{"command":"node"}}}'));
 			}
@@ -2356,15 +2350,13 @@ suite('CustomizationMigrationService', () => {
 		const remoteRoot = URI.parse('vscode-remote://dev-container+test/workspaces/project');
 		const sourceUri = URI.joinPath(remoteRoot, '.vscode', 'mcp.json');
 		const targetUri = URI.joinPath(remoteRoot, '.mcp.json');
-		const fileService = store.add(new FileService(new NullLogService()));
-		const remoteProvider = store.add(new InMemoryFileSystemProvider());
-		store.add(fileService.registerProvider(Schemas.vscodeRemote, remoteProvider));
+		const fileService = createInMemoryFileService(store, Schemas.vscodeRemote);
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node"}}}'));
 		const snapshot = createWorkspaceMcpSupportSnapshot(remoteRoot);
 		const harnessService = new TestCustomizationHarnessService();
 		const session = harnessService.activeSessionResource.get();
 
-		const compute = async (resourceUris: IAgentHostResourceUriMapper) => {
+		const compute = async (resourceUris: IAgentHostResourceUriMapper, hydratedRoot: string) => {
 			let requestedRoots: readonly URI[] | undefined;
 			const activeClientService = new class extends mock<IAgentHostActiveClientService>() {
 				override acquireMcpServerSupportScope(_sessionType: string, roots: readonly URI[] | undefined) {
@@ -2445,14 +2437,14 @@ suite('CustomizationMigrationService', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date(0).toISOString(),
 				modifiedAt: new Date(0).toISOString(),
-				workingDirectories: [remoteRoot.toString()],
+				workingDirectories: [hydratedRoot],
 			});
 			subscriptionChanged.fire(subscription.value);
 			return { provisional, hydrated: await readMigration() };
 		};
 
-		const identityControl = await compute(identityAgentHostResourceUriMapper);
-		const remoteConnection = await compute(createAgentHostResourceUriMapper('remote-test'));
+		const identityControl = await compute(identityAgentHostResourceUriMapper, remoteRoot.toString());
+		const remoteConnection = await compute(createEditorRemoteAgentHostResourceUriMapper('dev-container+test', 'remote-test'), 'file:///workspaces/project');
 		const expectedMigration = {
 			roots: [remoteRoot.toString()],
 			candidates: [{ sourceUri: sourceUri.toString(), targetUri: targetUri.toString() }],

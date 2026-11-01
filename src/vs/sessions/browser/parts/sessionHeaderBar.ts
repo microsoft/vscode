@@ -7,7 +7,7 @@ import './media/chatCompositeBar.css';
 import { IAction } from '../../../base/common/actions.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { $, addDisposableGenericMouseDownListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, getWindow, isMouseEvent } from '../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventHelper, EventType, getWindow, isMouseEvent } from '../../../base/browser/dom.js';
 import { IconLabel } from '../../../base/browser/ui/iconLabel/iconLabel.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
@@ -63,6 +63,7 @@ export interface ISessionHeaderBarContext {
 	readonly actionsTargetChat?: boolean;
 	readonly showParentContext?: boolean;
 	readonly activateChatGroup?: () => void;
+	readonly closeSession?: () => void;
 }
 
 export function getSessionToolbarSecondaryActionsPosition(primaryActions: readonly IAction[]): number {
@@ -93,6 +94,7 @@ export class SessionHeaderBar extends Disposable {
 	private _actionsTargetChat = false;
 	private _showParentContext = false;
 	private _activateChatGroup: (() => void) | undefined;
+	private _closeSession: (() => void) | undefined;
 	private _activeChat: IChat | undefined;
 	private readonly _menuActionArgs: unknown[] = [];
 	private _sessionIsCreated = false;
@@ -171,6 +173,13 @@ export class SessionHeaderBar extends Disposable {
 		// flip into edit mode.
 		this._register(addDisposableListener(this._titleEl, EventType.CLICK, () => {
 			this.startTitleEditing();
+		}));
+		this._register(addDisposableListener(this._titleEl, EventType.AUXCLICK, e => {
+			if (e.button !== 1 || !this._closeSession || this._renameInput?.contains(e.target as Node)) {
+				return;
+			}
+			EventHelper.stop(e, true);
+			this._closeSession();
 		}));
 
 		const titleActions = $('.chat-composite-bar-title-actions');
@@ -289,11 +298,13 @@ export class SessionHeaderBar extends Disposable {
 		const actionsTargetChat = context?.actionsTargetChat ?? false;
 		const showParentContext = context?.showParentContext ?? false;
 		const activateChatGroup = context?.activateChatGroup;
+		const closeSession = context?.closeSession;
 		if (this._session === session
 			&& this._activeChatObservable === activeChat
 			&& this._actionsTargetChat === actionsTargetChat
 			&& this._showParentContext === showParentContext
-			&& this._activateChatGroup === activateChatGroup) {
+			&& this._activateChatGroup === activateChatGroup
+			&& this._closeSession === closeSession) {
 			return;
 		}
 		// Cancel any in-flight rename when switching sessions.
@@ -303,6 +314,7 @@ export class SessionHeaderBar extends Disposable {
 		this._actionsTargetChat = actionsTargetChat;
 		this._showParentContext = showParentContext;
 		this._activateChatGroup = activateChatGroup;
+		this._closeSession = closeSession;
 		this._activeChat = undefined;
 		this._menuActionArgs.splice(0, this._menuActionArgs.length, ...(session ? [session] : []));
 		this._toolbar.context = session;
@@ -489,10 +501,9 @@ export class SessionHeaderBar extends Disposable {
 				e.preventDefault();
 				e.stopPropagation();
 				finish(false);
-			} else {
-				// Don't let typing leak out to workbench shortcuts (e.g. Space).
-				e.stopPropagation();
 			}
+			// Other keys must bubble: clipboard and editing shortcuts (paste, copy,
+			// select all, undo) are workbench keybindings for plain inputs.
 		}));
 
 		store.add(addDisposableListener(input, EventType.BLUR, () => {

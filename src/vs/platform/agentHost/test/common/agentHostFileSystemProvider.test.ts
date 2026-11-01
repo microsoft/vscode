@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { FileChangeType, FilePermission, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
 import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection, type IRemoteWatchHandle } from '../../common/agentHostFileSystemProvider.js';
 import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
-import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, isAgentHostContentRefUri, toAgentHostContentUri, toAgentHostUri } from '../../common/agentHostUri.js';
+import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, createEditorRemoteAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, isAgentHostContentRefUri, toAgentHostContentUri, toAgentHostUri } from '../../common/agentHostUri.js';
 import { ContentEncoding, ResourceType, type CreateResourceWatchParams, type ResourceCopyParams, type ResourceListResult, type ResourceMkdirParams, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult } from '../../common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -319,17 +319,58 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		const original = URI.file('/remote/file.txt');
 		const remote = createAgentHostResourceUriMapper('remote-host');
 		const mapped = remote.fromAgentHost(original);
+		const otherHost = toAgentHostUri(original, 'other-host');
 
 		assert.deepStrictEqual({
 			mapped: mapped.toString(),
 			unmapped: remote.toAgentHost(mapped).toString(),
+			otherHost: remote.toAgentHost(otherHost).toString(),
 			localFrom: identityAgentHostResourceUriMapper.fromAgentHost(original).toString(),
 			localTo: identityAgentHostResourceUriMapper.toAgentHost(original).toString(),
 		}, {
 			mapped: toAgentHostUri(original, 'remote-host').toString(),
 			unmapped: original.toString(),
+			otherHost: otherHost.toString(),
 			localFrom: original.toString(),
 			localTo: original.toString(),
+		});
+	});
+
+	test('editor-remote resource URI mapper preserves workspace identities', () => {
+		const mapper = createEditorRemoteAgentHostResourceUriMapper('wsl+Ubuntu', 'editor-remote');
+		const remote = URI.parse('vscode-remote://wsl+Ubuntu/workspace?query=value#fragment');
+		const file = URI.parse('file:///workspace?query=value#fragment');
+		const otherRemote = URI.parse('vscode-remote://wsl+other/workspace');
+		const content = URI.parse('agenthost-content:/session/output?query=value#fragment');
+		const wrapped = toAgentHostUri(file, 'editor-remote');
+		const otherHost = toAgentHostUri(file, 'other-host');
+
+		assert.deepStrictEqual({
+			toHost: mapper.toAgentHost(remote).toString(),
+			filePassthrough: mapper.toAgentHost(file).toString(),
+			mixedCase: mapper.toAgentHost(remote.with({ authority: 'WSL+uBUNTU' })).toString(),
+			otherAuthority: mapper.toAgentHost(otherRemote).toString(),
+			unwrapped: mapper.toAgentHost(wrapped).toString(),
+			otherHostWrapped: mapper.toAgentHost(otherHost).toString(),
+			toClient: mapper.fromAgentHost(file).toString(),
+			remotePassthrough: mapper.fromAgentHost(remote).toString(),
+			otherRemotePassthrough: mapper.fromAgentHost(otherRemote).toString(),
+			content: mapper.fromAgentHost(content).toString(),
+			remoteRoundTrip: mapper.fromAgentHost(mapper.toAgentHost(remote)).toString(),
+			hostRoundTrip: mapper.toAgentHost(mapper.fromAgentHost(file)).toString(),
+		}, {
+			toHost: file.toString(),
+			filePassthrough: file.toString(),
+			mixedCase: file.toString(),
+			otherAuthority: otherRemote.toString(),
+			unwrapped: file.toString(),
+			otherHostWrapped: otherHost.toString(),
+			toClient: remote.toString(),
+			remotePassthrough: remote.toString(),
+			otherRemotePassthrough: otherRemote.toString(),
+			content: toAgentHostUri(content, 'editor-remote').toString(),
+			remoteRoundTrip: remote.toString(),
+			hostRoundTrip: file.toString(),
 		});
 	});
 
@@ -962,6 +1003,38 @@ suite('AgentHostFileSystemProvider - permission errors and requestResourceAccess
 				toFileSystemProviderErrorCode(err instanceof Error ? err : undefined),
 				FileSystemProviderErrorCode.FileNotFound,
 			);
+		}
+	});
+
+	test('authentication failures remain Unavailable across filesystem operations', async () => {
+		const { provider, connection } = setup();
+		const wrapped = agentHostUri('remote', '/protected');
+		const error = new ProtocolError(AhpErrorCodes.AuthRequired, 'Relay identity authentication is required');
+		connection.readError = error;
+		connection.listError = error;
+		connection.resolveError = error;
+		connection.writeError = error;
+		connection.deleteError = error;
+		connection.moveError = error;
+		connection.copyError = error;
+		connection.mkdirError = error;
+		connection.requestError = error;
+		const operations = [
+			() => provider.stat(wrapped),
+			() => provider.realpath(wrapped),
+			() => provider.readFile(wrapped),
+			() => provider.readdir(wrapped),
+			() => provider.writeFile(wrapped, new Uint8Array(), { create: true, overwrite: true, unlock: false, atomic: false }),
+			() => provider.delete(wrapped, { recursive: false, useTrash: false, atomic: false }),
+			() => provider.rename(wrapped, agentHostUri('remote', '/dst'), { overwrite: true }),
+			() => provider.copy(wrapped, agentHostUri('remote', '/dst'), { overwrite: true }),
+			() => provider.mkdir(wrapped),
+			() => provider.requestResourceAccess(wrapped, { read: true }),
+		];
+		for (const operation of operations) {
+			await assert.rejects(operation(), err => err instanceof Error
+				&& err.message === error.message
+				&& toFileSystemProviderErrorCode(err) === FileSystemProviderErrorCode.Unavailable);
 		}
 	});
 

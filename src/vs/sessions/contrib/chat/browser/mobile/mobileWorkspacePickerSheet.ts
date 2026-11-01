@@ -15,6 +15,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ISessionWorkspaceBrowseAction } from '../../../../services/sessions/common/session.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../base/common/event.js';
 
 /** Prefix used for ids of dynamically-loaded folder rows in the sheet. */
 const SEARCH_RESULT_ID_PREFIX = 'searchResult:';
@@ -165,6 +166,10 @@ export async function showMobileWorkspacePickerSheet(
 	showSearch = false,
 	cancellationToken: CancellationToken = CancellationToken.None,
 	caption?: string,
+	liveItems?: {
+		readonly getItems: (query: string) => readonly IActionListItem<IWorkspacePickerItem>[];
+		readonly onDidChange: Event<void>;
+	},
 ): Promise<void> {
 	if (cancellationToken.isCancellationRequested) {
 		return;
@@ -194,7 +199,7 @@ export async function showMobileWorkspacePickerSheet(
 		return;
 	}
 
-	const rows = buildMobileWorkspacePickerRows(rowItems, dispatch);
+	let rows = buildMobileWorkspacePickerRows(rowItems, dispatch);
 	const headerActions: IMobilePickerSheetHeaderAction[] = headerBrowseActions.map((b, i) => ({
 		id: String(i),
 		label: b.label,
@@ -217,8 +222,12 @@ export async function showMobileWorkspacePickerSheet(
 			emptyMessage: showSearch
 				? localize('mobileWorkspacePicker.noWorkspaces', "No workspaces match")
 				: localize('mobileWorkspacePicker.noFolders', "No folders match"),
+			onDidChangeItems: liveItems?.onDidChange,
 			loadItems: async (query, token) => {
 				currentSearchQuery = query;
+				if (liveItems) {
+					rows = buildMobileWorkspacePickerRows(partitionItems(liveItems.getItems(query), dispatch, browseActions).rowItems, dispatch);
+				}
 				folderRunById.clear();
 				folderLabelById.clear();
 				const normalizedQuery = query.trim().toLocaleLowerCase();

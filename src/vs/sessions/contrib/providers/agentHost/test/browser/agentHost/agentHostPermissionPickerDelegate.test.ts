@@ -13,6 +13,7 @@ import { ContextKeyService } from '../../../../../../../platform/contextkey/brow
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { MockKeybindingService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
@@ -611,9 +612,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		instantiationService.set(IOpenerService, new class extends mock<IOpenerService>() { }());
 		instantiationService.set(IStorageService, store.add(new InMemoryStorageService()));
 		instantiationService.set(ITelemetryService, NullTelemetryService);
-		instantiationService.set(IHoverService, new class extends mock<IHoverService>() {
-			override setupDelayedHover() { return { dispose: () => { } }; }
-		}());
+		instantiationService.set(IHoverService, { ...NullHoverService });
 		instantiationService.set(IActionWidgetService, new class extends mock<IActionWidgetService>() {
 			override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {
 				toggle = items.find(item => item.standaloneToggle)?.standaloneToggle;

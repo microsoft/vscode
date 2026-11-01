@@ -9,13 +9,12 @@ import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/a
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { CustomizationLoadStatus, CustomizationType, type SkillCustomization } from '../../common/state/sessionState.js';
@@ -29,16 +28,14 @@ type AgentsDiscoverRequest = Parameters<CopilotClient['rpc']['agents']['discover
 
 suite('SessionCustomizationDiscovery', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: FileService;
 	let instantiationService: TestInstantiationService;
 	let workspace: URI;
 	let userHome: URI;
 
 	setup(() => {
-		fileService = disposables.add(new FileService(new NullLogService()));
-		const memFs = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider(Schemas.inMemory, memFs));
+		fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, fileService);
@@ -48,10 +45,6 @@ suite('SessionCustomizationDiscovery', () => {
 		userHome = URI.from({ scheme: Schemas.inMemory, path: '/home' });
 	});
 
-	teardown(() => {
-		disposables.clear();
-	});
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function seed(path: string, content = ''): Promise<URI> {
 		const uri = URI.from({ scheme: Schemas.inMemory, path });

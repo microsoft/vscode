@@ -75,7 +75,7 @@ function makeSession(opts: { providerId: string; cwd?: URI; remoteConnectionStat
 
 suite('AgentHostSessionTaskRunner', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let runner: AgentHostSessionTaskRunner;
 	let createdTerminals: { address: string; options?: IAgentHostTerminalCreateOptions; instance: ITerminalInstance }[];
 	let sentText: { text: string; shouldExecute: boolean }[];
@@ -205,10 +205,6 @@ suite('AgentHostSessionTaskRunner', () => {
 		// Reference unused imports to keep them in the bundle and silence linters.
 		void Event;
 	});
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function shellTask(): ITaskEntry {
 		return { label: 'build', type: 'shell', command: 'echo', args: ['hi'] };

@@ -13,7 +13,7 @@ import { DeferredPromise, retry, timeout } from '../../../../../base/common/asyn
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event as VSCodeEvent } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
@@ -27,7 +27,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/virtualSched
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -582,44 +582,52 @@ suite('Sessions - Chat View', () => {
 		]);
 	});
 
-	test('reads the widget offset only for a visible external banner and follows changes in its height', () => {
-		const element = dom.$('.chat-view-chat');
-		const banner = dom.append(element, dom.$('.external-session-banner.hidden'));
-		const progress = dom.append(element, dom.$('.monaco-progress-container'));
-		const widgetContainer = dom.append(element, dom.$('.chat-view-widget'));
-		const layouts: number[][] = [];
-		const progressOffsets: string[] = [];
-		let offsetReads = 0;
-		let bannerHeight = 35;
-		Object.defineProperty(widgetContainer, 'offsetTop', { get: () => { offsetReads++; return bannerHeight; } });
-		const view: { _layoutChatWidget(): void } = Object.assign(Object.create(ChatView.prototype), {
-			element,
-			_lastLayout: { width: 500, height: 400 },
-			_externalSessionBanner: { domNode: banner },
-			_widgetContainer: widgetContainer,
-			_widget: { layout: (height: number, width: number) => layouts.push([height, width]) },
-			_comparisonResult: { layout: () => { } },
-			_layoutStickyScrollBackground: () => { },
+	for (const inputOnly of [false, true]) {
+		test(`reads the widget offset only for a visible external banner and keeps input sizing independent for input-only hosts: ${inputOnly}`, () => {
+			const element = dom.$('.chat-view-chat');
+			const banner = dom.append(element, dom.$('.external-session-banner.hidden'));
+			const progress = dom.append(element, dom.$('.monaco-progress-container'));
+			const widgetContainer = dom.append(element, dom.$('.chat-view-widget'));
+			const layouts: number[][] = [];
+			const inputMaxHeights: number[] = [];
+			const progressOffsets: string[] = [];
+			let offsetReads = 0;
+			let bannerHeight = 35;
+			Object.defineProperty(widgetContainer, 'offsetTop', { get: () => { offsetReads++; return bannerHeight; } });
+			const view: { _layoutChatWidget(): void } = Object.assign(Object.create(ChatView.prototype), {
+				element,
+				_lastLayout: { width: 500, height: 400 },
+				_inputOnly: inputOnly,
+				_externalSessionBanner: { domNode: banner },
+				_widgetContainer: widgetContainer,
+				_widget: {
+					layout: (height: number, width: number) => layouts.push([height, width]),
+					setInputPartMaxHeightOverride: (height: number) => inputMaxHeights.push(height),
+				},
+				_comparisonResult: { layout: () => { } },
+				_layoutStickyScrollBackground: () => { },
+			});
+			view._layoutChatWidget();
+			const hiddenReads = offsetReads;
+			progressOffsets.push(progress.style.top);
+			banner.classList.remove('hidden');
+			view._layoutChatWidget();
+			progressOffsets.push(progress.style.top);
+			bannerHeight = 60;
+			view._layoutChatWidget();
+			progressOffsets.push(progress.style.top);
+			banner.classList.add('hidden');
+			view._layoutChatWidget();
+			progressOffsets.push(progress.style.top);
+			assert.deepStrictEqual({ hiddenReads, offsetReads, layouts, inputMaxHeights, progressOffsets, viewportWidth: widgetContainer.style.width }, {
+				hiddenReads: 0, offsetReads: 2,
+				layouts: [[400, 500], [365, 500], [340, 500], [400, 500]],
+				inputMaxHeights: inputOnly ? Array.from({ length: 4 }, () => Number.POSITIVE_INFINITY) : [],
+				progressOffsets: ['0px', '35px', '60px', '0px'],
+				viewportWidth: '500px',
+			});
 		});
-		view._layoutChatWidget();
-		const hiddenReads = offsetReads;
-		progressOffsets.push(progress.style.top);
-		banner.classList.remove('hidden');
-		view._layoutChatWidget();
-		progressOffsets.push(progress.style.top);
-		bannerHeight = 60;
-		view._layoutChatWidget();
-		progressOffsets.push(progress.style.top);
-		banner.classList.add('hidden');
-		view._layoutChatWidget();
-		progressOffsets.push(progress.style.top);
-		assert.deepStrictEqual({ hiddenReads, offsetReads, layouts, progressOffsets, viewportWidth: widgetContainer.style.width }, {
-			hiddenReads: 0, offsetReads: 2,
-			layouts: [[400, 500], [365, 500], [340, 500], [400, 500]],
-			progressOffsets: ['0px', '35px', '60px', '0px'],
-			viewportWidth: '500px',
-		});
-	});
+	}
 
 	test('centers chat content in the width its host lays it out with, to the left of the Session Activity Bar\'s column, and keeps the scrollbar at its right edge', async () => {
 		const root = dom.append(dom.getActiveDocument().body, dom.$('.monaco-workbench.agent-sessions-workbench'));
@@ -1602,17 +1610,19 @@ suite('Sessions - Chat View', () => {
 			bindings: [savedDraft], attempts: 0,
 		});
 	});
-	function createSwitchingView(chatService?: Pick<IChatService, 'acquireOrLoadSession'>) {
+	function createSwitchingView(chatService?: Pick<IChatService, 'acquireOrLoadSession'>, options: { inputOnly?: boolean; viewStates?: Map<string, { scroll: number }> } = {}) {
 		const requests: DeferredPromise<IChatModelReference | undefined>[] = [];
 		const completions: Promise<void>[] = [];
 		const models = new Map<string, ChatModel>();
 		const disposedReferences: URI[] = [];
 		const historyKeys: (string | undefined)[] = [];
-		const viewStates = new Map<string, { scroll: number }>();
+		const viewStates = options.viewStates ?? new Map<string, { scroll: number }>();
 		const boundModels: (URI | undefined)[] = [];
 		const widgetState: { input: string; attachments: IChatModelInputState['attachments']; scroll: number; model: IChatModel | undefined } = { input: '', attachments: [], scroll: 0, model: undefined };
 		const openOutcomes: string[] = [];
 		const widgetVisibility = { visible: true };
+		/** The chat each `setChat` consumer saw (`undefined` when released), and which transcript the widget still rendered at that moment. */
+		const sideChatBindings: { chat: string | undefined; renderedTranscript: string | undefined }[] = [];
 		const modelRef = disposables.add(new MutableDisposable<IChatModelReference>());
 		const loadCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
 		const loadFailure = observableValue<{ resource: URI; status: IChatSessionHistoryStatus } | undefined>('loadFailure', undefined);
@@ -1623,6 +1633,7 @@ suite('Sessions - Chat View', () => {
 			_retryUnresolvedChatLoad(addedSessionTypes: readonly string[]): void;
 			dispose(): void;
 		} = Object.assign(Object.create(ChatView.prototype), {
+			_inputOnly: options.inputOnly === true,
 			_store: disposables.add(new DisposableStore()),
 			_transcriptDisposables: disposables.add(new DisposableStore()),
 			chatPillsDebugService: { clear: () => { } },
@@ -1638,7 +1649,7 @@ suite('Sessions - Chat View', () => {
 			isInputBlocked: observableValue('inputBlocked', false),
 			_interactiveDisposable: disposables.add(new MutableDisposable()),
 			_chatPills: { setChat: () => { } },
-			_selectionSideChatController: { setChat: () => { } },
+			_selectionSideChatController: { setChat: (chat: URI | undefined) => sideChatBindings.push({ chat: chat?.toString(), renderedTranscript: widgetState.model?.sessionResource.toString() }) },
 			_banners: { setDebugData: () => { } },
 			_preparationModel: { value: undefined, clear: () => { } },
 			hasVisibleTranscriptContent: observableValue('transcript', false),
@@ -1716,7 +1727,7 @@ suite('Sessions - Chat View', () => {
 			await requests[index].error(error);
 			await completions[index];
 		};
-		return { view, createChat, complete, fail, compose, snapshot, historyKeys, disposedReferences, boundModels, openOutcomes, widgetVisibility, requests, completions, loadCts, loadFailure, loading, setInput: (input: string) => { widgetState.input = input; } };
+		return { view, createChat, complete, fail, compose, snapshot, historyKeys, disposedReferences, boundModels, openOutcomes, widgetVisibility, sideChatBindings, requests, completions, loadCts, loadFailure, loading, setInput: (input: string) => { widgetState.input = input; } };
 	}
 
 	/** Uses real content resolution and shared load coordination with in-memory models. */
@@ -1903,6 +1914,45 @@ suite('Sessions - Chat View', () => {
 				backInA: { input: 'draft-a', attachments: ['draft-a.md'], scroll: 120 },
 				historyKeys: ['key-a', 'key-b', 'key-a'],
 			});
+		});
+
+		for (const inputOnly of [undefined, false, true]) {
+			test(`isolates input-only views from full-conversation scroll state on switching and disposal: ${inputOnly}`, async () => {
+				const viewStates = new Map([[resourceA.toString(), { scroll: 120 }], [resourceB.toString(), { scroll: 240 }]]);
+				const { view, createChat, complete, compose, snapshot } = createSwitchingView(undefined, { inputOnly, viewStates });
+				const chatA = createChat(resourceA);
+				view.setChat(chatA);
+				await complete(0, resourceA);
+				const restored = snapshot().scroll;
+				compose('reply draft', 0);
+				view.setChat(createChat(resourceB));
+				await complete(1, resourceB);
+				compose('other draft', 0);
+				view.setChat(chatA);
+				await complete(2, resourceA);
+				const draft = snapshot().input;
+				view.dispose();
+				assert.deepStrictEqual({ restored, draft, saved: [...viewStates.values()] }, {
+					restored: inputOnly ? 0 : 120,
+					draft: 'reply draft',
+					saved: inputOnly ? [{ scroll: 120 }, { scroll: 240 }] : [{ scroll: 0 }, { scroll: 0 }],
+				});
+			});
+		}
+
+		test('releases the outgoing transcript before the next chat is reflected in the view', async () => {
+			const { view, createChat, complete, sideChatBindings } = createSwitchingView();
+
+			view.setChat(createChat(resourceA), 'key-a');
+			await complete(0, resourceA);
+			view.setChat(createChat(resourceB), 'key-b');
+
+			// Reading layout (e.g. the transcript selection) while A is still rendered would lay out A for nothing.
+			assert.deepStrictEqual(sideChatBindings, [
+				{ chat: resourceA.toString(), renderedTranscript: undefined },
+				{ chat: undefined, renderedTranscript: undefined },
+				{ chat: resourceB.toString(), renderedTranscript: undefined },
+			]);
 		});
 
 		suite('chat open diagnostics', () => {
@@ -3108,9 +3158,7 @@ suite('Sessions - Chat View', () => {
 			const request = dom.append(session, dom.$('.interactive-item-container.interactive-request'));
 			const actionRequest = disposables.add(new ChatActionRequestContentPart({
 				title: 'Action', label: 'Action request', source: 'Test', message: 'Test message',
-			}, new class extends mock<IHoverService>() {
-				override setupDelayedHover() { return Disposable.None; }
-			}()));
+			}, { ...NullHoverService }));
 			dom.append(request, actionRequest.domNode);
 			const card = actionRequest.domNode.querySelector<HTMLElement>('.chat-action-request-card')!;
 			const disclosure = actionRequest.domNode.querySelector<HTMLElement>('.chat-action-request-disclosure')!;
@@ -4652,7 +4700,7 @@ suite('Sessions - Chat View', () => {
 		const onDidDisposeSession = disposables.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' | 'disposed' }>());
 		const viewStore = disposables.add(new DisposableStore());
 		const view: {
-			_loadChat(resource: URI, session: ISession | undefined, options?: { previousChatResource?: URI }): void;
+			_loadChat(resource: URI, session: ISession | undefined): void;
 			_trackUnregisteredContentProvider(removedSessionTypes: readonly string[]): void;
 			_reloadChatForReplacedProvider(addedSessionTypes: readonly string[]): void;
 		} = Object.assign(Object.create(ChatView.prototype), {
