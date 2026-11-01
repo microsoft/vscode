@@ -235,18 +235,26 @@ export class ChatStatusDashboard extends DomWidget {
 			this.element.classList.add('compact');
 		}
 
-		// Always trigger a fresh quota fetch when the dashboard opens
+		// Usage section — always shown inline
 		const updatePromise = this.chatEntitlementService.update(token);
 
-		// Usage section — always shown inline
+		let creditsUsedResetUpdater: ((resetLabel: string | undefined) => void) | undefined;
+
 		if (hasVisibleUsageContent) {
-			this.renderUsageContent(this.element, token, headerAdditionalSpendButton, headerUpgradeButton, updatePromise);
+			this.renderUsageContent(
+				this.element,
+				token,
+				headerAdditionalSpendButton,
+				headerUpgradeButton,
+				updatePromise,
+				() => creditsUsedResetUpdater
+			);
 		}
 
 		// Premium chat included indicator (shown when premium chat is unlimited)
 		const hasPremiumUnlimited = !!premiumChat?.unlimited;
 		const premiumChatUsage = getQuotaUsage(premiumChat);
-		let creditsUsedResetUpdater: ((resetLabel: string | undefined) => void) | undefined;
+		// let creditsUsedResetUpdater: ((resetLabel: string | undefined) => void) | undefined;
 		if (premiumChatUsage?.kind === QuotaUsageKind.CreditsUsed) {
 			creditsUsedResetUpdater = this.createCreditsUsedIndicator(this.element, premiumChatUsage.creditsUsed, this.formatQuotaResetLabel(premiumChat));
 		} else if (hasPremiumUnlimited) {
@@ -294,7 +302,14 @@ export class ChatStatusDashboard extends DomWidget {
 		this.renderSetupSection();
 	}
 
-	private renderUsageContent(container: HTMLElement, token: CancellationToken, headerAdditionalSpendButton: Button | undefined, headerUpgradeButton: Button | undefined, updatePromise: Promise<void>): void {
+	private renderUsageContent(
+		container: HTMLElement,
+		token: CancellationToken,
+		headerAdditionalSpendButton: Button | undefined,
+		headerUpgradeButton: Button | undefined,
+		updatePromise: Promise<void>,
+		getCreditsUsedResetUpdater: () => ((resetLabel: string | undefined) => void) | undefined
+	): void {
 		const { chat: chatQuota, completions: completionsQuota, premiumChat: premiumChatQuota } = this.chatEntitlementService.quotas;
 		const compact = !!this.options?.compactQuotaLayout;
 		const planName = compact ? getChatPlanName(this.chatEntitlementService.entitlement) : undefined;
@@ -374,7 +389,7 @@ export class ChatStatusDashboard extends DomWidget {
 				if (completionsQuota) {
 					completionsQuotaIndicator?.(completionsQuota);
 				}
-				creditsUsedResetUpdater?.(this.formatQuotaResetLabel(premiumChatQuota));
+				getCreditsUsedResetUpdater()?.(this.formatQuotaResetLabel(premiumChatQuota));
 				if (additionalBudgetIndicator && additionalBudgetElement) {
 					const overageEntitlement = this.chatEntitlementService.quotas.additionalUsageEntitlement ?? 0;
 					const overageCount = this.chatEntitlementService.quotas.additionalUsageCount ?? 0;
