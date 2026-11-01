@@ -33,9 +33,9 @@ import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAcce
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
 import { CHAT_PET_CHANGE_COLOR_COMMAND_ID, ChatPetColor, getChatPetColoredSprite } from '../../../browser/chatPetColors.js';
 import '../../../browser/widget/media/chat.css';
-import { getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions } from '../../../browser/widget/chatPetAccessoryRenderer.js';
+import { drawChatPetComposite, drawChatPetPropeller, getChatPetAccessoryImageSource, getChatPetPropellerBounds, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions, IChatPetFixedOrientationDecoration } from '../../../browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetAccessoryRigPose, getChatPetAccessoryTrack, getChatPetAntennaeOcclusionBounds, getChatPetEyeAccessoryAnchor, getChatPetReducedMotionRigFrame } from '../../../browser/widget/chatPetAccessoryRig.js';
-import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_BOUNCE_RESULT_DURATION, CHAT_PET_CONFETTI_SCORE, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPlatformTop, getChatPetHorizontalPosition, getChatPetListPadding, getChatPetMouseBounceVelocity, getChatPetMouseCollisionTime, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetSpriteSources, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetMouseBounceEligible, isChatPetMouseBounceGracePeriodElapsed, isChatPetMouseContact, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldCelebrateChatPetBounceScore, shouldClaimChatPetWindowOnConstruction, shouldDismissChatPetBounceResult, shouldPlaceChatPetSpeechBubbleLeft, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_BOUNCE_RESULT_DURATION, CHAT_PET_CONFETTI_SCORE, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPlatformTop, getChatPetHorizontalPosition, getChatPetListPadding, getChatPetMouseBounceVelocity, getChatPetMouseCollisionTime, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetSpriteSources, getChatPetThrowLanding, getChatPetThrowMaximumFallSpeed, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetMouseBounceEligible, isChatPetMouseBounceGracePeriodElapsed, isChatPetMouseContact, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldCelebrateChatPetBounceScore, shouldClaimChatPetWindowOnConstruction, shouldDismissChatPetBounceResult, shouldPlaceChatPetSpeechBubbleLeft, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -108,7 +108,7 @@ suite('ChatPetWidget', () => {
 		}
 	}
 
-	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport', color?: ChatPetColor, intersectionObserverCtor?: typeof IntersectionObserver, setPlatformOccupation?: IChatPetWidgetHost['setPlatformOccupation'], supportsJumpGame = false) {
+	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport', color?: ChatPetColor, intersectionObserverCtor?: typeof IntersectionObserver, setPlatformOccupation?: IChatPetWidgetHost['setPlatformOccupation'], supportsJumpGame = false, initializeService?: (service: ChatPetService) => void) {
 		const root = mainWindow.document.createElement('div');
 		root.style.cssText = 'position:fixed;left:0;top:0;width:800px;height:640px';
 		if (supportsJumpGame) {
@@ -169,6 +169,7 @@ suite('ChatPetWidget', () => {
 			service.unlockAchievement(ChatPetAchievementIds.Blobby);
 			service.setColor(color);
 		}
+		initializeService?.(service);
 		const widget = disposables.add(new ChatPetWidget(
 			firstHost, { resizeObserverCtor: TestResizeObserver, intersectionObserverCtor }, service, accessibilityService,
 			new class extends mock<IContextMenuService>() {
@@ -925,6 +926,126 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
+	test('shows the propeller as a separate layer only while the propeller hat is equipped', async () => {
+		const { button, service } = createHostTransitionHarness(true, 'teleport', 'stable', TestIntersectionObserver);
+		service.unlockAchievement(getChatPetAchievementForAccessory(ChatPetAccessoryIds.PropellerHat).id);
+		service.setAccessory(ChatPetAccessoryIds.PropellerHat);
+		await waitForPetAnimation(() => !button.querySelector('.chat-pet-propeller')!.classList.contains('hidden'));
+		const propeller = button.querySelector<HTMLCanvasElement>('.chat-pet-propeller-canvas')!;
+		const context = propeller.getContext('2d')!;
+		const hasRotorPixels = [...context.getImageData(0, 0, propeller.width, propeller.height).data].some((value, index) => index % 4 === 3 && value > 0);
+		const equipped = { dataset: button.dataset.propeller, visible: !propeller.parentElement!.classList.contains('hidden'), hasRotorPixels };
+		service.setAccessory(undefined);
+		await waitForPetAnimation(() => button.querySelector('.chat-pet-propeller')!.classList.contains('hidden'));
+		assert.deepStrictEqual(equipped, { dataset: 'true', visible: true, hasRotorPixels: true });
+		assert.strictEqual(button.dataset.propeller, 'false');
+	});
+
+	test('mirrors the propeller when its rig frame mirrors head accessories', async () => {
+		const { button, service } = createHostTransitionHarness(true, 'teleport', 'stable', TestIntersectionObserver);
+		service.unlockAchievement(getChatPetAchievementForAccessory(ChatPetAccessoryIds.PropellerHat).id);
+		service.setAccessory(ChatPetAccessoryIds.PropellerHat);
+		await waitForPetAnimation(() => !button.querySelector('.chat-pet-propeller')!.classList.contains('hidden'));
+		const accessoryImage = [...button.querySelectorAll<HTMLImageElement>('img')].find(image => image.naturalWidth === 384 && image.naturalHeight === 288);
+		assert.ok(accessoryImage);
+		const createRotorPixels = (frameIndex: number) => {
+			const canvas = mainWindow.document.createElement('canvas');
+			canvas.width = 96;
+			canvas.height = 96;
+			const context = canvas.getContext('2d')!;
+			drawChatPetPropeller(context, accessoryImage, 'worry', frameIndex);
+			return context.getImageData(0, 0, canvas.width, canvas.height).data;
+		};
+		const source = createRotorPixels(0);
+		const mirrored = createRotorPixels(1);
+		const expected = new Uint8ClampedArray(source.length);
+		for (let y = 0; y < 96; y++) {
+			for (let x = 0; x < 96; x++) {
+				const sourceOffset = (y * 96 + x) * 4;
+				const targetOffset = (y * 96 + 95 - x) * 4;
+				expected.set(source.subarray(sourceOffset, sourceOffset + 4), targetOffset);
+			}
+		}
+		assert.deepStrictEqual([...mirrored], [...expected]);
+	});
+
+	test('clears the propeller in canonical coordinates before facing reflection', async () => {
+		const { button, service } = createHostTransitionHarness(true, 'teleport', 'stable', TestIntersectionObserver);
+		service.unlockAchievement(getChatPetAchievementForAccessory(ChatPetAccessoryIds.PropellerHat).id);
+		service.setAccessory(ChatPetAccessoryIds.PropellerHat);
+		await waitForPetAnimation(() => !button.querySelector('.chat-pet-propeller')!.classList.contains('hidden'));
+		const bodyImage = button.querySelector<HTMLImageElement>('.chat-pet-sprite img[src]')!;
+		const accessoryImage = [...button.querySelectorAll<HTMLImageElement>('img')].find(image => image.naturalWidth === 384 && image.naturalHeight === 288);
+		assert.ok(accessoryImage);
+		const canvas = mainWindow.document.createElement('canvas');
+		canvas.width = 168;
+		canvas.height = 96;
+		const context = canvas.getContext('2d')!;
+		const clearRect = sinon.spy(context, 'clearRect');
+		const draw = (fixedOrientationDecorations?: readonly IChatPetFixedOrientationDecoration[]) => {
+			drawChatPetComposite(context, bodyImage, accessoryImage, 0, 0, 168, 96, 'left', 'painting', fixedOrientationDecorations, false, true, false, undefined, true);
+			return clearRect.getCalls().slice(-1)[0].args;
+		};
+		const fixedOrientationDecorations = [{ frameBounds: [[0, 0, 1, 1] as const], sourceFrame: 0 }] as const;
+		const maskCalls = [
+			draw(),
+			draw(fixedOrientationDecorations),
+		];
+		const bounds = getChatPetPropellerBounds('painting', 0)!;
+		assert.deepStrictEqual(maskCalls, [
+			[bounds.x, bounds.y, bounds.width, bounds.height],
+			[168 - bounds.x - bounds.width, bounds.y, bounds.width, bounds.height],
+		]);
+	});
+
+	test('restarts the propeller pose for repeated yapping in both facing directions', async () => {
+		const { button } = createHostTransitionHarness(false, 'teleport', 'stable', TestIntersectionObserver, undefined, false, service => {
+			service.unlockAchievement(getChatPetAchievementForAccessory(ChatPetAccessoryIds.PropellerHat).id);
+			service.setAccessory(ChatPetAccessoryIds.PropellerHat);
+		});
+		await waitForPetAnimation(() => !button.querySelector('.chat-pet-propeller')!.classList.contains('hidden'));
+		const pose = button.querySelector<HTMLElement>('.chat-pet-propeller-pose')!;
+		const propeller = button.querySelector<HTMLElement>('.chat-pet-propeller')!;
+		const random = sinon.stub(Math, 'random').returns(0.01);
+		const click = () => button.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true }));
+		click();
+		await waitForPetAnimation(() => button.dataset.state === 'yapping');
+		const firstSprite = button.querySelector('.chat-pet-sprite:not(.hidden)')!;
+		const firstAnimation = pose.getAnimations()[0];
+		assert.ok(firstAnimation);
+		await timeout(120);
+		const firstAnimationTime = Number(firstAnimation.currentTime);
+		click();
+		await waitForPetAnimation(() => button.dataset.state === 'yapping' && button.querySelector('.chat-pet-sprite:not(.hidden)') !== firstSprite);
+		const restartedAnimationTime = Number(pose.getAnimations()[0]?.currentTime);
+		const spriteCanvas = button.querySelector<HTMLCanvasElement>('.chat-pet-sprite:not(.hidden) .chat-pet-canvas')!;
+		const readFacingTransforms = (facing: 'left' | 'right') => {
+			button.dataset.facing = facing;
+			return [
+				mainWindow.getComputedStyle(spriteCanvas).transform,
+				mainWindow.getComputedStyle(propeller).transform,
+			];
+		};
+		const rightFacingTransforms = readFacingTransforms('right');
+		const leftFacingTransforms = readFacingTransforms('left');
+		random.restore();
+		assert.deepStrictEqual({
+			firstAnimationTimePassed: firstAnimationTime > 0,
+			animationRestarted: restartedAnimationTime < firstAnimationTime,
+			rightFacingTransforms,
+			leftFacingTransformsMatch: leftFacingTransforms[0] === leftFacingTransforms[1],
+			facingChangesTransform: leftFacingTransforms[0] !== rightFacingTransforms[0],
+			poseWrapsFacingLayer: propeller.parentElement === pose,
+		}, {
+			firstAnimationTimePassed: true,
+			animationRestarted: true,
+			rightFacingTransforms: ['none', 'none'],
+			leftFacingTransformsMatch: true,
+			facingChangesTransform: true,
+			poseWrapsFacingLayer: true,
+		});
+	});
+
 	test('moves the pet without reading its changed bounds and commits the translated release position', async () => {
 		const { root, button } = createHostTransitionHarness(true, 'teleport', 'stable', TestIntersectionObserver);
 		root.classList.add('monaco-workbench', 'monaco-reduce-motion');
@@ -1230,7 +1351,7 @@ suite('ChatPetWidget', () => {
 		]);
 	});
 
-	test('constructs body, pupils, and eye accessory layers in rendering order', () => {
+	test('constructs body, eyes, propeller, and eye accessory layers in rendering order', () => {
 		const parent = mainWindow.document.createElement('div');
 		const dragBounds = mainWindow.document.createElement('div');
 		const movementBounds = mainWindow.document.createElement('div');
@@ -1262,10 +1383,10 @@ suite('ChatPetWidget', () => {
 		const achievementPupil = visual.getElementsByClassName('chat-pet-pupil')[0] as HTMLElement;
 
 		assert.deepStrictEqual({
-			layers: Array.from(visual.children).map(child => child.className).slice(0, 4),
+			layers: Array.from(visual.children).map(child => child.className).slice(0, 5),
 			achievementPupilHeight: mainWindow.getComputedStyle(achievementPupil).height,
 		}, {
-			layers: ['chat-pet-sprite hidden', 'chat-pet-sprite hidden', 'chat-pet-eyes', 'chat-pet-eye-accessory hidden'],
+			layers: ['chat-pet-sprite hidden', 'chat-pet-sprite hidden', 'chat-pet-eyes', 'chat-pet-propeller-pose', 'chat-pet-eye-accessory hidden'],
 			achievementPupilHeight: '8px',
 		});
 	});
@@ -4332,6 +4453,38 @@ suite('ChatPetWidget', () => {
 			belowRow: { left: 136, top: 172, platform: input },
 			upward: undefined,
 			betweenEndpoints: { left: 100, top: 50, platform: narrow },
+		});
+	});
+
+	test('caps propeller-assisted descent at a steady speed', () => {
+		const bounds = { minimumLeft: 0, maximumLeft: 100, minimumTop: 0 };
+		const motion = { left: 0, top: 0, x: 0, y: 0 };
+		const propellerSpeed = getChatPetThrowMaximumFallSpeed(true)!;
+		const firstStep = advanceChatPetThrow(motion, 100, bounds, propellerSpeed);
+		const secondStep = advanceChatPetThrow({ ...motion, top: firstStep.top, y: firstStep.y }, 100, bounds, propellerSpeed);
+		assert.deepStrictEqual({
+			maximumFallSpeed: [getChatPetThrowMaximumFallSpeed(false), propellerSpeed],
+			fall: [
+				Math.round(advanceChatPetThrow(motion, 100, bounds).top * 100) / 100,
+				Math.round(firstStep.top * 100) / 100,
+				Math.round(secondStep.top * 100) / 100,
+				Math.round((secondStep.top - firstStep.top) * 100) / 100,
+			],
+			duration: [getChatPetFallDuration(100), getChatPetFallDuration(100, true), getChatPetFallDuration(400, true)],
+			propellerBounds: [
+				getChatPetPropellerBounds('idle', 0),
+				getChatPetPropellerBounds('sleep', 3),
+				getChatPetPropellerBounds('love', 0),
+			],
+		}, {
+			maximumFallSpeed: [undefined, 160],
+			fall: [9, 8.89, 24.89, 16],
+			duration: [200, 625, 2_500],
+			propellerBounds: [
+				{ x: 0, y: 8, width: 96, height: 8 },
+				{ x: 0, y: 12, width: 96, height: 8 },
+				undefined,
+			],
 		});
 	});
 

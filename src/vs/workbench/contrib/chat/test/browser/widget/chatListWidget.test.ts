@@ -1453,6 +1453,9 @@ suite('ChatListWidget', () => {
 		container.style.setProperty('--vscode-cornerRadius-medium', '6px');
 		container.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgb(1, 2, 3)');
 		container.style.setProperty('--vscode-chat-requestBubbleHoverBackground', 'rgb(4, 5, 6)');
+		// The hover checks dispatch synthetic mouse events. Keep a real pointer that happens to rest over the
+		// test window (Linux Electron) from also matching `:hover` and leaving a bubble in its hover color.
+		container.style.pointerEvents = 'none';
 		const hasStickyShadowRule = Array.from(container.querySelectorAll('style')).some(style =>
 			style.textContent?.includes('.monaco-tree-sticky-container-shadow') && style.textContent.includes('box-shadow'));
 		const firstParagraph = 'question with an attachment '.repeat(20).trim();
