@@ -22,7 +22,7 @@ import { getFilepathComment } from '../../../../util/common/markdown';
 import { computeLevenshteinDistance } from '../../../../util/vs/base/common/diff/diff';
 import { count, isFalsyOrWhitespace } from '../../../../util/vs/base/common/strings';
 import { Lines } from '../../../prompt/node/editGeneration';
-import { computeIndentLevel2, getIndentationChar, guessIndentation, IGuessedIndentation, transformIndentation } from '../../../prompt/node/indentationGuesser';
+import { computeIndentLevel2, DEFAULT_INDENTATION, getIndentationChar, guessIndentation, IGuessedIndentation, transformIndentation } from '../../../prompt/node/indentationGuesser';
 import {
 	ADD_FILE_PREFIX,
 	DELETE_FILE_PREFIX,
@@ -151,6 +151,8 @@ export interface Patch {
 	actions: Record<string, PatchAction>;
 }
 
+export type IndentationDefaultsProvider = (path: string, doc: AbstractDocumentWithLanguageId | TextDocument) => IGuessedIndentation;
+
 export class DiffError extends Error { }
 
 export class InvalidContextError extends DiffError {
@@ -177,11 +179,12 @@ export class Parser {
 	patch: Patch = { actions: {} };
 	fuzz = 0;
 
-	constructor(currentFiles: Record<string, AbstractDocumentWithLanguageId | TextDocument>, lines: Array<string>) {
+	constructor(currentFiles: Record<string, AbstractDocumentWithLanguageId | TextDocument>, lines: Array<string>, getIndentationDefaults?: IndentationDefaultsProvider) {
 		this.current_files = currentFiles;
 		this.lines = lines;
 		for (const [path, doc] of Object.entries(currentFiles)) {
-			this.indent_styles[path] = guessIndentation(Lines.fromString(doc.getText()), 4, false);
+			const defaults = getIndentationDefaults?.(path, doc) ?? DEFAULT_INDENTATION;
+			this.indent_styles[path] = guessIndentation(Lines.fromString(doc.getText()), defaults.tabSize, defaults.insertSpaces);
 		}
 	}
 
@@ -772,6 +775,7 @@ function peek_next_section(
 export function text_to_patch(
 	text: string,
 	orig: Record<string, AbstractDocumentWithLanguageId | TextDocument>,
+	getIndentationDefaults?: IndentationDefaultsProvider,
 ): [Patch, number] {
 	const lines = text.trim().split('\n');
 	if (lines.length < 2) {
@@ -785,7 +789,7 @@ export function text_to_patch(
 	if (lines[lines.length - 1] !== patchSuffix) {
 		lines.push(patchSuffix);
 	}
-	const parser = new Parser(orig, lines);
+	const parser = new Parser(orig, lines, getIndentationDefaults);
 	parser.index = 1;
 	parser.parse();
 	return [parser.patch, parser.fuzz];
@@ -928,12 +932,13 @@ export async function load_files(
 export async function processPatch(
 	text: string,
 	openFn: (p: string) => Promise<AbstractDocumentWithLanguageId | TextDocument>,
+	getIndentationDefaults?: IndentationDefaultsProvider,
 ): Promise<Commit> {
 	if (!text.startsWith(PATCH_PREFIX)) {
 		throw new InvalidPatchFormatError('Patch must start with *** Begin Patch\\n', 'patchMustStartWithBeginPatch');
 	}
 	const paths = identify_files_needed(text);
 	const orig = await load_files(paths, openFn);
-	const [patch, _fuzz] = text_to_patch(text, orig);
+	const [patch, _fuzz] = text_to_patch(text, orig, getIndentationDefaults);
 	return patch_to_commit(patch, orig);
 }
