@@ -159,6 +159,31 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 		// OS X & Linux
 		else {
+			// On macOS the MEM column of `top` reports the physical footprint of a
+			// process, matching what Activity Monitor shows, while the %mem column
+			// of `ps` is derived from the resident set size which ignores
+			// compressed memory and shared frameworks (issue #194322). Override
+			// the ps-derived values with the footprints reported by top. If top
+			// fails the ps-derived values are kept as a fallback.
+			function applyMacOSMemoryFootprint(done: () => void) {
+				let cmd = 'top -l 1 -stats pid,mem';
+				for (const pid of map.keys()) {
+					cmd += ` -pid ${pid}`;
+				}
+				exec(cmd, { maxBuffer: 1000 * 1024 }, (err, stdout) => {
+					if (!err) {
+						const footprints = parseTopMemoryOutput(stdout.toString());
+						for (const [pid, footprint] of footprints) {
+							const item = map.get(pid);
+							if (item) {
+								item.mem = footprint;
+							}
+						}
+					}
+					done();
+				});
+			}
+
 			function calculateLinuxCpuUsage() {
 
 				// Flatten rootItem to get a list of all VSCode processes
@@ -229,6 +254,14 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 							if (process.platform === 'linux') {
 								calculateLinuxCpuUsage();
+							} else if (process.platform === 'darwin') {
+								applyMacOSMemoryFootprint(() => {
+									if (!rootItem) {
+										reject(new Error(`Root process ${rootPid} not found`));
+									} else {
+										resolve(rootItem);
+									}
+								});
 							} else {
 								if (!rootItem) {
 									reject(new Error(`Root process ${rootPid} not found`));
@@ -253,4 +286,31 @@ function parsePsOutput(stdout: string, addToTree: (pid: number, ppid: number, cm
 			addToTree(parseInt(matches[1]), parseInt(matches[2]), matches[5], parseFloat(matches[3]), parseFloat(matches[4]));
 		}
 	}
+}
+
+const TOP_MEMORY_MULTIPLIERS: { readonly [suffix: string]: number } = {
+	'K': 1024,
+	'M': 1024 ** 2,
+	'G': 1024 ** 3,
+	'T': 1024 ** 4
+};
+
+/**
+ * Parses the output of `top -l 1 -stats pid,mem` into a map of pid to memory
+ * footprint in bytes. The MEM column of top on macOS reports the physical
+ * footprint of a process, the same value Activity Monitor shows, and prints
+ * it with a K/M/G/T suffix, optionally followed by a '+' marker when some of
+ * the memory is compressed (issue #194322).
+ */
+export function parseTopMemoryOutput(stdout: string): Map<number, number> {
+	const PID_MEM = /^\s*([0-9]+)\s+([0-9]+(?:\.[0-9]+)?)([KMGT])?\+?\s*$/;
+	const result = new Map<number, number>();
+	const lines = stdout.toString().split('\n');
+	for (const line of lines) {
+		const matches = PID_MEM.exec(line);
+		if (matches) {
+			result.set(parseInt(matches[1]), Math.round(parseFloat(matches[2]) * (TOP_MEMORY_MULTIPLIERS[matches[3]] ?? 1)));
+		}
+	}
+	return result;
 }
