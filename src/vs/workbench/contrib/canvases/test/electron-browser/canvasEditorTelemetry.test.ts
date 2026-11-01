@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -36,6 +36,7 @@ suite('CanvasEditor telemetry', () => {
 		const events: ITelemetryData[] = [];
 		const createRequests: [string, 'canvas'][] = [];
 		const attached: IBrowserViewModel[] = [];
+		let detachCount = 0;
 		const active = observableValue('activeCanvasOwner', true);
 		const canvas: ICanvas = {
 			resource: URI.parse('test-canvas:/private'),
@@ -79,6 +80,7 @@ suite('CanvasEditor telemetry', () => {
 			},
 		});
 		let retainedModel: { readonly source: string; readonly model: IBrowserViewModel } | undefined;
+		const navigations: string[] = [];
 		store.add(toDisposable(() => retainedModel?.model.dispose()));
 		instantiationService.stub(ICanvasService, {
 			enabled: observableValue('canvasesEnabled', true),
@@ -88,7 +90,11 @@ suite('CanvasEditor telemetry', () => {
 				if (retainedModel?.source === sourceKey) {
 					return { model: retainedModel.model, reused: true };
 				}
-				retainedModel?.model.dispose();
+				if (retainedModel) {
+					navigations.push(source.toString(true));
+					retainedModel = { source: sourceKey, model: retainedModel.model };
+					return { model: retainedModel.model, reused: false };
+				}
 				createRequests.push([source.toString(true), 'canvas']);
 				await options.loadGate;
 				if (options.loadError) {
@@ -104,7 +110,13 @@ suite('CanvasEditor telemetry', () => {
 			screenshotElement: $('div'),
 			pauseElement: $('div'),
 			onContainerCreated: () => { },
-			setModel: model => { if (model) { attached.push(model); } },
+			setModel: model => {
+				if (model) {
+					attached.push(model);
+				} else {
+					detachCount++;
+				}
+			},
 			setVisible: () => { },
 			layout: () => { },
 			dispose: () => { },
@@ -127,8 +139,10 @@ suite('CanvasEditor telemetry', () => {
 			events,
 			telemetry,
 			createRequests,
+			navigations,
 			attached,
 			isModelDisposed: () => modelDisposed,
+			detachCount: () => detachCount,
 			message: () => parent.querySelector('.session-canvas-message')?.textContent,
 		};
 	}
@@ -203,38 +217,53 @@ suite('CanvasEditor telemetry', () => {
 		});
 	});
 
-	test('detaches an unavailable source and reconnects only to the fresh live endpoint', async () => {
+	test('keeps the attached page while its provider is unavailable and loads the fresh endpoint into it', async () => {
 		const harness = createHarness();
 		await harness.open();
 		await harness.completed.p;
 		harness.input.setCanvas({ ...harness.canvas, source: undefined }, true);
-		const requestsWhileUnavailable = [...harness.createRequests];
-		const oldModelDisposedWhilePending = harness.isModelDisposed();
 		const pendingMessage = harness.message();
 		harness.input.setCanvas({ ...harness.canvas, source: undefined });
 		const unavailableMessage = harness.message();
 		harness.input.setCanvas({ ...harness.canvas, source: URI.parse('http://127.0.0.1:54321/?token=fresh') });
-		await Promise.resolve();
-		await Promise.resolve();
-		const oldModelDisposedAfterReconnect = harness.isModelDisposed();
+		await timeout(0);
 
 		assert.deepStrictEqual({
-			requestsWhileUnavailable,
-			oldModelDisposedWhilePending,
-			oldModelDisposedAfterReconnect,
 			pendingMessage,
 			unavailableMessage,
-			requestsAfterReconnect: harness.createRequests,
+			reconnectedMessage: harness.message(),
+			detachCount: harness.detachCount(),
+			modelDisposed: harness.isModelDisposed(),
+			attached: harness.attached.length,
+			createRequests: harness.createRequests,
+			navigations: harness.navigations,
+			telemetry: harness.telemetry(),
 		}, {
-			requestsWhileUnavailable: [['https://example.test/private-source', 'canvas']],
-			oldModelDisposedWhilePending: false,
-			oldModelDisposedAfterReconnect: true,
-			pendingMessage: 'Waiting for this canvas to become available.',
-			unavailableMessage: 'The canvas provider is temporarily unavailable.',
-			requestsAfterReconnect: [
-				['https://example.test/private-source', 'canvas'],
-				['http://127.0.0.1:54321/?token=fresh', 'canvas'],
+			pendingMessage: 'Reconnecting to the canvas provider…',
+			unavailableMessage: 'Reconnecting to the canvas provider…',
+			reconnectedMessage: '',
+			detachCount: 0,
+			modelDisposed: false,
+			attached: 1,
+			createRequests: [['https://example.test/private-source', 'canvas']],
+			navigations: ['http://127.0.0.1:54321/?token=fresh'],
+			telemetry: [
+				{ schemaVersion: 1, outcome: 'loaded', hasDuration: true },
+				{ schemaVersion: 1, outcome: 'loaded', hasDuration: true },
 			],
+		});
+	});
+
+	test('reports an unavailable provider once the kept page is gone', async () => {
+		const harness = createHarness();
+		await harness.open();
+		await harness.completed.p;
+		harness.input.setCanvas({ ...harness.canvas, source: undefined });
+		harness.attached[0].dispose();
+
+		assert.deepStrictEqual({ message: harness.message(), detachCount: harness.detachCount() }, {
+			message: 'The canvas provider is temporarily unavailable.',
+			detachCount: 1,
 		});
 	});
 

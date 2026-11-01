@@ -36,3 +36,39 @@
 .session-canvas-editor .session-canvas-message:empty {
 	display: none;
 }
+
+/* While the provider reconnects, an editor-owned copy of the hidden page's last frame stays dimmed beneath a status card. */
+.session-canvas-editor .session-canvas-frozen-frame {
+	display: none;
+	position: absolute;
+	inset: 0;
+	background-color: var(--vscode-editor-background);
+	background-repeat: no-repeat;
+	background-size: contain;
+}
+
+.session-canvas-editor .session-canvas-frozen-frame::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background-color: var(--vscode-editor-background);
+	opacity: 0.6;
+}
+
+.session-canvas-editor.provider-reconnecting .session-canvas-frozen-frame {
+	display: block;
+}
+
+.session-canvas-editor.provider-reconnecting .session-canvas-message {
+	z-index: 1;
+	margin: auto;
+	width: fit-content;
+	height: fit-content;
+	max-width: 80%;
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size200);
+	color: var(--vscode-foreground);
+	background-color: var(--vscode-editorWidget-background);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+	border-radius: var(--vscode-cornerRadius-large);
+	box-shadow: var(--vscode-shadow-lg);
+}
