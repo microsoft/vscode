@@ -40,6 +40,8 @@ const TRUSTED_EVENTS = new Set(['push', 'schedule', 'workflow_dispatch']);
 const METADATA_FILE = '.workspace-image.json';
 /** The tag at the commit of an image, which the shallow fetch of actions/checkout sends, so that it downloads only what changed */
 const SEED_TAG = 'workspace-image';
+/** _O_SHORT_LIVED of the C runtime of Windows, which Node.js doesn't name */
+const O_SHORT_LIVED = 0x1000;
 
 const started = performance.now();
 
@@ -440,10 +442,12 @@ async function pack(args: Args): Promise<void> {
 
 /**
  * Recreates a disk image from a packed one: downloads, decompresses and writes its chunks at the
- * same time, in order. With `sparse`, the pages of zeros stay holes of the file. With `sized`, the
- * file gets the size of the image first, and `sized` is called before the chunks are written.
+ * same time, in order. With `sparse`, the pages of zeros stay holes of the file. With `temporary`,
+ * Windows creates the file as a temporary file, whose data it keeps in memory while it has enough,
+ * instead of writing it to the disk. With `sized`, the file gets the size of the image first, and
+ * `sized` is called before the chunks are written.
  */
-async function unpack(source: Source, file: string, options: { readonly sparse: boolean; readonly existing: boolean; readonly connections: number; readonly sized?: () => void }): Promise<string> {
+async function unpack(source: Source, file: string, options: { readonly sparse: boolean; readonly temporary?: boolean; readonly connections: number; readonly sized?: () => void }): Promise<string> {
 	let head = await source.read(0, Math.min(source.size, PAGE));
 	if (!head.subarray(0, IMAGE_MAGIC.length).equals(IMAGE_MAGIC)) {
 		throw new Error('Not a packed image');
@@ -494,15 +498,10 @@ async function unpack(source: Source, file: string, options: { readonly sparse: 
 			wakeWriter?.();
 		}
 	};
-	// An existing file keeps its attributes, such as FILE_ATTRIBUTE_TEMPORARY, which asks Windows to
-	// keep its data in memory instead of writing it to the disk
-	const handle = await fs.promises.open(file, options.existing ? 'r+' : 'w');
+	// libuv creates the file with FILE_ATTRIBUTE_TEMPORARY for _O_SHORT_LIVED of the C runtime
+	const flags = options.temporary ? fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_WRONLY | O_SHORT_LIVED : 'w';
+	const handle = await fs.promises.open(file, flags);
 	const writer = async () => {
-		// ext4 writes a file that was truncated to zero to the disk when it is closed, which a new file
-		// doesn't need
-		if (options.existing) {
-			await handle.truncate(0);
-		}
 		if (options.sized) {
 			await handle.truncate(header.rawSize);
 			options.sized();
@@ -605,7 +604,7 @@ async function mount(source: Source, root: string, connections: number): Promise
 			attached.catch(() => { });
 			let loop: string;
 			try {
-				log(await unpack(source, file, { sparse: true, existing: false, connections, sized: () => sized.resolve() }));
+				log(await unpack(source, file, { sparse: true, connections, sized: () => sized.resolve() }));
 				loop = await attached;
 				spawnSync('udevadm', ['settle', '--timeout=5'], { stdio: 'inherit' });
 				run('sudo', ['blockdev', '--flushbufs', loop]);
@@ -626,33 +625,28 @@ async function mount(source: Source, root: string, connections: number): Promise
 		case 'darwin': {
 			// An APFS volume in a sparse ASIF image, which hides the empty workspace folder of the runner
 			const file = path.join(temp, 'workspace-image.asif');
-			log(await unpack(source, file, { sparse: true, existing: false, connections }));
+			log(await unpack(source, file, { sparse: true, connections }));
 			run('diskutil', ['image', 'attach', '--nobrowse', '--mountPoint', root, file]);
 			return () => {
 				spawnSync('diskutil', ['unmount', 'force', root], { stdio: 'inherit' });
 			};
 		}
 		case 'win32': {
-			// A Dev Drive in a VHDX, in a temporary file, attached through the file system cache. One
-			// PowerShell prepares the file, compiles the virtual disk API while the image downloads, and
-			// attaches the VHDX when it is complete.
+			// A Dev Drive in a VHDX, in a temporary file, attached through the file system cache. The
+			// first PowerShell of a job takes seconds to start, so one starts while the image downloads,
+			// compiles the virtual disk API, and attaches the VHDX when it is complete.
 			const file = path.join(temp, 'workspace-image.vhdx');
 			const ready = `${file}.ready`;
 			fs.rmSync(file, { force: true });
 			fs.rmSync(ready, { force: true });
-			const attach = spawn('pwsh', ['-NoProfile', '-NonInteractive', '-File', path.join(import.meta.dirname, 'vhd.ps1'), '-Path', file, '-Prepare', '-WaitFor', ready, '-MountFolder', root, '-CachedIo', '-Trust'], { stdio: 'inherit' });
+			const attach = spawn('pwsh', ['-NoProfile', '-NonInteractive', '-File', path.join(import.meta.dirname, 'vhd.ps1'), '-Path', file, '-WaitFor', ready, '-MountFolder', root, '-CachedIo', '-Trust'], { stdio: 'inherit' });
 			const exited = new Promise<number | null>(resolve => {
 				attach.on('error', () => resolve(null));
 				attach.on('exit', code => resolve(code));
 			});
 			let removed = false;
 			try {
-				while (!fs.existsSync(file)) {
-					if (await Promise.race([exited.then(() => true), new Promise<false>(resolve => setTimeout(() => resolve(false), 20))])) {
-						throw new Error('vhd.ps1 exited before it prepared the file');
-					}
-				}
-				log(await unpack(source, file, { sparse: false, existing: true, connections }));
+				log(await unpack(source, file, { sparse: false, temporary: true, connections }));
 				// A volume can only be mounted at an empty folder
 				fs.rmdirSync(ws);
 				removed = true;

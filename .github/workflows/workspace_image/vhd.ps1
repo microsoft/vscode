@@ -1,19 +1,16 @@
 # Attaches the VHDX of a workspace image and mounts its volume at a folder, or creates one (see
 # README.md).
 #
-#   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -Prepare [-WaitFor C:\a\_temp\workspace-image.vhdx.ready -MountFolder C:\a\vscode [-CachedIo] [-Trust]]
-#   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -MountFolder C:\a\vscode [-CachedIo] [-Trust]
+#   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -MountFolder C:\a\vscode [-WaitFor C:\a\_temp\workspace-image.vhdx.ready] [-CachedIo] [-Trust]
 #   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -Create -MountFolder C:\a\vscode [-MaximumSizeGB 200] [-BlockSizeMB 1]
 #   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -MountFolder C:\a\vscode -Detach
 #
-# -Prepare creates the empty file that image.ts restores a VHDX into, as a temporary file, whose data
-# Windows keeps in memory while it has enough instead of writing it to the disk. With -WaitFor, the
-# same process then compiles the virtual disk API while image.ts restores the VHDX, and attaches it
-# when image.ts creates the file that -WaitFor names, so that neither takes time of the job.
-# Without another switch, attaches the VHDX with the virtual disk API (see Vhd.cs), and mounts its
-# volume at the empty folder. -CachedIo opens the VHDX through the file system cache, so that the
-# data of the temporary file is read from memory. -Trust trusts the Dev Drive of the VHDX on this
-# machine, like a Dev Drive that it formats.
+# Without -Create or -Detach, attaches the VHDX with the virtual disk API (see Vhd.cs), and mounts its
+# volume at the empty folder. With -WaitFor, it compiles the virtual disk API while image.ts restores
+# the VHDX, and attaches it when image.ts creates the file that -WaitFor names, so that neither takes
+# time of the job. -CachedIo opens the VHDX through the file system cache, so that the data of the
+# temporary file that image.ts restores is read from memory. -Trust trusts the Dev Drive of the VHDX
+# on this machine, like a Dev Drive that it formats.
 # -Create creates a Dev Drive in a new dynamic VHDX with blocks of 1 MB, and mounts it at the empty
 # folder. -Detach flushes its volume, removes its mount point, which would be left dangling, and
 # detaches it. Neither trimming the volume nor compacting the VHDX makes it smaller.
@@ -21,7 +18,6 @@ param(
 	[Parameter(Mandatory = $true)]
 	[string] $Path,
 	[string] $MountFolder,
-	[switch] $Prepare,
 	[string] $WaitFor,
 	[switch] $CachedIo,
 	[switch] $Trust,
@@ -49,15 +45,6 @@ function Import-Vhd {
 	}
 	Add-Type -Path $dll
 	Step 'loaded the virtual disk API'
-}
-
-if ($Prepare) {
-	# Created under another name, so that the file appears with its attribute
-	New-Item -ItemType File -Path "$Path.new" -Force | Out-Null
-	(Get-Item "$Path.new").Attributes = 'Temporary'
-	Move-Item -Force "$Path.new" $Path
-	Step "prepared $Path"
-	if (-not $WaitFor) { return }
 }
 
 if ($Detach) {
@@ -99,7 +86,7 @@ if ($WaitFor) {
 		if ((Get-Date) -gt $deadline) { throw "No $WaitFor" }
 		Start-Sleep -Milliseconds 20
 	}
-	Step "found $WaitFor"
+	Step "found $WaitFor, and $Path is $((Get-Item $Path).Attributes)"
 }
 
 # OPEN_VIRTUAL_DISK_FLAG_CACHED_IO, then without it
