@@ -5,6 +5,7 @@
 
 import 'mocha';
 import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { isPatternRestrictedToLocalHeads } from '../repository';
 import * as assert from 'assert';
 import { LogOutputChannel, window } from 'vscode';
 import { splitInChunks } from '../util';
@@ -795,6 +796,31 @@ suite('git', () => {
 				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 9)],
 				[['0', '01', '012', '0', '01'], ['012', '0', '01', '012']]
 			);
+		});
+	});
+
+	suite('isPatternRestrictedToLocalHeads', () => {
+		test('undefined or empty pattern is not restricted to local heads', () => {
+			assert.strictEqual(isPatternRestrictedToLocalHeads(undefined), false);
+			assert.strictEqual(isPatternRestrictedToLocalHeads(''), false);
+			assert.strictEqual(isPatternRestrictedToLocalHeads([]), false);
+		});
+
+		test('refs/heads is restricted to local heads', () => {
+			assert.strictEqual(isPatternRestrictedToLocalHeads('refs/heads'), true);
+			assert.strictEqual(isPatternRestrictedToLocalHeads('heads'), true);
+			assert.strictEqual(isPatternRestrictedToLocalHeads('refs/heads/main'), true);
+			assert.strictEqual(isPatternRestrictedToLocalHeads('refs/heads/feature/test'), true);
+			assert.strictEqual(isPatternRestrictedToLocalHeads(['refs/heads/main', 'refs/heads/dev']), true);
+		});
+
+		test('remote refs, tags, or mixed patterns are not restricted to local heads', () => {
+			assert.strictEqual(isPatternRestrictedToLocalHeads('refs/remotes'), false);
+			assert.strictEqual(isPatternRestrictedToLocalHeads('refs/remotes/origin/main'), false);
+			assert.strictEqual(isPatternRestrictedToLocalHeads('refs/tags'), false);
+			assert.strictEqual(isPatternRestrictedToLocalHeads('refs/tags/v1.0.0'), false);
+			assert.strictEqual(isPatternRestrictedToLocalHeads(['refs/heads/main', 'refs/remotes/origin/main']), false);
+			assert.strictEqual(isPatternRestrictedToLocalHeads(['refs/heads/main', 'refs/tags/v1.0.0']), false);
 		});
 	});
 });

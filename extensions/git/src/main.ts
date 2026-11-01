@@ -92,7 +92,8 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		env: environment,
 	});
 	const model = new Model(git, askpass, context.globalState, context.workspaceState, logger, telemetryReporter);
-	disposables.push(model);
+	disposables.push(git, model);
+	deactivateTasks.push(async () => git.dispose());
 	const cloneManager = new CloneManager(model, telemetryReporter, model.repositoryCache);
 
 	const onRepository = () => commands.executeCommand('setContext', 'gitOpenRepositoryCount', `${model.repositories.length}`);
