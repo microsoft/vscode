@@ -145,6 +145,8 @@
 	line-height: 20px;
 	flex: 1; /* let the message always grow */
 	white-space: pre-wrap;
+	word-break: break-word;
+	overflow-wrap: anywhere;
 }
 
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message a:focus,
