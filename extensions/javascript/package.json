@@ -74,7 +74,19 @@
           "entity.name.function.tagged-template": "other",
           "meta.import string.quoted": "other",
           "variable.other.jsdoc": "other"
-        }
+        },
+        "unbalancedBracketScopes": [
+          "keyword.operator.relational",
+          "storage.type.function.arrow",
+          "keyword.operator.bitwise.shift",
+          "punctuation.definition.tag",
+          "punctuation.definition.bracket.curly.begin.jsdoc",
+          "punctuation.definition.bracket.curly.end.jsdoc",
+          "punctuation.definition.bracket.angle.begin.jsdoc",
+          "punctuation.definition.bracket.angle.end.jsdoc",
+          "punctuation.definition.bracket.square.begin.jsdoc",
+          "punctuation.definition.bracket.square.end.jsdoc"
+        ]
       },
       {
         "language": "javascript",
@@ -92,7 +104,18 @@
           "entity.name.function.tagged-template": "other",
           "meta.import string.quoted": "other",
           "variable.other.jsdoc": "other"
-        }
+        },
+        "unbalancedBracketScopes": [
+          "keyword.operator.relational",
+          "storage.type.function.arrow",
+          "keyword.operator.bitwise.shift",
+          "punctuation.definition.bracket.curly.begin.jsdoc",
+          "punctuation.definition.bracket.curly.end.jsdoc",
+          "punctuation.definition.bracket.angle.begin.jsdoc",
+          "punctuation.definition.bracket.angle.end.jsdoc",
+          "punctuation.definition.bracket.square.begin.jsdoc",
+          "punctuation.definition.bracket.square.end.jsdoc"
+        ]
       },
       {
         "scopeName": "source.js.regexp",
