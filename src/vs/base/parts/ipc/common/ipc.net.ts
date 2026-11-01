@@ -139,11 +139,13 @@ export type SocketCloseEvent = NodeSocketCloseEvent | WebSocketCloseEvent | unde
 export const enum SocketTimeoutReason {
 	UNACKNOWLEDGED_MESSAGE = 'unacknowledgedMessage',
 	KEEP_ALIVE = 'keepAlive',
+	UNACKNOWLEDGED_MESSAGE_REPLAY_BUFFER_OVERFLOW = 'unacknowledgedMessageReplayBufferOverflow',
 }
 
 export interface SocketTimeoutEvent {
 	readonly reason: SocketTimeoutReason;
 	readonly unacknowledgedMsgCount: number;
+	readonly unacknowledgedMsgBytes: number;
 	readonly timeSinceOldestUnacknowledgedMsg?: number;
 	readonly timeSinceLastReceivedSomeData: number;
 }
@@ -310,6 +312,14 @@ export const enum ProtocolConstants {
 	 * Send a message every 5 seconds to avoid that the connection is closed by the OS.
 	 */
 	KeepAliveSendTime = 5000, // 5 seconds
+	/**
+	 * Bound the reconnect replay buffer so a dead connection cannot retain unbounded memory.
+	 */
+	MaxOutgoingUnacknowledgedMessages = 10000,
+	/**
+	 * Bound the reconnect replay buffer to 256MB of message payloads.
+	 */
+	MaxOutgoingUnacknowledgedBytes = 256 * 1024 * 1024,
 }
 
 class ProtocolMessage {
@@ -737,6 +747,11 @@ class Queue<T> {
 		this._last!.next = element;
 		this._last = element;
 	}
+
+	public clear(): void {
+		this._first = null;
+		this._last = null;
+	}
 }
 
 export class LoadEstimator {
@@ -807,6 +822,14 @@ export interface PersistentProtocolOptions {
 	 * Whether to send keep alive messages. Defaults to true.
 	 */
 	sendKeepAlive?: boolean;
+	/**
+	 * Maximum number of unacknowledged regular messages to keep for reconnection replay.
+	 */
+	maxOutgoingUnacknowledgedMessages?: number;
+	/**
+	 * Maximum payload bytes of unacknowledged regular messages to keep for reconnection replay.
+	 */
+	maxOutgoingUnacknowledgedBytes?: number;
 }
 
 /**
@@ -819,6 +842,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private _didSendDisconnect?: boolean;
 
 	private _outgoingUnackMsg: Queue<ProtocolMessage>;
+	private _outgoingUnackMsgBytes: number;
 	private _outgoingMsgId: number;
 	private _outgoingAckId: number;
 	private _outgoingAckTimeout: Timeout | null;
@@ -841,6 +865,8 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 
 	private readonly _loadEstimator: ILoadEstimator;
 	private readonly _shouldSendKeepAlive: boolean;
+	private readonly _maxOutgoingUnacknowledgedMessages: number;
+	private readonly _maxOutgoingUnacknowledgedBytes: number;
 
 	private readonly _onControlMessage = new BufferedEmitter<VSBuffer>();
 	readonly onControlMessage: Event<VSBuffer> = this._onControlMessage.event;
@@ -864,8 +890,11 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	constructor(opts: PersistentProtocolOptions) {
 		this._loadEstimator = opts.loadEstimator ?? LoadEstimator.getInstance();
 		this._shouldSendKeepAlive = opts.sendKeepAlive ?? true;
+		this._maxOutgoingUnacknowledgedMessages = opts.maxOutgoingUnacknowledgedMessages ?? ProtocolConstants.MaxOutgoingUnacknowledgedMessages;
+		this._maxOutgoingUnacknowledgedBytes = opts.maxOutgoingUnacknowledgedBytes ?? ProtocolConstants.MaxOutgoingUnacknowledgedBytes;
 		this._isReconnecting = false;
 		this._outgoingUnackMsg = new Queue<ProtocolMessage>();
+		this._outgoingUnackMsgBytes = 0;
 		this._outgoingMsgId = 0;
 		this._outgoingAckId = 0;
 		this._outgoingAckTimeout = null;
@@ -912,6 +941,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 			this._keepAliveInterval = null;
 		}
 		this._socketDisposables.dispose();
+		this._clearOutgoingUnacknowledgedMessages();
 	}
 
 	drain(): Promise<void> {
@@ -999,6 +1029,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 				const first = this._outgoingUnackMsg.peek();
 				if (first && first.id <= msg.ack) {
 					// this message has been confirmed, remove it
+					this._outgoingUnackMsgBytes = Math.max(0, this._outgoingUnackMsgBytes - first.size);
 					this._outgoingUnackMsg.pop();
 				} else {
 					break;
@@ -1079,6 +1110,11 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._incomingAckId = this._incomingMsgId;
 		const msg = new ProtocolMessage(ProtocolMessageType.Regular, myId, this._incomingAckId, buffer);
 		this._outgoingUnackMsg.push(msg);
+		this._outgoingUnackMsgBytes += msg.size;
+
+		if (this._checkOutgoingUnacknowledgedOverflow()) {
+			return;
+		}
 		if (!this._isReconnecting) {
 			this._socketWriter.write(msg);
 			this._recvAckCheck();
@@ -1158,6 +1194,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 					reason: SocketTimeoutReason.UNACKNOWLEDGED_MESSAGE,
 					unacknowledgedMsgCount: this._outgoingUnackMsg.length(),
 					timeSinceOldestUnacknowledgedMsg,
+					unacknowledgedMsgBytes: this._outgoingUnackMsgBytes,
 					timeSinceLastReceivedSomeData
 				});
 				return;
@@ -1205,11 +1242,41 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 				this._onSocketTimeout.fire({
 					reason: SocketTimeoutReason.KEEP_ALIVE,
 					unacknowledgedMsgCount,
+					unacknowledgedMsgBytes: this._outgoingUnackMsgBytes,
 					timeSinceOldestUnacknowledgedMsg: oldestUnacknowledgedMsg ? now - oldestUnacknowledgedMsg.writtenTime : undefined,
 					timeSinceLastReceivedSomeData
 				});
 			}
 		}
+	}
+
+	private _checkOutgoingUnacknowledgedOverflow(): boolean {
+		const unacknowledgedMsgCount = this.unacknowledgedCount;
+		if (
+			unacknowledgedMsgCount <= this._maxOutgoingUnacknowledgedMessages
+			&& this._outgoingUnackMsgBytes <= this._maxOutgoingUnacknowledgedBytes
+		) {
+			return false;
+		}
+
+		const now = Date.now();
+		const oldestUnacknowledgedMsg = this._outgoingUnackMsg.peek();
+		this._lastSocketTimeoutTime = now;
+		this._onSocketTimeout.fire({
+			reason: SocketTimeoutReason.UNACKNOWLEDGED_MESSAGE_REPLAY_BUFFER_OVERFLOW,
+			unacknowledgedMsgCount,
+			unacknowledgedMsgBytes: this._outgoingUnackMsgBytes,
+			timeSinceOldestUnacknowledgedMsg: oldestUnacknowledgedMsg?.writtenTime ? now - oldestUnacknowledgedMsg.writtenTime : undefined,
+			timeSinceLastReceivedSomeData: now - this._socketReader.lastReadTime
+		});
+		this._clearOutgoingUnacknowledgedMessages();
+		this._outgoingAckId = this._outgoingMsgId;
+		return true;
+	}
+
+	private _clearOutgoingUnacknowledgedMessages(): void {
+		this._outgoingUnackMsg.clear();
+		this._outgoingUnackMsgBytes = 0;
 	}
 
 	private _sendAck(): void {
