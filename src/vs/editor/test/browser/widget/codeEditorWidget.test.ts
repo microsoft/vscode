@@ -6,6 +6,8 @@
 import assert from 'assert';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ContentWidgetPositionPreference } from '../../../browser/editorBrowser.js';
+import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
 import { CodeEditorWidget } from '../../../browser/widget/codeEditor/codeEditorWidget.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
@@ -14,10 +16,15 @@ import { ILanguageConfigurationService } from '../../../common/languages/languag
 import { GlyphMarginLane } from '../../../common/model.js';
 import { createTextModel } from '../../common/testTextModel.js';
 import { createCodeEditorServices, withTestCodeEditor } from '../testCodeEditor.js';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
 import { TestNotificationService } from '../../../../platform/notification/test/common/testNotificationService.js';
+import { IUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
+import { UserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionServiceImpl.js';
 
 suite('CodeEditorWidget', () => {
 
@@ -314,6 +321,61 @@ suite('CodeEditorWidget', () => {
 		});
 
 		disposables.dispose();
+	});
+
+	test('overflowing content widget keeps its editor focus and context', () => {
+		const disposables = new DisposableStore();
+		try {
+			const container = document.createElement('div');
+			const firstEditorContainer = document.createElement('div');
+			const secondEditorContainer = document.createElement('div');
+			const overflowWidgetsDomNode = document.createElement('div');
+			container.append(firstEditorContainer, secondEditorContainer, overflowWidgetsDomNode);
+			document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
+
+			const contextKeyService = new ContextKeyService(new TestConfigurationService());
+			const services = new ServiceCollection(
+				[IContextKeyService, contextKeyService],
+				[IUserInteractionService, new UserInteractionService()],
+			);
+			const instantiationService = createCodeEditorServices(disposables, services);
+			const firstEditor = disposables.add(instantiationService.createInstance(CodeEditorWidget, firstEditorContainer, { overflowWidgetsDomNode }, { contributions: [] }));
+			const secondEditor = disposables.add(instantiationService.createInstance(CodeEditorWidget, secondEditorContainer, { overflowWidgetsDomNode }, { contributions: [] }));
+			firstEditor.setModel(disposables.add(createTextModel('first')));
+			secondEditor.setModel(disposables.add(createTextModel('second')));
+			firstEditor.layout({ width: 400, height: 100 });
+			secondEditor.layout({ width: 400, height: 100 });
+			firstEditor.invokeWithinContext(accessor => accessor.get(IContextKeyService).createKey('testEditorOwner', 'first'));
+			secondEditor.invokeWithinContext(accessor => accessor.get(IContextKeyService).createKey('testEditorOwner', 'second'));
+
+			const input = document.createElement('input');
+			firstEditor.addContentWidget({
+				getId: () => 'test.overflowingInput',
+				allowEditorOverflow: true,
+				getDomNode: () => input,
+				getPosition: () => ({ position: { lineNumber: 1, column: 1 }, preference: [ContentWidgetPositionPreference.BELOW] }),
+			});
+			// The headless test layout hides the widget; reveal it and refresh focus after programmatic focus.
+			input.style.visibility = 'visible';
+			input.focus();
+			firstEditor.onVisible();
+			secondEditor.onVisible();
+
+			assert.deepStrictEqual({
+				firstEditorHasFocus: firstEditor.hasWidgetFocus(),
+				secondEditorHasFocus: secondEditor.hasWidgetFocus(),
+				focusedEditorIsFirst: instantiationService.get(ICodeEditorService).getFocusedCodeEditor() === firstEditor,
+				inputEditorContext: contextKeyService.getContext(input).getValue('testEditorOwner'),
+			}, {
+				firstEditorHasFocus: true,
+				secondEditorHasFocus: false,
+				focusedEditorIsFirst: true,
+				inputEditorContext: 'first',
+			});
+		} finally {
+			disposables.dispose();
+		}
 	});
 
 });
