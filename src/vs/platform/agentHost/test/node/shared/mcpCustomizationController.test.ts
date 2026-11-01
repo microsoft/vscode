@@ -271,6 +271,122 @@ suite('McpCustomizationController', () => {
 		});
 	}
 
+	test('late SDK plugin discovery rejects a different-plugin runtime server', () => {
+		const child: McpServerCustomization = {
+			type: CustomizationType.McpServer, id: 'b-child', uri: 'file:///plugins/B/.mcp.json', name: 'search', state: stopped(),
+			_meta: withCustomizationDiscoveryMeta(undefined, { source: 'plugin', defaultEnabled: false }),
+		};
+		const pluginB: PluginCustomization = { type: CustomizationType.Plugin, id: 'B', uri: 'file:///plugins/B', name: 'B', children: [child] };
+		const { controller, setCustomizations } = harness(store, { provenance: new Map([['search', { source: 'plugin', sourcePlugin: 'A' }]]) });
+		store.add(controller);
+		controller.applyOne(server('search', ready()));
+		const live = controller.topLevelCustomizations();
+		const merged = mergeMcpServerCustomizations([pluginB], live);
+		setCustomizations(merged);
+		assert.deepStrictEqual({
+			merged, live: controller.topLevelCustomizations(), owner: controller.pluginMcpServerSources,
+		}, { merged: [pluginB, ...live], live, owner: undefined });
+	});
+
+	test('transitioning provenance from plugin to user/workspace/builtin discards adopted plugin discovery without losing unrelated metadata', () => {
+		const child: McpServerCustomization = {
+			type: CustomizationType.McpServer, id: 'native-child', uri: 'file:///plugins/native/.mcp.json', name: 'search',
+			range: { start: { line: 0, character: 0 }, end: { line: 4, character: 0 } },
+			state: stopped(),
+			_meta: withCustomizationDiscoveryMeta(withMcpServerSourceMeta({ customMeta: 'preserved' }, 'plugin'), { source: 'plugin', pluginId: 'opaque-plugin', defaultEnabled: false }),
+		};
+		const plugin: PluginCustomization = { type: CustomizationType.Plugin, id: 'native', uri: 'file:///plugins/native', name: 'native', children: [child] };
+		const provenance = new Map<string, IMcpServerProvenance>([['search', { source: 'plugin', sourcePlugin: 'native' }]]);
+		const { controller, setCustomizations } = harness(store, {
+			provenance,
+			resolveEnablement: (server, owner) => {
+				const enabled = readCustomizationDiscoveryMeta(server)?.defaultEnabled;
+				return enabled === undefined ? [] : [{ kind: CustomizationEnablementKind.Global, enabled }];
+			},
+		});
+		store.add(controller);
+		controller.applyOne(server('search', ready()));
+		const merged = mergeMcpServerCustomizations([plugin], controller.topLevelCustomizations());
+		setCustomizations(merged);
+		const publishedWithPlugin = controller.topLevelCustomizations()[0];
+		assert.strictEqual(publishedWithPlugin.uri, child.uri);
+		assert.deepStrictEqual(publishedWithPlugin.range, child.range);
+		assert.strictEqual(readCustomizationDiscoveryMeta(publishedWithPlugin)?.defaultEnabled, false);
+		assert.strictEqual(isCustomizationEnabled(publishedWithPlugin), false);
+		assert.strictEqual(controller.pluginMcpServerSources?.get('search'), plugin.uri);
+
+		// Subsequent inventory changes provenance to user configuration
+		provenance.set('search', { source: 'user', sourceUri: 'file:///home/user/.mcp.json' });
+		controller.applyOne(server('search', ready()));
+		const publishedAfterUserTransition = controller.topLevelCustomizations()[0];
+		assert.strictEqual(publishedAfterUserTransition.uri, 'file:///home/user/.mcp.json');
+		assert.strictEqual(publishedAfterUserTransition.range, undefined);
+		assert.strictEqual(readCustomizationDiscoveryMeta(publishedAfterUserTransition), undefined);
+		assert.strictEqual(readMcpServerSource(publishedAfterUserTransition), 'user');
+		assert.strictEqual(readMcpServerSourcePlugin(publishedAfterUserTransition), undefined);
+		assert.strictEqual(publishedAfterUserTransition._meta?.customMeta, 'preserved');
+		assert.strictEqual(isCustomizationEnabled(publishedAfterUserTransition), true);
+		assert.strictEqual(controller.pluginMcpServerSources, undefined);
+
+		// Subsequent transition to builtin resets uri to minted id without retaining user uri
+		provenance.set('search', { source: 'builtin' });
+		controller.applyOne(server('search', ready()));
+		const publishedAfterBuiltinTransition = controller.topLevelCustomizations()[0];
+		assert.strictEqual(publishedAfterBuiltinTransition.uri, publishedAfterBuiltinTransition.id);
+		assert.strictEqual(readMcpServerSource(publishedAfterBuiltinTransition), 'builtin');
+	});
+
+	test('transitioning provenance from plugin A to plugin B merges B discovery metadata and range', () => {
+		const childA: McpServerCustomization = {
+			type: CustomizationType.McpServer, id: 'child-a', uri: 'file:///plugins/a/.mcp.json', name: 'search',
+			range: { start: { line: 0, character: 0 }, end: { line: 2, character: 0 } },
+			state: stopped(),
+			_meta: withCustomizationDiscoveryMeta(withMcpServerSourceMeta({ customMeta: 'preserved' }, 'plugin'), { source: 'plugin', pluginId: 'plugin-a', defaultEnabled: true }),
+		};
+		const pluginA: PluginCustomization = { type: CustomizationType.Plugin, id: 'pluginA', uri: 'file:///plugins/a', name: 'pluginA', children: [childA] };
+
+		const childB: McpServerCustomization = {
+			type: CustomizationType.McpServer, id: 'child-b', uri: 'file:///plugins/b/.mcp.json', name: 'search',
+			range: { start: { line: 5, character: 0 }, end: { line: 8, character: 0 } },
+			state: stopped(),
+			_meta: withCustomizationDiscoveryMeta(withMcpServerSourceMeta(undefined, 'plugin'), { source: 'plugin', pluginId: 'plugin-b', defaultEnabled: false }),
+		};
+		const pluginB: PluginCustomization = { type: CustomizationType.Plugin, id: 'pluginB', uri: 'file:///plugins/b', name: 'pluginB', children: [childB] };
+
+		const provenance = new Map<string, IMcpServerProvenance>([['search', { source: 'plugin', sourcePlugin: 'pluginA' }]]);
+		const { controller, setCustomizations } = harness(store, {
+			provenance,
+			resolveEnablement: (server, owner) => {
+				const enabled = readCustomizationDiscoveryMeta(server)?.defaultEnabled;
+				return enabled === undefined ? [] : [{ kind: CustomizationEnablementKind.Global, enabled }];
+			},
+		});
+		store.add(controller);
+		controller.applyOne(server('search', ready()));
+		const mergedA = mergeMcpServerCustomizations([pluginA, pluginB], controller.topLevelCustomizations());
+		setCustomizations(mergedA);
+
+		const publishedA = controller.topLevelCustomizations()[0];
+		assert.strictEqual(publishedA.uri, childA.uri);
+		assert.deepStrictEqual(publishedA.range, childA.range);
+		assert.strictEqual(readCustomizationDiscoveryMeta(publishedA)?.pluginId, 'plugin-a');
+		assert.strictEqual(readCustomizationDiscoveryMeta(publishedA)?.defaultEnabled, true);
+		assert.strictEqual(isCustomizationEnabled(publishedA), true);
+		assert.strictEqual(controller.pluginMcpServerSources?.get('search'), pluginA.uri);
+
+		// Switch provenance to plugin B:
+		provenance.set('search', { source: 'plugin', sourcePlugin: 'pluginB' });
+		controller.applyOne(server('search', ready()));
+		const publishedB = controller.topLevelCustomizations()[0];
+		assert.strictEqual(publishedB.uri, childB.uri);
+		assert.deepStrictEqual(publishedB.range, childB.range);
+		assert.strictEqual(readCustomizationDiscoveryMeta(publishedB)?.pluginId, 'plugin-b');
+		assert.strictEqual(readCustomizationDiscoveryMeta(publishedB)?.defaultEnabled, false);
+		assert.strictEqual(publishedB._meta?.customMeta, 'preserved');
+		assert.strictEqual(isCustomizationEnabled(publishedB), false);
+		assert.strictEqual(controller.pluginMcpServerSources?.get('search'), pluginB.uri);
+	});
+
 	test('late plugin matching leaves unmarked and ambiguous same-name declarations distinct', () => {
 		for (const nativeCount of [0, 2]) {
 			const plugins: PluginCustomization[] = ['first', 'second'].map(name => ({
