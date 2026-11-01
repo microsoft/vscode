@@ -17,6 +17,18 @@ export class Extension extends vscode.Disposable {
 		this._output = vscode.window.createOutputChannel('VS Code Extras', { log: true });
 		disposables.push(this._output);
 
+		// Manuel yenileme komutu doğrudan NpmUpToDateFeature üzerindeki metod tetikleyicisine bağlanıyor
+		disposables.push(
+			vscode.commands.registerCommand('vscode-extras.refreshNpmStatus', () => {
+				this._output.info('Manual NPM status refresh triggered via Status Bar.');
+				if (this._npmFeature) {
+					this._npmFeature.refresh();
+				} else {
+					vscode.window.showWarningMessage('NPM Up-to-Date feature is currently disabled.');
+				}
+			})
+		);
+
 		this._updateNpmFeature();
 
 		disposables.push(
@@ -31,10 +43,12 @@ export class Extension extends vscode.Disposable {
 	private _updateNpmFeature(): void {
 		const enabled = vscode.workspace.getConfiguration('vscode-extras').get<boolean>('npmUpToDateFeature.enabled', true);
 		if (enabled && !this._npmFeature) {
-			this._npmFeature = new NpmUpToDateFeature(this._output);
+			this._npmFeature = new NpmUpToDataFeature(this._output);
+			this._output.info('NpmUpToDateFeature enabled.');
 		} else if (!enabled && this._npmFeature) {
 			this._npmFeature.dispose();
 			this._npmFeature = undefined;
+			this._output.info('NpmUpToDateFeature disabled.');
 		}
 	}
 }
