@@ -144,6 +144,20 @@ jobs:
           # The longest regions of git
           grep 'region_leave' "$RUNNER_TEMP/git-trace2.txt" | awk -F'|' '{ print $7, $9, $10 }' | sort -rn | head -15
 
+      # Diagnostics: which call of losetup waits, when a file has gigabytes of dirty pages
+      - name: Time a loop device on a file with dirty pages
+        if: runner.os == 'Linux'
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -x
+          sysctl vm.dirty_bytes vm.dirty_background_bytes vm.dirty_ratio vm.dirty_background_ratio
+          dd if=/dev/zero of=dirty.img bs=1M count=6000 status=none
+          grep -E '^(Dirty|Writeback):' /proc/meminfo
+          time sudo strace -f -T -e trace=ioctl,fsync,fdatasync,sync_file_range,openat,close losetup --find --show --direct-io=off dirty.img 2>&1 | grep -v -E 'ENOENT|/lib|/etc|locale|\.so' | tail -25
+          grep -E '^(Dirty|Writeback):' /proc/meminfo
+          df -h / /mnt "$RUNNER_TEMP" || true
+          lsblk -o NAME,SIZE,ROTA,TYPE,MOUNTPOINT | head -20
+
       - name: Downgrade @vscode/codicons in the workspace and in remote/web, as a pull request would
         shell: bash
         run: |
