@@ -5,6 +5,7 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../../base/common/linkedList.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -22,7 +23,7 @@ import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorksp
 import { Memento } from '../../../common/memento.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { isEqualAuthority } from '../../../../base/common/resources.js';
+import { isEqualAuthority, joinPath } from '../../../../base/common/resources.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { promiseWithResolvers, raceTimeout, Sequencer } from '../../../../base/common/async.js';
@@ -41,35 +42,70 @@ export const WORKSPACE_TRUST_EMPTY_WINDOW = 'security.workspace.trust.emptyWindo
 export const WORKSPACE_TRUST_EXTENSION_SUPPORT = 'extensions.supportUntrustedWorkspaces';
 export const WORKSPACE_TRUST_STORAGE_KEY = 'content.trust.model.key';
 
+/**
+ * Plain copy of the workspace values a canonical snapshot is built from.
+ */
+export interface ICapturedWorkspace {
+	readonly id: string;
+	readonly transient: boolean | undefined;
+	readonly folders: readonly { readonly uri: URI; readonly name: string; readonly index: number }[];
+	readonly configuration: URI | null | undefined;
+}
+
+/**
+ * Immutable snapshot of a workspace whose folder and configuration URIs have
+ * been canonicalized. It never retains the live workspace, which can be
+ * mutated in place while canonical URIs are being resolved.
+ */
 export class CanonicalWorkspace implements IWorkspace {
+
+	/**
+	 * Copies the values needed for a snapshot so that later in-place
+	 * mutations of the workspace do not affect it.
+	 */
+	static capture(workspace: IWorkspace): ICapturedWorkspace {
+		return {
+			id: workspace.id,
+			transient: workspace.transient,
+			folders: workspace.folders.map(folder => ({ uri: folder.uri, name: folder.name, index: folder.index })),
+			configuration: workspace.configuration
+		};
+	}
+
+	readonly id: string;
+	readonly transient: boolean | undefined;
+	readonly folders: IWorkspaceFolder[];
+	readonly rawFolderUris: readonly URI[];
+	readonly rawConfiguration: URI | null | undefined;
+	private readonly canonicalConfiguration: URI | null | undefined;
+
 	constructor(
-		private readonly originalWorkspace: IWorkspace,
-		private readonly canonicalFolderUris: URI[],
-		private readonly canonicalConfiguration: URI | null | undefined
-	) { }
+		captured: ICapturedWorkspace,
+		canonicalFolderUris: readonly URI[],
+		canonicalConfiguration: URI | null | undefined
+	) {
+		if (captured.folders.length !== canonicalFolderUris.length) {
+			throw new Error(`Canonical folder count (${canonicalFolderUris.length}) does not match workspace folder count (${captured.folders.length})`);
+		}
 
-
-	get folders(): IWorkspaceFolder[] {
-		return this.originalWorkspace.folders.map((folder, index) => {
-			return {
+		this.id = captured.id;
+		this.transient = captured.transient;
+		this.rawFolderUris = Object.freeze(captured.folders.map(folder => folder.uri));
+		this.rawConfiguration = captured.configuration;
+		this.canonicalConfiguration = canonicalConfiguration;
+		this.folders = captured.folders.map((folder, index): IWorkspaceFolder => {
+			const rawUri = folder.uri;
+			return Object.freeze({
 				index: folder.index,
 				name: folder.name,
-				toResource: folder.toResource,
-				uri: this.canonicalFolderUris[index]
-			};
+				uri: canonicalFolderUris[index],
+				toResource: (relativePath: string) => joinPath(rawUri, relativePath)
+			});
 		});
 	}
 
-	get transient(): boolean | undefined {
-		return this.originalWorkspace.transient;
-	}
-
 	get configuration(): URI | null | undefined {
-		return this.canonicalConfiguration ?? this.originalWorkspace.configuration;
-	}
-
-	get id(): string {
-		return this.originalWorkspace.id;
+		return this.canonicalConfiguration ?? this.rawConfiguration;
 	}
 }
 
@@ -111,8 +147,9 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	readonly onDidChangeTrustedFolders = this._onDidChangeTrustedFolders.event;
 
 	private _canonicalStartupFiles: URI[] = [];
-	private _canonicalWorkspace: IWorkspace;
+	private _canonicalWorkspace: CanonicalWorkspace;
 	private _canonicalUrisResolved: boolean;
+	private _canonicalWorkspaceStale = false;
 
 	private _isTrusted: boolean;
 	private _trustStateInfo: IWorkspaceTrustInfo;
@@ -141,7 +178,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		super();
 
 		this._canonicalUrisResolved = false;
-		this._canonicalWorkspace = this.workspaceService.getWorkspace();
+		const workspace = this.workspaceService.getWorkspace();
+		this._canonicalWorkspace = new CanonicalWorkspace(CanonicalWorkspace.capture(workspace), workspace.folders.map(folder => folder.uri), workspace.configuration);
 
 		({ promise: this._workspaceResolvedPromise, resolve: this._workspaceResolvedPromiseResolve } = promiseWithResolvers());
 		({ promise: this._workspaceTrustInitializedPromise, resolve: this._workspaceTrustInitializedPromiseResolve } = promiseWithResolvers());
@@ -290,7 +328,18 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return this._trustStateInfo.uriTrustInfo.find(info => this.uriIdentityService.extUri.isEqual(info.uri, withoutTrailingSeparator))?.uri;
 	}
 
-	private async resolveCanonicalUris(): Promise<void> {
+	/**
+	 * Resolves canonical URIs for the current workspace and startup files.
+	 * The workspace is copied before any await, so the returned snapshot is
+	 * internally coherent but may be stale; callers must check
+	 * {@link isCanonicalWorkspaceCurrent} before publishing it.
+	 *
+	 * Protected only as an internal hook for tests; not part of the service contract.
+	 */
+	protected async resolveCanonicalUris(): Promise<CanonicalWorkspace> {
+		// Copy the workspace before any await: it can be mutated in place while resolving
+		const capturedWorkspace = CanonicalWorkspace.capture(this.workspaceService.getWorkspace());
+
 		// Open editors
 		const filesToOpen: IPath[] = [];
 		if (this.environmentService.filesToOpenOrCreate) {
@@ -314,15 +363,31 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 
 		// Workspace
-		const workspaceUris = this.workspaceService.getWorkspace().folders.map(f => f.uri);
-		const canonicalWorkspaceFolders = await Promise.all(workspaceUris.map(uri => this.getCanonicalUri(uri)));
+		const canonicalWorkspaceFolders = await Promise.all(capturedWorkspace.folders.map(folder => this.getCanonicalUri(folder.uri)));
 
-		let canonicalWorkspaceConfiguration = this.workspaceService.getWorkspace().configuration;
+		let canonicalWorkspaceConfiguration = capturedWorkspace.configuration;
 		if (canonicalWorkspaceConfiguration && isSavedWorkspace(canonicalWorkspaceConfiguration, this.environmentService)) {
 			canonicalWorkspaceConfiguration = await this.getCanonicalUri(canonicalWorkspaceConfiguration);
 		}
 
-		this._canonicalWorkspace = new CanonicalWorkspace(this.workspaceService.getWorkspace(), canonicalWorkspaceFolders, canonicalWorkspaceConfiguration);
+		return new CanonicalWorkspace(capturedWorkspace, canonicalWorkspaceFolders, canonicalWorkspaceConfiguration);
+	}
+
+	private isCanonicalWorkspaceCurrent(snapshot: CanonicalWorkspace): boolean {
+		const workspace = this.workspaceService.getWorkspace();
+		if (workspace.id !== snapshot.id || workspace.folders.length !== snapshot.rawFolderUris.length) {
+			return false;
+		}
+
+		if (!workspace.folders.every((folder, index) => this.uriIdentityService.extUri.isEqual(folder.uri, snapshot.rawFolderUris[index]))) {
+			return false;
+		}
+
+		if (!workspace.configuration || !snapshot.rawConfiguration) {
+			return !workspace.configuration && !snapshot.rawConfiguration;
+		}
+
+		return this.uriIdentityService.extUri.isEqual(workspace.configuration, snapshot.rawConfiguration);
 	}
 
 	private loadTrustInfo(): IWorkspaceTrustInfo {
@@ -358,7 +423,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		await this.updateWorkspaceTrust();
 	}
 
-	private getWorkspaceUris(workspace = this._canonicalWorkspace): URI[] {
+	private getWorkspaceUris(workspace: IWorkspace = this._canonicalWorkspace): URI[] {
 		const workspaceUris = workspace.folders.map(f => f.uri);
 		const workspaceConfiguration = workspace.configuration;
 		if (workspaceConfiguration && isSavedWorkspace(workspaceConfiguration, this.environmentService)) {
@@ -376,6 +441,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		// Canonical Uris not yet resolved
 		if (!this._canonicalUrisResolved) {
+			return false;
+		}
+
+		// Canonical snapshot does not match the current workspace
+		if (this._canonicalWorkspaceStale) {
 			return false;
 		}
 
@@ -410,16 +480,46 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			}
 
 			if (trusted === undefined) {
+				let providerCurrent = false;
+				let workspaceCurrent = false;
+				let resolutionFailed = false;
+				// Keep the candidate local until it has been validated so that callers
+				// never observe an unvalidated snapshot while this update is suspended.
+				let candidate: CanonicalWorkspace | undefined;
 				for (let attempt = 0; attempt < 2; attempt++) {
 					const providerVersion = this._canonicalUriProviderVersion;
-					await this.resolveCanonicalUris();
-					this._canonicalUrisResolved = providerVersion === this._canonicalUriProviderVersion;
-					if (this._canonicalUrisResolved) {
+					try {
+						candidate = await this.resolveCanonicalUris();
+					} catch (error) {
+						this.logService.error(`Unable to resolve workspace trust sources: ${toErrorMessage(error)}`);
+						providerCurrent = false;
+						workspaceCurrent = false;
+						resolutionFailed = true;
+						break;
+					}
+					const workspaceCurrentBeforeYield = this.isCanonicalWorkspaceCurrent(candidate);
+					// Yield one microtask so a canonical URI provider registration that was
+					// scheduled while resolving can bump the provider version before we verify.
+					await Promise.resolve();
+					providerCurrent = providerVersion === this._canonicalUriProviderVersion;
+					workspaceCurrent = workspaceCurrentBeforeYield && this.isCanonicalWorkspaceCurrent(candidate);
+					if (providerCurrent && workspaceCurrent) {
 						break;
 					}
 				}
-				if (!this._canonicalUrisResolved) {
-					this.logService.warn('Unable to verify workspace trust sources because their provider changed');
+				// Publish the snapshot and its validation state together, synchronously.
+				if (candidate && !resolutionFailed) {
+					this._canonicalWorkspace = candidate;
+				}
+				this._canonicalUrisResolved = providerCurrent;
+				this._canonicalWorkspaceStale = !workspaceCurrent;
+				if (!resolutionFailed) {
+					if (!providerCurrent) {
+						this.logService.warn('Unable to verify workspace trust sources because their provider changed');
+					}
+					if (!workspaceCurrent) {
+						this.logService.warn('Unable to verify workspace trust sources because the workspace folders changed during resolution');
+					}
 				}
 				trusted = this.calculateWorkspaceTrust();
 			}
@@ -637,6 +737,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	async setParentFolderTrust(trusted: boolean): Promise<void> {
+		// Never grant trust derived from an unresolved or stale canonical snapshot
+		if (trusted && !this.isWorkspaceTrustSourceResolved()) {
+			return;
+		}
+
 		if (this.canSetParentFolderTrust()) {
 			const workspaceUri = (toWorkspaceIdentifier(this._canonicalWorkspace) as ISingleFolderWorkspaceIdentifier).uri;
 			const parentFolder = this.uriIdentityService.extUri.dirname(workspaceUri);
@@ -721,8 +826,9 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	isWorkspaceTrustSourceResolved(): boolean {
 		return !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled() ||
-			(this._canonicalUrisResolved && !this.getWorkspaceUris(this.workspaceService.getWorkspace())
-				.some(uri => this._unresolvedVirtualUris.has(uri.with({ query: null, fragment: null }))));
+			(this._canonicalUrisResolved && !this._canonicalWorkspaceStale && this.isCanonicalWorkspaceCurrent(this._canonicalWorkspace) &&
+				!this.getWorkspaceUris(this.workspaceService.getWorkspace())
+					.some(uri => this._unresolvedVirtualUris.has(uri.with({ query: null, fragment: null }))));
 	}
 
 	async resolveWorkspaceTrust(): Promise<void> {
