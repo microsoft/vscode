@@ -246,8 +246,9 @@ export class ChatStatusDashboard extends DomWidget {
 		// Premium chat included indicator (shown when premium chat is unlimited)
 		const hasPremiumUnlimited = !!premiumChat?.unlimited;
 		const premiumChatUsage = getQuotaUsage(premiumChat);
+		let creditsUsedResetUpdater: ((resetLabel: string | undefined) => void) | undefined;
 		if (premiumChatUsage?.kind === QuotaUsageKind.CreditsUsed) {
-			this.createCreditsUsedIndicator(this.element, premiumChatUsage.creditsUsed, this.formatQuotaResetLabel(premiumChat));
+			creditsUsedResetUpdater = this.createCreditsUsedIndicator(this.element, premiumChatUsage.creditsUsed, this.formatQuotaResetLabel(premiumChat));
 		} else if (hasPremiumUnlimited) {
 			const includedTitle = this.chatEntitlementService.quotas.usageBasedBilling
 				? localize('includedTitleTBB', "Credits")
@@ -373,6 +374,7 @@ export class ChatStatusDashboard extends DomWidget {
 				if (completionsQuota) {
 					completionsQuotaIndicator?.(completionsQuota);
 				}
+				creditsUsedResetUpdater?.(this.formatQuotaResetLabel(premiumChatQuota));
 				if (additionalBudgetIndicator && additionalBudgetElement) {
 					const overageEntitlement = this.chatEntitlementService.quotas.additionalUsageEntitlement ?? 0;
 					const overageCount = this.chatEntitlementService.quotas.additionalUsageCount ?? 0;
@@ -410,6 +412,24 @@ export class ChatStatusDashboard extends DomWidget {
 			// Update dynamically when quota data changes while the dashboard is open
 			this._store.add(this.chatEntitlementService.onDidChangeQuotaRemaining(() => updateIndicators()));
 			this._store.add(this.chatEntitlementService.onDidChangeQuotaExceeded(() => updateIndicators()));
+
+			let resetRefreshTriggered = false;
+			this._store.add(disposableWindowInterval(getWindow(container), async () => {
+				const hasExpiredReset = [chatQuota, premiumChatQuota, completionsQuota].some(quota => {
+					const reset = getQuotaReset(quota, this.chatEntitlementService.quotas);
+					return !!reset && reset.date.getTime() <= Date.now();
+				});
+				if (!hasExpiredReset) {
+					resetRefreshTriggered = false;
+					return;
+				}
+
+				updateIndicators();
+				if (!resetRefreshTriggered) {
+					resetRefreshTriggered = true;
+					await this.chatEntitlementService.update(CancellationToken.None);
+				}
+			}, 1000));
 		}
 
 		// Anonymous Indicator
@@ -769,7 +789,7 @@ export class ChatStatusDashboard extends DomWidget {
 
 	private formatQuotaResetLabel(quota: IQuotaSnapshot | undefined): string | undefined {
 		const reset = getQuotaReset(quota, this.chatEntitlementService.quotas);
-		if (!reset) {
+		if (!reset || reset.date.getTime() <= Date.now()) {
 			return undefined;
 		}
 
@@ -778,7 +798,7 @@ export class ChatStatusDashboard extends DomWidget {
 			: localize('quotaResets', "Resets {0}", this.dateFormatter.value.format(reset.date));
 	}
 
-	private createCreditsUsedIndicator(container: HTMLElement, creditsUsed: number, resetLabel: string | undefined): void {
+	private createCreditsUsedIndicator(container: HTMLElement, creditsUsed: number, resetLabel: string | undefined): (resetLabel: string | undefined) => void {
 		const isCompact = !!this.options?.compactQuotaLayout;
 
 		const resetValue = $('span.quota-reset');
@@ -805,6 +825,7 @@ export class ChatStatusDashboard extends DomWidget {
 		}
 
 		container.appendChild(indicatorElement);
+		return nextResetLabel => resetValue.textContent = nextResetLabel ?? '';
 	}
 
 	private createQuotaIndicator(container: HTMLElement, quota: IQuotaSnapshot | string, label: string, resetLabel?: string, compactTitle?: string): (quota: IQuotaSnapshot | string) => void {
@@ -897,6 +918,7 @@ export class ChatStatusDashboard extends DomWidget {
 				showPercentage();
 			}
 			quotaBit.style.width = `${usedPercentage}%`;
+			resetValue.textContent = typeof quota === 'string' ? '' : this.formatQuotaResetLabel(quota) ?? '';
 		};
 
 		update(quota);

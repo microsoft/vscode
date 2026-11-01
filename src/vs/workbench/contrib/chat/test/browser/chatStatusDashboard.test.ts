@@ -1152,20 +1152,31 @@ suite('ChatStatusDashboard', () => {
 			chat: { percentRemaining: 80, unlimited: false },
 			completions: { percentRemaining: 70, unlimited: false },
 			entitlement: ChatEntitlement.Free,
+			resetDate: '2026-09-01T12:00:00Z',
+			resetDateHasTime: false,
 		}, store);
 
 		const dashboard = createDashboard(svc);
 		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['20%', '30%']);
+		assert.deepStrictEqual(getQuotaResets(dashboard.element), [
+			['Chat messages', 'Resets Sep 1'],
+			['Inline Suggestions', 'Resets Sep 1'],
+		]);
 
 		// Simulate fresh quota data arriving
 		(svc as { quotas: typeof svc.quotas }).quotas = {
 			...svc.quotas,
 			chat: { percentRemaining: 50, unlimited: false },
 			completions: { percentRemaining: 40, unlimited: false },
+			resetDate: '2026-10-01T12:00:00Z',
 		};
 		svc.fireQuotaRemaining();
 
 		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['50%', '60%']);
+		assert.deepStrictEqual(getQuotaResets(dashboard.element), [
+			['Chat messages', 'Resets Oct 1'],
+			['Inline Suggestions', 'Resets Oct 1'],
+		]);
 	});
 
 	test('Live update: callout appears when onDidChangeQuotaExceeded fires and quota becomes exhausted', () => {
