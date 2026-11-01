@@ -812,7 +812,14 @@ registerAction2(class RevealLastFailedCellAction extends NotebookAction {
 		if (lastFailedCellHandle !== undefined) {
 			const lastFailedCell = context.notebookEditor.getCellByHandle(lastFailedCellHandle);
 			if (lastFailedCell) {
-				context.notebookEditor.focusNotebookCell(lastFailedCell, 'container');
+				const errorLocation = lastFailedCell.internalMetadata.error?.location;
+				if (errorLocation) {
+					await context.notebookEditor.focusNotebookCell(lastFailedCell, 'editor', {
+						focusEditorLine: errorLocation.startLineNumber + 1
+					});
+				} else {
+					context.notebookEditor.focusNotebookCell(lastFailedCell, 'container');
+				}
 			}
 		}
 	}
