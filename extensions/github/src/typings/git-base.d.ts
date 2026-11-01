@@ -69,6 +69,14 @@ export interface RecentRemoteSource extends RemoteSource {
 	readonly timestamp: number;
 }
 
+export interface RemoteSourceProviderChangeEvent {
+	/**
+	 * An error produced while asynchronously updating remote sources. Consumers
+	 * should preserve the provider's current results when displaying this error.
+	 */
+	readonly error?: Error;
+}
+
 export interface RemoteSourceProvider {
 	readonly name: string;
 	/**
@@ -78,6 +86,12 @@ export interface RemoteSourceProvider {
 	readonly label?: string;
 	readonly placeholder?: string;
 	readonly supportsQuery?: boolean;
+	/**
+	 * Fires when asynchronously fetched remote sources have changed. Providers
+	 * exposing this event should return their current, provider-ranked results
+	 * synchronously so that query changes can be rendered immediately.
+	 */
+	readonly onDidChangeRemoteSources?: Event<RemoteSourceProviderChangeEvent>;
 
 	getBranches?(url: string): ProviderResult<string[]>;
 	getRemoteSourceActions?(url: string): ProviderResult<RemoteSourceAction[]>;
