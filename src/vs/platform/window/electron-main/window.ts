@@ -41,6 +41,11 @@ export interface IBaseWindow extends IDisposable {
 	readonly isFullScreen: boolean;
 	toggleFullScreen(): void;
 
+	/**
+	 * Whether a restored maximized or fullscreen mode waits for the window to get focus.
+	 */
+	readonly hasPendingMode: boolean;
+
 	updateWindowControls(options: { height?: number; horizontalInset?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): void;
 
 	matches(webContents: electron.WebContents): boolean;
@@ -89,7 +94,11 @@ export interface ICodeWindow extends IBaseWindow {
 
 	notifyZoomLevel(zoomLevel: number | undefined): void;
 
-	serializeWindowState(): IWindowState;
+	/**
+	 * @param options.exact the windows will be restored exactly as they are, so the state
+	 * also records whether the window is minimized, and if so, whether it is maximized.
+	 */
+	serializeWindowState(options?: { readonly exact?: boolean }): IWindowState;
 }
 
 export const enum LoadReason {
@@ -141,6 +150,24 @@ export interface IWindowState {
 	mode?: WindowMode;
 	zoomLevel?: number;
 	readonly display?: number;
+
+	/**
+	 * Whether the window is minimized. Only recorded and restored when the application
+	 * restores its windows exactly, after an unattended update restart.
+	 */
+	minimized?: boolean;
+}
+
+/**
+ * Shows a window without taking focus from the active application.
+ */
+export interface IBackgroundShowOptions {
+
+	/**
+	 * macOS: hide the application again after showing the window,
+	 * because the application was hidden.
+	 */
+	readonly hideApplication: boolean;
 }
 
 export const defaultWindowState = function (mode = WindowMode.Normal, hasWorkspace = false): IWindowState {

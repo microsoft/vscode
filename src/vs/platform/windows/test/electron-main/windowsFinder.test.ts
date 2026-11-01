@@ -55,6 +55,7 @@ suite('WindowsFinder', () => {
 			isExtensionTestHost = false;
 			lastFocusTime = options.lastFocusTime;
 			isFullScreen = false;
+			hasPendingMode = false;
 			isReady = true;
 
 			ready(): Promise<ICodeWindow> { throw new Error('Method not implemented.'); }

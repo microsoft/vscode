@@ -101,6 +101,7 @@ import './contrib/cellDiagnostics/cellDiagnostics.js';
 import './contrib/multicursor/notebookMulticursor.js';
 import './contrib/multicursor/notebookSelectionHighlight.js';
 import './contrib/notebookVariables/notebookInlineVariables.js';
+import './contrib/unattendedRestart/notebookUnattendedRestart.js';
 
 // Diff Editor Contribution
 import './diff/notebookDiffActions.js';
