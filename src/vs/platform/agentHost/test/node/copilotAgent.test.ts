@@ -14238,6 +14238,35 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('launches the runtime with POLICY_HELPER only when a policy helper path is configured at startup', async () => {
+			const launchEnv = async (rootConfig: Record<string, unknown> | undefined) => {
+				const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([], []), rootConfig });
+				try {
+					await agent.authenticate('https://api.github.com', 'token');
+					await agent.listChatsToMigrate();
+					const env = getCreatedClientOptions(agent).at(-1)?.env;
+					return {
+						flag: (env?.['COPILOT_CLI_ENABLED_FEATURE_FLAGS'] ?? '').split(',').includes('POLICY_HELPER'),
+						policyHelper: env?.['COPILOT_CLI_POLICY_HELPER'],
+					};
+				} finally {
+					await disposeAgent(agent);
+				}
+			};
+
+			assert.deepStrictEqual({
+				byDefault: await launchEnv(undefined),
+				configured: await launchEnv({ [CopilotCliConfigKey.PolicyHelper]: { path: '/opt/agency/policy-helper' } }),
+				withArgs: await launchEnv({ [CopilotCliConfigKey.PolicyHelper]: { path: '/opt/agency/policy-helper', args: ['--mode', 'copilot'] } }),
+				emptyPath: await launchEnv({ [CopilotCliConfigKey.PolicyHelper]: { path: '' } }),
+			}, {
+				byDefault: { flag: false, policyHelper: undefined },
+				configured: { flag: true, policyHelper: '{"path":"/opt/agency/policy-helper","args":[]}' },
+				withArgs: { flag: true, policyHelper: '{"path":"/opt/agency/policy-helper","args":["--mode","copilot"]}' },
+				emptyPath: { flag: false, policyHelper: undefined },
+			});
+		});
+
 		test('keeps accepting HydraFusion Max without a restart when HydraFusion v2 is turned off, since dynamic Auto tiers keep v2 on', async () => {
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
 			client.autoTierMetadata = {
