@@ -295,6 +295,18 @@ suite('Workbench - Titlebar Part', () => {
 		});
 	});
 
+	test('compact menu stays with the activity bar when the custom title bar is hidden', function () {
+		if (isWeb) {
+			this.skip(); // the custom title bar visibility setting does not apply on web
+		}
+		const configurationService = new TestConfigurationService({
+			window: { menuBarVisibility: 'compact', customTitleBarVisibility: 'never', titleBarStyle: 'native' },
+			workbench: { activityBar: { location: ActivityBarPosition.TOP } }
+		});
+
+		assert.strictEqual(isCompactMenuInTitlebar(configurationService), false);
+	});
+
 	function createTitlebar(configurationService: TestConfigurationService, partCtor: typeof BrowserTitlebarPart = BrowserTitlebarPart) {
 		const root = document.createElement('div');
 		const instantiationService = workbenchInstantiationService(undefined, store);

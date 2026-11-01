@@ -7,8 +7,8 @@ import './media/titlebarpart.css';
 import { localize, localize2 } from '../../../../nls.js';
 import { MultiWindowParts, Part } from '../../part.js';
 import { ITitleService } from '../../../services/title/browser/titleService.js';
-import { getWCOTitlebarAreaRect, getZoomFactor, isWCOEnabled } from '../../../../base/browser/browser.js';
-import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getWindowControlsStyle, WindowControlsStyle, TitlebarStyle, MenuSettings, hasNativeMenu } from '../../../../platform/window/common/window.js';
+import { getWCOTitlebarAreaRect, getZoomFactor, isWCOEnabled, onDidChangeFullscreen } from '../../../../base/browser/browser.js';
+import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getWindowControlsStyle, WindowControlsStyle, TitlebarStyle, MenuSettings, hasNativeMenu, TitleBarSetting } from '../../../../platform/window/common/window.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
@@ -351,6 +351,11 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.updateStyles();
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
+		this._register(onDidChangeFullscreen(windowId => {
+			if (windowId === mainWindow.vscodeWindowId) {
+				this.updateMenubarInstallation();
+			}
+		}));
 		this._register(this.editorGroupsContainer.onDidChangeEditorPartOptions(e => this.onEditorPartConfigurationChange(e)));
 	}
 
@@ -373,7 +378,12 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		}
 
 		// Custom menu bar (disabled if auxiliary)
-		if (event.affectsConfiguration(MenuSettings.MenuBarVisibility) || event.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
+		if (
+			event.affectsConfiguration(MenuSettings.MenuBarVisibility) ||
+			event.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION) ||
+			event.affectsConfiguration(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY) ||
+			event.affectsConfiguration(TitleBarSetting.TITLE_BAR_STYLE)
+		) {
 			this.updateMenubarInstallation();
 		}
 

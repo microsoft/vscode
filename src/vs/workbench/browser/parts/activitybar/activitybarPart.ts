@@ -20,7 +20,8 @@ import { addDisposableListener, append, EventType, isAncestor, $, clearNode, Dim
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { CustomMenubarControl } from '../titlebar/menubarControl.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { getMenuBarVisibility, MenuSettings } from '../../../../platform/window/common/window.js';
+import { getMenuBarVisibility, MenuSettings, TitleBarSetting } from '../../../../platform/window/common/window.js';
+import { onDidChangeFullscreen } from '../../../../base/browser/browser.js';
 import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -472,20 +473,36 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 
 		// Register for configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(MenuSettings.MenuBarVisibility) || e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
-				if (!this.element) {
-					return;
-				}
-				if (this.shouldInstallMenubar()) {
-					this.installMenubar();
-				} else {
-					this.uninstallMenubar();
-				}
-				if (this.lastLayoutDimensions) {
-					this.layout(this.lastLayoutDimensions.width, this.lastLayoutDimensions.height);
-				}
+			if (
+				e.affectsConfiguration(MenuSettings.MenuBarVisibility) ||
+				e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION) ||
+				e.affectsConfiguration(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY) ||
+				e.affectsConfiguration(TitleBarSetting.TITLE_BAR_STYLE)
+			) {
+				this.updateMenubar();
 			}
 		}));
+
+		// Menu ownership depends on whether the custom title bar is shown, which can change with full screen
+		this._register(onDidChangeFullscreen(windowId => {
+			if (windowId === mainWindow.vscodeWindowId) {
+				this.updateMenubar();
+			}
+		}));
+	}
+
+	private updateMenubar(): void {
+		if (!this.element) {
+			return;
+		}
+		if (this.shouldInstallMenubar()) {
+			this.installMenubar();
+		} else {
+			this.uninstallMenubar();
+		}
+		if (this.lastLayoutDimensions) {
+			this.layout(this.lastLayoutDimensions.width, this.lastLayoutDimensions.height);
+		}
 	}
 
 	/**
