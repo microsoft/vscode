@@ -143,6 +143,8 @@ export class ModelService extends Disposable implements IModelService {
 			newDefaultEOL = DefaultEndOfLine.CRLF;
 		} else if (eol === '\n') {
 			newDefaultEOL = DefaultEndOfLine.LF;
+		} else if (eol === '\r') {
+			newDefaultEOL = DefaultEndOfLine.CR;
 		}
 
 		let trimAutoWhitespace = EDITOR_MODEL_DEFAULTS.trimAutoWhitespace;
@@ -236,7 +238,7 @@ export class ModelService extends Disposable implements IModelService {
 
 	private static _setModelOptionsForModel(model: ITextModel, newOptions: ITextModelCreationOptions, currentOptions: ITextModelCreationOptions): void {
 		if (currentOptions && currentOptions.defaultEOL !== newOptions.defaultEOL && model.getLineCount() === 1) {
-			model.setEOL(newOptions.defaultEOL === DefaultEndOfLine.LF ? EndOfLineSequence.LF : EndOfLineSequence.CRLF);
+			model.setEOL(newOptions.defaultEOL === DefaultEndOfLine.LF ? EndOfLineSequence.LF : newOptions.defaultEOL === DefaultEndOfLine.CR ? EndOfLineSequence.CR : EndOfLineSequence.CRLF);
 		}
 
 		if (currentOptions
@@ -374,7 +376,7 @@ export class ModelService extends Disposable implements IModelService {
 
 		// Otherwise find a diff between the values and update model
 		model.pushStackElement();
-		model.pushEOL(textBuffer.getEOL() === '\r\n' ? EndOfLineSequence.CRLF : EndOfLineSequence.LF);
+		model.pushEOL(textBuffer.getEOL() === '\r\n' ? EndOfLineSequence.CRLF : textBuffer.getEOL() === '\r' ? EndOfLineSequence.CR : EndOfLineSequence.LF);
 		model.pushEditOperations(
 			[],
 			ModelService._computeEdits(model, textBuffer),

@@ -156,7 +156,7 @@ export abstract class BaseStringEdit<T extends BaseStringReplacement<T> = BaseSt
 		return new StringEdit(edits);
 	}
 
-	public normalizeEOL(eol: '\r\n' | '\n'): StringEdit {
+	public normalizeEOL(eol: '\r\n' | '\n' | '\r'): StringEdit {
 		return new StringEdit(this.replacements.map(edit => edit.normalizeEOL(eol)));
 	}
 
@@ -238,8 +238,8 @@ export abstract class BaseStringReplacement<T extends BaseStringReplacement<T> =
 		return new StringReplacement(replaceRange, newText);
 	}
 
-	normalizeEOL(eol: '\r\n' | '\n'): StringReplacement {
-		const newText = this.newText.replace(/\r\n|\n/g, eol);
+	normalizeEOL(eol: '\r\n' | '\n' | '\r'): StringReplacement {
+		const newText = this.newText.replace(/\r\n|\r|\n/g, eol);
 		return new StringReplacement(this.replaceRange, newText);
 	}
 
