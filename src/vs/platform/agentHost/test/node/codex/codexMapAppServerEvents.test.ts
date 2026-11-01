@@ -796,6 +796,29 @@ suite('codexMapAppServerEvents', () => {
 		});
 	});
 
+	test('imageGeneration attachment reference completes without inventing image content', () => {
+		const state = createCodexSessionMapState();
+		mapItemStarted(state, {
+			item: { type: 'imageGeneration', id: 'image_1', status: 'in_progress', revisedPrompt: null, result: '', failure: null },
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const toolCallId = state.itemToToolCall.get('image_1')!.toolCallId;
+		const actions = mapItemCompleted(state, {
+			item: { type: 'imageGeneration', id: 'image_1', status: 'completed', revisedPrompt: null, fileId: 'file_1', failure: null },
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+		assert.deepStrictEqual(actions, [{
+			type: ActionType.ChatToolCallComplete,
+			turnId: 'turn_a',
+			toolCallId,
+			result: {
+				success: true,
+				pastTenseMessage: 'Generated image',
+				content: undefined,
+			},
+		}]);
+	});
+
 	for (const [status, result, success] of [
 		['completed', 'aW1hZ2U=', true],
 		['failed', 'aW1hZ2U=', false],

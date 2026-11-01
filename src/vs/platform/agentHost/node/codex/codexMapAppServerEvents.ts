@@ -5,11 +5,12 @@
 
 import { generateUuid } from '../../../../base/common/uuid.js';
 import type { URI } from '../../../../base/common/uri.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import type { IAgentModelCallCompletedSignal } from '../../common/agent.js';
 import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
-import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ErrorInfo } from '../../common/state/sessionState.js';
+import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ErrorInfo, type ToolResultContent } from '../../common/state/sessionState.js';
 import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
@@ -39,6 +40,7 @@ import type { DynamicToolCallOutputContentItem } from './protocol/generated/v2/D
 import type { JsonValue } from './protocol/generated/serde_json/JsonValue.js';
 import type { CollabAgentTool } from './protocol/generated/v2/CollabAgentTool.js';
 import type { CollabAgentState } from './protocol/generated/v2/CollabAgentState.js';
+import type { ImageGenerationItem } from './protocol/generated/ImageGenerationItem.js';
 
 /**
  * Per-session mutable state held by the mapper. Carries the bookkeeping
@@ -340,6 +342,20 @@ export function codexImageGenerationLabels(status?: string): { readonly displayN
 
 export function codexImageGenerationToolInput(revisedPrompt: string | null): string | undefined {
 	return revisedPrompt ? JSON.stringify({ prompt: revisedPrompt }) : undefined;
+}
+
+export function codexImageGenerationResult(item: ImageGenerationItem): { readonly success: boolean; readonly content: ToolResultContent[] | undefined } {
+	if (item.status !== 'completed') {
+		return { success: false, content: undefined };
+	}
+	if (hasKey(item, { result: true })) {
+		const success = item.result.length > 0;
+		return {
+			success,
+			content: success ? [{ type: ToolResultContentType.EmbeddedResource, data: item.result, contentType: 'image/png' }] : undefined,
+		};
+	}
+	return { success: item.fileId.length > 0, content: undefined };
 }
 
 function jsonValueToText(value: JsonValue): string {
@@ -1165,7 +1181,7 @@ export function mapItemCompleted(
 		}];
 	}
 	if (params.item.type === 'imageGeneration') {
-		const success = params.item.status === 'completed' && params.item.result.length > 0;
+		const { success, content } = codexImageGenerationResult(params.item);
 		const labels = codexImageGenerationLabels(params.item.status);
 		const actions: ChatAction[] = [];
 		const toolInput = codexImageGenerationToolInput(params.item.revisedPrompt);
@@ -1186,11 +1202,7 @@ export function mapItemCompleted(
 			result: {
 				success,
 				pastTenseMessage: success ? labels.pastTenseMessage : labels.failedMessage,
-				content: success ? [{
-					type: ToolResultContentType.EmbeddedResource,
-					data: params.item.result,
-					contentType: 'image/png',
-				}] : undefined,
+				content,
 				...(success ? {} : { error: { message: labels.errorMessage } }),
 			},
 		});

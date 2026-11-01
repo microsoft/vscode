@@ -25,6 +25,7 @@ suite('codexMcpServers', () => {
 		serverInfo: null,
 		httpOrigin: null,
 		serverCapabilities: null,
+		toolListMeta: null,
 		toolsError: null,
 		tools: Object.fromEntries(tools.map(t => [t.name, t])),
 		resources: [{ name: `${name}-res`, uri: `mem://${name}/r` }],

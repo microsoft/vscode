@@ -717,6 +717,35 @@ suite('codexReplayMapper', () => {
 		}
 	}
 
+	test('imageGeneration restores an attachment reference without inventing image content', () => {
+		const turns = replayThreadToTurns(upcastPartial<Thread>({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				rootTurnId: null,
+				items: [
+					{ type: 'userMessage', id: 'u', clientId: null, content: [{ type: 'text', text: 'draw it', text_elements: [] }] },
+					{ type: 'imageGeneration', id: 'image_1', status: 'completed', revisedPrompt: null, fileId: 'file_1', failure: null },
+				],
+				itemsView: 'full',
+				status: 'completed',
+				error: null, startedAt: null, completedAt: null, durationMs: null,
+			}],
+		}));
+		const part = turns[0].responseParts[0];
+		assert.deepStrictEqual(part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? {
+			success: part.toolCall.success,
+			pastTenseMessage: part.toolCall.pastTenseMessage,
+			content: part.toolCall.content,
+			error: part.toolCall.error,
+		} : undefined, {
+			success: true,
+			pastTenseMessage: 'Generated image',
+			content: undefined,
+			error: undefined,
+		});
+	});
+
 	test('contextCompaction is restored as a completed /compact turn', () => {
 		const turns = replayThreadToTurns({
 			id: 'thr',
