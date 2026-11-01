@@ -120,11 +120,29 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+      # Diagnostics of the checkout: a file whose inode changes was written again
+      - name: Note the files of the image
+        shell: bash
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          stat -c '%i %Y %s %n' README.md package.json src/main.ts .git/index 2>/dev/null || stat -f '%i %m %z %N' README.md package.json src/main.ts .git/index
+          git ls-files --debug README.md
+          git config --local --get core.checkStat
+
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
           clean: false
+        env:
+          GIT_TRACE2_PERF: ${{ runner.temp }}/git-trace2.txt
+
+      - name: Explain the time of the checkout
+        shell: bash
+        run: |
+          stat -c '%i %Y %s %n' README.md package.json src/main.ts .git/index 2>/dev/null || stat -f '%i %m %z %N' README.md package.json src/main.ts .git/index
+          # The longest regions of git
+          grep 'region_leave' "$RUNNER_TEMP/git-trace2.txt" | awk -F'|' '{ print $7, $9, $10 }' | sort -rn | head -15
 
       - name: Downgrade @vscode/codicons in the workspace and in remote/web, as a pull request would
         shell: bash
