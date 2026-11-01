@@ -230,6 +230,18 @@ export interface IEditorGroupsView {
 	restoreGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView;
+
+	/**
+	 * The group of another part that `editor` opens in instead of `group`, for an editor this part does not take; see
+	 * `ICreateEditorPartOptions.redirectEditor`.
+	 */
+	redirectEditor?(editor: EditorInput, group: IEditorGroupView): IEditorGroup | undefined;
+
+	/**
+	 * Marks `group` as opening several editors at once, whose redirects are settled when the returned
+	 * disposable is disposed, such as by removing the group if it was left without editors.
+	 */
+	openEditorsBatch?(group: IEditorGroupView): IDisposable;
 	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): boolean;
 
 	moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { EditorGroupLayout, GroupActivationReason, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart, IModalEditorPart, IEditorGroupActivationEvent } from '../../../services/editor/common/editorGroupsService.js';
+import { EditorGroupLayout, GroupActivationReason, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart, IModalEditorPart, IEditorGroupActivationEvent, ICreateEditorPartOptions, IEmbeddedEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { GroupIdentifier, IEditorPartOptions } from '../../../common/editor.js';
@@ -13,6 +13,7 @@ import { IEditorGroupView, IEditorPartsView } from './editor.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { distinct } from '../../../../base/common/arrays.js';
+import { EmbeddedEditorPart, EmbeddedEditorPartFactory } from './embeddedEditorPart.js';
 import { AuxiliaryEditorPart, IAuxiliaryEditorPartOpenOptions } from './auxiliaryEditorPart.js';
 import { ModalEditorPart } from './modalEditorPart.js';
 import { MultiWindowParts } from '../../part.js';
@@ -120,14 +121,14 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 
 	//#region Scoped Instantiation Services
 
-	private readonly mapPartToInstantiationService = new Map<number /* window ID */, IInstantiationService>();
+	private readonly mapPartToInstantiationService = new Map<IEditorPart, IInstantiationService>();
 	private modalPartInstantiationService: IInstantiationService | undefined;
 
 	getScopedInstantiationService(part: IEditorPart): IInstantiationService {
 
 		// Main Part
 		if (part === this.mainPart) {
-			let mainPartInstantiationService = this.mapPartToInstantiationService.get(part.windowId);
+			let mainPartInstantiationService = this.mapPartToInstantiationService.get(part);
 			if (!mainPartInstantiationService) {
 				mainPartInstantiationService = this.instantiationService.invokeFunction(accessor => {
 					const editorService = accessor.get(IEditorService);
@@ -137,7 +138,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 						[IEditorService, editorService.createScoped(this.mainPart, this._store)],
 						[IStatusbarService, statusbarService.createScoped(statusbarService, this._store)]
 					)));
-					this.mapPartToInstantiationService.set(part.windowId, mainPartInstantiationService);
+					this.mapPartToInstantiationService.set(part, mainPartInstantiationService);
 
 					return mainPartInstantiationService;
 				});
@@ -151,7 +152,11 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			return this.modalPartInstantiationService;
 		}
 
-		return this.mapPartToInstantiationService.get(part.windowId) ?? this.instantiationService;
+		// Each part has its own scoped instantiation service. A part that has none
+		// (yet) falls back to the one of another part in the same window.
+		const scopedInstantiationService = this.mapPartToInstantiationService.get(part) ?? Array.from(this.mapPartToInstantiationService).find(([candidate]) => candidate.windowId === part.windowId)?.[1];
+
+		return scopedInstantiationService ?? this.instantiationService;
 	}
 
 	//#endregion
@@ -162,16 +167,37 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	readonly onDidCreateAuxiliaryEditorPart = this._onDidCreateAuxiliaryEditorPart.event;
 
 	async createAuxiliaryEditorPart(options?: IAuxiliaryEditorPartOpenOptions): Promise<IAuxiliaryEditorPart> {
-		const { part, instantiationService, disposables } = await this.instantiationService.createInstance(AuxiliaryEditorPart, this).create(this.getGroupsLabel(this._parts.size), options);
+		const { part, instantiationService, disposables } = await this.instantiationService.createInstance(AuxiliaryEditorPart, this).create(this.getGroupsLabel(this.persistableParts.length), options);
 
 		// Keep instantiation service
-		this.mapPartToInstantiationService.set(part.windowId, instantiationService);
-		disposables.add(toDisposable(() => this.mapPartToInstantiationService.delete(part.windowId)));
+		this.mapPartToInstantiationService.set(part, instantiationService);
+		disposables.add(toDisposable(() => this.mapPartToInstantiationService.delete(part)));
 
 		// Events
-		this._onDidAddGroup.fire(part.activeGroup);
+		for (const group of part.getGroups(GroupsOrder.CREATION_TIME)) {
+			this._onDidAddGroup.fire(group);
+		}
 
 		this._onDidCreateAuxiliaryEditorPart.fire(part);
+
+		return part;
+	}
+
+	//#endregion
+
+	//#region Embedded Editor Parts
+
+	createEditorPart(options: ICreateEditorPartOptions): IEmbeddedEditorPart {
+		const { part, instantiationService, disposables } = this.instantiationService.createInstance(EmbeddedEditorPartFactory, this).create(options);
+
+		// Keep instantiation service
+		this.mapPartToInstantiationService.set(part, instantiationService);
+		disposables.add(toDisposable(() => this.mapPartToInstantiationService.delete(part)));
+
+		// Events
+		for (const group of part.getGroups(GroupsOrder.CREATION_TIME)) {
+			this._onDidAddGroup.fire(group);
+		}
 
 		return part;
 	}
@@ -260,7 +286,9 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		}));
 
 		// Events
-		this._onDidAddGroup.fire(part.activeGroup);
+		for (const group of part.getGroups(GroupsOrder.CREATION_TIME)) {
+			this._onDidAddGroup.fire(group);
+		}
 
 		return part;
 	}
@@ -284,7 +312,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		// Notify all parts about a groups label change
 		// given it is computed based on the index
 
-		this.parts.forEach((part, index) => {
+		this.persistableParts.forEach((part, index) => {
 			if (part === this.mainPart) {
 				return;
 			}
@@ -352,6 +380,14 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		}
 	}
 
+	/**
+	 * Parts that take part in window state, working sets and labels. Transient parts
+	 * are owned by someone else who is responsible for their lifecycle and state.
+	 */
+	private get persistableParts(): EditorPart[] {
+		return this.parts.filter(part => !part.isTransient);
+	}
+
 	private getGroupsLabel(index: number): string {
 		return localize('groupLabel', "Window {0}", index + 1);
 	}
@@ -364,8 +400,9 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		// Multiple editor parts can share the same document because
 		// the main part and a modal part both live in the main window.
 
+		// Parts that were never activated are not in the MRU list yet.
 		const mruParts = this.mostRecentActiveParts;
-		const mruDocumentParts = mruParts.filter(part => part.element?.ownerDocument === document);
+		const mruDocumentParts = [...mruParts, ...this.parts.filter(part => !mruParts.includes(part))].filter(part => part.element?.ownerDocument === document);
 		if (mruDocumentParts.length > 1) {
 			// First try to find the part that has the currently focused element, which is the most likely candidate to be the active part for that document.
 			const activeElement = getActiveElement();
@@ -374,6 +411,12 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 				if (container && isAncestor(activeElement, container)) {
 					return part;
 				}
+			}
+
+			// Otherwise prefer the primary part of the document
+			const primaryPart = mruDocumentParts.find(part => part instanceof EmbeddedEditorPart && part.isPrimary);
+			if (primaryPart) {
+				return primaryPart;
 			}
 
 			// Pick the part that was set active last for that document
@@ -389,6 +432,25 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		if (this._parts.size > 1) {
 			if (isHTMLElement(groupOrElement)) {
 				const element = groupOrElement;
+
+				// Several parts can share a document, so prefer the closest part containing the element. An embedded part
+				// is also found by its own root, any other part by the document as before.
+				let closestPart: EditorPart | undefined;
+				let closestContainer: HTMLElement | undefined;
+				for (const part of this._parts) {
+					const container = part.getContainer();
+					if (!container || !(isAncestor(element, container) && (container !== element || part instanceof EmbeddedEditorPart))) {
+						continue;
+					}
+					if (!closestContainer || isAncestor(container, closestContainer)) {
+						closestPart = part;
+						closestContainer = container;
+					}
+				}
+
+				if (closestPart) {
+					return closestPart;
+				}
 
 				return this.getPartByDocument(element.ownerDocument);
 			} else {
@@ -508,14 +570,14 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 
 	private createState(): IEditorPartsUIState {
 		return {
-			auxiliary: this.parts
+			auxiliary: this.persistableParts
 				.map(part => ({ part, auxiliaryWindow: this.auxiliaryWindowService.getWindow(part.windowId) }))
 				.filter(({ auxiliaryWindow }) => auxiliaryWindow !== undefined)
 				.map(({ part, auxiliaryWindow }) => ({
 					state: part.createState(),
 					...auxiliaryWindow!.createState()
 				})),
-			mru: this.mostRecentActiveParts.map(part => this.parts.indexOf(part))
+			mru: this.mostRecentActiveParts.filter(part => !part.isTransient).map(part => this.persistableParts.indexOf(part))
 		};
 	}
 
@@ -532,11 +594,14 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			await Promise.allSettled(auxiliaryEditorPartPromises);
 
 			// Update MRU list
-			if (state.mru.length === this.parts.length) {
-				this.mostRecentActiveParts = state.mru.map(index => this.parts[index]);
-			} else {
-				this.mostRecentActiveParts = [...this.parts];
-			}
+			const persistableParts = this.persistableParts;
+			const restoredParts = state.mru.length === persistableParts.length ? state.mru.map(index => persistableParts[index]) : [...persistableParts];
+
+			// Transient parts keep their position relative to each other and to the
+			// restored parts, so that restoring never makes them the most recent ones.
+			const previousParts = this.mostRecentActiveParts;
+			const mergedParts = previousParts.map(part => part.isTransient ? part : restoredParts.shift()).filter((part): part is EditorPart => !!part);
+			this.mostRecentActiveParts = [...mergedParts, ...restoredParts];
 
 			// Await ready
 			await Promise.allSettled(this.parts.map(part => part.whenReady));
@@ -544,7 +609,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	}
 
 	get hasRestorableState(): boolean {
-		return this.parts.some(part => part.hasRestorableState);
+		return this.persistableParts.some(part => part.hasRestorableState);
 	}
 
 	private onDidChangeMementoState(e: IStorageValueChangeEvent): void {
@@ -566,8 +631,8 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		// them merge into the main part.
 
 		for (const part of this.parts) {
-			if (part === this.mainPart) {
-				continue; // main part takes care on its own
+			if (part === this.mainPart || part.isTransient) {
+				continue; // main part takes care on its own and transient parts are managed by their owner
 			}
 
 			for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
