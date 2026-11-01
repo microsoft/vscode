@@ -71,6 +71,7 @@ import { AccessibilityCommandId } from '../../accessibility/common/accessibility
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import product from '../../../../platform/product/common/product.js';
 import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 
 export const SCMInputContextKeys = {
 	SCMInputHasValidationMessage: new RawContextKey<boolean>('scmInputHasValidationMessage', false),
@@ -858,10 +859,13 @@ registerAction2(class extends Action2 {
 
 	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const commandService = accessor.get(ICommandService);
+		const chatEntitlementService = accessor.get(IChatEntitlementService);
 
-		const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID, { telemetrySource: 'scm' });
-		if (!result) {
-			return;
+		if (!chatEntitlementService.hasByokModels) {
+			const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID, { telemetrySource: 'scm' });
+			if (!result) {
+				return;
+			}
 		}
 
 		const command = product.defaultChatAgent?.generateCommitMessageCommand;
