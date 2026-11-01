@@ -65,6 +65,15 @@ export function parseTunnelMachineStatus(message: string): TunnelMachineStatus |
 	return undefined;
 }
 
+/**
+ * Returns whether a CLI log line indicates that the tunnel host token was rejected
+ * (e.g. expired during reconnection) with an HTTP 401 Unauthorized response from the Dev Tunnels API.
+ */
+export function isTunnelHostTokenUnauthorizedError(message: string): boolean {
+	const cleaned = removeAnsiEscapeCodes(message);
+	return cleaned.includes('failed to lookup tunnel for host token') && (cleaned.includes('401') || /unauthorized/i.test(cleaned));
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
