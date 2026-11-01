@@ -9,6 +9,7 @@ const sandboxCertificateKey = 'vscode.sandboxCertificate';
 export const sandboxCertificateInstallationCapability = 'vscode.sandboxCertificate.install';
 export const sandboxCertificateRotationCapability = 'vscode.sandboxCertificate.rotate';
 export const sandboxCertificateRemovalCapability = 'vscode.sandboxCertificate.remove';
+export const sandboxCertificateRefreshCapability = 'vscode.sandboxCertificate.refresh';
 
 /** Installation requires an explicit host capability, not just a status observation. */
 export function supportsSandboxCertificateInstallation(source: { readonly _meta?: Record<string, unknown> } | undefined): boolean {
@@ -21,6 +22,10 @@ export function supportsSandboxCertificateRotation(source: { readonly _meta?: Re
 
 export function supportsSandboxCertificateRemoval(source: { readonly _meta?: Record<string, unknown> } | undefined): boolean {
 	return source?._meta?.[sandboxCertificateRemovalCapability] === true;
+}
+
+export function supportsSandboxCertificateRefresh(source: { readonly _meta?: Record<string, unknown> } | undefined): boolean {
+	return source?._meta?.[sandboxCertificateRefreshCapability] === true;
 }
 
 /** A host-cached observation, not a requirement to install a certificate or disable sandboxing. */

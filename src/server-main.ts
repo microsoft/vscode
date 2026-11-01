@@ -25,8 +25,8 @@ perf.mark('code/server/start');
 
 // Do a quick parse to determine if a server or the cli needs to be started
 const parsedArgs = minimist(process.argv.slice(2), {
-	boolean: ['start-server', 'list-extensions', 'print-ip-address', 'help', 'version', 'accept-server-license-terms', 'update-extensions'],
-	string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'compatibility', 'agent-host-port', 'agent-host-path'],
+	boolean: ['start-server', 'list-extensions', 'print-ip-address', 'help', 'version', 'accept-server-license-terms', 'update-extensions', 'agent-host-ca-confirm'],
+	string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'compatibility', 'agent-host-port', 'agent-host-path', 'agent-host-ca'],
 	alias: { help: 'h', version: 'v' }
 });
 ['host', 'port', 'accept-server-license-terms'].forEach(e => {
@@ -45,7 +45,16 @@ const shouldSpawnCli = parsedArgs.help || parsedArgs.version || extensionLookupA
 
 const nlsConfiguration = await resolveNLSConfiguration({ userLocale: 'en', osLocale: 'en', commit: product.commit, nlsMetadataHash: product.nlsMetadataHash, userDataPath: '', nlsMetadataPath: import.meta.dirname });
 
-if (shouldSpawnCli) {
+if (parsedArgs['agent-host-ca'] !== undefined) {
+	try {
+		await bootstrapCode(nlsConfiguration);
+		const { runAgentHostCertificateCommand } = await import('./vs/platform/agentHost/node/copilot/copilotSandboxCertificateCli.js');
+		process.exitCode = await runAgentHostCertificateCommand(parsedArgs['agent-host-ca'], parsedArgs['agent-host-ca-confirm'] === true);
+	} catch (error) {
+		console.error(error);
+		process.exitCode = 1;
+	}
+} else if (shouldSpawnCli) {
 	loadCode(nlsConfiguration).then((mod) => {
 		mod.spawnCli();
 	});
@@ -348,7 +357,11 @@ async function findFreePort(host: string | undefined, start: number, end: number
 }
 
 async function loadCode(nlsConfiguration: INLSConfiguration) {
+	await bootstrapCode(nlsConfiguration);
+	return import('./vs/server/node/server.main.js');
+}
 
+async function bootstrapCode(nlsConfiguration: INLSConfiguration) {
 	// required for `bootstrap-esm` to pick up NLS messages
 	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration);
 
@@ -372,9 +385,6 @@ async function loadCode(nlsConfiguration: INLSConfiguration) {
 
 	// Bootstrap ESM
 	await bootstrapESM();
-
-	// Load Server
-	return import('./vs/server/node/server.main.js');
 }
 
 function hasStdinWithoutTty(): boolean {

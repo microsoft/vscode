@@ -5,8 +5,8 @@
 
 // Protocol client for communicating with an agent host process.
 
-import { supportsSandboxCertificateInstallation, supportsSandboxCertificateRemoval, supportsSandboxCertificateRotation } from '../common/meta/agentSandboxCertificate.js';
-import { InstallSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod } from '../common/sandboxCertificateProtocol.js';
+import { supportsSandboxCertificateInstallation, supportsSandboxCertificateRefresh, supportsSandboxCertificateRemoval, supportsSandboxCertificateRotation } from '../common/meta/agentSandboxCertificate.js';
+import { InstallSandboxCertificateExtensionMethod, RefreshSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod } from '../common/sandboxCertificateProtocol.js';
 import { DeferredPromise, disposableTimeout, IntervalTimer, raceCancellationError, TimeoutTimer } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage } from '../../../base/common/errors.js';
@@ -367,6 +367,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	readonly sandboxCertificateInstallationSupported = derived(this, reader => supportsSandboxCertificateInstallation(this._initializeResult.read(reader)));
 	readonly sandboxCertificateRotationSupported = derived(this, reader => supportsSandboxCertificateRotation(this._initializeResult.read(reader)));
 	readonly sandboxCertificateRemovalSupported = derived(this, reader => supportsSandboxCertificateRemoval(this._initializeResult.read(reader)));
+	readonly sandboxCertificateRefreshSupported = derived(this, reader => supportsSandboxCertificateRefresh(this._initializeResult.read(reader)));
 	get supportsConversationImport(): boolean {
 		return supportsAgentHostCreateSessionImport(this._initializeResult.get());
 	}
@@ -2162,6 +2163,13 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	refreshSubscription(resource: URI): Promise<void> {
 		return this._subscriptionManager.refreshSubscription(resource);
+	}
+
+	async refreshSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		if (!this.sandboxCertificateRefreshSupported.get()) {
+			throw new Error('This agent host does not support sandbox certificate refresh.');
+		}
+		await this._sendExtensionRequest(RefreshSandboxCertificateExtensionMethod, { chat, scopeId });
 	}
 
 	async readSavedChat(session: URI, chat?: URI): Promise<IAgentHostSavedChat> {

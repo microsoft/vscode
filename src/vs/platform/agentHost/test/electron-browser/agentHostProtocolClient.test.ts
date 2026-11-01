@@ -1943,6 +1943,37 @@ suite('AgentHostProtocolClient', () => {
 	});
 
 	suite('sandbox certificate transport', () => {
+		for (const fails of [false, true]) {
+			test(`refresh forwards the exact chat and scope and propagates ${fails ? 'failure' : 'success'}`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport, { 'vscode.sandboxCertificate.refresh': true });
+				const refreshing = client.refreshSandboxCertificate('conversation://tenant/a%2Fb?revision%3D2#entry', 'runtime');
+				const completion = fails ? assert.rejects(refreshing, /Check failed/) : refreshing;
+				await flushMicrotasks();
+				const request = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'vscode/refreshSandboxCertificate');
+				assert.ok(request);
+				transport.fireMessage(fails
+					? { jsonrpc: '2.0', id: request.id, error: { code: -32603, message: 'Check failed' } }
+					: { jsonrpc: '2.0', id: request.id, result: null });
+				await completion;
+				assert.deepStrictEqual({
+					supported: client.sandboxCertificateRefreshSupported.get(), installationSupported: client.sandboxCertificateInstallationSupported.get(), params: request.params,
+				}, { supported: true, installationSupported: false, params: { chat: 'conversation://tenant/a%2Fb?revision%3D2#entry', scopeId: 'runtime' } });
+			});
+		}
+
+		for (const capability of [undefined, false, 'true']) {
+			test(`does not infer refresh support from installation when refresh capability is ${capability}`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport, { 'vscode.sandboxCertificate.install': true, 'vscode.sandboxCertificate.refresh': capability });
+				await assert.rejects(client.refreshSandboxCertificate('conversation://tenant/opaque', 'runtime'), /does not support/);
+				assert.deepStrictEqual({
+					supported: client.sandboxCertificateRefreshSupported.get(),
+					sent: transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'vscode/refreshSandboxCertificate'),
+				}, { supported: false, sent: false });
+			});
+		}
+
 		test('rotation uses its own capability and forwards the exact chat and scope', async () => {
 			const { client, transport } = createClient();
 			await connectClient(client, transport, { 'vscode.sandboxCertificate.rotate': true });

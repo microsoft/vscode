@@ -30,4 +30,4 @@ popd
 call "%NODE%" %ROOT_DIR%\scripts\code-server.js %*
 
 
-endlocal
+endlocal & exit /b %errorlevel%

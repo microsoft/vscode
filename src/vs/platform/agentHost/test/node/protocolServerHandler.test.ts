@@ -267,6 +267,7 @@ class MockAgentService extends Disposable implements IAgentService {
 	installSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
 	rotateSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
 	removeSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
+	refreshSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
 	readonly importedSessions: string[] = [];
 	readonly deletedAutomations: { resource: string; deleteHistory: boolean; legacySessions: string[] | undefined; requestId?: string }[] = [];
 	readonly acknowledgedAutomationDeletions: string[] = [];
@@ -3485,7 +3486,7 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(resp.result, null);
 	});
 
-	for (const operation of ['install', 'rotate', 'remove'] as const) {
+	for (const operation of ['install', 'rotate', 'remove', 'refresh'] as const) {
 		test(`sandbox certificate ${operation} validates requests and forwards opaque chat identities`, async () => {
 			const calls: { chat: string; scopeId: string }[] = [];
 			agentService[`${operation}SandboxCertificate`] = async (chat, scopeId) => { calls.push({ chat, scopeId }); };

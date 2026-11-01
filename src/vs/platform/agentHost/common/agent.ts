@@ -294,6 +294,7 @@ export interface IAgentMaterializeChatEvent {
 }
 
 export type AgentProvider = string;
+export type AgentSandboxCertificateOperation = 'install' | 'rotate' | 'remove';
 
 export interface IAgentPluginUninstallRequest {
 	readonly name: string;
@@ -1931,12 +1932,16 @@ export interface IAgent {
 	 * stoppable. Resolves false when the entry is unknown or had already finished.
 	 */
 	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
+	/** Manages the host's sandbox CA from saved runtime settings without creating a chat. */
+	manageHostSandboxCertificate?(operation: AgentSandboxCertificateOperation): Promise<void>;
 	/** Installs the live chat runtime's sandbox certificate after explicit client consent, preserving the advertised chat string. */
 	installSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 	/** Replaces the live runtime's sandbox CA after explicit client consent. */
 	rotateSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 	/** Removes OS trust for the live runtime's sandbox CA after explicit client consent, retaining the stored CA. */
 	removeSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
+	/** Rechecks the live runtime without changing trust and publishes updated certificate diagnostics. */
+	refreshSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 
 	/**
 	 * Changes the working directory of an exact chat's existing provider-native

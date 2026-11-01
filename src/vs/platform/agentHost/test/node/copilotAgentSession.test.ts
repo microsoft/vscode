@@ -13031,6 +13031,46 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('sandbox certificate refresh bypasses cached status and publishes external trust changes and failures', async () => {
+			let installed = false;
+			let failed = false;
+			let checks = 0;
+			const sandboxCertificateRpc = new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() {
+				override checkRelevance = async () => true;
+				override checkInstallationSupport = async () => true;
+				override getStatus = async (): ReturnType<CopilotClient['rpc']['sandbox']['proxyCa']['getStatus']> => {
+					checks++;
+					if (failed) {
+						throw new Error('Check failed');
+					}
+					return { state: installed ? 'installed' : 'notInstalled', canInstall: true };
+				};
+			};
+			const { session, dispatchedActions } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { enabled: 'on' } },
+				sandboxCertificateRpc,
+			});
+			await session.refreshSandboxCertificate();
+			const chat = buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1').toString());
+			const statuses = () => dispatchedActions.flatMap(action => {
+				const status = action.type === ActionType.SessionMetaChanged ? readAgentSandboxCertificate(action, chat) : undefined;
+				return status ? [status] : [];
+			});
+			const initial = statuses().at(-1);
+			assert.ok(initial);
+			installed = true;
+			await session.refreshSandboxCertificate();
+			const cached = statuses().at(-1);
+			await session.refreshSandboxCertificate(initial.scopeId);
+			failed = true;
+			await assert.rejects(session.refreshSandboxCertificate(initial.scopeId), /Check failed/);
+			failed = false;
+			await session.refreshSandboxCertificate(initial.scopeId);
+			assert.deepStrictEqual({ cached, states: statuses().map(status => status.state), checks }, {
+				cached: initial, states: ['notInstalled', 'installed', 'error', 'installed'], checks: 4,
+			});
+		});
+
 		test('sandbox certificate management uses the live configuration and refreshes published status', async () => {
 			const calls: string[] = [];
 			let installed = false;

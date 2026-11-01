@@ -8,4 +8,5 @@ import { vObj, vString } from '../../../base/common/validation.js';
 export const InstallSandboxCertificateExtensionMethod = 'vscode/installSandboxCertificate';
 export const RotateSandboxCertificateExtensionMethod = 'vscode/rotateSandboxCertificate';
 export const RemoveSandboxCertificateExtensionMethod = 'vscode/removeSandboxCertificate';
+export const RefreshSandboxCertificateExtensionMethod = 'vscode/refreshSandboxCertificate';
 export const sandboxCertificateParamsValidator = vObj({ chat: vString(), scopeId: vString() });

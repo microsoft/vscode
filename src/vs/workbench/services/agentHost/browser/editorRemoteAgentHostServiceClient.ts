@@ -248,6 +248,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._protocolClient?.sandboxCertificateRemovalSupported ?? constObservable(false);
 	}
 
+	get sandboxCertificateRefreshSupported(): IObservable<boolean> {
+		return this._protocolClient?.sandboxCertificateRefreshSupported ?? constObservable(false);
+	}
+
 	get rootState(): IAgentSubscription<RootState> {
 		return this._protocolClient?.rootState ?? this._noopRootState;
 	}
@@ -317,6 +321,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	removeSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		return this._requireClient().removeSandboxCertificate(chat, scopeId);
+	}
+
+	refreshSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		return this._requireClient().refreshSandboxCertificate(chat, scopeId);
 	}
 
 	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {

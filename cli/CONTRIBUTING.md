@@ -32,6 +32,31 @@ an interactive prompt.
 Without `--tunnel`, `code agent` and `code agent host` still start or reuse a local
 agent host supervisor.
 
+## Headless sandbox certificate management
+
+Run these commands on the computer hosting the agent, as the same operating-system account and with the same `COPILOT_HOME` as that agent host. If unset, the home defaults to the account's `.copilot` directory. Desktop VS Code and a separate Copilot CLI installation are not required.
+
+```powershell
+code-insiders agent sandbox ca create
+code-insiders agent sandbox ca trust
+code-insiders agent sandbox ca status
+code-insiders agent sandbox ca remove
+```
+
+`create` creates the CA only if missing and prints the public certificate path; it does not establish OS trust. `trust` confirms the change and trusts that account's existing CA, without creating or rotating it. `trust --yes` skips only the CLI confirmation, not OS authorization. Windows can show an administrator prompt; macOS can require login-Keychain authorization. An SSH session without access to OS prompts can still fail. Do not run the whole agent host as Administrator or SYSTEM to work around this.
+
+`remove` confirms the change and removes OS trust for that account's CA. It keeps the stored CA and private key; it does not create or rotate the CA. Tools that require the proxy CA can lose connectivity. `remove --yes` skips only the CLI confirmation, not OS authorization. Restart affected tools after removal.
+
+The command provisions the matching VS Code Server if needed, then runs a one-shot certificate entry point and its bundled Copilot runtime over stdio. It opens no server port, creates no chat, does not enable sandboxing, and stops the runtime after the operation. It does not connect to an existing host or accept a remote address or another user's certificate path. Use `--accept-server-license-terms` when server-license consent must be supplied noninteractively.
+
+For development, build the CLI with `VSCODE_CLI_OVERRIDE_SERVER_PATH` pointing to the matching development server launcher. This skips downloading a server. An unversioned CLI without this override fails rather than using a published server that might not support certificate commands.
+
+Status exit codes are `0` (trusted), `3` (missing trust), `4` (unsupported platform), `5` (rotation needed), and `1` (error). Other commands return `0` only on success. The runtime owns certificate validation and OS trust integration. Linux currently uses a per-process CA bundle rather than OS root installation.
+
+VS Code does not create or check a cross-process certificate lock file. A leftover lock file from an earlier development build does not block certificate commands. Existing operations within one agent host remain queued without lock-error messages. Changes from separate processes are not serialized by VS Code; the runtime and OS determine their outcome, with no guaranteed last-writer-wins ordering. Ctrl+C stops the command's process tree; OS trust may already have changed, so check status before retrying. After a successful trust change, restart affected tools.
+
+In a connected remote chat, select **Refresh** in the certificate notice to check the host again after installing trust through the CLI. This read-only action bypasses the host's cached observations and updates certificate diagnostics for its live chats. A failed check reports an error and permits retry; confirmed trust clears the notice. The button requires refresh support from the host. There is no automatic cross-process notification: if no notice is visible, or the host is older, restart the remote agent host and reconnect to discard cached observations. Reloading only the client does not reliably clear a persistent host's cache.
+
 ## Tunnel request correlation
 
 Management requests and relay WebSocket handshakes carry the

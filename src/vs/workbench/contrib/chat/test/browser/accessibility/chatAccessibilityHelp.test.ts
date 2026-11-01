@@ -15,6 +15,18 @@ import { isResponseSelectionSupported } from '../../../browser/chat.js';
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents read-only remote sandbox certificate refresh and keyboard access', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true),
+			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true),
+		].map(help => help.includes('Tab to reach Refresh')
+			&& help.includes('Enter or Space to activate it')
+			&& help.includes('without changing trust')
+			&& help.includes('leaves Refresh available to try again')), [true, true, false, true]);
+	});
+
 	test('documents the file chooser on chat surfaces with Add Context', () => {
 		assert.deepStrictEqual([
 			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
@@ -222,15 +234,17 @@ suite('Chat Accessibility Help', () => {
 			dismissal: help.includes('Use Tab to reach Dismiss notification and Enter or Space to hide certificate notices for that host runtime in this window.'),
 			guidance: help.includes('Use Tab to reach Learn more for certificate guidance.'),
 			installation: help.includes('use Tab to reach the Install button and Enter or Space to activate it.'),
-			manageCommand: help.includes('Sandbox: Manage Trusted CA for the last-focused chat.'),
+			manageCommand: help.includes('run Sandbox: Manage Trusted CA.'),
 			keyboard: help.includes('Use Up and Down Arrow to choose Install, Rotate, or Remove, then Enter to continue or Escape to cancel.'),
-			installCommand: help.includes('choose Install in Manage Trusted CA after dismissing the notice.'),
-			removeCommand: help.includes('Choose Remove in Manage Trusted CA to remove OS trust.'),
-			rotateCommand: help.includes('Choose Rotate in Manage Trusted CA to replace the installed sandbox CA and private key.'),
-			noHost: help.includes('a dialog says No agent host detected.'),
+			installCommand: help.includes('Local installation through Manage Trusted CA shows a progress notification and a completion dialog.'),
+			removeCommand: help.includes('Choose Remove in Manage Trusted CA to remove OS trust on this computer.'),
+			rotateCommand: help.includes('Choose Rotate in Manage Trusted CA to replace the sandbox CA and private key on this computer.'),
+			localTarget: help.includes('All three commands target this computer, regardless of chat focus, without starting a chat or enabling sandboxing.'),
+			remoteGuidance: help.includes('For a remote agent host, the notice has no Install button. Open a local desktop window of VS Code on the remote computer and run Sandbox: Manage Trusted CA from the Command Palette, then choose Install.'),
+			staleGuidance: help.includes('for the last-focused chat') || help.includes('No agent host detected'),
 			restart: help.includes('running tools may need to restart.'),
 			retention: help.includes('The stored certificate authority is kept.'),
-		}, { optional: true, priority: true, dismissal: true, guidance: true, installation: true, manageCommand: true, keyboard: true, installCommand: true, removeCommand: true, rotateCommand: true, noHost: true, restart: true, retention: true });
+		}, { optional: true, priority: true, dismissal: true, guidance: true, installation: true, manageCommand: true, keyboard: true, installCommand: true, removeCommand: true, rotateCommand: true, localTarget: true, remoteGuidance: true, staleGuidance: false, restart: true, retention: true });
 	});
 
 	test('explains read-only model options separately from overridable defaults', () => {
