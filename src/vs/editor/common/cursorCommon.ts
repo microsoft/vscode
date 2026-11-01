@@ -84,6 +84,10 @@ export class CursorConfiguration {
 	private readonly _languageId: string;
 	private _electricChars: { [key: string]: boolean } | null;
 
+	public get languageId(): string {
+		return this._languageId;
+	}
+
 	public static shouldRecreate(e: ConfigurationChangedEvent): boolean {
 		return (
 			e.hasChanged(EditorOption.layoutInfo)
