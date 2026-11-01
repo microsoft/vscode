@@ -70,3 +70,32 @@ same canonical path. The tests cover exact size limits and one-byte overflows,
 dependency boundaries, package contents, extension resources and output safety.
 Producing a package is not evidence of live authentication or real-device
 behavior; those require separate end-to-end validation.
+
+## Standard publication
+
+The existing product pipeline can include this target with
+`VSCODE_BUILD_WEB_MOBILE=true`. The option is false by default and requires a
+Product build with the ordinary Web stage enabled. When explicitly selected, a
+failed mobile build, guard test or upload fails that selected build; errors are
+not ignored. Ordinary builds do not run the optional mobile steps.
+
+The Web job creates `vscode-web-mobile.tar.gz`, with a `vscode-web-mobile/`
+top-level directory, and registers its archive as platform `web-mobile` through
+the normal publisher. Source commit and quality remain the release identity.
+Normal release controls and platform-based update lookup select this asset;
+there is no mobile-specific release registry.
+
+When the usual `VSCODE_PUBLISH` flag is enabled, the existing CDN uploader places
+the expanded mobile files and their own `files.txt` under
+`agents/mobile/<quality>/<commit>/`. This is outside the normal editor's asset
+directory, so its preload inventory does not include mobile files.
+
+Publication contract checks run with the normal build-script tests and in the
+opted-in Web job:
+
+```sh
+node --test build/lib/test/mobileWebPublication.test.ts
+```
+
+Local checks do not replace an unpublished Azure product build or verification
+of real archive/CDN registration before enabling release automation.

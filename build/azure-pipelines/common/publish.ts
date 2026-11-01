@@ -780,7 +780,7 @@ interface Asset {
 }
 
 // Contains all of the logic for mapping details to our actual product names in CosmosDB
-function getPlatform(product: string, os: string, arch: string, type: string): string {
+export function getPlatform(product: string, os: string, arch: string, type: string): string {
 	switch (os) {
 		case 'win32':
 			switch (product) {
@@ -829,6 +829,9 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 						case 'web':
 							if (arch === 'standalone') {
 								return 'web-standalone';
+							}
+							if (arch === 'mobile') {
+								return 'web-mobile';
 							}
 							return `server-linux-${arch}-web`;
 						default:

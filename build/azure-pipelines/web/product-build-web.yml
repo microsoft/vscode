@@ -2,6 +2,9 @@ parameters:
   - name: VSCODE_POOL_NAME
     type: string
     default: 1es-ubuntu-22.04-x64
+  - name: VSCODE_BUILD_WEB_MOBILE
+    type: boolean
+    default: false
 
 jobs:
   - job: Web
@@ -22,6 +25,14 @@ jobs:
           sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-web
           sbomPackageName: "VS Code Linux x64 Web (Standalone)"
           sbomPackageVersion: $(Build.SourceVersion)
+        - ${{ if eq(parameters.VSCODE_BUILD_WEB_MOBILE, true) }}:
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-web-mobile.tar.gz
+            artifactName: vscode_web_linux_mobile_archive-unsigned
+            displayName: Publish mobile web archive
+            sbomBuildDropPath: $(Build.SourcesDirectory)/out-mobile-preview
+            sbomPackageName: "VS Code Mobile Web"
+            sbomPackageVersion: $(Build.SourceVersion)
     steps:
       - template: ../common/checkout.yml@self
 
@@ -201,3 +212,26 @@ jobs:
           AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
             node build/azure-pipelines/upload-nlsmetadata.ts
         displayName: Upload NLS Metadata
+
+      - ${{ if eq(parameters.VSCODE_BUILD_WEB_MOBILE, true) }}:
+        - script: |
+            set -e
+            npm run test-mobile-preview
+            node --test build/lib/test/mobileWebPublication.test.ts
+            npm run bundle-mobile-preview
+            mkdir -p "$(Build.ArtifactStagingDirectory)/out/web"
+            tar --owner=0 --group=0 --transform='s,^out-mobile-preview,vscode-web-mobile,' \
+              -czf "$(Build.ArtifactStagingDirectory)/out/web/vscode-web-mobile.tar.gz" \
+              out-mobile-preview/out out-mobile-preview/node_modules \
+              out-mobile-preview/extensions out-mobile-preview/mobile-preview.json
+          displayName: Build and validate mobile web archive
+
+        - script: |
+            set -e
+            AZURE_STORAGE_ACCOUNT="vscodeweb" \
+            AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
+            AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
+            AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
+              node build/azure-pipelines/upload-cdn.ts --mobile
+          condition: and(succeeded(), eq(variables['VSCODE_PUBLISH'], 'True'))
+          displayName: Upload mobile web assets to the separate commit directory
