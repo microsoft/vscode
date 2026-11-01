@@ -13,6 +13,7 @@ import { ITextModelService } from '../../../../editor/common/services/resolverSe
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { createCodeEditorServices } from '../../../../editor/test/browser/testCodeEditor.js';
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { GroupModelChangeKind } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -290,6 +291,9 @@ suite('MainThreadEditorTabs', () => {
 			createCodeEditorServices(disposables),
 			sourceResolverService,
 			textFileService,
+			new class extends mock<IFileService>() {
+				override hasProvider() { return false; }
+			}(),
 		));
 		await multiDiffInput.getViewModel();
 

@@ -100,6 +100,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 			}
 		});
 		const binaryFileChangedLabel = localize('binaryFileChanged', "Binary file changed");
+		const fileTooLargeLabel = localize('fileTooLargeToShow', "File is too large to show");
 		this._elements = h('div.multiDiffEntry', [
 			h('div.header@header', [
 				h('div.header-content', [
@@ -119,7 +120,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 				h('div.editorContainer@editor'),
 				h('div.binary-file-placeholder@binaryFilePlaceholder', { role: 'group', 'aria-label': binaryFileChangedLabel }, [
 					h('div.binary-file-placeholder-content', [
-						h('span', [binaryFileChangedLabel]),
+						h('span@binaryFilePlaceholderLabel', [binaryFileChangedLabel]),
 						h('div.binary-file-placeholder-actions@binaryFilePlaceholderActions'),
 					]),
 				]),
@@ -246,6 +247,9 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 			const item = this._viewModel.read(reader);
 			const isBinary = item?.isBinary === true;
 			const canOpenDiff = !!(item?.originalUri && item.modifiedUri && this._openBinaryDiffButton);
+			const placeholderLabel = item?.isTooLarge ? fileTooLargeLabel : binaryFileChangedLabel;
+			this._elements.binaryFilePlaceholderLabel.textContent = placeholderLabel;
+			this._elements.binaryFilePlaceholder.setAttribute('aria-label', placeholderLabel);
 			this._elements.editor.style.display = collapsed || isBinary ? 'none' : 'block';
 			this._elements.binaryFilePlaceholder.style.display = !collapsed && isBinary ? 'grid' : 'none';
 			this._elements.binaryFilePlaceholder.tabIndex = canOpenDiff ? -1 : 0;
