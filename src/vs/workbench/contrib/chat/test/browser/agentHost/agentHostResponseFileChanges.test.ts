@@ -14,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { buildBranchChangesetUri, buildTurnChangesetUri } from '../../../../../../platform/agentHost/common/changesetUri.js';
-import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { fromAgentHostUri, createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostContentUri, type IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { AgentSubscriptionManager, IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -52,6 +52,7 @@ import { AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, IChatResponseFileEdit }
 
 class FakeAgentConnection extends mock<IAgentConnection>() {
 	override readonly clientId = 'test-client';
+	override readonly resourceUris: IAgentHostResourceUriMapper = identityAgentHostResourceUriMapper;
 
 	private readonly _emitters = new Map<string, Emitter<unknown>>();
 	private readonly _values = new Map<string, unknown>();
@@ -181,6 +182,41 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			afterContent: 'opaque-content:/b2',
 		});
 	});
+
+	for (const auth of ['local', 'remote-host']) {
+		test(`maps changeset file diffs through the connection while preserving ${auth} content references`, () => {
+			const file = URI.parse('file:///repo/new.ts');
+			const originalFile = URI.parse('file:///repo/old.ts');
+			const before = URI.parse('opaque-content:/a1');
+			const after = URI.parse('opaque-content:/b2');
+			const resourceUris = auth === 'local' ? identityAgentHostResourceUriMapper : {
+				fromAgentHost: (resource: URI) => resource.with({ scheme: 'test-remote', authority: auth }),
+				toAgentHost: (resource: URI) => resource.with({ scheme: file.scheme, authority: '' }),
+			};
+			const diff = agentHostChangesetFileToEntryDiff({
+				id: 'renamed-file',
+				edit: {
+					before: { uri: originalFile.toString(), content: { uri: before.toString() } },
+					after: { uri: file.toString(), content: { uri: after.toString() } },
+					diff: { added: 5, removed: 2 },
+				},
+			}, auth, resourceUris)!;
+
+			assert.deepStrictEqual(diff, {
+				modifiedURI: resourceUris.fromAgentHost(file),
+				originalURI: toAgentHostContentUri(before, auth, originalFile),
+				modifiedSnapshotURI: toAgentHostContentUri(after, auth, file),
+				isCreated: false,
+				isDeleted: false,
+				added: 5,
+				removed: 2,
+				quitEarly: false,
+				identical: false,
+				isFinal: true,
+				isBusy: false,
+			});
+		});
+	}
 
 	for (const owner of ['session', 'chat'] as const) {
 		test(`uses the advertised ${owner}-owned turn URI for an opaque chat`, () => {

@@ -1292,7 +1292,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 					break;
 				case ResponsePartKind.ToolCall: {
 					const tc = rp.toolCall as ICompletedToolCall;
-					const fileEditParts = completedToolCallToEditParts(tc, connectionAuthority);
+					const fileEditParts = completedToolCallToEditParts(tc, connectionAuthority, undefined, resourceUris);
 					const serialized = completedToolCallToSerialized(tc, undefined, backendSession, connectionAuthority, resourceUris);
 					if (fileEditParts.length > 0) {
 						serialized.presentation = ToolInvocationPresentation.Hidden;
@@ -2349,7 +2349,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
  * Builds per-file edit pills with protocol diff metadata and connection-scoped resource URIs.
  * An optional root subagent id keeps child edits out of the parent's own content flow.
  */
-export function completedToolCallToEditParts(tc: ICompletedToolCall, connectionAuthority: string, subAgentInvocationId?: string): IChatExternalEdit[] {
+export function completedToolCallToEditParts(tc: ICompletedToolCall, connectionAuthority: string, subAgentInvocationId?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IChatExternalEdit[] {
 	if (tc.status !== ToolCallStatus.Completed) {
 		return [];
 	}
@@ -2359,7 +2359,7 @@ export function completedToolCallToEditParts(tc: ICompletedToolCall, connectionA
 	}
 	const parts: IChatExternalEdit[] = [];
 	for (const edit of fileEdits) {
-		const part = fileEditToExternalEdit(edit, tc.toolCallId, connectionAuthority);
+		const part = fileEditToExternalEdit(edit, tc.toolCallId, connectionAuthority, resourceUris);
 		if (part) {
 			if (subAgentInvocationId !== undefined) {
 				part.subAgentInvocationId = subAgentInvocationId;
@@ -2372,11 +2372,10 @@ export function completedToolCallToEditParts(tc: ICompletedToolCall, connectionA
 
 /**
  * Translates a single protocol {@link FileEdit} record into the
- * {@link IChatExternalEdit} progress part rendered as an edit pill. All
- * URIs are wrapped through {@link toAgentHostUri} so that remote-resource
- * lookups resolve through the agent host file system provider.
+ * {@link IChatExternalEdit} progress part rendered as an edit pill. Remote-resource
+ * lookups resolve through the connection's resource URI mapper.
  */
-function fileEditToExternalEdit(edit: FileEdit, undoStopId: string, connectionAuthority: string): IChatExternalEdit | undefined {
+function fileEditToExternalEdit(edit: FileEdit, undoStopId: string, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IChatExternalEdit | undefined {
 	const normalized = normalizeFileEdit(edit);
 	if (!normalized) {
 		return undefined;

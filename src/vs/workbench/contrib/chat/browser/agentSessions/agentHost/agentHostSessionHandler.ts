@@ -6239,7 +6239,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					const tc = rp.toolCall;
 					if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
 						const completedTc = tc as ICompletedToolCall;
-						const fileEditParts = completedToolCallToEditParts(completedTc, this._config.connectionAuthority, toolCallId);
+						const fileEditParts = completedToolCallToEditParts(completedTc, this._config.connectionAuthority, toolCallId, this._config.connection.resourceUris);
 						const serialized = completedToolCallToSerialized(completedTc, toolCallId, URI.parse(childSessionUri), this._config.connectionAuthority, this._config.connection.resourceUris);
 						if (fileEditParts.length > 0) {
 							serialized.presentation = ToolInvocationPresentation.Hidden;
@@ -6636,7 +6636,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		// Child traces share the parent's model; only the owning chat hydrates its edit checkpoints.
 		const editParts = opts.subAgentInvocationId !== undefined
-			? completedToolCallToEditParts(toolCall, this._config.connectionAuthority, opts.subAgentInvocationId)
+			? completedToolCallToEditParts(toolCall, this._config.connectionAuthority, opts.subAgentInvocationId, this._config.connection.resourceUris)
 			: this._hydrateFileEdits(opts.sessionResource, opts.turnId, toolCall);
 		opts.sink(editParts);
 	}
@@ -6659,7 +6659,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (tc.status !== ToolCallStatus.Completed) {
 			return [];
 		}
-		return completedToolCallToEditParts(tc as ICompletedToolCall, this._config.connectionAuthority);
+		return completedToolCallToEditParts(tc as ICompletedToolCall, this._config.connectionAuthority, undefined, this._config.connection.resourceUris);
 	}
 
 	// ---- Session resolution -------------------------------------------------

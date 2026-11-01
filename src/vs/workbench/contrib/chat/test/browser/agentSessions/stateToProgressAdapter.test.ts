@@ -3740,6 +3740,39 @@ suite('stateToProgressAdapter', () => {
 				parentHasSubagentId: false,
 			});
 		});
+
+		for (const authority of ['local', 'remote-host']) {
+			test(`maps completed file edits through the connection while preserving ${authority} content references`, () => {
+				const file = URI.parse('file:///tmp/foo.txt');
+				const originalFile = URI.parse('file:///tmp/old.txt');
+				const before = URI.parse('opaque-content:/before');
+				const after = URI.parse('opaque-content:/after');
+				const resourceUris = authority === 'local' ? identityAgentHostResourceUriMapper : {
+					fromAgentHost: (resource: URI) => resource.with({ scheme: 'test-remote', authority }),
+					toAgentHost: (resource: URI) => resource.with({ scheme: file.scheme, authority: '' }),
+				};
+				const [edit] = completedToolCallToEditParts(createCompletedToolCall({
+					toolCallId: 'tc-rename',
+					content: [{
+						type: ToolResultContentType.FileEdit,
+						before: { uri: originalFile.toString(), content: { uri: before.toString() } },
+						after: { uri: file.toString(), content: { uri: after.toString() } },
+						diff: { added: 3, removed: 1 },
+					}],
+				}), authority, undefined, resourceUris);
+
+				assert.deepStrictEqual(edit, {
+					kind: 'externalEdit',
+					uri: resourceUris.fromAgentHost(file),
+					editKind: 'rename',
+					originalUri: resourceUris.fromAgentHost(originalFile),
+					beforeContentUri: toAgentHostContentUri(before, authority, originalFile),
+					afterContentUri: toAgentHostContentUri(after, authority, file),
+					diff: { added: 3, removed: 1 },
+					undoStopId: 'tc-rename',
+				});
+			});
+		}
 	});
 
 	suite('finalizeToolInvocation', () => {
