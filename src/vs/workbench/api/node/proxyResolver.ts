@@ -44,7 +44,7 @@ export function connectProxyResolver(
 	const fallbackToLocalKerberos = useHostProxyDefault;
 	const loadLocalCertificates = useHostProxyDefault;
 	const isUseHostProxyEnabled = () => !isRemote || configProvider.getConfiguration('http').get<boolean>('useLocalProxyConfiguration', useHostProxyDefault);
-	const hasPacUrl = () => !!getExtHostConfigValue<string>(configProvider, isRemote, 'http.proxyPacUrl')?.trim(); // A PAC file replaces `http.proxy` and `http.noProxy`.
+	const hasPacUrl = () => !!configProvider.getConfiguration('http').get<string>('proxyPacUrl')?.trim(); // A PAC file replaces `http.proxy` and `http.noProxy`.
 	const timedResolveProxy = createTimedResolveProxy(extHostWorkspace, mainThreadTelemetry);
 	const params: ProxyAgentParams = {
 		resolveProxy: timedResolveProxy,
