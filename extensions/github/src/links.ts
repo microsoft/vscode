@@ -6,22 +6,13 @@
 import * as vscode from 'vscode';
 import { RefType } from './typings/git.constants.js';
 import type { API as GitAPI, Repository } from './typings/git.d.ts';
-import { getRepositoryFromUrl, repositoryHasGitHubRemote } from './util.js';
+import { getRepositoryFromUrl } from './util.js';
+import { isFileInRepo, isLinkableFileUri, resolveLinkRepository } from './linkRepository.js';
 
-export function isFileInRepo(repository: Repository, file: vscode.Uri): boolean {
-	return file.path.toLowerCase() === repository.rootUri.path.toLowerCase() ||
-		(file.path.toLowerCase().startsWith(repository.rootUri.path.toLowerCase()) &&
-			file.path.substring(repository.rootUri.path.length).startsWith('/'));
-}
-
-export function getRepositoryForFile(gitAPI: GitAPI, file: vscode.Uri): Repository | undefined {
-	for (const repository of gitAPI.repositories) {
-		if (isFileInRepo(repository, file)) {
-			return repository;
-		}
-	}
-	return undefined;
-}
+// `isFileInRepo` and `getRepositoryForFile` now live in `linkRepository.js`
+// (which has no `vscode` dependency so it is unit-testable in plain Node) and
+// are re-exported here for existing importers.
+export { isFileInRepo, getRepositoryForFile } from './linkRepository.js';
 
 enum LinkType {
 	File = 1,
@@ -135,15 +126,26 @@ export async function getLink(gitAPI: GitAPI, useSelection: boolean, shouldEnsur
 	const fileAndPosition = getFileAndPosition(context);
 	const fileUri = fileAndPosition?.uri;
 
-	// Use the first repo if we cannot determine a repo from the uri.
-	const githubRepository = gitAPI.repositories.find(repo => repositoryHasGitHubRemote(repo));
-	const gitRepo = (fileUri ? getRepositoryForFile(gitAPI, fileUri) : githubRepository) ?? githubRepository;
+	// A resource provided explicitly (right-clicked file, line number, ...)
+	// must itself be a linkable file in a git repository — we never fall back
+	// to an unrelated repository for such resources (see #341026). Commands
+	// invoked without an explicit resource (e.g. "Continue in vscode.dev")
+	// degrade to a repository-level link when the active editor is not a
+	// shareable file (untitled file, virtual editor, ...).
+	const gitRepo = resolveLinkRepository(gitAPI, fileUri, context === undefined);
 	if (!gitRepo) {
 		return;
 	}
 
-	if (shouldEnsurePublished && fileUri) {
-		await ensurePublished(gitRepo, fileUri);
+	// When the file could not be resolved inside the resolved repository (the
+	// fallback cases above), link the repository itself instead of a bogus
+	// path.
+	const linkableFile = fileAndPosition && isLinkableFileUri(fileAndPosition.uri) && isFileInRepo(gitRepo, fileAndPosition.uri)
+		? fileAndPosition
+		: undefined;
+
+	if (shouldEnsurePublished && linkableFile) {
+		await ensurePublished(gitRepo, linkableFile.uri);
 	}
 
 	let repo: { owner: string; repo: string } | undefined;
@@ -165,14 +167,14 @@ export async function getLink(gitAPI: GitAPI, useSelection: boolean, shouldEnsur
 
 	const blobSegment = gitRepo.state.HEAD ? (`/blob/${linkType === 'headlink' && gitRepo.state.HEAD.name ? encodeURIComponentExceptSlashes(gitRepo.state.HEAD.name) : gitRepo.state.HEAD?.commit}`) : '';
 	const uriWithoutFileSegments = `${hostPrefix}/${repo.owner}/${repo.repo}${blobSegment}`;
-	if (!fileUri) {
+	if (!linkableFile) {
 		return uriWithoutFileSegments;
 	}
 
-	const encodedFilePath = encodeURIComponentExceptSlashes(fileUri.path.substring(gitRepo.rootUri.path.length));
-	const fileSegments = fileAndPosition.type === LinkType.File
-		? (useSelection ? `${encodedFilePath}${useRange ? rangeString(fileAndPosition.range) : ''}` : '')
-		: (useSelection ? `${encodedFilePath}${useRange ? notebookCellRangeString(fileAndPosition.cellIndex, fileAndPosition.range) : ''}` : '');
+	const encodedFilePath = encodeURIComponentExceptSlashes(linkableFile.uri.path.substring(gitRepo.rootUri.path.length));
+	const fileSegments = linkableFile.type === LinkType.File
+		? (useSelection ? `${encodedFilePath}${useRange ? rangeString(linkableFile.range) : ''}` : '')
+		: (useSelection ? `${encodedFilePath}${useRange ? notebookCellRangeString(linkableFile.cellIndex, linkableFile.range) : ''}` : '');
 
 	return `${uriWithoutFileSegments}${fileSegments}`;
 }
