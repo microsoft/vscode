@@ -1,0 +1,23 @@
+/* Adjustments for running inside a VS Code webview (loaded after LocalClaude's own styles). */
+
+/* VS Code gives webview bodies padding and its own font; LocalClaude draws edge to edge */
+body.in-vscode {
+  padding: 0;
+  font-size: 15px;
+}
+
+/* no native window buttons to make room for */
+body.in-vscode .wco-space {
+  display: none;
+}
+
+/* the side bar is narrow: a little less padding around the chat */
+body.place-sidebar .titlebar {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+/* window dragging means nothing in a webview */
+body.in-vscode * {
+  -webkit-app-region: no-drag !important;
+}

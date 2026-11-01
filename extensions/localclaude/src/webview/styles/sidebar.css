@@ -1,0 +1,117 @@
+/* The sidebar like the Claude app: an adjustable width, chats grouped by folder, the account row. */
+
+/* drag the right edge to resize */
+.sidebar {
+  position: relative;
+  /* clip, not hide: a hidden overflow can still be scrolled sideways (by focus or a wide popup),
+     which shifted everything in the sidebar to the left */
+  overflow: clip;
+}
+.side-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 5px;
+  z-index: 5;
+  cursor: col-resize;
+  -webkit-app-region: no-drag;
+}
+.side-resizer:hover,
+body.resizing-sidebar .side-resizer {
+  box-shadow: inset -2px 0 0 var(--border-strong);
+}
+body.resizing-sidebar {
+  cursor: col-resize;
+  user-select: none;
+}
+body.resizing-sidebar .sidebar {
+  transition: none;
+}
+/* frames (artifact previews) would swallow the mouse while dragging */
+body.resizing-sidebar iframe {
+  pointer-events: none;
+}
+
+/* a chat: a small circle before its title, filled while Claude works on it */
+.item-dot {
+  width: 7px;
+  height: 7px;
+  margin: 0 6px 0 1px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--muted);
+  opacity: 0.7;
+}
+.item-dot.busy {
+  border-color: var(--accent);
+  background: var(--accent);
+  opacity: 1;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.session-item.active .item-dot {
+  opacity: 1;
+}
+
+/* a group: its name, and "+" for a new chat there */
+.group-add {
+  padding: 4px;
+  margin-top: 8px;
+  color: var(--muted);
+  border-radius: 6px;
+}
+.group-add:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+.group-more {
+  display: block;
+  margin: 2px 0 4px 30px;
+  font-size: 12.5px;
+  color: var(--muted);
+  text-align: left;
+}
+.group-more:hover {
+  color: var(--text);
+}
+.lone-view {
+  padding-top: 6px;
+}
+
+/* the account row at the bottom */
+.side-account {
+  padding: 10px 10px 10px 12px;
+}
+.account-menu > .menu-trigger {
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 10px;
+}
+.avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 13px;
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+}
+.account-name {
+  font-size: 15px;
+}
+.account-plan {
+  color: var(--muted);
+  font-size: 14px;
+  white-space: nowrap;
+}
+.account-chev {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.account-settings {
+  color: var(--muted);
+  padding: 7px;
+  border-radius: 8px;
+}
+.account-settings:hover {
+  color: var(--text);
+  background: var(--hover);
+}

@@ -1,0 +1,172 @@
+/* Memory, export dialog, toast. */
+/* ---------- memory ---------- */
+.memory {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.memory-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 340px;
+  overflow-y: auto;
+}
+.memory-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'text actions' 'meta actions';
+  column-gap: 8px;
+  padding: 7px 0;
+  border-top: 1px solid var(--border);
+}
+.memory-list li:first-child {
+  border-top: 0;
+}
+.memory-list li > .input {
+  grid-column: 1 / -1;
+}
+.memory-text {
+  grid-area: text;
+  font-size: 14px;
+  word-break: break-word;
+}
+.memory-meta {
+  grid-area: meta;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.memory-actions {
+  grid-area: actions;
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.memory-list li:hover .memory-actions,
+.memory-actions:focus-within {
+  opacity: 1;
+}
+.memory-actions .icon-btn {
+  padding: 4px;
+}
+.memory-add {
+  display: flex;
+  gap: 6px;
+}
+.memory-add .input {
+  flex: 1;
+  min-width: 0;
+}
+.memory.compact .memory-add .btn {
+  padding: 5px 10px;
+}
+.memory-clear {
+  align-self: flex-start;
+  font-size: 12px;
+}
+
+/* ---------- export dialog ---------- */
+.dialog-card {
+  width: min(600px, calc(100vw - 32px));
+  max-height: calc(100vh - 80px);
+  overflow: auto;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dialog-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dialog-title {
+  font-weight: 600;
+  font-size: 16px;
+}
+.export-scopes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+}
+.export-scopes .option {
+  min-height: 74px;
+  justify-content: flex-start;
+}
+.export-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.export-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  flex-wrap: wrap;
+}
+.choice {
+  display: inline-flex;
+  background: var(--hover);
+  border-radius: 9px;
+  padding: 2px;
+}
+.choice-item {
+  border: 0;
+  background: none;
+  font-size: 13px;
+  padding: 4px 11px;
+  border-radius: 7px;
+  color: var(--muted);
+}
+.choice-item.on {
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+.export-note {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+.export-done {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.export-done .icon {
+  color: var(--ok);
+}
+
+/* ---------- toast ---------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  max-width: min(640px, calc(100vw - 32px));
+  background: var(--text);
+  color: var(--bg);
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-size: 14px;
+  box-shadow: var(--shadow);
+  z-index: 90;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+.toast.error {
+  background: var(--danger);
+  color: #fff;
+}

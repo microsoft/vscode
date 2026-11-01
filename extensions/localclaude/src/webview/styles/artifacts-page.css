@@ -1,0 +1,62 @@
+/* The Artifacts page and preview errors. */
+/* ---------- artifacts page, preview errors ---------- */
+.kind-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 4px;
+}
+.kind-chip {
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.kind-chip:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.kind-chip.on {
+  background: var(--active);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.artifact-tile .artifact-card-icon {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+}
+.artifact-tile-chat {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* the error bar sits above the preview */
+.artifact-body {
+  flex-direction: column;
+}
+.artifact-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(180, 55, 46, 0.08);
+}
+.artifact-error-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+}
+.artifact-error-text pre {
+  margin: 4px 0 0;
+  max-height: 72px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 12px;
+  color: var(--danger);
+}

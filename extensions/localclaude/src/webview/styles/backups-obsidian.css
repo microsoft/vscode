@@ -1,0 +1,85 @@
+/* Backups, Obsidian and knowledge. */
+/* ---------- backups ---------- */
+.password-dialog .input {
+  width: 100%;
+}
+.backup-auto {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 4px 0 0 28px;
+  padding-left: 14px;
+  border-left: 2px solid var(--border);
+}
+.backup-auto .field {
+  margin: 0;
+}
+.backup-schedule > .field {
+  flex: 1;
+  min-width: 0;
+}
+.backup-note {
+  margin: 8px 0 4px;
+}
+
+/* ---------- Obsidian & knowledge ---------- */
+.vault-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.vault-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.vault-option:hover {
+  background: var(--hover);
+  border-color: var(--border-strong);
+}
+.vault-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.vault-option .vault-text {
+  flex: 1;
+}
+.vault-text .mono {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vault-status {
+  margin-top: 6px;
+}
+.vault-saveall {
+  margin: -6px 0 10px 28px;
+  align-items: center;
+}
+.linked-folders {
+  margin-top: 4px;
+}
+.obsidian-options {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  transition: opacity 0.15s;
+}
+.obsidian-options:disabled {
+  opacity: 0.45;
+}
+.obsidian-master {
+  margin-bottom: 14px;
+}

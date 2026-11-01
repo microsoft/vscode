@@ -1,0 +1,68 @@
+/* Response styles and the usage page. */
+/* ---------- response style picker ---------- */
+.style-menu > .menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+.style-menu.on > .menu-trigger {
+  color: var(--text);
+}
+.style-name {
+  font-size: 13.5px;
+}
+.style-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.style-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.style-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+/* ---------- usage page ---------- */
+.usage {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.usage-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.usage-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--hover);
+  overflow: hidden;
+}
+.usage-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+}
+.usage-bar span.warn {
+  background: var(--warn);
+}
+.usage-bar span.danger {
+  background: var(--danger);
+}

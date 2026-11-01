@@ -1,0 +1,124 @@
+/* Project page: context, knowledge, memory and artifacts cards. */
+/* ---------- project page additions ---------- */
+.project-card {
+  cursor: pointer;
+}
+.project-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.project-card-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.project-card-top .project-card-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card-menu .menu-trigger {
+  padding: 0 6px;
+  color: var(--muted);
+}
+.sort-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.small-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 13.5px;
+}
+.context-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--hover);
+  overflow: hidden;
+}
+.context-bar .seg {
+  min-width: 0;
+}
+.context-bar .seg:not([style*='width: 0%']) {
+  min-width: 2px;
+}
+.instr {
+  background: var(--accent);
+}
+.know {
+  background: #6a9bd8;
+}
+.mem {
+  background: #9b7fd6;
+}
+.context-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--muted);
+}
+.context-legend i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 4px;
+}
+.project-artifacts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.project-artifacts button {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 0;
+  background: none;
+  text-align: left;
+  padding: 6px 4px;
+  border-radius: 8px;
+}
+.project-artifacts button:hover {
+  background: var(--hover);
+}
+.project-artifacts .icon {
+  color: var(--muted);
+  margin-top: 2px;
+}
+.pa-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pa-title {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pa-text .small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.project-chat-title .icon {
+  display: inline-block;
+  vertical-align: -2px;
+}
+.link-btn.danger-text {
+  color: var(--danger);
+}

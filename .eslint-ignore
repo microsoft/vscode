@@ -59,3 +59,5 @@
 # Vendored third-party libraries
 src/vs/base/common/lit-html/**
 src/vs/base/common/signals-core/**
+# extensions/localclaude keeps the code style of the LocalClaude app it comes from
+**/extensions/localclaude/**

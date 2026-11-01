@@ -1,0 +1,127 @@
+/* Files changed, git branch, live task list. */
+/* ---------- files changed, git, live tasks ---------- */
+.files-btn {
+  position: relative;
+}
+.count-badge {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+}
+.git-menu > .menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--hover);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 14px;
+  max-width: 220px;
+  white-space: nowrap;
+}
+.git-menu > .menu-trigger:hover,
+.git-menu > .menu-trigger.open {
+  background: var(--active);
+}
+.git-menu .pill-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.git-count {
+  font-size: 11.5px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.git-menu .menu-pop {
+  max-width: 420px;
+}
+.files-panel .artifact-head {
+  padding: 0 10px 0 16px;
+}
+.files-title {
+  font-weight: 600;
+}
+.files-body {
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.files-empty {
+  padding: 24px;
+  text-align: center;
+}
+.changed-dir {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.changed-body .diff + .diff {
+  border-top: 1px dashed var(--border);
+}
+.changed-actions {
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+}
+.btn.small {
+  padding: 3px 10px;
+  font-size: 12.5px;
+}
+.files-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+}
+.task-bar {
+  margin: 0 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-elev);
+  overflow: hidden;
+}
+.task-bar-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+}
+.task-bar-now {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.task-bar .todos {
+  padding: 0 12px 10px 36px;
+  max-height: 220px;
+  overflow: auto;
+}
+.prompt-dialog .input {
+  width: 100%;
+}

@@ -1,0 +1,40 @@
+/* Where the colors measured from Claude Code's desktop app go (the palette is in base.css). */
+
+/* sidebar: chat titles and nav a little softer than the text; the open chat in full white */
+.session-item,
+.side-nav,
+.side-new,
+.side-nav .icon,
+.group-add,
+.account-name {
+  color: var(--side-text);
+}
+.session-item.active,
+.session-item.selected {
+  color: var(--text);
+}
+.item-dot {
+  border-color: var(--faint);
+  opacity: 1;
+}
+.side-new-icon {
+  background: var(--new-icon-bg);
+  border: 0;
+}
+.side-search {
+  background: var(--search-bg);
+  border-color: var(--search-border);
+}
+
+/* the reply box */
+.composer {
+  background: var(--input-bg);
+  border-color: var(--input-border);
+}
+
+/* the folder and branch chips in the top bar */
+.pill-btn,
+.git-menu > .menu-trigger {
+  background: var(--chip-bg);
+  color: var(--side-text);
+}

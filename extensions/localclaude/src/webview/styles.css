@@ -1,0 +1,23 @@
+/* LocalClaude’s styles, in cascade order (later files can refine earlier ones). */
+@import './styles/base.css';
+@import './styles/layout.css';
+@import './styles/chat.css';
+@import './styles/shell.css';
+@import './styles/artifacts.css';
+@import './styles/projects.css';
+@import './styles/sidebar-sections.css';
+@import './styles/dialogs.css';
+@import './styles/project-page.css';
+@import './styles/chat-layout.css';
+@import './styles/settings-extras.css';
+@import './styles/search.css';
+@import './styles/images.css';
+@import './styles/backups-obsidian.css';
+@import './styles/files-git-tasks.css';
+@import './styles/mcp.css';
+@import './styles/artifacts-page.css';
+@import './styles/selection.css';
+@import './styles/sidebar.css';
+@import './styles/remote.css';
+@import './styles/design.css';
+@import './styles/theme.css';

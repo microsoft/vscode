@@ -1,0 +1,53 @@
+/* Selecting chats and dragging them onto projects. */
+/* ---------- selecting chats, dragging them onto projects ---------- */
+.select-box {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-right: 8px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  line-height: 1;
+  color: #fff;
+}
+.select-box.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.session-item.selected {
+  background: var(--accent-soft);
+}
+.drop-target {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+  background: var(--accent-soft) !important;
+}
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 8px 6px;
+  padding: 5px 6px 5px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--bg-elev);
+  box-shadow: var(--shadow);
+}
+.bulk-count {
+  font-size: 13px;
+  white-space: nowrap;
+}
+.bulk-bar .icon-btn {
+  padding: 5px;
+}
+.bulk-delete:hover:not(:disabled) {
+  color: var(--danger);
+}
+.bulk-move > .menu-trigger {
+  display: inline-flex;
+  padding: 5px;
+  border-radius: 6px;
+}

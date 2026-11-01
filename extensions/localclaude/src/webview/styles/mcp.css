@@ -1,0 +1,73 @@
+/* MCP servers in settings. */
+/* ---------- MCP servers ---------- */
+.mcp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.mcp-server {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--bg-elev);
+}
+.mcp-server.off .mcp-server-name,
+.mcp-server.off .mcp-kind,
+.mcp-server.off .mcp-summary {
+  opacity: 0.5;
+}
+.mcp-server-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.mcp-switch {
+  display: inline-flex;
+}
+.mcp-switch input {
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+.mcp-server-name {
+  font-weight: 600;
+}
+.mcp-kind {
+  white-space: nowrap;
+}
+.mcp-summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcp-test {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  font-family: inherit;
+}
+.mcp-form {
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  background: var(--bg-elev);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mcp-form .field {
+  margin: 0;
+}
+.mcp-form textarea {
+  resize: vertical;
+}
+.mcp-add {
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.link-btn.small {
+  font-size: 12.5px;
+}

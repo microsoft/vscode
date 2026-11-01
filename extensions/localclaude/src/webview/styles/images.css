@@ -1,0 +1,121 @@
+/* Images in the conversation and the viewer. */
+/* ---------- images in the conversation ---------- */
+.image-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0;
+  max-width: 100%;
+}
+.user-images {
+  justify-content: flex-end;
+  margin: 0 0 6px;
+}
+.thumb {
+  display: block;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--hover);
+  cursor: zoom-in;
+  max-width: 100%;
+}
+.thumb:hover {
+  border-color: var(--border-strong);
+}
+.thumb img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  min-width: 40px;
+  object-fit: cover;
+}
+.thumb.missing {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  cursor: default;
+  min-width: 80px;
+}
+.screen-preview {
+  margin: 2px 0 8px;
+}
+.step-detail .image-strip {
+  margin-top: 8px;
+}
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 48px 72px 72px;
+  background: rgba(10, 10, 9, 0.88);
+  -webkit-app-region: no-drag;
+  animation: fade-in 0.12s ease-out;
+}
+.lightbox-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  background: repeating-conic-gradient(#3a3a37 0% 25%, #2c2c2a 0% 50%) 50% / 16px 16px;
+}
+.lightbox-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 0;
+  display: grid;
+  place-items: center;
+  color: #ecebe4;
+  background: rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+}
+.lightbox-nav:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+.lightbox-nav.prev {
+  left: 16px;
+}
+.lightbox-nav.next {
+  right: 16px;
+}
+.lightbox-bar {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 14px;
+  border-radius: 12px;
+  background: rgba(38, 38, 36, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #ecebe4;
+  white-space: nowrap;
+}
+.lightbox-bar .muted {
+  color: #9c9a92;
+}
+.lightbox-bar .icon-btn {
+  color: #ecebe4;
+}
+.lightbox-bar .icon-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.lightbox-note {
+  color: #5fbf85;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}

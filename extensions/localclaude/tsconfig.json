@@ -1,0 +1,23 @@
+{
+  // The extension (Node): LocalClaude's main-process modules plus the VS Code wiring, and the tests.
+  // Same compiler settings as the LocalClaude desktop app. esbuild bundles; this is for type checking.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "types": ["node"],
+    "paths": {
+      "electron": ["./src/host/vscode/electronShim.ts"]
+    }
+  },
+  "include": ["src/host/**/*", "src/shared/**/*", "test/**/*.ts", "../../src/vscode-dts/vscode.d.ts"],
+  "exclude": ["test/out"]
+}

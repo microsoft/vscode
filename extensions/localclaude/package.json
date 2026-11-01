@@ -1,0 +1,198 @@
+{
+  "name": "localclaude",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "10.0.0",
+  "publisher": "vscode",
+  "license": "UNLICENSED",
+  "private": true,
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.105.0"
+  },
+  "categories": [
+    "AI",
+    "Chat"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "%untrustedWorkspaces%"
+    }
+  },
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "localclaude",
+          "title": "%displayName%",
+          "icon": "media/claude.svg"
+        }
+      ]
+    },
+    "views": {
+      "localclaude": [
+        {
+          "type": "webview",
+          "id": "localclaude.chat",
+          "name": "%view.chat%",
+          "icon": "media/claude.svg",
+          "contextualTitle": "%displayName%"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "localclaude.focus",
+        "title": "%command.focus%",
+        "category": "%displayName%",
+        "icon": "media/claude.svg"
+      },
+      {
+        "command": "localclaude.newChat",
+        "title": "%command.newChat%",
+        "category": "%displayName%",
+        "icon": "$(add)"
+      },
+      {
+        "command": "localclaude.openInEditor",
+        "title": "%command.openInEditor%",
+        "category": "%displayName%",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "localclaude.askAboutSelection",
+        "title": "%command.askAboutSelection%",
+        "category": "%displayName%"
+      },
+      {
+        "command": "localclaude.addFileToChat",
+        "title": "%command.addFileToChat%",
+        "category": "%displayName%"
+      },
+      {
+        "command": "localclaude.fixProblems",
+        "title": "%command.fixProblems%",
+        "category": "%displayName%"
+      },
+      {
+        "command": "localclaude.signIn",
+        "title": "%command.signIn%",
+        "category": "%displayName%"
+      },
+      {
+        "command": "localclaude.showLog",
+        "title": "%command.showLog%",
+        "category": "%displayName%"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "localclaude.newChat",
+          "when": "view == localclaude.chat",
+          "group": "navigation@1"
+        },
+        {
+          "command": "localclaude.openInEditor",
+          "when": "view == localclaude.chat",
+          "group": "navigation@2"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "localclaude.askAboutSelection",
+          "when": "editorHasSelection",
+          "group": "localclaude@1"
+        },
+        {
+          "command": "localclaude.addFileToChat",
+          "when": "resourceScheme == file",
+          "group": "localclaude@2"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "localclaude.addFileToChat",
+          "when": "resourceScheme == file",
+          "group": "localclaude@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "localclaude.askAboutSelection",
+          "when": "editorHasSelection"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "localclaude.focus",
+        "key": "ctrl+alt+space",
+        "mac": "cmd+alt+space"
+      },
+      {
+        "command": "localclaude.askAboutSelection",
+        "key": "ctrl+alt+k",
+        "mac": "cmd+alt+k",
+        "when": "editorTextFocus && editorHasSelection"
+      }
+    ],
+    "configuration": {
+      "title": "%displayName%",
+      "properties": {
+        "localclaude.browserPath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "%config.browserPath%"
+        },
+        "localclaude.includeEditorContext": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.includeEditorContext%"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "node ./esbuild.mts",
+    "watch": "node ./esbuild.mts --watch",
+    "typecheck": "tsgo --noEmit -p tsconfig.json",
+    "test": "node ./test/build.mts && node test/out/agent.test.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.291",
+    "@anthropic-ai/sdk": "0.131.0",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "qrcode-generator": "2.0.4",
+    "unpdf": "1.8.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@fontsource-variable/dm-sans": "5.3.0",
+    "@fontsource-variable/newsreader": "5.3.0",
+    "@fontsource-variable/source-serif-4": "5.3.0",
+    "@types/node": "22.x",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "highlight.js": "11.12.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-markdown": "10.1.0",
+    "rehype-highlight": "7.0.2",
+    "remark-gfm": "4.0.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/partham20/localclaude.git"
+  }
+}
