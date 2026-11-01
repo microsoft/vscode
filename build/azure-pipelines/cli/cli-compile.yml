@@ -73,6 +73,7 @@ steps:
     # which lets the step's retry run.
     - script: node ../build/azure-pipelines/common/runWithTimeout.ts 600 --on-timeout "sccache --stop-server" -- cargo clippy --config http.multiplexing=false --config net.retry=5 --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
       displayName: Lint ${{ parameters.VSCODE_CLI_TARGET }}
+      timeoutInMinutes: 10
       retryCountOnTaskFailure: 2
       workingDirectory: $(Build.SourcesDirectory)/cli
       env:
