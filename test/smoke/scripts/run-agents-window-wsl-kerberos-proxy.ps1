@@ -22,7 +22,7 @@
 .EXAMPLE
 	.\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -WslServerPath ~/devel/vscode -WslNodePath ~/.local/node/bin/node
 #>
-[CmdletBinding()]
+[CmdletBinding(PositionalBinding = $false)]
 param(
 	[string]$Distribution = 'Ubuntu',
 	# A Linux VS Code server, or a source checkout set up with `npm run install-fast` and `npm run build-fast -- --client-only`.
