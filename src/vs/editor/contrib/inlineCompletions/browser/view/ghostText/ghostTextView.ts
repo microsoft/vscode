@@ -328,6 +328,7 @@ export class GhostTextView extends Disposable {
 						tokens: p.tokens,
 						inlineClassName: (p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration')
 							+ (this._isClickable ? ' clickable' : '')
+							+ (p.text.length > 0 && p.text.trim().length === 0 ? ' ghost-text-whitespaces-only' : '')
 							+ extraClassNames
 							+ inlineExtraClassNames
 							+ p.lineDecorations.map(d => ' ' + d.className).join(' '), // TODO: take the ranges into account for line decorations
