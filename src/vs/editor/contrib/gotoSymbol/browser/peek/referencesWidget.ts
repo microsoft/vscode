@@ -557,8 +557,17 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 
 	private async _revealReference(reference: OneReference, revealParent: boolean): Promise<void> {
 
-		// check if there is anything to do...
+		// when the same reference is selected again, just re-reveal the
+		// selection in the preview editor. This handles the case where the
+		// user has scrolled the preview away from the reference and clicks
+		// the same item in the tree to bring it back into view.
 		if (this._revealedReference === reference) {
+			const model = this._preview.getModel();
+			if (model) {
+				const sel = Range.lift(reference.range).collapseToStart();
+				this._preview.setSelection(sel);
+				this._preview.revealRangeInCenter(sel, ScrollType.Smooth);
+			}
 			return;
 		}
 		this._revealedReference = reference;
