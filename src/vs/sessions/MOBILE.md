@@ -26,7 +26,7 @@ Directly composed chat inputs, such as automation prompts, receive the same edit
 
 ## Isolated web composition
 
-The experimental `sessions.web.mobile.main.internal.ts` entry composes the shared core with an explicit set of contributions, a fixed phone workbench, and entry-owned presentation services. Existing desktop and web entries neither import its implementations nor activate its defaults. The source entry is not registered in production build targets.
+The experimental `sessions.web.mobile.main.internal.ts` entry composes the shared core with an explicit set of contributions, a fixed phone workbench, and entry-owned presentation services. Existing desktop and web entries neither import its implementations nor activate its defaults. Ordinary production build targets do not include this entry; its opt-in [isolated package](../../../build/next/MOBILE.md) has separate assets and localization.
 
 After transpiling the checkout, `node scripts/code-sessions-web.js --mobile --no-open` serves this entry locally. Add `--mock` for the mock-services entry. This source launcher does not publish an artifact.
 
