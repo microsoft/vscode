@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, raceCancellationError } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -35,6 +36,7 @@ interface ICapturedRequest {
 class TestLanguageModelsService extends mock<ILanguageModelsService>() {
 
 	captured: ICapturedRequest | undefined;
+	token: CancellationToken | undefined;
 
 	override readonly onDidChangeLanguageModels = Event.None;
 	override readonly onDidChangeModelVisibility: Event<void>;
@@ -61,7 +63,8 @@ class TestLanguageModelsService extends mock<ILanguageModelsService>() {
 		return this._isModelHidden(identifier);
 	}
 
-	override async sendChatRequest(modelId: string, _from: ExtensionIdentifier | undefined, messages: IChatMessage[], options: ILanguageModelChatRequestOptions, _token: CancellationToken): Promise<ILanguageModelChatResponse> {
+	override async sendChatRequest(modelId: string, _from: ExtensionIdentifier | undefined, messages: IChatMessage[], options: ILanguageModelChatRequestOptions, token: CancellationToken): Promise<ILanguageModelChatResponse> {
+		this.token = token;
 		this.captured = { modelId, messages, options };
 		return this._respond(this.captured);
 	}
@@ -119,6 +122,28 @@ suite('AgentHostByokLmHandler', () => {
 		const { contextKeyService } = createPolicyContext(true);
 		return store.add(new AgentHostByokLmHandler(service, new NullLogService(), new TestChatEntitlementService(contextKeyService), contextKeyService));
 	}
+
+	test('forwards cancellation to an active language model request', async () => {
+		const source = store.add(new CancellationTokenSource());
+		const started = new DeferredPromise<void>();
+		const service = new TestLanguageModelsService(
+			new Map([['id-acme', byokModel('acme', 'claude')]]),
+			() => ({
+				stream: (async function* () {
+					started.complete();
+					await raceCancellationError(new Promise<never>(() => {}), source.token);
+				})(),
+				result: Promise.resolve(undefined),
+			}),
+		);
+		const pending = createHandler(service).chat({ vendor: 'acme', modelId: 'claude', input: [] }, source.token);
+		await started.p;
+		source.cancel();
+		const result = await pending;
+		assert.deepStrictEqual({ sameToken: service.token === source.token, cancelled: service.token?.isCancellationRequested, output: result.output, failed: !!result.error }, {
+			sameToken: true, cancelled: true, output: [], failed: true,
+		});
+	});
 
 	test('updates model discovery and blocks requests when BYOK policy changes', async () => {
 		const service = new TestLanguageModelsService(
