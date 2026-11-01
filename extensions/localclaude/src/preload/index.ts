@@ -34,6 +34,7 @@ import type {
   RewindRequest,
   SendPayload,
   SessionMeta,
+  SmartKnowledgeStatus,
   VaultStatus
 } from '../shared/types'
 
@@ -157,6 +158,9 @@ const api = {
   clearMemory: (projectId: string | null) => inv<MemoryState>('memory:clear', projectId),
 
   usage: () => inv<PlanUsage>('usage:get'),
+  /** Claude-powered knowledge search: progress of writing passage contexts */
+  smartKnowledgeStatus: () => inv<SmartKnowledgeStatus>('knowledge:smartStatus'),
+  onSmartKnowledge: (cb: (s: SmartKnowledgeStatus) => void) => on<SmartKnowledgeStatus>('knowledge:smart', cb),
   searchChats: (query: string) => inv<ChatSearchHit[]>('search:chats', query),
   copyImage: (sessionId: string, id: string) => inv<boolean>('image:copy', sessionId, id),
   saveImage: (sessionId: string, id: string) => inv<{ ok: boolean; path?: string }>('image:save', sessionId, id),

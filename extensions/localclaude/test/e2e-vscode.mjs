@@ -199,6 +199,25 @@ await step('the editor context (main.c and its selection) is not shown in the ch
   if (shown.includes('<editor_context>') || shown.includes('Use this only if')) throw new Error('editor context is visible in the chat')
 })
 
+await step('Settings: Claude-powered knowledge search is off, and turning it on shows its options', async () => {
+  // the editor tab has room for the full layout
+  await command('LocalClaude: Open in Editor Tab')
+  await sleep(500)
+  await ui.evaluate(() => document.querySelector('.account-settings')?.click())
+  await until('the settings dialog', () => ui.evaluate(() => !!document.querySelector('.modal-heading')))
+  await ui.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Memory & data')?.click())
+  await until('the knowledge search switch', () => ui.evaluate(() => document.body.innerText.includes('Claude-powered knowledge search')))
+  if (await ui.evaluate(() => !!document.querySelector('.smart-knowledge-options'))) throw new Error('options shown while it is off')
+  await ui.evaluate(() => {
+    const label = [...document.querySelectorAll('.smart-knowledge > label.toggle')][0]
+    label.querySelector('input').click()
+  })
+  await until('its options', () => ui.evaluate(() => !!document.querySelector('.smart-knowledge-options')))
+  const settings = await ui.evaluate(() => window.api.getSettings())
+  if (!settings.smartKnowledge || !settings.smartRerank || !settings.smartResearcher || settings.smartContext || settings.smartModel !== 'haiku')
+    throw new Error(`unexpected settings: ${JSON.stringify({ k: settings.smartKnowledge, r: settings.smartRerank, h: settings.smartResearcher, c: settings.smartContext, m: settings.smartModel })}`)
+})
+
 await app.close()
 // keep the profile (with VS Code's logs) when something failed
 if (failed) console.log(`VS Code profile and logs: ${tmp}`)

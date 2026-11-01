@@ -66,3 +66,16 @@
 .usage-bar span.danger {
   background: var(--danger);
 }
+
+/* Claude-powered knowledge search: its options sit indented under the main switch */
+.smart-knowledge-options {
+  margin: 4px 0 8px 28px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.smart-knowledge-options .field {
+  margin-top: 6px;
+}

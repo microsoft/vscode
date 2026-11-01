@@ -86,38 +86,50 @@ export interface Hit {
   doc: KnowledgeDoc
   passage: Passage
   score: number
+  /** Claude's line about where the passage sits (when passage context is on) */
+  context?: string
 }
 
-/** BM25 over the passages of a set of documents. */
+/** Contexts Claude wrote for a document's passages (Claude-powered knowledge search; see smartKnowledge.ts). */
+export interface ContextSource {
+  /** one line per passage of passages(doc.text), if written */
+  get(doc: KnowledgeDoc): string[] | undefined
+  /** queue documents that don't have them yet */
+  want(docs: KnowledgeDoc[]): void
+}
+
+/** BM25 over the passages of a set of documents (and their context lines, when there are any). */
 export class KnowledgeIndex {
   readonly docs: KnowledgeDoc[]
-  private items: { doc: number; p: Passage; len: number }[] = []
+  private items: { doc: number; p: Passage; len: number; context?: string }[] = []
   private postings = new Map<string, [number, number][]>()
   private nameTerms: Set<string>[] = []
   private avg = 1
 
-  constructor(docs: KnowledgeDoc[]) {
+  constructor(docs: KnowledgeDoc[], contextFor?: (doc: KnowledgeDoc) => string[] | undefined) {
     this.docs = docs
     let total = 0
     docs.forEach((d, di) => {
       this.nameTerms.push(new Set(tokenize(d.name.replace(/\.[^.]+$/, ''))))
       const ps = passages(d.text)
+      const contexts = ps.length ? contextFor?.(d) : undefined
       // a file with no text still has a name to find it by
       if (!ps.length) ps.push({ start: 0, end: 0, heading: '' })
-      for (const p of ps) {
+      ps.forEach((p, pi) => {
         const idx = this.items.length
         const tf = new Map<string, number>()
-        // the file's name counts as part of its first passage
-        const words = tokenize(d.text.slice(p.start, p.end) + ' ' + p.heading + (p === ps[0] ? ' ' + d.name.replace(/\.[^./]+$/, '') : ''))
+        const context = contexts?.length === ps.length ? contexts[pi] || undefined : undefined
+        // the file's name counts as part of its first passage; a context line counts as part of its passage
+        const words = tokenize(d.text.slice(p.start, p.end) + ' ' + p.heading + (p === ps[0] ? ' ' + d.name.replace(/\.[^./]+$/, '') : '') + (context ? ' ' + context : ''))
         for (const w of words) tf.set(w, (tf.get(w) ?? 0) + 1)
         for (const [w, n] of tf) {
           let list = this.postings.get(w)
           if (!list) this.postings.set(w, (list = []))
           list.push([idx, n])
         }
-        this.items.push({ doc: di, p, len: words.length })
+        this.items.push({ doc: di, p, len: words.length, context })
         total += words.length
-      }
+      })
     })
     this.avg = Math.max(1, total / Math.max(1, this.items.length))
   }
@@ -126,7 +138,8 @@ export class KnowledgeIndex {
     return this.items.length
   }
 
-  search(query: string, limit = 8): Hit[] {
+  /** The best passages for a query; `perDoc` keeps one long file from crowding out the rest. */
+  search(query: string, limit = 8, perDoc = 3): Hit[] {
     const phrases = [...query.matchAll(/"([^"]+)"/g)].map((m) => m[1].toLowerCase().trim()).filter(Boolean)
     const terms = [...new Set(tokenize(query))]
     if (!terms.length) return []
@@ -147,16 +160,15 @@ export class KnowledgeIndex {
       const it = this.items[i]
       const doc = this.docs[it.doc]
       const text = phrases.length ? doc.text.slice(it.p.start, it.p.end).toLowerCase() : ''
-      hits.push({ doc, passage: it.p, score: score + phrases.filter((p) => text.includes(p)).length * 5 })
+      hits.push({ doc, passage: it.p, score: score + phrases.filter((p) => text.includes(p)).length * 5, context: it.context })
     }
     hits.sort((a, b) => b.score - a.score)
-    // at most three passages from one file, so one long file doesn't crowd out the rest
-    const perDoc = new Map<KnowledgeDoc, number>()
+    const count = new Map<KnowledgeDoc, number>()
     return hits
       .filter((h) => {
-        const n = (perDoc.get(h.doc) ?? 0) + 1
-        perDoc.set(h.doc, n)
-        return n <= 3
+        const n = (count.get(h.doc) ?? 0) + 1
+        count.set(h.doc, n)
+        return n <= perDoc
       })
       .slice(0, limit)
   }
@@ -198,6 +210,26 @@ export function listFolder(root: string, max = MAX_FOLDER_FILES): { files: strin
 export class KnowledgeService {
   private files = new Map<string, CachedFile>()
   private indexes = new Map<string, { sig: string; index: KnowledgeIndex; checkedAt: number; more: boolean }>()
+  private contexts: ContextSource | null = null
+
+  /** Passage contexts written by Claude (null = off). Indexes are rebuilt to use them. */
+  setContextSource(src: ContextSource | null): void {
+    this.contexts = src
+    this.invalidateAll()
+  }
+
+  /** Rebuild every index on its next use (e.g. when new passage contexts are ready). */
+  invalidateAll(): void {
+    this.indexes.clear()
+  }
+
+  private build(docs: KnowledgeDoc[]): KnowledgeIndex {
+    const src = this.contexts
+    if (!src) return new KnowledgeIndex(docs)
+    const index = new KnowledgeIndex(docs, (d) => src.get(d))
+    src.want(docs)
+    return index
+  }
 
   /** A linked folder's notes and documents. */
   async folder(root: string, label: string): Promise<{ index: KnowledgeIndex; more: boolean }> {
@@ -234,7 +266,7 @@ export class KnowledgeService {
       cached.checkedAt = Date.now()
       return cached
     }
-    const entry = { sig, index: new KnowledgeIndex(docs), checkedAt: Date.now(), more }
+    const entry = { sig, index: this.build(docs), checkedAt: Date.now(), more }
     this.indexes.set(key, entry)
     return entry
   }
@@ -246,7 +278,7 @@ export class KnowledgeService {
     const cached = this.indexes.get(key)
     if (cached && cached.sig === sig) return cached.index
     const text = contents()
-    const index = new KnowledgeIndex(files.map((f) => ({ name: f.name, source: 'project files', text: text[f.id] ?? '' })))
+    const index = this.build(files.map((f) => ({ name: f.name, source: 'project files', text: text[f.id] ?? '' })))
     this.indexes.set(key, { sig, index, checkedAt: Date.now(), more: false })
     return index
   }
@@ -268,8 +300,12 @@ export interface NoteTarget {
 const fmtHit = (h: Hit, n: number): string => {
   const text = h.doc.text.slice(h.passage.start, h.passage.end).replace(/\s+/g, ' ').trim()
   const where = h.passage.heading ? ` › ${h.passage.heading}` : ''
-  return `[${n}] ${h.doc.name}${where} (${h.doc.source}; chars ${h.passage.start}-${h.passage.end})\n${text.length > 700 ? text.slice(0, 700) + '…' : text}`
+  const ctx = h.context ? `\n(context: ${h.context})` : ''
+  return `[${n}] ${h.doc.name}${where} (${h.doc.source}; chars ${h.passage.start}-${h.passage.end})${ctx}\n${text.length > 700 ? text.slice(0, 700) + '…' : text}`
 }
+
+/** The keyword search's best candidates, how many Claude looks at when it picks (see smartKnowledge.ts). */
+const RERANK_POOL = 30
 
 export function createKnowledgeServer(ctx: {
   /** the indexes this chat can search */
@@ -279,6 +315,10 @@ export function createKnowledgeServer(ctx: {
   /** where save_note writes (when you let Claude write notes) */
   notes?: NoteTarget
   onNoteSaved?: (path: string) => void
+  /** Claude picks the best of the keyword search's candidates (null = it couldn't; keep the keyword order) */
+  rerank?: (question: string, candidates: Hit[], limit: number) => Promise<Hit[] | null>
+  /** the research helper is there: tell Claude when to use it */
+  researcher?: string
 }) {
   const ok = (text: string) => ({ content: [{ type: 'text' as const, text }] })
   const fail = (text: string) => ({ ...ok(text), isError: true })
@@ -287,15 +327,29 @@ export function createKnowledgeServer(ctx: {
   const tools: SdkMcpToolDefinition<any>[] = [
     tool(
       'search_knowledge',
-      `Search ${ctx.describe} for passages about something. Use a few distinctive words (or a "quoted phrase"). Returns the best passages with their file; read more of a file with read_knowledge.`,
-      { query: z.string().min(1), limit: z.number().int().min(1).max(20).optional() },
+      `Search ${ctx.describe} for passages about something. Use a few distinctive words (or a "quoted phrase")${ctx.rerank ? ', and pass the full question you are trying to answer as `question` so the best passages are picked' : ''}. Returns the best passages with their file; read more of a file with read_knowledge.`,
+      {
+        query: z.string().min(1),
+        limit: z.number().int().min(1).max(20).optional(),
+        question: z.string().optional().describe('the full question you want answered (helps pick the best passages)')
+      },
       async (args) => {
-        const hits = (await ctx.indexes())
-          .flatMap((i) => i.search(args.query, args.limit ?? 8))
+        const limit = args.limit ?? 8
+        const pool = ctx.rerank ? Math.max(RERANK_POOL, limit) : limit
+        const found = (await ctx.indexes())
+          // when Claude picks, it gets more passages of one long document to choose from (a manual, a datasheet)
+          .flatMap((i) => i.search(args.query, pool, ctx.rerank ? 10 : 3))
           .sort((a, b) => b.score - a.score)
-          .slice(0, args.limit ?? 8)
-        if (!hits.length) return ok(`Nothing matches "${args.query}". Try other words, or list_knowledge to see what's there.`)
-        return ok(hits.map((h, i) => fmtHit(h, i + 1)).join('\n\n'))
+          .slice(0, pool)
+        if (!found.length) return ok(`Nothing matches "${args.query}". Try other words, or list_knowledge to see what's there.`)
+        let hits = found.slice(0, limit)
+        let note = ''
+        if (ctx.rerank && found.length > 1) {
+          const picked = await ctx.rerank(args.question?.trim() || args.query, found, limit)
+          if (picked && picked.length) hits = picked
+          else if (picked) note = `None of the ${found.length} passages that match these words looked relevant to the question; these are the closest by wording. Try other words.\n\n`
+        }
+        return ok(note + hits.map((h, i) => fmtHit(h, i + 1)).join('\n\n'))
       },
       { alwaysLoad: true, searchHint: 'search notes documents files knowledge vault obsidian project', annotations: { title: 'Search knowledge', readOnlyHint: true } }
     ),
@@ -363,7 +417,11 @@ export function createKnowledgeServer(ctx: {
   return createSdkMcpServer({
     name: 'knowledge',
     version: '1.0.0',
-    instructions: `Search ${ctx.describe} with search_knowledge before answering questions they might cover, and say which file an answer comes from.`,
+    instructions:
+      `Search ${ctx.describe} with search_knowledge before answering questions they might cover, and say which file an answer comes from.` +
+      (ctx.researcher
+        ? ` For questions that need several passages or long documents (manuals, datasheets, specifications), hand the research to the ${ctx.researcher} agent with the full question, and answer from its report, keeping its sources.`
+        : ''),
     tools
   })
 }

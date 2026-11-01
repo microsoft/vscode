@@ -7,6 +7,7 @@ import { McpManager } from './McpManager'
 import { MemoryList } from './Memory'
 import { ObsidianPanel } from './ObsidianPanel'
 import { ShortcutField, StylesEditor, UsagePanel } from './SettingsExtras'
+import { SmartKnowledgeSettings } from './SmartKnowledge'
 
 const TABS: [string, string][] = [
   ['general', 'General'],
@@ -307,6 +308,7 @@ export function SettingsDialog(props: {
                   </span>
                 </span>
               </label>
+              <SmartKnowledgeSettings settings={s} onChange={props.onChange} />
               <label className="toggle">
                 <input type="checkbox" checked={s.artifacts} onChange={(e) => void props.onChange({ artifacts: e.target.checked })} />
                 <span>

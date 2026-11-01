@@ -37,7 +37,7 @@ import {
   type SessionMeta,
   type VaultStatus
 } from '../../shared/types'
-import { SessionManager } from '../agent'
+import { PROJECT_KNOWLEDGE_LIMIT, SessionManager, projectKnowledgeChars } from '../agent'
 import { renderArtifactPage } from '../artifacts'
 import { BACKUP_EXT, MIN_PASSWORD, backupDue, backupFileName, createBackup, decryptBackup, isEncryptedBackup, writeBackupTo } from '../backup'
 import { authStatus, cancelLogin, logout, resolveClaudeBinary, sendLoginInput, startLogin, subscriptionEnv } from '../claude'
@@ -63,6 +63,7 @@ import {
   updateProject
 } from '../projects'
 import { RemoteControl } from '../remoteControl'
+import { ContextWriter, claudeAsk, type Ask } from '../smartKnowledge'
 import { SecureStore } from '../store'
 import { generateTitle } from '../titles'
 import { fakeRemoteCommand } from '../fakeRemote'
@@ -94,7 +95,10 @@ const UI_ONLY_SETTINGS = new Set<keyof AppSettings>([
   'obsidianSyncChats',
   'obsidianSyncMemory',
   'remoteSpawn',
-  'remotePermissionMode'
+  'remotePermissionMode',
+  // Claude-powered knowledge search: the helper model and passage contexts don't change how chats run
+  'smartModel',
+  'smartContext'
 ])
 
 const IMAGE_TYPES: Record<string, string> = {
@@ -156,6 +160,8 @@ export class LocalClaudeHost implements vscode.WebviewViewProvider {
   private readonly knowledge = new KnowledgeService()
   private manager!: SessionManager
   private vaultSync!: VaultSync
+  private ask!: Ask
+  private contextWriter!: ContextWriter
   private remote!: RemoteControl
   private server!: LocalServer
   private view: vscode.WebviewView | undefined
@@ -178,6 +184,14 @@ export class LocalClaudeHost implements vscode.WebviewViewProvider {
     this.store = new EditorStore()
     this.store.open()
     if (!this.store.lock.ok) log('warn', 'data locked:', this.store.lock.reason ?? '')
+    // Claude-powered knowledge search (optional): small tool-free requests, and passage contexts written in the background
+    this.ask = claudeAsk(() => (this.store.lock.ok ? this.store.getSettings().smartModel : ''))
+    this.contextWriter = new ContextWriter(
+      this.store,
+      this.ask,
+      () => this.knowledge.invalidateAll(),
+      (st) => this.bridge.send('knowledge:smart', st)
+    )
     this.manager = new SessionManager(
       this.store,
       (e: AgentEvent) => {
@@ -188,6 +202,7 @@ export class LocalClaudeHost implements vscode.WebviewViewProvider {
       },
       {
         knowledge: this.knowledge,
+        ask: this.ask,
         titleFor: (user, reply) => (this.store.getSettings().autoTitles ? generateTitle(user, reply) : Promise.resolve(null)),
         // the end-to-end tests' stand-in for Claude Code (LOCALCLAUDE_FAKE_AGENT=1) doesn't write transcripts
         transcriptExists: process.env.LOCALCLAUDE_FAKE_AGENT ? () => true : undefined
@@ -237,7 +252,10 @@ export class LocalClaudeHost implements vscode.WebviewViewProvider {
       }
     })
     await this.server.start()
-    if (this.store.lock.ok) this.warmVault()
+    if (this.store.lock.ok) {
+      this.applySmartKnowledge()
+      this.warmVault()
+    }
     this.registerIpc()
     this.scheduleBackups()
   }
@@ -362,6 +380,32 @@ export class LocalClaudeHost implements vscode.WebviewViewProvider {
     })
   }
 
+  /** Passage contexts on or off (Settings): when on, indexing the knowledge starts writing them. */
+  private applySmartKnowledge(): void {
+    const s = this.store.getSettings()
+    if (s.smartKnowledge && s.smartContext) {
+      this.knowledge.setContextSource(this.contextWriter)
+      void this.warmKnowledge()
+    } else {
+      this.contextWriter.stop()
+      this.knowledge.setContextSource(null)
+    }
+  }
+
+  /** Index what Claude would search: big projects' files, linked folders and the vault (so contexts get written ahead of time). */
+  private async warmKnowledge(): Promise<void> {
+    try {
+      for (const p of this.store.listProjects()) {
+        if (p.files.length && projectKnowledgeChars(p, this.store) > PROJECT_KNOWLEDGE_LIMIT)
+          this.knowledge.project(p.id, p.updatedAt, p.files, () => this.store.loadProjectFiles(p.id))
+        for (const f of p.folders ?? []) if (existsSync(f)) await this.knowledge.folder(f, `folder ${basename(f)}`)
+      }
+    } catch (e) {
+      log('warn', 'indexing knowledge failed:', e)
+    }
+    this.warmVault()
+  }
+
   private warmVault(): void {
     const v = activeVault(this.store.getSettings())
     if (v) void this.knowledge.folder(v, `Obsidian vault ${basename(v)}`).catch(() => {})
@@ -479,8 +523,10 @@ export class LocalClaudeHost implements vscode.WebviewViewProvider {
       if (activeVault(s) && (s.obsidianVault !== before.obsidianVault || !before.obsidianEnabled)) this.warmVault()
       if (s.obsidianSyncMemory && (!before.obsidianSyncMemory || !before.obsidianEnabled)) vaultSync.memoryChanged()
       if (Object.keys(patch).some((k) => !UI_ONLY_SETTINGS.has(k as keyof AppSettings))) manager.restartIdle()
+      if (s.smartKnowledge !== before.smartKnowledge || s.smartContext !== before.smartContext) this.applySmartKnowledge()
       return s
     })
+    handle('knowledge:smartStatus', () => this.contextWriter.status())
     // VS Code owns keyboard shortcuts: "LocalClaude: Focus" (Ctrl+Alt+Space by default)
     handle('shortcut:status', () => ({ accelerator: '', ok: true }))
     handle('usage:get', () => manager.usage())

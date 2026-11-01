@@ -25,6 +25,27 @@ LocalClaude is the AI you see.
 - Files Claude changed open in the editor. Notifications appear when a reply finishes or Claude needs you while
   VS Code is in the background or the view is hidden.
 
+### Claude-powered knowledge search (optional)
+
+Settings → Memory & data → **Claude-powered knowledge search**. Off by default. When it's on, Claude helps find
+things in project files, linked folders and your notes, instead of keyword (BM25) search alone, without an
+embedding model. Each part can be switched separately:
+
+- **Claude picks the best passages** (on): a search takes the 30 closest passages by wording, and one short
+  request to Claude keeps the ones that answer the question. If Claude can't answer, the keyword order is used.
+- **Research helper** (on): a subagent with only the knowledge tools. For questions that need many passages or
+  long documents, the chat hands it the question; it searches and reads, then reports the facts with their source
+  (file › section or `[Page n]`), copying register names, values and limits exactly. The chat's context stays
+  focused. It uses the chat's model.
+- **Write context for each passage** (off): when knowledge is indexed, Claude writes one line per passage
+  saying where it sits and what it's about, and the line is searched with the passage. A datasheet page about
+  `SQR1` gets found by "ADC" or "sequence length". Written once per document (about one request per 20
+  passages), stored encrypted, and progress shows in Settings.
+- **Model** for picking passages and writing context: Haiku by default.
+
+These requests use your plan's usage like chats do. The code is in `src/host/smartKnowledge.ts`; it is part of
+this build only, not the LocalClaude desktop app.
+
 On first use, **Sign in with Claude** runs Claude Code's own `claude auth login --claudeai`. If you already use
 `claude` in a terminal, you're signed in.
 

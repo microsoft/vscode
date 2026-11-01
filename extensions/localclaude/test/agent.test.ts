@@ -891,6 +891,16 @@ async function knowledgeAndObsidian() {
   const po = (kmgr as any).get(inProject.id).buildOptions()
   assert.equal(po.mcpServers.knowledge?.type, 'sdk'); assert.ok(KNOWLEDGE_TOOLS.every((t) => po.allowedTools.includes(t))); assert.ok(!po.allowedTools.includes(NOTE_TOOL))
   assert.match(po.systemPrompt.append, /<linked_folders>\n- .*kb\n<\/linked_folders>/)
+  assert.equal(po.agents, undefined, 'Claude-powered knowledge search is off by default')
+  // Claude-powered knowledge search: the research helper joins chats that have knowledge, with the knowledge tools only
+  Object.assign(st._s.settings, { smartKnowledge: true, smartResearcher: true })
+  const so = (kmgr as any).get(inProject.id).buildOptions()
+  assert.deepEqual(Object.keys(so.agents ?? {}), ['knowledge-researcher'])
+  assert.deepEqual(so.agents['knowledge-researcher'].tools, KNOWLEDGE_TOOLS); assert.equal(so.agents['knowledge-researcher'].model, 'inherit')
+  assert.equal((kmgr as any).get(plain.id).buildOptions().agents, undefined, 'no knowledge, no helper')
+  st._s.settings.smartResearcher = false
+  assert.equal((kmgr as any).get(inProject.id).buildOptions().agents, undefined, 'the helper can be switched off on its own')
+  Object.assign(st._s.settings, { smartKnowledge: false, smartResearcher: true })
   Object.assign(st._s.settings, { obsidianVault: vault, obsidianSearch: true, obsidianWrite: true })
   const vo = (kmgr as any).get(plain.id).buildOptions()
   assert.equal(vo.mcpServers.knowledge?.type, 'sdk'); assert.ok(vo.allowedTools.includes(NOTE_TOOL))

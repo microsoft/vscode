@@ -33,6 +33,7 @@ import { createComputerServer } from './computer'
 import { SCREEN_AGENT, designPrompt } from './design'
 import { referencedImages, resultImages, storeImage } from './images'
 import { KNOWLEDGE_TOOLS, NOTE_TOOL, createKnowledgeServer, type KnowledgeIndex, type KnowledgeService } from './knowledge'
+import { RESEARCH_AGENT_NAME, rerankHits, researchAgent, type Ask } from './smartKnowledge'
 import { activeVault } from './obsidian'
 import { query } from './sdk'
 import { importedContext } from './exporter'
@@ -93,6 +94,8 @@ export interface SessionDeps {
   chatIndex?: ChatIndex
   /** searchable knowledge: big project files, linked folders, the Obsidian vault */
   knowledge?: KnowledgeService
+  /** a tool-free Claude request, for Claude-powered knowledge search (picking passages) */
+  ask?: Ask
 }
 
 class AgentSession {
@@ -154,7 +157,9 @@ class AgentSession {
    * The knowledge tools, when there's something to search: project files too big to send in full,
    * folders linked to the project, or the Obsidian vault (and its notes folder, if Claude may write).
    */
-  private knowledgeSetup(project: Project | undefined): { server: ReturnType<typeof createKnowledgeServer>; tools: string[]; vault?: VaultPrompt } | null {
+  private knowledgeSetup(
+    project: Project | undefined
+  ): { server: ReturnType<typeof createKnowledgeServer>; tools: string[]; vault?: VaultPrompt; researcher: boolean } | null {
     const k = this.deps.knowledge
     if (!k) return null
     const s = this.settings()
@@ -166,7 +171,13 @@ class AgentSession {
     const bigProject = !!project && projectKnowledgeChars(project, this.store) > PROJECT_KNOWLEDGE_LIMIT
     if (!bigProject && !folders.length && !searchVault && !notes) return null
     const what = [project?.files.length ? 'the project files' : '', folders.length ? 'the linked folders' : '', searchVault ? 'the Obsidian vault' : ''].filter(Boolean)
+    // Claude-powered knowledge search (Settings): Claude picks passages, and a research helper reads for the chat
+    const ask = this.deps.ask
+    const rerank = s.smartKnowledge && s.smartRerank && ask ? (q: string, c: Parameters<typeof rerankHits>[2], n: number) => rerankHits(ask, q, c, n) : undefined
+    const researcher = s.smartKnowledge && s.smartResearcher && !this.meta.design && what.length > 0
     const server = createKnowledgeServer({
+      rerank,
+      researcher: researcher ? RESEARCH_AGENT_NAME : undefined,
       describe: what.length ? `the user's knowledge (${what.join(', ')})` : "the user's notes",
       indexes: async () => {
         const out: KnowledgeIndex[] = []
@@ -181,7 +192,8 @@ class AgentSession {
     return {
       server,
       tools: [...KNOWLEDGE_TOOLS, ...(notes ? [NOTE_TOOL] : [])],
-      vault: vault && (searchVault || notes) ? { name: basename(vault), search: searchVault, notesFolder: notes ? `${notes.folder}/Notes` : undefined } : undefined
+      vault: vault && (searchVault || notes) ? { name: basename(vault), search: searchVault, notesFolder: notes ? `${notes.folder}/Notes` : undefined } : undefined,
+      researcher
     }
   }
 
@@ -258,7 +270,7 @@ class AgentSession {
       // so the turn lasts until every frame is done (Claude Code would otherwise end the turn and
       // let them finish in the background).
       env: design ? { ...subscriptionEnv(), CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1', CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: '8' } : subscriptionEnv(),
-      agents: design ? { 'design-screen': SCREEN_AGENT } : undefined,
+      agents: design ? { 'design-screen': SCREEN_AGENT } : kb?.researcher ? { [RESEARCH_AGENT_NAME]: researchAgent(KNOWLEDGE_TOOLS) } : undefined,
       pathToClaudeCodeExecutable: resolveClaudeBinary(),
       settingSources: sources,
       systemPrompt: {
@@ -923,7 +935,7 @@ export const PROJECT_KNOWLEDGE_LIMIT = PROJECT_KNOWLEDGE_LIMIT_CHARS
 
 /** Personal instructions, then the project's instructions and knowledge files, then memory (when on). */
 /** How many characters of knowledge a project's files hold. */
-function projectKnowledgeChars(project: Project, store: Pick<SecureStore, 'loadProjectFiles'>): number {
+export function projectKnowledgeChars(project: Project, store: Pick<SecureStore, 'loadProjectFiles'>): number {
   if (!project.files.length) return 0
   const contents = store.loadProjectFiles(project.id)
   return project.files.reduce((n, f) => n + (contents[f.id]?.length ?? 0), 0)
@@ -1023,7 +1035,7 @@ export class SessionManager {
     deps: Partial<SessionDeps> = {}
   ) {
     this.index = new ChatIndex(store, (id) => this.sessions.get(id)?.history)
-    this.deps = { transcriptExists: deps.transcriptExists ?? transcriptExists, titleFor: deps.titleFor, chatIndex: this.index, knowledge: deps.knowledge }
+    this.deps = { transcriptExists: deps.transcriptExists ?? transcriptExists, titleFor: deps.titleFor, chatIndex: this.index, knowledge: deps.knowledge, ask: deps.ask }
   }
 
   searchChats(query: string): ChatSearchHit[] {

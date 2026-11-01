@@ -41,6 +41,16 @@ export interface AppSettings {
   memory: boolean
   /** Claude can search and read your earlier chats */
   chatSearch: boolean
+  /** Claude-powered knowledge search (uses your plan's usage); the three parts below can be switched separately */
+  smartKnowledge: boolean
+  /** Claude picks the passages that answer the question from the keyword search's best candidates */
+  smartRerank: boolean
+  /** a research helper (subagent) reads through the knowledge and reports back with sources */
+  smartResearcher: boolean
+  /** Claude writes a line of context for each passage when knowledge is indexed (once per document) */
+  smartContext: boolean
+  /** model for picking passages and writing contexts ('haiku', 'sonnet', 'opus') */
+  smartModel: string
   /** Load ~/.claude (user) + project settings: CLAUDE.md, skills, slash commands, plugins, hooks */
   loadUserSettings: boolean
   loadProjectSettings: boolean
@@ -310,6 +320,15 @@ export interface SendPayload {
   hiddenContext?: string
 }
 
+/** Claude-powered knowledge search: progress of writing passage contexts */
+export interface SmartKnowledgeStatus {
+  queuedDocs: number
+  done: number
+  total: number
+  running: boolean
+  lastError?: string
+}
+
 /** VS Code: text and/or file mentions an editor command puts into the message box */
 export interface ComposeRequest {
   text?: string
@@ -335,6 +354,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   artifacts: true,
   memory: true,
   chatSearch: true,
+  smartKnowledge: false,
+  smartRerank: true,
+  smartResearcher: true,
+  smartContext: false,
+  smartModel: 'haiku',
   loadUserSettings: true,
   loadProjectSettings: true,
   mcpServers: {},

@@ -4,11 +4,12 @@ import * as path from 'node:path';
 
 const root = path.dirname(import.meta.dirname);
 await esbuild.build({
-	entryPoints: [path.join(root, 'test', 'agent.test.ts')],
+	entryPoints: [path.join(root, 'test', 'agent.test.ts'), path.join(root, 'test', 'smartKnowledge.test.ts')],
 	bundle: true,
 	platform: 'node',
 	format: 'esm',
-	outfile: path.join(root, 'test', 'out', 'agent.test.mjs'),
+	outdir: path.join(root, 'test', 'out'),
+	outExtension: { '.js': '.mjs' },
 	alias: { electron: path.join(root, 'test', 'electron-stub.js') },
 	external: ['@anthropic-ai/claude-agent-sdk', 'unpdf', 'cross-spawn'],
 	logLevel: 'warning',

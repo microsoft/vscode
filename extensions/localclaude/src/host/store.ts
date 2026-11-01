@@ -9,7 +9,7 @@
 import { app, safeStorage } from 'electron'
 import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { readMachineId } from './machineId'
 import { AppSettings, Artifact, ChatMessage, DEFAULT_SETTINGS, LockStatus, MemoryItem, Project, SessionMeta } from '../shared/types'
 
@@ -322,6 +322,20 @@ export class SecureStore {
   }
   saveProjectFiles(id: string, files: Record<string, string>): void {
     this.atomicWrite(this.projectFilesFile(id), this.encrypt(JSON.stringify(files)))
+  }
+
+  /** Passage contexts Claude wrote for a knowledge document (see smartKnowledge.ts), by document fingerprint. */
+  private contextFile(key: string): string {
+    return join(this.dir, 'knowledge-context', key.replace(/[^a-f0-9]/g, '') + '.bin')
+  }
+  loadKnowledgeContext(key: string): string[] | null {
+    const v = this.readJson<string[] | null>(this.contextFile(key), null)
+    return Array.isArray(v) ? v : null
+  }
+  saveKnowledgeContext(key: string, contexts: string[]): void {
+    const file = this.contextFile(key)
+    mkdirSync(dirname(file), { recursive: true })
+    this.atomicWrite(file, this.encrypt(JSON.stringify(contexts)))
   }
 
   private readJson<T>(file: string, fallback: T): T {
