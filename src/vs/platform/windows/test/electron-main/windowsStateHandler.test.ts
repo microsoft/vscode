@@ -9,10 +9,12 @@ import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IWindowState as IWindowUIState, WindowMode } from '../../../window/electron-main/window.js';
-import { getWindowsStateStoreData, IWindowsState, IWindowState, restoreWindowsState } from '../../electron-main/windowsStateHandler.js';
+import { getWindowsStateStoreData, IWindowsState, IWindowState, restoreWindowsState, updateNativeTabWindowState } from '../../electron-main/windowsStateHandler.js';
 import { IWorkspaceIdentifier } from '../../../workspace/common/workspace.js';
 
 suite('Windows State Storing', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function getUIState(): IWindowUIState {
 		return {
@@ -53,6 +55,7 @@ suite('Windows State Storing', () => {
 		assert.strictEqual(expected.remoteAuthority, actual.remoteAuthority, message);
 		assertEqualWorkspace(expected.workspace, actual.workspace, message);
 		assert.deepStrictEqual(expected.uiState, actual.uiState, message);
+		assert.deepStrictEqual(expected.nativeTabs, actual.nativeTabs, message);
 	}
 
 	function assertEqualWindowsState(expected: IWindowsState, actual: IWindowsState, message?: string) {
@@ -77,6 +80,57 @@ suite('Windows State Storing', () => {
 	const testFolderURI = URI.file(join(tmpdir(), 'windowStateTest', 'testFolder'));
 
 	const testRemoteFolderURI = URI.parse('foo://bar/c/d');
+
+	test('refreshes a reused native tab without losing its saved group or selection', () => {
+		const state: IWindowState = {
+			windowId: 2,
+			workspace: toWorkspace(testWSPath),
+			remoteAuthority: 'old-host',
+			backupPath: testBackupPath1,
+			uiState: getUIState(),
+			nativeTabs: { group: 1, index: 1, selected: true }
+		};
+		const current: IWindowState = {
+			windowId: 2,
+			workspace: undefined,
+			folderUri: testFolderURI,
+			remoteAuthority: undefined,
+			backupPath: testBackupPath2,
+			uiState: { ...getUIState(), width: 900, height: 700 },
+			nativeTabs: { group: 2, index: 0, selected: false }
+		};
+		assert.strictEqual(updateNativeTabWindowState([state], current), true);
+		assert.deepStrictEqual(state, { ...current, nativeTabs: { group: 1, index: 1, selected: true } });
+		assertRestoring({ openedWindows: [state], lastActiveWindow: state });
+	});
+
+	test('retains closed native tabs when refreshing a different window', () => {
+		const state: IWindowState = { windowId: 1, folderUri: testFolderURI, uiState: getUIState(), nativeTabs: { group: 1, index: 0, selected: true } };
+		const saved = { ...state };
+		assert.strictEqual(updateNativeTabWindowState([state], { windowId: 2, uiState: getUIState() }), false);
+		assert.deepStrictEqual(state, saved);
+	});
+
+	test('stores native tab order and selection independently for groups', () => {
+		assertRestoring({
+			openedWindows: [
+				{ folderUri: testFolderURI, uiState: getUIState(), nativeTabs: { group: 7, index: 1, selected: true } },
+				{ workspace: toWorkspace(testWSPath), uiState: getUIState(), nativeTabs: { group: 7, index: 0, selected: false } },
+				{ backupPath: testBackupPath1, uiState: getUIState(), nativeTabs: { group: 12, index: 0, selected: true } }
+			]
+		});
+	});
+
+	test('ignores invalid native tab metadata without losing the project', () => {
+		const restored = restoreWindowsState({ openedWindows: [
+			{ folder: testFolderURI.toString(), uiState: getUIState(), nativeTabs: { group: 1, index: -1, selected: true } },
+			{ backupPath: testBackupPath1, uiState: getUIState(), nativeTabs: { group: NaN, index: 0, selected: false } }
+		] });
+		assert.deepStrictEqual(restored.openedWindows.map(window => ({ folder: window.folderUri?.toString(), backupPath: window.backupPath, tabs: window.nativeTabs })), [
+			{ folder: testFolderURI.toString(), backupPath: undefined, tabs: undefined },
+			{ folder: undefined, backupPath: testBackupPath1, tabs: undefined }
+		]);
+	});
 
 	test('storing and restoring', () => {
 		let windowState: IWindowsState;
@@ -200,5 +254,4 @@ suite('Windows State Storing', () => {
 		assertEqualWindowsState(expected, windowsState, 'v1_32_empty_window');
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
 });
