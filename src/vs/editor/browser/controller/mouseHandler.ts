@@ -551,8 +551,9 @@ class MouseDownOperation extends Disposable {
 			return MouseTarget.createOutsideEditor(mouseColumn, new Position(aboveLineNumber, 1), 'above', outsideDistance);
 		}
 
-		if (e.posy > editorContent.y + editorContent.height) {
-			const outsideDistance = e.posy - editorContent.y - editorContent.height;
+		const bottomEdgePadding = 5;
+		if (e.posy > editorContent.y + editorContent.height - bottomEdgePadding) {
+			const outsideDistance = Math.max(0, e.posy - editorContent.y - editorContent.height);
 			const verticalOffset = viewLayout.getCurrentScrollTop() + e.relativePos.y;
 			const viewZoneData = HitTestContext.getZoneAtCoord(this._context, verticalOffset);
 			if (viewZoneData) {
