@@ -17,7 +17,7 @@
 //   node image.ts env
 //     Points the pnpm store and the Playwright browsers into the image, for the next steps.
 //   node image.ts seed
-//     Prepares the workspace of an image: tags its commit and removes the checked out files.
+//     Prepares the checkout of an image for the checkouts of the jobs.
 //   node image.ts pack --in FILE --out FILE [--level 9] [--chunk-mb 32]
 //     Compresses a disk image in chunks that `restore` downloads and decompresses in parallel.
 //
@@ -118,6 +118,8 @@ function toolFolders(root: string): Record<string, string> {
 		// pnpm records its store in node_modules/.modules.yaml, and installs everything again with another one
 		pnpm_config_store_dir: path.join(root, '.pnpm-store'),
 		PLAYWRIGHT_BROWSERS_PATH: path.join(root, '.playwright'),
+		// The clones of pnpm on ReFS store the packages again, unlike the hard links
+		...(process.platform === 'win32' ? { pnpm_config_package_import_method: 'hardlink' } : {}),
 	};
 }
 
@@ -722,43 +724,36 @@ async function deps(): Promise<void> {
 
 function env(): void {
 	const folders = toolFolders(imageRoot());
-	for (const folder of Object.values(folders)) {
+	for (const folder of [folders.pnpm_config_store_dir, folders.PLAYWRIGHT_BROWSERS_PATH]) {
 		fs.mkdirSync(folder, { recursive: true });
 	}
 	setEnv(folders);
 }
 
-async function removeAll(files: readonly string[], concurrency: number): Promise<void> {
-	let next = 0;
-	await Promise.all(Array.from({ length: concurrency }, async () => {
-		while (next < files.length) {
-			await fs.promises.rm(files[next++], { force: true });
-		}
-	}));
-}
-
 /**
- * Leaves the .git of the checkout without its index, so that actions/checkout writes every file of
- * a job's commit, and with a tag at its commit, which actions/checkout keeps when it reuses the
- * repository (it deletes the branches) and which its shallow fetch sends, to download only what
- * changed. The untracked files stay: node_modules, .build, and the tools beside the workspace.
+ * Leaves the checkout of an image ready for the checkouts of the jobs: HEAD detached at its commit,
+ * which actions/checkout would otherwise check out again, a tag at the commit, which actions/checkout
+ * keeps when it reuses the repository (it deletes the branches) and which its shallow fetch sends,
+ * so that it downloads only what changed, and git comparing only the sizes and modification times
+ * of the files, which the images keep (unlike their inodes and change times), so that the checkout
+ * writes only the files that changed.
  */
 async function seed(): Promise<void> {
 	const ws = workspace();
 	const git = (...args: string[]) => run('git', ['-C', ws, ...args], { stdio: ['ignore', 'pipe', 'inherit'] });
 	const commit = git('rev-parse', 'HEAD').trim();
+	git('checkout', '--quiet', '--detach');
 	git('tag', '--force', SEED_TAG, 'HEAD');
+	git('config', '--local', 'core.checkStat', 'minimal');
+	git('config', '--local', 'core.trustctime', 'false');
 	// No credentials in an image
 	const keys = spawnSync('git', ['-C', ws, 'config', '--local', '--name-only', '--get-regexp', '^(http\\..*\\.extraheader|includeif\\..*)$'], { encoding: 'utf8' }).stdout ?? '';
 	for (const key of new Set(keys.split(/\r?\n/).filter(Boolean))) {
 		git('config', '--local', '--unset-all', key);
 	}
-	const tracked = git('ls-files', '-z').split('\0').filter(Boolean);
-	fs.rmSync(path.join(ws, '.git', 'index'), { force: true });
-	await removeAll(tracked.map(file => path.join(ws, file)), 64);
 	const metadata: Metadata = { commit, workspace: ws, created: new Date().toISOString() };
 	fs.writeFileSync(path.join(imageRoot(), METADATA_FILE), `${JSON.stringify(metadata, null, '\t')}\n`);
-	log(`removed ${tracked.length} checked out files, and tagged ${commit}`);
+	log(`prepared the checkout of ${commit}`);
 }
 
 //#endregion

@@ -8,13 +8,13 @@ The test jobs of pull requests ([pr-linux-test.yml](../pr-linux-test.yml), [pr-d
 
 1. **Downloads the scripts** of its commit from the API (`image.ts`, and on Windows `vhd.ps1` and `Vhd.cs`), and `.nvmrc` for the Node.js version.
 2. **Restores the image** (`image.ts restore`): finds the newest image of `main`, downloads it with parallel range requests, and mounts it at the parent folder of the workspace, so that the workspace keeps its path. Without an image, or on any error, it warns and the job installs everything as before.
-3. **Checks out its commit** with `clean: false`, which keeps the untracked files of the image and reuses its `.git`: the shallow fetch sends the tag at the commit of the image, and downloads only what changed since.
+3. **Checks out its commit** with `clean: false`, which keeps the untracked files of the image and reuses its checkout: the shallow fetch sends the tag at the commit of the image, and downloads only what changed since, and git writes only the files that changed, as it compares their sizes and modification times, which the image keeps.
 4. **Compares the dependencies** (`image.ts deps`) with the install state that `build/npm/postinstall.ts` saved in the image (see `build/npm/installStateHash.ts`). When an input of the install changed, the job runs its usual install steps on the `node_modules` of the image, and pnpm installs only what changed.
 5. **Keeps the prepared Electron** when it was prepared from the same inputs (see [setup-electron](../../actions/setup-electron/action.yml)), and finds the Playwright browsers in the image (`PLAYWRIGHT_BROWSERS_PATH`).
 
 ## The images
 
-The workspace of an image is at the path of the workspaces of the jobs, because pnpm links packages of different folders with junctions on Windows, whose targets are absolute paths, and records its store in `node_modules/.modules.yaml`: with another store, pnpm installs every package again. The store (`pnpm_config_store_dir`) and the Playwright browsers are beside the workspace, in the image. The jobs don't need the content of the store: with an empty store at the same path, pnpm only downloads the packages that changed.
+The workspace of an image is at the path of the workspaces of the jobs, because pnpm links packages of different folders with junctions on Windows, whose targets are absolute paths, and records its store in `node_modules/.modules.yaml`: with another store, pnpm installs every package again. The store (`pnpm_config_store_dir`) and the Playwright browsers are beside the workspace, in the image. The jobs don't need the content of the store: with an empty store at the same path, pnpm only downloads the packages that changed. On Windows, pnpm hard links the packages from the store, as its clones on ReFS store them again.
 
 | Platform | Image | Restore |
 | -------- | ----- | ------- |
@@ -22,7 +22,7 @@ The workspace of an image is at the path of the workspaces of the jobs, because 
 | macOS | APFS volume in a sparse ASIF image | Recreated from chunks of zstd, then attached |
 | Windows | Dev Drive in a VHDX with blocks of 1 MB | Recreated from chunks of zstd into a temporary file, which Windows keeps in memory, then attached through the file system cache with the virtual disk API ([Vhd.cs](Vhd.cs)) |
 
-The chunks of 32 MB download and decompress in parallel, and the restore writes them in order as they arrive: the disk of the Windows runners, which writes 250-650 MB/s, sets the pace. Images keep the files that pnpm installed, the `.build` folder (Electron, and on Linux the sysroots and compilers of `setup-env.sh`), and a `.git` without its index and checked out files (`image.ts seed`).
+The chunks of 32 MB download and decompress in parallel, and the restore writes them in order as they arrive: the disk of the Windows runners, which writes 250-650 MB/s, sets the pace. Images keep everything of the workspace: the checkout of their commit with HEAD detached (`image.ts seed`), the files that pnpm installed, and the `.build` folder (Electron, and on Linux the sysroots and compilers of `setup-env.sh`).
 
 ## Trust
 
