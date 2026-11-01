@@ -33,6 +33,11 @@ interface SessionRequest {
 	requestingExtensionIds: string[];
 	scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest;
 	options: IAuthenticationProviderSessionOptions;
+	/**
+	 * Set when the extension supplied Accounts menu text. Such a request is completed only by its own menu command,
+	 * so a different labeled request for the same scopes can stay visible.
+	 */
+	accountsMenuLabel?: string;
 }
 
 interface SessionRequestInfo {
@@ -45,6 +50,37 @@ interface SessionAccessRequest {
 	extensionId: string;
 	scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest;
 	options: IAuthenticationProviderSessionOptions;
+	accountsMenuLabel?: string;
+}
+
+/** Uses an extension-provided Accounts menu label, ignoring blank text. */
+function normalizeAccountsMenuLabel(accountsMenuLabel: string | undefined): string | undefined {
+	const label = typeof accountsMenuLabel === 'string' ? accountsMenuLabel.trim() : '';
+	return label || undefined;
+}
+
+/** Accounts menu title. A custom label is added to VS Code's own provider and extension text. */
+function accountsMenuTitle(kind: 'signIn' | 'access', providerLabel: string, extensionName: string, accountsMenuLabel: string | undefined): string {
+	if (kind === 'signIn') {
+		return accountsMenuLabel
+			? nls.localize({
+				key: 'signInRequestLabeled',
+				comment: ['{0} is the authentication provider label. {1} is the extension name. {2} is an extension-provided label that distinguishes this request from other requests by the same extension. (1) indicates that this menu item contributes to a badge count.']
+			}, "Sign in with {0} to use {1} ({2}) (1)", providerLabel, extensionName, accountsMenuLabel)
+			: nls.localize({
+				key: 'signInRequest',
+				comment: [`The placeholder {0} will be replaced with an authentication provider's label. {1} will be replaced with an extension name. (1) is to indicate that this menu item contributes to a badge count.`]
+			}, "Sign in with {0} to use {1} (1)", providerLabel, extensionName);
+	}
+	return accountsMenuLabel
+		? nls.localize({
+			key: 'accessRequestLabeled',
+			comment: [`{0} is the authentication provider''s label. {1} is the extension name. {2} is an extension-provided label that distinguishes this request from other requests by the same extension. (1) indicates that this menu item contributes to a badge count.`]
+		}, "Grant access to {0} for {1} ({2})... (1)", providerLabel, extensionName, accountsMenuLabel)
+		: nls.localize({
+			key: 'accessRequest',
+			comment: [`The placeholder {0} will be replaced with an authentication provider''s label. {1} will be replaced with an extension name. (1) is to indicate that this menu item contributes to a badge count`]
+		}, "Grant access to {0} for {1}... (1)", providerLabel, extensionName);
 }
 
 // TODO@TylerLeonhardt: This should all go in MainThreadAuthentication
@@ -153,6 +189,10 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 	}
 
 	private async hasSessionForRequest(providerId: string, request: SessionRequest, addedSessions: readonly AuthenticationSession[]): Promise<boolean> {
+		// A custom label is a separate account prompt. Only its own menu command should retire it.
+		if (request.accountsMenuLabel) {
+			return false;
+		}
 		const { scopeListOrRequest, options } = request;
 		if (!isAuthenticationWwwAuthenticateRequest(scopeListOrRequest) && !addedSessions.some(session => scopesMatch(session.scopes, scopeListOrRequest))) {
 			return false;
@@ -205,8 +245,13 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		}
 	}
 
-	private accessRequestKey(extensionId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, options: IAuthenticationProviderSessionOptions): string {
-		return JSON.stringify([extensionId, getAuthenticationSessionRequestKey(scopeListOrRequest, options)]);
+	private sessionRequestKey(scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, options: IAuthenticationProviderSessionOptions, accountsMenuLabel: string | undefined): string {
+		const requestKey = getAuthenticationSessionRequestKey(scopeListOrRequest, options);
+		return accountsMenuLabel ? JSON.stringify([requestKey, accountsMenuLabel]) : requestKey;
+	}
+
+	private accessRequestKey(extensionId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, options: IAuthenticationProviderSessionOptions, accountsMenuLabel?: string): string {
+		return JSON.stringify([extensionId, this.sessionRequestKey(scopeListOrRequest, options, accountsMenuLabel)]);
 	}
 
 	private removeAccessRequest(providerId: string, requestKey: string): void {
@@ -367,7 +412,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 	/**
 	 * This function should be used only when there are sessions to disambiguate.
 	 */
-	async selectSession(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, availableSessions: readonly AuthenticationSession[], options: IAuthenticationProviderSessionOptions = {}): Promise<AuthenticationSession> {
+	async selectSession(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, availableSessions: readonly AuthenticationSession[], options: IAuthenticationProviderSessionOptions = {}, accountsMenuLabel?: string): Promise<AuthenticationSession> {
 		const allAccounts = await this._authenticationService.getAccounts(providerId);
 		if (!allAccounts.length) {
 			throw new Error('No accounts available');
@@ -423,7 +468,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 
 				this._authenticationAccessService.updateAllowedExtensions(providerId, accountName, [{ id: extensionId, name: extensionName, allowed: true }]);
 				this._updateAccountAndSessionPreferences(providerId, extensionId, session);
-				this.removeAccessRequest(providerId, this.accessRequestKey(extensionId, scopeListOrRequest, options));
+				this.removeAccessRequest(providerId, this.accessRequestKey(extensionId, scopeListOrRequest, options, normalizeAccountsMenuLabel(accountsMenuLabel)));
 
 				resolve(session);
 			}));
@@ -449,12 +494,12 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		if (!provider) {
 			return;
 		}
-		const { possibleSessions, extensionId, scopeListOrRequest, options } = existingRequest;
+		const { possibleSessions, extensionId, scopeListOrRequest, options, accountsMenuLabel } = existingRequest;
 
 		let session: AuthenticationSession | undefined;
 		if (provider.supportsMultipleAccounts) {
 			try {
-				session = await this.selectSession(provider.id, extensionId, extensionName, scopeListOrRequest, possibleSessions, options);
+				session = await this.selectSession(provider.id, extensionId, extensionName, scopeListOrRequest, possibleSessions, options, accountsMenuLabel);
 			} catch (error) {
 				if (!isCancellationError(error)) {
 					throw error;
@@ -473,9 +518,10 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		}
 	}
 
-	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: readonly AuthenticationSession[], options: IAuthenticationProviderSessionOptions = {}): void {
+	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: readonly AuthenticationSession[], options: IAuthenticationProviderSessionOptions = {}, accountsMenuLabel?: string): void {
 		const providerRequests = this._sessionAccessRequestItems.get(providerId) || {};
-		const requestKey = this.accessRequestKey(extensionId, scopeListOrRequest, options);
+		const normalizedLabel = normalizeAccountsMenuLabel(accountsMenuLabel);
+		const requestKey = this.accessRequestKey(extensionId, scopeListOrRequest, options, normalizedLabel);
 		const hasExistingRequest = providerRequests[requestKey];
 		if (hasExistingRequest) {
 			return;
@@ -487,13 +533,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 			group: '3_accessRequests',
 			command: {
 				id: commandId,
-				title: nls.localize({
-					key: 'accessRequest',
-					comment: [`The placeholder {0} will be replaced with an authentication provider''s label. {1} will be replaced with an extension name. (1) is to indicate that this menu item contributes to a badge count`]
-				},
-					"Grant access to {0} for {1}... (1)",
-					provider.label,
-					extensionName)
+				title: accountsMenuTitle('access', provider.label, extensionName, normalizedLabel)
 			}
 		});
 
@@ -502,12 +542,12 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 			handler: () => this.completeSessionAccessRequest(provider, requestKey, extensionName)
 		});
 
-		providerRequests[requestKey] = { extensionId, scopeListOrRequest, options, possibleSessions: [...possibleSessions], disposables: [menuItem, accessCommand] };
+		providerRequests[requestKey] = { extensionId, scopeListOrRequest, options, accountsMenuLabel: normalizedLabel, possibleSessions: [...possibleSessions], disposables: [menuItem, accessCommand] };
 		this._sessionAccessRequestItems.set(providerId, providerRequests);
 		this.updateBadgeCount();
 	}
 
-	async requestNewSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string, options: IAuthenticationProviderSessionOptions = {}): Promise<void> {
+	async requestNewSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string, options: IAuthenticationProviderSessionOptions = {}, accountsMenuLabel?: string): Promise<void> {
 		if (!this._authenticationService.isAuthenticationProviderRegistered(providerId)) {
 			// Activate has already been called for the authentication provider, but it cannot block on registering itself
 			// since this is sync and returns a disposable. So, wait for registration event to fire that indicates the
@@ -530,13 +570,15 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		}
 
 		const providerRequests = this._signInRequestItems.get(providerId) ?? {};
-		const signInRequestKey = getAuthenticationSessionRequestKey(scopeListOrRequest, options);
+		const normalizedLabel = normalizeAccountsMenuLabel(accountsMenuLabel);
+		const signInRequestKey = this.sessionRequestKey(scopeListOrRequest, options, normalizedLabel);
 		if (providerRequests[signInRequestKey]?.requestingExtensionIds.includes(extensionId)) {
 			return;
 		}
 		const request: SessionRequest = providerRequests[signInRequestKey] ?? {
 			scopeListOrRequest,
 			options,
+			accountsMenuLabel: normalizedLabel,
 			disposables: [],
 			requestingExtensionIds: []
 		};
@@ -547,13 +589,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 			group: '2_signInRequests',
 			command: {
 				id: commandId,
-				title: nls.localize({
-					key: 'signInRequest',
-					comment: [`The placeholder {0} will be replaced with an authentication provider's label. {1} will be replaced with an extension name. (1) is to indicate that this menu item contributes to a badge count.`]
-				},
-					"Sign in with {0} to use {1} (1)",
-					provider.label,
-					extensionName)
+				title: accountsMenuTitle('signIn', provider.label, extensionName, normalizedLabel)
 			}
 		});
 
