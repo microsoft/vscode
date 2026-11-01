@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import * as SnippyCompute from '../../snippy/compute';
+import * as SnippyCompute from '../../../../../../../platform/snippy/common/snippyCompute';
 
 const testMatchSource =
 	'function calculateDaysBetweenDates(begin, end) {\n    var oneDay = 24*60*60*1000; // hours*minutes*seconds*milliseconds\n    var firstDate = new Date(begin);\n    var secondDate = new Date(end);\n\n    return Math.round(Math.abs((firstDate.getTime() - secondDate.getTime())/(oneDay)));\n}';
 
-suite('Compute', function () {
+suite('Compute', () => {
 	const testCases = [
 		{ input: 'const', expected: 1 },
 		{ input: 'const foo = "bar";', expected: 7 },
+		{ input: ' \t\r\n', expected: 0 },
+		{ input: 'long_identifier'.repeat(110), expected: 1 },
+		{ input: '==== ---- #### //// ****', expected: 5 },
 		{
 			input: `for (var i = 1; i <= 100; i++) {
                 if (i % 15 == 0) {
@@ -24,22 +27,53 @@ suite('Compute', function () {
                     console.log(i);
                 }
                 }`,
-			expected: 65,
+			expected: 90,
 		},
 	];
 
-	test('lexemeLength returns the number of lexemes in a given string', function () {
+	test('lexemeLength returns the number of lexemes in a given string', () => {
 		for (const { input, expected } of testCases) {
 			assert.strictEqual(SnippyCompute.lexemeLength(input), expected);
 		}
 	});
 
-	test(`lexemeLength returns at most ${SnippyCompute.MinTokenLength} lexemes`, function () {
-		assert.strictEqual(SnippyCompute.lexemeLength(testMatchSource), SnippyCompute.MinTokenLength);
+	test('lexemeLength stops counting at the 110-lexeme Match minimum', () => {
+		assert.strictEqual(SnippyCompute.lexemeLength(testMatchSource.repeat(2)), 110);
 	});
 
-	test(`hasMinLexemeLength returns true if the string has at least ${SnippyCompute.MinTokenLength} lexemes`, function () {
-		assert.strictEqual(SnippyCompute.hasMinLexemeLength(testMatchSource), true);
-		assert.strictEqual(SnippyCompute.hasMinLexemeLength(`const foo = 'test'`), false);
+	for (const { count, length, hasMinimum } of [
+		{ count: 0, length: 0, hasMinimum: false },
+		{ count: 64, length: 64, hasMinimum: false },
+		{ count: 65, length: 65, hasMinimum: false },
+		{ count: 109, length: 109, hasMinimum: false },
+		{ count: 110, length: 110, hasMinimum: true },
+		{ count: 111, length: 110, hasMinimum: true },
+	]) {
+		test(`checks the Match minimum for ${count} lexemes`, () => {
+			const source = 'token '.repeat(count);
+			assert.deepStrictEqual({
+				length: SnippyCompute.lexemeLength(source),
+				hasMinimum: SnippyCompute.hasMinLexemeLength(source),
+			}, { length, hasMinimum });
+		});
+	}
+
+	test('does not retain regex state between minimum-length checks', () => {
+		assert.deepStrictEqual([
+			SnippyCompute.hasMinLexemeLength(testMatchSource.repeat(2)),
+			SnippyCompute.hasMinLexemeLength(testMatchSource.repeat(2)),
+			SnippyCompute.hasMinLexemeLength(testMatchSource),
+		], [true, true, false]);
+	});
+
+	test('takes 110 preceding lexemes when extending a short completion', () => {
+		const precedingContext = 'prefix '.repeat(110);
+		const source = 'ignored '.repeat(45) + precedingContext;
+		const offset = SnippyCompute.offsetLastLexemes(source, SnippyCompute.MinTokenLength);
+		assert.strictEqual(source.slice(offset), precedingContext);
+	});
+
+	test('keeps all preceding context when fewer than 110 lexemes are available', () => {
+		assert.strictEqual(SnippyCompute.offsetLastLexemes('prefix '.repeat(109), SnippyCompute.MinTokenLength), 0);
 	});
 });
