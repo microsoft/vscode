@@ -21,6 +21,7 @@ import fs from 'fs';
 import path from 'path';
 import { parseNoticeFile, type NoticeEntry } from './parse-notices.js';
 import { parseArgs } from './utils.js';
+import { readPnpmLockfileImporters } from './pnpm-lockfile.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -208,6 +209,24 @@ function collectPackageLockDeps(filePath: string): ManifestPackage[] {
 		}
 	} catch {
 		// malformed JSON or read error -- skip
+	}
+	return results;
+}
+
+/**
+ * Read the non-dev transitive dependency tree of every project (importer) of a pnpm-lock.yaml,
+ * keyed by the project's folder relative to the repository root.
+ */
+function collectPnpmLockDeps(filePath: string, repoRoot: string): Map<string, ManifestPackage[]> {
+	const results = new Map<string, ManifestPackage[]>();
+	try {
+		const lockDir = path.relative(repoRoot, path.dirname(filePath)).replace(/\\/g, '/');
+		for (const [importerId, packages] of readPnpmLockfileImporters(filePath)) {
+			const folder = path.posix.join(lockDir || '.', importerId);
+			results.set(folder, packages.filter(p => !p.dev).map(p => ({ name: p.name, version: p.version, source: 'pnpm-lock.yaml' })));
+		}
+	} catch {
+		// malformed YAML or read error -- skip
 	}
 	return results;
 }
@@ -435,13 +454,13 @@ function printReport(noticePath: string, stats: NoticeStats, xref: CrossRefResul
 		console.log('');
 
 		// Top extensions by package count
-		const extensionEntries = sorted.filter(([p]) => /^extensions\/[^/]+\/package-lock\.json$/.test(p));
+		const extensionEntries = sorted.filter(([p]) => /^extensions\/[^/]+$/.test(p));
 		if (extensionEntries.length > 0) {
 			const top10 = extensionEntries.slice(0, 10);
-			const maxExtLen = Math.max(...top10.map(([p]) => p.replace(/\/package-lock\.json$/, '').length));
+			const maxExtLen = Math.max(...top10.map(([p]) => p.length));
 			console.log('  Top 10 extensions by package count:');
 			for (const [relPath, count] of top10) {
-				const extName = relPath.replace(/\/package-lock\.json$/, '');
+				const extName = relPath;
 				console.log(`     ${extName.padEnd(maxExtLen)}  ${String(count).padStart(5)}`);
 			}
 			console.log('');
@@ -492,10 +511,19 @@ function main(): void {
 		allManifestPkgs.push(...collectPackageJsonDeps(f));
 	}
 
-	// package-lock.json files (full transitive dependency tree)
+	// pnpm-lock.yaml files (full transitive dependency tree of every project), and the
+	// package-lock.json files of the folders that are still installed with npm
+	const lockfileBreakdown = new Map<string, number>();
+	const pnpmLockFiles = walkFiles(repoRoot, n => n === 'pnpm-lock.yaml');
+	console.log(`  Found ${pnpmLockFiles.length} pnpm-lock.yaml files`);
+	for (const f of pnpmLockFiles) {
+		for (const [folder, deps] of collectPnpmLockDeps(f, repoRoot)) {
+			lockfileBreakdown.set(folder, deps.length);
+			allManifestPkgs.push(...deps);
+		}
+	}
 	const packageLockFiles = walkFiles(repoRoot, n => n === 'package-lock.json');
 	console.log(`  Found ${packageLockFiles.length} package-lock.json files`);
-	const lockfileBreakdown = new Map<string, number>();
 	for (const f of packageLockFiles) {
 		const deps = collectPackageLockDeps(f);
 		const relPath = path.relative(repoRoot, f).replace(/\\/g, '/');

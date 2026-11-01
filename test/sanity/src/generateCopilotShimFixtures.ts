@@ -315,7 +315,7 @@ function runProductionPackageTask(
 	phase: 'prepare' | 'build',
 ): void {
 	const suffix = format === 'deb' ? 'deb' : 'rpm';
-	runRequiredCommand('npm', ['run', 'gulp', `vscode-linux-${architecture}-${phase}-${suffix}`], sourceRoot);
+	runRequiredCommand('pnpm', ['run', 'gulp', `vscode-linux-${architecture}-${phase}-${suffix}`], sourceRoot);
 }
 
 function minimizePreparedPackage(entry: IFixtureBuildPlanEntry, architecture: IFixtureBuildPlan['architecture'], format: CopilotShimPackageFormat): void {

@@ -2,6 +2,7 @@
   "name": "@vscode/sample-source",
   "private": true,
   "version": "0.0.0",
+  "packageManager": "pnpm@12.16.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,8 +15,5 @@
     "@vscode/rollup-plugin-esm-url": "^1.0.1-1",
     "rollup": "*",
     "vite": "npm:rolldown-vite@latest"
-  },
-  "allowScripts": {
-    "fsevents@2.3.3": true
   }
 }

@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { compressTikToken } from './build/compressTikToken';
 import { copyStaticAssets } from './build/copyStaticAssets';
+import { copyFileReplacing, writeFileReplacing } from './build/replaceFile';
 
 export interface ITreeSitterGrammar {
 	name: string;
@@ -131,7 +132,7 @@ async function ensureCopilotSdkExport() {
 		}
 	};
 
-	await fs.promises.writeFile(packageJsonPath, `${JSON.stringify(packageJson, undefined, 2)}\n`);
+	await writeFileReplacing(packageJsonPath, `${JSON.stringify(packageJson, undefined, 2)}\n`);
 }
 
 async function materializeCopilotCliSdkLayout(): Promise<string> {
@@ -148,7 +149,7 @@ async function materializeCopilotCliSdkLayout(): Promise<string> {
 
 		for (const entry of await fs.promises.readdir(sourceDir)) {
 			if (entry.startsWith('tree-sitter') && entry.endsWith('.wasm')) {
-				await fs.promises.copyFile(path.join(sourceDir, entry), path.join(COPILOT_PACKAGE_DIR, entry));
+				await copyFileReplacing(path.join(sourceDir, entry), path.join(COPILOT_PACKAGE_DIR, entry));
 			}
 		}
 	}

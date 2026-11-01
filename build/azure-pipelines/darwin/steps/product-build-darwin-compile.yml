@@ -28,7 +28,7 @@ steps:
 
   # The CLI is built by the parallel CLI job and mixed into the client below.
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - script: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli=macOS (${{ upper(parameters.VSCODE_ARCH) }}) - CLI" "--producer=unsigned_copilot_shim_darwin_$(VSCODE_ARCH)=macOS (${{ upper(parameters.VSCODE_ARCH) }}) - CLI"
+    - script: pnpm exec deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli=macOS (${{ upper(parameters.VSCODE_ARCH) }}) - CLI" "--producer=unsigned_copilot_shim_darwin_$(VSCODE_ARCH)=macOS (${{ upper(parameters.VSCODE_ARCH) }}) - CLI"
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Wait for CLI and Copilot shim artifacts (background)
@@ -37,7 +37,7 @@ steps:
   # in the background (overwrites repo-root ThirdPartyNotices.txt before packaging).
   # Publish builds only (CIBUILD=false) — CI test jobs never ship a notice.
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadNotice.ts
+    - script: pnpm exec deemon --detach --wait -- node build/azure-pipelines/common/downloadNotice.ts
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         VSCODE_OVERWRITE_TPN: $(VSCODE_OVERWRITE_TPN)
@@ -58,14 +58,14 @@ steps:
       vscodePlatform: darwin
       VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
-  - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
+  - script: pnpm exec deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Download Copilot VSIX (background)
 
   - template: ../../common/mixin-vscode-capi.yml@self
 
-  - script: npm run gulp core-ci
+  - script: pnpm run gulp core-ci
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
     displayName: Compile
@@ -76,17 +76,17 @@ steps:
   - ${{ if gt(length(parameters.VSCODE_TEST_IDS), 0) }}:
     - script: |
         set -e
-        npm run compile --prefix test/smoke
-        npm run compile --prefix test/integration/browser
+        pnpm -C test/smoke run compile
+        pnpm -C test/integration/browser run compile
       displayName: Compile test suites (non-OSS)
       condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - script: npm run copy-policy-dto --prefix build && node build/lib/policies/policyGenerator.ts build/lib/policies/policyData.jsonc darwin
+    - script: pnpm -C build run copy-policy-dto && node build/lib/policies/policyGenerator.ts build/lib/policies/policyData.jsonc darwin
       displayName: Generate policy definitions
       retryCountOnTaskFailure: 3
 
-  - script: npx deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
+  - script: pnpm exec deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Download Copilot VSIX
@@ -95,7 +95,7 @@ steps:
   # before gulp packages it (and before any later signing/notarization).
   # Non-fatal: falls back to legacy on any problem.
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - script: npx deemon --attach -- node build/azure-pipelines/common/downloadNotice.ts
+    - script: pnpm exec deemon --attach -- node build/azure-pipelines/common/downloadNotice.ts
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         VSCODE_OVERWRITE_TPN: $(VSCODE_OVERWRITE_TPN)
@@ -105,7 +105,7 @@ steps:
 
   - script: |
       set -e
-      npm run gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
+      pnpm run gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
       AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
@@ -113,7 +113,7 @@ steps:
 
   - script: |
       set -e
-      npm run gulp vscode-reh-darwin-$(VSCODE_ARCH)-min-ci
+      pnpm run gulp vscode-reh-darwin-$(VSCODE_ARCH)-min-ci
       mv ../vscode-reh-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH) # TODO@joaomoreno
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
@@ -127,7 +127,7 @@ steps:
 
   - script: |
       set -e
-      npm run gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
+      pnpm run gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
       mv ../vscode-reh-web-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH)-web # TODO@joaomoreno
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
@@ -137,7 +137,7 @@ steps:
   # The unsigned client is published as soon as it is built, since the macOS
   # (UNIVERSAL) job only waits a limited amount of time for it.
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - script: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli=macOS (${{ upper(parameters.VSCODE_ARCH) }}) - CLI" "--producer=unsigned_copilot_shim_darwin_$(VSCODE_ARCH)=macOS (${{ upper(parameters.VSCODE_ARCH) }}) - CLI"
+    - script: pnpm exec deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli=macOS (${{ upper(parameters.VSCODE_ARCH) }}) - CLI" "--producer=unsigned_copilot_shim_darwin_$(VSCODE_ARCH)=macOS (${{ upper(parameters.VSCODE_ARCH) }}) - CLI"
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Wait for CLI and Copilot shim artifacts

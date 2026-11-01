@@ -34,8 +34,8 @@
     }
   },
   "scripts": {
-    "compile": "npx gulp compile-extension:terminal-suggest",
-    "watch": "npx gulp watch-extension:terminal-suggest",
+    "compile": "pnpm exec gulp compile-extension:terminal-suggest",
+    "watch": "pnpm exec gulp watch-extension:terminal-suggest",
     "pull-zshbuiltins": "node ./scripts/pullZshBuiltins.ts",
     "pull-fishbuiltins": "node ./scripts/pullFishBuiltins.ts"
   },

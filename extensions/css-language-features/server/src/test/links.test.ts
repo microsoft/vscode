@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { URI } from 'vscode-uri';
 import { resolve } from 'node:path';
 import { TextDocument, DocumentLink } from 'vscode-languageserver-types';
-import { WorkspaceFolder } from 'vscode-languageserver-protocol';
+import { WorkspaceFolder } from 'vscode-languageserver';
 import { getCSSLanguageService } from 'vscode-css-languageservice';
 import { getDocumentContext } from '../utils/documentContext.js';
 import { getNodeFSRequestService } from '../node/nodeFs.js';

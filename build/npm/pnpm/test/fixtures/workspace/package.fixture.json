@@ -1,0 +1,22 @@
+{
+	"name": "fixture-root",
+	"version": "1.0.0",
+	"dependencies": {
+		"a": "^1.0.0",
+		"mock": "file:./mocks/mock"
+	},
+	"devDependencies": {
+		"ts": "npm:@scope/ts6@^6.0.0",
+		"tool": "latest"
+	},
+	"overrides": {
+		"b": "^2.0.0",
+		"a@1.2.0": {
+			"tagged": "0.0.2-20"
+		}
+	},
+	"allowScripts": {
+		"a@1.2.0": true,
+		"b": false
+	}
+}

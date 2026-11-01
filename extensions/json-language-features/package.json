@@ -29,9 +29,9 @@
     }
   },
   "scripts": {
-    "compile": "npx gulp compile-extension:json-language-features-client compile-extension:json-language-features-server",
-    "watch": "npx gulp watch-extension:json-language-features-client watch-extension:json-language-features-server",
-    "install-client-next": "npm install vscode-languageclient@next"
+    "compile": "pnpm exec gulp compile-extension:json-language-features-client compile-extension:json-language-features-server",
+    "watch": "pnpm exec gulp watch-extension:json-language-features-client watch-extension:json-language-features-server",
+    "install-client-next": "pnpm add vscode-languageclient@next"
   },
   "categories": [
     "Programming Languages"

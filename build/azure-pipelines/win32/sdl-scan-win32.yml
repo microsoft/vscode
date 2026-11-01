@@ -45,6 +45,8 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
+  - template: ../common/install-pnpm.yml@self
+
   - task: NuGetAuthenticate@1
     displayName: Setup NuGet Authentication
 
@@ -123,10 +125,9 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { npm ci }
+      exec { pnpm install --frozen-lockfile }
     env:
       npm_config_arch: ${{ parameters.VSCODE_ARCH }}
-      npm_config_foreground_scripts: "true"
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-token-code-oss)"
@@ -171,12 +172,12 @@ steps:
 
   - template: ../common/mixin-vscode-capi.yml@self
 
-  - powershell: npm run gulp core-ci
+  - powershell: pnpm run gulp core-ci
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
     displayName: Compile
 
-  - powershell: npm run gulp "vscode-symbols-win32-${{ parameters.VSCODE_ARCH }}"
+  - powershell: pnpm run gulp "vscode-symbols-win32-${{ parameters.VSCODE_ARCH }}"
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
       AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)

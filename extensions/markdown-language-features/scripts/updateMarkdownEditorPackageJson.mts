@@ -274,7 +274,7 @@ async function updateManifestFilesNow(mode: 'write' | 'check'): Promise<'unchang
 		return 'unchanged';
 	}
 	if (mode === 'check') {
-		throw new Error('package.json or package.nls.json is out of date. Run npm run update-markdown-editor-package-json.');
+		throw new Error('package.json or package.nls.json is out of date. Run pnpm run update-markdown-editor-package-json.');
 	}
 	await Promise.all([
 		packageJsonUpdate.kind === 'updated'

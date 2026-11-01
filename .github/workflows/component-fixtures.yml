@@ -35,6 +35,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
+
       - name: Restore node_modules cache
         id: cache-node-modules
         uses: ./.github/actions/restore-node-modules
@@ -42,39 +45,40 @@ jobs:
           key-prefix: node_modules-component-fixtures
           key-args: "compile $(node -p process.arch)"
 
+      # Only the dependencies of the root project, without the root install scripts that install
+      # every other install root.
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --ignore-scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-
       - name: Install rspack dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci
+        run: pnpm install --frozen-lockfile
         working-directory: build/rspack
 
       - name: Copy codicons
         run: cp node_modules/@vscode/codicons/dist/codicon.ttf src/vs/base/browser/ui/codicons/codicon/codicon.ttf
 
       - name: Build component explorer
-        run: npx rspack build --config rspack.serve-out.config.mts
+        run: pnpm exec rspack build --config rspack.serve-out.config.mts
         working-directory: build/rspack
         env:
           COMPONENT_EXPLORER_STATIC_BUILD: 1
 
       - name: Install Playwright test dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
         working-directory: test/componentFixtures/playwright
 
       - name: Install Playwright Chromium
-        run: npx playwright install chromium
+        run: pnpm exec playwright install chromium
         working-directory: test/componentFixtures/playwright
 
       - name: Run Playwright fixture tests
-        run: npx playwright test
+        run: pnpm exec playwright test
         working-directory: test/componentFixtures/playwright
 
       - name: Upload Playwright test results
@@ -101,6 +105,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
+
       - name: Restore node_modules cache
         id: cache-node-modules
         uses: ./.github/actions/restore-node-modules
@@ -108,9 +115,11 @@ jobs:
           key-prefix: node_modules-component-fixtures
           key-args: "compile $(node -p process.arch)"
 
+      # Only the dependencies of the root project, without the root install scripts that install
+      # every other install root.
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --ignore-scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
@@ -118,12 +127,12 @@ jobs:
 
       - name: Install build dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci
+        run: pnpm install --frozen-lockfile
         working-directory: build
 
       - name: Install rspack dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci
+        run: pnpm install --frozen-lockfile
         working-directory: build/rspack
 
       - name: Save node_modules cache
@@ -135,7 +144,7 @@ jobs:
         run: cp node_modules/@vscode/codicons/dist/codicon.ttf src/vs/base/browser/ui/codicons/codicon/codicon.ttf
 
       - name: Build component explorer
-        run: npx rspack build --config rspack.serve-out.config.mts
+        run: pnpm exec rspack build --config rspack.serve-out.config.mts
         working-directory: build/rspack
         env:
           COMPONENT_EXPLORER_STATIC_BUILD: 1
@@ -147,7 +156,7 @@ jobs:
           path: .build/rspack-serve-out/
 
       - name: Install Playwright Chromium
-        run: npx playwright install chromium
+        run: pnpm exec playwright install chromium
 
       - name: Capture screenshots
         run: ./node_modules/.bin/component-explorer render --project ./test/componentFixtures/component-explorer.json --fixture-id-regex '/Light$'

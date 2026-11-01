@@ -1,6 +1,7 @@
 {
   "name": "code-oss-dev-build",
   "version": "1.0.0",
+  "packageManager": "pnpm@12.16.0",
   "license": "MIT",
   "devDependencies": {
     "@azure/core-auth": "^1.9.0",
@@ -48,6 +49,7 @@
     "debug": "^4.3.2",
     "esbuild": "0.27.2",
     "extract-zip": "^2.0.1",
+    "glob": "^7.2.3",
     "gulp-merge-json": "^2.1.1",
     "gulp-sort": "^2.0.0",
     "jsonc-parser": "^2.3.0",
@@ -65,28 +67,13 @@
   "type": "module",
   "scripts": {
     "copy-policy-dto": "node lib/policies/copyPolicyDto.ts",
-    "pretypecheck": "npm run copy-policy-dto",
-    "typecheck": "cd .. && npx tsc --project build/tsconfig.json",
-    "watch": "npm run typecheck -- --watch",
-    "test": "node --test '{lib,next,agent-sdk,codex}/**/*.test.ts' '../.eslint-plugin-local/tests/*.test.ts'"
+    "pretypecheck": "pnpm run copy-policy-dto",
+    "typecheck": "cd .. && pnpm exec tsc --project build/tsconfig.json",
+    "watch": "pnpm run typecheck --watch",
+    "test": "node --test '{lib,next,agent-sdk,codex,npm}/**/*.test.ts' '../.eslint-plugin-local/tests/*.test.ts'"
   },
   "optionalDependencies": {
     "tree-sitter-typescript": "^0.23.2",
     "vscode-gulp-watch": "^5.0.3"
-  },
-  "overrides": {
-    "path-scurry": {
-      "lru-cache": "11.2.1"
-    },
-    "yauzl": "^3.3.1"
-  },
-  "allowScripts": {
-    "@vscode/vsce-sign@2.1.0": true,
-    "esbuild@0.27.2": true,
-    "fsevents@2.3.3": true,
-    "keytar@7.9.0": true,
-    "tree-sitter@0.25.1": true,
-    "tree-sitter-javascript@0.23.1": true,
-    "tree-sitter-typescript@0.23.2": true
   }
 }

@@ -38,6 +38,6 @@ One setting owns `policy`; others declare `policyReference: { name }`.
 
 1. Add the policy and focused value/projection tests.
 2. Add its status to `agentHostPolicySupport` (`src/vs/platform/agentHost/common/agentHostPolicySupport.ts`); export fails without it.
-3. Run `npm run export-policy-data` from the worktree with the change and commit `build/lib/policies/policyData.jsonc`. It exports both Workbench and the Agents window and detects conflicts; never run one entrypoint's `--export-policy-data` directly. `policyExport.integrationTest.ts` checks the result.
+3. Run `pnpm run export-policy-data` from the worktree with the change and commit `build/lib/policies/policyData.jsonc`. It exports both Workbench and the Agents window and detects conflicts; never run one entrypoint's `--export-policy-data` directly. `policyExport.integrationTest.ts` checks the result.
 
 Key sources: `src/vs/base/common/policy.ts`, `src/vs/platform/policy/common/policy.ts`, `src/vs/platform/configuration/common/configurationRegistry.ts`, `src/vs/platform/configuration/common/configurations.ts`, `src/vs/workbench/services/policies/common/accountPolicyService.ts`, `build/lib/policies/policyGenerator.ts`.

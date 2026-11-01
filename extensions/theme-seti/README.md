@@ -6,7 +6,7 @@ This is an icon theme that uses the icons from [`seti-ui`](https://github.com/je
 
 There is script that can be used to update icons, [./build/update-icon-theme.js](build/update-icon-theme.js).
 
-To run this script, run `npm run update` from the `theme-seti` directory.
+To run this script, run `pnpm run update` from the `theme-seti` directory.
 
 This can be run in one of two ways: looking at a local copy of `seti-ui` for icons, or getting them straight from GitHub.
 

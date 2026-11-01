@@ -9,7 +9,9 @@
 # Lines starting with `#` are comments. Blank lines are ignored.
 
 .github/skills/heap-snapshot-analysis/helpers/streamSnapshot.mjs
+.pnpmfile.mjs
 .vscode-test.js
+build/.pnpmfile.mjs
 build/azure-pipelines/common/installPlaywright.js
 build/azure-pipelines/github-check-run.js
 build/builtin/browser-main.js
@@ -70,6 +72,7 @@ extensions/vscode-colorize-tests/test/colorize-fixtures/test.js
 extensions/vscode-colorize-tests/test/colorize-fixtures/test6916.js
 extensions/yaml/build/update-grammar.js
 gulpfile.mjs
+remote/.pnpmfile.mjs
 scripts/chat-simulation/common/perf-scenarios.js
 scripts/chat-simulation/common/utils.js
 scripts/chat-simulation/merge-ci-summary.js

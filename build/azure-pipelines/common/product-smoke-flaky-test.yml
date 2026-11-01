@@ -89,18 +89,22 @@ jobs:
           KeyVaultName: vscode-oss-build-secrets
           SecretsFilter: "github-token-code-oss"
 
+      - template: ./install-pnpm.yml@self
+        parameters:
+          setupRegistry: true
+
       - ${{ each step in parameters.setupSteps }}:
         - ${{ step }}
 
       - ${{ if eq(parameters.platform, 'windows') }}:
-        - powershell: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
+        - powershell: pnpm exec npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
           env:
             GITHUB_TOKEN: "$(github-token-code-oss)"
             AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
           displayName: Download Electron and Playwright
           retryCountOnTaskFailure: 3
       - ${{ else }}:
-        - script: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
+        - script: pnpm exec npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
           env:
             GITHUB_TOKEN: "$(github-token-code-oss)"
             AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)

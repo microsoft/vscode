@@ -231,6 +231,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
+
       - name: Restore node_modules cache
         id: cache-node-modules
         uses: ./.github/actions/restore-node-modules
@@ -252,24 +255,67 @@ jobs:
           set -e
 
           for i in {1..5}; do # try 5 times
-            npm ci && break
+            pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
+              echo "pnpm install failed too many times" >&2
               exit 1
             fi
-            echo "Npm install failed $i, trying again..."
+            echo "pnpm install failed $i, trying again..."
           done
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Transition-time check: the pnpm lockfiles resolve the same versions as the npm lockfiles they
+      # were generated from. The pull request that moves to pnpm ends with the generated commit, which
+      # deletes the npm lockfiles, so they are read from its parent: the base's npm lockfiles lack the
+      # dependencies that the pull request adds. The parent also holds for the merge commit that is
+      # checked out: while the pull request merges cleanly, the base can't have changed an npm
+      # lockfile that it deletes. An npm lockfile that the base added is not converted, so the step
+      # fails on one. Once the base has no package-lock.json (after the pnpm cutover) the step has
+      # nothing to compare with and passes; remove it then. No --strict: differences for the owner to
+      # review are reported without failing.
+      - name: Verify pnpm lockfiles
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -e
+          if ! git cat-file -e "$PR_BASE_SHA^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "$PR_BASE_SHA"
+          fi
+          if ! git cat-file -e "$PR_BASE_SHA:package-lock.json" 2>/dev/null; then
+            echo "The pull request base has no package-lock.json; there are no npm lockfiles to compare with."
+            exit 0
+          fi
+          git fetch --no-tags --depth=2 origin "$PR_HEAD_SHA"
+          if git cat-file -e "$PR_HEAD_SHA:package-lock.json" 2>/dev/null || ! git cat-file -e "$PR_HEAD_SHA^:package-lock.json" 2>/dev/null; then
+            echo "::error::The last commit of the pull request must be the generated commit that deletes package-lock.json (node build/npm/pnpm/convert.ts); the npm lockfiles are read from its parent."
+            exit 1
+          fi
+          added=$(git diff --name-only --no-renames --diff-filter=A "$PR_HEAD_SHA" HEAD -- package-lock.json ':(glob)**/package-lock.json')
+          if [ -n "$added" ]; then
+            echo "$added"
+            echo "::error::The pull request base added the npm lockfiles above. Rebase the pull request and convert them."
+            exit 1
+          fi
+          mkdir -p .build
+          node build/npm/pnpm/verify-locks.ts --npm-ref "$PR_HEAD_SHA^" --report .build/verify-locks-report.json
+
+      - name: Upload pnpm lockfile report
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: verify-locks-report-${{ github.run_attempt }}
+          path: .build/verify-locks-report.json
+          if-no-files-found: ignore
+
       - name: Prepare Electron types
         run: node build/npm/electronTypes.ts
 
       - name: Type check /build/ scripts
         id: typecheck-build
-        run: npm run typecheck
+        run: pnpm run typecheck
         working-directory: build
 
       - name: Prepare built-in extensions cache key
@@ -293,21 +339,21 @@ jobs:
       - name: Check Markdown editor manifests and clipboard
         id: markdown-editor
         run: |
-          npm run markdown-editor-package-json-check
-          npm --prefix extensions/markdown-language-features run test-markdown-editor-package-json
-          npm --prefix extensions/markdown-language-features run test-markdown-editor-clipboard
+          pnpm run markdown-editor-package-json-check
+          pnpm -C extensions/markdown-language-features run test-markdown-editor-package-json
+          pnpm -C extensions/markdown-language-features run test-markdown-editor-clipboard
 
       # Hygiene and ESLint check only the changed files, so they take seconds and fail the job
       # before the compilation checks start. --continue-on-error reports both when both fail.
       # ESLint stays out of the compilation checks so that its worker memory doesn't overlap theirs.
       - name: Hygiene & ESLint
         id: hygiene
-        run: npm exec -- npm-run-all2 -lp --continue-on-error "hygiene -- --changed-since $PR_BASE_SHA" "eslint -- --changed-since $PR_BASE_SHA"
+        run: pnpm exec npm-run-all2 -lp --continue-on-error "hygiene --changed-since $PR_BASE_SHA" "eslint --changed-since $PR_BASE_SHA"
 
       # core-ci-pr skips the minified bundles that only the product build uses.
       - name: Compile
         id: compile
-        run: npm exec -- npm-run-all2 -lp core-ci-pr valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+        run: pnpm exec npm-run-all2 -lp core-ci-pr valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -349,6 +395,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
+
       # Reuse the node_modules cache that .github/workflows/pr-node-modules.yml keeps warm on
       # `main`. Never save: PR-scoped caches are not shared with other PRs and only evict the
       # shared ones.
@@ -365,29 +414,29 @@ jobs:
           sudo apt update
           sudo apt install -y libxkbfile-dev pkg-config libkrb5-dev libxss1
 
-      - name: Execute npm
+      - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         run: |
-          npm ci
+          pnpm install --frozen-lockfile
 
       - name: Download Playwright
-        run: npm run playwright-install
+        run: pnpm run playwright-install
 
       - name: Run Monaco Editor Checks
-        run: npm run monaco-compile-check
+        run: pnpm run monaco-compile-check
 
       - name: Check generated Monaco declarations
-        run: npm run gulp monacodts-check
+        run: pnpm run gulp monacodts-check
 
       - name: Editor Distro & ESM
-        run: npm run gulp editor-distro
+        run: pnpm run gulp editor-distro
 
       - name: Editor ESM sources check
         working-directory: ./test/monaco
-        run: npm run esm-check
+        run: pnpm run esm-check
 
       - name: Typings validation prep
         run: |
@@ -395,6 +444,7 @@ jobs:
 
       - name: Typings validation
         working-directory: ./typings-test
+        # npm only writes a CommonJS package.json here; `pnpm init` defaults to ES modules.
         run: |
           npm init -yp
           ../node_modules/.bin/tsc6 --init
@@ -403,16 +453,16 @@ jobs:
 
       - name: Package Editor with Webpack
         working-directory: ./test/monaco
-        run: npm run bundle-webpack
+        run: pnpm run bundle-webpack
 
       - name: Compile Editor Tests
         working-directory: ./test/monaco
-        run: npm run compile
+        run: pnpm run compile
 
       - name: Run Editor Tests
         timeout-minutes: 5
         working-directory: ./test/monaco
-        run: npm run test
+        run: pnpm run test
 
   telemetry:
     name: Telemetry
@@ -431,10 +481,14 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
+
       - name: Install telemetry extractor
         run: |
-          # Use the same exact version as npm ci in the official builds.
-          version=$(node -p "require('./package-lock.json').packages['node_modules/@vscode/telemetry-extractor'].version")
+          # Use the same exact version as pnpm install in the official builds. Only the extractor is
+          # installed, into a scratch folder outside the repository, so npm is fine for this.
+          version=$(pnpm list --lockfile-only --json --depth 0 --filter . @vscode/telemetry-extractor | node -p "const [root] = JSON.parse(require('fs').readFileSync(0, 'utf8')); ({ ...root.dependencies, ...root.devDependencies })['@vscode/telemetry-extractor'].version")
           npm install --prefix "$RUNNER_TEMP/telemetry-extractor" --no-save --no-package-lock --no-audit --no-fund "@vscode/telemetry-extractor@$version"
 
       - name: Run vscode-telemetry-extractor
@@ -552,6 +606,9 @@ jobs:
         with:
           node-version-file: extensions/copilot/.nvmrc
 
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
+
       - name: Restore node_modules cache
         id: cache-node-modules
         uses: ./.github/actions/restore-node-modules
@@ -559,23 +616,24 @@ jobs:
           key-prefix: copilot-node_modules-linux
           key-args: "$(node -p process.platform) $(node -p process.arch)"
 
+      # Same commands as the Copilot jobs of pr-node-modules.yml, which save this cache on main.
       - name: Install root dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --ignore-scripts --no-workspaces
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
 
       - name: Install copilot dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         working-directory: extensions/copilot
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Ensure no duplicate cache keys
         working-directory: extensions/copilot
-        run: npx tsx test/base/cache-cli check
+        run: pnpm exec tsx test/base/cache-cli check
 
       - name: Ensure no untrusted cache changes
         if: github.event_name == 'pull_request'
         working-directory: extensions/copilot
-        run: npx tsx build/pr-check-cache-files.ts
+        run: pnpm exec tsx build/pr-check-cache-files.ts
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
@@ -596,10 +654,13 @@ jobs:
         with:
           node-version-file: extensions/copilot/.nvmrc
 
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
+
       - name: Validate telemetry events
         working-directory: extensions/copilot
         run: |
-          version=$(node -p "require('../../package-lock.json').packages['node_modules/@vscode/telemetry-extractor'].version")
+          version=$(pnpm -C ../.. list --lockfile-only --json --depth 0 --filter . @vscode/telemetry-extractor | node -p "const [root] = JSON.parse(require('fs').readFileSync(0, 'utf8')); ({ ...root.dependencies, ...root.devDependencies })['@vscode/telemetry-extractor'].version")
           npx --package="@vscode/telemetry-extractor@$version" --yes vscode-telemetry-extractor -s . > /dev/null
 
   copilot-linux-tests:
@@ -619,6 +680,9 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: extensions/copilot/.nvmrc
+
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
 
       - name: Setup Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -650,46 +714,47 @@ jobs:
           key-prefix: copilot-node_modules-linux
           key-args: "$(node -p process.platform) $(node -p process.arch)"
 
+      # Same commands as the Copilot jobs of pr-node-modules.yml, which save this cache on main.
       - name: Install root dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --ignore-scripts --no-workspaces
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
 
       - name: Install copilot dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         working-directory: extensions/copilot
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: TypeScript type checking
         working-directory: extensions/copilot
-        run: npm run typecheck
+        run: pnpm run typecheck
 
       - name: Lint
         working-directory: extensions/copilot
-        run: npm run lint
+        run: pnpm run lint
 
       - name: Compile
         working-directory: extensions/copilot
-        run: npm run compile
+        run: pnpm run compile
 
       - name: Run extension host tests
         working-directory: extensions/copilot
-        run: xvfb-run -a npm run test:extension
+        run: xvfb-run -a pnpm run test:extension
 
       - name: Run vitest unit tests
         working-directory: extensions/copilot
-        run: npm run test:unit
+        run: pnpm run test:unit
 
       - name: Run simulation tests with cache
         working-directory: extensions/copilot
-        run: npm run simulate-ci
+        run: pnpm run simulate-ci
 
       - name: Run Completions Core prompt tests
         working-directory: extensions/copilot
-        run: npm run test:prompt
+        run: pnpm run test:prompt
 
       - name: Run Completions Core lib tests using VS Code
         working-directory: extensions/copilot
-        run: xvfb-run -a npm run test:completions-core
+        run: xvfb-run -a pnpm run test:completions-core
 
       - name: Archive simulation output
         if: always()
@@ -724,6 +789,9 @@ jobs:
         with:
           node-version-file: extensions/copilot/.nvmrc
 
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
+
       - name: Setup Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
@@ -745,38 +813,39 @@ jobs:
           key-prefix: copilot-node_modules-windows
           key-args: "$(node -p process.platform) $(node -p process.arch)"
 
+      # Same commands as the Copilot jobs of pr-node-modules.yml, which save this cache on main.
       - name: Install root dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --ignore-scripts --no-workspaces
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
 
       - name: Install copilot dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         working-directory: extensions/copilot
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Compile
         working-directory: extensions/copilot
-        run: npm run compile
+        run: pnpm run compile
 
       - name: Run extension host tests
         working-directory: extensions/copilot
-        run: npm run test:extension
+        run: pnpm run test:extension
 
       - name: Run vitest unit tests
         working-directory: extensions/copilot
-        run: npm run test:unit
+        run: pnpm run test:unit
 
       - name: Run simulation tests with cache
         working-directory: extensions/copilot
-        run: npm run simulate-ci
+        run: pnpm run simulate-ci
 
       - name: Run Completions Core prompt tests
         working-directory: extensions/copilot
-        run: npm run test:prompt
+        run: pnpm run test:prompt
 
       - name: Run Completions Core lib tests using VS Code
         working-directory: extensions/copilot
-        run: npm run test:completions-core
+        run: pnpm run test:completions-core
 
   # GitHub neither expands the matrix of a job that its if: skips nor evaluates the expressions in
   # the name of a skipped job, so each platform has its own job with a fixed name instead of a
