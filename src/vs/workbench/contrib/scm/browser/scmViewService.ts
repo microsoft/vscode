@@ -278,9 +278,15 @@ export class SCMViewService implements ISCMViewService {
 			equalsFn: () => false
 		}, this.editorService.onDidActiveEditorChange, () => this.editorService.activeEditor);
 
+		const repositoriesObs = observableFromEventOpts({
+			owner: this,
+			equalsFn: () => false
+		}, Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository), () => this.scmService.repositories);
+
 		this._activeEditorRepositoryObs = derivedObservableWithCache<ISCMRepository | undefined>(this,
 			(reader, lastValue) => {
 				const activeEditor = this._activeEditorObs.read(reader);
+				repositoriesObs.read(reader);
 				const activeResource = EditorResourceAccessor.getOriginalUri(activeEditor);
 				if (!activeResource) {
 					return lastValue;
