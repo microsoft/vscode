@@ -108,6 +108,14 @@ suite('Sessions presentation entry isolation', () => {
 			assert.deepStrictEqual(contributions.filter(file => dependencies.has(file)), contributions);
 		});
 
+		test(`${entry} keeps clipboard registration outside the restore-blocking phase`, () => {
+			const file = entry.includes('.mobile.')
+				? mobilePresentationRoot + 'mobileClipboardImageContext.ts'
+				: defaultChatPresentation;
+			assert.match(fs.readFileSync(path.join(repositoryRoot, file), 'utf8'),
+				/registerWorkbenchContribution2\('chat\.(?:mobileClipboardImageContext|clipboardImageContext)', \w+, WorkbenchPhase\.AfterRestored\);/);
+		});
+
 		test(`${entry} includes redesigned input and edit rendering only for experimental mobile`, () => {
 			const dependencies = collectSourceDependencies(entry);
 			const mobile = entry.includes('.mobile.');
