@@ -156,17 +156,18 @@ export class UriTemplate {
 					const pairs: string[] = [];
 					for (const k in value) {
 						if (Object.prototype.hasOwnProperty.call(value, k)) {
-							const thisVal = String((value as Record<string, unknown>)[k]);
+							const key = UriTemplate._encode(k, isReserved);
+							const thisVal = UriTemplate._encode(String((value as Record<string, unknown>)[k]), isReserved);
 							if (isParam) {
-								pairs.push(k + '=' + thisVal);
+								pairs.push(key + '=' + thisVal);
 							} else if (isForm || isFormCont) {
-								pairs.push(k + '=' + thisVal);
+								pairs.push(key + '=' + thisVal);
 							} else if (isLabel) {
-								pairs.push(k + '=' + thisVal);
+								pairs.push(key + '=' + thisVal);
 							} else if (isPath) {
-								pairs.push('/' + k + '=' + UriTemplate._encode(thisVal, isReserved));
+								pairs.push('/' + key + '=' + thisVal);
 							} else {
-								pairs.push(k + '=' + UriTemplate._encode(thisVal, isReserved));
+								pairs.push(key + '=' + thisVal);
 							}
 						}
 					}
@@ -186,11 +187,11 @@ export class UriTemplate {
 					const pairs: string[] = [];
 					for (const k in value) {
 						if (Object.prototype.hasOwnProperty.call(value, k)) {
-							pairs.push(k);
-							pairs.push(String((value as Record<string, unknown>)[k]));
+							pairs.push(UriTemplate._encode(k, isReserved));
+							pairs.push(UriTemplate._encode(String((value as Record<string, unknown>)[k]), isReserved));
 						}
 					}
-					// For label, param, form, join as keys=semi,;,dot,.,comma,, (no encoding of , or ;)
+					// For label, param, form, join as keys=semi,%3B,dot,.,comma,%2C
 					const joined = pairs.join(',');
 					if (isLabel) {
 						vals.push(joined);
@@ -203,27 +204,28 @@ export class UriTemplate {
 				continue;
 			}
 			if (Array.isArray(value)) {
+				const items = value.map(x => UriTemplate._encode(String(x), isReserved));
 				if (v.explodable) {
 					if (isLabel) {
-						vals.push(value.join('.'));
+						vals.push(items.join('.'));
 					} else if (isPath) {
-						vals.push(value.map(x => '/' + UriTemplate._encode(x, isReserved)).join(''));
+						vals.push(items.map(x => '/' + x).join(''));
 					} else if (isParam) {
-						vals.push(value.map(x => v.name + '=' + String(x)).join(';'));
+						vals.push(items.map(x => v.name + '=' + x).join(';'));
 					} else if (isForm || isFormCont) {
-						vals.push(value.map(x => v.name + '=' + String(x)).join('&'));
+						vals.push(items.map(x => v.name + '=' + x).join('&'));
 					} else {
-						vals.push(value.map(x => UriTemplate._encode(x, isReserved)).join(','));
+						vals.push(items.join(','));
 					}
 				} else {
 					if (isLabel) {
-						vals.push(value.join(','));
+						vals.push(items.join(','));
 					} else if (isParam) {
-						vals.push(v.name + '=' + value.join(','));
+						vals.push(v.name + '=' + items.join(','));
 					} else if (isForm || isFormCont) {
-						vals.push(v.name + '=' + value.join(','));
+						vals.push(v.name + '=' + items.join(','));
 					} else {
-						vals.push(value.map(x => UriTemplate._encode(x, isReserved)).join(','));
+						vals.push(items.join(','));
 					}
 				}
 				continue;
