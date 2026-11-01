@@ -10,6 +10,7 @@ import { promisify } from 'util';
 
 import glob from 'glob';
 import gulpWatch from '../lib/watch/index.ts';
+import { configureProductForBuild, getBuildFeatures } from '../lib/buildFeatures.ts';
 import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from './nls-plugin.ts';
 import { convertPrivateFields, adjustSourceMap, type ConvertPrivateFieldsResult } from './private-to-property.ts';
 import { rewriteSourceMappingURL } from './source-map-url.ts';
@@ -379,9 +380,9 @@ function fileContentMapperPlugin(outDir: string, target: BuildTarget): esbuild.P
 				if (contents.includes('/*BUILD->INSERT_PRODUCT_CONFIGURATION*/')) {
 					if (productConfigReplacement === undefined) {
 						// For server-web, remove webEndpointUrlTemplate
-						const productForTarget = target === 'server-web'
+						const productForTarget = configureProductForBuild(target === 'server-web'
 							? { ...product, webEndpointUrlTemplate: undefined }
-							: product;
+							: product);
 						const productConfiguration = JSON.stringify({
 							...productForTarget,
 							version,
@@ -511,6 +512,9 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 
 		const buildOptions: esbuild.BuildOptions = {
 			...getBundleOptions(doMinify, 'neutral'),
+			define: {
+				'__VSCODE_BUILD_FEATURES__': JSON.stringify(getBuildFeatures()),
+			},
 			entryPoints: needsCssBundling
 				? [{ in: entryPath, out: entryPoint }]
 				: [entryPath],

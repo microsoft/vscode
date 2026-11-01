@@ -14,6 +14,7 @@
 //#region --- workbench common
 
 import './workbench.common.main.js';
+import { buildFeatures } from '../platform/product/common/buildFeatures.js';
 
 //#endregion
 
@@ -150,16 +151,22 @@ import './contrib/performance/browser/performance.web.contribution.js';
 import './contrib/preferences/browser/keyboardLayoutPicker.js';
 
 // Debug
-import './contrib/debug/browser/extensionHostDebugService.js';
+if (buildFeatures.debug) {
+	await import('./contrib/debug/browser/extensionHostDebugService.js');
+}
 
 // Welcome Banner
-import './contrib/welcomeBanner/browser/welcomeBanner.contribution.js';
+if (buildFeatures.welcome) {
+	await import('./contrib/welcomeBanner/browser/welcomeBanner.contribution.js');
+}
 
 // Webview
 import './contrib/webview/browser/webview.web.contribution.js';
 
 // Extensions Management
-import './contrib/extensions/browser/extensions.web.contribution.js';
+if (buildFeatures.extensionsUI) {
+	await import('./contrib/extensions/browser/extensions.web.contribution.js');
+}
 
 // Terminal
 import './contrib/terminal/browser/terminal.web.contribution.js';
@@ -167,22 +174,30 @@ import './contrib/externalTerminal/browser/externalTerminal.contribution.js';
 import './contrib/terminal/browser/terminalInstanceService.js';
 
 // Tasks
-import './contrib/tasks/browser/taskService.js';
+if (buildFeatures.tasks) {
+	await import('./contrib/tasks/browser/taskService.js');
+}
 
 // Tags
 import './contrib/tags/browser/workspaceTagsService.js';
 
 // Issues
-import './contrib/issue/browser/issue.contribution.js';
+if (buildFeatures.productServices) {
+	await import('./contrib/issue/browser/issue.contribution.js');
+}
 
 // Surveys
-import './contrib/surveys/browser/survey.contribution.js';
+if (buildFeatures.productServices) {
+	await import('./contrib/surveys/browser/survey.contribution.js');
+}
 
 // Splash
 import './contrib/splash/browser/splash.contribution.js';
 
 // Remote Start Entry for the Web
-import './contrib/remote/browser/remoteStartEntry.contribution.js';
+if (buildFeatures.remote) {
+	await import('./contrib/remote/browser/remoteStartEntry.contribution.js');
+}
 
 // Process Explorer
 import './contrib/processExplorer/browser/processExplorer.web.contribution.js';

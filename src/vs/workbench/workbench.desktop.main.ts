@@ -13,6 +13,7 @@
 //#region --- workbench common
 
 import './workbench.common.main.js';
+import { buildFeatures } from '../platform/product/common/buildFeatures.js';
 
 //#endregion
 
@@ -131,23 +132,33 @@ import './contrib/files/electron-browser/fileActions.contribution.js';
 import './contrib/codeEditor/electron-browser/codeEditor.contribution.js';
 
 // Debug
-import './contrib/debug/electron-browser/extensionHostDebugService.js';
+if (buildFeatures.debug) {
+	await import('./contrib/debug/electron-browser/extensionHostDebugService.js');
+}
 
 // Extensions Management
-import './contrib/extensions/electron-browser/extensions.contribution.js';
-import './contrib/extensions/electron-browser/devtoolsExtensionHost.contribution.js';
+if (buildFeatures.extensionsUI) {
+	await import('./contrib/extensions/electron-browser/extensions.contribution.js');
+	await import('./contrib/extensions/electron-browser/devtoolsExtensionHost.contribution.js');
+}
 
 // Issues
-import './contrib/issue/electron-browser/issue.contribution.js';
+if (buildFeatures.productServices) {
+	await import('./contrib/issue/electron-browser/issue.contribution.js');
+}
 
 // Surveys
-import './contrib/surveys/browser/survey.contribution.js';
+if (buildFeatures.productServices) {
+	await import('./contrib/surveys/browser/survey.contribution.js');
+}
 
 // Process Explorer
 import './contrib/processExplorer/electron-browser/processExplorer.contribution.js';
 
 // Remote
-import './contrib/remote/electron-browser/remote.contribution.js';
+if (buildFeatures.remote) {
+	await import('./contrib/remote/electron-browser/remote.contribution.js');
+}
 
 // Terminal
 import './contrib/terminal/electron-browser/terminal.contribution.js';
@@ -156,7 +167,9 @@ import './contrib/terminal/electron-browser/terminal.contribution.js';
 import './contrib/themes/browser/themes.test.contribution.js';
 import './services/themes/electron-browser/themes.contribution.js';
 // User Data Sync
-import './contrib/userDataSync/electron-browser/userDataSync.contribution.js';
+if (buildFeatures.sync) {
+	await import('./contrib/userDataSync/electron-browser/userDataSync.contribution.js');
+}
 
 // Tags
 import './contrib/tags/electron-browser/workspaceTagsService.js';
@@ -165,7 +178,9 @@ import './contrib/tags/electron-browser/tags.contribution.js';
 import './contrib/performance/electron-browser/performance.contribution.js';
 
 // Tasks
-import './contrib/tasks/electron-browser/taskService.js';
+if (buildFeatures.tasks) {
+	await import('./contrib/tasks/electron-browser/taskService.js');
+}
 
 // External terminal
 import './contrib/externalTerminal/electron-browser/externalTerminal.contribution.js';
@@ -190,14 +205,20 @@ import './contrib/mergeEditor/electron-browser/mergeEditor.contribution.js';
 import './contrib/multiDiffEditor/browser/multiDiffEditor.contribution.js';
 
 // Remote Tunnel
-import './contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js';
+if (buildFeatures.remote) {
+	await import('./contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js');
+}
 
 // Chat
 import './contrib/chat/electron-browser/chat.contribution.js';
-import './contrib/chat/electron-browser/tunnelHost.contribution.js';
+if (buildFeatures.remote) {
+	await import('./contrib/chat/electron-browser/tunnelHost.contribution.js');
+}
 
 // Copilot Voice
-import './contrib/agentsVoice/electron-browser/agentsVoiceNativeCommands.js';
+if (buildFeatures.copilotChat) {
+	await import('./contrib/agentsVoice/electron-browser/agentsVoiceNativeCommands.js');
+}
 
 // Encryption
 import './contrib/encryption/electron-browser/encryption.contribution.js';

@@ -17,6 +17,7 @@ import { inlineMeta } from './lib/inlineMeta.ts';
 import { computeNLSMetadataHash } from './lib/nlsMetadata.ts';
 import packageJson from '../package.json' with { type: 'json' };
 import product from '../product.json' with { type: 'json' };
+import { configureProductForBuild } from './lib/buildFeatures.ts';
 import * as crypto from 'crypto';
 import * as cp from 'child_process';
 import * as i18n from './lib/i18n.ts';
@@ -201,6 +202,13 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		let productJsonContents: string;
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
 			.pipe(jsonEditor((json: Record<string, unknown>) => {
+				const buildProduct = configureProductForBuild(json);
+				for (const key of Object.keys(json)) {
+					if (!Object.hasOwn(buildProduct, key)) {
+						delete json[key];
+					}
+				}
+				Object.assign(json, buildProduct);
 				json.commit = commit;
 				json.nlsMetadataHash = computeNLSMetadataHash(path.join(import.meta.dirname, '..', out), commit);
 				json.date = readISODate(out);

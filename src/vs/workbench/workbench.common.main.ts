@@ -6,6 +6,7 @@
 //#region --- editor/workbench core
 
 import '../editor/editor.all.js';
+import { buildFeatures } from '../platform/product/common/buildFeatures.js';
 
 import './api/browser/extensionHost.contribution.js';
 import './browser/workbench.contribution.js';
@@ -15,7 +16,6 @@ import './common/agentsColors.js';
 import './common/agentsSizes.js';
 
 //#endregion
-
 
 //#region --- workbench actions
 
@@ -33,7 +33,6 @@ import './browser/actions/widgetNavigationCommands.js';
 
 //#endregion
 
-
 //#region --- API Extension Points
 
 import './services/actions/common/menusExtensionPoint.js';
@@ -41,7 +40,6 @@ import './api/common/configurationExtensionPoint.js';
 import './api/browser/viewsExtensionPoint.js';
 
 //#endregion
-
 
 //#region --- workbench parts
 
@@ -54,7 +52,6 @@ import './browser/parts/statusbar/statusbarPart.js';
 import './browser/parts/titlebar/menubar.contribution.js';
 
 //#endregion
-
 
 //#region --- workbench services
 
@@ -144,13 +141,25 @@ import './services/agentHost/common/agentHostResourceService.js';
 import '../platform/agentHost/browser/agentHostConnectionsService.js';
 import './services/log/common/defaultLogLevels.js';
 
-import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
-import { ArtifactIntegrationRegistry, IArtifactIntegrationRegistry } from '../platform/artifactIntegrations/common/artifactIntegrationRegistry.js';
+import {
+	InstantiationType,
+	registerSingleton,
+} from '../platform/instantiation/common/extensions.js';
+import {
+	ArtifactIntegrationRegistry,
+	IArtifactIntegrationRegistry,
+} from '../platform/artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { GlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionEnablementService.js';
-import { IAllowedExtensionsService, IGlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionManagement.js';
+import {
+	IAllowedExtensionsService,
+	IGlobalExtensionEnablementService,
+} from '../platform/extensionManagement/common/extensionManagement.js';
 import { ContextViewService } from '../platform/contextview/browser/contextViewService.js';
 import { IContextViewService } from '../platform/contextview/browser/contextView.js';
-import { IListService, ListService } from '../platform/list/browser/listService.js';
+import {
+	IListService,
+	ListService,
+} from '../platform/list/browser/listService.js';
 import { MarkerDecorationsService } from '../editor/common/services/markerDecorationsService.js';
 import { IMarkerDecorationsService } from '../editor/common/services/markerDecorations.js';
 import { IMarkerService } from '../platform/markers/common/markers.js';
@@ -163,39 +172,106 @@ import { IDownloadService } from '../platform/download/common/download.js';
 import { DownloadService } from '../platform/download/common/downloadService.js';
 import { OpenerService } from '../editor/browser/services/openerService.js';
 import { IOpenerService } from '../platform/opener/common/opener.js';
-import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from '../platform/userDataSync/common/ignoredExtensions.js';
-import { ExtensionStorageService, IExtensionStorageService } from '../platform/extensionManagement/common/extensionStorage.js';
+import {
+	IgnoredExtensionsManagementService,
+	IIgnoredExtensionsManagementService,
+} from '../platform/userDataSync/common/ignoredExtensions.js';
+import {
+	ExtensionStorageService,
+	IExtensionStorageService,
+} from '../platform/extensionManagement/common/extensionStorage.js';
 import { IUserDataSyncLogService } from '../platform/userDataSync/common/userDataSync.js';
 import { UserDataSyncLogService } from '../platform/userDataSync/common/userDataSyncLog.js';
 import { AllowedExtensionsService } from '../platform/extensionManagement/common/allowedExtensionsService.js';
-import { IAllowedMcpServersService, IMcpGalleryService } from '../platform/mcp/common/mcpManagement.js';
+import {
+	IAllowedMcpServersService,
+	IMcpGalleryService,
+} from '../platform/mcp/common/mcpManagement.js';
 import { McpGalleryService } from '../platform/mcp/common/mcpGalleryService.js';
 import { AllowedMcpServersService } from '../platform/mcp/common/allowedMcpServersService.js';
 import { IWebWorkerService } from '../platform/webWorker/browser/webWorkerService.js';
 import { WebWorkerService } from '../platform/webWorker/browser/webWorkerServiceImpl.js';
-import { AgentHostMcpOAuthMetadataService, IAgentHostMcpOAuthMetadataService } from '../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
+import {
+	AgentHostMcpOAuthMetadataService,
+	IAgentHostMcpOAuthMetadataService,
+} from '../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 
-registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, InstantiationType.Delayed);
-registerSingleton(IArtifactIntegrationRegistry, ArtifactIntegrationRegistry, InstantiationType.Delayed);
-registerSingleton(IAllowedExtensionsService, AllowedExtensionsService, InstantiationType.Delayed);
-registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService, InstantiationType.Delayed);
-registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService, InstantiationType.Delayed);
-registerSingleton(IExtensionStorageService, ExtensionStorageService, InstantiationType.Delayed);
-registerSingleton(IContextViewService, ContextViewService, InstantiationType.Delayed);
+registerSingleton(
+	IUserDataSyncLogService,
+	UserDataSyncLogService,
+	InstantiationType.Delayed,
+);
+registerSingleton(
+	IArtifactIntegrationRegistry,
+	ArtifactIntegrationRegistry,
+	InstantiationType.Delayed,
+);
+registerSingleton(
+	IAllowedExtensionsService,
+	AllowedExtensionsService,
+	InstantiationType.Delayed,
+);
+registerSingleton(
+	IIgnoredExtensionsManagementService,
+	IgnoredExtensionsManagementService,
+	InstantiationType.Delayed,
+);
+registerSingleton(
+	IGlobalExtensionEnablementService,
+	GlobalExtensionEnablementService,
+	InstantiationType.Delayed,
+);
+registerSingleton(
+	IExtensionStorageService,
+	ExtensionStorageService,
+	InstantiationType.Delayed,
+);
+registerSingleton(
+	IContextViewService,
+	ContextViewService,
+	InstantiationType.Delayed,
+);
 registerSingleton(IListService, ListService, InstantiationType.Delayed);
-registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, InstantiationType.Delayed);
+registerSingleton(
+	IMarkerDecorationsService,
+	MarkerDecorationsService,
+	InstantiationType.Delayed,
+);
 registerSingleton(IMarkerService, MarkerService, InstantiationType.Delayed);
-registerSingleton(IContextKeyService, ContextKeyService, InstantiationType.Delayed);
-registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService, InstantiationType.Delayed);
+registerSingleton(
+	IContextKeyService,
+	ContextKeyService,
+	InstantiationType.Delayed,
+);
+registerSingleton(
+	ITextResourceConfigurationService,
+	TextResourceConfigurationService,
+	InstantiationType.Delayed,
+);
 registerSingleton(IDownloadService, DownloadService, InstantiationType.Delayed);
 registerSingleton(IOpenerService, OpenerService, InstantiationType.Delayed);
-registerSingleton(IWebWorkerService, WebWorkerService, InstantiationType.Delayed);
-registerSingleton(IMcpGalleryService, McpGalleryService, InstantiationType.Delayed);
-registerSingleton(IAllowedMcpServersService, AllowedMcpServersService, InstantiationType.Delayed);
-registerSingleton(IAgentHostMcpOAuthMetadataService, AgentHostMcpOAuthMetadataService, InstantiationType.Delayed);
+registerSingleton(
+	IWebWorkerService,
+	WebWorkerService,
+	InstantiationType.Delayed,
+);
+registerSingleton(
+	IMcpGalleryService,
+	McpGalleryService,
+	InstantiationType.Delayed,
+);
+registerSingleton(
+	IAllowedMcpServersService,
+	AllowedMcpServersService,
+	InstantiationType.Delayed,
+);
+registerSingleton(
+	IAgentHostMcpOAuthMetadataService,
+	AgentHostMcpOAuthMetadataService,
+	InstantiationType.Delayed,
+);
 
 //#endregion
-
 
 //#region --- workbench contributions
 
@@ -221,7 +297,9 @@ import './contrib/preferences/browser/preferencesSearch.js';
 import './contrib/performance/browser/performance.contribution.js';
 
 // Notebook
-import './contrib/notebook/browser/notebook.contribution.js';
+if (buildFeatures.notebooks) {
+	await import('./contrib/notebook/browser/notebook.contribution.js');
+}
 
 // Speech
 import './contrib/speech/browser/speech.contribution.js';
@@ -230,12 +308,16 @@ import './contrib/speech/browser/speech.contribution.js';
 import './contrib/chat/browser/chat.shared.contribution.js';
 import './contrib/chat/browser/chat.contribution.js';
 import './contrib/chat/browser/agentSessions/agentHost/agentHost.contribution.js';
-import './contrib/chat/browser/remoteAgentHost/remoteAgentHost.contribution.js';
+if (buildFeatures.remote) {
+	await import('./contrib/chat/browser/remoteAgentHost/remoteAgentHost.contribution.js');
+}
 import './contrib/chat/browser/chat.view.contribution.js';
 import './contrib/inlineChat/browser/inlineChat.contribution.js';
 
 // Copilot Voice
-import './contrib/agentsVoice/browser/agentsVoice.contribution.js';
+if (buildFeatures.copilotChat) {
+	await import('./contrib/agentsVoice/browser/agentsVoice.contribution.js');
+}
 import './contrib/mcp/browser/mcp.contribution.js';
 import './contrib/mcp/browser/mcp.view.contribution.js';
 import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';
@@ -249,7 +331,9 @@ import './contrib/interactive/browser/interactive.contribution.js';
 import './contrib/replNotebook/browser/repl.contribution.js';
 
 // Testing
-import './contrib/testing/browser/testing.contribution.js';
+if (buildFeatures.testing) {
+	await import('./contrib/testing/browser/testing.contribution.js');
+}
 
 // Logs
 import './contrib/logs/common/logs.contribution.js';
@@ -280,21 +364,30 @@ import './contrib/searchEditor/browser/searchEditor.contribution.js';
 import './contrib/sash/browser/sash.contribution.js';
 
 // Git
-import './contrib/git/browser/git.contributions.js';
-import './contrib/github/browser/githubLinkPresentation.contribution.js';
+if (buildFeatures.git) {
+	await import('./contrib/git/browser/git.contributions.js');
+}
+
+if (buildFeatures.review) {
+	await import('./contrib/github/browser/githubLinkPresentation.contribution.js');
+}
 
 // SCM
-import './contrib/scm/browser/scm.contribution.js';
-import './contrib/scm/browser/quickDiff.contribution.js';
-import './contrib/scm/browser/scm.service.contribution.js';
+if (buildFeatures.scm) {
+	await import('./contrib/scm/browser/scm.contribution.js');
+	await import('./contrib/scm/browser/quickDiff.contribution.js');
+	await import('./contrib/scm/browser/scm.service.contribution.js');
+}
 
 // Debug
-import './contrib/debug/browser/debug.contribution.js';
-import './contrib/debug/browser/debugEditorContribution.js';
-import './contrib/debug/browser/breakpointEditorContribution.js';
-import './contrib/debug/browser/callStackEditorContribution.js';
-import './contrib/debug/browser/repl.js';
-import './contrib/debug/browser/debugViewlet.js';
+if (buildFeatures.debug) {
+	await import('./contrib/debug/browser/debug.contribution.js');
+	await import('./contrib/debug/browser/debugEditorContribution.js');
+	await import('./contrib/debug/browser/breakpointEditorContribution.js');
+	await import('./contrib/debug/browser/callStackEditorContribution.js');
+	await import('./contrib/debug/browser/repl.js');
+	await import('./contrib/debug/browser/debugViewlet.js');
+}
 
 // Markers
 import './contrib/markers/browser/markers.contribution.js';
@@ -312,7 +405,9 @@ import './contrib/multiDiffEditor/browser/multiDiffEditor.contribution.js';
 import './contrib/commands/common/commands.contribution.js';
 
 // Comments
-import './contrib/comments/browser/comments.contribution.js';
+if (buildFeatures.review) {
+	await import('./contrib/comments/browser/comments.contribution.js');
+}
 
 // URL Support
 import './contrib/url/browser/url.contribution.js';
@@ -330,8 +425,10 @@ import './contrib/mediaPreview/browser/mediaPreview.contribution.js';
 import './contrib/externalUriOpener/common/externalUriOpener.contribution.js';
 
 // Extensions Management
-import './contrib/extensions/browser/extensions.contribution.js';
-import './contrib/extensions/browser/extensionsViewlet.js';
+if (buildFeatures.extensionsUI) {
+	await import('./contrib/extensions/browser/extensions.contribution.js');
+	await import('./contrib/extensions/browser/extensionsViewlet.js');
+}
 
 // Output View
 import './contrib/output/browser/output.contribution.js';
@@ -350,11 +447,15 @@ import './contrib/relauncher/browser/relauncher.contribution.js';
 import './contrib/modernUI/browser/modernUI.contribution.js';
 
 // Tasks
-import './contrib/tasks/browser/task.contribution.js';
+if (buildFeatures.tasks) {
+	await import('./contrib/tasks/browser/task.contribution.js');
+}
 
 // Remote
-import './contrib/remote/common/remote.contribution.js';
-import './contrib/remote/browser/remote.contribution.js';
+if (buildFeatures.remote) {
+	await import('./contrib/remote/common/remote.contribution.js');
+	await import('./contrib/remote/browser/remote.contribution.js');
+}
 
 // Emmet
 import './contrib/emmet/browser/emmet.contribution.js';
@@ -387,26 +488,34 @@ import './contrib/inlayHints/browser/inlayHintsAccessibilty.js';
 import './contrib/themes/browser/themes.contribution.js';
 
 // Update
-import './contrib/update/browser/update.contribution.js';
+if (buildFeatures.productServices) {
+	await import('./contrib/update/browser/update.contribution.js');
+}
 
 // Surveys
-import './contrib/surveys/browser/nps.contribution.js';
-import './contrib/surveys/browser/languageSurveys.contribution.js';
+if (buildFeatures.productServices) {
+	await import('./contrib/surveys/browser/nps.contribution.js');
+	await import('./contrib/surveys/browser/languageSurveys.contribution.js');
+}
 
 // Welcome
-import './contrib/welcomeGettingStarted/browser/gettingStarted.contribution.js';
-import './contrib/welcomeAgentSessions/browser/agentSessionsWelcome.contribution.js';
-import './contrib/welcomeWalkthrough/browser/walkThrough.contribution.js';
-import './contrib/welcomeViews/common/viewsWelcome.contribution.js';
-import './contrib/welcomeViews/common/newFile.contribution.js';
+if (buildFeatures.welcome) {
+	await import('./contrib/welcomeGettingStarted/browser/gettingStarted.contribution.js');
+	await import('./contrib/welcomeAgentSessions/browser/agentSessionsWelcome.contribution.js');
+	await import('./contrib/welcomeWalkthrough/browser/walkThrough.contribution.js');
+	await import('./contrib/welcomeViews/common/viewsWelcome.contribution.js');
+	await import('./contrib/welcomeViews/common/newFile.contribution.js');
 
-// Welcome Onboarding
-import './contrib/welcomeOnboarding/browser/welcomeOnboarding.contribution.js';
+	// Welcome Onboarding
+	await import('./contrib/welcomeOnboarding/browser/welcomeOnboarding.contribution.js');
+}
 
 // Onboarding (scenario engine)
-import './contrib/onboarding/browser/onboarding.contribution.js';
-import './contrib/chat/browser/onboarding/modelPickerTryout.contribution.js';
-import './contrib/chat/browser/onboarding/chatInputSpotlightTour.js';
+if (buildFeatures.welcome) {
+	await import('./contrib/onboarding/browser/onboarding.contribution.js');
+	await import('./contrib/chat/browser/onboarding/modelPickerTryout.contribution.js');
+	await import('./contrib/chat/browser/onboarding/chatInputSpotlightTour.js');
+}
 import './contrib/codeEditor/browser/diffEditorTryout.contribution.js';
 
 // Call Hierarchy
@@ -429,16 +538,24 @@ import './contrib/languageStatus/browser/languageStatus.contribution.js';
 import './contrib/authentication/browser/authentication.contribution.js';
 
 // User Data Sync
-import './contrib/userDataSync/browser/userDataSync.contribution.js';
+if (buildFeatures.sync) {
+	await import('./contrib/userDataSync/browser/userDataSync.contribution.js');
+}
 
 // User Data Profiles
-import './contrib/userDataProfile/browser/userDataProfile.contribution.js';
+if (buildFeatures.sync) {
+	await import('./contrib/userDataProfile/browser/userDataProfile.contribution.js');
+}
 
 // Continue Edit Session
-import './contrib/editSessions/browser/editSessions.contribution.js';
+if (buildFeatures.sync) {
+	await import('./contrib/editSessions/browser/editSessions.contribution.js');
+}
 
 // Remote Coding Agents
-import './contrib/remoteCodingAgents/browser/remoteCodingAgents.contribution.js';
+if (buildFeatures.remote) {
+	await import('./contrib/remoteCodingAgents/browser/remoteCodingAgents.contribution.js');
+}
 
 // Code Actions
 import './contrib/codeActions/browser/codeActions.contribution.js';

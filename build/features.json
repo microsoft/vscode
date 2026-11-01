@@ -1,0 +1,46 @@
+{
+	"profiles": {
+		"default": {
+			"copilotChat": true,
+			"agentSessionsUI": true,
+			"git": true,
+			"scm": true,
+			"debug": true,
+			"tasks": true,
+			"notebooks": true,
+			"testing": true,
+			"remote": true,
+			"extensionsUI": true,
+			"welcome": true,
+			"review": true,
+			"sync": true,
+			"productServices": true,
+			"terminal": true,
+			"agents": {
+				"codex": true,
+				"claude": true
+			}
+		},
+		"minimal": {
+			"copilotChat": false,
+			"agentSessionsUI": true,
+			"git": false,
+			"scm": false,
+			"debug": false,
+			"tasks": false,
+			"notebooks": false,
+			"testing": false,
+			"remote": false,
+			"extensionsUI": true,
+			"welcome": false,
+			"review": false,
+			"sync": false,
+			"productServices": false,
+			"terminal": true,
+			"agents": {
+				"codex": true,
+				"claude": true
+			}
+		}
+	}
+}

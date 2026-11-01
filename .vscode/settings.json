@@ -1,4 +1,8 @@
 {
+	// --- Minimal coding workflow: installations and builds are explicit ---
+	"task.allowAutomaticTasks": "off",
+	"npm.autoDetect": "off",
+	"extensions.ignoreRecommendations": true,
 	// --- Chat ---
 	"inlineChat.affordance": "editor",
 	"chat.tools.terminal.autoApprove": {
@@ -11,7 +15,7 @@
 	// --- Editor ---
 	"editor.insertSpaces": false,
 	"editor.experimental.asyncTokenization": true,
-	"editor.experimental.asyncTokenizationVerification": true,
+	"editor.experimental.asyncTokenizationVerification": false,
 	"editor.occurrencesHighlightDelay": 0,
 	// "editor.experimental.preferTreeSitter.typescript": true,
 	// "editor.experimental.preferTreeSitter.regex": true,
@@ -21,9 +25,11 @@
 		"files.insertFinalNewline": false
 	},
 	"[typescript]": {
+		"editor.defaultFormatter": "vscode.typescript-language-features",
 		"editor.formatOnSave": true
 	},
 	"[javascript]": {
+		"editor.defaultFormatter": "vscode.typescript-language-features",
 		"editor.formatOnSave": true
 	},
 	"[rust]": {
@@ -96,7 +102,7 @@
 		"**/*.snap": true,
 	},
 	// --- TypeScript ---
-	"js/ts.experimental.useTsgo": true,
+	"js/ts.experimental.useTsgo": false,
 	"js/ts.tsdk.path": "node_modules/typescript/lib",
 	"js/ts.preferences.importModuleSpecifier": "relative",
 	"js/ts.preferences.quoteStyle": "single",
@@ -160,7 +166,7 @@
 	"githubPullRequests.codingAgent.uiIntegration": true,
 	"githubPullRequests.enableAttestationCommits": true,
 	// --- Testing & Debugging ---
-	"testing.autoRun.mode": "rerun",
+	"testing.autoRun.mode": "off",
 	"debug.javascript.terminalOptions": {
 		"outFiles": [
 			"${workspaceFolder}/out/**/*.js",

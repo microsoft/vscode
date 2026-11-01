@@ -19,6 +19,7 @@ import ansiColors from 'ansi-colors';
 import * as jsoncParser from 'jsonc-parser';
 import { getProductionDependencies } from './dependencies.ts';
 import { type IExtensionDefinition, getExtensionStream } from './builtInExtensions.ts';
+import { filterBuiltInExtensions, getBuildFeatures } from './buildFeatures.ts';
 import { fetchUrls, fetchGithub } from './fetch.ts';
 import { createTsgoStream, spawnTsgo } from './tsgo.ts';
 import watcher from './watch/index.ts';
@@ -334,8 +335,8 @@ const marketplaceWebExtensionsExclude = new Set([
 ]);
 
 const productJson = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../../product.json'), 'utf8'));
-const builtInExtensions: IExtensionDefinition[] = productJson.builtInExtensions || [];
-const webBuiltInExtensions: IExtensionDefinition[] = productJson.webBuiltInExtensions || [];
+const builtInExtensions: IExtensionDefinition[] = filterBuiltInExtensions(productJson.builtInExtensions || []);
+const webBuiltInExtensions: IExtensionDefinition[] = filterBuiltInExtensions(productJson.webBuiltInExtensions || []);
 
 type ExtensionKind = 'ui' | 'workspace' | 'web';
 interface IExtensionManifest {
@@ -422,6 +423,7 @@ function doPackageLocalExtensionsStream(forWeb: boolean, native: boolean): Strea
 			})
 			.filter(({ name }) => native ? nativeExtensionsSet.has(name) : !nativeExtensionsSet.has(name))
 			.filter(({ name }) => excludedExtensions.indexOf(name) === -1)
+			.filter(({ name }) => getBuildFeatures().git || (name !== 'git' && name !== 'git-base'))
 			.filter(({ name }) => builtInExtensions.every(b => b.name !== name))
 			.filter(({ manifestPath }) => (forWeb ? isWebExtension(require(manifestPath)) : true))
 	);
@@ -466,6 +468,9 @@ function doPackageLocalExtensionsStream(forWeb: boolean, native: boolean): Strea
  * but must be compiled from source and included in the build.
  */
 export function packageCopilotExtensionStream(): Stream {
+	if (!getBuildFeatures().copilotChat) {
+		return es.readArray([]);
+	}
 	const extensionPath = path.join(root, 'extensions', 'copilot');
 	if (!fs.existsSync(extensionPath)) {
 		return es.readArray([]);
@@ -479,11 +484,15 @@ export function packageCopilotExtensionStream(): Stream {
 	const productionDependencies = getProductionDependencies('extensions/copilot');
 	const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
 
+	if (dependenciesSrc.length === 0) {
+		return localExtensionsStream.pipe(util2.setExecutableBit(['**/*.sh']));
+	}
+
 	return es.merge(
 		localExtensionsStream,
 		gulp.src(dependenciesSrc, { base: '.' })
 			.pipe(util2.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
-			.pipe(util2.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`)))
+			.pipe(util2.cleanNodeModules(path.join(root, `build/.moduleignore.${process.platform}`)))
 	).pipe(util2.setExecutableBit(['**/*.sh']));
 }
 

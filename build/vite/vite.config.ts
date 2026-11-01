@@ -9,6 +9,7 @@ import { componentExplorer } from '@vscode/component-explorer-vite-plugin';
 import { statSync } from 'fs';
 import { pathToFileURL } from 'url';
 import { rollupEsmUrlPlugin } from '@vscode/rollup-plugin-esm-url';
+import { getBuildFeatures } from '../lib/buildFeatures.ts';
 
 function injectBuiltinExtensionsPlugin(): Plugin {
 	let builtinExtensionsCache: unknown[] | null = null;
@@ -162,6 +163,9 @@ logger.warn = (msg, options) => {
 
 export default defineConfig({
 	base: './',
+	define: {
+		'__VSCODE_BUILD_FEATURES__': JSON.stringify(getBuildFeatures()),
+	},
 	plugins: [
 		rollupEsmUrlPlugin({}),
 		injectBuiltinExtensionsPlugin(),

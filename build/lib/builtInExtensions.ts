@@ -11,6 +11,7 @@ import es from 'event-stream';
 import { rename } from './gulp/facade.ts';
 import vfs from 'vinyl-fs';
 import * as ext from './extensions.ts';
+import { filterBuiltInExtensions } from './buildFeatures.ts';
 import { getCurrentExtensionTarget, getPlatformSpecificAssetName } from './extensionTarget.ts';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
@@ -43,8 +44,8 @@ export interface IExtensionDefinition {
 
 const root = path.dirname(path.dirname(import.meta.dirname));
 const productjson = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../../product.json'), 'utf8'));
-const builtInExtensions = productjson.builtInExtensions as IExtensionDefinition[] || [];
-const webBuiltInExtensions = productjson.webBuiltInExtensions as IExtensionDefinition[] || [];
+const builtInExtensions = filterBuiltInExtensions(productjson.builtInExtensions as IExtensionDefinition[] || []);
+const webBuiltInExtensions = filterBuiltInExtensions(productjson.webBuiltInExtensions as IExtensionDefinition[] || []);
 const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
 const ENABLE_LOGGING = !process.env['VSCODE_BUILD_BUILTIN_EXTENSIONS_SILENCE_PLEASE'];
 
