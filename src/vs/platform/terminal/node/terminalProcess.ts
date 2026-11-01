@@ -647,13 +647,16 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					return;
 				}
 				this._logService.trace('node-pty.IPty#pid');
-				exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', { env: { ...process.env, LANG: 'en_US.UTF-8' } }, (error, stdout, stderr) => {
+				exec('lsof -OPln -a -d cwd -p ' + this._ptyProcess.pid, { env: { ...process.env, LANG: 'en_US.UTF-8' } }, (error, stdout, stderr) => {
 					if (!error && stdout !== '') {
-						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
-					} else {
-						this._logService.error('lsof did not run successfully, it may not be on the $PATH?', error, stdout, stderr);
-						resolve(this._initialCwd);
+						const cwd = parseLsofCwd(stdout);
+						if (cwd) {
+							resolve(cwd);
+							return;
+						}
 					}
+					this._logService.error('lsof did not run successfully, it may not be on the $PATH?', error, stdout, stderr);
+					resolve(this._initialCwd);
 				});
 			});
 		}
@@ -703,4 +706,34 @@ class DelayedResizer extends Disposable {
 
 function hasConptyOption(obj: IPtyForkOptions | IWindowsPtyForkOptions): obj is IWindowsPtyForkOptions {
 	return 'useConpty' in obj;
+}
+
+/**
+ * Parses the current working directory from `lsof` output on macOS.
+ * Validates the file descriptor column `cwd` to avoid misparsing lines
+ * where open files or dependencies contain "cwd" in their path.
+ */
+export function parseLsofCwd(stdout: string): string | undefined {
+	if (!stdout) {
+		return undefined;
+	}
+	const lines = stdout.trim().split(/\r?\n/);
+	for (const line of lines) {
+		const trimmed = line.trim();
+		if (!trimmed || trimmed.startsWith('COMMAND')) {
+			continue;
+		}
+		const firstSlash = trimmed.indexOf('/');
+		if (firstSlash === -1) {
+			continue;
+		}
+		const prefix = trimmed.substring(0, firstSlash).trim();
+		const columns = prefix.split(/\s+/);
+		for (let i = 1; i < columns.length; i++) {
+			if (columns[i] === 'cwd' && (i >= 3 || /^\d+$/.test(columns[i - 1]))) {
+				return trimmed.substring(firstSlash).trim();
+			}
+		}
+	}
+	return undefined;
 }
