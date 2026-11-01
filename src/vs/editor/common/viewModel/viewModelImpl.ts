@@ -353,6 +353,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			// We defer this until after the loop because the coordinatesConverter
 			// relies on projections that may not yet reflect all changes in the batch.
 			const customLineHeightRangesToInsert: { fromLineNumber: number; toLineNumber: number }[] = [];
+			let shouldFlushViewLayout = false;
 
 			for (const change of changes) {
 				switch (change.changeType) {
@@ -360,7 +361,7 @@ export class ViewModel extends Disposable implements IViewModel {
 						this._lines.onModelFlushed();
 						eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
 						this._decorations.reset();
-						this.viewLayout.onFlushed(this.getLineCount(), this._getCustomLineHeights());
+						shouldFlushViewLayout = true;
 						hadOtherModelChange = true;
 						break;
 					}
@@ -410,6 +411,10 @@ export class ViewModel extends Disposable implements IViewModel {
 						break;
 					}
 				}
+			}
+
+			if (shouldFlushViewLayout) {
+				this.viewLayout.onFlushed(this.getLineCount(), this._getCustomLineHeights());
 			}
 
 			if (versionId !== null) {
