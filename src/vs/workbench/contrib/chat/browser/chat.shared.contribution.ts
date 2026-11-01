@@ -2381,7 +2381,8 @@ configurationRegistry.registerConfiguration({
 		[ChatAIDisabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.disableAIFeatures', "Disable and hide built-in AI features provided by GitHub Copilot, including chat and inline suggestions."),
-			default: false,
+			// This build's AI is the built-in LocalClaude extension (Claude Code on your Claude subscription), so the Copilot features start hidden.
+			default: true,
 			scope: ConfigurationScope.WINDOW,
 		},
 		[ChatConfiguration.CopilotCliCommandEnabled]: {
