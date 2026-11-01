@@ -6503,6 +6503,33 @@ suite('AgentHostProtocolClient', () => {
 			return { transport, request };
 		}
 
+		test('re-forwards the latest requested configuration after reconnect', async () => {
+			const { client, transports, configurationService } = createFactoryClient();
+			await configurationService.setUserConfiguration(SYNC_SETTING_A, true);
+			await completeHandshake(transports[0], client.connect());
+
+			const { transport, request } = await beginRecovery(client, transports);
+			await configurationService.setUserConfiguration(SYNC_SETTING_A, false);
+			fireConfigurationChange(configurationService, SYNC_SETTING_A);
+			const whileDisconnected = findOptionalRootConfigValue(transport.sentMessages, SYNC_CONFIG_KEY_A);
+			const reconnected = Event.toPromise(Event.filter(client.onDidChangeConnectionState, state => state === AgentHostClientState.Connected));
+			transport.fireMessage({
+				jsonrpc: '2.0', id: request.id,
+				result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+			});
+			await reconnected;
+
+			assert.deepStrictEqual({
+				initialConnection: findRootConfigValue(transports[0].sentMessages, SYNC_CONFIG_KEY_A),
+				whileDisconnected,
+				reconnected: findRootConfigValue(transport.sentMessages, SYNC_CONFIG_KEY_A),
+			}, {
+				initialConnection: true,
+				whileDisconnected: undefined,
+				reconnected: false,
+			});
+		});
+
 		test('re-forwards Dynamic Auto Tiers to a remote after reconnect', async () => {
 			const { client, transports, configurationService } = createFactoryClient();
 			await configurationService.setUserConfiguration(AgentHostDynamicAutoTiersEnabledSettingId, true);
