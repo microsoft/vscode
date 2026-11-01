@@ -124,7 +124,12 @@ export class DisassemblyView extends EditorPane {
 				const newValue = this._configurationService.getValue<IDebugConfiguration>('debug').disassemblyView.showSourceCode;
 				if (this._enableSourceCodeRender !== newValue) {
 					this._enableSourceCodeRender = newValue;
-					// todo: trigger rerender
+					const location = this.focusedAddressAndOffset;
+					if (location) {
+						this.reloadDisassembly(location.reference, location.offset);
+					} else if (this.focusedInstructionReference) {
+						this.reloadDisassembly(this.focusedInstructionReference, 0);
+					}
 				} else {
 					this._disassembledInstructions?.rerender();
 				}
