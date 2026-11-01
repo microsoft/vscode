@@ -411,6 +411,58 @@ export function setup(logger: Logger, quality: Quality) {
 		});
 	}
 
+	// Run by test/smoke/scripts/run-agents-window-wsl-kerberos-proxy.ps1, which provisions the WSL KDC and proxy, the
+	// Windows Kerberos realm, CA and PAC, and launches the smoke tests with the realm credentials.
+	const wslKerberosProxyScheme = process.platform === 'win32' ? process.env.VSCODE_SMOKE_TEST_WSL_KERBEROS_PROXY : undefined;
+	if (!wslKerberosProxyScheme) {
+		logger.log('Skipping Agents Window (WSL AgentHost, Kerberos proxy): run test/smoke/scripts/run-agents-window-wsl-kerberos-proxy.ps1 on Windows');
+	}
+	(wslKerberosProxyScheme ? describe : describe.skip)('Agents Window (WSL AgentHost, Kerberos proxy)', () => {
+		const scenario = 'smoke-wsl-kerberos-proxy-agent-host';
+		const reply = 'WSL_KERBEROS_PROXY_RESPONSE';
+		const context = setupAgentHostSuite(logger, {
+			serverLabel: 'WSL Kerberos proxy AgentHost',
+			mockServerHost: '0.0.0.0',
+			remoteTransport: 'wsl',
+			wslClientProxy: true,
+			registerScenarios: ({ ScenarioBuilder, registerScenario }) => registerScenario(scenario, new ScenarioBuilder().emit(reply).build()),
+			settings: {
+				'chat.remoteAgentHostsEnabled': true,
+			},
+		});
+
+		it('Uses the Windows proxy, Kerberos ticket and certificates from a WSL AgentHost', async function () {
+			this.timeout(10 * 60 * 1000);
+			const app = this.app as Application;
+			const fixture = context.remoteFixture;
+			assert.ok(fixture, 'Expected the WSL connection fixture');
+			const requestTag = `[proxy-request:${randomUUID()}]`;
+			try {
+				await app.workbench.agentsWindow.waitForNewSessionView();
+				await app.workbench.agentsWindow.connectWSLHost(fixture.name, fixture.workspacePath ?? app.workspacePathOrFolder, '.git');
+				await app.workbench.agentsWindow.selectSessionType('Copilot', { providerLabel: fixture.name });
+				const requestsBefore = context.mockServer.getRequests().length;
+				await app.workbench.agentsWindow.submitNewSessionPrompt(`hello through the Windows proxy [scenario:${scenario}] ${requestTag}`);
+				await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
+				await app.workbench.agentsWindow.waitForAssistantText(reply, 2 * 60 * 1000);
+				await waitForPromptRequest(context.mockServer, requestsBefore, requestTag);
+				await fixture.verifyMockServerRouting?.();
+				await assertClientNetworkServed(context.logsPath, 'wsl', wslKerberosProxyScheme === 'https' ? 'HTTPS' : 'PROXY');
+			} catch (error) {
+				logger.log(`Agents Window (WSL Kerberos proxy) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				if (fixture.dumpConnectionDiagnostics) {
+					try {
+						await fixture.dumpConnectionDiagnostics(await app.workbench.agentsWindow.getRemoteConnectionDiagnostics());
+					} catch (diagnosticError) {
+						logger.log(`Agents Window (WSL Kerberos proxy) connection diagnostics failed: ${diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError)}`);
+					}
+				}
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (WSL Kerberos proxy)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
+		});
+	});
+
 	describe('Agents Window (local AgentHost, SDK sandbox)', () => {
 
 		// Variant of the AgentHost suite that leaves
@@ -738,6 +790,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 	readonly registerScenarios: (api: { ScenarioBuilder: any; registerScenario: (id: string, scenario: unknown) => void }) => void;
 	readonly settings: Record<string, unknown>;
 	readonly remoteTransport?: RemoteDevContainerTransport;
+	readonly wslClientProxy?: boolean;
 	readonly prepareWorkspace?: (workspacePath: string, options: ApplicationOptions) => Promise<void> | void;
 	readonly cleanupWorkspace?: (workspacePath: string) => Promise<void> | void;
 }): IAgentHostSuiteContext {
@@ -789,6 +842,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 				logsPath,
 				mockServerUrl: getMockLlmServerUrl(mockServer),
 				appOptions: defaultOptions,
+				wslClientProxy: config.wslClientProxy,
 			}, logger);
 			remoteFixture = await remoteFixtureSetup;
 			if (tearingDown) {
@@ -932,6 +986,40 @@ async function assertRemoteDevContainerRouting(logsPath: string, transport: Remo
 	const containerFrames = frames.filter(frame => frame._ahpLog?.transport === 'devcontainer');
 	assert.ok(containerFrames.some(frame => frame.method === 'dispatchAction' && frame.params?.action?.type === 'chat/turnStarted'), 'Expected a turn sent through the nested Dev Container transport');
 	assert.ok(containerFrames.some(frame => JSON.stringify(frame).includes(reply)), 'Expected the mock response on the nested Dev Container transport');
+}
+
+/**
+ * Asserts that the client answered the Agent Host's proxy, Kerberos and certificate requests on `transport`, resolving
+ * the proxy to a PAC entry of `proxyType`. The AHP transcript redacts Kerberos tokens and certificates, so a redacted
+ * value shows that the client returned one.
+ */
+async function assertClientNetworkServed(logsPath: string, transport: RemoteDevContainerTransport, proxyType: 'PROXY' | 'HTTPS'): Promise<void> {
+	interface IFrame {
+		readonly _ahpLog?: { readonly transport?: string; readonly dir?: string };
+		readonly id?: number | string;
+		readonly method?: string;
+		readonly result?: { readonly proxy?: string; readonly authorization?: string; readonly certificates?: unknown };
+	}
+	const parseFrames = (content: string): IFrame[] => content.split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line));
+	const results = (frames: IFrame[], method: string) => {
+		const requestIds = new Set(frames.filter(frame => frame._ahpLog?.transport === transport && frame._ahpLog.dir === 's2c' && frame.method === method).map(frame => frame.id));
+		return frames.filter(frame => frame._ahpLog?.transport === transport && frame._ahpLog.dir === 'c2s' && requestIds.has(frame.id) && frame.result).map(frame => frame.result!);
+	};
+	const checks = {
+		proxy: (frames: IFrame[]) => results(frames, 'vscode/resolveProxy').some(result => result.proxy?.startsWith(`${proxyType} localhost:`)),
+		kerberos: (frames: IFrame[]) => results(frames, 'vscode/lookupProxyKerberosAuthorization').some(result => result.authorization === '<redacted>'),
+		certificates: (frames: IFrame[]) => results(frames, 'vscode/loadCertificates').some(result => result.certificates === '<redacted>'),
+	};
+	const frames = parseFrames(await waitForLogContent(
+		() => readAhpFrames(path.join(logsPath, 'ahp')),
+		content => Object.values(checks).every(check => check(parseFrames(content))),
+		30_000,
+	));
+	assert.deepStrictEqual(
+		Object.fromEntries(Object.entries(checks).map(([name, check]) => [name, check(frames)])),
+		{ proxy: true, kerberos: true, certificates: true },
+		`Expected the client to resolve the ${proxyType} proxy, return a Kerberos token and return certificates for the ${transport} Agent Host`,
+	);
 }
 
 /**
