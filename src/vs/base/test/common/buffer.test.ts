@@ -542,6 +542,10 @@ suite('Buffer', () => {
 		buff.writeUInt32LE(0x12345678, 4);
 		assert.strictEqual(buff.readUInt32LE(4), 0x12345678);
 
+		// Test UInt32LE with the high bit set: the result must be unsigned, like readUInt32BE
+		buff.writeUInt32LE(0xDEADBEEF, 4);
+		assert.strictEqual(buff.readUInt32LE(4), 0xDEADBEEF);
+
 		// Test UInt8
 		const buff2 = VSBuffer.alloc(1);
 		buff2.writeUInt8(123, 0);
