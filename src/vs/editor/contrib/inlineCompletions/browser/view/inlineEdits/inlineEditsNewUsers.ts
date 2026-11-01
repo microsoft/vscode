@@ -6,7 +6,7 @@
 import { timeout } from '../../../../../../base/common/async.js';
 import { BugIndicatingError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableValue, runOnChange, runOnChangeWithCancellationToken } from '../../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, runOnChange, runOnChangeWithCancellationToken } from '../../../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { InlineEditsGutterIndicator } from './components/gutterIndicatorView.js';
@@ -23,14 +23,16 @@ export class InlineEditsOnboardingExperience extends Disposable {
 
 	private readonly _disposables = this._register(new MutableDisposable());
 
-	private readonly _setupDone = observableValue({ name: 'setupDone' }, false);
-
 	private readonly _activeCompletionId = derived<string | undefined>(reader => {
 		const model = this._model.read(reader);
 		if (!model) { return undefined; }
 
-		if (!this._setupDone.read(reader)) { return undefined; }
-
+		// `indicator.isVisible` is true only when the gutter indicator's icon DOM
+		// has been mounted, so any animation triggered from this id is guaranteed
+		// to find a live `_iconRef.element`. Previously we also gated on a
+		// `_setupDone` flag set at the end of the constructor; that flag was a
+		// band-aid for a race where `isVisible` reflected only data state and
+		// could be true before the icon DOM existed (see #305729).
 		const indicator = this._indicator.read(reader);
 		if (!indicator || !indicator.isVisible.read(reader)) { return undefined; }
 
@@ -50,8 +52,6 @@ export class InlineEditsOnboardingExperience extends Disposable {
 
 		// Setup the onboarding experience for new users
 		this._disposables.value = this.setupNewUserExperience();
-
-		this._setupDone.set(true, undefined);
 	}
 
 	private setupNewUserExperience(): IDisposable | undefined {
