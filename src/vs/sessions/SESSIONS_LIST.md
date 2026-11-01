@@ -117,7 +117,7 @@ The list supports created-time and updated-time sorting. Manual ordering stores 
 
 Filters compose across harness, environment, creating application within each environment, and archive state. Providers apply External visibility before publishing their catalogs; list filters further narrow those catalogs. Application options come from the current catalog before list filtering, including cached sessions from disconnected environments. Environment and application preferences use stable identifiers, not mutable display names, and survive an option's disappearance.
 
-The archived filter governs both archived sessions and archived nested chats; there is no per-session archive-visibility override. The agent host filter scopes to every provider the selected host entry covers, which is more than one when that entry groups several hosts and none while such a group is empty. The find widget matches session and section labels and bypasses presentation capping while a search is active.
+The archived filter governs both archived sessions and archived nested chats; there is no per-session archive-visibility override. The agent host filter scopes to every provider the selected host entry covers, which is more than one when that entry groups several hosts and none while such a group is empty. Searching shows the sessions whose title, chat titles, location, group, branch, pull requests, or remote host contain every word of the query, in any order, ignoring case and accents; a session's nested chats show when their title contains a word. A search bypasses presentation capping and expands the rows that hold its results without persisting that expansion, and the rows return to their previous collapse state when it ends.
 
 ## Drag and drop
 
