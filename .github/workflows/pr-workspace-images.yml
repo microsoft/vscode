@@ -343,7 +343,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $root = Split-Path $env:GITHUB_WORKSPACE -Parent
           fsutil volume diskfree $root | Out-Host
-          & "$env:RUNNER_TEMP\workspace-image\vhd.ps1" -Path "$env:RUNNER_TEMP\workspace-image.vhdx" -MountFolder $root -Detach -Compact
+          & "$env:RUNNER_TEMP\workspace-image\vhd.ps1" -Path "$env:RUNNER_TEMP\workspace-image.vhdx" -MountFolder $root -Detach
           # The next steps start in the workspace
           New-Item -ItemType Directory -Path $env:GITHUB_WORKSPACE -Force | Out-Null
           Get-Item "$env:RUNNER_TEMP\workspace-image.vhdx" | Format-List Name, Length

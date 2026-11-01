@@ -18,7 +18,7 @@ The workspace of an image is at the path of the workspaces of the jobs, because 
 
 | Platform | Image | Restore |
 | -------- | ----- | ------- |
-| Linux | ext4 volume without a journal in a sparse file | Recreated from chunks of zstd, then mounted through a loop device |
+| Linux | ext4 volume without a journal in a sparse file | Recreated from chunks of zstd into memory, which the kernel writes to the disk while the job goes on, then mounted through a loop device |
 | macOS | APFS volume in a sparse ASIF image | Recreated from chunks of zstd, then attached |
 | Windows | Dev Drive in a VHDX with blocks of 1 MB | Recreated from chunks of zstd into a temporary file, which Windows keeps in memory, then attached through the file system cache with the virtual disk API ([Vhd.cs](Vhd.cs)) |
 

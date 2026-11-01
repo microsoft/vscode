@@ -558,6 +558,9 @@ async function mount(source: Source, root: string, connections: number): Promise
 			// An ext4 volume in a sparse file. noinit_itable leaves the inode tables that mkfs left to
 			// initialize alone, as they are zeros already, instead of writing them during the job.
 			const file = path.join(temp, 'workspace-image.ext4');
+			// The restore writes the image to memory, and the kernel writes it to the disk while the job
+			// goes on, instead of waiting for the disk once it filled the default share of memory (20 %)
+			run('sudo', ['sysctl', '-q', '-w', `vm.dirty_bytes=${16 * 1024 ** 3}`, `vm.dirty_background_bytes=${1024 ** 3}`]);
 			log(await unpack(source, file, { sparse: true, existing: false, connections }));
 			run('sudo', ['mount', '-o', 'loop,noatime,noinit_itable', file, root]);
 			return () => {
