@@ -1074,6 +1074,22 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
 }
 
+function parseLsFilesZ(raw: string): LsFilesElement[] {
+	const result: LsFilesElement[] = [];
+	for (const record of raw.split('\0')) {
+		if (!record) {
+			continue;
+		}
+		const tab = record.indexOf('\t');
+		const match = tab >= 0 ? /^(\S+) (\S+) (\S+)$/.exec(record.slice(0, tab)) : null;
+		if (!match) {
+			continue;
+		}
+		result.push({ mode: match[1], object: match[2], stage: match[3], file: record.slice(tab + 1) });
+	}
+	return result;
+}
+
 const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(WIP\s)?on\s([^:]+):\s(.*)\n(\d+)\n(\d+)(?:\x00)/gmi;
 
 function parseGitStashes(raw: string): Stash[] {
@@ -1700,6 +1716,160 @@ export class Repository {
 
 		const { stdout } = await this.exec(args);
 		return parseLsFiles(stdout);
+	}
+
+	/**
+	 * Returns the input paths that are unmerged and cannot be resolved by editing
+	 * conflict markers. That is a `merge` attribute of `unset` or `binary`, a NUL
+	 * in the first 8000 bytes of stage 1, 2, or 3, or a missing ours or theirs stage.
+	 * A normal tracked file is not included. Called only when
+	 * `git.detectWholeFileMergeConflicts` is enabled.
+	 */
+	async findWholeFileConflicts(filePaths: string[], token?: CancellationToken): Promise<Set<string>> {
+		const inputsByRelative = new Map<string, string[]>();
+		for (const filePath of filePaths) {
+			const relativePath = this.sanitizeRelativePath(filePath);
+			if (!relativePath) {
+				continue;
+			}
+			const inputs = inputsByRelative.get(relativePath);
+			if (inputs) {
+				inputs.push(filePath);
+			} else {
+				inputsByRelative.set(relativePath, [filePath]);
+			}
+		}
+
+		const result = new Set<string>();
+		const add = (relativePath: string) => {
+			for (const filePath of inputsByRelative.get(relativePath) ?? []) {
+				result.add(filePath);
+			}
+		};
+
+		const needsBlobCheck: { relativePath: string; objects: string[] }[] = [];
+		for (const chunk of splitInChunks([...inputsByRelative.keys()], MAX_CLI_LENGTH)) {
+			if (token?.isCancellationRequested) {
+				throw new CancellationError();
+			}
+
+			const { stdout } = await this.exec(['ls-files', '-z', '--stage', '--', ...chunk]);
+			const byFile = new Map<string, LsFilesElement[]>();
+			for (const entry of parseLsFilesZ(stdout)) {
+				if (entry.stage === '0') {
+					continue;
+				}
+				const entries = byFile.get(entry.file);
+				if (entries) {
+					entries.push(entry);
+				} else {
+					byFile.set(entry.file, [entry]);
+				}
+			}
+
+			const attributeCandidates: string[] = [];
+			for (const relativePath of chunk) {
+				const entries = byFile.get(relativePath);
+				if (!entries) {
+					continue;
+				}
+				const hasOurs = entries.some(entry => entry.stage === '2');
+				const hasTheirs = entries.some(entry => entry.stage === '3');
+				if (!hasOurs || !hasTheirs) {
+					add(relativePath);
+					continue;
+				}
+				attributeCandidates.push(relativePath);
+			}
+
+			if (attributeCandidates.length === 0) {
+				continue;
+			}
+
+			const skipped = await this.mergeAttributesThatSkipContentMerge(attributeCandidates);
+			for (const relativePath of attributeCandidates) {
+				if (skipped.has(relativePath)) {
+					add(relativePath);
+					continue;
+				}
+				const entries = byFile.get(relativePath)!;
+				needsBlobCheck.push({
+					relativePath,
+					objects: entries
+						.filter(entry => entry.stage === '1' || entry.stage === '2' || entry.stage === '3')
+						.map(entry => entry.object),
+				});
+			}
+		}
+
+		const limiter = new Limiter<void>(5);
+		await Promise.all(needsBlobCheck.map(item => limiter.queue(async () => {
+			if (token?.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			for (const objectName of item.objects) {
+				if (await this.blobStartsWithNul(objectName)) {
+					add(item.relativePath);
+					return;
+				}
+			}
+		})));
+
+		if (token?.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
+		return result;
+	}
+
+	async takeConflictSide(filePath: string, side: 'ours' | 'theirs'): Promise<boolean> {
+		const relativePath = this.sanitizeRelativePath(filePath);
+		const stages = await this.lsfiles(relativePath);
+		const unmerged = stages.filter(entry => entry.stage === '1' || entry.stage === '2' || entry.stage === '3');
+		if (unmerged.length === 0) {
+			return false;
+		}
+
+		const stage = side === 'ours' ? '2' : '3';
+		if (!unmerged.some(entry => entry.stage === stage)) {
+			// That side deleted the path.
+			await this.rm([relativePath]);
+			return true;
+		}
+
+		await this.exec(['checkout', '-q', side === 'ours' ? '--ours' : '--theirs', '--', relativePath]);
+		await this.add([relativePath]);
+		return true;
+	}
+
+	private async mergeAttributesThatSkipContentMerge(relativePaths: string[]): Promise<Set<string>> {
+		const result = new Set<string>();
+		if (relativePaths.length === 0) {
+			return result;
+		}
+
+		const { stdout } = await this.exec(['check-attr', '-z', 'merge', '--', ...relativePaths]);
+		const parts = stdout.split('\0');
+		for (let i = 0; i + 2 < parts.length; i += 3) {
+			const value = parts[i + 2];
+			if (value === 'unset' || value === 'binary') {
+				result.add(parts[i]);
+			}
+		}
+		return result;
+	}
+
+	private async blobStartsWithNul(objectName: string): Promise<boolean> {
+		const child = await this.stream(['cat-file', 'blob', objectName]);
+		const buffer = await readBytes(child.stdout!, 8000);
+
+		try {
+			child.kill();
+		} catch (err) {
+			// The read already closed the stream.
+		}
+
+		return buffer.includes(0);
 	}
 
 	async getGitFilePath(ref: string, filePath: string): Promise<string> {
