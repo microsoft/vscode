@@ -26,6 +26,11 @@
 	background-color: var(--vscode-menubar-selectionBackground);
 }
 
+.monaco-workbench .part.titlebar .menubar.compact > .menubar-menu-button.open,
+.monaco-workbench .part.titlebar .menubar.compact > .menubar-menu-button:focus {
+	background-color: var(--vscode-menubar-selectionBackground);
+}
+
 .monaco-workbench .menubar.inactive:not(.compact) > .menubar-menu-button,
 .monaco-workbench .menubar.inactive:not(.compact) > .menubar-menu-button .toolbar-toggle-more {
 	color: var(--vscode-titleBar-inactiveForeground);
