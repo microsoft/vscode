@@ -7,6 +7,11 @@ import { Raw } from '@vscode/prompt-tsx';
 import { describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
 import type { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from '../../../../util/vs/platform/instantiation/common/serviceCollection';
+import { InstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiationService';
+import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { IConfigurationService } from '../../../configuration/common/configurationService';
+import { IOTelService } from '../../../otel/common/otelService';
 import { ChatFetchResponseType, ChatLocation } from '../../../chat/common/commonTypes';
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
 import { NoopOTelService, resolveOTelConfig } from '../../../otel/common/index';
@@ -15,6 +20,67 @@ import { decodeStatefulMarker } from '../../common/statefulMarkerContainer';
 import { convertToApiChatMessage, ExtensionContributedChatEndpoint } from '../extChatEndpoint';
 
 describe('ExtensionContributedChatEndpoint', () => {
+	it('forwards the complete per-request model configuration unchanged', async () => {
+		let capturedOptions: vscode.LanguageModelChatRequestOptions | undefined;
+		const languageModel = createLanguageModel(options => capturedOptions = options);
+		const endpoint = new ExtensionContributedChatEndpoint(
+			languageModel,
+			createInstantiationService(),
+			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })),
+			new DefaultsOnlyConfigurationService(),
+		);
+		const modelConfiguration = { reasoningEffort: 'high', contextSize: 500_000 } as const;
+
+		const result = await endpoint.makeChatRequest2({
+			debugName: 'test',
+			messages: [{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' }]
+			}],
+			finishedCb: undefined,
+			location: ChatLocation.Panel,
+			requestOptions: {},
+			modelConfiguration,
+		}, new vscode.CancellationTokenSource().token);
+
+		expect(result.type).toBe(ChatFetchResponseType.Success);
+		expect(capturedOptions?.configuration).toEqual(modelConfiguration);
+	});
+
+	it('isolates two chats and tool continuations through a token-limit clone of a shared endpoint', async () => {
+		const capturedOptions: vscode.LanguageModelChatRequestOptions[] = [];
+		const languageModel = createLanguageModel(options => capturedOptions.push(options));
+		const instantiationService = new InstantiationService(new ServiceCollection(
+			[IConfigurationService, new DefaultsOnlyConfigurationService()],
+			[IOTelService, new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' }))],
+		));
+		try {
+			const endpoint = instantiationService.createInstance(ExtensionContributedChatEndpoint, languageModel);
+			const clone = endpoint.cloneWithTokenOverride(500);
+			const first = Object.freeze({ reasoningEffort: 'high', contextSize: 500_000 });
+			const second = Object.freeze({ reasoningEffort: 'medium', contextSize: 1_033_616 });
+			const send = (target: typeof clone, modelConfiguration: typeof first | typeof second | undefined, continuation: boolean) => target.makeChatRequest2({
+				debugName: 'configuration-isolation',
+				messages: continuation ? [{ role: Raw.ChatRole.Tool, toolCallId: 'tool-1', content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'tool result' }] }] : [],
+				finishedCb: undefined,
+				location: ChatLocation.Agent,
+				modelConfiguration,
+			}, CancellationToken.None);
+
+			for (const continuation of [false, true]) {
+				const results = await Promise.all([send(endpoint, first, continuation), send(clone, second, continuation)]);
+				expect(results.map(result => result.type)).toEqual([ChatFetchResponseType.Success, ChatFetchResponseType.Success]);
+			}
+			await send(clone, undefined, false);
+
+			expect(capturedOptions.map(options => options.configuration)).toEqual([first, second, first, second, undefined]);
+			expect(clone.modelMaxPromptTokens).toBe(500);
+			expect(endpoint.modelMaxPromptTokens).toBe(1000);
+		} finally {
+			instantiationService.dispose();
+		}
+	});
+
 	it('forwards telemetry turn from request properties through model options', async () => {
 		let capturedOptions: vscode.LanguageModelChatRequestOptions | undefined;
 		const languageModel = createLanguageModel(options => capturedOptions = options);
@@ -38,6 +104,7 @@ describe('ExtensionContributedChatEndpoint', () => {
 		}, new vscode.CancellationTokenSource().token);
 
 		expect(result.type).toBe(ChatFetchResponseType.Success);
+		expect(capturedOptions?.configuration).toBeUndefined();
 		expect(capturedOptions?.modelOptions?._telemetryTurn).toBe(5);
 	});
 
@@ -126,7 +193,7 @@ describe('ExtensionContributedChatEndpoint', () => {
 	});
 
 	it('omits a stateful marker from a summary request while preserving message text', async () => {
-		let capturedMessages: readonly vscode.LanguageModelChatMessage[] | undefined;
+		let capturedMessages: readonly (vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2)[] | undefined;
 		const languageModel = createLanguageModel(
 			() => { },
 			messages => capturedMessages = messages,
@@ -186,7 +253,7 @@ describe('ExtensionContributedChatEndpoint', () => {
 
 	it('gates the cache_control sentinel on the model vendor end-to-end', async () => {
 		const capture = async (vendor: string) => {
-			let capturedMessages: readonly vscode.LanguageModelChatMessage[] | undefined;
+			let capturedMessages: readonly (vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2)[] | undefined;
 			const languageModel = createLanguageModel(() => { }, messages => capturedMessages = messages, vendor);
 			const endpoint = new ExtensionContributedChatEndpoint(
 				languageModel,
@@ -249,7 +316,7 @@ function getStatefulMarkerPart(message: vscode.LanguageModelChatMessage | vscode
 
 function createLanguageModel(
 	captureOptions: (options: vscode.LanguageModelChatRequestOptions) => void,
-	captureMessages?: (messages: readonly vscode.LanguageModelChatMessage[]) => void,
+	captureMessages?: (messages: readonly (vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2)[]) => void,
 	vendor: string = 'test-vendor',
 ): vscode.LanguageModelChat {
 	return {
@@ -259,17 +326,19 @@ function createLanguageModel(
 		family: 'test-family',
 		version: '1.0.0',
 		maxInputTokens: 1000,
-		capabilities: {},
-		sendRequest: vi.fn(async (messages, options) => {
+		capabilities: { supportsToolCalling: true, supportsImageToText: false },
+		async countTokens() { return 0; },
+		async sendRequest(messages, options = {}) {
 			captureMessages?.(messages);
 			captureOptions(options);
 			return {
+				text: (async function* () { yield 'hello'; })(),
 				stream: (async function* () {
 					yield new vscode.LanguageModelTextPart('hello');
 				})()
 			};
-		})
-	} as unknown as vscode.LanguageModelChat;
+		}
+	};
 }
 
 function createInstantiationService(): IInstantiationService {

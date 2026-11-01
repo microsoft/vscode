@@ -451,6 +451,7 @@ class InlineChatToolCalling {
 		const fetchResult = await endpoint.makeChatRequest2({
 			debugName: 'InlineChat2Intent',
 			messages,
+			modelConfiguration: request.modelConfiguration,
 			userInitiatedRequest: true,
 			location: ChatLocation.Editor,
 			requestOptions,
