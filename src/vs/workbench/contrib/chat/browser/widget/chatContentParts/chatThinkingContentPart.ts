@@ -366,8 +366,13 @@ function getFinishedThinkingTitle(parts: readonly IChatThinkingPart[]): string {
 		: localize('chat.thinking.finishedThinking', "Finished thinking");
 }
 
+/**
+ * Labels a recorded reasoning duration, rounded up to whole seconds so that
+ * short reasoning never reads as "Thought for 0s".
+ */
 function getReasoningDurationLabel(duration: number): string {
-	return localize('chat.thinking.thoughtFor', "Thought for {0}", formatElapsedTime(duration));
+	const seconds = Math.max(1, Math.ceil(duration / 1000));
+	return localize('chat.thinking.thoughtFor', "Thought for {0}", formatElapsedTime(seconds * 1000));
 }
 
 export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implements IChatContentPart {
