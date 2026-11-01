@@ -1,0 +1,227 @@
+name: Workspace images (validation)
+
+# Temporary, for the draft pull request: builds the workspace images of this branch, runs some test
+# jobs of pull requests with them, and brings each image to a dependency change. Remove it, and the
+# workflow_call trigger of pr-workspace-images.yml if unused, before merging.
+on:
+  push:
+    branches:
+      - agents/workspace-images
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  images:
+    name: Images
+    uses: ./.github/workflows/pr-workspace-images.yml
+
+  linux-tests:
+    name: Linux
+    needs: images
+    if: ${{ !cancelled() }}
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      workspace_image_branch: ${{ github.ref_name }}
+      electron_unit_affected: true
+      electron_affected: false
+      agent_host_e2e_affected: false
+      electron_smoke_affected: false
+      browser_unit_affected: true
+      browser_affected: false
+      remote_affected: false
+
+  macos-tests:
+    name: macOS
+    needs: images
+    if: ${{ !cancelled() }}
+    uses: ./.github/workflows/pr-darwin-test.yml
+    with:
+      workspace_image_branch: ${{ github.ref_name }}
+      electron_unit_affected: true
+      electron_affected: false
+      electron_smoke_affected: false
+      browser_unit_affected: true
+      browser_affected: false
+      remote_affected: false
+
+  windows-tests:
+    name: Windows
+    needs: images
+    if: ${{ !cancelled() }}
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      workspace_image_branch: ${{ github.ref_name }}
+      electron_unit_affected: true
+      electron_affected: false
+      agent_host_e2e_affected: false
+      electron_smoke_affected: false
+      browser_unit_affected: true
+      browser_affected: false
+      remote_affected: false
+
+  # Brings an image to the commit with a dependency change in two install roots, the workspace and
+  # remote/web, the way the test jobs do, and checks that it installed them
+  dependency-change:
+    name: 'Dependency change: ${{ matrix.os }}'
+    needs: images
+    if: ${{ !cancelled() }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: Linux, runner: vscode-large-runners-ubuntu-8-core, image: workspace-image-linux-x64.sqfs, arch: x64 }
+          - { os: macOS, runner: vscode-large-runners-macos-5-core-0, image: workspace-image-darwin-arm64.img, arch: arm64 }
+          - { os: Windows, runner: vscode-large-runners-windows-8-core, image: workspace-image-win32-x64.img, arch: x64 }
+    env:
+      NPM_ARCH: ${{ matrix.arch }}
+      VSCODE_ARCH: ${{ matrix.arch }}
+    steps:
+      - name: Download the workspace image scripts
+        id: image-scripts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/workspace-image"
+          mkdir -p "$dir"
+          echo '{ "type": "module" }' > "$dir/package.json"
+          files=(.nvmrc .github/workflows/workspace_image/{image.ts,vhd.ps1,Vhd.cs})
+          args=()
+          for file in "${files[@]}"; do
+            args+=(-o "$dir/${file##*/}" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/contents/$file?ref=$GITHUB_SHA")
+          done
+          curl -fsSL --retry 3 --parallel -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github.raw' "${args[@]}"
+          echo "node-version=$(tr -d '[:space:]' < "$dir/.nvmrc")" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.image-scripts.outputs.node-version }}
+
+      - name: Restore the workspace image
+        id: image
+        shell: bash
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          node "$RUNNER_TEMP/workspace-image/image.ts" restore --name "${{ matrix.image }}" --branch "$GITHUB_REF_NAME"
+          grep -q '^used=true' "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+          clean: false
+
+      - name: Downgrade @vscode/codicons in the workspace and in remote/web, as a pull request would
+        shell: bash
+        run: |
+          node -e '
+            const fs = require("fs");
+            const integrity = ["sha512-0McyVlyRjenut3PBwULxuaC5YoKPF8qkNHf9DhS6UOXUmLr31Ga6vECnNx70SSIZnI4ULLOEktcIkRqiwFvkbg==", "sha512-HhX6VUa84nR9C9ceyiZvR1lRCOc4dZC1vSwnyPWiqIpN+06x+KDaGGn0WFmFLG0APariLhFPlBUljep1cIWk/Q=="];
+            for (const file of ["package.json", "pnpm-lock.yaml", "remote/web/package.json", "remote/web/pnpm-lock.yaml"]) {
+              const before = fs.readFileSync(file, "utf8");
+              const after = before.replaceAll("^0.0.46-49", "0.0.46-48").replaceAll("0.0.46-49", "0.0.46-48").replaceAll(integrity[0], integrity[1]);
+              if (after === before) { throw new Error(`${file} did not change`); }
+              fs.writeFileSync(file, after);
+            }'
+          git status --short
+
+      - name: Compare the dependencies with the workspace image
+        id: image-deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          node "$RUNNER_TEMP/workspace-image/image.ts" deps
+          grep -q '^current=false' "$GITHUB_OUTPUT"
+
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Install build dependencies
+        if: runner.os == 'Linux'
+        working-directory: build
+        run: pnpm install --frozen-lockfile
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        if: runner.os == 'Linux'
+        run: |
+          set -e
+          source ./build/azure-pipelines/linux/setup-env.sh
+          pnpm install --frozen-lockfile
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        if: runner.os == 'macOS'
+        run: |
+          set -e
+          python3 -m pip install --break-system-packages setuptools
+          pnpm install --frozen-lockfile
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GYP_DEFINES: "kerberos_use_rtld=false"
+
+      - name: Install dependencies
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          exec { node build/npm/preinstall.ts }
+          exec { pnpm install --frozen-lockfile }
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check the installed packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          for folder in . remote/web; do
+            version=$(node -p "require('./$folder/node_modules/@vscode/codicons/package.json').version")
+            echo "$folder: @vscode/codicons $version"
+            [ "$version" = 0.0.46-48 ]
+          done
+          node "$RUNNER_TEMP/workspace-image/image.ts" deps
+          grep -q '^current=true' "$GITHUB_OUTPUT"
+
+      - name: Install again, as a job whose dependencies did not change
+        shell: bash
+        run: time pnpm install --frozen-lockfile
+
+      - name: Setup Electron
+        uses: ./.github/actions/setup-electron
+        with:
+          arch: ${{ env.VSCODE_ARCH }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Transpile client and extensions
+        run: pnpm run gulp transpile-client-esbuild transpile-extensions
