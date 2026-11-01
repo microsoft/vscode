@@ -34,7 +34,7 @@
 			},
 			{
 				"command": "smoketest.openAgentHostChat",
-				"title": "Smoke Test: Open Agent Host Test Session"
+				"title": "Smoke Test: Open AH Test Session"
 			}
 		]
 	}
