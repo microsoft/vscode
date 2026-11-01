@@ -19,6 +19,7 @@ import { TerminalLocation } from '../../../../../platform/terminal/common/termin
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { matchesContiguousSubString } from '../../../../../base/common/filters.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
@@ -168,6 +169,10 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 			description,
 			buttons: [
 				{
+					iconClass: ThemeIcon.asClassName(Codicon.copy),
+					tooltip: localize('copyTerminalId', "Copy Terminal ID")
+				},
+				{
 					iconClass: ThemeIcon.asClassName(renameTerminalIcon),
 					tooltip: localize('renameTerminal', "Rename Terminal")
 				},
@@ -177,15 +182,18 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 				}
 			],
 			iconClasses,
-			trigger: buttonIndex => {
+			trigger: async buttonIndex => {
 				if (!this._isAvailable(terminal)) {
 					return TriggerAction.REMOVE_ITEM;
 				}
 				switch (buttonIndex) {
 					case 0:
-						this._commandService.executeCommand(TerminalCommandId.Rename, terminal);
+						await this._commandService.executeCommand<void>(TerminalCommandId.CopyInstanceId, new InstanceContext(terminal));
 						return TriggerAction.NO_ACTION;
 					case 1:
+						this._commandService.executeCommand(TerminalCommandId.Rename, terminal);
+						return TriggerAction.NO_ACTION;
+					case 2:
 						this._terminalService.safeDisposeTerminal(terminal);
 						return TriggerAction.REMOVE_ITEM;
 				}

@@ -211,6 +211,50 @@ suite('TerminalQuickAccess', () => {
 		deepStrictEqual({ clipboardWrites, nativeCopies }, { clipboardWrites: [], nativeCopies: 2 });
 	});
 
+	test('copies the clicked inactive row ID without changing picker state or focus', async () => {
+		const picker = currentQuickInput = new TestQuickPick();
+		store.add(provider.provide(picker, CancellationToken.None));
+		picker.valueSelection = [0, 4];
+		const item = terminalPicks()[0];
+		strictEqual(await item.trigger?.(0, keyMods), TriggerAction.NO_ACTION);
+		deepStrictEqual({
+			clipboardWrites,
+			activeId: activeTerminal?.instanceId,
+			highlighted: picker.activeItems[0]?.description,
+			selected: picker.selectedItems,
+			query: picker.value,
+			selection: picker.valueSelection,
+			inputFocused: picker.inputHasFocus(),
+			focused,
+			hidden: picker.hidden
+		}, {
+			clipboardWrites: ['3'],
+			activeId: 12,
+			highlighted: '(id:12, tab:1, pane:2)',
+			selected: [],
+			query: 'term ',
+			selection: [0, 4],
+			inputFocused: true,
+			focused: [],
+			hidden: false
+		});
+	});
+
+	for (const unavailable of ['disposed', 'missing']) {
+		test(`does not copy from a ${unavailable} row target`, async () => {
+			const item = terminalPicks()[0];
+			if (unavailable === 'disposed') {
+				closed.add(3);
+			} else {
+				foreground = foreground.filter(terminal => terminal.instanceId !== 3);
+			}
+			strictEqual(await item.trigger?.(0, keyMods), TriggerAction.REMOVE_ITEM);
+			deepStrictEqual({ clipboardWrites, commands, focused, activeId: activeTerminal?.instanceId }, {
+				clipboardWrites: [], commands: [], focused: [], activeId: 12
+			});
+		});
+	}
+
 	test('lists one row per pane with names, icons and location descriptions', () => {
 		deepStrictEqual(terminalPicks().map(item => ({ label: item.label, description: item.description })), [
 			{ label: '$(rocket) Shell', description: 'src (id:3, tab:1, pane:1)' },
@@ -291,9 +335,9 @@ suite('TerminalQuickAccess', () => {
 
 	test('keeps rename and kill buttons', async () => {
 		const pick = terminalPicks()[0];
-		strictEqual(pick.buttons?.length, 2);
-		strictEqual(await pick.trigger?.(0, keyMods), TriggerAction.NO_ACTION);
-		strictEqual(await pick.trigger?.(1, keyMods), TriggerAction.REMOVE_ITEM);
+		deepStrictEqual(pick.buttons?.map(button => button.tooltip), ['Copy Terminal ID', 'Rename Terminal', 'Kill Terminal']);
+		strictEqual(await pick.trigger?.(1, keyMods), TriggerAction.NO_ACTION);
+		strictEqual(await pick.trigger?.(2, keyMods), TriggerAction.REMOVE_ITEM);
 		deepStrictEqual({ commands, disposed }, { commands: [{ id: TerminalCommandId.Rename, args: [terminals[0]] }], disposed: [3] });
 	});
 
