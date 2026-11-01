@@ -329,7 +329,7 @@ function registerProxyConfigurations(useHostProxy = true, useHostProxyDefault = 
 						pattern: '^https?://.+$|^$',
 						markdownDescription: localize('proxyPacUrl', "The URL of a proxy auto-config (PAC) file, for example `https://proxy.example.com/proxy.pac`. Only `http` and `https` URLs are supported. When set, it is used to choose the proxy for each request and the {0} and {1} settings are ignored.", '`#http.proxy#`', '`#http.noProxy#`'),
 						restricted: true,
-						agentHost: { key: 'http.proxyPacUrl', scope: AgentHostConfigurationSyncScope.Ambient, transform: value => typeof value === 'string' ? value : '' },
+						agentHost: { key: 'http.proxyPacUrl', scope: AgentHostConfigurationSyncScope.Local, transform: value => typeof value === 'string' ? value : '' },
 						policy: {
 							name: 'ProxyPacUrl',
 							category: PolicyCategory.Network,

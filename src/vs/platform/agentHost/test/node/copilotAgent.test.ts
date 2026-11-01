@@ -13308,6 +13308,36 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		test('resolves the proxy from the PAC URL even when system proxy discovery is disabled', async () => {
+			const proxyResolver = new TestProxyResolver();
+			proxyResolver.resolvedProxy = 'http://pac-proxy.example:8080';
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				proxyResolver,
+				rootConfig: {
+					[AgentHostProxyConfigKey.ProxyPacUrl]: 'https://pac.example/proxy.pac',
+					[AgentHostSystemProxyEnabledConfigKey]: false,
+				},
+			});
+			afterTest(() => disposeAgent(agent));
+			disposables.add(proxyResolver.register('test', {
+				resolveProxy: async () => undefined,
+				lookupAuthorization: async () => undefined,
+				lookupKerberosAuthorization: async () => undefined,
+			}));
+			await timeout(0);
+			await agent.listChatsToMigrate();
+			const env = getCreatedClientOptions(agent).at(-1)?.env;
+
+			assert.deepStrictEqual({
+				httpProxy: env?.['HTTP_PROXY'],
+				httpsProxy: env?.['HTTPS_PROXY'],
+			}, {
+				httpProxy: 'http://pac-proxy.example:8080',
+				httpsProxy: 'http://pac-proxy.example:8080',
+			});
+		});
+
 		for (const noProxyKey of ['NO_PROXY', 'no_proxy']) {
 			for (const proxy of [undefined, 'http://configured-proxy.example:8080']) {
 				test(`preserves ${noProxyKey} exclusions ${proxy ? 'with' : 'without'} an injected proxy`, async () => {

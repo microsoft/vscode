@@ -309,13 +309,13 @@ suite('AgentHostConfigurationSync', () => {
 		});
 	});
 
-	test('mirrors HTTP proxy settings only to ambient Agent Hosts', () => {
+	test('mirrors HTTP proxy settings only to ambient Agent Hosts, and the PAC URL only to the local one', () => {
 		const allProxySettingIds = [
 			'http.proxy',
 			'http.proxyKerberosServicePrincipal',
 			'http.noProxy',
 			'http.proxySupport',
-				'http.proxyPacUrl',
+			'http.proxyPacUrl',
 			'http.systemCertificates',
 			'http.systemCertificatesNode',
 			'http.experimental.systemCertificatesV2',
@@ -323,7 +323,9 @@ suite('AgentHostConfigurationSync', () => {
 			'http.webSocketAdditionalSupport',
 			'http.experimental.networkInterfaceCheckInterval',
 		];
-		const syncedProxySettingIds = ['http.proxyPacUrl', 'http.proxy', 'http.proxyKerberosServicePrincipal', 'http.noProxy'];
+		const ambientProxySettingIds = ['http.proxy', 'http.proxyKerberosServicePrincipal', 'http.noProxy'];
+		// The PAC is only evaluated by the local Agent Host, which has the Electron proxy bridge.
+		const localProxySettingIds = ['http.proxyPacUrl', ...ambientProxySettingIds];
 		const local = getAgentHostConfigurationSyncEntries(AgentHostConfigurationSyncTarget.Local)
 			.filter(entry => allProxySettingIds.includes(entry.settingId))
 			.map(entry => [entry.settingId, entry.sync.key]);
@@ -335,8 +337,8 @@ suite('AgentHostConfigurationSync', () => {
 			.map(entry => entry.settingId);
 
 		assert.deepStrictEqual({ local, remoteExtensionHost, remote }, {
-			local: syncedProxySettingIds.map(settingId => [settingId, settingId]),
-			remoteExtensionHost: syncedProxySettingIds.map(settingId => [settingId, settingId]),
+			local: localProxySettingIds.map(settingId => [settingId, settingId]),
+			remoteExtensionHost: ambientProxySettingIds.map(settingId => [settingId, settingId]),
 			remote: [],
 		});
 	});
