@@ -949,6 +949,12 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(terminalLabelComputer.title, 'Local');
 			strictEqual(terminalLabelComputer.description, 'Local');
 		});
+		test('should resolve host', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${host}', description: '${host}' } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { hostLabel: 'devbox' } }));
+			strictEqual(terminalLabelComputer.title, 'devbox');
+			strictEqual(terminalLabelComputer.description, 'devbox');
+		});
 		test('should resolve process', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${process}' } } } });
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'zsh' }));

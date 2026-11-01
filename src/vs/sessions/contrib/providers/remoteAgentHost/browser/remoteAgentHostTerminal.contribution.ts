@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
@@ -38,10 +39,14 @@ class RemoteAgentHostTerminalContribution extends Disposable {
 			}
 			connectedAddresses.add(info.address);
 			if (!this._remoteEntries.has(info.address)) {
+				const name = info.name || info.address;
 				this._remoteEntries.set(info.address, this._agentHostTerminalService.registerEntry({
-					name: info.name || info.address,
+					name,
 					address: info.address,
 					getConnection: () => connection,
+					// Like a local terminal in a remote window, mark the terminals that run on another
+					// machine than the window's. On the web, the window shows one host at a time.
+					terminalHostLabel: isWeb ? undefined : name,
 				}));
 			}
 		}
