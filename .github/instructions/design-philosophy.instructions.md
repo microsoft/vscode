@@ -22,4 +22,11 @@ Work in three layers - name the **feeling**, find the **principle** it breaks, t
 
 Reach for a **move** only *after* naming the feeling and the principle - never instead. Describe a bug by its role/tier/ramp (*"this overlay is rounded at the control tier"*), not its number (*"border-radius should be 6"*).
 
+## Pattern decisions: consistency by default, intentional divergence
+
+Before introducing or changing a visual or interaction pattern, inspect the closest analogous experiences and canonical guidance. Reuse shared semantics, behavior, and component contracts when their roles match; unnecessary variation increases customer learning load. Treat existing code as evidence, not authority: do not preserve known debt, deprecated patterns, accessibility problems, or accidental styling. Diverge when a clear user need, accessibility requirement, simplification, or current design direction calls for it, and make that reason explicit.
+
+- **Review prompt:** *What is reused, what intentionally differs, and what user need earns the difference?*
+- **Detailed workflow:** See the [Pattern decisions & prior-art workflow in the `design-philosophy` skill](../skills/design-philosophy/SKILL.md#pattern-decisions).
+
 **Full reference** (values, principles, moves, worked examples, phrasebook, and feedback guidance): the [`design-philosophy` skill](../skills/design-philosophy/SKILL.md). **Token mechanics:** [design-tokens.instructions.md](./design-tokens.instructions.md).
