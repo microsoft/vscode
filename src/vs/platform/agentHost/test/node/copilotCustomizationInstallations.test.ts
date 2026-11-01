@@ -7,7 +7,7 @@ import type { CopilotClient, InstallationConfirmationRequest, McpInstallationRev
 import assert from 'assert';
 import { createHash } from 'crypto';
 import { bufferToStream, VSBuffer } from '../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import { stableStringify } from '../../../../base/common/objects.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -30,6 +30,11 @@ type CustomizationClient = Awaited<ReturnType<ConstructorParameters<typeof Copil
 type GetSavedFeed = CopilotClient['rpc']['catalog']['getSavedFeed'];
 
 type PolicySessionFactory = ConstructorParameters<typeof CopilotCustomizationInstallations>[1];
+
+const confirmationToken: Parameters<CopilotCustomizationInstallations['confirmationHandler']>[1] = {
+	isCancellationRequested: false,
+	onCancellationRequested: Event.None,
+};
 
 /**
  * Records the hidden policy sessions a {@link CopilotCustomizationInstallations}
@@ -274,7 +279,7 @@ suite('CopilotCustomizationInstallations', () => {
 						expiresAt,
 						reviewFingerprint: `fingerprint-${decisions.length}`,
 						review: { resource: 'plugin', review },
-					}, CancellationToken.None));
+					}, confirmationToken));
 				}
 				return {
 					kind: 'outcome',
@@ -1188,7 +1193,7 @@ suite('CopilotCustomizationInstallations', () => {
 					['valid', sdkReview.effectiveConfiguration!],
 				];
 				for (const [id, effectiveConfiguration] of configurations) {
-					decisions.push(await serviceRef.value!.confirmationHandler(confirmation(id, effectiveConfiguration), CancellationToken.None));
+					decisions.push(await serviceRef.value!.confirmationHandler(confirmation(id, effectiveConfiguration), confirmationToken));
 				}
 				installed = true;
 				return {
@@ -1239,7 +1244,7 @@ suite('CopilotCustomizationInstallations', () => {
 						},
 					},
 				};
-				const decision = await serviceRef.value!.confirmationHandler(request, CancellationToken.None);
+				const decision = await serviceRef.value!.confirmationHandler(request, confirmationToken);
 				uninstallDecisions.push(decision);
 				installed = decision !== 'confirm';
 				return {
@@ -1832,7 +1837,7 @@ suite('CopilotCustomizationInstallations', () => {
 					reviewFingerprint: 'fingerprint',
 					review: { resource: 'skill', review: sdkReview },
 				};
-				const decision = await serviceRef.value!.confirmationHandler(request, CancellationToken.None);
+				const decision = await serviceRef.value!.confirmationHandler(request, confirmationToken);
 				decisions.push(decision);
 				return {
 					kind: 'outcome' as const,
@@ -1916,7 +1921,7 @@ suite('CopilotCustomizationInstallations', () => {
 			expiresAt,
 			reviewFingerprint: 'premature-fingerprint',
 			review: { resource: 'skill', review: sdkReview },
-		}, CancellationToken.None);
+		}, confirmationToken);
 		await service.apply(review.operationId);
 
 		assert.deepStrictEqual({

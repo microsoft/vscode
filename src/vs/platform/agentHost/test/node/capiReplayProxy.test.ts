@@ -45,6 +45,7 @@ suite('CapiReplayProxy', () => {
 
 	for (const request of [
 		{ method: 'GET', path: '/unexpected-api' },
+		{ method: 'POST', path: '/meta' },
 		{ method: 'POST', path: '/json/version' },
 		{ method: 'POST', path: '/v1/messages' },
 		{ method: 'POST', path: '/responses' },
@@ -64,6 +65,25 @@ suite('CapiReplayProxy', () => {
 			}
 		});
 	}
+
+	test('serves the same model catalog through meta discovery without recording replay traffic', async () => {
+		const proxy = new CapiReplayProxy({ fixturePath: fileURLToPath(new URL('./e2e/captures/empty.yaml', import.meta.url)), mode: 'replay' });
+		try {
+			const url = await proxy.start();
+			const models = await (await fetch(`${url}/models`)).json();
+			for (let index = 0; index < 2; index++) {
+				const response = await fetch(`${url}/meta`);
+				assert.strictEqual(response.status, 200);
+				const meta = await response.json();
+				assert.deepStrictEqual({ models: meta.models, defaultTier: meta.auto.default_tier, tiers: meta.auto.tiers.map((tier: { id: string }) => tier.id) }, {
+					models, defaultTier: 'balance', tiers: ['efficiency', 'balance', 'intelligence'],
+				});
+			}
+			proxy.assertNoReplayMismatches();
+		} finally {
+			await proxy.stop();
+		}
+	});
 
 	test('serves mutable managed settings locally in record and replay and resets between tests', async () => {
 		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-policy-'));
