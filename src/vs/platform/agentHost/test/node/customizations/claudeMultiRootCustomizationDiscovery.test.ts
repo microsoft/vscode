@@ -9,11 +9,12 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../files/common/files.js';
+import { createInMemoryFileService } from '../../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { discoverClaudeMultiRootCustomizations } from '../../../node/claude/customizations/claudeMultiRootCustomizationDiscovery.js';
 import { scanClaudeDiskCustomizations } from '../../../node/claude/customizations/scan/claudeAgentSkillScan.js';
 import { scanClaudeNativePlugins } from '../../../node/claude/customizations/scan/claudeNativePluginScan.js';
-import { createInMemoryFileService, seedFile } from './claudeCustomizationTestUtils.js';
+import { seedFile } from './claudeCustomizationTestUtils.js';
 
 class CapturingLogService extends NullLogService {
 	readonly warns: string[] = [];

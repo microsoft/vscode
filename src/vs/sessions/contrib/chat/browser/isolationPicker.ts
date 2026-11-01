@@ -37,7 +37,7 @@ const ISOLATION_OPTIONS: readonly IIsolationOption[] = [
 		isolation: 'folder',
 		label: localize('isolationPicker.branch', "Branch"),
 		description: localize('isolationPicker.branchDescription', "Works in the repository already on this computer"),
-		icon: Codicon.folder,
+		icon: Codicon.gitBranchCheckout,
 	},
 	{
 		isolation: 'worktree',

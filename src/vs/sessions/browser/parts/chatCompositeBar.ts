@@ -800,10 +800,10 @@ export class ChatCompositeBar extends Disposable {
 				e.preventDefault();
 				e.stopPropagation();
 				finish(false);
-			} else {
-				// Don't let typing leak out to workbench shortcuts (e.g. Space).
-				e.stopPropagation();
 			}
+			// Other keys must bubble: clipboard and editing shortcuts (paste, copy,
+			// select all, undo) are workbench keybindings for plain inputs. The tab's
+			// own key handlers only react to keys targeting the tab itself.
 		}));
 
 		store.add(addDisposableListener(inputBox.inputElement, EventType.BLUR, () => finish(false)));
@@ -839,8 +839,12 @@ export class ChatCompositeBar extends Disposable {
 			tab.element.tabIndex = isActive ? 0 : -1;
 			tab.toolbar?.setFocusable(isActive);
 		}
-		this._updateScrollDimensions();
-		this._revealActiveTab();
+		// Measuring a hidden bar forces a synchronous layout of the whole window, including a large
+		// transcript that is about to be replaced, for nothing. `_setVisible` measures once it is shown.
+		if (this._visible) {
+			this._updateScrollDimensions();
+			this._revealActiveTab();
+		}
 	}
 
 	private _revealActiveTab(): void {
@@ -854,6 +858,10 @@ export class ChatCompositeBar extends Disposable {
 		this._visible = visible;
 		this._container.style.display = this._visible ? '' : 'none';
 		this._height = this._visible ? this._container.offsetHeight : 0;
+		if (this._visible && !wasVisible) {
+			this._updateScrollDimensions();
+			this._revealActiveTab();
+		}
 		if (wasVisible !== this._visible) {
 			this._onDidChangeVisibility.fire(this._visible);
 		}

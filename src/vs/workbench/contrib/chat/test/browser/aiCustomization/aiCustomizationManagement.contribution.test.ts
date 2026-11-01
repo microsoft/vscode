@@ -16,6 +16,9 @@ import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../../platform/a
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import '../../../browser/aiCustomization/aiCustomizationManagement.contribution.js';
 import {
+	AI_CUSTOMIZATION_ITEM_PLUGIN_REQUIRED_KEY,
+	AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY,
+	AI_CUSTOMIZATION_ITEM_STORAGE_KEY,
 	AICustomizationManagementItemMenuId,
 	AICustomizationManagementSyntheticItemMenuId,
 	DELETE_AI_CUSTOMIZATION_ID,
@@ -24,10 +27,12 @@ import {
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { aiCustomizationManagementSectionRegistry } from '../../../browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
-import { AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { createCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../common/customizationMarketplaceInstallService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { IConfirmationResult, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 
 suite('AI customization management contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -78,43 +83,94 @@ suite('AI customization management contribution', () => {
 		assert.deepStrictEqual(uninstallCalls, [resource]);
 	});
 
-	test('isolates synthetic items from extension-contributed item actions', () => {
-		const disposables = new DisposableStore();
-		try {
-			disposables.add(MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
-				command: {
-					id: 'test.extensionContributedAction',
-					title: 'Extension Action',
-				},
-			}));
-
-			const syntheticUri = toAgentHostUri(
-				URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/code-review' }),
-				'remote'
-			);
-			const selectedMenuId = getAICustomizationManagementItemMenuId(syntheticUri);
-			const syntheticActionIds = MenuRegistry.getMenuItems(selectedMenuId)
-				.filter(isIMenuItem)
-				.map(item => item.command.id);
-			const regularActionIds = MenuRegistry.getMenuItems(AICustomizationManagementItemMenuId)
-				.filter(isIMenuItem)
-				.map(item => item.command.id);
-
-			assert.deepStrictEqual({
-				usesSyntheticMenu: selectedMenuId === AICustomizationManagementSyntheticItemMenuId,
-				syntheticFileActions: syntheticActionIds.filter(id => fileActionIds.has(id)),
-				syntheticExtensionActions: syntheticActionIds.filter(id => id === 'test.extensionContributedAction'),
-				regularHasFileActions: [...fileActionIds].every(id => regularActionIds.includes(id)),
-				readableUsesExtensibleMenu: getAICustomizationManagementItemMenuId(URI.file('/workspace/SKILL.md')) === AICustomizationManagementItemMenuId,
-			}, {
-				usesSyntheticMenu: true,
-				syntheticFileActions: [],
-				syntheticExtensionActions: [],
-				regularHasFileActions: true,
-				readableUsesExtensibleMenu: true,
-			});
-		} finally {
-			disposables.dispose();
+	test('keeps Uninstall Plugin visible but disabled for items of a plugin the organization requires', async () => {
+		const pluginUri = URI.file('/plugins/handy-commands');
+		const removals: string[] = [];
+		const plugin = new class extends mock<IAgentPlugin>() {
+			override readonly uri = pluginUri;
+			override readonly label = 'handy-commands';
+			override readonly policyEnablement = constObservable<boolean | undefined>(true);
+			override async remove(): Promise<boolean> {
+				removals.push(this.label);
+				return true;
+			}
+		}();
+		const dialogs: string[] = [];
+		const instantiationService = workbenchInstantiationService({}, store);
+		instantiationService.stub(IAgentPluginService, new class extends mock<IAgentPluginService>() {
+			override readonly plugins = constObservable([plugin]);
+		}());
+		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
+			override async info(message: string): Promise<void> { dialogs.push(message); }
+			override async confirm(): Promise<IConfirmationResult> {
+				dialogs.push('confirm');
+				return { confirmed: true };
+			}
+		}());
+		const context = { uri: URI.joinPath(pluginUri, 'commands', 'fix-issue.md'), name: 'fix-issue', promptType: PromptsType.prompt, storage: AICustomizationSources.plugin };
+		for (const id of [DELETE_AI_CUSTOMIZATION_ID, 'aiCustomizationManagement.uninstallPlugin']) {
+			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor, context));
 		}
+		const menuItems = (required: boolean) => {
+			const values: Record<string, string | boolean> = {
+				[AI_CUSTOMIZATION_ITEM_STORAGE_KEY]: AICustomizationSources.plugin,
+				[AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY]: pluginUri.toString(),
+				[AI_CUSTOMIZATION_ITEM_PLUGIN_REQUIRED_KEY]: required,
+			};
+			const itemContext = { getValue: <T>(key: string) => values[key] as T };
+			return MenuRegistry.getMenuItems(AICustomizationManagementItemMenuId)
+				.filter(isIMenuItem)
+				.filter(item => item.command.id === 'aiCustomizationManagement.uninstallPlugin' && item.when?.evaluate(itemContext))
+				.map(item => ({ group: item.group, enabled: item.command.precondition?.evaluate(itemContext) ?? true, tooltip: item.command.tooltip }));
+		};
+
+		assert.deepStrictEqual({ dialogs, removals, unmanaged: menuItems(false), required: menuItems(true) }, {
+			dialogs: ['This plugin is managed by your organization.', 'This plugin is managed by your organization.'],
+			removals: [],
+			unmanaged: [
+				{ group: 'inline', enabled: true, tooltip: undefined },
+				{ group: '4_modify', enabled: true, tooltip: undefined },
+			],
+			required: [
+				{ group: 'inline', enabled: false, tooltip: 'This plugin is managed by your organization.' },
+				{ group: '4_modify', enabled: false, tooltip: undefined },
+			],
+		});
+	});
+
+	test('isolates synthetic items from extension-contributed item actions', () => {
+		const disposables = store.add(new DisposableStore());
+		disposables.add(MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+			command: {
+				id: 'test.extensionContributedAction',
+				title: 'Extension Action',
+			},
+		}));
+
+		const syntheticUri = toAgentHostUri(
+			URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/code-review' }),
+			'remote'
+		);
+		const selectedMenuId = getAICustomizationManagementItemMenuId(syntheticUri);
+		const syntheticActionIds = MenuRegistry.getMenuItems(selectedMenuId)
+			.filter(isIMenuItem)
+			.map(item => item.command.id);
+		const regularActionIds = MenuRegistry.getMenuItems(AICustomizationManagementItemMenuId)
+			.filter(isIMenuItem)
+			.map(item => item.command.id);
+
+		assert.deepStrictEqual({
+			usesSyntheticMenu: selectedMenuId === AICustomizationManagementSyntheticItemMenuId,
+			syntheticFileActions: syntheticActionIds.filter(id => fileActionIds.has(id)),
+			syntheticExtensionActions: syntheticActionIds.filter(id => id === 'test.extensionContributedAction'),
+			regularHasFileActions: [...fileActionIds].every(id => regularActionIds.includes(id)),
+			readableUsesExtensibleMenu: getAICustomizationManagementItemMenuId(URI.file('/workspace/SKILL.md')) === AICustomizationManagementItemMenuId,
+		}, {
+			usesSyntheticMenu: true,
+			syntheticFileActions: [],
+			syntheticExtensionActions: [],
+			regularHasFileActions: true,
+			readableUsesExtensibleMenu: true,
+		});
 	});
 });

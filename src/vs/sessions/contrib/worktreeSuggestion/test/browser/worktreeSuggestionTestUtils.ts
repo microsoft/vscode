@@ -16,6 +16,7 @@ import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionSe
 /** A worktree suggestion service that never suggests, for tests of the surfaces that host suggestions. */
 export class NullWorktreeSuggestionService extends mock<IWorktreeSuggestionService>() {
 	override readonly variant = constObservable(WorktreeSuggestionVariant.Off);
+	override readonly isPreviewing = constObservable(false);
 	override getSuggestion(): undefined {
 		return undefined;
 	}
@@ -28,10 +29,10 @@ export class NullWorktreeSuggestionService extends mock<IWorktreeSuggestionServi
  */
 export class TestWorktreeSuggestionService extends mock<IWorktreeSuggestionService>() {
 	override readonly variant: ISettableObservable<WorktreeSuggestionVariant>;
+	override readonly isPreviewing = observableValue('isPreviewing', false);
 	readonly calls: string[] = [];
 	/** Number of times a surface reported that a suggestion would appear, which logs the experiment trigger. */
 	wouldShowReports = 0;
-	explanationClosed = false;
 	/** Whether the spotlight may still run. */
 	spotlightAvailable = true;
 	/** What the user chooses in the next spotlight, or `undefined` when it cannot show. */
@@ -103,13 +104,6 @@ export class TestWorktreeSuggestionService extends mock<IWorktreeSuggestionServi
 	override closeHint(): void {
 		this.calls.push('hintClosed');
 		this._hintClosed.set(true, undefined);
-	}
-	override isExplanationClosed(): boolean {
-		return this.explanationClosed;
-	}
-	override closeExplanation(): void {
-		this.explanationClosed = true;
-		this.calls.push('explanationClosed');
 	}
 	override canShowSpotlight(): boolean {
 		return this.spotlightAvailable;

@@ -173,6 +173,8 @@ const parseSessionFeedConnection = parse.copyObject<SessionFeedConnection>({
 	group: parse.nonEmptyString,
 	expires_at: parse.dateTime,
 	reconnect_after: parse.dateTime,
+	expires_in: parse.optional(parse.nonNegativeInteger),
+	reconnect_in: parse.optional(parse.nonNegativeInteger),
 	frame_schema_version: parse.exact(1),
 });
 

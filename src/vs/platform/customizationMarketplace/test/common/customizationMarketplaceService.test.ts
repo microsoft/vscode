@@ -80,6 +80,28 @@ suite('CustomizationMarketplaceService', () => {
 		});
 	});
 
+	test('prioritizes provider queries without changing result tie-breaking order', async () => {
+		const calls: string[] = [];
+		const sources = ['first', 'priority', 'last'].map((id): ICustomizationMarketplaceProvider => ({
+			id,
+			query: async () => {
+				calls.push(id);
+				return { items: [{ ...entry, identifier: id }], total: 1 };
+			},
+		}));
+		const page = await new CustomizationMarketplaceService(sources, ['priority']).query({
+			sourceIds: sources.map(source => source.id),
+			pageSize: sources.length,
+		}, CancellationToken.None);
+		assert.deepStrictEqual({
+			calls,
+			items: page.items.map(item => item.identifier),
+		}, {
+			calls: ['priority', 'first', 'last'],
+			items: ['first', 'priority', 'last'],
+		});
+	});
+
 	test('reports source progress and serves cached Browse content while refreshing', async () => {
 		const firstFast = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
 		const firstSlow = new DeferredPromise<ICustomizationMarketplaceSourcePage>();

@@ -26,8 +26,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { Context } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
-import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -746,16 +745,7 @@ suite('ConnectionDiagnosticsReport', () => {
 					override readonly isDiscovering = false;
 				}(),
 				new class extends mock<IContextMenuService>() { }(),
-				new class extends mock<IHoverService>() {
-					override setupManagedHover(): IManagedHover {
-						return {
-							dispose() { },
-							show() { },
-							hide() { },
-							update() { },
-						};
-					}
-				}(),
+				{ ...NullHoverService },
 				new class extends mock<ICommandService>() {
 					override async executeCommand<T>(id: string): Promise<T> {
 						commands.push({ id, pickerOpen: !!container.querySelector('[role="dialog"]') });
@@ -945,16 +935,7 @@ suite('ConnectionDiagnosticsReport', () => {
 					override readonly isDiscovering = false;
 				}(),
 				new class extends mock<IContextMenuService>() { }(),
-				new class extends mock<IHoverService>() {
-					override setupManagedHover(): IManagedHover {
-						return {
-							dispose() { },
-							show() { },
-							hide() { },
-							update() { },
-						};
-					}
-				}(),
+				{ ...NullHoverService },
 				new class extends mock<ICommandService>() {
 					override async executeCommand<T>(id: string): Promise<T> {
 						commands.push(id);

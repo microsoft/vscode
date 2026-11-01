@@ -174,6 +174,9 @@ variables:
     value: ${{ eq(parameters.VSCODE_BUILD_WEB, true) }}
   - name: VSCODE_CIBUILD
     value: ${{ or(in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI'), eq(parameters.VSCODE_BUILD_TYPE, 'CI')) }}
+  # ARM32-only artifact runs do not exercise server-web.
+  - name: VSCODE_ARTIFACT_SANITY_REQUIRES_WEB
+    value: ${{ and(parameters.VSCODE_RUN_ARTIFACT_SANITY_TESTS, or(parameters.VSCODE_BUILD_MACOS, parameters.VSCODE_BUILD_MACOS_ARM64, parameters.VSCODE_BUILD_WIN32, parameters.VSCODE_BUILD_WIN32_ARM64, parameters.VSCODE_BUILD_LINUX, parameters.VSCODE_BUILD_LINUX_ARM64, parameters.VSCODE_BUILD_ALPINE, parameters.VSCODE_BUILD_ALPINE_ARM64)) }}
   # Product architectures are split into their own stages. The existing Linux
   # stage continues to hold the CI test jobs.
   - name: VSCODE_BUILD_STAGE_LINUX_X64
@@ -332,6 +335,11 @@ extends:
     settings:
       networkIsolationPolicy: Permissive,CFSClean,CFSClean2,CFSClean3
     stages:
+
+      # Reject at template expansion, before allocating agents. Web uploads the matching
+      # commit's webview bootstrap assets even when VSCODE_PUBLISH is false.
+      - ${{ if and(eq(variables.VSCODE_ARTIFACT_SANITY_REQUIRES_WEB, true), or(eq(variables.VSCODE_CIBUILD, true), ne(parameters.VSCODE_BUILD_WEB, true))) }}:
+        - 'Server-web artifact sanity requires a Product build with VSCODE_BUILD_WEB=true (uploads webview assets to the CDN even with VSCODE_PUBLISH=false)': error
 
       - stage: Quality
         dependsOn: []
@@ -1234,12 +1242,14 @@ extends:
       # Artifact backed sanity coverage can run with or without publishing. Unpublished validation
       # builds cannot use the SanityTests stage above, which resolves builds through the update
       # service. Each artifact job's grep is scoped to exactly the
-      # targets its artifacts cover, and each stage depends only on the build stage producing them
-      # so one platform failing does not skip the rest.
+      # targets its artifacts cover. Server-web also needs the Web stage's commit-specific
+      # CDN bootstrap assets; waiting for Web prevents a race with their upload.
       - ${{ if and(eq(parameters.VSCODE_RUN_ARTIFACT_SANITY_TESTS, true), eq(variables['VSCODE_BUILD_STAGE_MACOS'], true)) }}:
         - stage: ArtifactSanityTestsMacOS
           displayName: Sanity Tests (Artifacts, macOS)
           dependsOn:
+            - ${{ if eq(variables.VSCODE_ARTIFACT_SANITY_REQUIRES_WEB, true) }}:
+              - Web
             - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_X64'], true) }}:
               - macOSX64
             - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_ARM64'], true) }}:
@@ -1303,6 +1313,8 @@ extends:
         - stage: ArtifactSanityTestsWindows
           displayName: Sanity Tests (Artifacts, Windows)
           dependsOn:
+            - ${{ if eq(variables.VSCODE_ARTIFACT_SANITY_REQUIRES_WEB, true) }}:
+              - Web
             - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
               - Windows
             - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS_ARM64'], true) }}:
@@ -1355,6 +1367,8 @@ extends:
         - stage: ArtifactSanityTestsAlpine
           displayName: Sanity Tests (Artifacts, Alpine)
           dependsOn:
+            - ${{ if eq(variables.VSCODE_ARTIFACT_SANITY_REQUIRES_WEB, true) }}:
+              - Web
             - Alpine
           variables:
             - name: BUILD_COMMIT
@@ -1396,6 +1410,8 @@ extends:
         - stage: ArtifactSanityTestsLinux
           displayName: Sanity Tests (Artifacts, Linux)
           dependsOn:
+            - ${{ if eq(variables.VSCODE_ARTIFACT_SANITY_REQUIRES_WEB, true) }}:
+              - Web
             - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX_X64'], true) }}:
               - LinuxX64
             - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX_ARM64'], true) }}:

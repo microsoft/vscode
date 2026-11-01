@@ -54,11 +54,13 @@ import { IOpenerService, OpenExternalOptions, OpenInternalOptions } from '../../
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ChatInboxEnabledContext, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from '../../../inboxOne/browser/inboxNotificationsConstants.js';
 import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -174,6 +176,8 @@ suite('Sessions - SessionsList', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const noHeaderStatusTrigger = { pending: constObservable(false), includeExpanded: constObservable(false), report: () => { } };
 	const noKeybindingService = new class extends mock<IKeybindingService>() { };
+	const automationDefinition = (id: string, ownership: IAutomationDescriptor['ownership'] = 'user'): IAutomationDescriptor =>
+		upcastPartial<IAutomationDescriptor>({ id, ownership });
 
 	suite('catalogue refresh scheduling', () => {
 		async function nextFrame(): Promise<void> {
@@ -369,6 +373,7 @@ suite('Sessions - SessionsList', () => {
 			});
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 			const automationService = new class extends mock<IAutomationService>() {
+				override readonly automations = constObservable<readonly IAutomationDescriptor[]>([]);
 				override readonly runs = constObservable<readonly IAutomationRun[]>([]);
 			};
 			const selectedSections: ISessionSection[] = [];
@@ -417,6 +422,7 @@ suite('Sessions - SessionsList', () => {
 			});
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 			const automationService = new class extends mock<IAutomationService>() {
+				override readonly automations = constObservable<readonly IAutomationDescriptor[]>([]);
 				override readonly runs = constObservable<readonly IAutomationRun[]>([]);
 			};
 			let hoverOptions: Parameters<IHoverService['setupDelayedHover']>[1] | undefined;
@@ -488,6 +494,7 @@ suite('Sessions - SessionsList', () => {
 			});
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 			const automationService = new class extends mock<IAutomationService>() {
+				override readonly automations = constObservable<readonly IAutomationDescriptor[]>([]);
 				override readonly runs = constObservable<readonly IAutomationRun[]>([]);
 			};
 			let hoverOptions: Parameters<IHoverService['setupDelayedHover']>[1] | undefined;
@@ -574,6 +581,7 @@ suite('Sessions - SessionsList', () => {
 			instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() { });
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 			const automationService = new class extends mock<IAutomationService>() {
+				override readonly automations = constObservable([automationDefinition('automation')]);
 				override readonly runs = constObservable<readonly IAutomationRun[]>([{
 					id: 'pending',
 					automationId: 'automation',
@@ -624,6 +632,135 @@ suite('Sessions - SessionsList', () => {
 				spinnerParent: 'session-section-icon',
 				newBadge: false,
 				trailingStatusIndicator: false,
+			});
+		});
+
+		test('renders inbox notification count as a badge and updates reactively', () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
+				override set context(_context: unknown) { }
+				override dispose(): void { }
+			});
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const inboxNotificationCount = observableValue<number>(disposables, 0);
+			const renderer = new SessionSectionRenderer(
+				true,
+				() => { },
+				constObservable(true),
+				constObservable(new Set<string>()),
+				noHeaderStatusTrigger,
+				instantiationService,
+				NullHoverService,
+				contextKeyService,
+				new class extends mock<IAutomationService>() {
+					override readonly automations = constObservable<readonly IAutomationDescriptor[]>([]);
+					override readonly runs = constObservable<readonly IAutomationRun[]>([]);
+				},
+				constObservable([]),
+				new class extends mock<IUriIdentityService>() {
+					override readonly extUri = new ExtUri(() => true);
+				},
+				new class extends mock<ICustomViewService>() {
+					override readonly activeCustomView = constObservable(undefined);
+				},
+				new class extends mock<IMenuService>() { },
+				noKeybindingService,
+				constObservable(false),
+				constObservable(false),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				inboxNotificationCount,
+			);
+			const container = document.createElement('div');
+			const template = renderer.renderTemplate(container);
+			disposables.add(template.disposables);
+
+			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
+				element: { id: 'inboxNotifications', label: 'Inbox', sessions: [] },
+				collapsible: false,
+				collapsed: false,
+			}), 0, template);
+			const initial = {
+				isInbox: container.classList.contains('session-section-inbox'),
+				countText: template.count.textContent,
+				countDisplay: template.count.style.display,
+			};
+
+			inboxNotificationCount.set(7, undefined);
+			const withNotifications = {
+				countText: template.count.textContent,
+				countDisplay: template.count.style.display,
+			};
+
+			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
+				element: { id: 'workspace:test', label: 'Workspace', sessions: [] },
+				collapsible: true,
+				collapsed: false,
+			}), 0, template);
+			const recycled = {
+				isInbox: container.classList.contains('session-section-inbox'),
+				countText: template.count.textContent,
+				countDisplay: template.count.style.display,
+			};
+
+			assert.deepStrictEqual({ initial, withNotifications, recycled }, {
+				initial: {
+					isInbox: true,
+					countText: '',
+					countDisplay: 'none',
+				},
+				withNotifications: {
+					countText: '7',
+					countDisplay: '',
+				},
+				recycled: {
+					isInbox: false,
+					countText: '',
+					countDisplay: 'none',
+				},
+			});
+		});
+
+		test('opens Inbox from the navigation list and hides it when disabled', async () => {
+			const harness = createListHarness(disposables, [], instantiationService => {
+				const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+				instantiationService.stub(IContextKeyService, contextKeyService);
+				ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+				ChatInboxEnabledContext.bindTo(contextKeyService).set(true);
+			});
+			const container = harness.createContainer();
+			const navigationContainer = mainWindow.document.createElement('div');
+			const listContainer = mainWindow.document.createElement('div');
+			container.append(navigationContainer, listContainer);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				showNavigationShortcuts: () => true,
+				navigationContainer,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const inboxRow = navigationContainer.querySelector<HTMLElement>('.session-section-inbox')!;
+			const ariaLabel = inboxRow.closest('.monaco-list-row')?.getAttribute('aria-label');
+			inboxRow.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			await timeout(0);
+
+			ChatInboxEnabledContext.bindTo(harness.instantiationService.get(IContextKeyService)).set(false);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				ariaLabel,
+				commands: harness.commandService.calls,
+				inboxVisible: !!navigationContainer.querySelector('.session-section-inbox'),
+			}, {
+				ariaLabel: 'Inbox, open inbox notifications',
+				commands: [{ commandId: SHOW_INBOX_NOTIFICATIONS_COMMAND_ID, args: [] }],
+				inboxVisible: false,
 			});
 		});
 
@@ -1321,6 +1458,60 @@ suite('Sessions - SessionsList', () => {
 			await timeout(350);
 		});
 
+		test('reports in-progress status only for known personal automation runs', () => {
+			const personal = automationDefinition('personal');
+			const shared = automationDefinition('shared', 'repository');
+			const automations = observableValue<readonly IAutomationDescriptor[]>('automationDefinitions', []);
+			const runs = observableValue<readonly IAutomationRun[]>('automationRuns', []);
+			const automationService = new class extends mock<IAutomationService>() {
+				override readonly automations = automations;
+				override readonly runs = runs;
+			};
+			const renderer = new SessionSectionRenderer(
+				true,
+				() => { },
+				constObservable(true),
+				constObservable(new Set<string>()),
+				noHeaderStatusTrigger,
+				new class extends mock<IInstantiationService>() { },
+				NullHoverService,
+				new class extends mock<IContextKeyService>() { },
+				automationService,
+				constObservable([]),
+				new class extends mock<IUriIdentityService>() { override readonly extUri = new ExtUri(() => false); },
+				new class extends mock<ICustomViewService>() { },
+				new class extends mock<IMenuService>() { },
+				noKeybindingService,
+				constObservable(false),
+			);
+			const run = (id: string, automationId: string): IAutomationRun => ({
+				id,
+				automationId,
+				status: 'running',
+				trigger: 'schedule',
+				startedAt: '2026-10-29T00:00:00.000Z',
+			});
+
+			runs.set([run('unknown-run', 'unknown')], undefined);
+			const unknownStatus = renderer.automationStatus.get();
+			automations.set([personal], undefined);
+			runs.set([run('personal-run', personal.id)], undefined);
+			const personalStatus = renderer.automationStatus.get();
+			automations.set([shared], undefined);
+			runs.set([run('shared-run', shared.id)], undefined);
+			const sharedStatus = renderer.automationStatus.get();
+			automations.set([personal, shared], undefined);
+			runs.set([run('personal-run', personal.id), run('shared-run', shared.id)], undefined);
+			const mixedStatus = renderer.automationStatus.get();
+
+			assert.deepStrictEqual({ unknownStatus, personalStatus, sharedStatus, mixedStatus }, {
+				unknownStatus: undefined,
+				personalStatus: SessionStatus.InProgress,
+				sharedStatus: undefined,
+				mixedStatus: SessionStatus.InProgress,
+			});
+		});
+
 		test('derives terminal automation status from the supplied session snapshot', () => {
 			const session = createSession('automation', {
 				isRead: false,
@@ -1342,6 +1533,7 @@ suite('Sessions - SessionsList', () => {
 			managementCalls.length = 0;
 			const runs = observableValue<readonly IAutomationRun[]>('automationRuns', []);
 			const automationService = new class extends mock<IAutomationService>() {
+				override readonly automations = constObservable([automationDefinition('automation')]);
 				override readonly runs = runs;
 			};
 			const uriIdentityService = new class extends mock<IUriIdentityService>() {
@@ -1422,6 +1614,7 @@ suite('Sessions - SessionsList', () => {
 			needsInputStatus.set(SessionStatus.InProgress, undefined);
 			const runs = observableValue<readonly IAutomationRun[]>('automationRuns', []);
 			const automationService = new class extends mock<IAutomationService>() {
+				override readonly automations = constObservable([automationDefinition('automation')]);
 				override readonly runs = runs;
 			};
 			const uriIdentityService = new class extends mock<IUriIdentityService>() {
@@ -1489,13 +1682,18 @@ suite('Sessions - SessionsList', () => {
 				new class extends mock<IInstantiationService>() { },
 				NullHoverService,
 				new class extends mock<IContextKeyService>() { },
-				new class extends mock<IAutomationService>() { override readonly runs = runs; },
+				new class extends mock<IAutomationService>() {
+					override readonly automations = constObservable([automationDefinition('automation')]);
+					override readonly runs = runs;
+				},
 				constObservable([needsInput, unread]),
 				new class extends mock<IUriIdentityService>() { override readonly extUri = new ExtUri(() => false); },
 				new class extends mock<ICustomViewService>() { },
 				new class extends mock<IMenuService>() { },
 				noKeybindingService,
 				constObservable(false),
+				undefined,
+				undefined,
 				undefined,
 				undefined,
 				undefined,
@@ -5758,6 +5956,450 @@ suite('Sessions - SessionsList', () => {
 				afterRestart: 'false',
 				persisted: { 'workspace:file:///elsewhere': false, [`group:${group.id}`]: true, recent: true },
 			});
+		});
+
+		for (const savedPinnedCollapsed of [undefined, true] as const) {
+			test(`first pin ${savedPinnedCollapsed ? 'keeps a user-collapsed' : 'shows an expanded'} Pinned section`, () => {
+				const session = createTestSession('Session', { workspaceLabel: 'vscode' }).session;
+				const harness = createListHarness(disposables, [session], { livePins: true });
+				const storageService = harness.instantiationService.get(IStorageService);
+				if (savedPinnedCollapsed !== undefined) {
+					storageService.store('sessionsListControl.sectionCollapseState', JSON.stringify({ pinned: savedPinnedCollapsed }), StorageScope.PROFILE, StorageTarget.USER);
+				}
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+				const beforePin = list.getItemRow({ section: 'pinned' });
+
+				harness.instantiationService.get(ISessionsListModelService).pinSession(session);
+
+				assert.deepStrictEqual({
+					beforePin,
+					pinnedExpanded: list.getItemRow({ section: 'pinned' })?.getAttribute('aria-expanded'),
+					persisted: JSON.parse(storageService.get('sessionsListControl.sectionCollapseState', StorageScope.PROFILE) ?? '{}'),
+				}, {
+					beforePin: undefined,
+					pinnedExpanded: savedPinnedCollapsed ? 'false' : 'true',
+					persisted: { pinned: savedPinnedCollapsed ?? false },
+				});
+			});
+		}
+	});
+
+	suite('search', () => {
+		const perfGroup: ISessionGroup = { id: 'perf', name: 'Perf work', createdAt: 1 };
+
+		function createChat(title: string, isArchived = false): IChat {
+			return upcastPartial<IChat>({
+				resource: URI.parse(`test-chat://${title.replaceAll(' ', '-')}`),
+				createdAt: new Date(0),
+				workspace: constObservable(undefined),
+				title: constObservable(title),
+				updatedAt: constObservable(new Date(0)),
+				status: constObservable(SessionStatus.Completed),
+				description: constObservable(undefined),
+				isArchived: constObservable(isArchived),
+				isRead: constObservable(true),
+				changes: constObservable([]),
+				changesets: constObservable([]),
+				interactivity: constObservable(ChatInteractivity.Full),
+			});
+		}
+
+		interface ISearchSessionOptions {
+			readonly branch?: string;
+			/** Whether the folder is a checkout of `microsoft/vscode`, as it is when it has `pullRequests`. */
+			readonly gitHub?: boolean;
+			/** Pull requests of a repository of `microsoft`. */
+			readonly pullRequests?: readonly { readonly repo: string; readonly number: number; readonly title: string }[];
+			/** Nested chats. */
+			readonly chats?: readonly string[];
+			/** Done chats, which the Done section lists as rows of their own while the session is not done. */
+			readonly doneChats?: readonly string[];
+			readonly test?: ITestSessionOptions;
+		}
+
+		/** A session in `vscode`, on `branch` with `pullRequests`, and with nested `chats` and `doneChats`. */
+		function createSession(title: string, options: ISearchSessionOptions = {}): ISession {
+			const session = createTestSession(title, { workspaceLabel: 'vscode', ...options.test }).session;
+			const root = URI.file(`/workspace/${title}`);
+			const folder: ISessionFolder = {
+				root,
+				workingDirectory: root,
+				name: options.test?.workspaceLabel ?? 'vscode',
+				description: undefined,
+				gitRepository: {
+					uri: root,
+					workTreeUri: undefined,
+					branchName: options.branch,
+					baseBranchName: 'main',
+					gitHubInfo: constObservable(options.gitHub || options.pullRequests ? {
+						owner: 'microsoft',
+						repo: 'vscode',
+						pullRequests: options.pullRequests?.map(({ repo, number, title }) => ({ owner: 'microsoft', repo, number, uri: URI.parse(`https://github.com/microsoft/${repo}/pull/${number}`), title })),
+					} : undefined),
+				},
+			};
+			const main = createChat(`${title} main`);
+			const chats = [...(options.chats ?? []).map(chat => createChat(chat)), ...(options.doneChats ?? []).map(chat => createChat(chat, true))];
+			return {
+				...session,
+				workspace: constObservable({ ...session.workspace.get()!, folders: [folder] }),
+				...(chats.length > 0 ? {
+					chats: constObservable([main, ...chats]),
+					mainChat: constObservable(main),
+					capabilities: constObservable({ supportsMultipleChats: true }),
+				} : {}),
+			};
+		}
+
+		/** Text of an element, its highlighted parts in `«»`. */
+		function markHighlights(element: Element | null): string | undefined {
+			if (!element) {
+				return undefined;
+			}
+			let text = '';
+			for (const node of element.childNodes) {
+				if (node instanceof mainWindow.HTMLElement && node.classList.contains('highlight')) {
+					text += `«${node.textContent}»`;
+				} else if (node instanceof mainWindow.HTMLElement) {
+					text += markHighlights(node) ?? '';
+				} else {
+					text += node.textContent ?? '';
+				}
+			}
+			return text;
+		}
+
+		function renderSearch(sessions: ISession[], options: IListHarnessOptions | ((instantiationService: TestInstantiationService) => void) = {}, grouping = SessionsGrouping.Date, compact = false) {
+			const harness = createListHarness(disposables, sessions, options);
+			const container = harness.createContainer(300, 800);
+			const findWidgetContainer = mainWindow.document.createElement('div');
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => grouping,
+				sorting: () => SessionsSorting.Created,
+				compact: () => compact,
+				findWidgetContainer,
+				onSessionOpen: () => { },
+			}));
+			list.layout(800, 300);
+			/**
+			 * Rows top to bottom: sections, their sessions indented with the hint of a search, in `[]` in their details row
+			 * or in `{}` next to their title, and the sessions' chats.
+			 */
+			const rows = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+				.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top))
+				.map(row => {
+					const section = row.querySelector('.session-section-label')?.textContent;
+					if (section) {
+						return `${section}${row.getAttribute('aria-expanded') === 'false' ? ' (collapsed)' : ''}`;
+					}
+					const chat = markHighlights(row.querySelector('.session-chat-title'));
+					if (chat !== undefined) {
+						const chatDetailsHint = markHighlights(row.querySelector('.session-chat-folder-row .session-search-hint-label'));
+						const chatTitleHint = markHighlights(row.querySelector('.session-search-hint-title.visible .session-search-hint-label'));
+						return `    ${chat}${chatDetailsHint ? ` [${chatDetailsHint}]` : ''}${chatTitleHint ? ` {${chatTitleHint}}` : ''}`;
+					}
+					const title = markHighlights(row.querySelector('.session-title'));
+					const detailsHint = markHighlights(row.querySelector('.session-details-row .session-search-hint-label'));
+					const titleHint = markHighlights(row.querySelector('.session-search-hint-title.visible .session-search-hint-label'));
+					return `  ${title}${detailsHint ? ` [${detailsHint}]` : ''}${titleHint ? ` {${titleHint}}` : ''}`;
+				});
+			const search = (pattern: string) => {
+				list.openFind();
+				const input = findWidgetContainer.querySelector<HTMLInputElement>('input')!;
+				input.value = pattern;
+				input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+				return rows();
+			};
+			/** Closes the find widget, which disposes itself after its closing animation. */
+			const closeSearch = async () => {
+				list.closeFind();
+				await timeout(350);
+			};
+			return { harness, list, rows, search, closeSearch };
+		}
+
+		test('matches every word in any order, not scattered letters', async () => {
+			const { search, closeSearch } = renderSearch([
+				createSession('hello world'),
+				createSession('Explain how the session list grouping works'),
+				createSession('Fix flaky terminal tests on macOS'),
+			]);
+			try {
+				assert.deepStrictEqual({
+					scatteredLetters: search('hlow'),
+					anyOrder: search('macos TERMINAL'),
+					accents: search('héllo'),
+				}, {
+					scatteredLetters: [],
+					anyOrder: ['Recent', '  Fix flaky «terminal» tests on «macOS»'],
+					accents: ['Recent', '  «hello» world'],
+				});
+			} finally {
+				await closeSearch();
+			}
+		});
+
+		test('matches the chats, group, branch, and pull requests of a session, naming what its row does not show', async () => {
+			const tuning = createSession('Tune the startup');
+			const { search, closeSearch } = renderSearch([
+				createSession('Refactor transport', { branch: 'alex/terminal-flake' }),
+				createSession('Update README', { pullRequests: [{ repo: 'vscode', number: 4242, title: 'Fix the release notes' }] }),
+				createSession('Investigate crash', { chats: ['Review the crash dump', 'Unrelated'] }),
+				tuning,
+			], { groups: [perfGroup], memberships: new Map([[tuning.sessionId, perfGroup.id]]) });
+			try {
+				assert.deepStrictEqual({
+					branch: search('flake'),
+					pullRequestTitle: search('release notes'),
+					pullRequestNumber: search('#4242'),
+					chatTitle: search('crash review'),
+					group: search('perf'),
+				}, {
+					branch: ['Recent', '  Refactor transport [alex/terminal-«flake»]'],
+					pullRequestTitle: ['Recent', '  Update README [#4242 Fix the «release» «notes»]'],
+					pullRequestNumber: ['Recent', '  Update README [«#4242» Fix the release notes]'],
+					// Only the chats whose title has a word show under their session.
+					chatTitle: ['Recent', '  Investigate «crash»', '    «Review» the «crash» dump'],
+					group: ['Perf work', '  Tune the startup'],
+				});
+			} finally {
+				await closeSearch();
+			}
+		});
+
+		test('shows results in collapsed sections, then restores them without persisting the expansion', async () => {
+			const pinned = createSession('Pinned telemetry');
+			const { harness, list, rows, search, closeSearch } = renderSearch([
+				pinned,
+				createSession('Recent work'),
+				createSession('Archived telemetry', { test: { isArchived: true } }),
+			], { pinnedSessionIds: new Set([pinned.sessionId]) });
+			list.setExcludeArchived(false);
+			const storageService = harness.instantiationService.get(IStorageService);
+			const persisted = () => storageService.get('sessionsListControl.sectionCollapseState', StorageScope.PROFILE);
+			const before = rows();
+			let during: string[];
+			try {
+				during = search('telemetry');
+			} finally {
+				await closeSearch();
+			}
+
+			assert.deepStrictEqual({ before, during, after: rows(), persisted: persisted() }, {
+				before: ['Pinned (collapsed)', 'Recent', '  Recent work', 'Archived (collapsed)'],
+				during: ['Pinned', '  Pinned «telemetry»', 'Archived', '  Archived «telemetry»'],
+				after: ['Pinned (collapsed)', 'Recent', '  Recent work', 'Archived (collapsed)'],
+				persisted: undefined,
+			});
+		});
+
+		test('names a folder or repository that neither the row nor its section headers show', async () => {
+			const sessions = () => [
+				createSession('Update README', { gitHub: true }),
+				createSession('Refactor transport', { test: { status: SessionStatus.InProgress, workspaceLabel: 'copilot-sdk' } }),
+			];
+			const date = renderSearch(sessions());
+			const compact = renderSearch(sessions(), {}, SessionsGrouping.Date, true);
+			const workspace = renderSearch(sessions(), {}, SessionsGrouping.Workspace);
+			try {
+				assert.deepStrictEqual({
+					// The row shows the folder, not the repository's owner.
+					owner: date.search('microsoft'),
+					// Active rows hide their folder.
+					activeFolder: date.search('copilot'),
+					// Compact rows show their folder only on hover.
+					compactFolder: compact.search('copilot'),
+					// The section header shows the folder.
+					folderInItsSection: workspace.search('copilot'),
+				}, {
+					owner: ['Recent', '  Update README [«microsoft»/vscode]'],
+					activeFolder: ['Recent', '  Refactor transport [«copilot»-sdk]'],
+					compactFolder: ['Recent', '  Refactor transport {«copilot»-sdk}'],
+					folderInItsSection: ['copilot-sdk', '  Refactor transport'],
+				});
+			} finally {
+				await Promise.all([date.closeSearch(), compact.closeSearch(), workspace.closeSearch()]);
+			}
+		});
+
+		test('shows the status of the whole session on a row whose chats a search hides', async () => {
+			// The session is in progress while its main chat is done; collapsed, its row shows that it is in progress.
+			const session = createSession('Investigate crash', { chats: ['Unrelated child'], test: { status: SessionStatus.InProgress } });
+			const { search, closeSearch } = renderSearch([session, createSession('Other work')], instantiationService => {
+				instantiationService.get(IStorageService).store('sessionsListControl.sessionCollapseState', JSON.stringify([session.resource.toString()]), StorageScope.PROFILE, StorageTarget.USER);
+			});
+			const readRow = () => {
+				const row = [...mainWindow.document.querySelectorAll<HTMLElement>('.monaco-list-row')].find(candidate => candidate.querySelector('.session-item .session-title')?.textContent === 'Investigate crash');
+				return { status: row?.querySelector('.session-details-row .session-description')?.textContent, state: /State: ([^,]+)/.exec(row?.getAttribute('aria-label') ?? '')?.[1] };
+			};
+			const before = readRow();
+			let during: { rows: string[]; row: ReturnType<typeof readRow> };
+			try {
+				during = { rows: search('crash'), row: readRow() };
+			} finally {
+				await closeSearch();
+			}
+
+			assert.deepStrictEqual({ before, during, after: readRow() }, {
+				before: { status: 'Working...', state: 'In Progress' },
+				during: { rows: ['Recent', '  Investigate «crash»'], row: { status: 'Working...', state: 'In Progress' } },
+				after: { status: 'Working...', state: 'In Progress' },
+			});
+		});
+
+		test('keeps the titles of pull requests that share a number in different repositories', async () => {
+			const { search, closeSearch } = renderSearch([
+				createSession('Cross-repo work', { pullRequests: [{ repo: 'alpha', number: 42, title: 'Fix crash' }, { repo: 'beta', number: 42, title: 'Update documentation' }] }),
+			]);
+			try {
+				assert.deepStrictEqual({
+					first: search('crash'),
+					second: search('documentation'),
+				}, {
+					first: ['Recent', '  Cross-repo work [#42 Fix «crash»]'],
+					second: ['Recent', '  Cross-repo work [#42 Update «documentation»]'],
+				});
+			} finally {
+				await closeSearch();
+			}
+		});
+
+		test('names the field a session matched in while it is running, and next to the title of single-line rows', async () => {
+			const running = renderSearch([createSession('Refactor transport', { branch: 'alex/terminal-flake', test: { status: SessionStatus.InProgress } })]);
+			const compact = renderSearch([createSession('Refactor transport', { branch: 'alex/terminal-flake' })], {}, SessionsGrouping.Date, true);
+			try {
+				assert.deepStrictEqual({
+					running: running.search('flake'),
+					compact: compact.search('flake'),
+				}, {
+					running: ['Recent', '  Refactor transport [alex/terminal-«flake»]'],
+					compact: ['Recent', '  Refactor transport {alex/terminal-«flake»}'],
+				});
+			} finally {
+				await Promise.all([running.closeSearch(), compact.closeSearch()]);
+			}
+		});
+
+		test('matches the custom group that a session\'s folder section is placed in', async () => {
+			const { search, closeSearch } = renderSearch([
+				createSession('Tune the startup'),
+				createSession('Hello world sample', { test: { workspaceLabel: 'copilot-sdk' } }),
+			], { groups: [perfGroup], sectionMemberships: new Map([['workspace:vscode', perfGroup.id]]) }, SessionsGrouping.Workspace);
+			try {
+				assert.deepStrictEqual(search('perf'), ['Perf work', 'vscode', '  Tune the startup']);
+			} finally {
+				await closeSearch();
+			}
+		});
+
+		test('matches a done chat on its own row by its title and its session\'s folder only, naming the folder it matched', async () => {
+			const { list, search, closeSearch } = renderSearch([
+				createSession('Investigate crash', { branch: 'alex/flake', gitHub: true, doneChats: ['Old repro notes'] }),
+			]);
+			list.setExcludeArchived(false);
+			try {
+				assert.deepStrictEqual({
+					chatTitle: search('repro'),
+					folder: search('vscode'),
+					owner: search('microsoft'),
+					sessionBranch: search('flake'),
+				}, {
+					chatTitle: ['Archived', '    Old «repro» notes'],
+					// The session's row shows its folder; the chat's row doesn't.
+					folder: ['Recent', '  Investigate crash', 'Archived', '    Old repro notes [«vscode»]'],
+					owner: ['Recent', '  Investigate crash [«microsoft»/vscode]', 'Archived', '    Old repro notes [«microsoft»/vscode]'],
+					sessionBranch: ['Recent', '  Investigate crash [alex/«flake»]'],
+				});
+			} finally {
+				await closeSearch();
+			}
+		});
+
+		test('names the folder a done chat on its own row matched in next to its title in compact rows, and in its accessible label', async () => {
+			const { list, rows, search, closeSearch } = renderSearch([
+				createSession('Investigate crash', { doneChats: ['Old repro notes'] }),
+			], {}, SessionsGrouping.Date, true);
+			list.setExcludeArchived(false);
+			try {
+				search('vscode');
+				const chatRow = [...mainWindow.document.querySelectorAll<HTMLElement>('.monaco-list-row')].find(row => row.querySelector('.session-chat-title')?.textContent === 'Old repro notes');
+				assert.deepStrictEqual({
+					rows: rows(),
+					hintInLabel: /matches folder vscode$/.test(chatRow?.getAttribute('aria-label') ?? ''),
+				}, {
+					rows: ['Recent', '  Investigate crash {«vscode»}', 'Archived', '    Old repro notes {«vscode»}'],
+					hintInLabel: true,
+				});
+			} finally {
+				await closeSearch();
+			}
+		});
+
+		test('logs the results of a search that sessions arrive for after it was typed', async () => {
+			const events: object[] = [];
+			const { harness, list, rows, search, closeSearch } = renderSearch([createSession('Unrelated work')], instantiationService => instantiationService.stub(ITelemetryService, new class extends NullTelemetryServiceShape {
+				override publicLog2(eventName?: string, data?: object): void {
+					if (eventName === 'agents/sessionsListSearch' && data) {
+						events.push(data);
+					}
+				}
+			}));
+			const beforeArrival = search('hello');
+			harness.managementService.sessions = [...harness.managementService.sessions, createSession('hello world')];
+			list.refresh();
+			const afterArrival = rows();
+			await closeSearch();
+
+			assert.deepStrictEqual({ beforeArrival, afterArrival, events: events.map(event => ({ ...event, durationMs: typeof Reflect.get(event, 'durationMs') })) }, {
+				beforeArrival: [],
+				afterArrival: ['Recent', '  «hello» world'],
+				events: [{ wordCount: 1, resultCount: 1, beyondTitleResultCount: 0, queryChangeCount: 1, openCount: 0, durationMs: 'number' }],
+			});
+		});
+
+		test('reopening the search shows the results of its last query', async () => {
+			const pinned = createSession('Pinned telemetry');
+			const { list, rows, search, closeSearch } = renderSearch([pinned, createSession('Recent work')], { pinnedSessionIds: new Set([pinned.sessionId]) });
+			search('telemetry');
+			await closeSearch();
+			list.openFind();
+			let reopened: string[];
+			try {
+				reopened = rows();
+			} finally {
+				await closeSearch();
+			}
+
+			assert.deepStrictEqual({ reopened, closed: rows() }, {
+				reopened: ['Pinned', '  Pinned «telemetry»'],
+				closed: ['Pinned (collapsed)', 'Recent', '  Recent work'],
+			});
+		});
+
+		test('logs how a search ends, without its query', async () => {
+			const events: object[] = [];
+			const { search, closeSearch } = renderSearch([
+				createSession('hello world'),
+				createSession('Refactor transport', { branch: 'hello-branch' }),
+			], instantiationService => instantiationService.stub(ITelemetryService, new class extends NullTelemetryServiceShape {
+				override publicLog2(eventName?: string, data?: object): void {
+					if (eventName === 'agents/sessionsListSearch' && data) {
+						events.push(data);
+					}
+				}
+			}));
+			search('hel');
+			search('hello');
+			await closeSearch();
+
+			assert.deepStrictEqual(events.map(event => ({ ...event, durationMs: typeof Reflect.get(event, 'durationMs') })), [
+				{ wordCount: 1, resultCount: 2, beyondTitleResultCount: 1, queryChangeCount: 2, openCount: 0, durationMs: 'number' },
+			]);
 		});
 	});
 

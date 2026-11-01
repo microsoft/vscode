@@ -1131,6 +1131,10 @@ export interface ReasoningResponsePart {
 	id: string;
 	/** Accumulated reasoning text */
 	content: string;
+	/** Producer-recorded ISO 8601 start of this reasoning interval; absent when unknown. */
+	startedAt?: string;
+	/** Final elapsed reasoning time in non-negative integer milliseconds, measured by the producer's clock; absent while unfinished or unknown. Clients MUST NOT derive it from their own clock. */
+	duration?: number;
 }
 
 /**
@@ -1477,6 +1481,12 @@ export interface ToolCallResult {
 	 * This mirrors the `structuredContent` field of MCP `CallToolResult`.
 	 */
 	structuredContent?: Record<string, unknown>;
+	/**
+	 * Optional result metadata.
+	 *
+	 * This mirrors the `_meta` field of MCP `CallToolResult`.
+	 */
+	resultMetadata?: Record<string, unknown>;
 	/** Error details if the tool failed */
 	error?: { message: string; code?: string };
 }

@@ -101,7 +101,7 @@ export class ChatArtifactPillSource extends Disposable {
 								toolbarActions: [
 									toAction({
 										id: 'chatArtifacts.save',
-										label: mimeType?.startsWith('image/') ? localize('chat.artifactPill.downloadImage', "Download Image") : localize('chat.artifactPill.save', "Save Artifact"),
+										label: mimeType?.startsWith('image/') ? localize('chat.artifactPill.download', "Download...") : localize('chat.artifactPill.save', "Save Artifact"),
 										class: ThemeIcon.asClassName(mimeType?.startsWith('image/') ? Codicon.cloudDownload : Codicon.save),
 										run: () => this.run(() => saveChatArtifact(artifact, this.fileService, this.fileDialogService, this.webContentExtractorService)),
 									}),
