@@ -6,17 +6,21 @@
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { equals } from '../../../../base/common/objects.js';
+import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IHeaders } from '../../../../base/parts/request/common/request.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IExtensionGalleryManifestService, IExtensionGalleryManifest, ExtensionGalleryServiceUrlConfigKey, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifestService.js';
+import { ExtensionGalleryAuthorizationChannel } from '../../../../platform/extensionManagement/common/extensionGalleryManifestServiceIpc.js';
 import { resolveMarketplaceHeaders } from '../../../../platform/externalServices/common/marketplace.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ISharedProcessService } from '../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -57,7 +61,7 @@ function isExtensionGalleryManifestResponse(candidate: unknown): candidate is Ex
 }
 
 class MarketplaceAuthRequiredError extends Error {
-	constructor() {
+	constructor(readonly statusCode: number, readonly authenticated = false) {
 		super('Marketplace requires authentication.');
 	}
 }
@@ -66,6 +70,14 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 
 	private readonly commonHeadersPromise: Promise<IHeaders>;
 	private extensionGalleryManifest: IExtensionGalleryManifest | null = null;
+	private readonly channels: { readonly name: string; readonly channel: IChannel }[];
+	private hasPublishedSnapshot = false;
+	private channelUpdate: Promise<void> = Promise.resolve();
+	private authorizationRefresh: Promise<void> | undefined;
+	private accountResolution: Promise<void> | undefined;
+	private accountResolutionGeneration = 0;
+	private authorizationAccountId: string | undefined;
+	private previousAuthorization: { readonly accessToken: string; readonly accountId: string; readonly serviceIndexUrl: string } | undefined;
 
 	private _onDidChangeExtensionGalleryManifest = this._register(new Emitter<IExtensionGalleryManifest | null>());
 	override readonly onDidChangeExtensionGalleryManifest = this._onDidChangeExtensionGalleryManifest.event;
@@ -89,6 +101,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IHostService private readonly hostService: IHostService,
+		@INativeHostService nativeHostService: INativeHostService,
 	) {
 		super(productService);
 		this.commonHeadersPromise = resolveMarketplaceHeaders(
@@ -100,29 +113,27 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			storageService,
 			telemetryService);
 
-		const channels = [{ name: 'shared process', channel: sharedProcessService.getChannel('extensionGalleryManifest') }];
+		this.channels = [{ name: 'shared process', channel: sharedProcessService.getChannel('extensionGalleryManifest') }];
+		const authorizationChannel = new ExtensionGalleryAuthorizationChannel(this);
+		sharedProcessService.registerChannel(ExtensionGalleryAuthorizationChannel.ChannelName, authorizationChannel);
 		const remoteConnection = remoteAgentService.getConnection();
 		if (remoteConnection) {
-			channels.push({ name: 'remote server', channel: remoteConnection.getChannel('extensionGalleryManifest') });
+			this.channels.push({ name: 'remote server', channel: remoteConnection.getChannel('extensionGalleryManifest') });
+			remoteConnection.registerChannel(ExtensionGalleryAuthorizationChannel.ChannelName, authorizationChannel);
 		}
-		const updateChannels = (manifest: IExtensionGalleryManifest | null) => {
-			this.logService.trace(`[Marketplace] Updating channels with manifest ${manifest ? 'available' : 'unavailable'}`);
-			for (const { name, channel } of channels) {
-				try {
-					channel.call('setExtensionGalleryManifest', [manifest, this.extensionGalleryAccessToken, this.extensionGalleryServiceIndexUrl])
-						.catch(error => this.logService.error(`[Marketplace] Unable to update marketplace manifest in the ${name}`, error));
-				} catch (error) {
-					this.logService.error(`[Marketplace] Unable to update marketplace manifest in the ${name}`, error);
-				}
+		this._register(nativeHostService.onDidResumeOS(() => {
+			if (this.galleryAccountService.canRefreshAccessToken && this.extensionGalleryAccessToken) {
+				void this.refreshAuthorization().catch(error => this.logService.error('[Marketplace] Unable to renew authorization after OS resume', error));
 			}
-		};
-		this.getExtensionGalleryManifest().then(manifest => {
+		}));
+		this.getExtensionGalleryManifest().then(() => {
 			if (this._store.isDisposed) {
 				this.logService.trace('[Marketplace] Store is already disposed, skipping channel initialization');
 				return;
 			}
-			updateChannels(manifest);
-			this._register(this.onDidChangeExtensionGalleryManifest(manifest => updateChannels(manifest)));
+			if (!this.hasPublishedSnapshot) {
+				this.publishSnapshot();
+			}
 		}).catch(error => {
 			this.logService.error('[Marketplace] Error during initial gallery manifest bootstrap', error);
 		});
@@ -170,11 +181,20 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		return source.token;
 	}
 
-	private async handleMarketplaceAccountAccess(configuredServiceUrl: string): Promise<void> {
+	private handleMarketplaceAccountAccess(configuredServiceUrl: string, forceRefresh = false): Promise<void> {
+		const generation = ++this.accountResolutionGeneration;
+		const request = this.doHandleMarketplaceAccountAccess(configuredServiceUrl, forceRefresh);
+		if (generation === this.accountResolutionGeneration) {
+			this.accountResolution = request;
+		}
+		return request;
+	}
+
+	private async doHandleMarketplaceAccountAccess(configuredServiceUrl: string, forceRefresh: boolean): Promise<void> {
 		const token = this.beginResolution();
 		try {
-			const account = await this.galleryAccountService.getAccount(configuredServiceUrl);
-			if (token.isCancellationRequested) {
+			const account = await this.galleryAccountService.getAccount(configuredServiceUrl, forceRefresh);
+			if (token.isCancellationRequested || this._store.isDisposed) {
 				return;
 			}
 			const accountStatus = this.galleryAccountService.accountStatus;
@@ -199,10 +219,10 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				case ExtensionGalleryAccountStatus.Eligible:
 					try {
 						const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl, account?.accessToken, token);
-						if (token.isCancellationRequested) {
+						if (token.isCancellationRequested || this._store.isDisposed) {
 							return;
 						}
-						this.update(manifest, undefined, account?.accessToken, configuredServiceUrl);
+						this.update(manifest, undefined, account?.accessToken, configuredServiceUrl, account?.accountId);
 						this.telemetryService.publicLog2<
 							{},
 							{
@@ -214,6 +234,10 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 							return;
 						}
 						if (error instanceof MarketplaceAuthRequiredError) {
+							if (error.statusCode === 401 && error.authenticated && !forceRefresh && account?.accessToken && account.accountId && this.galleryAccountService.canRefreshAccessToken) {
+								await this.refreshAuthorization(configuredServiceUrl);
+								return;
+							}
 							this.logService.debug('[Marketplace] Marketplace still requires authentication for the resolved account');
 							this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
 							return;
@@ -232,14 +256,109 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		}
 	}
 
-	private update(manifest: IExtensionGalleryManifest | null, status?: ExtensionGalleryManifestStatus, accessToken?: string, serviceIndexUrl?: string): void {
+	private update(manifest: IExtensionGalleryManifest | null, status?: ExtensionGalleryManifestStatus, accessToken?: string, serviceIndexUrl?: string, accountId?: string): void {
 		this.logService.debug(`[Marketplace] Updating manifest ${manifest ? 'available' : 'unavailable'}`);
-		this.setAuthorization(manifest ? accessToken : undefined, manifest ? serviceIndexUrl : undefined);
-		if (this.extensionGalleryManifest !== manifest) {
+		const nextAccessToken = manifest ? accessToken : undefined;
+		const nextServiceIndexUrl = manifest ? serviceIndexUrl : undefined;
+		const authorizationChanged = this.extensionGalleryAccessToken !== nextAccessToken || this.extensionGalleryServiceIndexUrl !== nextServiceIndexUrl;
+		if (this.authorizationAccountId !== accountId || this.extensionGalleryServiceIndexUrl !== nextServiceIndexUrl || !nextAccessToken) {
+			this.previousAuthorization = undefined;
+		} else if (authorizationChanged && this.extensionGalleryAccessToken && this.authorizationAccountId && nextServiceIndexUrl) {
+			this.previousAuthorization = { accessToken: this.extensionGalleryAccessToken, accountId: this.authorizationAccountId, serviceIndexUrl: nextServiceIndexUrl };
+		}
+		this.authorizationAccountId = nextAccessToken ? accountId : undefined;
+		this.setAuthorization(nextAccessToken, nextServiceIndexUrl);
+		const manifestChanged = !equals(this.extensionGalleryManifest, manifest);
+		if (manifestChanged) {
 			this.extensionGalleryManifest = manifest;
+		}
+		if (manifestChanged || authorizationChanged) {
+			this.publishSnapshot();
+		}
+		if (manifestChanged) {
 			this._onDidChangeExtensionGalleryManifest.fire(manifest);
 		}
 		this.updateStatus(status ?? (this.extensionGalleryManifest ? ExtensionGalleryManifestStatus.Available : ExtensionGalleryManifestStatus.Unavailable));
+	}
+
+	private publishSnapshot(): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		this.hasPublishedSnapshot = true;
+		const args = [this.extensionGalleryManifest, this.extensionGalleryAccessToken, this.extensionGalleryServiceIndexUrl];
+		this.channelUpdate = Promise.all(this.channels.map(async ({ name, channel }) => {
+			try {
+				await channel.call('setExtensionGalleryManifest', args);
+			} catch (error) {
+				this.logService.error(`[Marketplace] Unable to update marketplace manifest in the ${name}`, error);
+			}
+		})).then(() => undefined);
+	}
+
+	override async getAccessToken(targetUrl: string): Promise<string | undefined> {
+		if (!await super.getAccessToken(targetUrl)) {
+			return undefined;
+		}
+		if (this.extensionGalleryAccessToken && this.galleryAccountService.isRefreshDue) {
+			await this.refreshAuthorization();
+		} else if (this.authorizationRefresh) {
+			await this.authorizationRefresh;
+		}
+		return super.getAccessToken(targetUrl);
+	}
+
+	override async refreshAccessToken(targetUrl: string, rejectedAccessToken: string): Promise<boolean> {
+		const currentToken = await super.getAccessToken(targetUrl);
+		if (!currentToken || !this.authorizationAccountId || !this.galleryAccountService.canRefreshAccessToken) {
+			return false;
+		}
+		if (currentToken !== rejectedAccessToken) {
+			return this.previousAuthorization?.accessToken === rejectedAccessToken
+				&& this.previousAuthorization.accountId === this.authorizationAccountId
+				&& this.previousAuthorization.serviceIndexUrl === this.extensionGalleryServiceIndexUrl;
+		}
+		const accountId = this.authorizationAccountId;
+		await this.refreshAuthorization();
+		await this.channelUpdate;
+		const nextToken = await super.getAccessToken(targetUrl);
+		if (nextToken === rejectedAccessToken && this.authorizationAccountId === accountId) {
+			this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
+			await this.channelUpdate;
+			return false;
+		}
+		return !!nextToken && nextToken !== rejectedAccessToken && this.authorizationAccountId === accountId;
+	}
+
+	private async refreshAuthorization(serviceIndexUrl = this.extensionGalleryServiceIndexUrl): Promise<void> {
+		if (this._store.isDisposed || !serviceIndexUrl) {
+			return;
+		}
+		if (!this.authorizationRefresh) {
+			const request = this.handleMarketplaceAccountAccess(serviceIndexUrl, true);
+			this.authorizationRefresh = request;
+			try {
+				await request;
+				let latest = request;
+				while (this.accountResolution && this.accountResolution !== latest) {
+					latest = this.accountResolution;
+					await latest;
+				}
+			} finally {
+				if (this.authorizationRefresh === request) {
+					this.authorizationRefresh = undefined;
+				}
+			}
+		} else {
+			await this.authorizationRefresh;
+		}
+	}
+
+	override dispose(): void {
+		this.resolutionTokenSource.value?.cancel();
+		this.setAuthorization(undefined, undefined);
+		this.previousAuthorization = undefined;
+		super.dispose();
 	}
 
 	private updateStatus(status: ExtensionGalleryManifestStatus): void {
@@ -279,7 +398,8 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			// The expected first exchange with a gated marketplace, not a failure.
 			const statusCode = context.res.statusCode;
 			if (statusCode === 401 || statusCode === 403) {
-				throw new MarketplaceAuthRequiredError();
+				const authenticated = !!accessToken && context.requestHasAuthorization === true && !!context.url && new URL(context.url).origin === new URL(url).origin;
+				throw new MarketplaceAuthRequiredError(statusCode, authenticated);
 			}
 
 			const extensionGalleryManifest = await asJson<unknown>(context);

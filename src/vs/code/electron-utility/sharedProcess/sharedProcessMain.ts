@@ -135,7 +135,7 @@ import { RequestService } from '../../../platform/request/electron-utility/reque
 import { DefaultExtensionsInitializer } from './contrib/defaultExtensionsInitializer.js';
 import { AllowedExtensionsService } from '../../../platform/extensionManagement/common/allowedExtensionsService.js';
 import { IExtensionGalleryManifestService } from '../../../platform/extensionManagement/common/extensionGalleryManifest.js';
-import { ExtensionGalleryManifestIPCService } from '../../../platform/extensionManagement/common/extensionGalleryManifestServiceIpc.js';
+import { ExtensionGalleryAuthorizationChannel, ExtensionGalleryManifestIPCService } from '../../../platform/extensionManagement/common/extensionGalleryManifestServiceIpc.js';
 import { ISharedWebContentExtractorService } from '../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { SharedWebContentExtractorService } from '../../../platform/webContentExtractor/node/sharedWebContentExtractorService.js';
 import { McpManagementService } from '../../../platform/mcp/node/mcpManagementService.js';
@@ -381,7 +381,9 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		services.set(IMcpManagementService, new SyncDescriptor(McpManagementService, undefined, true));
 
 		// Extension Gallery
-		services.set(IExtensionGalleryManifestService, new ExtensionGalleryManifestIPCService(this.server, logService, productService));
+		services.set(IExtensionGalleryManifestService, new ExtensionGalleryManifestIPCService(this.server,
+			context => this.server.connections.find(connection => connection.ctx === context)?.channelClient.getChannel(ExtensionGalleryAuthorizationChannel.ChannelName),
+			logService, productService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService, undefined, true));
 
 		// Extension Tips

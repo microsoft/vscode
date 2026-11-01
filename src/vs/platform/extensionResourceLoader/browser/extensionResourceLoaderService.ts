@@ -40,12 +40,24 @@ class ExtensionResourceLoaderService extends AbstractExtensionResourceLoaderServ
 		}
 
 		const requestInit: RequestInit = {};
+		let accessToken: string | undefined;
 		if (await this.isExtensionGalleryResource(uri)) {
-			requestInit.headers = await this.getExtensionGalleryRequestHeaders(uri);
+			const headers = await this.getExtensionGalleryRequestHeaders(uri);
+			requestInit.headers = headers;
+			accessToken = headers.Authorization?.slice('Bearer '.length);
 			requestInit.mode = 'cors'; /* set mode to cors so that above headers are always passed */
 		}
 
-		const response = await fetch(uri.toString(true), requestInit);
+		let response = await fetch(uri.toString(true), requestInit);
+		if (response.status === 401 && accessToken && response.url && !response.redirected
+			&& new URL(response.url).origin === new URL(uri.toString(true)).origin
+			&& await this._extensionGalleryManifestService.refreshAccessToken(response.url, accessToken)) {
+			const headers = await this.getExtensionGalleryRequestHeaders(uri);
+			if (headers.Authorization && headers.Authorization !== `Bearer ${accessToken}`) {
+				await response.body?.cancel();
+				response = await fetch(uri.toString(true), { ...requestInit, headers });
+			}
+		}
 		if (response.status !== 200) {
 			this._logService.info(`Request to '${uri.toString(true)}' failed with status code ${response.status}`);
 			throw new Error(response.statusText);
