@@ -77,6 +77,9 @@ class RenameOperation implements IFileOperation {
 		}
 
 		await this._workingCopyFileService.move(moves, token, this._undoRedoInfo);
+		// A move can depend on an earlier one, as when a file moves out of a folder that is renamed after it,
+		// so the moves are undone in reverse order
+		undoes.reverse();
 		return new RenameOperation(undoes, { isUndoing: true }, this._workingCopyFileService, this._fileService);
 	}
 
@@ -315,11 +318,14 @@ class FileUndoRedoElement implements IWorkspaceUndoRedoElement {
 	}
 
 	private async _reverse() {
-		for (let i = 0; i < this.operations.length; i++) {
+		// An operation can depend on an earlier one, so the operations are undone in reverse order, and their
+		// inverses, reversed again, are redone in the original order
+		for (let i = this.operations.length - 1; i >= 0; i--) {
 			const op = this.operations[i];
 			const undo = await op.perform(CancellationToken.None);
 			this.operations[i] = undo;
 		}
+		this.operations.reverse();
 	}
 
 	toString(): string {
