@@ -2082,7 +2082,7 @@ suite('ChatThinkingContentPart', () => {
 		test('shows individual run durations instead of a grouped total', async () => {
 			const first = createThinkingPart('Consider how to update the progress renderer.', 'first');
 			first.reasoningStartedAt = 1000;
-			first.reasoningDurationMs = 1200;
+			first.reasoningDurationMs = 400;
 			const part = createPersistentReasoning(first);
 			const second = createThinkingPart('Then check the tests.', 'second');
 			second.reasoningStartedAt = 2500;
@@ -2400,18 +2400,18 @@ suite('ChatThinkingContentPart', () => {
 			}));
 
 			assert.deepStrictEqual(titles, {
-				shortReasoning: 'Thought for 0s',
-				reasoningWithoutStart: 'Thought for 2s',
+				shortReasoning: 'Thought for 1s',
+				reasoningWithoutStart: 'Thought for 3s',
 				textlessReasoning: 'Finished thinking',
 				textlessReasoningAndTools: 'Finished thinking',
 				toolsOnly: 'Finished thinking',
-				reasoningAndTools: 'Thought for 1s',
-				reasoningWithoutStartAndTools: 'Thought for 2s',
-				unfinishedTool: 'Thought for 0s',
+				reasoningAndTools: 'Thought for 2s',
+				reasoningWithoutStartAndTools: 'Thought for 3s',
+				unfinishedTool: 'Thought for 1s',
 				restoredReasoning: 'Finished thinking',
 				restoredTools: 'Finished thinking',
 				restoredReasoningThenLiveTool: 'Finished thinking',
-				liveReasoningThenRestoredTool: 'Thought for 1s',
+				liveReasoningThenRestoredTool: 'Thought for 2s',
 			});
 		});
 
@@ -2464,8 +2464,8 @@ suite('ChatThinkingContentPart', () => {
 			part.finalizeTitleIfDefault();
 
 			assert.deepStrictEqual({ title: snapshot(part).title, ariaLabel: snapshot(part).ariaLabel }, {
-				title: 'Thought for 2s',
-				ariaLabel: 'Thought for 2s',
+				title: 'Thought for 3s',
+				ariaLabel: 'Thought for 3s',
 			});
 		});
 
@@ -2701,8 +2701,8 @@ suite('ChatThinkingContentPart', () => {
 				ariaLabel: button?.ariaLabel,
 			}, {
 				generatedTitle: undefined,
-				label: 'Thought for 1s',
-				ariaLabel: 'Thought for 1s',
+				label: 'Thought for 2s',
+				ariaLabel: 'Thought for 2s',
 			});
 		});
 
@@ -2725,7 +2725,7 @@ suite('ChatThinkingContentPart', () => {
 		});
 
 		test('distinguishes zero reasoning duration from unavailable or invalid timing', () => {
-			const titles = [undefined, 0, 999, 1000, 83_000, -1, NaN, Infinity].map(reasoningDurationMs => {
+			const titles = [undefined, 0, 1, 999, 1000, 1001, 83_000, 83_001, -1, NaN, Infinity].map(reasoningDurationMs => {
 				const content = createThinkingPart('Reviewed the implementation');
 				content.reasoningDurationMs = reasoningDurationMs;
 				const part = store.add(instantiationService.createInstance(
@@ -2739,7 +2739,7 @@ suite('ChatThinkingContentPart', () => {
 				return part.domNode.querySelector('.monaco-button')?.textContent;
 			});
 
-			assert.deepStrictEqual(titles, ['Finished thinking', 'Thought for 0s', 'Thought for 0s', 'Thought for 1s', 'Thought for 1m 23s', 'Finished thinking', 'Finished thinking', 'Finished thinking']);
+			assert.deepStrictEqual(titles, ['Finished thinking', 'Thought for 1s', 'Thought for 1s', 'Thought for 1s', 'Thought for 1s', 'Thought for 2s', 'Thought for 1m 23s', 'Thought for 1m 24s', 'Finished thinking', 'Finished thinking', 'Finished thinking']);
 		});
 	});
 
