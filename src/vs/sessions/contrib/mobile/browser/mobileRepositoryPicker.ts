@@ -12,10 +12,12 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../base
 import { localize } from '../../../../nls.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IRepositoryPickResult } from '../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
+import { ISessionRepositoryPicker } from '../../../services/presentation/browser/sessionRepositoryPicker.js';
 import { isMobilePickerSheetTarget, showMobileContentSheet } from '../../../browser/parts/mobile/mobilePickerSheet.js';
 
-export class MobileRepositoryPicker extends Disposable {
+export class MobileRepositoryPicker extends Disposable implements ISessionRepositoryPicker {
+	declare readonly _serviceBrand: undefined;
+
 	private readonly currentPick = this._register(new MutableDisposable<DisposableStore>());
 	private previousFocus: HTMLElement | undefined;
 
@@ -29,7 +31,7 @@ export class MobileRepositoryPicker extends Disposable {
 	async pickRepository(
 		getRepositories: (query: string, token: CancellationToken) => Promise<readonly string[]>,
 		token: CancellationToken = CancellationToken.None,
-	): Promise<IRepositoryPickResult | undefined> {
+	): Promise<string | undefined> {
 		if (this._store.isDisposed || token.isCancellationRequested) {
 			return undefined;
 		}
@@ -40,7 +42,7 @@ export class MobileRepositoryPicker extends Disposable {
 		const store = new DisposableStore();
 		this.currentPick.value = store;
 		const pickToken = cancelOnDispose(store);
-		let selection: IRepositoryPickResult | undefined;
+		let selection: string | undefined;
 
 		try {
 			await showMobileContentSheet(this.layoutService.mainContainer, localize('mobileRepositoryPicker.title', "Choose repository"), (body, api) => {
@@ -100,7 +102,7 @@ export class MobileRepositoryPicker extends Disposable {
 							: localize('mobileRepositoryPicker.empty', "No repositories found. Try a different search.");
 						for (const repository of [...repositories].sort((a, b) => a.localeCompare(b))) {
 							addRow(repository, () => {
-								selection = { repository };
+								selection = repository;
 								api.close();
 							});
 						}

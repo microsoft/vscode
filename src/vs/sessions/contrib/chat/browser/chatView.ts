@@ -485,6 +485,7 @@ export class ChatView extends AbstractChatView {
 				}),
 				renderSecondaryToolbar: shouldRenderRunningSessionSecondaryToolbar(initiallyUsesExperimentalComposerLayout),
 				inputEditorMinLines: 2,
+				inputEditorOptions: options.inputEditorOptions,
 				isSessionsWindow: true,
 				transcriptTabIndex: -1,
 				enableFind: true,
@@ -1359,16 +1360,21 @@ export function findInitialTranscriptContextEntry(requests: readonly { readonly 
 export class ChatViewFactory implements IChatViewFactory {
 
 	declare readonly _serviceBrand: undefined;
+	protected readonly viewOptions: IChatViewOptions = {};
 
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService protected readonly instantiationService: IInstantiationService
 	) { }
 
+	get inputEditorOptions(): IChatViewOptions['inputEditorOptions'] {
+		return this.viewOptions.inputEditorOptions;
+	}
+
 	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions, instantiationService = this.instantiationService): AbstractChatView {
-		return instantiationService.createInstance(NewChatView, isNewChatInSession, options);
+		return instantiationService.createInstance(NewChatView, isNewChatInSession, { ...this.viewOptions, ...options });
 	}
 
 	createChatView(instantiationService = this.instantiationService, options: IChatViewOptions = {}): AbstractChatView {
-		return instantiationService.createInstance(ChatView, options);
+		return instantiationService.createInstance(ChatView, { ...this.viewOptions, ...options });
 	}
 }

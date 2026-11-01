@@ -35,6 +35,10 @@ compressed-size limits. The build examines transitive bundle inputs, not only
 the entry's direct imports. An unknown contribution or unpackaged dependency
 fails the build independently of the size checks.
 
+The ordinary entry's repository, list and edit presentation implementations and
+clipboard registration are also rejected. The mobile entry selects its own
+implementations; their shared contracts and behavior remain available.
+
 The size limits are experimental regression guards introduced with this target,
 not existing VS Code product requirements or hosting restrictions. Review actual
 dependency growth before changing a baseline; do not widen the contribution

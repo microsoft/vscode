@@ -7,6 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
+import { IChatViewOptions } from '../../../browser/parts/chatView.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { IChatInputPickerResponsiveLayoutItem } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
@@ -108,6 +109,7 @@ export interface IComposerRepositoryControls extends IDisposable {
 
 /** Options a new-session or new-chat host supplies to its composer input. */
 export interface INewChatComposerInputOptions {
+	readonly inputEditorOptions?: IChatViewOptions['inputEditorOptions'];
 	readonly session: IObservable<IActiveSession | undefined>;
 	/**
 	 * The chat the input binds to. Defaults to the session's active chat, such as a new session's

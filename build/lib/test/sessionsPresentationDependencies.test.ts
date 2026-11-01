@@ -33,6 +33,12 @@ const composerRoot = 'src/vs/sessions/contrib/providers/agentHost/browser/mobile
 const originalConfigurationPresenter = composerRoot + 'mobileChatPhoneInputPresenter.ts';
 const experimentalConfigurationPresenter = composerRoot + 'experimentalMobileChatPhoneInputPresenter.ts';
 const experimentalInputButton = composerRoot + 'experimentalMobileChatInputActionViewItem.ts';
+const defaultRepositoryPicker = 'src/vs/sessions/services/presentation/browser/defaultSessionRepositoryPicker.ts';
+const mobileRepositoryPicker = 'src/vs/sessions/contrib/mobile/browser/mobileRepositoryPicker.ts';
+const defaultChatPresentation = 'src/vs/workbench/contrib/chat/browser/chatDefaultPresentation.contribution.ts';
+const defaultEditPresentation = 'src/vs/workbench/contrib/chat/browser/widget/chatContentParts/defaultChatEditPresentation.ts';
+const defaultListPresentation = 'src/vs/sessions/services/presentation/browser/defaultSessionsListPresentation.ts';
+const mobilePresentationRoot = 'src/vs/sessions/contrib/mobile/browser/';
 
 suite('Sessions presentation entry isolation', () => {
 	for (const { entry, expected, configurationPresenter } of [
@@ -51,6 +57,19 @@ suite('Sessions presentation entry isolation', () => {
 				.filter(file => dependencies.has(file)), [configurationPresenter]);
 		});
 
+		test(`${entry} registers only its own session repository picker implementation`, () => {
+			const mobile = entry.includes('.mobile.');
+			const dependencies = collectSourceDependencies(entry);
+			const registrations = getSingletonRegistrations(mobile ? 'src/vs/sessions/contrib/mobile/browser/mobile.contribution.ts' : defaultRepositoryPicker);
+			assert.deepStrictEqual({
+				implementations: [defaultRepositoryPicker, mobileRepositoryPicker].filter(file => dependencies.has(file)),
+				registration: registrations.find(([service]) => service === 'ISessionRepositoryPicker'),
+			}, {
+				implementations: [mobile ? mobileRepositoryPicker : defaultRepositoryPicker],
+				registration: ['ISessionRepositoryPicker', mobile ? 'MobileRepositoryPicker' : 'DefaultSessionRepositoryPicker'],
+			});
+		});
+
 		test(`${entry} registers the shared GitHub and comparison services required by its views`, () => {
 			const dependencies = collectSourceDependencies(entry);
 			const services = [
@@ -58,6 +77,26 @@ suite('Sessions presentation entry isolation', () => {
 				'src/vs/sessions/services/sessions/browser/sessionComparisonService.ts',
 			];
 			assert.deepStrictEqual(services.filter(file => dependencies.has(file)), services);
+		});
+
+		test(`${entry} selects edit, list, clipboard and chat-view presentation without importing the other entry`, () => {
+			const mobile = entry.includes('.mobile.');
+			const dependencies = collectSourceDependencies(entry);
+			const normal = [defaultChatPresentation, defaultEditPresentation, defaultListPresentation];
+			const experimental = ['mobileChatEditPresenter.ts', 'mobileSessionsListPresentation.ts', 'mobileClipboardImageContext.ts', 'mobileChatViewFactory.ts'].map(file => mobilePresentationRoot + file);
+			const registrations = [
+				...getSingletonRegistrations(mobile ? mobilePresentationRoot + 'mobile.contribution.ts' : defaultChatPresentation),
+				...getSingletonRegistrations(mobile ? mobilePresentationRoot + 'mobile.contribution.ts' : defaultListPresentation),
+			];
+			assert.deepStrictEqual({
+				files: [...normal, ...experimental].filter(file => dependencies.has(file)),
+				edit: registrations.find(([id]) => id === 'IChatEditPresentationService'),
+				list: registrations.find(([id]) => id === 'ISessionsListPresentation'),
+			}, {
+				files: mobile ? experimental : normal,
+				edit: ['IChatEditPresentationService', mobile ? 'MobileChatEditPresenter' : 'DefaultChatEditPresentationService'],
+				list: ['ISessionsListPresentation', mobile ? 'MobileSessionsListPresentation' : 'DefaultSessionsListPresentation'],
+			});
 		});
 
 		test(`${entry} loads policy-continuation and shared composer contributions`, () => {
@@ -69,13 +108,21 @@ suite('Sessions presentation entry isolation', () => {
 			assert.deepStrictEqual(contributions.filter(file => dependencies.has(file)), contributions);
 		});
 
+		test(`${entry} keeps clipboard registration outside the restore-blocking phase`, () => {
+			const file = entry.includes('.mobile.')
+				? mobilePresentationRoot + 'mobileClipboardImageContext.ts'
+				: defaultChatPresentation;
+			assert.match(fs.readFileSync(path.join(repositoryRoot, file), 'utf8'),
+				/registerWorkbenchContribution2\('chat\.(?:mobileClipboardImageContext|clipboardImageContext)', \w+, WorkbenchPhase\.AfterRestored\);/);
+		});
+
 		test(`${entry} includes redesigned input and edit rendering only for experimental mobile`, () => {
 			const dependencies = collectSourceDependencies(entry);
 			const mobile = entry.includes('.mobile.');
 			const implementations = [
 				experimentalInputButton,
 				'src/vs/sessions/contrib/mobile/browser/mobileChatEditRow.ts',
-				'src/vs/sessions/contrib/mobile/browser/mobileSessionsPresentation.ts',
+				'src/vs/sessions/contrib/mobile/browser/mobileSessionsListPresentation.ts',
 				hostPickerRoot + 'mobileAgentHostFilterService.ts',
 			];
 			assert.deepStrictEqual(implementations.map(file => dependencies.has(file)), implementations.map(() => mobile));
@@ -83,15 +130,7 @@ suite('Sessions presentation entry isolation', () => {
 	}
 
 	test('mobile core registers the artifact and MCP OAuth services required by shared customers', () => {
-		const file = 'src/vs/sessions/sessions.core.main.ts';
-		const source = ts.createSourceFile(file, fs.readFileSync(path.join(repositoryRoot, file), 'utf8'), ts.ScriptTarget.Latest, true);
-		const registrations = source.statements.flatMap(statement => {
-			if (!ts.isExpressionStatement(statement) || !ts.isCallExpression(statement.expression)
-				|| !ts.isIdentifier(statement.expression.expression) || statement.expression.expression.text !== 'registerSingleton') {
-				return [];
-			}
-			return [statement.expression.arguments.slice(0, 2).map(argument => argument.getText(source))];
-		});
+		const registrations = getSingletonRegistrations('src/vs/sessions/sessions.core.main.ts');
 		const required = [
 			['IArtifactIntegrationRegistry', 'ArtifactIntegrationRegistry'],
 			['IAgentHostMcpOAuthMetadataService', 'AgentHostMcpOAuthMetadataService'],
@@ -127,6 +166,17 @@ suite('Sessions presentation entry isolation', () => {
 		assert.ok(desktop >= 0 && shared > desktop);
 	});
 });
+
+function getSingletonRegistrations(file: string): string[][] {
+	const source = ts.createSourceFile(file, fs.readFileSync(path.join(repositoryRoot, file), 'utf8'), ts.ScriptTarget.Latest, true);
+	return source.statements.flatMap(statement => {
+		if (!ts.isExpressionStatement(statement) || !ts.isCallExpression(statement.expression)
+			|| !ts.isIdentifier(statement.expression.expression) || statement.expression.expression.text !== 'registerSingleton') {
+			return [];
+		}
+		return [statement.expression.arguments.slice(0, 2).map(argument => argument.getText(source))];
+	});
+}
 
 function isExperimentalMobileFile(file: string): boolean {
 	return file.startsWith('src/vs/sessions/contrib/mobile/') ||
