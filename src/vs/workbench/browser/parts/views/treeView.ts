@@ -284,6 +284,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		@ILogService private readonly logService: ILogService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@ILabelService private readonly labelService: ILabelService,
 	) {
 		super();
 		this.root = new Root();
@@ -741,9 +742,17 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			keyboardNavigationLabelProvider: {
 				getKeyboardNavigationLabel: (item: ITreeItem) => {
 					if (item.label) {
-						return isMarkdownString(item.label.label) ? item.label.label.value : item.label.label;
+						const label = isMarkdownString(item.label.label) ? item.label.label.value : item.label.label;
+						if (item.description && typeof item.description === 'string') {
+							return [label, item.description];
+						}
+						return label;
 					}
-					return item.resourceUri ? basename(URI.revive(item.resourceUri)) : undefined;
+					if (item.resourceUri) {
+						const revived = URI.revive(item.resourceUri);
+						return [basename(revived), this.labelService.getUriLabel(revived, { relative: true })];
+					}
+					return undefined;
 				}
 			},
 			expandOnlyOnTwistieClick: (e: ITreeItem) => {
