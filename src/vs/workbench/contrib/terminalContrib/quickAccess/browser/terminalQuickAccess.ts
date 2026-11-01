@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
-import { IQuickInputService, IQuickPick, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPick, IQuickPickSeparator, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider, PicksWithActive, TriggerAction } from '../../../../../platform/quickinput/browser/pickerQuickAccess.js';
 import { matchesFuzzyIconAware, parseLabelWithIcons } from '../../../../../base/common/iconLabels.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
@@ -21,7 +21,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { matchesContiguousSubString } from '../../../../../base/common/filters.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { CopyAction } from '../../../../../editor/contrib/clipboard/browser/clipboard.js';
 import { InstanceContext } from '../../../terminal/browser/terminalContextMenu.js';
@@ -34,6 +34,7 @@ interface ITerminalQuickPick extends IPickerQuickAccessItem {
 interface ITerminalPickerSnapshot {
 	readonly items: readonly ITerminalQuickPick[];
 	readonly activeTerminal: ITerminalInstance | undefined;
+	readonly preferredTerminalId?: number;
 }
 
 export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
@@ -41,6 +42,9 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 	static PREFIX = 'term ';
 
 	private _snapshot: ITerminalPickerSnapshot | undefined;
+	private _picker: IQuickPick<IPickerQuickAccessItem, { useSeparators: true }> | undefined;
+	private _pendingRestore: ITerminalPickerRestoreState | undefined;
+	private readonly _renameController: TerminalPickerRenameController;
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService,
@@ -50,15 +54,23 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 	) {
 		super(TerminalQuickAccessProvider.PREFIX, { canAcceptInBackground: true });
+		this._renameController = this._register(this._instantiationService.createInstance(TerminalPickerRenameController));
 	}
 
 	override provide(picker: IQuickPick<IPickerQuickAccessItem, { useSeparators: true }>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
-		const snapshot = this._snapshot = this._createSnapshot();
+		const restoreState = this._pendingRestore;
+		this._pendingRestore = undefined;
+		this._picker = picker;
+		const snapshot = this._snapshot = { ...this._createSnapshot(), preferredTerminalId: restoreState?.terminalId };
 		const disposables = new DisposableStore();
 		disposables.add(createColorStyleElement(this._themeService.getColorTheme()));
 		disposables.add(super.provide(picker, token, runOptions));
+		if (restoreState) {
+			picker.valueSelection = restoreState.valueSelection;
+		}
 		if (CopyAction) {
 			disposables.add(CopyAction.addImplementation(110, 'terminal-picker', accessor => {
 				if (accessor.get(IQuickInputService).currentQuickInput !== picker) {
@@ -76,6 +88,9 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 			}));
 		}
 		disposables.add(toDisposable(() => {
+			if (this._picker === picker) {
+				this._picker = undefined;
+			}
 			if (this._snapshot === snapshot) {
 				this._snapshot = undefined;
 			}
@@ -87,6 +102,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 		const snapshot = this._snapshot ?? this._createSnapshot();
 		const items: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 		let active: IPickerQuickAccessItem | undefined;
+		let preferred: IPickerQuickAccessItem | undefined;
 		for (const location of [TerminalLocation.Panel, TerminalLocation.Editor]) {
 			let hasSeparator = false;
 			for (const pick of snapshot.items) {
@@ -107,6 +123,9 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 				if (pick.terminal === snapshot.activeTerminal) {
 					active = item;
 				}
+				if (pick.terminal.instanceId === snapshot.preferredTerminalId) {
+					preferred = item;
+				}
 			}
 		}
 
@@ -126,7 +145,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 			ariaLabel: createWithProfileLabel,
 			accept: () => this._commandService.executeCommand(TerminalCommandId.NewWithProfile)
 		});
-		return { items, active };
+		return { items, active: preferred ?? active };
 	}
 
 	private _createSnapshot(): ITerminalPickerSnapshot {
@@ -191,7 +210,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 						await this._commandService.executeCommand<void>(TerminalCommandId.CopyInstanceId, new InstanceContext(terminal));
 						return TriggerAction.NO_ACTION;
 					case 1:
-						this._commandService.executeCommand(TerminalCommandId.Rename, terminal);
+						this._renameFromPicker(terminal);
 						return TriggerAction.NO_ACTION;
 					case 2:
 						this._terminalService.safeDisposeTerminal(terminal);
@@ -218,7 +237,88 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 		};
 	}
 
+	private _renameFromPicker(terminal: ITerminalInstance): void {
+		const picker = this._picker;
+		if (!picker) {
+			return;
+		}
+		this._renameController.rename(terminal, {
+			value: picker.value,
+			valueSelection: picker.valueSelection,
+			terminalId: terminal.instanceId
+		}, () => this._isAvailable(terminal), state => {
+			this._pendingRestore = state;
+			this._quickInputService.quickAccess.show(state.value, { preserveValue: true });
+		});
+	}
+
 	private _isAvailable(terminal: ITerminalInstance): boolean {
 		return !terminal.isDisposed && this._terminalService.foregroundInstances.includes(terminal);
+	}
+}
+
+/** The picker state to restore after a terminal rename. */
+export interface ITerminalPickerRestoreState {
+	readonly value: string;
+	readonly valueSelection: Readonly<[number, number]> | undefined;
+	readonly terminalId: number;
+}
+
+/** Owns a rename input independently of the picker it replaces. */
+export class TerminalPickerRenameController extends Disposable {
+	private readonly _session = this._register(new MutableDisposable<DisposableStore>());
+	private _generation = 0;
+
+	constructor(@IQuickInputService private readonly _quickInputService: IQuickInputService) {
+		super();
+	}
+
+	rename(terminal: ITerminalInstance, state: ITerminalPickerRestoreState, isAvailable: () => boolean, restore: (state: ITerminalPickerRestoreState) => void): void {
+		if (this._store.isDisposed || !isAvailable()) {
+			return;
+		}
+
+		const generation = ++this._generation;
+		const session = new DisposableStore();
+		this._session.value = session;
+		let finished = false;
+		let accepted = false;
+		// Disposing a session must not reopen the picker through input.dispose().
+		session.add(toDisposable(() => finished = true));
+		const input = session.add(this._quickInputService.createInputBox());
+		const savedState: ITerminalPickerRestoreState = {
+			...state,
+			valueSelection: state.valueSelection ? [state.valueSelection[0], state.valueSelection[1]] : undefined
+		};
+
+		session.add(input.onDidAccept(() => {
+			accepted = true;
+			try {
+				if (input.value && isAvailable()) {
+					terminal.rename(input.value);
+				}
+			} finally {
+				input.hide();
+			}
+		}));
+		session.add(input.onDidHide(event => {
+			if (finished) {
+				return;
+			}
+			finished = true;
+			const shouldRestore = accepted || event.reason === QuickInputHideReason.Gesture;
+			this._session.clear();
+			if (shouldRestore) {
+				// Finish the old input's hide/focus lifecycle before showing a new picker.
+				queueMicrotask(() => {
+					if (!this._store.isDisposed && generation === this._generation && !this._quickInputService.currentQuickInput) {
+						restore(savedState);
+					}
+				});
+			}
+		}));
+		input.value = terminal.title;
+		input.prompt = localize('workbench.action.terminal.rename.prompt', "Enter terminal name");
+		input.show();
 	}
 }

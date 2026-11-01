@@ -7,6 +7,7 @@ import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -18,7 +19,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IPickerQuickAccessItem, TriggerAction } from '../../../../../../platform/quickinput/browser/pickerQuickAccess.js';
-import { IQuickInputService, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickSeparator } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IInputBox, IQuickInput, IQuickInputHideEvent, IQuickInputService, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickSeparator, QuickInputHideReason } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme } from '../../../../../../platform/theme/test/common/testThemeService.js';
@@ -44,7 +45,10 @@ suite('TerminalQuickAccess', () => {
 	let backgroundPanels: boolean[];
 	let backgroundEditors: number[];
 	let instantiationService: TestInstantiationService;
-	let currentQuickInput: TestQuickPick | undefined;
+	let currentQuickInput: IQuickInput | undefined;
+	let pickerSession: IDisposable | undefined;
+	let renameInputs: TestInputBox[];
+	let restoredPickers: TestQuickPick[];
 	let clipboardWrites: string[];
 	let nativeCopies: number;
 
@@ -75,6 +79,43 @@ suite('TerminalQuickAccess', () => {
 		override hide(): void { this.hidden = true; }
 	}
 
+	class TestInputBox extends mock<IInputBox>() {
+		readonly accepted = store.add(new Emitter<void>());
+		readonly hidden = store.add(new Emitter<IQuickInputHideEvent>());
+		override readonly onDidAccept = this.accepted.event;
+		override readonly onDidHide = this.hidden.event;
+		override value = '';
+		override prompt: string | undefined;
+		visible = false;
+		override show(): void {
+			currentQuickInput?.hide();
+			pickerSession?.dispose();
+			pickerSession = undefined;
+			this.visible = true;
+			currentQuickInput = this;
+		}
+		override hide(): void { this.hideWithReason(QuickInputHideReason.Other); }
+		hideWithReason(reason: QuickInputHideReason): void {
+			if (!this.visible) {
+				return;
+			}
+			this.visible = false;
+			if (currentQuickInput === this) {
+				currentQuickInput = undefined;
+			}
+			this.hidden.fire({ reason });
+		}
+		override dispose(): void { this.hide(); }
+	}
+
+	function openPicker(value = 'term '): TestQuickPick {
+		const picker = new TestQuickPick();
+		picker.value = value;
+		currentQuickInput = picker;
+		pickerSession = store.add(provider.provide(picker, CancellationToken.None));
+		return picker;
+	}
+
 	setup(() => {
 		focused = [];
 		disposed = [];
@@ -83,6 +124,9 @@ suite('TerminalQuickAccess', () => {
 		backgroundPanels = [];
 		backgroundEditors = [];
 		currentQuickInput = undefined;
+		pickerSession = undefined;
+		renameInputs = [];
+		restoredPickers = [];
 		clipboardWrites = [];
 		nativeCopies = 0;
 		terminals = [3, 12, 21, 99].map(id => new class extends mock<ITerminalInstance>() {
@@ -104,7 +148,18 @@ suite('TerminalQuickAccess', () => {
 		foreground = [...terminals];
 		activeTerminal = terminals[1];
 		instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IQuickInputService, { get currentQuickInput() { return currentQuickInput; } });
+		instantiationService.stub(IQuickInputService, {
+			get currentQuickInput() { return currentQuickInput; },
+			createInputBox: () => {
+				const input = new TestInputBox();
+				renameInputs.push(input);
+				return input;
+			},
+			quickAccess: {
+				show: value => { restoredPickers.push(openPicker(value)); },
+				pick: async () => undefined
+			}
+		});
 		instantiationService.stub(IClipboardService, { writeText: async text => { clipboardWrites.push(text); } });
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IContextKeyService, {});
@@ -334,11 +389,69 @@ suite('TerminalQuickAccess', () => {
 	});
 
 	test('keeps rename and kill buttons', async () => {
+		openPicker();
 		const pick = terminalPicks()[0];
 		deepStrictEqual(pick.buttons?.map(button => button.tooltip), ['Copy Terminal ID', 'Rename Terminal', 'Kill Terminal']);
 		strictEqual(await pick.trigger?.(1, keyMods), TriggerAction.NO_ACTION);
 		strictEqual(await pick.trigger?.(2, keyMods), TriggerAction.REMOVE_ITEM);
-		deepStrictEqual({ commands, disposed }, { commands: [{ id: TerminalCommandId.Rename, args: [terminals[0]] }], disposed: [3] });
+		deepStrictEqual({ commands, disposed, renameValue: renameInputs[0].value }, { commands: [], disposed: [3], renameValue: 'Shell' });
+	});
+
+	test('restores the search and highlights the renamed terminal without activating it', async () => {
+		const picker = openPicker('term Shell');
+		picker.valueSelection = [5, 10];
+		await terminalPicks('Shell')[0].trigger?.(1, keyMods);
+		renameInputs[0].value = 'Shell logs';
+		renameInputs[0].accepted.fire();
+		await Promise.resolve();
+		const restored = restoredPickers[0];
+		deepStrictEqual({
+			query: restored.value,
+			selection: restored.valueSelection,
+			highlight: restored.activeItems[0]?.label,
+			description: restored.activeItems[0]?.description,
+			activeId: activeTerminal?.instanceId,
+			focused
+		}, {
+			query: 'term Shell', selection: [5, 10], highlight: '$(rocket) Shell logs',
+			description: 'src (id:3, tab:1, pane:1)', activeId: 12, focused: []
+		});
+	});
+
+	test('Escape from rename returns to the same search and terminal without changing the title', async () => {
+		openPicker('term Shell');
+		await terminalPicks('Shell')[0].trigger?.(1, keyMods);
+		renameInputs[0].value = 'Unconfirmed';
+		renameInputs[0].hideWithReason(QuickInputHideReason.Gesture);
+		await Promise.resolve();
+		deepStrictEqual({ query: restoredPickers[0].value, highlight: restoredPickers[0].activeItems[0]?.description, title: terminals[0].title, focused }, {
+			query: 'term Shell', highlight: 'src (id:3, tab:1, pane:1)', title: 'Shell', focused: []
+		});
+	});
+
+	test('preserves the query and normal results when the renamed terminal no longer matches', async () => {
+		openPicker('term Shell');
+		await terminalPicks('Shell')[0].trigger?.(1, keyMods);
+		renameInputs[0].value = 'Logs';
+		renameInputs[0].accepted.fire();
+		await Promise.resolve();
+		const restored = restoredPickers[0];
+		deepStrictEqual({
+			query: restored.value,
+			descriptions: restored.items.filter((item): item is IPickerQuickAccessItem => item.type !== 'separator' && !!item.description).map(item => item.description),
+			highlight: restored.activeItems[0]?.description,
+			focused
+		}, {
+			query: 'term Shell', descriptions: ['(id:12, tab:1, pane:2)', '(id:99, editor)'], highlight: '(id:12, tab:1, pane:2)', focused: []
+		});
+	});
+
+	test('clicking away from rename leaves the picker closed', async () => {
+		openPicker();
+		await terminalPicks()[0].trigger?.(1, keyMods);
+		renameInputs[0].hideWithReason(QuickInputHideReason.Blur);
+		await Promise.resolve();
+		deepStrictEqual({ restoredPickers, title: terminals[0].title, focused }, { restoredPickers: [], title: 'Shell', focused: [] });
 	});
 
 	test('initially highlights the active terminal but focuses only on acceptance', () => {
