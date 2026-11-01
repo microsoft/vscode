@@ -11,7 +11,7 @@ import { CancellationError, isCancellationError } from '../../../../../../base/c
 import { match } from '../../../../../../base/common/glob.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
+import { extUri, isEqual } from '../../../../../../base/common/resources.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { AgentHostAuthenticationPendingError } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
@@ -32,6 +32,7 @@ import { type AgentInfo } from '../../../../../../platform/agentHost/common/stat
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { ISecretStorageService } from '../../../../../../platform/secrets/common/secrets.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { localize } from '../../../../../../nls.js';
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
@@ -41,6 +42,11 @@ import { AuthenticationSession, getDynamicAuthenticationProviderId, IAuthenticat
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { CHAT_SETUP_ACTION_ID } from '../../actions/chatActions.js';
 import { IChatSetupResult } from '../../chatSetup/chatSetup.js';
+import { IMcpService, McpServerLaunch, McpServerTransportType, mcpOAuthClientSecretStorageKey } from '../../../../mcp/common/mcpTypes.js';
+import { IWorkspaceFolderData } from '../../../../../../platform/workspace/common/workspace.js';
+import { isContributionEnabled } from '../../../common/enablement.js';
+import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
+import { ConfigurationResolverExpression } from '../../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { reportAgentHostAuthRecovery, reportAgentHostAuthSignInResult, type AgentHostAuthSignInData, type AgentHostAuthTrigger } from './agentHostAuthTelemetry.js';
 
 /**
@@ -1134,6 +1140,84 @@ export function autoAuthenticateMcpServer(
 	});
 }
 
+interface IConfiguredMcpOAuthClientLookup {
+	readonly launch: McpServerLaunch & { readonly type: McpServerTransportType.HTTP };
+	readonly folder: IWorkspaceFolderData | undefined;
+	readonly configurationResolverService: IConfigurationResolverService;
+	readonly metadataService: IAgentHostMcpOAuthMetadataService;
+	readonly secretStorageService: ISecretStorageService;
+}
+
+/**
+ * Finds the VS Code server whose OAuth client the user configured with `oauth.clientId`. The agent host receives a
+ * server's configuration without it, so a challenge from the server carries no client and authentication would
+ * fall back to dynamic client registration.
+ *
+ * The challenge does not say which configured server raised it, so a server is only selected when the match is
+ * unambiguous: exactly one enabled HTTP server is served at the challenged endpoint (or below it, when the endpoint
+ * is the origin advertised by root metadata), whether or not that server has a client configured. Enterprise-managed
+ * servers have no custom client. Runs synchronously so that it can use the accessor.
+ */
+function findConfiguredMcpOAuthClient(accessor: ServicesAccessor, resource: string): IConfiguredMcpOAuthClientLookup | undefined {
+	const resourceUri = URI.parse(resource);
+	const candidates = [];
+	for (const server of accessor.get(IMcpService).servers.get()) {
+		const definition = server.readDefinitions().get().server;
+		const launch = definition?.launch;
+		if (definition && launch?.type === McpServerTransportType.HTTP && isContributionEnabled(server.enablement.get()) && extUri.isEqualOrParent(launch.uri, resourceUri)) {
+			candidates.push({ launch, folder: definition.variableReplacement?.folder });
+		}
+	}
+	if (candidates.length !== 1 || !candidates[0].launch.oauth?.clientId || candidates[0].launch.oauth.enterpriseManaged) {
+		return undefined;
+	}
+	return {
+		...candidates[0],
+		configurationResolverService: accessor.get(IConfigurationResolverService),
+		metadataService: accessor.get(IAgentHostMcpOAuthMetadataService),
+		secretStorageService: accessor.get(ISecretStorageService),
+	};
+}
+
+/**
+ * The OAuth client of a server found by {@link findConfiguredMcpOAuthClient}. The client ID must resolve without
+ * prompting, and every authorization server must be advertised by the configured endpoint's own resource metadata,
+ * so that a remote agent host cannot direct a stored client secret to an issuer of its choosing.
+ */
+async function getConfiguredMcpOAuthClient(lookup: IConfiguredMcpOAuthClientLookup, authorizationServers: readonly string[]): Promise<McpOAuthClient | undefined> {
+	if (!authorizationServers.length) {
+		return undefined;
+	}
+	const expression = ConfigurationResolverExpression.parse({ clientId: lookup.launch.oauth!.clientId });
+	for (const replacement of expression.unresolved()) {
+		if (replacement.name === 'input' || replacement.name === 'command') {
+			return undefined;
+		}
+	}
+	let clientId: string | undefined;
+	try {
+		clientId = (await lookup.configurationResolverService.resolveAsync(lookup.folder, expression)).clientId;
+	} catch {
+		return undefined;
+	}
+	if (!clientId) {
+		return undefined;
+	}
+
+	const configuredUrl = lookup.launch.uri.toString(true);
+	try {
+		const trusted = (await lookup.metadataService.resolveResource(configuredUrl)).authorization_servers ?? [];
+		if (!authorizationServers.every(server => trusted.includes(server))) {
+			return undefined;
+		}
+	} catch {
+		return undefined;
+	}
+
+	const clientSecret = await lookup.secretStorageService.get(mcpOAuthClientSecretStorageKey(configuredUrl, clientId));
+	return { clientId, ...(clientSecret ? { clientSecret } : {}) };
+}
+
 /** Resolves an MCP credential, propagating discovery and provider failures for interactive requests. */
 export async function resolveMcpServerAuthentication(
 	accessor: ServicesAccessor,
@@ -1146,6 +1230,7 @@ export async function resolveMcpServerAuthentication(
 	const authenticationMcpUsageService = accessor.get(IAuthenticationMcpUsageService);
 	const dynamicAuthenticationProviderStorageService = accessor.get(IDynamicAuthenticationProviderStorageService);
 	const logService = accessor.get(ILogService);
+	const configuredClientLookup = options.oauthClient ? undefined : findConfiguredMcpOAuthClient(accessor, options.mcpServerUrl);
 	let authorizationServerMetadataFetcher = options.authorizationServerMetadataFetcher;
 	if (!authorizationServerMetadataFetcher) {
 		const metadataService = accessor.get(IAgentHostMcpOAuthMetadataService);
@@ -1173,18 +1258,19 @@ export async function resolveMcpServerAuthentication(
 	const scopes = options.scopes.length > 0 || isGitHubMcpResource(protectedResource)
 		? options.scopes
 		: protectedResource.scopes_supported ?? [];
+	const oauthClient = options.oauthClient ?? (configuredClientLookup && await getConfiguredMcpOAuthClient(configuredClientLookup, protectedResource.authorization_servers ?? []));
 	const authenticationOperations = getMcpAuthenticationOperations(authenticationService);
 	let providerError: unknown;
 	for (const authorizationServer of protectedResource.authorization_servers ?? []) {
 		const authorizationServerUri = URI.parse(authorizationServer);
-		const providerOperationId = await getMcpAuthenticationProviderId(authorizationServerUri, protectedResource, options.oauthClient, dynamicAuthenticationProviderStorageService);
+		const providerOperationId = await getMcpAuthenticationProviderId(authorizationServerUri, protectedResource, oauthClient, dynamicAuthenticationProviderStorageService);
 		const authenticated = await authenticationOperations.queue(providerOperationId, async () => {
 			let providerId: string | undefined;
 			try {
 				providerId = await getOrCreateProviderForMcpResource(
 					authorizationServerUri,
 					protectedResource,
-					options.oauthClient,
+					oauthClient,
 					providerOperationId,
 					authenticationService,
 					dynamicAuthenticationProviderStorageService,
@@ -1204,8 +1290,8 @@ export async function resolveMcpServerAuthentication(
 				return false;
 			}
 
-			const oauthClientOptions = options.oauthClient
-				? { clientId: options.oauthClient.clientId, clientSecret: options.oauthClient.clientSecret }
+			const oauthClientOptions = oauthClient
+				? { clientId: oauthClient.clientId, clientSecret: oauthClient.clientSecret }
 				: {};
 			const providerOptions = {
 				authorizationServer: authorizationServerUri,

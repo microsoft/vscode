@@ -12,6 +12,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -40,6 +41,8 @@ import { IAuthenticationMcpAccessService } from '../../../../../services/authent
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
+import { ISecretStorageService } from '../../../../../../platform/secrets/common/secrets.js';
+import { TestSecretStorageService } from '../../../../../../platform/secrets/test/common/testSecretStorageService.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -239,6 +242,8 @@ suite('AbstractAgentHostCustomizationService', () => {
 			}
 		}();
 		instantiationService.stub(INotificationService, notificationService);
+		instantiationService.stub(IMcpService, { servers: constObservable([]) });
+		instantiationService.stub(ISecretStorageService, new TestSecretStorageService());
 		options.configure?.(instantiationService);
 		return store.add(new TestAgentHostCustomizationService(instantiationService, logService, notificationService));
 	}
