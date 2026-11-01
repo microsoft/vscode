@@ -108,7 +108,7 @@ import { TestAgentHostGitService as BaseTestAgentHostGitService } from '../commo
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService, NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
-import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, type ICopilotClientKerberosAuthOptions, getCopilotManagedSettingsDiagnostics, mapDiscoveredCustomizations, type CopilotAutoTierMetadata, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
+import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotManagedSettingsDiagnostics, mapDiscoveredCustomizations, type CopilotAutoTierMetadata, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
 import { buildCopilotBuiltinAgents, buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENTS, COPILOT_BUILTIN_AGENT_NAMES, getCopilotBuiltinAgentUri } from '../../node/copilot/copilotBuiltinAgents.js';
 import { ICopilotChatDiscoveryScan } from '../../node/copilot/copilotChatDiscovery.js';
 import { COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, deferCopilotSdkExecution } from '../../node/copilot/copilotSessionExecutionMarker.js';
@@ -13870,7 +13870,7 @@ suite('CopilotAgent', () => {
 			const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), proxyResolver });
 			try {
 				await agent.listChatsToMigrate();
-				const callback = (getCreatedClientOptions(agent).at(-1) as ICopilotClientKerberosAuthOptions | undefined)?.kerberosAuth;
+				const callback = getCreatedClientOptions(agent).at(-1)?.kerberosAuth;
 				const signal = new AbortController().signal;
 				assert.deepStrictEqual({
 					mode: callback?.mode,
