@@ -1252,6 +1252,18 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.viewModel;
 	}
 
+	public triggerOnWillCopyOrCut(event: IClipboardCopyEvent): void {
+		if (event.isCut) {
+			this._onWillCut.fire(event);
+		} else {
+			this._onWillCopy.fire(event);
+		}
+	}
+
+	public triggerOnWillPaste(event: IClipboardPasteEvent): void {
+		this._onWillPaste.fire(event);
+	}
+
 	public pushUndoStop(): boolean {
 		if (!this._modelData) {
 			return false;
