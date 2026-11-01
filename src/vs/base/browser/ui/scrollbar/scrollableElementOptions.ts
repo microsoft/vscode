@@ -21,6 +21,11 @@ export interface ScrollableElementCreationOptions {
 	 */
 	useShadows?: boolean;
 	/**
+	 * Handle mouse drag scrolling.
+	 * Defaults to false.
+	 */
+	handleDragScroll?: boolean;
+	/**
 	 * Handle mouse wheel (listen to mouse wheel scrolling).
 	 * Defaults to true
 	 */
@@ -146,6 +151,7 @@ export interface ScrollableElementResolvedOptions {
 	lazyRender: boolean;
 	className: string;
 	useShadows: boolean;
+	handleDragScroll?: boolean;
 	handleMouseWheel: boolean;
 	flipAxes: boolean;
 	scrollYToX: boolean;
