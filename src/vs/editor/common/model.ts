@@ -1581,11 +1581,16 @@ export class SearchData {
 	 * The simple string to search for (if possible).
 	 */
 	public readonly simpleSearch: string | null;
+	/**
+	 * Whether the regex was generated from literal search text, including case-insensitive searches.
+	 */
+	public readonly isLiteralSearch: boolean;
 
-	constructor(regex: RegExp, wordSeparators: WordCharacterClassifier | null, simpleSearch: string | null) {
+	constructor(regex: RegExp, wordSeparators: WordCharacterClassifier | null, simpleSearch: string | null, isLiteralSearch: boolean = false) {
 		this.regex = regex;
 		this.wordSeparators = wordSeparators;
 		this.simpleSearch = simpleSearch;
+		this.isLiteralSearch = isLiteralSearch;
 	}
 }
 
