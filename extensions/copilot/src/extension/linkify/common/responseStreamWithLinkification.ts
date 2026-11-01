@@ -6,6 +6,7 @@ import type { ChatQuestion, ChatResponseClearToPreviousToolInvocationReason, Cha
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { FinalizableChatResponseStream } from '../../../util/common/chatResponseStreamImpl';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
+import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { ChatHookType, ChatResponseAnchorPart, ChatResponseCommandButtonPart, ChatResponseConfirmationPart, ChatResponseFileTreePart, ChatResponseMarkdownPart, ChatResponseThinkingProgressPart, ChatToolInvocationPart, MarkdownString } from '../../../vscodeTypes';
 import { LinkifiedText, LinkifySymbolAnchor } from './linkifiedText';
 import { IContributedLinkifierFactory, ILinkifier, ILinkifyService, LinkifierContext } from './linkifyService';
@@ -13,7 +14,7 @@ import { IContributedLinkifierFactory, ILinkifier, ILinkifyService, LinkifierCon
 /**
  * Proxy of {@linkcode ChatResponseStream} that linkifies paths and symbols in emitted Markdown.
  */
-export class ResponseStreamWithLinkification implements FinalizableChatResponseStream {
+export class ResponseStreamWithLinkification extends Disposable implements FinalizableChatResponseStream {
 
 	private readonly _linkifier: ILinkifier;
 	private readonly _progress: ChatResponseStream;
@@ -27,9 +28,15 @@ export class ResponseStreamWithLinkification implements FinalizableChatResponseS
 		@ILinkifyService linkifyService: ILinkifyService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 	) {
-		this._linkifier = linkifyService.createLinkifier(context, additionalLinkifiers);
+		super();
+		this._linkifier = this._register(linkifyService.createLinkifier(context, additionalLinkifiers));
 		this._progress = progress;
 		this._token = token;
+	}
+
+	override dispose(): void {
+		void this.sequencer.catch(() => { });
+		super.dispose();
 	}
 
 	get totalAddedLinkCount() {
@@ -235,7 +242,11 @@ export class ResponseStreamWithLinkification implements FinalizableChatResponseS
 	}
 
 	async finalize() {
-		await this.enqueue(() => this.doFinalize(), false);
+		try {
+			await this.enqueue(() => this.doFinalize(), false);
+		} finally {
+			this.dispose();
+		}
 	}
 
 	private async doFinalize() {
