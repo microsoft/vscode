@@ -31,6 +31,10 @@
 			{
 				"command": "smoketest.openLocalChat",
 				"title": "Smoke Test: Open Local Test Session"
+			},
+			{
+				"command": "smoketest.openAgentHostChat",
+				"title": "Smoke Test: Open Agent Host Test Session"
 			}
 		]
 	}

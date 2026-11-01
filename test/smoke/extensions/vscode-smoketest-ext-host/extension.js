@@ -124,6 +124,16 @@ function activate(context) {
 			await vscode.commands.executeCommand(command);
 		})
 	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('smoketest.openAgentHostChat', async () => {
+			// Open an Agent Host Copilot session in a chat editor. The command
+			// waits for the agent host, which may run on the remote, to register
+			// its Copilot agent. It is not in the palette, hence this wrapper.
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.commands.executeCommand('workbench.action.chat.openNewSessionEditor.agent-host-copilotcli');
+		})
+	);
 }
 
 function deactivate() {

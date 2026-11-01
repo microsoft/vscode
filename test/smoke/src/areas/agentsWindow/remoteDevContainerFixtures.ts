@@ -16,6 +16,7 @@ import treeKill = require('tree-kill');
 import WebSocket = require('ws');
 import { CancellationToken, CancellationTokenSource } from 'vscode-jsonrpc';
 import { ApplicationOptions, getBuildElectronPath, getBuildProductPath, getDevElectronPath, Logger } from '../../../../automation';
+import { buildCopilotChatToken } from '../../utils';
 
 export type RemoteDevContainerTransport = 'ssh' | 'tunnel' | 'wsl';
 
@@ -27,10 +28,12 @@ export interface IRemoteDevContainerFixtureOptions {
 	mockServerUrl: string;
 	appOptions: ApplicationOptions;
 	/**
-	 * WSL only: start a plain Agent Host, without Docker or a Dev Container, that reaches the mock server only
-	 * through the proxy its Windows client resolves for it, with the client's Kerberos tickets and certificates.
+	 * WSL only: start an Agent Host, without Docker or a Dev Container, that reaches the mock server only through the
+	 * proxy its Windows client resolves for it, with the client's Kerberos tickets and certificates. With `agentHost`, the
+	 * Agents window starts the Agent Host itself. With `server`, an editor window opens {@link IRemoteDevContainerFixture.remoteAuthority}
+	 * through the test resolver, which starts a VS Code server in WSL that spawns the Agent Host.
 	 */
-	wslClientProxy?: boolean;
+	wslClientProxy?: 'agentHost' | 'server';
 }
 
 export interface IRemoteDevContainerFixture {
@@ -40,6 +43,8 @@ export interface IRemoteDevContainerFixture {
 	readonly extraArgs?: string[];
 	readonly sourceAppRoot?: string;
 	readonly workspacePath?: string;
+	/** The authority of a remote editor window for {@link workspacePath}. */
+	readonly remoteAuthority?: string;
 	readonly ssh?: { host: string; port: number; username: string; password: string; fingerprint: string };
 	verifyMockServerRouting?(): Promise<void>;
 	dumpConnectionDiagnostics?(uiState: string): Promise<void>;
@@ -898,7 +903,8 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 	if (process.platform !== 'win32' || !distro || !serverPath?.startsWith('/')) {
 		throw new Error('WSL smoke tests require Windows, VSCODE_SMOKE_TEST_WSL_DISTRO, and VSCODE_SMOKE_TEST_WSL_SERVER_PATH pointing to an extracted Linux VS Code server inside that distribution.');
 	}
-	const clientProxy = !!options.wslClientProxy;
+	const clientProxy = options.wslClientProxy;
+	const server = clientProxy === 'server';
 	// A source checkout has no bundled Node; VSCODE_SMOKE_TEST_WSL_NODE names a Linux Node for it.
 	const nodePath = process.env.VSCODE_SMOKE_TEST_WSL_NODE || `${serverPath}/node`;
 	// Seeds the Agent Host's `runtimePath`, such as a runtime built with features the bundled one lacks.
@@ -920,7 +926,7 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 			throw new Error(`WSL distribution ${distro} needs a reachable Linux Docker daemon, but reports '${dockerType}'. Enable Docker Desktop WSL integration or install Docker in the distribution.`);
 		}
 	}
-	await run(`test -x ${shellQuote(nodePath)} && test -f ${shellQuote(`${serverPath}/out/bootstrap-fork.js`)}${copilotRuntimePath ? ` && test -x ${shellQuote(copilotRuntimePath)}` : ''}`);
+	await run(`test -x ${shellQuote(nodePath)} && test -f ${shellQuote(`${serverPath}/out/${server ? 'server-main.js' : 'bootstrap-fork.js'}`)}${copilotRuntimePath ? ` && test -x ${shellQuote(copilotRuntimePath)}` : ''}`);
 	// Published servers bundle their NLS messages; a source checkout runs in development mode.
 	const sourceCheckout = (await run(`if [ -f ${shellQuote(`${serverPath}/out/nls.messages.json`)} ]; then echo bundled; fi`)) !== 'bundled';
 	const copiedLogs = path.join(resources.root, 'wsl-logs');
@@ -934,7 +940,8 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 	resources.add(async () => {
 		try {
 			await run([
-				`if [ -f ${shellQuote(`${root}/host.pid`)} ]; then kill -TERM "$(cat ${shellQuote(`${root}/host.pid`)})" 2>/dev/null || test ! -d "/proc/$(cat ${shellQuote(`${root}/host.pid`)})"; fi`,
+				// Every start appends its PID, which leads the process group of the Agent Host or server and its children.
+				`if [ -f ${shellQuote(`${root}/host.pid`)} ]; then for pid in $(cat ${shellQuote(`${root}/host.pid`)}); do kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || test ! -d "/proc/$pid"; done; fi`,
 				...(clientProxy ? [] : [
 					`ids=$(docker ps -aq --filter ${shellQuote(`label=devcontainer.local_folder=${workspacePath}`)})`,
 					'if [ -n "$ids" ]; then docker rm --force $ids; fi',
@@ -947,16 +954,20 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 			await run(`rm -rf -- ${shellQuote(root)}`);
 		}
 	});
-	const token = randomBytes(32).toString('hex');
-	resources.addSecret(token);
-	fs.writeFileSync(path.join(resources.root, 'host-token'), token, { mode: 0o600 });
-	fs.copyFileSync(path.join(__dirname, 'fixtures/packagedAgentHost.js'), path.join(resources.root, 'packagedAgentHost.cjs'));
+	if (!server) {
+		const token = randomBytes(32).toString('hex');
+		resources.addSecret(token);
+		fs.writeFileSync(path.join(resources.root, 'host-token'), token, { mode: 0o600 });
+		fs.copyFileSync(path.join(__dirname, 'fixtures/packagedAgentHost.js'), path.join(resources.root, 'packagedAgentHost.cjs'));
+	}
 	const sourceWorkspace = await run(`wslpath -u ${shellQuote(options.workspacePath)}`);
 	await run([
 		`cp -r ${shellQuote(sourceWorkspace)} ${shellQuote(workspacePath)}`,
-		`cp ${shellQuote(`${windowsRoot}/host-token`)} ${shellQuote(`${root}/host-token`)}`,
-		`cp ${shellQuote(`${windowsRoot}/packagedAgentHost.cjs`)} ${shellQuote(`${root}/packagedAgentHost.cjs`)}`,
-		`chmod 600 ${shellQuote(`${root}/host-token`)}`,
+		...(server ? [] : [
+			`cp ${shellQuote(`${windowsRoot}/host-token`)} ${shellQuote(`${root}/host-token`)}`,
+			`cp ${shellQuote(`${windowsRoot}/packagedAgentHost.cjs`)} ${shellQuote(`${root}/packagedAgentHost.cjs`)}`,
+			`chmod 600 ${shellQuote(`${root}/host-token`)}`,
+		]),
 		`mkdir -p ${shellQuote(`${root}/home/.copilot`)} ${shellQuote(`${root}/home/.config`)} ${shellQuote(`${root}/home/.cache`)}`,
 		...(copilotRuntimePath ? [
 			`mkdir -p ${shellQuote(`${root}/user-data/User/globalStorage`)}`,
@@ -996,16 +1007,28 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 		GITHUB_COPILOT_API_TOKEN: fakeModelToken, GITHUB_PAT: 'smoketest-fake-pat',
 		IS_SCENARIO_AUTOMATION: '1', VSCODE_AGENT_HOST_CLAUDE_AGENT_ENABLED: 'false', VSCODE_AGENT_HOST_CODEX_AGENT_ENABLED: 'false',
 		VSCODE_AGENT_HOST_TELEMETRY_LEVEL: 'off',
+		// Copilot Chat runs in the server's extension host, where it provides the editor window's default chat participant.
+		...(server ? { VSCODE_COPILOT_CHAT_TOKEN: buildCopilotChatToken(options.mockServerUrl) } : {}),
 	};
+	const environmentAssignments = Object.entries(environment).map(([key, value]) => `${key}=${shellQuote(value)}`).join(' ');
 	const command = [
-		`echo $$ > ${shellQuote(`${root}/host.pid`)}`,
-		`exec env -i ${Object.entries(environment).map(([key, value]) => `${key}=${shellQuote(value)}`).join(' ')} ${shellQuote(nodePath)} ${shellQuote(`${root}/packagedAgentHost.cjs`)} ${shellQuote(`${serverPath}/out/bootstrap-fork.js`)} ${shellQuote(`${root}/host-token`)} ${shellQuote(`${root}/user-data`)} --ignore-stdin`,
+		`echo $$ >> ${shellQuote(`${root}/host.pid`)}`,
+		server
+			// The test resolver appends the server's host, port and connection token.
+			? `exec env -i ${environmentAssignments} ${shellQuote(nodePath)} ${shellQuote(`${serverPath}/out/server-main.js`)} --server-data-dir ${shellQuote(`${root}/server`)} --user-data-dir ${shellQuote(`${root}/user-data`)} --logsPath ${shellQuote(`${root}/user-data/logs`)}`
+			: `exec env -i ${environmentAssignments} ${shellQuote(nodePath)} ${shellQuote(`${root}/packagedAgentHost.cjs`)} ${shellQuote(`${serverPath}/out/bootstrap-fork.js`)} ${shellQuote(`${root}/host-token`)} ${shellQuote(`${root}/user-data`)} --ignore-stdin`,
 	].join(' && ');
-	resources.log(`Using ${distro} ${clientProxy ? 'client-proxy Agent Host' : 'source workspace'} ${workspacePath}`);
+	resources.log(`Using ${distro} ${server ? 'server with a client-proxy Agent Host' : clientProxy ? 'client-proxy Agent Host' : 'source workspace'} ${workspacePath}`);
 	return {
 		name: distro,
 		workspacePath,
-		settings: { 'chat.wslRemoteAgentHostCommand': command },
+		...(server ? {
+			remoteAuthority: `wsl+${distro}`,
+			settings: {},
+			extraEnv: { TESTRESOLVER_WSL_SERVER_COMMAND: command },
+		} : {
+			settings: { 'chat.wslRemoteAgentHostCommand': command },
+		}),
 		verifyMockServerRouting: async () => {
 			const logs = await run(`find ${shellQuote(`${root}/user-data/logs`)} -name agenthost.log -type f -exec cat {} +`);
 			if (clientProxy) {
@@ -1035,7 +1058,7 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 			for (const file of files) {
 				try {
 					const entries = (await readConnectionLogTail(file)).split(/(?=^\d{4}-\d{2}-\d{2} )/m)
-						.filter(entry => /\[WSL|\[RemoteAgentHost|WSLRelayTransport/.test(entry)).slice(-20);
+						.filter(entry => /\[WSL|\[RemoteAgentHost|\[AgentHost:remote\]|WSLRelayTransport/.test(entry)).slice(-20);
 					report(`${path.relative(options.logsPath, file)}:\n${entries.length ? entries.map(entry => resources.redact(entry).slice(0, 2000)).join('\n') : '(no WSL or remote-host entries)'}`);
 				} catch (error) {
 					report(`Cannot read ${path.relative(options.logsPath, file)}: ${error instanceof Error ? error.message : String(error)}`);

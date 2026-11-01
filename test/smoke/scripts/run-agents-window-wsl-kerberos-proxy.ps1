@@ -5,17 +5,18 @@
 
 <#
 .SYNOPSIS
-	Runs the Agents Window smoke test with an Agent Host in WSL that reaches the HTTPS mock model server only through a
+	Runs the smoke tests with an Agent Host in WSL that reaches the HTTPS mock model server only through a
 	Kerberos-authenticated proxy, using the Windows client's proxy configuration, Kerberos ticket and certificates.
 
 .DESCRIPTION
-	In the WSL distribution, this starts an MIT Kerberos KDC and a Squid proxy that requires Kerberos, with a throwaway
-	test CA for the mock server and, with -ProxyScheme Https, the proxy. On Windows, it registers the realm's KDC, trusts
-	the test CA, allows Squid to reach the mock server through the firewall, and points the user's proxy settings at a
-	PAC. Changing the machine configuration needs administrator rights: the script prompts once for setup and once for
-	cleanup, unless it already runs elevated, as on CI agents. The smoke test then runs with network-only credentials for
-	the realm, like `runas /netonly`, so only Windows can obtain Kerberos tickets. Every change is reverted afterwards,
-	and logs are kept in .build/logs/agents-window-wsl-kerberos-proxy.
+	One suite starts the Agent Host from the Agents Window, the other opens an editor window on a VS Code server in WSL,
+	which spawns the Agent Host. In the WSL distribution, this starts an MIT Kerberos KDC and a Squid proxy that requires
+	Kerberos, with a throwaway test CA for the mock server and, with -ProxyScheme Https, the proxy. On Windows, it
+	registers the realm's KDC, trusts the test CA, allows Squid to reach the mock server through the firewall, and points
+	the user's proxy settings at a PAC. Changing the machine configuration needs administrator rights: the script prompts
+	once for setup and once for cleanup, unless it already runs elevated, as on CI agents. The smoke tests then run with
+	network-only credentials for the realm, like `runas /netonly`, so only Windows can obtain Kerberos tickets. Every
+	change is reverted afterwards, and logs are kept in .build/logs/agents-window-wsl-kerberos-proxy.
 
 	The distribution needs krb5-kdc, krb5-admin-server, squid-openssl, openssl and curl, and NAT networking.
 
@@ -49,7 +50,7 @@ $ProxyPort = 3129
 $PacPort = 44444
 $CaSubject = 'VS Code Smoke Test WSL Kerberos Proxy CA'
 $FirewallRuleName = 'VSCodeSmokeTestWslKerberosProxy'
-$SmokeTestGrep = 'WSL AgentHost, Kerberos proxy'
+$SmokeTestGrep = 'AgentHost, Kerberos proxy'
 $ProxyUrl = "$($ProxyScheme.ToLowerInvariant())://localhost:$ProxyPort"
 $SquidPort = if ($ProxyScheme -eq 'Https') {
 	'https_port 127.0.0.1:{0} tls-cert=$WSL_ROOT/server.pem tls-key=$WSL_ROOT/server.key' -f $ProxyPort
@@ -374,7 +375,7 @@ function Test-TcpPort([string]$HostName, [int]$Port) {
 
 # Applies or reverts the machine-wide test configuration with administrator rights, prompting for them unless this
 # process already has them, as on CI agents, after removing any leftovers of an interrupted run. The realm, CA and
-# firewall rule exist only for this smoke test.
+# firewall rule exist only for these smoke tests.
 function Invoke-ElevatedConfiguration([ValidateSet('Setup', 'Cleanup')][string]$Mode) {
 	$elevatedScript = Join-Path $TempRoot 'elevated.ps1'
 	[IO.File]::WriteAllText($elevatedScript, @'
@@ -449,7 +450,7 @@ function Stop-WslProcess([System.Diagnostics.Process]$Process, [string]$PidFile,
 }
 
 if ([Environment]::OSVersion.Platform -ne 'Win32NT') {
-	throw 'This smoke test requires Windows.'
+	throw 'These smoke tests require Windows.'
 }
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $IsElevated = [Security.Principal.WindowsPrincipal]::new($identity).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -694,7 +695,7 @@ exit `$LASTEXITCODE
 "@, [Text.UTF8Encoding]::new($true))
 	$smokeLog = Join-Path $TempRoot 'smoke-test.log'
 	New-Item -ItemType File $smokeLog | Out-Null
-	Write-Host "Running the smoke test with network-only credentials for $KerberosUser@$Realm..."
+	Write-Host "Running the smoke tests with network-only credentials for $KerberosUser@$Realm..."
 	$smokeProcess = [VSCodeSmokeNetOnlyProcess]::Start($KerberosUser, $Realm, $password,
 		"`"$env:ComSpec`" /d /s /c `"`"$PowerShell`" -NoProfile -ExecutionPolicy Bypass -File `"$netOnlyScript`" > `"$smokeLog`" 2>&1`"",
 		$RepositoryRoot, $environmentBlock)
@@ -711,7 +712,7 @@ exit `$LASTEXITCODE
 	$smokeProcess.Dispose()
 	$smokeProcess = $null
 	if ($smokeExitCode -ne 0) {
-		throw "The smoke test failed with exit code $smokeExitCode"
+		throw "The smoke tests failed with exit code $smokeExitCode"
 	}
 
 	# Stopping Squid flushes its access log.
