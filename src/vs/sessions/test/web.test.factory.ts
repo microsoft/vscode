@@ -5,6 +5,7 @@
 
 import { IWorkbench, IWorkbenchConstructionOptions } from '../../workbench/browser/web.api.js';
 import { TestSessionsBrowserMain } from './web.test.js';
+import { SessionsWorkbenchFactory } from '../browser/workbenchFactory.js';
 import { IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { mark } from '../../base/common/performance.js';
 import { DeferredPromise } from '../../base/common/async.js';
@@ -13,13 +14,16 @@ const workbenchPromise = new DeferredPromise<IWorkbench>();
 
 /**
  * Creates the Sessions workbench with mock services for E2E testing.
+ *
+ * @param workbenchFactory Optional factory selecting the workbench presentation
+ * under test (defaults to the classic desktop workbench).
  */
-export function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): IDisposable {
+export function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions, workbenchFactory?: SessionsWorkbenchFactory): IDisposable {
 
 	mark('code/didLoadWorkbenchMain');
 
 	let instantiatedWorkbench: IWorkbench | undefined = undefined;
-	new TestSessionsBrowserMain(domElement, options).open().then(workbench => {
+	new TestSessionsBrowserMain(domElement, options, workbenchFactory).open().then(workbench => {
 		instantiatedWorkbench = workbench;
 		workbenchPromise.complete(workbench);
 	});

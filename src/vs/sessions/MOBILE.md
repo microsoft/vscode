@@ -14,15 +14,21 @@ Mobile components are presentation adapters over shared Sessions services. They 
 
 Alternative web entry points supply a workbench factory and select concrete presentations at startup. Shared contracts do not import their default implementations or choose a mobile fallback. Concrete replacements and their styles belong to the entry that selects them.
 
-For starting browser sessions, each entry registers its `ISessionRepositoryPicker` implementation. Providers call that required service without selecting or importing a picker implementation; authentication, cancellation, and repository validation remain provider-owned. The regular entry registers the existing quick picker. Alternative entries can supply a sheet without changing the provider.
+For starting browser sessions, each entry registers its `ISessionRepositoryPicker` implementation. Providers call that required service without selecting or importing a picker implementation; authentication, cancellation, and repository validation remain provider-owned. The regular entry registers the existing quick picker, while the experimental mobile entry registers its repository sheet.
 
-`IChatViewFactory` supplies composer options, including editor metrics and new-session chrome. These options are forwarded to new-session, nested-chat, running-chat, and edited-request inputs; mode/model presentation does not control font sizing or clipboard access. Clipboard attachments are registered through the existing chat context-item mechanism by each entry.
+`IChatViewFactory` supplies composer options, including editor metrics and new-session chrome. These options are forwarded to new-session, nested-chat, running-chat, and edited-request inputs; mode/model presentation does not control font sizing or clipboard access. Clipboard attachments are registered through the existing chat context-item mechanism by each entry. The experimental mobile entry reads the clipboard only after selection.
 
 Directly composed chat inputs, such as automation prompts, receive the same editor options from the view factory and pass them to their input component.
 
-`ISessionsListPresentation` owns list chrome, interactions, and name editing. The regular implementation starts the list's inline editor; an alternative implementation can prompt before committing. Session and group changes still go through the list and its shared services. List dimensions are passed as component options.
+`ISessionsListPresentation` owns list chrome, interactions, and name editing. The regular implementation starts the list's inline editor; the experimental implementation prompts before committing. Session and group changes still go through the list and its shared services. List dimensions are passed as component options.
 
-`IChatEditPresentationService` owns text-edit rendering and external-edit opening. The regular entry selects compare editors and ordinary editor navigation. Shared chat owns compare-model creation, and each returned presentation owns its rendering resources. Mobile diff overlays read through the standard text-model service, including in-memory snapshots.
+`IChatEditPresentationService` owns text-edit rendering and external-edit opening. The regular entry selects compare editors and ordinary editor navigation; the experimental entry selects edit rows and mobile overlays. Shared chat owns compare-model creation, and each returned presentation owns its rendering resources. Mobile diff overlays read through the standard text-model service, including in-memory snapshots.
+
+## Isolated web composition
+
+The experimental `sessions.web.mobile.main.internal.ts` entry composes the shared core with an explicit set of contributions, a fixed phone workbench, and entry-owned presentation services. Existing desktop and web entries neither import its implementations nor activate its defaults. The source entry is not registered in production build targets.
+
+After transpiling the checkout, `node scripts/code-sessions-web.js --mobile --no-open` serves this entry locally. Add `--mock` for the mock-services entry. This source launcher does not publish an artifact.
 
 ## Viewport classification
 

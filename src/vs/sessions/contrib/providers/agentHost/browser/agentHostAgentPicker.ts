@@ -8,16 +8,14 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { CustomizationType } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { agentHostAgentPickerStorageKey, resolveAgentHostAgent } from '../../../../../platform/agentHost/common/customAgents.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -43,6 +41,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { IChatContextPickService, IChatContextValueItem } from '../../../../../workbench/contrib/chat/browser/attachments/chatContextPickService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
+import { getAgentHostAgentPickerState, setAgentHostAgent } from './agentHostAgentSelection.js';
 
 const IsActiveSessionAgentHost = ContextKeyExpr.or(
 	ContextKeyExpr.equals(SessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID),
@@ -380,26 +379,10 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 			return;
 		}
 
-		const customizations = provider.getCustomizations(session.sessionId);
-		const rawAgents = provider.getCustomAgents(session.sessionId);
-		const agents = rawAgents.map(agent => {
-			const containers = customizations.filter(customization => customization.type !== CustomizationType.McpServer && customization.children?.some(child => child.uri === agent.uri));
-			return containers.length > 0
-				? { ...agent, uri: provider.mapAgentHostResource(URI.parse(agent.uri)).toString() }
-				: agent;
-		});
+		const { agents, toPickerUri } = getAgentHostAgentPickerState(session.sessionId, provider);
 		const storedUri = isUntitled
 			? this.storageService.get(agentHostAgentPickerStorageKey(session.resource.scheme), StorageScope.PROFILE)
 			: undefined;
-		// Resolve selected, remembered, or draft-source URIs to the client-space URI the picker lists.
-		const toPickerUri = (uri: string | undefined) => {
-			if (!uri) {
-				return undefined;
-			}
-			const hostUri = provider.resolveCustomAgent?.(session.sessionId, uri)?.uri ?? uri;
-			const index = rawAgents.findIndex(agent => agent.uri === hostUri);
-			return index >= 0 ? agents[index].uri : uri;
-		};
 		const resolved = resolveAgentHostAgent(agents, toPickerUri(selectedAgentUri), toPickerUri(storedUri));
 
 		if (!selectedAgentUri && isUntitled && resolved) {
@@ -436,13 +419,7 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 	}
 
 	private _setAgent(session: ISession, provider: IAgentHostSessionsProvider, agent: ISessionAgentRef | undefined): void {
-		const key = agentHostAgentPickerStorageKey(session.resource.scheme);
-		if (agent) {
-			this.storageService.store(key, agent.uri, StorageScope.PROFILE, StorageTarget.MACHINE);
-		} else {
-			this.storageService.remove(key, StorageScope.PROFILE);
-		}
-		provider.setAgent?.(session.sessionId, agent ? { uri: agent.uri, name: agent.name } : undefined);
+		setAgentHostAgent(session, provider, agent, this.storageService);
 	}
 }
 
