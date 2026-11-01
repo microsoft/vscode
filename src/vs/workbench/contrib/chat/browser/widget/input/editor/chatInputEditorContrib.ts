@@ -34,6 +34,9 @@ import { isCancellationError } from '../../../../../../../base/common/errors.js'
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
+import { SuggestController } from '../../../../../../../editor/contrib/suggest/browser/suggestController.js';
+import { State as SuggestState } from '../../../../../../../editor/contrib/suggest/browser/suggestModel.js';
+import { shouldRetriggerSlashCommandSuggest } from './chatInputCompletionUtils.js';
 
 const decorationDescription = 'chat';
 const placeholderDecorationType = 'chat-session-detail';
@@ -516,3 +519,39 @@ class ChatTokenDeleter extends Disposable {
 	}
 }
 ChatWidget.CONTRIBS.push(ChatTokenDeleter);
+
+/**
+ * The chat input has quick suggestions disabled, so slash command completions
+ * only open on the `/` trigger character. When the suggest session is cancelled
+ * (e.g. by typing a space, clicking or using the arrow keys) and the user then
+ * keeps editing the leading slash command word, reopen the completions.
+ */
+class ChatSlashCommandSuggestRetrigger extends Disposable {
+
+	public readonly id = 'chatSlashCommandSuggestRetrigger';
+
+	constructor(
+		private readonly widget: IChatWidget,
+	) {
+		super();
+
+		this._register(this.widget.inputEditor.onDidType(() => {
+			const editor = this.widget.inputEditor;
+			const model = editor.getModel();
+			const selection = editor.getSelection();
+			if (!model || !selection || !selection.isEmpty()) {
+				return;
+			}
+
+			const suggestController = SuggestController.get(editor);
+			if (!suggestController || suggestController.model.state !== SuggestState.Idle) {
+				return;
+			}
+
+			if (shouldRetriggerSlashCommandSuggest(model, selection.getPosition())) {
+				suggestController.triggerSuggest(undefined, true);
+			}
+		}));
+	}
+}
+ChatWidget.CONTRIBS.push(ChatSlashCommandSuggestRetrigger);

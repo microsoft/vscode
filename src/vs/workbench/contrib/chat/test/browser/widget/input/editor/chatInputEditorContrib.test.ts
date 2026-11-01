@@ -6,10 +6,13 @@
 import assert from 'assert';
 import { DisposableStore } from '../../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
+import { Position } from '../../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../../editor/common/core/range.js';
+import { createTextModel } from '../../../../../../../../editor/test/common/testTextModel.js';
 import { withTestCodeEditor } from '../../../../../../../../editor/test/browser/testCodeEditor.js';
 import { IChatWidget } from '../../../../../browser/chat.js';
 import { ChatWidget } from '../../../../../browser/widget/chatWidget.js';
+import { shouldRetriggerSlashCommandSuggest } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
 import '../../../../../browser/widget/input/editor/chatInputEditorContrib.js';
 
 suite('ChatTokenDeleter', () => {
@@ -104,5 +107,41 @@ suite('ChatTokenDeleter', () => {
 				store.dispose();
 			}
 		});
+	});
+});
+
+suite('shouldRetriggerSlashCommandSuggest', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function check(text: string, position: Position): boolean {
+		const model = createTextModel(text);
+		try {
+			return shouldRetriggerSlashCommandSuggest(model, position);
+		} finally {
+			model.dispose();
+		}
+	}
+
+	test('is registered as a chat widget contribution', () => {
+		assert.ok(ChatWidget.CONTRIBS.find(contrib => contrib.name === 'ChatSlashCommandSuggestRetrigger'));
+	});
+
+	test('retriggers when editing a leading slash command word', () => {
+		assert.strictEqual(check('/delete', new Position(1, 8)), true);
+		assert.strictEqual(check('/delete-', new Position(1, 9)), true);
+		assert.strictEqual(check('/delete-merged', new Position(1, 5)), true);
+		assert.strictEqual(check('  /delete', new Position(1, 10)), true);
+		assert.strictEqual(check('/ölç', new Position(1, 5)), true);
+	});
+
+	test('does not retrigger outside of a leading slash command word', () => {
+		assert.strictEqual(check('/', new Position(1, 2)), false, 'bare trigger character is handled by the trigger character path');
+		assert.strictEqual(check('/delete ', new Position(1, 9)), false);
+		assert.strictEqual(check('/delete foo', new Position(1, 12)), false);
+		assert.strictEqual(check('hello /delete', new Position(1, 14)), false);
+		assert.strictEqual(check('foo/delete', new Position(1, 11)), false);
+		assert.strictEqual(check('hello\n/delete', new Position(2, 8)), false);
+		assert.strictEqual(check('delete', new Position(1, 7)), false);
 	});
 });
