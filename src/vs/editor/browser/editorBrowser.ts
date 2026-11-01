@@ -759,10 +759,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	readonly onMouseDown: Event<IEditorMouseEvent>;
 	/**
 	 * An event emitted on a "mousedrag".
+	 * The target is null when the pointer is outside the editor or has no position.
 	 * @internal
 	 * @event
 	 */
-	readonly onMouseDrag: Event<IEditorMouseEvent>;
+	readonly onMouseDrag: Event<IPartialEditorMouseEvent>;
 	/**
 	 * An event emitted on a "mousedrop".
 	 * @internal
