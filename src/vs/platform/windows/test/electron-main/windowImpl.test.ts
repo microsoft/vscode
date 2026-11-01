@@ -6,7 +6,7 @@
 import assert from 'assert';
 import type { BrowserWindow, BrowserWindowConstructorOptions, WebContents } from 'electron';
 import sinon from 'sinon';
-import { isMacintosh } from '../../../../base/common/platform.js';
+import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
@@ -15,13 +15,22 @@ import { NullLogService } from '../../../log/common/log.js';
 import { InMemoryTestStateMainService } from '../../../test/electron-main/workbenchTestServices.js';
 import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getMacOSWindowControlsPosition } from '../../../window/common/window.js';
 import { release } from 'os';
+import { URI } from '../../../../base/common/uri.js';
+import { NativeParsedArgs } from '../../../environment/common/argv.js';
+import { FocusMode } from '../../../native/common/native.js';
+import { IWindowState, WindowMode } from '../../../window/electron-main/window.js';
 import { BaseWindow } from '../../electron-main/windowImpl.js';
+import { getAuxiliaryWindowRestoreMode, isBackgroundThrottlingAllowed, isHiddenWindowMode } from '../../electron-main/windows.js';
 
 class TestWindow extends BaseWindow {
 	readonly id = 1;
 
 	override setWin(win: BrowserWindow, options?: BrowserWindowConstructorOptions): void {
 		super.setWin(win, options);
+	}
+
+	override applyState(state: IWindowState, hasMultipleDisplays?: boolean): void {
+		super.applyState(state, hasMultipleDisplays);
 	}
 
 	matches(_webContents: WebContents): boolean {
@@ -112,4 +121,126 @@ suite('BaseWindow - window controls overlay', () => {
 			y: getMacOSWindowControlsPosition(height, release())!.y,
 		}]));
 	});
+});
+
+suite('BaseWindow - hidden window mode', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
+
+	function environment(args: Partial<NativeParsedArgs>, extensionTests: boolean): IEnvironmentMainService {
+		return upcastPartial<IEnvironmentMainService>({
+			args: { _: [], ...args },
+			extensionTestsLocationURI: extensionTests ? URI.file('/tests') : undefined
+		});
+	}
+
+	test('isHiddenWindowMode requires --hidden-window together with --extensionTestsPath', () => {
+		assert.deepStrictEqual([
+			isHiddenWindowMode(environment({}, false)),
+			isHiddenWindowMode(environment({}, true)),
+			isHiddenWindowMode(environment({ 'hidden-window': true }, false)),
+			isHiddenWindowMode(environment({ 'hidden-window': true }, true)),
+		], [false, false, false, true]);
+	});
+
+	function createWindow(hidden: boolean) {
+		const configurationService = new TestConfigurationService();
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const window = store.add(new TestWindow(
+			configurationService,
+			new InMemoryTestStateMainService(),
+			environment({ 'hidden-window': hidden }, true),
+			store.add(new NullLogService())
+		));
+		const on = sinon.stub();
+		const removeListener = sinon.stub();
+		const maximize = sinon.stub();
+		const show = sinon.stub();
+		const focus = sinon.stub();
+		const focusWebContents = sinon.stub();
+		const nativeWindow = upcastPartial<BrowserWindow>({
+			on,
+			removeListener,
+			setSheetOffset: sinon.stub(),
+			isMinimized: () => false,
+			maximize,
+			show,
+			focus,
+			webContents: upcastPartial<WebContents>({ focus: focusWebContents }),
+		});
+		window.setWin(nativeWindow);
+		return { window, maximize, show, focus, focusWebContents };
+	}
+
+	for (const hidden of [false, true]) {
+		test(`applyState ${hidden ? 'neither maximizes nor shows' : 'maximizes and shows'} a maximized window (hidden: ${hidden})`, () => {
+			const { window, maximize, show } = createWindow(hidden);
+			window.applyState({ mode: WindowMode.Maximized }, false);
+
+			assert.deepStrictEqual([maximize.callCount, show.callCount], hidden ? [0, 0] : [1, 1]);
+		});
+
+		test(`focus ${hidden ? 'is ignored' : 'focuses the window'} (hidden: ${hidden})`, () => {
+			const { window, focus, focusWebContents } = createWindow(hidden);
+			window.focus({ mode: FocusMode.Transfer });
+
+			assert.deepStrictEqual([focus.callCount, focusWebContents.callCount], hidden ? [0, 0] : [1, 1]);
+		});
+	}
+
+	test('applyState neither maximizes, enters fullscreen nor shows a fullscreen window when hidden', () => {
+		const { window, maximize, show } = createWindow(true);
+		const setFullScreen = sinon.stub(window as unknown as { setFullScreen(fullscreen: boolean, fromRestore: boolean): void }, 'setFullScreen');
+		window.applyState({ mode: WindowMode.Fullscreen }, false);
+
+		assert.deepStrictEqual([maximize.callCount, setFullScreen.callCount, show.callCount], [0, 0, 0]);
+	});
+
+	test('background throttling cannot be re-enabled at runtime when hidden', () => {
+		assert.deepStrictEqual([
+			isBackgroundThrottlingAllowed(environment({}, true), true),
+			isBackgroundThrottlingAllowed(environment({}, true), false),
+			isBackgroundThrottlingAllowed(environment({ 'hidden-window': true }, true), true),
+			isBackgroundThrottlingAllowed(environment({ 'hidden-window': true }, true), false),
+		], [true, false, false, false]);
+	});
+
+	test('auxiliary windows restore the requested mode, not the visibility', () => {
+		assert.deepStrictEqual(
+			[undefined, WindowMode.Normal, WindowMode.Maximized, WindowMode.Fullscreen].map(getAuxiliaryWindowRestoreMode),
+			[WindowMode.Normal, WindowMode.Normal, WindowMode.Maximized, WindowMode.Maximized]
+		);
+	});
+
+	test('a normal hidden auxiliary window keeps its bounds and is neither maximized nor shown', () => {
+		const { window, maximize, show } = createWindow(true);
+		const setBounds = sinon.stub();
+		Object.assign(window.win!, { setBounds });
+		const bounds = { x: 10, y: 20, width: 800, height: 600 };
+		window.applyState({ ...bounds, mode: getAuxiliaryWindowRestoreMode(WindowMode.Normal) }, true);
+
+		assert.deepStrictEqual([setBounds.args, maximize.callCount, show.callCount], [isMacintosh || isWindows ? [[bounds]] : [], 0, 0]);
+	});
+
+	for (const hidden of [false, true]) {
+		test(`toggleFullScreen ${hidden ? 'does not change' : 'changes'} fullscreen (hidden: ${hidden})`, () => {
+			const { window } = createWindow(hidden);
+			const setFullScreen = sinon.stub(window as unknown as { setFullScreen(fullscreen: boolean, fromRestore: boolean): void }, 'setFullScreen');
+			sinon.stub(window, 'isFullScreen').get(() => false);
+			window.toggleFullScreen();
+
+			assert.deepStrictEqual(setFullScreen.args, hidden ? [] : [[true, false]]);
+		});
+	}
+
+	for (const [mode, name] of [[FocusMode.Notify, 'Notify'], [FocusMode.Force, 'Force']] as const) {
+		test(`focus with mode ${name} touches neither window nor application when hidden`, () => {
+			const { window, show, focus } = createWindow(true);
+			const notifyFocus = sinon.spy(window as unknown as { showNotifyFocus(): void }, 'showNotifyFocus');
+			window.focus({ mode });
+
+			assert.deepStrictEqual([notifyFocus.callCount, show.callCount, focus.callCount], [0, 0, 0]);
+		});
+	}
 });
