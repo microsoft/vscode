@@ -79,7 +79,7 @@ import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 import { IInboxNotificationsService, InboxNotificationsSortMode } from '../../../inboxOne/common/inboxNotificationsService.js';
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, type NewSessionButtonStyle } from '../../browser/sessionsActions.js';
 import { SessionChatItem, SessionsGrouping, SessionsList, SessionsListItemReference, SessionsSorting } from '../../browser/views/sessionsList.js';
-import { renderSessionsHeader } from '../../browser/views/sessionsView.js';
+import { ISessionsHeaderElements, renderSessionsHeader } from '../../browser/views/sessionsView.js';
 import { SessionsArchiveActionsContribution, getSessionsArchiveActionConstructors } from '../../browser/views/sessionsViewActions.js';
 import { TestSessionsList } from './testSessionsList.js';
 
@@ -148,6 +148,11 @@ export interface ISessionsListFixtureView {
 
 /** Pointer and keyboard state, applied after the list renders. */
 export interface ISessionsListFixtureInteraction {
+	/**
+	 * The query typed into the find widget of the Sessions header, which {@link ISessionsListFixtureState.header}
+	 * renders. Applied first, since searching moves the keyboard focus to the first result.
+	 */
+	readonly search?: string;
 	readonly selected?: readonly SessionsListFixtureRow[];
 	/** The row with keyboard focus. */
 	readonly focused?: SessionsListFixtureRow;
@@ -786,14 +791,18 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 
 	let listParent = container;
 	let navigationContainer: HTMLElement | undefined;
+	let renderedHeader: ISessionsHeaderElements | undefined;
+	let findWidgetContainer: HTMLElement | undefined;
 	if (header) {
 		container.classList.add('agent-sessions-section');
 		const content = DOM.append(container, DOM.$('.agent-sessions-content'));
 		navigationContainer = DOM.append(content, DOM.$('.agent-sessions-navigation-container'));
 		const sessionsHeaderContainer = DOM.append(content, DOM.$('.agent-sessions-header-container'));
 		disposableStore.add(instantiationService.createInstance(NewSessionActionViewItemContribution));
-		const renderedHeader = renderSessionsHeader(sessionsHeaderContainer, false, instantiationService, contextKeyService, disposableStore);
+		renderedHeader = renderSessionsHeader(sessionsHeaderContainer, false, instantiationService, contextKeyService, disposableStore);
 		renderedHeader.toolbar?.refresh();
+		findWidgetContainer = DOM.append(renderedHeader.row, DOM.$('.agent-sessions-find-widget-container'));
+		findWidgetContainer.style.display = 'none';
 		listParent = content;
 	}
 	const listHost = DOM.append(listParent, DOM.$(header ? '.agent-sessions-control-container' : 'div'));
@@ -812,9 +821,13 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		customizationMigrationsAvailable: constObservable(header?.customizationMigrationsAvailable ?? false),
 		customizationExtensionSuggestionsAvailable: constObservable(header?.customizationExtensionSuggestionsAvailable ?? false),
 		navigationContainer,
+		findWidgetContainer,
 		onSessionOpen: () => { },
 		approvalModel,
 	}));
+	if (renderedHeader && findWidgetContainer) {
+		disposableStore.add(showFindWidgetInHeader(list, renderedHeader, findWidgetContainer));
+	}
 	for (const spec of state.sessions) {
 		if (spec.application) {
 			const session = getSession(spec.id).session;
@@ -841,6 +854,9 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	}
 
 	await timeout(SETTLE_DELAY);
+	if (interaction.search !== undefined) {
+		typeSearch(list, findWidgetContainer, interaction.search);
+	}
 	applyInteraction(context, list, interaction, resolve, getSession, groupIds, interactionStore);
 	await timeout(SETTLE_DELAY);
 
@@ -915,6 +931,30 @@ async function renderHeaderState(container: HTMLElement, instantiationService: T
 	if (style === 'lightweightWithKeybindingBackground' && !container.querySelector('.agent-sessions-compact-new-button.lightweight.lightweight-keybinding-background')) {
 		throw new Error('Expected the New Session action to render the lightweight keybinding-background style.');
 	}
+}
+
+/** Like the Sessions view, replaces the label and actions of the header with the find widget while it is open. */
+function showFindWidgetInHeader(list: SessionsList, header: ISessionsHeaderElements, findWidgetContainer: HTMLElement): IDisposable {
+	return list.onDidChangeFindOpenState(open => {
+		findWidgetContainer.style.display = open ? '' : 'none';
+		header.label.style.display = open ? 'none' : '';
+		header.actions.style.display = open ? 'none' : '';
+	});
+}
+
+/** Opens the find widget like the Sessions view, which shows its container first so it can take focus, and types the query. */
+function typeSearch(list: SessionsList, findWidgetContainer: HTMLElement | undefined, query: string): void {
+	if (!findWidgetContainer) {
+		throw new Error('Searching needs the Sessions header, which hosts the find widget.');
+	}
+	findWidgetContainer.style.display = '';
+	list.openFind();
+	const input = findWidgetContainer.querySelector<HTMLInputElement>('.monaco-tree-type-filter input');
+	if (!input) {
+		throw new Error('Expected the find widget to open in the Sessions header.');
+	}
+	input.value = query;
+	input.dispatchEvent(new InputEvent('input', { bubbles: true }));
 }
 
 function applyInteraction(context: ComponentFixtureContext, list: TestSessionsList, interaction: ISessionsListFixtureInteraction, resolve: (row: SessionsListFixtureRow) => SessionsListItemReference, getSession: (id: string) => ITestSession, groupIds: ReadonlyMap<string, string>, interactionStore: DisposableStore): void {
