@@ -214,7 +214,7 @@ function createActionGroups(
 				const groups = createMenuActionGroups(item.submenu, options, hiddenStates, commandService, keybindingService, contextKeyService);
 				const submenuActions = Separator.join(...groups.map(g => g[1]));
 				if (submenuActions.length > 0) {
-					activeActions.push(new SubmenuItemAction(item, menuHide, submenuActions));
+					activeActions.push(new SubmenuItemAction(item, menuHide, submenuActions, item.toggled ? contextKeyService.contextMatchesRules(item.toggled) : undefined));
 				}
 			}
 		}
@@ -293,12 +293,15 @@ class MenuInfoSnapshot {
 				MenuInfoSnapshot._fillInKbExprKeys(toggledExpression, this._toggledContextKeys);
 			}
 
-		} else if (this._collectContextKeysForSubmenus) {
-			// recursively collect context keys from submenus so that this
-			// menu fires events when context key changes affect submenus
-			MenuRegistry.getMenuItems(item.submenu).forEach(this._collectContextKeysAndSubmenuIds, this);
+		} else {
+			MenuInfoSnapshot._fillInKbExprKeys(item.toggled, this._toggledContextKeys);
+			if (this._collectContextKeysForSubmenus) {
+				// recursively collect context keys from submenus so that this
+				// menu fires events when context key changes affect submenus
+				MenuRegistry.getMenuItems(item.submenu).forEach(this._collectContextKeysAndSubmenuIds, this);
 
-			this._allMenuIds.add(item.submenu);
+				this._allMenuIds.add(item.submenu);
+			}
 		}
 	}
 

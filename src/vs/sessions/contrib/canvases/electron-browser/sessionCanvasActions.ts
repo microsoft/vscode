@@ -19,8 +19,8 @@ import { AICustomizationManagementCommands, AICustomizationManagementOpenEditorT
 import { isCustomizationDiscoveryAvailable } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationMarketplaceConfiguration.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { INewSessionInAgentsWindowOptions } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
-import { getCanvasInstanceLabels, getCanvasReferenceKey, ICanvasContextService, ICanvasReopenTarget, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { Menus, SessionActivityBarGroup, sessionActivityBarEntryToggled } from '../../../browser/menus.js';
+import { CanvasInput, getCanvasInstanceLabels, getCanvasReferenceKey, ICanvasContextService, ICanvasReopenTarget, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
 import { getSessionCanvasDefinitionInstanceId, getSessionCanvasDefinitionLabels, ISessionCanvasRegistryService, WindowCanvasesAvailableContext } from '../common/sessionCanvas.js';
 
@@ -39,6 +39,8 @@ const reopenCanvasWhen = ContextKeyExpr.and(
 	canvasAvailableWhen,
 	IsTopRightEditorGroupContext,
 );
+
+const canvasActivityBarToggled = sessionActivityBarEntryToggled(CanvasInput.EDITOR_ID);
 
 class CanvasMenuActionRegistration extends Disposable {
 
@@ -107,7 +109,7 @@ class KeyedMenuRegistration extends Disposable {
 	}
 }
 
-function appendCanvasSubmenu(menu: MenuId, when: ContextKeyExpression | undefined, group = 'navigation', submenu = Menus.SessionsEditorTabsBarAddTabCanvas): IDisposable {
+function appendCanvasSubmenu(menu: MenuId, when: ContextKeyExpression | undefined, group = 'navigation', submenu = Menus.SessionsEditorTabsBarAddTabCanvas, toggled?: ContextKeyExpression): IDisposable {
 	return MenuRegistry.appendMenuItem(menu, {
 		submenu,
 		title: localize('sessionCanvases.canvasSubmenu', "Canvas"),
@@ -115,6 +117,7 @@ function appendCanvasSubmenu(menu: MenuId, when: ContextKeyExpression | undefine
 		group,
 		order: 4,
 		when: ContextKeyExpr.and(when, WindowCanvasesAvailableContext.negate()),
+		toggled,
 	});
 }
 
@@ -224,7 +227,7 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 			appendCanvasSubmenu(Menus.SessionsEditorTabsBarAddTab, reopenCanvasWhen),
 			appendCanvasSubmenu(Menus.SessionsEmptyEditorGroupAddTab, reopenCanvasWhen),
 			inActivityBar
-				? appendCanvasSubmenu(Menus.SessionActivityBar, canvasAvailableWhen, SessionActivityBarGroup.SidePanel, Menus.SessionActivityBarCanvas)
+				? appendCanvasSubmenu(Menus.SessionActivityBar, canvasAvailableWhen, SessionActivityBarGroup.SidePanel, Menus.SessionActivityBarCanvas, canvasActivityBarToggled)
 				: Disposable.None,
 		));
 	}));
@@ -270,13 +273,13 @@ function registerSessionCanvasActivityBarActions(canvasService: ICanvasService, 
 		if (targets.length === 1) {
 			const title = labels[0];
 			activityBarRegistration.update(`single:${title}`, () => MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
-				command: { id: Menus.SessionActivityBarCanvas.id, title, icon: Codicon.preview },
+				command: { id: Menus.SessionActivityBarCanvas.id, title, icon: Codicon.preview, toggled: canvasActivityBarToggled },
 				group: SessionActivityBarGroup.SidePanel,
 				order: 4,
 				when: canvasAvailableWhen,
 			}));
 		} else {
-			activityBarRegistration.update(targets.length > 1 ? 'multiple' : undefined, () => appendCanvasSubmenu(Menus.SessionActivityBar, canvasAvailableWhen, SessionActivityBarGroup.SidePanel, Menus.SessionActivityBarCanvas));
+			activityBarRegistration.update(targets.length > 1 ? 'multiple' : undefined, () => appendCanvasSubmenu(Menus.SessionActivityBar, canvasAvailableWhen, SessionActivityBarGroup.SidePanel, Menus.SessionActivityBarCanvas, canvasActivityBarToggled));
 		}
 	}));
 	return store;

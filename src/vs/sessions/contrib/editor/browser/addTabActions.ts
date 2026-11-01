@@ -21,7 +21,7 @@ import { openNewSearchEditor } from '../../../../workbench/contrib/searchEditor/
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { EditorsOrder } from '../../../../workbench/common/editor.js';
-import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
 import { IsQuickChatSessionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../common/contextkeys.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
@@ -29,7 +29,7 @@ import { ISessionChangesService } from '../../changes/browser/sessionChangesServ
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { EmptyFileEditorInput } from './emptyFileEditorInput.js';
-import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
+import { Menus, SessionActivityBarGroup, sessionActivityBarEntryToggled } from '../../../browser/menus.js';
 
 export const NEW_BROWSER_TAB_COMMAND_ID = 'workbench.action.agentSessions.newBrowserTab';
 export const OPEN_BROWSER_COMMAND_ID = 'workbench.action.agentSessions.openBrowser';
@@ -70,14 +70,6 @@ const filesAddTabWhen = ContextKeyExpr.and(
 	addTabLayoutWhen,
 	DesktopFilesTabAvailableContext,
 	ContextKeyExpr.or(singleEditorTitleWhen, DesktopFilesTabMissingContext));
-
-/**
- * Shows a Session Activity Bar entry as checked while the side pane shows its editor; clicking it then hides the side pane.
- * The side pane can show just the detail panel of the active editor while the editor area is collapsed.
- */
-function sessionActivityBarEntryToggled(editorId: string) {
-	return ContextKeyExpr.and(ContextKeyExpr.or(MainEditorAreaVisibleContext, AuxiliaryBarVisibleContext), ActiveEditorContext.isEqualTo(editorId))!;
-}
 
 export class NewFileTabAction extends Action2 {
 

@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MenuId } from '../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, MainEditorAreaVisibleContext } from '../../workbench/common/contextkeys.js';
 
 const NEW_SESSION_REPOSITORY_CONFIG_GROUP_PREFIX = 'navigation/';
 
@@ -149,3 +151,11 @@ export const SessionActivityBarGroup = {
 	/** Links to the active chat's pull requests and issues. */
 	GitHub: '3_github',
 } as const;
+
+/**
+ * Shows a Session Activity Bar entry as checked while the side pane shows its editor.
+ * The side pane can show just the detail panel of the active editor while the editor area is collapsed.
+ */
+export function sessionActivityBarEntryToggled(editorId: string) {
+	return ContextKeyExpr.and(ContextKeyExpr.or(MainEditorAreaVisibleContext, AuxiliaryBarVisibleContext), ActiveEditorContext.isEqualTo(editorId))!;
+}
