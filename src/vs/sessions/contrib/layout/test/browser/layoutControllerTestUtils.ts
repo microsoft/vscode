@@ -40,7 +40,7 @@ import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
+import { ILifecycleService, LifecyclePhase } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { ISessionEditorWorkingSetService, SessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -524,6 +524,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	instaService.stub(ILifecycleService, new class extends mock<ILifecycleService>() {
 		// Resolves only when a test opts in via `activateAux`, so the desktop
 		// managed-tab / detail-panel behaviour is not spun up otherwise.
+		override get phase(): LifecyclePhase { return harness.activateAux ? LifecyclePhase.Restored : LifecyclePhase.Ready; }
 		override when(): Promise<void> { return harness.activateAux ? Promise.resolve() : new Promise<void>(() => { }); }
 	});
 
