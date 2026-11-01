@@ -196,15 +196,20 @@ const copilotCliHookCommandSchema: IJSONSchema = {
 	additionalProperties: true,
 	required: ['type'],
 	anyOf: [
+		{ required: ['command'] },
 		{ required: ['bash'] },
 		{ required: ['powershell'] }
 	],
-	errorMessage: nls.localize('hook.cliCommandRequired', 'At least one of "bash" or "powershell" must be specified.'),
+	errorMessage: nls.localize('hook.cliCommandRequired', 'At least one of "command", "bash", or "powershell" must be specified.'),
 	properties: {
 		type: {
 			type: 'string',
 			enum: ['command'],
 			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.type
+		},
+		command: {
+			type: 'string',
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.command
 		},
 		bash: {
 			type: 'string',
@@ -278,6 +283,7 @@ export const hookFileSchema: IJSONSchema = {
 		// VS Code / PascalCase format
 		properties: {
 			hooks: {
+				deprecationMessage: nls.localize('hookFile.localFormatDeprecated', 'The Local hook format is deprecated. Use the Copilot CLI format with "version": 1, camelCase event names, and "timeoutSec" instead of "timeout".'),
 				properties: vscodeHookProperties
 			}
 		}
@@ -287,18 +293,19 @@ export const hookFileSchema: IJSONSchema = {
 			label: nls.localize('hookFile.snippet.basic', 'Basic hook configuration'),
 			description: nls.localize('hookFile.snippet.basic.description', 'A basic hook configuration with common hooks'),
 			body: {
+				version: 1,
 				hooks: {
-					SessionStart: [
+					sessionStart: [
 						{
 							type: 'command',
 							command: '${1:echo "Session started" >> session.log}',
 						}
 					],
-					PreToolUse: [
+					preToolUse: [
 						{
 							type: 'command',
 							command: '${2:./scripts/validate.sh}',
-							timeout: 15
+							timeoutSec: 15
 						}
 					]
 				}
