@@ -78,7 +78,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	function getFormatterSettings(document: TextDocument): LanguageSettings['format'] {
 		let settings = formatterSettings[document.languageId];
 
-		if (!settings) {
+		if (!languageServices[document.languageId]) {
 			connection.console.log(`Document language is '${document.languageId}' (unsupported), using 'css' settings instead.`);
 			settings = formatterSettings['css'];
 		}
