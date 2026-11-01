@@ -263,7 +263,7 @@ jobs:
 
       # A Dev Drive in a VHDX with blocks of 1 MB, mounted at the parent folder of the workspace like
       # in the jobs: pnpm links the packages of different folders with junctions, whose targets are
-      # absolute paths
+      # absolute paths. 64 GB leave the jobs room, and less of the VHDX to ReFS's metadata than 200 GB.
       - name: Create the volume of the image
         shell: pwsh
         working-directory: ${{ runner.temp }}
@@ -274,7 +274,7 @@ jobs:
           if (Get-ChildItem -Force $workspace) { throw "$workspace is not empty" }
           Remove-Item $workspace
           if (Get-ChildItem -Force $root) { throw "$root holds more than the workspace" }
-          & "$env:RUNNER_TEMP\workspace-image\vhd.ps1" -Path "$env:RUNNER_TEMP\workspace-image.vhdx" -Create -MountFolder $root
+          & "$env:RUNNER_TEMP\workspace-image\vhd.ps1" -Path "$env:RUNNER_TEMP\workspace-image.vhdx" -Create -MaximumSizeGB 64 -MountFolder $root
           New-Item -ItemType Directory -Path $workspace | Out-Null
 
       - *checkout

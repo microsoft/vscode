@@ -582,17 +582,23 @@ async function mount(source: Source, root: string, connections: number): Promise
 			const work = path.join(temp, 'workspace-image-overlay', 'work');
 			fs.mkdirSync(upper, { recursive: true });
 			fs.mkdirSync(work, { recursive: true });
+			// Through the page cache, which holds the file that was just downloaded, instead of the disk
+			const loop = run('sudo', ['losetup', '--find', '--show', '--read-only', '--direct-io=off', file], { stdio: ['ignore', 'pipe', 'inherit'] }).trim();
+			log(`attached the image to ${loop}`);
 			run('sudo', ['mkdir', '-p', lower]);
-			run('sudo', ['mount', '-t', 'squashfs', '-o', 'loop,ro', file, lower]);
+			run('sudo', ['mount', '-t', 'squashfs', '-o', 'ro', loop, lower]);
+			log(`mounted ${loop} at ${lower}`);
 			try {
 				run('sudo', ['mount', '-t', 'overlay', 'overlay', '-o', `lowerdir=${lower},upperdir=${upper},workdir=${work}`, root]);
 			} catch (err) {
 				spawnSync('sudo', ['umount', lower]);
+				spawnSync('sudo', ['losetup', '--detach', loop]);
 				throw err;
 			}
 			return () => {
 				spawnSync('sudo', ['umount', root], { stdio: 'inherit' });
 				spawnSync('sudo', ['umount', lower], { stdio: 'inherit' });
+				spawnSync('sudo', ['losetup', '--detach', loop], { stdio: 'inherit' });
 			};
 		}
 		case 'darwin': {
