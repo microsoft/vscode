@@ -505,7 +505,11 @@ async function unpack(source: Source, file: string, options: { readonly sparse: 
 	// keep its data in memory instead of writing it to the disk
 	const handle = await fs.promises.open(file, options.existing ? 'r+' : 'w');
 	const writer = async () => {
-		await handle.truncate(0);
+		// ext4 writes a file that was truncated to zero to the disk when it is closed, which a new file
+		// doesn't need
+		if (options.existing) {
+			await handle.truncate(0);
+		}
 		for (let index = 0; index < count; index++) {
 			const waited = performance.now();
 			while (!ready.has(index)) {
@@ -554,13 +558,16 @@ async function unpack(source: Source, file: string, options: { readonly sparse: 
 		}
 		await handle.truncate(header.rawSize);
 	};
+	let closeSeconds = 0;
 	try {
 		await Promise.all([writer(), ...Array.from({ length: options.connections }, worker)]);
 	} finally {
+		const closing = performance.now();
 		await handle.close();
+		closeSeconds = (performance.now() - closing) / 1000;
 	}
 	const seconds = (value: number) => value.toFixed(1);
-	return `downloaded ${Math.round(source.size / 1e6)} MB and wrote ${Math.round(writtenBytes / 1e6)} MB of ${Math.round(header.rawSize / 1e6)} MB, with ${options.connections} connections (downloads ${seconds(downloadSeconds)} s and decompression ${seconds(decompressSeconds)} s in all, writes ${seconds(writeSeconds)} s, waits for chunks ${seconds(idleSeconds)} s)`;
+	return `downloaded ${Math.round(source.size / 1e6)} MB and wrote ${Math.round(writtenBytes / 1e6)} MB of ${Math.round(header.rawSize / 1e6)} MB, with ${options.connections} connections (downloads ${seconds(downloadSeconds)} s and decompression ${seconds(decompressSeconds)} s in all, writes ${seconds(writeSeconds)} s, waits for chunks ${seconds(idleSeconds)} s, close ${seconds(closeSeconds)} s)`;
 }
 
 //#endregion
