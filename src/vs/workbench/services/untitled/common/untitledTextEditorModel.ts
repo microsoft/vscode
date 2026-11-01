@@ -154,7 +154,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	) {
 		super(modelService, languageService, languageDetectionService, accessibilityService);
 
-		this.dirty = this.hasAssociatedFilePath || !!this.initialValue;
+		this.dirtyWhenEmpty = this.hasAssociatedFilePath && this.textResourceConfigurationService.getValue(this.resource, 'workbench.editor.untitled.dirtyWhenEmpty') !== false;
+		this.dirty = this.dirtyWhenEmpty || !!this.initialValue;
 
 		// Make known to working copy service
 		this._register(this.workingCopyService.registerWorkingCopy(this));
@@ -249,6 +250,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	//#region Dirty
 
+	private readonly dirtyWhenEmpty: boolean;
 	private dirty: boolean;
 
 	isDirty(): boolean {
@@ -371,8 +373,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 				this.updateNameFromFirstLine(textEditorModel);
 			}
 
-			// Untitled associated to file path are dirty right away as well as untitled with content
-			this.setDirty(this.hasAssociatedFilePath || !!hasBackup || !!this.initialValue);
+			// Backups and initial content remain dirty regardless of the empty-file setting.
+			this.setDirty(this.dirtyWhenEmpty || hasBackup || !!this.initialValue);
 
 			// If we have initial contents, make sure to emit this
 			// as the appropiate events to the outside.
@@ -398,9 +400,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private onModelContentChanged(textEditorModel: ITextModel, e: IModelContentChangedEvent): void {
 		if (!this.ignoreDirtyOnModelContentChange) {
 
-			// mark the untitled text editor as non-dirty once its content becomes empty and we do
-			// not have an associated path set. we never want dirty indicator in that case.
-			if (!this.hasAssociatedFilePath && textEditorModel.getLineCount() === 1 && textEditorModel.getLineLength(1) === 0) {
+			// Mark empty untitled editors as non-dirty unless their associated path requires saving.
+			if (!this.dirtyWhenEmpty && textEditorModel.getLineCount() === 1 && textEditorModel.getLineLength(1) === 0) {
 				this.setDirty(false);
 			}
 
