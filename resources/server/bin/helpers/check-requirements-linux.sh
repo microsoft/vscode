@@ -28,9 +28,17 @@ found_required_glibc=0
 found_required_glibcxx=0
 MIN_GLIBCXX_VERSION="3.4.25"
 
-# Extract the ID value from /etc/os-release
+# Extract the ID value from /etc/os-release.
+#
+# Previously this used grep -Eo 'ID=([^"]+)' which only matched unquoted
+# values. Rocky Linux 8.5 and some other distros ship ID="rocky" (with
+# surrounding double-quotes), causing the grep to match nothing and leaving
+# OS_ID empty, which made the script exit 1 (resolves issue #232159).
+#
+# The portable fix is to source /etc/os-release in a subshell so the shell
+# handles all quoting variants defined by the spec (man os-release).
 if [ -f /etc/os-release ]; then
-    OS_ID="$(cat /etc/os-release | grep -Eo 'ID=([^"]+)' | sed -n '1s/ID=//p')"
+    OS_ID="$(. /etc/os-release && echo "${ID:-}")"
     if [ "$OS_ID" = "nixos" ]; then
         echo "Warning: NixOS detected, skipping GLIBC check"
         exit 0
@@ -139,7 +147,7 @@ elif [ -z "$(ldd --version 2>&1 | grep 'musl libc')" ]; then
 		# we instead use the version of the cached libc.so.6 file itself.
         libc_path_line=$(echo "$libc_path" | head -n1)
         libc_real_path=$(readlink -f "$libc_path_line")
-        libc_version=$(cat "$libc_real_path" | sed -n 's/.*release version \([0-9]\+\.[0-9]\+\).*/\1/p')
+        libc_version=$(cat "$libc_real_path" | sed -n 's/.*release version \([0-9]\+\.[0-9]\).*/\1/p')
         if [ "$(printf '%s\n' "2.28" "$libc_version" | sort -V | head -n1)" = "2.28" ]; then
             found_required_glibc=1
             break
