@@ -10,11 +10,11 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { NotImplementedError, isCancellationError } from '../../../base/common/errors.js';
 import { IdGenerator } from '../../../base/common/idGenerator.js';
-import { DisposableStore, Disposable as CoreDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, Disposable as CoreDisposable } from '../../../base/common/lifecycle.js';
 import { equals, mixin } from '../../../base/common/objects.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { regExpLeadsToEndlessLoop } from '../../../base/common/strings.js';
-import { assertType, isObject } from '../../../base/common/types.js';
+import { assertType, hasKey, isObject } from '../../../base/common/types.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IURITransformer } from '../../../base/common/uriIpc.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -103,10 +103,32 @@ class DocumentSymbolAdapter {
 	}
 }
 
+class LanguageFeatureCommandStores extends DisposableMap<number, DisposableStore> {
+
+	private _isRetired = false;
+
+	get isRetired(): boolean {
+		return this._isRetired;
+	}
+
+	/**
+	 * Stops accepting new provider results without disposing existing result stores.
+	 * Their commands and in-flight resolves remain usable until those results are released.
+	 */
+	retire(): void {
+		this._isRetired = true;
+	}
+
+	override dispose(): void {
+		this.retire();
+		super.dispose();
+	}
+}
+
 class CodeLensAdapter {
 
 	private readonly _cache = new Cache<vscode.CodeLens>('CodeLens');
-	private readonly _disposables = new Map<number, DisposableStore>();
+	readonly commandStores = new LanguageFeatureCommandStores();
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -121,12 +143,12 @@ class CodeLensAdapter {
 		const doc = this._documents.getDocument(resource);
 
 		const lenses = await this._provider.provideCodeLenses(doc, token);
-		if (!lenses || token.isCancellationRequested) {
+		if (!lenses || token.isCancellationRequested || this.commandStores.isRetired) {
 			return undefined;
 		}
 		const cacheId = this._cache.add(lenses);
 		const disposables = new DisposableStore();
-		this._disposables.set(cacheId, disposables);
+		this.commandStores.set(cacheId, disposables);
 		const result: extHostProtocol.ICodeLensListDto = {
 			cacheId,
 			lenses: [],
@@ -167,7 +189,7 @@ class CodeLensAdapter {
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
-		const disposables = symbol.cacheId && this._disposables.get(symbol.cacheId[0]);
+		const disposables = symbol.cacheId && this.commandStores.get(symbol.cacheId[0]);
 		if (!disposables) {
 			// disposed in the meantime
 			return undefined;
@@ -185,8 +207,6 @@ class CodeLensAdapter {
 	}
 
 	releaseCodeLenses(cachedId: number): void {
-		this._disposables.get(cachedId)?.dispose();
-		this._disposables.delete(cachedId);
 		this._cache.delete(cachedId);
 	}
 }
@@ -455,7 +475,7 @@ class CodeActionAdapter {
 	private static readonly _maxCodeActionsPerFile: number = 1000;
 
 	private readonly _cache = new Cache<vscode.CodeAction | vscode.Command>('CodeAction');
-	private readonly _disposables = new Map<number, DisposableStore>();
+	readonly commandStores = new LanguageFeatureCommandStores();
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -491,13 +511,13 @@ class CodeActionAdapter {
 		};
 
 		const commandsOrActions = await this._provider.provideCodeActions(doc, ran, codeActionContext, token);
-		if (!isNonEmptyArray(commandsOrActions) || token.isCancellationRequested) {
+		if (!isNonEmptyArray(commandsOrActions) || token.isCancellationRequested || this.commandStores.isRetired) {
 			return undefined;
 		}
 
 		const cacheId = this._cache.add(commandsOrActions);
 		const disposables = new DisposableStore();
-		this._disposables.set(cacheId, disposables);
+		this.commandStores.set(cacheId, disposables);
 		const actions: CustomCodeAction[] = [];
 		for (let i = 0; i < commandsOrActions.length; i++) {
 			const candidate = commandsOrActions[i];
@@ -559,6 +579,9 @@ class CodeActionAdapter {
 
 
 		const resolvedItem = (await this._provider.resolveCodeAction(item, token)) ?? item;
+		if (!this.commandStores.has(sessionId)) {
+			return {};
+		}
 
 		let resolvedEdit: extHostProtocol.IWorkspaceEditDto | undefined;
 		if (resolvedItem.edit) {
@@ -567,7 +590,7 @@ class CodeActionAdapter {
 
 		let resolvedCommand: extHostProtocol.ICommandDto | undefined;
 		if (resolvedItem.command) {
-			const disposables = this._disposables.get(sessionId);
+			const disposables = this.commandStores.get(sessionId);
 			if (disposables) {
 				resolvedCommand = this._commands.toInternal(resolvedItem.command, disposables);
 			}
@@ -577,8 +600,6 @@ class CodeActionAdapter {
 	}
 
 	releaseCodeActions(cachedId: number): void {
-		this._disposables.get(cachedId)?.dispose();
-		this._disposables.delete(cachedId);
 		this._cache.delete(cachedId);
 	}
 
@@ -1153,7 +1174,7 @@ class CompletionsAdapter {
 	}
 
 	private _cache = new Cache<vscode.CompletionItem>('CompletionItem');
-	private _disposables = new Map<number, DisposableStore>();
+	readonly commandStores = new LanguageFeatureCommandStores();
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -1177,7 +1198,7 @@ class CompletionsAdapter {
 		const sw = new StopWatch();
 		const itemsOrList = await this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context));
 
-		if (!itemsOrList) {
+		if (!itemsOrList || this.commandStores.isRetired) {
 			// undefined and null are valid results
 			return undefined;
 		}
@@ -1193,7 +1214,7 @@ class CompletionsAdapter {
 		// keep result for providers that support resolving
 		const pid: number = CompletionsAdapter.supportsResolving(this._provider) ? this._cache.add(list.items) : this._cache.add([]);
 		const disposables = new DisposableStore();
-		this._disposables.set(pid, disposables);
+		this.commandStores.set(pid, disposables);
 
 		const completions: extHostProtocol.ISuggestDataDto[] = [];
 		const result: extHostProtocol.ISuggestResultDto = {
@@ -1229,7 +1250,7 @@ class CompletionsAdapter {
 
 		const resolvedItem = await this._provider.resolveCompletionItem(item, token);
 
-		if (!resolvedItem) {
+		if (!resolvedItem || !this.commandStores.has(id[0])) {
 			return undefined;
 		}
 
@@ -1266,14 +1287,12 @@ class CompletionsAdapter {
 	}
 
 	releaseCompletionItems(id: number): any {
-		this._disposables.get(id)?.dispose();
-		this._disposables.delete(id);
 		this._cache.delete(id);
 	}
 
 	private _convertCompletionItem(item: vscode.CompletionItem, id: extHostProtocol.ChainedCacheId, defaultInsertRange?: vscode.Range, defaultReplaceRange?: vscode.Range): extHostProtocol.ISuggestDataDto {
 
-		const disposables = this._disposables.get(id[0]);
+		const disposables = this.commandStores.get(id[0]);
 		if (!disposables) {
 			throw Error('DisposableStore is missing...');
 		}
@@ -1644,7 +1663,7 @@ class SignatureHelpAdapter {
 class InlayHintsAdapter {
 
 	private _cache = new Cache<vscode.InlayHint>('InlayHints');
-	private readonly _disposables = new Map<number, DisposableStore>();
+	readonly commandStores = new LanguageFeatureCommandStores();
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -1659,6 +1678,9 @@ class InlayHintsAdapter {
 		const range = typeConvert.Range.to(ran);
 
 		const hints = await this._provider.provideInlayHints(doc, range, token);
+		if (this.commandStores.isRetired) {
+			return undefined;
+		}
 		if (!Array.isArray(hints) || hints.length === 0) {
 			// bad result
 			this._logService.trace(`[InlayHints] NO inlay hints from '${this._extension.identifier.value}' for range ${JSON.stringify(ran)}`);
@@ -1670,7 +1692,7 @@ class InlayHintsAdapter {
 			return undefined;
 		}
 		const pid = this._cache.add(hints);
-		this._disposables.set(pid, new DisposableStore());
+		this.commandStores.set(pid, new DisposableStore());
 		const result: extHostProtocol.IInlayHintsDto = { hints: [], cacheId: pid };
 		for (let i = 0; i < hints.length; i++) {
 			if (this._isValidInlayHint(hints[i], range)) {
@@ -1690,7 +1712,7 @@ class InlayHintsAdapter {
 			return undefined;
 		}
 		const hint = await this._provider.resolveInlayHint(item, token);
-		if (!hint) {
+		if (!hint || !this.commandStores.has(id[0])) {
 			return undefined;
 		}
 		if (!this._isValidInlayHint(hint)) {
@@ -1700,8 +1722,6 @@ class InlayHintsAdapter {
 	}
 
 	releaseHints(id: number): any {
-		this._disposables.get(id)?.dispose();
-		this._disposables.delete(id);
 		this._cache.delete(id);
 	}
 
@@ -1719,7 +1739,7 @@ class InlayHintsAdapter {
 
 	private _convertInlayHint(hint: vscode.InlayHint, id: extHostProtocol.ChainedCacheId): extHostProtocol.IInlayHintDto {
 
-		const disposables = this._disposables.get(id[0]);
+		const disposables = this.commandStores.get(id[0]);
 		if (!disposables) {
 			throw Error('DisposableStore is missing...');
 		}
@@ -2166,6 +2186,7 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 
 	private readonly _proxy: extHostProtocol.MainThreadLanguageFeaturesShape;
 	private readonly _adapter = new Map<number, AdapterData>();
+	private readonly _commandStores = this._register(new DisposableMap<number, LanguageFeatureCommandStores>());
 
 	private _inlineCompletionsUnificationState: vscode.InlineCompletionsUnificationState;
 	public get inlineCompletionsUnificationState(): vscode.InlineCompletionsUnificationState {
@@ -2195,6 +2216,11 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 		};
 	}
 
+	override dispose(): void {
+		super.dispose();
+		this._adapter.clear();
+	}
+
 	private _transformDocumentSelector(selector: vscode.DocumentSelector, extension: IExtensionDescription): Array<extHostProtocol.IDocumentFilterDto> {
 		return typeConvert.DocumentSelector.from(selector, this._uriTransformer, extension);
 	}
@@ -2202,8 +2228,21 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 	private _createDisposable(handle: number): Disposable {
 		return new Disposable(() => {
 			this._adapter.delete(handle);
+			const stores = this._commandStores.get(handle);
+			stores?.retire();
+			if (stores?.size === 0) {
+				this._commandStores.deleteAndDispose(handle);
+			}
 			this._proxy.$unregister(handle);
 		});
+	}
+
+	private _releaseCommandStore(handle: number, cacheId: number): void {
+		const stores = this._commandStores.get(handle);
+		stores?.deleteAndDispose(cacheId);
+		if (stores?.isRetired && stores.size === 0) {
+			this._commandStores.deleteAndDispose(handle);
+		}
 	}
 
 	private _nextHandle(): number {
@@ -2253,6 +2292,9 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 	private _addNewAdapter(adapter: Adapter, extension: IExtensionDescription): number {
 		const handle = this._nextHandle();
 		this._adapter.set(handle, new AdapterData(adapter, extension));
+		if (hasKey(adapter, { commandStores: true })) {
+			this._commandStores.set(handle, adapter.commandStores);
+		}
 		return handle;
 	}
 
@@ -2280,10 +2322,9 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 	// --- code lens
 
 	registerCodeLensProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CodeLensProvider): vscode.Disposable {
-		const handle = this._nextHandle();
+		const handle = this._addNewAdapter(new CodeLensAdapter(this._documents, this._commands.converter, provider, extension, this._extensionTelemetry, this._logService), extension);
 		const eventHandle = typeof provider.onDidChangeCodeLenses === 'function' ? this._nextHandle() : undefined;
 
-		this._adapter.set(handle, new AdapterData(new CodeLensAdapter(this._documents, this._commands.converter, provider, extension, this._extensionTelemetry, this._logService), extension));
 		this._proxy.$registerCodeLensSupport(handle, this._transformDocumentSelector(selector, extension), eventHandle);
 		let result = this._createDisposable(handle);
 
@@ -2304,6 +2345,7 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 	}
 
 	$releaseCodeLenses(handle: number, cacheId: number): void {
+		this._releaseCommandStore(handle, cacheId);
 		this._withAdapter(handle, CodeLensAdapter, adapter => Promise.resolve(adapter.releaseCodeLenses(cacheId)), undefined, undefined, true);
 	}
 
@@ -2479,6 +2521,7 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 	}
 
 	$releaseCodeActions(handle: number, cacheId: number): void {
+		this._releaseCommandStore(handle, cacheId);
 		this._withAdapter(handle, CodeActionAdapter, adapter => Promise.resolve(adapter.releaseCodeActions(cacheId)), undefined, undefined);
 	}
 
@@ -2636,6 +2679,7 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 	}
 
 	$releaseCompletionItems(handle: number, id: number): void {
+		this._releaseCommandStore(handle, id);
 		this._withAdapter(handle, CompletionsAdapter, adapter => adapter.releaseCompletionItems(id), undefined, undefined);
 	}
 
@@ -2780,6 +2824,7 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 	}
 
 	$releaseInlayHints(handle: number, id: number): void {
+		this._releaseCommandStore(handle, id);
 		this._withAdapter(handle, InlayHintsAdapter, adapter => adapter.releaseHints(id), undefined, undefined);
 	}
 
