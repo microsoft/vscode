@@ -151,10 +151,10 @@ export function isAnthropicContextEditingEnabled(
 /**
  * The extended (1 hour) prompt cache TTL is available on all active Claude
  * models via `cache_control: { type: 'ephemeral', ttl: '1h' }`
- * - Claude Fable 5
- * - Claude Opus 4.5 / 4.6 / 4.7 / 4.8 (incl. 1M variants)
- * - Claude Sonnet 4.5 / 4.6
- * - Claude Haiku 4.5
+ * - Claude Fable 5.x
+ * - Claude Opus 5.x, 4.5 / 4.6 / 4.7 / 4.8 (incl. 1M variants)
+ * - Claude Sonnet 5.x, 4.5 / 4.6
+ * - Claude Haiku 5.x, 4.5
  *
  * Accepts either an id string, a {@link LanguageModelChat}, or an
  * {@link IChatEndpoint} — when given an endpoint/chat the model **family**
@@ -167,6 +167,9 @@ export function modelSupportsExtendedCacheTtl(model: LanguageModelChat | IChatEn
 	const matches = (s: string) => {
 		const n = s.toLowerCase().replace(/\./g, '-');
 		return n.startsWith('claude-fable-5') ||
+			n.startsWith('claude-opus-5') ||
+			n.startsWith('claude-sonnet-5') ||
+			n.startsWith('claude-haiku-5') ||
 			n.startsWith('claude-opus-4-8') ||
 			n.startsWith('claude-opus-4-7') ||
 			n.startsWith('claude-opus-4-6') ||
