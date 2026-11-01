@@ -3,21 +3,57 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogLevel as ProxyLogLevel, ProxyAgentParams, createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, loadSystemCertificates } from '@vscode/proxy-agent';
+import { LogLevel as ProxyLogLevel, ProxyAgentParams, createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, createWebSocketPatch, loadSystemCertificates, resetCaches, type Log as ProxyLog } from '@vscode/proxy-agent';
+import { getCACertificates } from 'tls';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { raceCancellationError } from '../../../base/common/async.js';
 import { equals } from '../../../base/common/objects.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
 import { AuthInfo, Credentials, systemCertificatesNodeDefault } from '../../request/common/request.js';
 import { lookupKerberosAuthorization } from '../../request/node/requestService.js';
+import { normalizeCertificates } from '../../request/node/certificates.js';
 import { IAgentHostClientProxyConnection } from '../common/agentHostClientProxyChannel.js';
 import { AgentHostProxyConfigKey, agentHostProxyConfigSchema } from '../common/agentHostSchema.js';
+import { originsOnlyForLog } from '../common/logRedaction.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 
 export const IAgentHostProxyResolver = createDecorator<IAgentHostProxyResolver>('agentHostProxyResolver');
 
 type AgentHostProxyConfigurationKey = keyof typeof agentHostProxyConfigSchema.definition & string;
+
+interface IClientCertificateProvider extends IDisposable {
+	readonly load: () => Promise<readonly string[]>;
+	readonly token: CancellationToken;
+	promise?: Promise<void>;
+}
+
+/** Load system and process-supplied CA certificates for Agent Host networking. */
+export async function loadAgentHostCertificates(
+	logService: ILogService,
+	extraCertificates: readonly string[] = getCACertificates('extra'),
+	systemCertificateLoader: typeof loadSystemCertificates = loadSystemCertificates,
+): Promise<string[]> {
+	const systemCertificates = await systemCertificateLoader({
+		loadSystemCertificatesFromNode: () => systemCertificatesNodeDefault,
+		log: logService,
+	});
+	return [...systemCertificates, ...extraCertificates];
+}
+
+/** The log `@vscode/proxy-agent` writes to, with URLs reduced to their origins: a model download URL's path and query must never be logged. */
+function createUrlRedactingProxyLog(logService: ILogService): ProxyLog {
+	const redactArg = (value: unknown) => typeof value === 'string' ? originsOnlyForLog(value) : value instanceof Error ? originsOnlyForLog(value.message) : value;
+	return {
+		trace: (message: string, ...args: unknown[]) => logService.trace(originsOnlyForLog(message), ...args.map(redactArg)),
+		debug: (message: string, ...args: unknown[]) => logService.debug(originsOnlyForLog(message), ...args.map(redactArg)),
+		info: (message: string, ...args: unknown[]) => logService.info(originsOnlyForLog(message), ...args.map(redactArg)),
+		warn: (message: string, ...args: unknown[]) => logService.warn(originsOnlyForLog(message), ...args.map(redactArg)),
+		error: (message: string | Error, ...args: unknown[]) => logService.error(originsOnlyForLog(typeof message === 'string' ? message : message.message), ...args.map(redactArg)),
+	};
+}
 
 /**
  * Node-side registry of renderer {@link IAgentHostClientProxyConnection}s keyed
@@ -34,6 +70,13 @@ export interface IAgentHostProxyResolver {
 
 	readonly onDidRegisterConnection: Event<void>;
 	readonly onDidChangeConfiguration: Event<void>;
+	readonly clientCertificates: readonly string[];
+
+	setClientCertificates(clientId: string, certificates: readonly string[]): void;
+	registerCertificateProvider(clientId: string, load: (() => Promise<readonly string[]>) | undefined): IDisposable;
+	loadClientCertificates(): Promise<readonly string[]>;
+	/** Loads native roots, including this process's `NODE_EXTRA_CA_CERTS` bundle, once and combines them with cached client roots. */
+	loadCertificates(): Promise<string[]>;
 
 	/** Register a renderer connection. Disposing the result removes it. */
 	register(clientId: string, connection: IAgentHostClientProxyConnection): IDisposable;
@@ -51,6 +94,9 @@ export interface IAgentHostProxyResolver {
 
 	/** Fetch using the same proxy, certificate, and host/PAC resolution as {@link resolveProxy}. */
 	fetch(input: string | URL | Request, init?: RequestInit): Promise<Response>;
+
+	/** Open a WebSocket using the same proxy, certificate, and host/PAC resolution as {@link fetch}. */
+	createWebSocket(url: string, protocol: string): InstanceType<typeof globalThis.WebSocket>;
 }
 
 export class AgentHostProxyResolver extends Disposable implements IAgentHostProxyResolver {
@@ -64,10 +110,15 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 	private readonly _configurationListener = this._register(new MutableDisposable());
 
 	private readonly _connections = new Map<string, IAgentHostClientProxyConnection>();
+	private readonly _certificatesByClient = new Map<string, readonly string[]>();
+	private readonly _certificateProviders = this._register(new DisposableMap<string, IClientCertificateProvider>());
+	private _certificateProviderGeneration = 0;
+	private _clientCertificates: readonly string[] = [];
+	private _nativeCertificates: Promise<string[]> | undefined;
 	private _configurationValues: Record<string, unknown> = {};
-	private _proxyResolver: ReturnType<typeof createProxyResolver> | undefined;
-	private _proxyAgentParams: ProxyAgentParams | undefined;
+	private _proxyResolver: { readonly params: ProxyAgentParams; readonly resolver: ReturnType<typeof createProxyResolver> } | undefined;
 	private _fetch: typeof globalThis.fetch | undefined;
+	private _webSocket: typeof globalThis.WebSocket | undefined;
 
 	constructor(
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
@@ -88,6 +139,95 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 		return this._configurationService.getRootValue(agentHostProxyConfigSchema, key) as T | undefined;
 	}
 
+	get clientCertificates(): readonly string[] {
+		return this._clientCertificates;
+	}
+
+	registerCertificateProvider(clientId: string, load: (() => Promise<readonly string[]>) | undefined): IDisposable {
+		this._certificateProviderGeneration++;
+		if (!load) {
+			this._certificateProviders.deleteAndDispose(clientId);
+			this.setClientCertificates(clientId, []);
+			return Disposable.None;
+		}
+		const cancellation = new CancellationTokenSource();
+		const provider: IClientCertificateProvider = { load, token: cancellation.token, dispose: () => cancellation.dispose(true) };
+		this._certificateProviders.set(clientId, provider);
+		this._resetNetworking();
+		this._onDidChangeConfiguration.fire();
+		return toDisposable(() => {
+			if (this._certificateProviders.get(clientId) === provider) {
+				this._certificateProviders.deleteAndDispose(clientId);
+				this._certificateProviderGeneration++;
+			}
+		});
+	}
+
+	async loadClientCertificates(): Promise<readonly string[]> {
+		let generation: number;
+		do {
+			generation = this._certificateProviderGeneration;
+			await Promise.all([...this._certificateProviders].map(([clientId, provider]) => {
+				return provider.promise ??= Promise.resolve().then(async () => {
+					try {
+						const certificates = await raceCancellationError(provider.load(), provider.token);
+						if (this._certificateProviders.get(clientId) === provider) {
+							this.setClientCertificates(clientId, certificates);
+						}
+					} catch {
+						if (this._certificateProviders.get(clientId) === provider) {
+							this._logService.warn('[AgentHost] Failed to load client CA certificates; retaining previously loaded trust until the client reconnects.');
+						}
+					}
+				});
+			}));
+		} while (generation !== this._certificateProviderGeneration);
+		return this._clientCertificates;
+	}
+
+	setClientCertificates(clientId: string, certificates: readonly string[]): void {
+		const validated = normalizeCertificates(certificates, this._logService);
+		if (validated.length) {
+			this._certificatesByClient.set(clientId, validated);
+		} else {
+			this._certificatesByClient.delete(clientId);
+		}
+		const combined = [...new Set([...this._certificatesByClient.values()].flat())].sort();
+		if (equals(combined, this._clientCertificates)) {
+			return;
+		}
+		this._clientCertificates = Object.freeze(combined);
+		this._resetNetworking();
+		this._onDidChangeConfiguration.fire();
+	}
+
+	private _resetNetworking(): void {
+		resetCaches();
+		this._proxyResolver = undefined;
+		this._fetch = undefined;
+		this._webSocket = undefined;
+	}
+
+	async loadCertificates(): Promise<string[]> {
+		if (!this._nativeCertificates) {
+			const nativeCertificates = this._nativeCertificates = this._loadNativeCertificates();
+			nativeCertificates.catch(() => {
+				if (this._nativeCertificates === nativeCertificates) {
+					this._nativeCertificates = undefined;
+				}
+			});
+		}
+		const [nativeCertificates, clientCertificates] = await Promise.all([
+			this._nativeCertificates,
+			this.loadClientCertificates(),
+		]);
+		return [...nativeCertificates, ...clientCertificates];
+	}
+
+	protected _loadNativeCertificates(): Promise<string[]> {
+		return loadAgentHostCertificates(this._logService);
+	}
+
 	private _readConfigurationValues(): Record<string, unknown> {
 		return Object.fromEntries(Object.values(AgentHostProxyConfigKey).map(key => [key, this.getConfigurationValue(key)]));
 	}
@@ -106,19 +246,29 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 	}
 
 	resolveProxy(url: string): Promise<string | undefined> {
-		return this._getProxyResolver().resolveProxyURL(url);
+		return this._getProxyResolver().resolver.resolveProxyURL(url);
 	}
 
-	fetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+	async fetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+		await this.loadClientCertificates();
 		if (!this._fetch) {
-			const proxyResolver = this._getProxyResolver();
-			this._fetch = createFetchPatch(this._proxyAgentParams!, globalThis.fetch, proxyResolver.resolveProxyURL);
+			const { params, resolver } = this._getProxyResolver();
+			this._fetch = createFetchPatch(params, globalThis.fetch, resolver.resolveProxyURL);
 		}
 		return this._fetch(input, init);
 	}
 
-	private _getProxyResolver(): ReturnType<typeof createProxyResolver> {
+	createWebSocket(url: string, protocol: string): InstanceType<typeof globalThis.WebSocket> {
+		if (!this._webSocket) {
+			const { params, resolver } = this._getProxyResolver();
+			this._webSocket = createWebSocketPatch(params, globalThis.WebSocket, resolver.resolveProxyURL);
+		}
+		return new this._webSocket(url, protocol);
+	}
+
+	private _getProxyResolver(): { readonly params: ProxyAgentParams; readonly resolver: ReturnType<typeof createProxyResolver> } {
 		if (!this._proxyResolver) {
+			const proxyLog = createUrlRedactingProxyLog(this._logService);
 			// Mirror `workbench/api/node/proxyResolver.ts`.
 			const params: ProxyAgentParams = {
 				// The host proxy resolution runs in VS Code: reverse-call a connected
@@ -126,7 +276,7 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 				// session (system settings / PAC scripts).
 				resolveProxy: (url) => this._hostResolveProxy(url),
 				lookupProxyAuthorization: createProxyAuthorizationLookup({
-					log: this._logService,
+					log: proxyLog,
 					lookupAuthorization: authInfo => this._hostLookupAuthorization(authInfo),
 					lookupKerberosAuthorization: url => this._hostLookupKerberosAuthorization(url),
 				}),
@@ -138,11 +288,8 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 				addCertificatesV1: () => true,
 				addCertificatesV2: () => false,
 				loadSystemCertificatesFromNode: () => systemCertificatesNodeDefault,
-				loadAdditionalCertificates: async () => loadSystemCertificates({
-					loadSystemCertificatesFromNode: () => systemCertificatesNodeDefault,
-					log: this._logService,
-				}),
-				log: this._logService,
+				loadAdditionalCertificates: () => this.loadCertificates(),
+				log: proxyLog,
 				getLogLevel: () => {
 					switch (this._logService.getLevel()) {
 						case LogLevel.Trace: return ProxyLogLevel.Trace;
@@ -163,8 +310,7 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 				getNetworkInterfaceCheckInterval: () => 300 * 1000,
 				env: process.env,
 			};
-			this._proxyAgentParams = params;
-			this._proxyResolver = createProxyResolver(params);
+			this._proxyResolver = { params, resolver: createProxyResolver(params) };
 		}
 		return this._proxyResolver;
 	}

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Event, Emitter } from '../../../../base/common/event.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
@@ -15,8 +15,10 @@ import { LogLevel, NullLoggerService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { InMemoryStorageService } from '../../../storage/common/storage.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { ActiveTunnelMode, TunnelMode, TunnelStatus } from '../../common/remoteTunnel.js';
 import { TunnelMachineStatus } from '../../common/tunnelMachineStatus.js';
+import { ITunnelServiceCorrelation } from '../../common/tunnelServiceHeaders.js';
 import { RemoteTunnelService } from '../../node/remoteTunnelService.js';
 import { ITunnelProcessCoordinator, ITunnelProcessMachineStatus, ITunnelProcessOutput, ITunnelProcessStatus, TunnelProcessConnectionState, TunnelProcessMode } from '../../node/tunnelProcessCoordinator.js';
 import sinon from 'sinon';
@@ -62,8 +64,8 @@ class TestTunnelProcessCoordinator implements ITunnelProcessCoordinator {
 		this._onDidChangeStatus.fire(this._status);
 	}
 
-	fireMachineStatus(mode: TunnelProcessMode, status: TunnelMachineStatus, cancel = () => { }): void {
-		this._onDidMachineStatus.fire({ mode, status, cancel });
+	fireMachineStatus(mode: TunnelProcessMode, status: TunnelMachineStatus, cancel = () => { }, correlation?: ITunnelServiceCorrelation): void {
+		this._onDidMachineStatus.fire({ mode, status, cancel, correlation });
 	}
 
 	dispose(): void {
@@ -74,13 +76,14 @@ class TestTunnelProcessCoordinator implements ITunnelProcessCoordinator {
 }
 
 suite('Remote tunnel', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('handles machine-status events through coordinator fan-out', async () => {
 		const coordinator = new TestTunnelProcessCoordinator();
 		const loggerService = new NullLoggerService();
 		const storageService = new InMemoryStorageService();
-		const publicLog2 = sinon.spy(NullTelemetryService, 'publicLog2');
+		const telemetryService: ITelemetryService = NullTelemetryService;
+		const publicLog2 = sinon.spy(telemetryService, 'publicLog2');
 		const service = new RemoteTunnelService(
 			NullTelemetryService,
 			{ tunnelApplicationName: 'code-tunnel' } as IProductService,
@@ -106,7 +109,7 @@ suite('Remote tunnel', () => {
 			let didCancel = false;
 			coordinator.fireMachineStatus('remoteAccess', { type: 'connected', tunnelName: 'test_host', tunnelId: 'tunnel-id', isAttached: true, link: 'https://vscode.dev/tunnel/test_host', domain: 'vscode.dev' });
 			const linkedStatus = await service.getTunnelStatus();
-			coordinator.fireMachineStatus('remoteAccess', { type: 'connected', tunnelName: 'test_host', isAttached: false });
+			coordinator.fireMachineStatus('remoteAccess', { type: 'connected', tunnelName: 'test_host', isAttached: false }, undefined, { sessionId: 'telemetry-session', operationId: 'operation-id' });
 			const noLinkStatus = await service.getTunnelStatus();
 			coordinator.fireMachineStatus('remoteAccess', { type: 'tokenError', message: 'token expired' }, () => didCancel = true);
 			const disconnectedStatus = await service.getTunnelStatus();
@@ -119,7 +122,12 @@ suite('Remote tunnel', () => {
 				tokenFailures,
 				didCancel,
 				telemetryCallCount: publicLog2.callCount,
+				connectedTelemetry: publicLog2.getCalls().filter(call => call.args[0] === 'remoteTunnel.connected').map(call => call.args[1]),
 			}, {
+				connectedTelemetry: [
+					{ tunnelName: 'test_host', isAttached: true },
+					{ tunnelName: 'test_host', isAttached: false, tunnelSessionId: 'telemetry-session', operationId: 'operation-id' },
+				],
 				linkedStatus: {
 					type: 'connected',
 					info: {
@@ -197,28 +205,27 @@ suite('Remote tunnel', () => {
 			storageService,
 			coordinator,
 		);
-		try {
-			await service.initialize({
-				active: true,
-				asService: true,
-				session: { providerId: 'github', sessionId: 'session', accountLabel: 'account' },
-			});
-
-			// The session process that attaches to the installed service reports
-			// under `service`; dropping those events left the UI on "connecting".
-			coordinator.fireMachineStatus('service', { type: 'connected', tunnelName: 'test_host', isAttached: true });
-
-			assert.deepStrictEqual(await service.getTunnelStatus(), {
-				type: 'connected',
-				info: { tunnelName: 'test_host', isAttached: true },
-				serviceInstallFailed: false,
-			});
-		} finally {
+		store.add(toDisposable(() => {
 			service.dispose();
 			coordinator.dispose();
 			loggerService.dispose();
 			storageService.dispose();
-		}
+		}));
+		await service.initialize({
+			active: true,
+			asService: true,
+			session: { providerId: 'github', sessionId: 'session', accountLabel: 'account' },
+		});
+
+		// The session process that attaches to the installed service reports
+		// under `service`; dropping those events left the UI on "connecting".
+		coordinator.fireMachineStatus('service', { type: 'connected', tunnelName: 'test_host', isAttached: true });
+
+		assert.deepStrictEqual(await service.getTunnelStatus(), {
+			type: 'connected',
+			info: { tunnelName: 'test_host', isAttached: true },
+			serviceInstallFailed: false,
+		});
 	});
 
 	test('reports the intended tunnel name while access is inactive', async () => {
@@ -235,17 +242,16 @@ suite('Remote tunnel', () => {
 			storageService,
 			coordinator,
 		);
-		try {
-			coordinator.setIdle();
-			// The remote-extension recommendation compares the name this machine
-			// would use against a previously used one, and asks while no tunnel
-			// is running.
-			assert.strictEqual(await service.getTunnelName(), 'test_host');
-		} finally {
+		store.add(toDisposable(() => {
 			service.dispose();
 			coordinator.dispose();
 			loggerService.dispose();
 			storageService.dispose();
-		}
+		}));
+		coordinator.setIdle();
+		// The remote-extension recommendation compares the name this machine
+		// would use against a previously used one, and asks while no tunnel
+		// is running.
+		assert.strictEqual(await service.getTunnelName(), 'test_host');
 	});
 });

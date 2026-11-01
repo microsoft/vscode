@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileChangeType, FilePermission, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
 import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection, type IRemoteWatchHandle } from '../../common/agentHostFileSystemProvider.js';
 import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
-import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, isAgentHostContentRefUri, toAgentHostContentUri, toAgentHostUri } from '../../common/agentHostUri.js';
+import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, createEditorRemoteAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, isAgentHostContentRefUri, toAgentHostContentUri, toAgentHostUri } from '../../common/agentHostUri.js';
 import { ContentEncoding, ResourceType, type CreateResourceWatchParams, type ResourceCopyParams, type ResourceListResult, type ResourceMkdirParams, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult } from '../../common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -135,6 +135,20 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		assert.strictEqual(unwrapped.path, original.path);
 	});
 
+	test('round-trips an opaque URI', () => {
+		const original = URI.parse('mcp-top-level:copilotcli:session-1:github');
+		const wrapped = toAgentHostUri(original, 'remote-host');
+		assert.deepStrictEqual({
+			scheme: wrapped.scheme,
+			path: wrapped.path,
+			roundTrip: fromAgentHostUri(wrapped).toString(),
+		}, {
+			scheme: AGENT_HOST_SCHEME,
+			path: '/copilotcli:session-1:github',
+			roundTrip: original.toString(),
+		});
+	});
+
 	test('round-trips a URI with authority', () => {
 		const original = URI.from({ scheme: 'agenthost-content', authority: 'session1', path: '/snap/before' });
 		const wrapped = toAgentHostUri(original, 'remote-host');
@@ -203,13 +217,101 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 	test('a content ref that is directly resolvable on the local connection stays unwrapped', () => {
 		const file = URI.file('/workspace/test.ts');
 		const remote = URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/workspace/test.ts' });
+		const displayFile = URI.file('/repo/test.ts');
 
 		assert.deepStrictEqual({
 			file: toAgentHostContentUri(file, 'local').toString(),
 			remote: toAgentHostContentUri(remote, 'local').toString(),
+			fileWithLabel: toAgentHostContentUri(file, 'local', displayFile).toString(),
+			remoteWithLabel: toAgentHostContentUri(remote, 'local', displayFile).toString(),
 		}, {
 			file: file.toString(),
 			remote: remote.toString(),
+			fileWithLabel: file.toString(),
+			remoteWithLabel: remote.toString(),
+		});
+	});
+
+	test('content refs display file paths and preserve their original addresses after serialization', () => {
+		const content = URI.parse('opaque-content://store/7f3a?revision=1#L2');
+		const files = [
+			URI.parse('file:///repo/src/index.html'),
+			URI.parse('file:///repo/docs/index.html'),
+			URI.parse('file:///C:/repo/file%20name.ts'),
+		];
+		const wrapped = files.map(file => toAgentHostContentUri(content, 'remote-host', file));
+
+		assert.deepStrictEqual({
+			paths: wrapped.map(uri => uri.path),
+			unique: new Set(wrapped.map(uri => uri.toString())).size,
+			restored: wrapped.map(uri => {
+				const restored = URI.parse(uri.toString());
+				return {
+					contentRef: isAgentHostContentRefUri(restored),
+					content: fromAgentHostUri(restored).toString(),
+				};
+			}),
+		}, {
+			paths: ['/repo/src/index.html', '/repo/docs/index.html', '/C:/repo/file name.ts'],
+			unique: 3,
+			restored: files.map(() => ({ contentRef: true, content: content.toString() })),
+		});
+	});
+
+	test('file display paths preserve pathless content addresses', () => {
+		const content = URI.parse('opaque-content://store?revision=1');
+		const wrapped = toAgentHostContentUri(content, 'remote-host', URI.file('/repo/index.html'));
+
+		assert.deepStrictEqual({
+			path: wrapped.path,
+			content: fromAgentHostUri(URI.parse(wrapped.toString())).toString(),
+		}, {
+			path: '/repo/index.html',
+			content: content.toString(),
+		});
+	});
+
+	test('preserves full file identities for snapshots with the same display path', () => {
+		const content = URI.parse('opaque-content://store/7f3a?revision=1#L2');
+		const file = URI.parse('file://first/repo/index.html?ref=main#L1');
+		const files = [
+			file,
+			file.with({ scheme: 'other-file' }),
+			file.with({ authority: 'second' }),
+			file.with({ query: 'ref=feature' }),
+			file.with({ fragment: 'L2' }),
+		];
+		const restored = files.map(file => URI.parse(toAgentHostContentUri(content, 'remote-host', file).toString()));
+
+		assert.deepStrictEqual({
+			paths: restored.map(uri => uri.path),
+			unique: new Set(restored.map(uri => uri.toString())).size,
+			content: restored.map(uri => fromAgentHostUri(uri).toString()),
+		}, {
+			paths: files.map(() => '/repo/index.html'),
+			unique: files.length,
+			content: files.map(() => content.toString()),
+		});
+	});
+
+	test('content refs with matching file paths retain local routing and content read-back', () => {
+		const file = URI.file('/repo/index.html');
+		const content = URI.parse('opaque-content:/repo/index.html');
+		const legacy = toAgentHostContentUri(content, 'remote-host');
+		const wrapped = toAgentHostContentUri(content, 'remote-host', file);
+
+		assert.deepStrictEqual({
+			local: toAgentHostContentUri(file, 'local', file).toString(),
+			path: wrapped.path,
+			legacyContent: fromAgentHostUri(legacy).toString(),
+			content: fromAgentHostUri(wrapped).toString(),
+			distinct: legacy.toString() !== wrapped.toString(),
+		}, {
+			local: file.toString(),
+			path: file.path,
+			legacyContent: content.toString(),
+			content: content.toString(),
+			distinct: true,
 		});
 	});
 
@@ -217,17 +319,58 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		const original = URI.file('/remote/file.txt');
 		const remote = createAgentHostResourceUriMapper('remote-host');
 		const mapped = remote.fromAgentHost(original);
+		const otherHost = toAgentHostUri(original, 'other-host');
 
 		assert.deepStrictEqual({
 			mapped: mapped.toString(),
 			unmapped: remote.toAgentHost(mapped).toString(),
+			otherHost: remote.toAgentHost(otherHost).toString(),
 			localFrom: identityAgentHostResourceUriMapper.fromAgentHost(original).toString(),
 			localTo: identityAgentHostResourceUriMapper.toAgentHost(original).toString(),
 		}, {
 			mapped: toAgentHostUri(original, 'remote-host').toString(),
 			unmapped: original.toString(),
+			otherHost: otherHost.toString(),
 			localFrom: original.toString(),
 			localTo: original.toString(),
+		});
+	});
+
+	test('editor-remote resource URI mapper preserves workspace identities', () => {
+		const mapper = createEditorRemoteAgentHostResourceUriMapper('wsl+Ubuntu', 'editor-remote');
+		const remote = URI.parse('vscode-remote://wsl+Ubuntu/workspace?query=value#fragment');
+		const file = URI.parse('file:///workspace?query=value#fragment');
+		const otherRemote = URI.parse('vscode-remote://wsl+other/workspace');
+		const content = URI.parse('agenthost-content:/session/output?query=value#fragment');
+		const wrapped = toAgentHostUri(file, 'editor-remote');
+		const otherHost = toAgentHostUri(file, 'other-host');
+
+		assert.deepStrictEqual({
+			toHost: mapper.toAgentHost(remote).toString(),
+			filePassthrough: mapper.toAgentHost(file).toString(),
+			mixedCase: mapper.toAgentHost(remote.with({ authority: 'WSL+uBUNTU' })).toString(),
+			otherAuthority: mapper.toAgentHost(otherRemote).toString(),
+			unwrapped: mapper.toAgentHost(wrapped).toString(),
+			otherHostWrapped: mapper.toAgentHost(otherHost).toString(),
+			toClient: mapper.fromAgentHost(file).toString(),
+			remotePassthrough: mapper.fromAgentHost(remote).toString(),
+			otherRemotePassthrough: mapper.fromAgentHost(otherRemote).toString(),
+			content: mapper.fromAgentHost(content).toString(),
+			remoteRoundTrip: mapper.fromAgentHost(mapper.toAgentHost(remote)).toString(),
+			hostRoundTrip: mapper.toAgentHost(mapper.fromAgentHost(file)).toString(),
+		}, {
+			toHost: file.toString(),
+			filePassthrough: file.toString(),
+			mixedCase: file.toString(),
+			otherAuthority: otherRemote.toString(),
+			unwrapped: file.toString(),
+			otherHostWrapped: otherHost.toString(),
+			toClient: remote.toString(),
+			remotePassthrough: remote.toString(),
+			otherRemotePassthrough: otherRemote.toString(),
+			content: toAgentHostUri(content, 'editor-remote').toString(),
+			remoteRoundTrip: remote.toString(),
+			hostRoundTrip: file.toString(),
 		});
 	});
 
@@ -392,6 +535,35 @@ suite('AgentHostFileSystemProvider - authority registrations', () => {
 			firstCalls: [URI.file('/workspace/file.txt').toString()],
 			secondCalls: [URI.file('/workspace/file.txt').toString()],
 		});
+	});
+
+	test('concurrent reads retry through a replacement connection with leak monitoring enabled', async () => {
+		disposables.add(setGlobalLeakWarningThreshold(20));
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const first = new NamedConnection('first');
+		const second = new NamedConnection('second');
+		const firstRead = new DeferredPromise<ResourceReadResult>();
+		const readsStarted = new DeferredPromise<void>();
+		first.resourceRead = uri => {
+			first.readCalls.push(uri);
+			if (first.readCalls.length === 3) {
+				readsStarted.complete();
+			}
+			return firstRead.p;
+		};
+		disposables.add(provider.registerAuthority('client', first));
+
+		const pending = [1, 2, 3].map(index => provider.readFile(agentHostUri('client', `/workspace/file${index}.txt`)));
+		await readsStarted.p;
+		disposables.add(provider.registerAuthority('client', second));
+
+		try {
+			const contents = await raceTimeout(Promise.all(pending), 1000);
+			assert.deepStrictEqual(contents?.map(content => VSBuffer.wrap(content).toString()), ['second', 'second', 'second']);
+		} finally {
+			firstRead.complete({ data: 'first', encoding: ContentEncoding.Utf8 });
+			await Promise.allSettled(pending);
+		}
 	});
 
 	test('in-flight read rejection retries after its connection is replaced', async () => {
@@ -647,6 +819,36 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 		});
 	});
 
+	for (const authority of ['remote', 'local']) {
+		test(`reads the original content address when a ${authority} snapshot displays a different file path`, async () => {
+			const provider = disposables.add(new AgentHostFileSystemProvider());
+			const connection = new StubConnection();
+			disposables.add(provider.registerAuthority(authority, connection));
+			const content = URI.parse('opaque-content://store/7f3a?revision=1#L2');
+			const wrapped = toAgentHostContentUri(content, authority, URI.file('/repo/index.html'));
+
+			const stat = await provider.stat(wrapped);
+			const path = await provider.realpath(wrapped);
+			const bytes = await provider.readFile(wrapped);
+
+			assert.deepStrictEqual({
+				path,
+				readonly: stat.permissions === FilePermission.Readonly,
+				content: VSBuffer.wrap(bytes).toString(),
+				resources: connection.readCalls.map(uri => uri.toString()),
+				resolved: connection.resolveCalls.length,
+				listed: connection.listCalls.length,
+			}, {
+				path: '/repo/index.html',
+				readonly: true,
+				content: 'stub-content',
+				resources: [content.toString()],
+				resolved: 0,
+				listed: 0,
+			});
+		});
+	}
+
 	test('readFile passes the decoded synthetic URI through to the connection', async () => {
 		const { provider, connection } = setup();
 		const inner = URI.from({ scheme: 'git-blob', authority: 'sess1', path: '/sha/encoded/file.ts' });
@@ -801,6 +1003,38 @@ suite('AgentHostFileSystemProvider - permission errors and requestResourceAccess
 				toFileSystemProviderErrorCode(err instanceof Error ? err : undefined),
 				FileSystemProviderErrorCode.FileNotFound,
 			);
+		}
+	});
+
+	test('authentication failures remain Unavailable across filesystem operations', async () => {
+		const { provider, connection } = setup();
+		const wrapped = agentHostUri('remote', '/protected');
+		const error = new ProtocolError(AhpErrorCodes.AuthRequired, 'Relay identity authentication is required');
+		connection.readError = error;
+		connection.listError = error;
+		connection.resolveError = error;
+		connection.writeError = error;
+		connection.deleteError = error;
+		connection.moveError = error;
+		connection.copyError = error;
+		connection.mkdirError = error;
+		connection.requestError = error;
+		const operations = [
+			() => provider.stat(wrapped),
+			() => provider.realpath(wrapped),
+			() => provider.readFile(wrapped),
+			() => provider.readdir(wrapped),
+			() => provider.writeFile(wrapped, new Uint8Array(), { create: true, overwrite: true, unlock: false, atomic: false }),
+			() => provider.delete(wrapped, { recursive: false, useTrash: false, atomic: false }),
+			() => provider.rename(wrapped, agentHostUri('remote', '/dst'), { overwrite: true }),
+			() => provider.copy(wrapped, agentHostUri('remote', '/dst'), { overwrite: true }),
+			() => provider.mkdir(wrapped),
+			() => provider.requestResourceAccess(wrapped, { read: true }),
+		];
+		for (const operation of operations) {
+			await assert.rejects(operation(), err => err instanceof Error
+				&& err.message === error.message
+				&& toFileSystemProviderErrorCode(err) === FileSystemProviderErrorCode.Unavailable);
 		}
 	});
 

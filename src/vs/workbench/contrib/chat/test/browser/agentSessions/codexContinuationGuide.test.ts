@@ -37,7 +37,7 @@ import { IChatModel } from '../../../common/model/chatModel.js';
 
 suite('Codex continuation exact widget guide', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	for (const scenario of ['accepted', 'wrongModel', 'rejected', 'cancelled', 'replaced', 'restricted', 'noSearch', 'rowAccepted', 'rowCancelled', 'wrongSession', 'cancelledDuringOpen', 'rowArchived', 'blocked', 'buttonAccepted', 'rowButtonAccepted', 'buttonsAccepted', 'buttonRejected', 'buttonIneligible', 'buttonBlocked', 'buttonAlreadySelected', 'buttonCancelled', 'rowOpenDeclined', 'rowButtonCancelled'] as const) {
+	for (const scenario of ['accepted', 'wrongModel', 'rejected', 'cancelled', 'replaced', 'restricted', 'unmappedSession', 'noSearch', 'rowAccepted', 'rowCancelled', 'wrongSession', 'cancelledDuringOpen', 'rowArchived', 'blocked', 'buttonAccepted', 'rowButtonAccepted', 'buttonsAccepted', 'buttonRejected', 'buttonIneligible', 'buttonBlocked', 'buttonAlreadySelected', 'buttonCancelled', 'rowOpenDeclined', 'rowButtonCancelled'] as const) {
 		test(`only a committed exact selection completes: ${scenario}`, async () => {
 			const resource = URI.parse('agent-host-codex:/one');
 			const candidate: ICodexContinuationCandidate = {
@@ -109,7 +109,7 @@ suite('Codex continuation exact widget guide', () => {
 				}),
 			});
 			const connections = upcastPartial<IAgentHostConnectionsService>({
-				getSessionResource: () => resource,
+				getSessionResource: () => scenario === 'unmappedSession' ? undefined : resource,
 				resolveSessionResource: () => upcastPartial<IAgentHostSessionResolution>({ backendSession: candidate.session.session, connection }),
 			});
 			const onboarding = new class extends mock<IOnboardingScenarioService>() {
@@ -229,7 +229,7 @@ suite('Codex continuation exact widget guide', () => {
 				await timeout(0);
 				assert.deepStrictEqual(opened, [], 'a late open cannot revive a cancelled guide');
 			}
-			const neverShown = scenario === 'restricted' || scenario === 'noSearch' || scenario === 'blocked';
+			const neverShown = scenario === 'restricted' || scenario === 'unmappedSession' || scenario === 'noSearch' || scenario === 'blocked';
 			const completes = ['accepted', 'replaced', 'rowAccepted', 'buttonAccepted', 'rowButtonAccepted', 'buttonsAccepted'].includes(scenario);
 			assert.strictEqual(actions.includes('guideCompleted'), completes);
 			assert.strictEqual(actions.filter(action => action === 'guideShown').length, neverShown ? 0 : 1);

@@ -10,7 +10,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { buildMicrophoneOptions, DictationOnboardingBanner, DictationOnboardingService, indexOfMicrophone } from '../../browser/speechToText/dictationOnboarding.js';
 import { isChatInputStackSlotShowing } from '../../browser/widget/input/chatInputStack.js';
@@ -24,18 +24,6 @@ suite('Dictation onboarding', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	interface ITelemetryEvent { readonly name: string; readonly data: unknown }
-
-	class TestTelemetryService extends NullTelemetryServiceShape {
-		constructor(private readonly events: ITelemetryEvent[]) {
-			super();
-		}
-
-		override publicLog2(eventName?: string, data?: unknown): void {
-			if (eventName) {
-				this.events.push({ name: eventName, data });
-			}
-		}
-	}
 
 	function createHost(store: Pick<DisposableStore, 'add'>): { root: HTMLElement; container: HTMLElement } {
 		const root = dom.$('div');

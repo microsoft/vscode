@@ -101,6 +101,8 @@ export interface IXtermTerminalOptions {
 	xtermAddonImporter?: XtermAddonImporter;
 	/** Whether to disable the overview ruler. */
 	disableOverviewRuler?: boolean;
+	/** The rows of scrollback to keep, overriding the `terminal.integrated.scrollback` setting. */
+	scrollback?: number;
 	/**
 	 * When true, skips registering listeners on global singleton services
 	 * (configuration, theme, log level) to avoid accumulating listeners when
@@ -123,6 +125,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private readonly _xtermColorProvider: IXtermColorProvider;
 	private readonly _capabilities: ITerminalCapabilityStore;
 	private readonly _disableOverviewRuler: boolean;
+	private readonly _scrollback: number | undefined;
 
 	private static _suggestedRendererType: 'dom' | undefined = undefined;
 	private _attached?: { container: HTMLElement; options: IXtermAttachToElementOptions };
@@ -234,6 +237,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._xtermColorProvider = options.xtermColorProvider;
 		this._capabilities = options.capabilities;
 		this._disableOverviewRuler = options.disableOverviewRuler ?? false;
+		this._scrollback = options.scrollback;
 
 		const font = this._terminalConfigurationService.getFont(dom.getActiveWindow(), undefined, true);
 		const config = this._terminalConfigurationService.config;
@@ -245,7 +249,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			rows: options.rows,
 			documentOverride: layoutService.mainContainer.ownerDocument,
 			altClickMovesCursor: config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt',
-			scrollback: config.scrollback,
+			scrollback: this._scrollback ?? config.scrollback,
 			theme: this.getXtermTheme(),
 			drawBoldTextInBrightColors: config.drawBoldTextInBrightColors,
 			fontFamily: font.fontFamily,
@@ -598,7 +602,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._setCursorStyle(config.cursorStyle);
 		this._setCursorStyleInactive(config.cursorStyleInactive);
 		this._setCursorWidth(config.cursorWidth);
-		this.raw.options.scrollback = config.scrollback;
+		this.raw.options.scrollback = this._scrollback ?? config.scrollback;
 		this.raw.options.drawBoldTextInBrightColors = config.drawBoldTextInBrightColors;
 		this.raw.options.minimumContrastRatio = config.minimumContrastRatio;
 		this.raw.options.tabStopWidth = config.tabStopWidth;
@@ -785,11 +789,20 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	clearBuffer(): void {
+		const isNormalBuffer = this.raw.buffer.active.type === 'normal';
+		// Clearing the alternate buffer leaves the normal buffer's output and markers intact.
+		if (isNormalBuffer) {
+			this._decorationAddon.clearDecorations();
+			this._capabilities.get(TerminalCapability.CommandDetection)?.clearCommands();
+			this._capabilities.get(TerminalCapability.PartialCommandDetection)?.clearCommands();
+		}
 		this.raw.clear();
-		// xterm.js does not clear the first prompt, so trigger these to simulate
-		// the prompt being written
-		this._capabilities.get(TerminalCapability.CommandDetection)?.handlePromptStart();
-		this._capabilities.get(TerminalCapability.CommandDetection)?.handleCommandStart();
+		if (isNormalBuffer) {
+			// xterm.js does not clear the first prompt, so trigger these to simulate
+			// the prompt being written
+			this._capabilities.get(TerminalCapability.CommandDetection)?.handlePromptStart();
+			this._capabilities.get(TerminalCapability.CommandDetection)?.handleCommandStart();
+		}
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 	}
 

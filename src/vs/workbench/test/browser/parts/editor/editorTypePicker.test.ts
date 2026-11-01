@@ -9,15 +9,49 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { DEFAULT_EDITOR_ASSOCIATION, IEditorInputWithDiffResources } from '../../../../common/editor.js';
+import { IEditorOptions, TextEditorSelectionRevealType } from '../../../../../platform/editor/common/editor.js';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IEditorInputWithDiffResources, IEditorPane, IEditorPaneSelection, IUntypedEditorInput } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { createEditorTypeActions, getAvailableEditorTypes } from '../../../../browser/parts/editor/editorTypePicker.js';
 import { EditorMatchRuleSource, EditorMatches, IEditorResolverService, IEditorResolverServiceGetEditorMatchesOptions, RegisteredEditorInfo, RegisteredEditorPriority } from '../../../../services/editor/common/editorResolverService.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IEditorService, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { IEditorGroupsView, IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
+import { TextEditorPaneSelection } from '../../../../browser/parts/editor/textEditor.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 suite('Editor Type Picker', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const noModels = new class extends mock<IModelService>() {
+		override getModel() { return null; }
+	};
+
+	function createGroup(input: IUntypedEditorInput | undefined, activate: (group: IEditorGroupView) => void = () => { }, getSelection?: () => IEditorPaneSelection, capabilities = EditorInputCapabilities.None): IEditorGroupView {
+		const sourceEditor = disposables.add(new class extends EditorInput {
+			override readonly resource = undefined;
+			override get capabilities() { return capabilities; }
+			override get typeId(): string { return 'test.editor'; }
+			override toUntyped(): IUntypedEditorInput | undefined { return input; }
+		}());
+		return new class extends mock<IEditorGroupView>() {
+			override readonly id = 42;
+			override readonly activeEditor = sourceEditor;
+			override readonly activeEditorPane = new class extends mock<IEditorPane>() {
+				override readonly input = sourceEditor;
+				override getSelection() { return getSelection?.(); }
+			};
+			override getIndexOfEditor() { return 3; }
+			override readonly groupsView = new class extends mock<IEditorGroupsView>() {
+				override activateGroup(group: IEditorGroupView) {
+					activate(group);
+					return group;
+				}
+			};
+		};
+	}
 
 	function editor(id: string, editorPriority: RegisteredEditorPriority, diffPriority = editorPriority): RegisteredEditorInfo {
 		return {
@@ -68,7 +102,7 @@ suite('Editor Type Picker', () => {
 			}
 		};
 
-		const result = getAvailableEditorTypes(input, editorResolverService);
+		const result = getAvailableEditorTypes(input, editorResolverService, noModels);
 
 		assert.deepStrictEqual({ requestedResources, requestedOptions, result }, {
 			requestedResources: [modified],
@@ -111,7 +145,7 @@ suite('Editor Type Picker', () => {
 		};
 		const markdownEditor = disposables.add(new TestEditorInput('test.markdownEditor'));
 		const markdownPreview = disposables.add(new TestEditorInput('test.markdownPreview'));
-		const getEditorIds = (input: EditorInput) => getAvailableEditorTypes(input, editorResolverService, ['test.markdownPreview'])?.editors.map(editor => editor.id);
+		const getEditorIds = (input: EditorInput) => getAvailableEditorTypes(input, editorResolverService, noModels, ['test.markdownPreview'])?.editors.map(editor => editor.id);
 
 		assert.deepStrictEqual({
 			hidden: getEditorIds(markdownEditor),
@@ -141,7 +175,38 @@ suite('Editor Type Picker', () => {
 			}
 		};
 
-		assert.strictEqual(getAvailableEditorTypes(input, editorResolverService), undefined);
+		assert.strictEqual(getAvailableEditorTypes(input, editorResolverService, noModels), undefined);
+	});
+
+	test('untitled files in a custom editor only offer other editors while their text model exists', () => {
+		const resource = URI.from({ scheme: Schemas.untitled, path: 'example.png' });
+		const registeredEditors = [
+			editor(DEFAULT_EDITOR_ASSOCIATION.id, RegisteredEditorPriority.builtin),
+			editor('test.imagePreview', RegisteredEditorPriority.default),
+		];
+		const matches = editorMatches(registeredEditors, 'test.imagePreview');
+		const input = disposables.add(new class extends EditorInput {
+			override get typeId(): string { return 'test.customEditorInput'; }
+			override get editorId(): string { return 'test.imagePreview'; }
+			override get resource(): URI { return resource; }
+			override getName(): string { return 'test'; }
+		}());
+		const editorResolverService = new class extends mock<IEditorResolverService>() {
+			override getEditorMatches(): EditorMatches {
+				return matches;
+			}
+		};
+		const withModel = new class extends mock<IModelService>() {
+			override getModel(): ITextModel | null { return new class extends mock<ITextModel>() { }; }
+		};
+
+		assert.deepStrictEqual({
+			withoutModel: getAvailableEditorTypes(input, editorResolverService, noModels),
+			withModel: getAvailableEditorTypes(input, editorResolverService, withModel)?.editors.map(editor => editor.id),
+		}, {
+			withoutModel: undefined,
+			withModel: [DEFAULT_EDITOR_ASSOCIATION.id, 'test.imagePreview'],
+		});
 	});
 
 	test('unconfigured universal optional matches only make the picker visible while active', () => {
@@ -176,8 +241,8 @@ suite('Editor Type Picker', () => {
 		const universalPreview = disposables.add(new TestEditorInput('test.universalPreview'));
 
 		assert.deepStrictEqual({
-			inactive: getAvailableEditorTypes(textEditor, editorResolverService),
-			activeEditorIds: getAvailableEditorTypes(universalPreview, editorResolverService)?.editors.map(editor => editor.id)
+			inactive: getAvailableEditorTypes(textEditor, editorResolverService, noModels),
+			activeEditorIds: getAvailableEditorTypes(universalPreview, editorResolverService, noModels)?.editors.map(editor => editor.id)
 		}, {
 			inactive: undefined,
 			activeEditorIds: [DEFAULT_EDITOR_ASSOCIATION.id, 'test.universalPreview']
@@ -216,7 +281,7 @@ suite('Editor Type Picker', () => {
 			currentId: DEFAULT_EDITOR_ASSOCIATION.id,
 			editorMatches: matches,
 			editors: registeredEditors
-		}, editorResolverService, commandService, new class extends mock<IEditorService>() { });
+		}, createGroup({ resource }), editorResolverService, commandService, new class extends mock<IEditorService>() { });
 		const setDefaultSubmenu = actions.find((action): action is SubmenuAction => action instanceof SubmenuAction);
 		assert.ok(setDefaultSubmenu);
 
@@ -237,9 +302,75 @@ suite('Editor Type Picker', () => {
 			}],
 			commands: [{
 				id: 'reopenActiveEditorWith',
-				args: [DEFAULT_EDITOR_ASSOCIATION.id]
+				args: [DEFAULT_EDITOR_ASSOCIATION.id, { groupId: 42, editorIndex: 3 }]
 			}]
 		});
 	});
+
+	for (const capabilities of [EditorInputCapabilities.None, EditorInputCapabilities.Singleton]) {
+		test(`side-open alternatives respect source capabilities ${capabilities}`, () => {
+			const resource = URI.file('/workspace/test.md');
+			const group = createGroup({ resource }, undefined, undefined, capabilities);
+			const registeredEditors = [editor('test.current', RegisteredEditorPriority.builtin), editor('test.other', RegisteredEditorPriority.option)];
+			const actions = createEditorTypeActions({
+				resource, isDiffEditor: false, currentId: 'test.current', editorMatches: editorMatches(registeredEditors, 'test.current'), editors: registeredEditors
+			}, group, new class extends mock<IEditorResolverService>() { }, new class extends mock<ICommandService>() { }, new class extends mock<IEditorService>() { });
+
+			assert.deepStrictEqual(actions.slice(0, 2).map(action => ({ id: action.id, alternative: action.alt?.id })), [
+				{ id: 'test.current', alternative: capabilities === EditorInputCapabilities.Singleton ? undefined : 'editorType.openToSide.test.current' },
+				{ id: 'test.other', alternative: 'editorType.openToSide.test.other' }
+			]);
+		});
+	}
+
+	for (const isDiffEditor of [false, true]) {
+		test(`opens the source ${isDiffEditor ? 'diff' : 'editor'} with the selected type to its side without reopening it`, async () => {
+			const resource = URI.file('/workspace/test.md');
+			const original = URI.file('/workspace/original.md');
+			const options = { override: 'test.oldEditor', pinned: false, preserveFocus: true };
+			const input: IUntypedEditorInput = isDiffEditor ? { original: { resource: original }, modified: { resource }, options } : { resource, options };
+			const commands: unknown[][] = [];
+			const opens: unknown[] = [];
+			let activeGroupId = 99;
+			let selection = new Selection(10, 3, 12, 7);
+			const group = createGroup(input, group => activeGroupId = group.id, () => new TextEditorPaneSelection(selection));
+			const registeredEditors = [editor('test.oldEditor', RegisteredEditorPriority.builtin), editor('test.newEditor', RegisteredEditorPriority.option)];
+			const actions = createEditorTypeActions({
+				resource, isDiffEditor, currentId: 'test.oldEditor', editorMatches: editorMatches(registeredEditors, 'test.oldEditor'), editors: registeredEditors
+			}, group, new class extends mock<IEditorResolverService>() { }, new class extends mock<ICommandService>() {
+				override async executeCommand<T>(...args: unknown[]): Promise<T | undefined> {
+					commands.push(args);
+					return undefined;
+				}
+			}, new class extends mock<IEditorService>() {
+				override async openEditor(input: IUntypedEditorInput | EditorInput, target?: PreferredGroup | IEditorOptions) {
+					opens.push({ input, target, sourceGroupId: activeGroupId });
+					activeGroupId = 100;
+					return undefined;
+				}
+			});
+
+			const firstSelection = selection;
+			await actions[1].alt!.run();
+			selection = new Selection(20, 1, 23, 5);
+			await actions[1].alt!.run();
+			const expectedOpen = {
+				target: SIDE_GROUP,
+				sourceGroupId: 42
+			};
+			assert.deepStrictEqual({ commands, opens, sourceOptions: input.options, labels: [actions[1].label, actions[1].alt!.label] }, {
+				commands: [],
+				opens: [firstSelection, selection].map(selection => ({
+					...expectedOpen,
+					input: { ...input, options: { override: 'test.newEditor', pinned: true, preserveFocus: false, selection, selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport } }
+				})),
+				sourceOptions: options,
+				labels: ['test.newEditor', 'test.newEditor (Open to the Side)']
+			});
+
+			await actions[1].run();
+			assert.deepStrictEqual(commands, [['reopenActiveEditorWith', 'test.newEditor', { groupId: 42, editorIndex: 3 }]]);
+		});
+	}
 
 });

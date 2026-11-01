@@ -51,6 +51,10 @@ Keeping these separate is what stops this loop: `replaceEnablement` → synchron
 
 An MCP server's storage key is derived from `owningPluginUri`, never from where it happened to appear in the published tree. The same server discovered top-level (`mcpServers#azure`) and nested under a plugin (`<pluginURI>#mcp=azure`) must produce **one** key, or a decision written in one session is invisible to the next. `targetForMcpServer()` and `withOwningPluginUri()` in the gate are the only supported way to build that target.
 
+### Customization URIs have an author
+
+A client-published plugin's `uri` is in that client's URI space, but its `children` are host-authored paths into the host's materialized copy. Resolve them with `getAgentHostCustomizationUri` and treat other clients' plugins as opaque. A same-host plugin is published as `vscode-agent-host-file:`; match it to its client source through `id` or the decoded URI, never the raw published URI. See [Agent Host URI spaces](../../instructions/agent-host-uri-spaces.instructions.md).
+
 ### Pending means fail closed — but pending must be transient
 
 `resolve()` returns `{kind:'pending'}` when the session isn't initialized yet (`reason: 'session'`) or the working directory isn't known (`reason: 'workingDirectory'`). `resolveCustomizationEnablement()` records those in `pendingCustomizationIds`, and `isCustomizationSdkEligible()` makes SDK-boundary consumers **fail closed**.
@@ -78,10 +82,13 @@ The corollary: **state computed once must be rebuilt when its inputs change.** M
 | Claude | session options at materialize | live reconcile |
 | Codex | MCP servers supplied only at `thread/start` / resume | **not possible** — documented limitation |
 
-Two traps here:
+Enforcement traps:
 
 - The post-startup reconcile runs ~800 ms after launch. Anything gated *only* there can still start, and request authentication, during the launch window. Gate at launch too.
 - The SDK's `not_configured` status must **not** be translated as `enabled: true`. That bug made a correct "skip this disabled server" decision look like "enable it".
+- Copilot launch gating must include names from user `mcp.config.list`, not only the client snapshot. Reconcile and authentication also resolve newly discovered names before the host retains them; later publication must not turn an inherited enabled default into explicit intent to enable an SDK-configured-disabled server.
+- Root MCP customization IDs use the owning AHP session ID, not its SDK backing ID. On restoration, derive declared MCP names from the applied root/plugin definitions, never from the retained host-published runtime inventory.
+- Connection lifecycle (`pending`, `connected`, `stopped`) is not enablement intent. Confirm external toggles against passive `mcp.listConfigured` enablement, ignoring stale asynchronous snapshots and host-requested changes.
 
 Client-provided MCP servers (ones the client bundled rather than the host discovering) must route their global Disable to the **client**, not the host — the host correctly refuses to store a client-owned global, so routing it to the host is a silent no-op. `isClientBundled` is the discriminator; see `getBuiltinMcpServerEnablementActions` in `mcpListWidget.ts`.
 
@@ -108,7 +115,7 @@ Known false alarms:
 - `CustomizationType` and `CustomizationEnablementKind` are `const enum`s. A **type-only import compiles and lints cleanly, then crashes at runtime.** Import them as values.
 - The unit-test runner uses pre-compiled output and does **not** fail on type errors. Always run `npm run typecheck-client` separately.
 - Integration-test servers start with `--quiet`. Wiring that you hoist out of `if (!options.quiet)` in `agentHostServerMain.ts` silently changes their behaviour — hoisting `setWorktreeIsolation` made quiet servers resolve `isolation: 'folder'` and broke seven unrelated tests.
-- Protocol files under `common/state/protocol/` carry a "DO NOT EDIT — auto-generated" banner. Changes there need a matching backport to the `agent-host-protocol` repo.
+- Protocol files under `common/state/protocol/` carry a "DO NOT EDIT — auto-generated" banner. Change the `agent-host-protocol` repo and sync with `scripts/sync-agent-host-protocol.ts` (see `common/state/AGENTS.md`), updating hand-written consumers in the same change.
 - Electron runner setup aborts (`EEXIST`/`EPERM`/`ENOENT`/ReactiveObjC) are environmental. Recover with `rm -rf .build/electron && npm run electron`.
 
 ## Validation

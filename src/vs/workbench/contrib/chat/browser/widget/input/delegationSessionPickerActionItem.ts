@@ -20,9 +20,9 @@ import { IStorageService } from '../../../../../../platform/storage/common/stora
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IAgentSdkSetupService } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
-import { ICodexAccountService } from '../../../../../services/agentHost/browser/codexAccountService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
@@ -59,11 +59,11 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
 		@IAgentSdkSetupService agentSdkSetupService: IAgentSdkSetupService,
-		@ICodexAccountService codexAccountService: ICodexAccountService,
 		@IChatHarnessSwitchFeedbackSurveyService harnessSwitchFeedbackSurveyService: IChatHarnessSwitchFeedbackSurveyService,
 		@IGitService private readonly gitService: IGitService,
+		@IManagedSettingsService managedSettingsService: IManagedSettingsService,
 	) {
-		super(action, chatSessionPosition, delegate, pickerOptions, inputUri, actionWidgetService, keybindingService, contextKeyService, chatSessionsService, commandService, openerService, telemetryService, chatEntitlementService, languageModelsService, configurationService, storageService, workspaceContextService, agentHostEnablementService, agentSdkSetupService, codexAccountService, harnessSwitchFeedbackSurveyService);
+		super(action, chatSessionPosition, delegate, pickerOptions, inputUri, actionWidgetService, keybindingService, contextKeyService, chatSessionsService, commandService, openerService, telemetryService, chatEntitlementService, languageModelsService, configurationService, storageService, workspaceContextService, agentHostEnablementService, agentSdkSetupService, harnessSwitchFeedbackSurveyService, managedSettingsService);
 	}
 
 	protected override _run(sessionTypeItem: ISessionTypeItem): void {

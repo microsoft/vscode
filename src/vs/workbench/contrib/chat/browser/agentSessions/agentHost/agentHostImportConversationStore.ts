@@ -5,20 +5,17 @@
 
 import { URI } from '../../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
+import type { IAgentCreateSessionConfig } from '../../../../../../platform/agentHost/common/agent.js';
 import type { Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import type { ModelSelection } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 
 export const IAgentHostImportConversationStore = createDecorator<IAgentHostImportConversationStore>('agentHostImportConversationStore');
 
 /**
  * A conversation being imported ("Continue in…") into a new agent-host session:
- * the translated {@link Turn}s plus the source session's selected model, so the
+ * the translated {@link Turn}s, original title and selected model, so the
  * new session resumes on the same model instead of the host's default.
  */
-export interface IAgentHostImportConversation {
-	readonly turns: readonly Turn[];
-	readonly model?: ModelSelection;
-}
+export type IAgentHostImportConversation = NonNullable<IAgentCreateSessionConfig['importConversation']>;
 
 /**
  * Short-lived hand-off for a conversation being imported ("Continue in…") into a

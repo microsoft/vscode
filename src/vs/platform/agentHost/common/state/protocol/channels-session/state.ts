@@ -529,14 +529,21 @@ export interface SessionChatSummary {
 	 */
 	interactivity?: ChatInteractivity;
 	/**
-	 * Whether this chat has been archived independently of its owning session
-	 * (see `chat/isArchivedChanged`).
-	 *
-	 * Generic clients use this to group or filter archived chats in session
-	 * lists without subscribing to the session channel. Absence means the
-	 * chat is not archived.
+	 * Agent provider ID backing this chat. See {@link ChatState.provider}.
+	 * @stability 1.0
 	 */
-	archived?: boolean;
+	provider?: string;
+	/**
+	 * Current chat status, matching {@link ChatSummary.status}.
+	 *
+	 * Includes the activity bits and the orthogonal {@link SessionStatus.IsRead}
+	 * and {@link SessionStatus.IsArchived} flags. Generic clients use these bits
+	 * to present read, unread, or archived chats in session lists without
+	 * subscribing to the session or chat channel. Absence means the host did
+	 * not provide the status; clients MUST treat it as unknown, not as unread
+	 * or unarchived.
+	 */
+	status?: SessionStatus;
 	/**
 	 * Aggregate summary of file changes associated with this chat.
 	 *
@@ -604,6 +611,11 @@ export interface SessionConfigPropertySchema extends ConfigPropertySchema {
 	enumDynamic?: boolean;
 	/** When `true`, the user may change this property after session creation */
 	sessionMutable?: boolean;
+	/**
+	 * When `true`, the property may be changed per chat with
+	 * `chat/configChanged`, affecting only that chat.
+	 */
+	chatMutable?: boolean;
 }
 
 /**

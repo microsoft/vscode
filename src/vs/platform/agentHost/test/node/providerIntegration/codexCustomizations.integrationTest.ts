@@ -20,8 +20,8 @@ import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js
 import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../common/agent.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { type SubscribeResult } from '../../../common/state/protocol/commands.js';
-import { buildDefaultChatUri, customizationId, CustomizationType, MessageKind, ROOT_STATE_URI, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type IServerHandle, startRealServer, stopServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
+import { customizationId, CustomizationType, MessageKind, ROOT_STATE_URI, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type IServerHandle, startRealServer, stopServer, TestProtocolClient, defaultChatChannel } from '../serverIntegrationTestHelpers.js';
 import { CODEX_SDK_ROOT } from '../e2e/providers/codexTestConfiguration.js';
 import { driveTurnToCompletion } from '../e2e/harness/agentHostE2ETestHarness.js';
 
@@ -272,7 +272,7 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 		}, 30_000);
 		createdSessions.push(sessionUri);
 		await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		await client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		await client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
 		client.clearReceived();
 
 		const parsedPlugin = await waitForParsedPlugin(client, sessionUri, pluginUri);
@@ -283,7 +283,7 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 
 		const turnId = 'turn-codex-customizations';
 		client.dispatch({
-			channel: buildDefaultChatUri(sessionUri),
+			channel: defaultChatChannel(sessionUri),
 			clientSeq: 1,
 			action: {
 				type: ActionType.ChatTurnStarted,
@@ -298,7 +298,7 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 		});
 		await client.waitForNotification(notification =>
 			isActionNotification(notification, 'chat/turnComplete')
-			&& getActionEnvelope(notification).channel === buildDefaultChatUri(sessionUri)
+			&& getActionEnvelope(notification).channel === defaultChatChannel(sessionUri)
 			&& (getActionEnvelope(notification).action as { turnId?: string }).turnId === turnId,
 			120_000,
 		);
@@ -353,7 +353,7 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 			createdSessions.push(sessionUri);
 			sessions.push(sessionUri);
 			await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-			await client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+			await client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
 		}
 		const [sessionUri, otherSessionUri] = sessions;
 		const latestCatalog = (request: ICapturedRequest): string => developerInputText(request.body).match(/<client_skills>[\s\S]*?<\/client_skills>/g)?.at(-1) ?? '';
@@ -477,7 +477,7 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 		}, 30_000);
 		createdSessions.push(sessionUri);
 		await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		await client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		await client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
 		client.clearReceived();
 
 		const directory = await waitForWorkspaceAgent(client, sessionUri, agentUri);
@@ -489,7 +489,7 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 
 		const turnId = 'turn-codex-workspace-agent';
 		client.dispatch({
-			channel: buildDefaultChatUri(sessionUri),
+			channel: defaultChatChannel(sessionUri),
 			clientSeq: 1,
 			action: {
 				type: ActionType.ChatTurnStarted,
@@ -504,7 +504,7 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 		});
 		await client.waitForNotification(notification =>
 			isActionNotification(notification, 'chat/turnComplete')
-			&& getActionEnvelope(notification).channel === buildDefaultChatUri(sessionUri)
+			&& getActionEnvelope(notification).channel === defaultChatChannel(sessionUri)
 			&& (getActionEnvelope(notification).action as { turnId?: string }).turnId === turnId,
 			120_000,
 		);
@@ -569,12 +569,12 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 			}, 30_000);
 			createdSessions.push(sessionUri);
 			await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-			await client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+			await client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
 			client.clearReceived();
 
 			const turnId = 'turn-codex-workspace-hook';
 			client.dispatch({
-				channel: buildDefaultChatUri(sessionUri),
+				channel: defaultChatChannel(sessionUri),
 				clientSeq: 2,
 				action: {
 					type: ActionType.ChatTurnStarted,
@@ -588,7 +588,7 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 			});
 			await client.waitForNotification(notification =>
 				isActionNotification(notification, 'chat/turnComplete')
-				&& getActionEnvelope(notification).channel === buildDefaultChatUri(sessionUri)
+				&& getActionEnvelope(notification).channel === defaultChatChannel(sessionUri)
 				&& (getActionEnvelope(notification).action as { turnId?: string }).turnId === turnId,
 				120_000,
 			);

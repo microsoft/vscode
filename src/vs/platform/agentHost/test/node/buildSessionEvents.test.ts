@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { promises as fs } from 'fs';
+import { tmpdir } from 'os';
+import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
@@ -12,16 +15,18 @@ import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStat
 import { buildSessionEventLogFromTurns, buildSessionEventsFromTurns, serializeSessionEventsToJsonl } from '../../node/copilot/buildSessionEvents.js';
 import { mapSessionEvents as mapSessionEventsWithRouting } from '../../node/copilot/mapSessionEvents.js';
 import type { SessionEvent } from '@github/copilot-sdk';
+import type { ISessionDatabase } from '../../common/sessionDataService.js';
+import { SessionDatabase } from '../../node/sessionDatabase.js';
 
 suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const session = AgentSession.uri('copilot', 'test-session');
 	const sessionId = 'test-session';
 
-	function mapSessionEvents(session: URI, db: undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2]) {
-		return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')));
+	function mapSessionEvents(session: URI, db: ISessionDatabase | undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2]) {
+		return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), session);
 	}
 
 	function markdown(content: string): ResponsePart {
@@ -133,6 +138,55 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 		const { turns: reconstructed } = await mapSessionEvents(session, undefined, events);
 		assert.deepStrictEqual(project(reconstructed), project(turns));
 	});
+
+	for (const sourceId of [generateUuid(), 'local-turn']) {
+		test(`imported reasoning timing survives event-log and database reopen (${isUUID(sourceId) ? 'UUID' : 'local'} turn id)`, async () => {
+			const directory = await fs.mkdtemp(join(tmpdir(), 'import-reasoning-timing-'));
+			const databasePath = join(directory, 'session.db');
+			const database = store.add(await SessionDatabase.open(databasePath));
+			let reopened: SessionDatabase | undefined;
+			try {
+				const timed = { kind: ResponsePartKind.Reasoning as const, id: 'timed-run', content: 'Consider the answer', startedAt: '1970-01-01T00:00:01.000Z', duration: 45_000 };
+				const zero = { kind: ResponsePartKind.Reasoning as const, id: 'zero-run', content: 'Check the result', duration: 0 };
+				const untimed = { kind: ResponsePartKind.Reasoning as const, id: 'untimed-run', content: 'Older reasoning' };
+				const writes: Promise<void>[] = [];
+				const events = buildSessionEventsFromTurns([userTurn(sourceId, 'Question', [
+					timed, toolCallPart('read', 'read_file', '{"path":"file.ts"}', 'Result'),
+					zero, markdown('Answer'), untimed, markdown('Done'),
+				])], {
+					sessionId,
+					onAssistantMessage: (turnId, responseId, parts) => {
+						if (parts.some(part => part.kind === ResponsePartKind.Reasoning)) {
+							writes.push(database.setAssistantResponseParts(turnId, responseId, parts));
+						}
+					},
+				});
+				await fs.writeFile(join(directory, 'events.jsonl'), serializeSessionEventsToJsonl(events));
+				await Promise.all(writes);
+				await database.close();
+				reopened = store.add(await SessionDatabase.open(databasePath));
+				const savedEvents: SessionEvent[] = (await fs.readFile(join(directory, 'events.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+				const { turns } = await mapSessionEvents(session, reopened, savedEvents);
+				const restoredReasoning = turns[0].responseParts.filter(part => part.kind === ResponsePartKind.Reasoning);
+				const importedTurnId = savedEvents.find(event => event.type === 'user.message')!.id;
+				await reopened.deleteTurn(importedTurnId);
+
+				assert.deepStrictEqual({
+					restoredReasoning,
+					turnId: turns[0].id,
+					remainingParts: [...await reopened.getAssistantResponseParts()],
+				}, {
+					restoredReasoning: [timed, zero, untimed],
+					turnId: importedTurnId,
+					remainingParts: [],
+				});
+			} finally {
+				await reopened?.close();
+				await database.close();
+				await fs.rm(directory, { recursive: true, force: true });
+			}
+		});
+	}
 
 	test('emits an abort for a cancelled turn so it reconstructs as cancelled with its text', async () => {
 		const id = generateUuid();

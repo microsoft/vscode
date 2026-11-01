@@ -13,6 +13,7 @@ import * as vscodetest from '@vscode/test-electron';
 import fetch from 'node-fetch';
 import { Quality, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog, getDevElectronPath, getBuildElectronPath, getBuildVersion, ApplicationOptions } from '../../automation';
 import { retry } from './utils';
+import { parseShard, selectShardSuites, Shard } from './shard';
 
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
 import { setup as setupPreferencesTests } from './areas/preferences/preferences.test';
@@ -47,7 +48,8 @@ const opts = minimist(args, {
 		'stable-build',
 		'wait-time',
 		'test-repo',
-		'electronArgs'
+		'electronArgs',
+		'shard'
 	],
 	boolean: [
 		'verbose',
@@ -71,6 +73,7 @@ const opts = minimist(args, {
 	'stable-build'?: string;
 	browser?: 'chromium' | 'webkit' | 'firefox' | 'chromium-msedge' | 'chromium-chrome';
 	electronArgs?: string;
+	shard?: string;
 };
 
 const logsRootPath = (() => {
@@ -177,6 +180,15 @@ function fail(errorMessage): void {
 	process.exit(1);
 }
 
+let shard: Shard | undefined;
+if (opts.shard) {
+	try {
+		shard = parseShard(opts.shard);
+	} catch (error) {
+		fail(error instanceof Error ? error.message : String(error));
+	}
+}
+
 let quality: Quality;
 let version: string | undefined;
 
@@ -278,11 +290,22 @@ async function setupRepository(): Promise<void> {
 		}
 	} else {
 		if (!fs.existsSync(workspacePath)) {
-			logger.log('Cloning test project repository...');
-			const res = cp.spawnSync('git', ['clone', testRepoUrl, workspacePath], { stdio: 'inherit' });
-			if (!fs.existsSync(workspacePath)) {
-				throw new Error(`Clone operation failed: ${res.stderr.toString()}`);
-			}
+			// The clone goes over the network, which is occasionally unavailable on CI
+			// machines for a few seconds (e.g. `Could not resolve host: github.com`).
+			// Stalled transfers are aborted after 30s so that the retries fit within
+			// the timeout of the root `before` hook.
+			await retry(async () => {
+				logger.log('Cloning test project repository...');
+				const res = cp.spawnSync('git', ['-c', 'http.lowSpeedLimit=1000', '-c', 'http.lowSpeedTime=30', 'clone', testRepoUrl, workspacePath], { stdio: 'inherit' });
+				if (res.status !== 0 || !fs.existsSync(workspacePath)) {
+					const reason = res.error?.message ?? (res.signal ? `signal ${res.signal}` : `exit code ${res.status}`);
+					logger.log(`Clone operation failed: ${reason}`);
+					throw new Error(`Clone operation failed: ${reason}`);
+				}
+			}, 5000, 5, async () => {
+				logger.log('Retrying to clone test project repository...');
+				fs.rmSync(workspacePath, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
+			});
 		} else {
 			logger.log('Cleaning test project repository...');
 			cp.spawnSync('git', ['fetch'], { cwd: workspacePath, stdio: 'inherit' });
@@ -425,7 +448,7 @@ after(async function () {
 	}
 });
 
-describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
+const smokeTestSuite = describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web) { setupDataLossTests(() => { return { stableCodePath: opts['stable-build'], stableCodeVersion: opts['stable-version'] } /* Do not change, deferred for a reason! */; }, logger); }
 	setupPreferencesTests(logger);
 	setupSearchTests(logger);
@@ -450,3 +473,9 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web && !opts.remote && process.env.VSCODE_SMOKE_TEST_POLICY === '1') { setupPolicyTests(logger); }
 	setupAccessibilityTests(logger, opts, quality);
 });
+
+if (shard && shard.total > 1) {
+	const allSuites = smokeTestSuite.suites;
+	smokeTestSuite.suites = selectShardSuites(allSuites, shard);
+	logger.log(`Running smoke test shard ${shard.index}/${shard.total} with ${smokeTestSuite.suites.length} of ${allSuites.length} suites: ${smokeTestSuite.suites.map(suite => suite.title).join(', ')}`);
+}

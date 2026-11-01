@@ -1,0 +1,95 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import type { MissionControlErrorMetadata } from './missionControlError.js';
+
+/** A user reference returned by Mission Control. */
+export interface User {
+	/** The unique numeric identifier of the user. */
+	readonly id?: number;
+	/** The user's login name. */
+	readonly login?: string;
+	/** The user's GraphQL node identifier. */
+	readonly node_id?: string;
+	/** The URL of the user's profile. */
+	readonly url?: string;
+}
+
+/** The class of compute backing an environment. */
+export type EnvironmentKind = 'managed-actions' | 'managed-sandbox' | 'managed-cca' | 'user-local' | 'user-codespace';
+
+/** Results with continuation and server-time metadata from the last collected page. */
+export interface PaginatedResponse<T> {
+	/** The requested page, or the collected pages when maxPages is supplied. */
+	readonly data: T;
+	/** The URL from Link rel="next", omitted when no next page is advertised. */
+	readonly nextLink?: string;
+	/** The server's HTTP Date value, when available. */
+	readonly serverDate?: string;
+}
+
+/** W3C trace context for a provisioning or wake activation. */
+export interface ActivationContext {
+	/** The activation context schema version. */
+	readonly version: 2;
+	/** The positive uint64 activation sequence encoded as a decimal string without leading zeroes. */
+	readonly sequence: string;
+	/** The W3C traceparent identifying the activation trace. */
+	readonly traceparent: string;
+	/** The optional W3C tracestate accompanying the traceparent. */
+	readonly tracestate?: string;
+}
+
+/** A single validation error reported by the API. */
+export interface ApiErrorDetail {
+	/** The machine-readable validation error code. */
+	readonly code: 'missing' | 'missing_field' | 'invalid' | 'already_exists' | 'unprocessable' | 'active_limit_reached' | 'revision_limit_reached' | 'custom';
+	/** The human-readable explanation, populated for custom errors. */
+	readonly message?: string;
+}
+
+/** A structured error response following the REST API error conventions. */
+export interface ApiErrorResponse {
+	/** Stable service classification, independent of the HTTP status. */
+	readonly error_code?: string;
+	/** The resource whose rate limit was reached. */
+	readonly limited_resource?: string;
+	/** A summary of the request failure. */
+	readonly message: string;
+	/** The URL of the relevant API documentation. */
+	readonly documentation_url: string;
+	/** Validation details returned with an HTTP 422 response. */
+	readonly errors?: readonly ApiErrorDetail[];
+	/** The activation associated with the failure, when one was established. */
+	readonly activation_context?: ActivationContext;
+}
+
+/** An API failure with a stable machine-readable code. */
+export interface CodedApiErrorResponse {
+	/** Stable service classification, preferred over the legacy connect code. */
+	readonly error_code?: string;
+	/** The resource whose rate limit was reached. */
+	readonly limited_resource?: string;
+	/** The human-readable summary of the failure. */
+	readonly message: string;
+	/** The stable machine-readable error code. */
+	readonly code: string;
+	/** The URL of the relevant API documentation. */
+	readonly documentation_url: string;
+	/** The activation associated with the failure, when one was established. */
+	readonly activation_context?: ActivationContext;
+}
+
+/** An HTTP failure retaining structured diagnostics and server-directed retry metadata. */
+export interface ApiError extends Error, MissionControlErrorMetadata {
+	/** The HTTP status code returned by the service. */
+	readonly statusCode: number;
+	/** Structured error details, omitted for sensitive responses. */
+	readonly response?: ApiErrorResponse | CodedApiErrorResponse;
+	/** The server request identifier for diagnostics, when available. */
+	readonly requestId?: string;
+	/** The delay in seconds indicated by Retry-After, when available. */
+	readonly retryAfterSeconds?: number;
+}

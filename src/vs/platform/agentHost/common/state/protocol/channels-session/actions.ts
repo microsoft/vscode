@@ -75,6 +75,9 @@ export interface SessionChatRemovedAction {
  * SHOULD then wait for a {@link SessionChatAddedAction | `session/chatAdded`}.
  *
  * Mirrors the root-channel `root/sessionSummaryChanged` notification.
+ * When `changes.status` changes, the host MUST project that exact value into
+ * the matching `SessionChatSummary.status` field and publish
+ * the updated compact chat catalog through `root/sessionSummaryChanged`.
  *
  * @category Session Actions
  * @version 1
@@ -86,7 +89,7 @@ export interface SessionChatUpdatedAction {
 	/**
 	 * Mutable summary fields that changed; omitted fields are unchanged.
 	 *
-	 * Identity fields (`resource`) never change and MUST be omitted by
+	 * Identity fields (`resource`, `provider`) never change and MUST be omitted by
 	 * senders; receivers SHOULD ignore them if present.
 	 */
 	changes: Partial<ChatSummary>;

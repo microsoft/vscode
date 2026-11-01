@@ -1,52 +1,91 @@
 on:
   workflow_call:
     inputs:
-      job_name:
+      electron_unit_affected:
+        description: Whether the pull request can affect the Electron-Unit job, which is skipped when false
+        type: boolean
+        default: true
+      electron_affected:
+        description: Whether the pull request can affect the Electron job, which is skipped when false
+        type: boolean
+        default: true
+      electron_smoke_affected:
+        description: Whether the pull request can affect the Electron-Smoke jobs, which are skipped when false
+        type: boolean
+        default: true
+      browser_unit_affected:
+        description: Whether the pull request can affect the Browser-Unit job, which is skipped when false
+        type: boolean
+        default: true
+      browser_affected:
+        description: Whether the pull request can affect the Browser job, which is skipped when false
+        type: boolean
+        default: true
+      remote_affected:
+        description: Whether the pull request can affect the Remote job, which is skipped when false
+        type: boolean
+        default: true
+      node_integration_tests:
+        description: Whether the Electron job runs the node.js integration tests
+        type: boolean
+        default: true
+      agent_host_e2e_tests:
+        description: Whether the Electron job also runs the Agent Host E2E tests
+        type: boolean
+        default: false
+      agent_host_test_profile:
+        description: Agent Host test profile, 'pr' or 'full' (see .github/actions/detect-agent-host-e2e-changes)
         type: string
-        required: true
-      electron_tests:
-        type: boolean
-        default: false
-      browser_tests:
-        type: boolean
-        default: false
-      remote_tests:
-        type: boolean
-        default: false
-      unit_tests:
-        type: boolean
-        default: true
-      integration_tests:
-        type: boolean
-        default: true
-      smoke_tests:
-        type: boolean
-        default: true
+        default: full
+      agent_host_test_profile_reason:
+        description: Reason for selecting the Agent Host test profile
+        type: string
+        default: Change detection unavailable
 
+env:
+  NPM_ARCH: arm64
+  VSCODE_ARCH: arm64
+  VSCODE_SKIP_PRELAUNCH: '1'
+
+# Each job reports as "macOS / <job name>", for example "macOS / Electron-Unit", whether it runs
+# or not: the names are fixed, as GitHub does not evaluate the expressions in the name of a skipped
+# job. The jobs run the steps of the first one (steps: &steps), and their env selects which of them
+# run (a flag is on when it is 'true'):
+# - ELECTRON_TESTS, BROWSER_TESTS or REMOTE_TESTS: the test runner
+# - UNIT_TESTS, INTEGRATION_TESTS, SMOKE_TESTS and AGENT_HOST_E2E_TESTS: the kinds of tests
+# - NODE_INTEGRATION_TESTS: whether INTEGRATION_TESTS includes the node.js integration tests
+# - TEST_SELECTION: run only the test files listed in the test-plan artifact of the workflow run, when
+#   the Detect Changes job of pr.yml uploaded one, instead of every test of the kinds that it plans
+#   (unit.txt for the unit tests, integration.txt for the node.js integration tests and Agent Host E2E)
+# - SMOKE_SHARD_INDEX and SMOKE_SHARD_TOTAL: the 1-based index of the Electron smoke test shard to run,
+#   and the number of shards
+# - ARTIFACT_NAME: identifies the job in the names of the artifacts that it publishes
+#
+# The jobs run on three runner groups, vscode-large-runners-macos-5-core-<0|1|2>, so that the macOS
+# checks are not limited by the size of one pool. Each group runs about a third of the runner
+# minutes of a pull request, and the two Electron smoke test shards run in different groups:
+# - 0: Remote, Electron-Unit, Browser-Unit, chat-lib - Test (macOS) of pr.yml, and the macOS cache
+#   warming job of pr-node-modules.yml
+# - 1: Electron, Electron-Smoke (shard 1/2)
+# - 2: Electron-Smoke (shard 2/2), Browser
 jobs:
-  macOS-test:
-    name: ${{ inputs.job_name }}
-    runs-on: macos-26-xlarge
+  electron-unit:
+    name: Electron-Unit
+    if: ${{ inputs.electron_unit_affected }}
+    runs-on: vscode-large-runners-macos-5-core-0
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}
-      NPM_ARCH: arm64
-      VSCODE_ARCH: arm64
-      VSCODE_SKIP_PRELAUNCH: '1'
-    steps:
+      ARTIFACT_NAME: electron-unit
+      ELECTRON_TESTS: 'true'
+      UNIT_TESTS: 'true'
+      TEST_SELECTION: 'true'
+    steps: &steps
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
 
-      - name: Detect Agent Host E2E changes
-        if: ${{ inputs.electron_tests && inputs.integration_tests }}
-        id: agent-host-e2e-changes
-        uses: ./.github/actions/detect-agent-host-e2e-changes
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
 
@@ -109,7 +148,7 @@ jobs:
         run: npm run gulp transpile-client-esbuild transpile-extensions
 
       - name: Setup Electron
-        if: ${{ inputs.electron_tests || inputs.remote_tests }}
+        if: ${{ env.ELECTRON_TESTS == 'true' || env.REMOTE_TESTS == 'true' }}
         uses: ./.github/actions/setup-electron
         with:
           arch: ${{ env.VSCODE_ARCH }}
@@ -117,12 +156,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compile browser integration test runner
-        if: ${{ inputs.browser_tests && inputs.integration_tests }}
+        if: ${{ env.BROWSER_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' }}
         working-directory: test/integration/browser
         run: npm run compile
 
       - name: Install Playwright Chromium and WebKit
-        if: ${{ inputs.browser_tests }}
+        if: ${{ env.BROWSER_TESTS == 'true' }}
         run: |
           set -e
 
@@ -141,27 +180,45 @@ jobs:
             sleep 5
           done
 
+      - name: Download test plan
+        id: download-plan
+        if: ${{ env.TEST_SELECTION == 'true' }}
+        # Without a plan (Detect Changes only uploads one when the selection applies), the test
+        # steps below run every test. A pattern, unlike a name, downloads nothing instead of
+        # failing when there is no plan.
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: test-plan
+          path: .build/test-plan
+
+      # A failed download (such as a digest mismatch, reported after extracting) can leave a partial
+      # plan behind: without one, the test steps below run every test.
+      - name: Discard a failed test plan download
+        if: ${{ steps.download-plan.outcome == 'failure' }}
+        run: rm -rf .build/test-plan
+
       - name: 🧪 Run unit tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.unit_tests }}
-        timeout-minutes: 15
-        run: ./scripts/test.sh --tfs "Unit Tests"
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
+        timeout-minutes: 25
+        run: ./scripts/test.sh --tfs "Unit Tests" --workers 4 --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
         env:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
-        if: ${{ inputs.electron_tests && inputs.unit_tests }}
-        timeout-minutes: 15
-        run: npm run test-node
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
+        timeout-minutes: 25
+        run: npm run test-node -- --workers 4 --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
 
       - name: 🧪 Run unit tests (Browser, Webkit)
-        if: ${{ inputs.browser_tests && inputs.unit_tests }}
+        if: ${{ env.BROWSER_TESTS == 'true' && env.UNIT_TESTS == 'true' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
         timeout-minutes: 30
-        run: npm run test-browser-no-install -- --browser webkit --tfs "Browser Unit Tests"
+        run: npm run test-browser-no-install -- --browser webkit --tfs "Browser Unit Tests" --workers 4 --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
         env:
           DEBUG: "*browser*"
 
       - name: Compile extensions for integration tests & smoke tests
-        if: ${{ inputs.integration_tests || inputs.smoke_tests }}
+        if: ${{ env.INTEGRATION_TESTS == 'true' || env.SMOKE_TESTS == 'true' }}
         run: |
           set -e
           npm run gulp \
@@ -169,6 +226,7 @@ jobs:
             compile-extension:css-language-features-server \
             compile-extension:emmet \
             compile-extension:git \
+            compile-extension:git-base \
             compile-extension:github-authentication \
             compile-extension:html-language-features-server \
             compile-extension:ipynb \
@@ -184,79 +242,110 @@ jobs:
             compile-extension:vscode-colorize-perf-tests \
             compile-extension:vscode-test-resolver
 
-      - name: 🧪 Run integration tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.integration_tests }}
-        timeout-minutes: 20
-        run: ./scripts/test-integration.sh --tfs "Integration Tests"
+      - name: 🧪 Run Agent Host E2E tests (Electron)
+        id: agent-host-e2e
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.AGENT_HOST_E2E_TESTS == 'true' }}
+        timeout-minutes: 25
+        run: ./scripts/test-agent-host-e2e.sh --tfs "Integration Tests" --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/integration.txt') != '' && '--runList .build/test-plan/integration.txt' || '' }}
         env:
-          VSCODE_SKIP_AGENT_HOST_E2E: ${{ steps.agent-host-e2e-changes.outputs.affected == 'false' && '1' || '0' }}
+          AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
+          AGENT_HOST_TEST_PROFILE_REASON: ${{ inputs.agent_host_test_profile_reason }}
           VSCODE_SKIP_PRELAUNCH: '1'
 
+      # Runs even when Agent Host E2E failed in the same job, so that one does not hide the other.
+      # Reruns the failed tests in a fresh window.
+      - name: 🧪 Run integration tests (Electron)
+        id: node-integration-tests
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && env.NODE_INTEGRATION_TESTS == 'true' && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}
+        timeout-minutes: 25
+        run: ./scripts/test-integration.sh --only-node-tests --tfs "Integration Tests" --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/integration.txt') != '' && '--runList .build/test-plan/integration.txt' || '' }}
+        env:
+          AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
+          AGENT_HOST_TEST_PROFILE_REASON: ${{ inputs.agent_host_test_profile_reason }}
+          VSCODE_SKIP_PRELAUNCH: '1'
+
+      # Runs even when the node.js integration tests or Agent Host E2E failed in the same job.
+      # The extension host suites are not rerun.
+      - name: 🧪 Run extension host integration tests (Electron)
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure' || steps.node-integration-tests.outcome == 'failure') }}
+        timeout-minutes: 15
+        run: ./scripts/test-integration.sh --only-extension-host-tests
+        env:
+          VSCODE_SKIP_PRELAUNCH: '1'
+
+      # The web and remote tests start the server out of sources, which downloads its Node.js from nodejs.org unless
+      # the runner already has that version.
+      - name: Use the runner's Node.js for the server
+        if: ${{ (env.BROWSER_TESTS == 'true' || env.REMOTE_TESTS == 'true') && (env.INTEGRATION_TESTS == 'true' || env.SMOKE_TESTS == 'true') }}
+        run: node build/azure-pipelines/common/useRunnerNodeForServer.ts
+
       - name: 🧪 Run integration tests (Browser, Webkit)
-        if: ${{ inputs.browser_tests && inputs.integration_tests }}
+        if: ${{ env.BROWSER_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' }}
         timeout-minutes: 20
         run: ./scripts/test-web-integration.sh --browser webkit
 
       - name: 🧪 Run integration tests (Remote)
-        if: ${{ inputs.remote_tests && inputs.integration_tests }}
+        if: ${{ env.REMOTE_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' }}
         timeout-minutes: 20
         run: ./scripts/test-remote-integration.sh
         env:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: Compile smoke tests
-        if: ${{ inputs.smoke_tests }}
+        if: ${{ env.SMOKE_TESTS == 'true' }}
         working-directory: test/smoke
         run: npm run compile
 
       - name: Compile Copilot Chat extension for smoke tests
-        if: ${{ inputs.smoke_tests && !inputs.browser_tests }}
+        if: ${{ env.SMOKE_TESTS == 'true' && env.BROWSER_TESTS != 'true' }}
         working-directory: extensions/copilot
         run: npm run compile
 
       - name: Diagnostics before smoke test run
-        if: ${{ inputs.smoke_tests && always() }}
+        if: ${{ env.SMOKE_TESTS == 'true' && always() }}
         run: ps -ef
         continue-on-error: true
 
       - name: 🧪 Run smoke tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' }}
         timeout-minutes: 20
-        run: npm run smoketest-no-compile -- --tracing
+        run: npm run smoketest-no-compile -- --tracing --shard ${{ env.SMOKE_SHARD_INDEX }}/${{ env.SMOKE_SHARD_TOTAL }}
         env:
           VSCODE_SMOKE_TEST_POLICY: '1'
 
+      # The proxy runs are separate Agents Window invocations, so only the last shard runs them.
+      # test/smoke/src/shard.ts reserves time for them in the last shard when balancing.
       - name: Install Squid for network-isolated smoke tests
-        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == env.SMOKE_SHARD_TOTAL }}
         run: brew list squid >/dev/null 2>&1 || brew install squid
 
       - name: 🧪 Run Agents Window smoke tests through macOS PAC proxy
-        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == env.SMOKE_SHARD_TOTAL }}
         timeout-minutes: 40
         run: bash test/smoke/scripts/run-agents-window-network-proxy.sh
 
       - name: 🧪 Run Agents Window smoke tests through Kerberos-authenticated macOS PAC proxy
-        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == env.SMOKE_SHARD_TOTAL }}
         timeout-minutes: 40
         run: bash test/smoke/scripts/run-agents-window-network-proxy.sh --kerberos
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests && inputs.smoke_tests }}
+        if: ${{ env.BROWSER_TESTS == 'true' && env.SMOKE_TESTS == 'true' }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --web --tracing --headless
 
       - name: 🧪 Run smoke tests (Remote)
-        if: ${{ inputs.remote_tests && inputs.smoke_tests }}
+        if: ${{ env.REMOTE_TESTS == 'true' && env.SMOKE_TESTS == 'true' }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --remote --tracing
 
       - name: Diagnostics after smoke test run
-        if: ${{ inputs.smoke_tests && always() }}
+        if: ${{ env.SMOKE_TESTS == 'true' && always() }}
         run: ps -ef
         continue-on-error: true
 
       - name: Publish Crash Reports
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         continue-on-error: true
         with:
@@ -267,7 +356,7 @@ jobs:
       # In order to properly symbolify above crash reports
       # (if any), we need the compiled native modules too
       - name: Publish Node Modules
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         continue-on-error: true
         with:
@@ -276,10 +365,84 @@ jobs:
           if-no-files-found: ignore
 
       - name: Publish Log Files
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         continue-on-error: true
         with:
           name: ${{ format('logs-macos-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
           path: .build/logs
           if-no-files-found: ignore
+
+  electron:
+    name: Electron
+    if: ${{ inputs.electron_affected }}
+    runs-on: vscode-large-runners-macos-5-core-1
+    env:
+      ARTIFACT_NAME: electron
+      ELECTRON_TESTS: 'true'
+      INTEGRATION_TESTS: 'true'
+      NODE_INTEGRATION_TESTS: ${{ inputs.node_integration_tests }}
+      # On macOS the job is short enough to also run Agent Host E2E.
+      AGENT_HOST_E2E_TESTS: ${{ inputs.agent_host_e2e_tests }}
+      # Runs only the node.js integration tests and the Agent Host E2E suites that the plan selects.
+      TEST_SELECTION: 'true'
+    steps: *steps
+
+  # Running every Electron smoke test takes one machine up to about 20 minutes, the timeout of the
+  # step, so the shards split them over parallel machines (see .github/skills/smoke-tests/SKILL.md).
+  electron-smoke-1:
+    name: Electron-Smoke (shard 1/2)
+    if: ${{ inputs.electron_smoke_affected }}
+    runs-on: vscode-large-runners-macos-5-core-1
+    env:
+      ARTIFACT_NAME: electron-smoke-shard1
+      ELECTRON_TESTS: 'true'
+      SMOKE_TESTS: 'true'
+      SMOKE_SHARD_INDEX: '1'
+      SMOKE_SHARD_TOTAL: '2'
+    steps: *steps
+
+  electron-smoke-2:
+    name: Electron-Smoke (shard 2/2)
+    if: ${{ inputs.electron_smoke_affected }}
+    runs-on: vscode-large-runners-macos-5-core-2
+    env:
+      ARTIFACT_NAME: electron-smoke-shard2
+      ELECTRON_TESTS: 'true'
+      SMOKE_TESTS: 'true'
+      SMOKE_SHARD_INDEX: '2'
+      SMOKE_SHARD_TOTAL: '2'
+    steps: *steps
+
+  browser-unit:
+    name: Browser-Unit
+    if: ${{ inputs.browser_unit_affected }}
+    runs-on: vscode-large-runners-macos-5-core-0
+    env:
+      ARTIFACT_NAME: browser-unit
+      BROWSER_TESTS: 'true'
+      UNIT_TESTS: 'true'
+      TEST_SELECTION: 'true'
+    steps: *steps
+
+  browser:
+    name: Browser
+    if: ${{ inputs.browser_affected }}
+    runs-on: vscode-large-runners-macos-5-core-2
+    env:
+      ARTIFACT_NAME: browser
+      BROWSER_TESTS: 'true'
+      INTEGRATION_TESTS: 'true'
+      SMOKE_TESTS: 'true'
+    steps: *steps
+
+  remote:
+    name: Remote
+    if: ${{ inputs.remote_affected }}
+    runs-on: vscode-large-runners-macos-5-core-0
+    env:
+      ARTIFACT_NAME: remote
+      REMOTE_TESTS: 'true'
+      INTEGRATION_TESTS: 'true'
+      SMOKE_TESTS: 'true'
+    steps: *steps

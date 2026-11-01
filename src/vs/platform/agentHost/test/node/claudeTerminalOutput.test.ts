@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FileService } from '../../../files/common/fileService.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { IFileService } from '../../../files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
@@ -39,8 +40,7 @@ const NOTICE = [
 ].join('\n');
 
 function createHarness(disposables: Pick<DisposableStore, 'add'>, database = new TestSessionDatabase(), sessionDataService = createSessionDataService(database), logService = new NullLogService()) {
-	const fileService = disposables.add(new FileService(new NullLogService()));
-	disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+	const fileService = createInMemoryFileService(disposables, Schemas.file);
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IFileService, fileService],
@@ -108,7 +108,7 @@ suite('ClaudeTerminalOutputs', () => {
 			await fileService.writeFile(URI.file(OUTPUT_PATH), VSBuffer.fromString(OUTPUT));
 			const state = toolState('Bash', command);
 
-			await outputs.capture(CHAT, CHAT, TURN_ID, bashResult({ stdout: OUTPUT, stderr: '', interrupted: false, persistedOutputPath: OUTPUT_PATH, persistedOutputSize: OUTPUT.length }), state);
+			await outputs.capture(CHAT, URI.parse(SESSION), CHAT, TURN_ID, bashResult({ stdout: OUTPUT, stderr: '', interrupted: false, persistedOutputPath: OUTPUT_PATH, persistedOutputSize: OUTPUT.length }), state);
 
 			const stored = await database.readTerminalOutput(TOOL_CALL_ID);
 			results.push({
@@ -151,7 +151,7 @@ suite('ClaudeTerminalOutputs', () => {
 		const results = [];
 		for (const { name, message, toolName, command, signal } of cases) {
 			const state = toolState(toolName, command);
-			await outputs.capture(CHAT, CHAT, TURN_ID, message, state, signal);
+			await outputs.capture(CHAT, URI.parse(SESSION), CHAT, TURN_ID, message, state, signal);
 			results.push({ name, staged: state.takeTerminalOutput(TOOL_CALL_ID), stored: await database.getTerminalOutputSize(TOOL_CALL_ID) });
 		}
 
@@ -170,7 +170,7 @@ suite('ClaudeTerminalOutputs', () => {
 		await fileService.writeFile(URI.file(OUTPUT_PATH), VSBuffer.fromString(OUTPUT));
 		const state = toolState('Bash');
 
-		await outputs.capture(CHAT, CHAT, TURN_ID, bashResult({ stdout: OUTPUT, stderr: '', interrupted: false, persistedOutputPath: OUTPUT_PATH }), state, cancellation.signal);
+		await outputs.capture(CHAT, URI.parse(SESSION), CHAT, TURN_ID, bashResult({ stdout: OUTPUT, stderr: '', interrupted: false, persistedOutputPath: OUTPUT_PATH }), state, cancellation.signal);
 
 		assert.deepStrictEqual({
 			staged: state.takeTerminalOutput(TOOL_CALL_ID),
@@ -223,10 +223,10 @@ suite('ClaudeTerminalOutputs', () => {
 			tool_use_result: { persistedOutputPath: OUTPUT_PATH },
 		};
 		const state = toolState('Bash');
-		await outputs.capture(CHAT, CHAT, TURN_ID, message, state);
+		await outputs.capture(CHAT, URI.parse(SESSION), CHAT, TURN_ID, message, state);
 		const live = state.takeTerminalOutput(TOOL_CALL_ID);
 		const restored = completedToolCall(TOOL_CALL_ID, 'Bash', text);
-		await outputs.restore(CHAT, CHAT, [{
+		await outputs.restore(CHAT, URI.parse(SESSION), CHAT, [{
 			id: TURN_ID,
 			message: { text: 'run it', origin: { kind: MessageKind.User } },
 			responseParts: [restored],
@@ -296,7 +296,7 @@ suite('ClaudeTerminalOutputs', () => {
 			state: TurnState.Complete,
 		};
 
-		await outputs.restore(CHAT, CHAT, [turn]);
+		await outputs.restore(CHAT, URI.parse(SESSION), CHAT, [turn]);
 
 		assert.deepStrictEqual(turn.responseParts.map(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content : undefined), [
 			[
@@ -312,5 +312,80 @@ suite('ClaudeTerminalOutputs', () => {
 			[{ type: ToolResultContentType.Text, text: 'short output' }],
 			[{ type: ToolResultContentType.Text, text: 'file contents' }],
 		]);
+	});
+
+	test('restores retained output for many terminal calls with one batched lookup', async () => {
+		const { outputs, database } = createHarness(disposables);
+		await database.createTurn(TURN_ID);
+		for (const toolCallId of ['toolu_first', 'toolu_last', 'toolu_read']) {
+			await database.storeTerminalOutput(TURN_ID, toolCallId, VSBuffer.fromString(OUTPUT).buffer);
+		}
+		const inline = Array.from({ length: 500 }, (_, index) => `toolu_inline_${index}`);
+		const turn: Turn = {
+			id: TURN_ID,
+			message: { text: 'run it', origin: { kind: MessageKind.User } },
+			responseParts: [
+				completedToolCall('toolu_first', 'Bash', NOTICE),
+				...inline.map(toolCallId => completedToolCall(toolCallId, 'Bash', 'short output')),
+				completedToolCall('toolu_read', 'Read', 'file contents'),
+				completedToolCall('toolu_last', 'Bash', NOTICE),
+			],
+			usage: undefined,
+			state: TurnState.Complete,
+		};
+		const batchedLookups = spy(database, 'getTerminalOutputSizes');
+		const singleLookups = spy(database, 'getTerminalOutputSize');
+		disposables.add(toDisposable(() => {
+			batchedLookups.restore();
+			singleLookups.restore();
+		}));
+		await outputs.restore(CHAT, URI.parse(SESSION), CHAT, [turn]);
+
+		assert.deepStrictEqual({
+			terminals: turn.responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed
+				? (part.toolCall.content ?? []).flatMap(content => content.type === ToolResultContentType.Terminal ? [content.resource] : [])
+				: []),
+			batchedLookups: batchedLookups.args.map(([toolCallIds]) => toolCallIds),
+			singleLookups: singleLookups.callCount,
+		}, {
+			terminals: [
+				buildNonPtyShellTerminalUri(CHAT, SESSION, CHAT, 'toolu_first'),
+				buildNonPtyShellTerminalUri(CHAT, SESSION, CHAT, 'toolu_last'),
+			],
+			batchedLookups: [['toolu_first', ...inline, 'toolu_last']],
+			singleLookups: 0,
+		});
+	});
+
+	test('leaves restored terminal calls unchanged and logs when the batched lookup fails', async () => {
+		const warnings: string[] = [];
+		const logService = new class extends NullLogService {
+			override warn(message: string): void {
+				warnings.push(message);
+			}
+		}();
+		const database = new class extends TestSessionDatabase {
+			override async getTerminalOutputSizes(): Promise<Map<string, number>> {
+				throw new Error('Cannot look up output');
+			}
+		}();
+		const { outputs } = createHarness(disposables, database, undefined, logService);
+		const turn: Turn = {
+			id: TURN_ID,
+			message: { text: 'run it', origin: { kind: MessageKind.User } },
+			responseParts: [completedToolCall('toolu_retained', 'Bash', NOTICE)],
+			usage: undefined,
+			state: TurnState.Complete,
+		};
+
+		await outputs.restore(CHAT, URI.parse(SESSION), CHAT, [turn]);
+
+		assert.deepStrictEqual({
+			content: turn.responseParts.map(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content : undefined),
+			warnings,
+		}, {
+			content: [[{ type: ToolResultContentType.Text, text: NOTICE }]],
+			warnings: [`[Claude] Failed to restore retained shell output for ${CHAT.toString()}`],
+		});
 	});
 });

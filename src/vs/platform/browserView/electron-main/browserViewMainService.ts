@@ -6,7 +6,8 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { BrowserViewPresentation, BrowserViewSessionSelector, BrowserViewStorageScope, isBrowserViewStorageScopeShareableWithAgent, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewAudience, IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewEditorOpenOptions, IBrowserViewCreateOptions, IBrowserViewCreationContext, IBrowserViewWindowConfiguration, IBrowserDeviceProfile, BrowserViewChangeEvent, BrowserViewEvent, BrowserViewEventMap, serializeBrowserViewInfo, IBrowserViewAccessibilitySnapshot } from '../common/browserView.js';
+import { BrowserViewPresentation, BrowserViewSessionSelector, BrowserViewStorageScope, isBrowserViewStorageScopeShareableWithAgent, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewAudience, IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewEditorOpenOptions, IBrowserViewCreateOptions, IBrowserViewCreationContext, IBrowserViewWindowConfiguration, IBrowserDeviceProfile, BrowserViewChangeEvent, BrowserViewEvent, BrowserViewEventMap, serializeBrowserViewInfo, IBrowserViewAccessibilitySnapshot, getBrowserViewSessionNetwork } from '../common/browserView.js';
+import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
 import { clipboard, Menu, MenuItem } from 'electron';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -27,6 +28,7 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
 import { formatBrowserViewAccessibility } from './browserViewAccessibility.js';
+import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
 
 export const IBrowserViewMainService = createDecorator<IBrowserViewMainService>('browserViewMainService');
 
@@ -121,8 +123,12 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		if (!hostWindow) {
 			throw new Error(`Host window with ID ${hostWindowId} not found`);
 		}
+		// The window's own workspace storage belongs to the window's own network; other networks use a partition of it.
+		if (selector.scope === BrowserViewStorageScope.Workspace && selector.network && selector.affinity === undefined && selector.network.authority !== hostWindow.remoteAuthority) {
+			throw new Error(`Workspace storage for network '${selector.network.authority}' requires an affinity`);
+		}
 
-		return BrowserSession.getOrCreate(
+		const browserSession = BrowserSession.getOrCreate(
 			this.instantiationService,
 			id,
 			selector,
@@ -130,6 +136,16 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			hostWindow.openedWorkspace?.id,
 			hostWindowId
 		);
+		// A window's workspace storage can be used with or without its remote's network
+		// (e.g. when proxying is toggled), but never by both at once.
+		const network = getBrowserViewSessionNetwork(selector);
+		if (browserSession.network?.authority !== network?.authority) {
+			if ([...this.browserViews.values()].some(view => view.session === browserSession)) {
+				throw new Error(localize('browser.closeBeforeNetworkChange', "Close this workspace's open browser tabs, then open the page again to use the new network setting."));
+			}
+			browserSession.setNetwork(network);
+		}
+		return browserSession;
 	}
 
 	/**
@@ -323,13 +339,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	}
 
 	async clearWorkspaceStorage(workspaceId: string): Promise<void> {
-		const browserSession = BrowserSession.getOrCreateWorkspace(
-			this.instantiationService,
-			workspaceId,
-			this.environmentMainService.workspaceStorageHome
-		);
-		browserSession.connectStorage(this.applicationStorageMainService);
-		await browserSession.clearData();
+		await BrowserSession.clearWorkspace(this.instantiationService, workspaceId, this.environmentMainService.workspaceStorageHome, this.applicationStorageMainService);
 	}
 
 	async getConsoleLogs(id: string): Promise<string> {
@@ -351,7 +361,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	async updateWindowConfiguration(windowId: number, config: IBrowserViewWindowConfiguration): Promise<void> {
 		const oldConfig = this._windowConfigurations.get(windowId);
 		const didThemeChange = !equals(oldConfig?.theme, config.theme);
-		const didProxyChange = !equals(oldConfig?.proxyInfo, config.proxyInfo);
+		const didProxyChange = !equals(oldConfig?.networkProxies, config.networkProxies);
 
 		this._windowConfigurations.set(windowId, config);
 		this._ensureWindowCloseSubscription(windowId);
@@ -361,8 +371,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 				if (didThemeChange) {
 					view.inspector.setTheme(config.theme);
 				}
-				if (didProxyChange) {
-					view.session.remote.acquire(view.id, config.proxyInfo);
+				// A network without a proxy keeps its previous one rather than use the local network.
+				const proxyInfo = didProxyChange ? getSessionProxyInfo(view.session, config) : undefined;
+				if (proxyInfo) {
+					view.session.remote.acquire(view.id, proxyInfo);
 				}
 				if (typeof config.maxHistoryEntries === 'number') {
 					view.session.history.setMaxEntries(config.maxHistoryEntries);
@@ -418,7 +430,13 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 
 		// Hold a ref to the tunnel proxy for as long as this view is alive.
-		browserSession.remote.acquire(id, windowConfiguration?.proxyInfo);
+		if (browserSession.network) {
+			const proxyInfo = getSessionProxyInfo(browserSession, windowConfiguration);
+			if (!proxyInfo) {
+				throw new Error(`No proxy is available for browser network '${browserSession.network.authority}'`);
+			}
+			browserSession.remote.acquire(id, proxyInfo);
+		}
 
 		const view = this.instantiationService.createInstance(
 			BrowserView,
@@ -434,7 +452,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 					owner: childOwner,
 					session: browserSession.id,
 					presentation,
-					initialUrl: url || undefined
+					// Chromium owns navigation for an existing popup; loading again replaces its initial document.
+					initialUrl: electronOptions?.webContents ? undefined : url || undefined
 				}, editorOptions, electronOptions);
 			},
 			(v, params) => this.showContextMenu(v, params),
@@ -456,7 +475,15 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	private _createBrowserView(id: string, options: IBrowserViewCreateOptions, editorOpenRequest?: IBrowserViewEditorOpenOptions, electronOptions?: Electron.WebContentsViewConstructorOptions): BrowserView {
 		const hasAgentAccess = options.owner.type === 'agent' || options.initialAudiences?.some(audience => audience.type === 'agent') === true;
+		if (options.sandboxNetworkRestrictions && (options.owner.type !== 'agent'
+			|| typeof options.session === 'string' || options.session.scope !== BrowserViewStorageScope.Agent
+			|| options.session.affinity !== options.owner.sessionId)) {
+			throw new Error('Sandboxed browser views must use their owning agent session storage affinity');
+		}
 		const browserSession = this._resolveBrowserSession(id, options.host.windowId, options.session);
+		if (options.sandboxNetworkRestrictions && options.owner.type === 'agent') {
+			browserSession.setSandboxNetworkRestrictions(options.owner.sessionId, options.sandboxNetworkRestrictions);
+		}
 		if (hasAgentAccess) {
 			this.validateAgentStorageScope(browserSession.storageScope);
 		}
@@ -505,10 +532,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			onDidPickArea: view.inspector.onDidPickArea,
 			onDidChangeAreaSelectionActive: view.inspector.onDidChangeAreaSelectionActive,
 			onDidChangeDeviceEmulation: view.emulator.onDidChange,
-			onDidChangeRemoteStatus: view.onDidChangeRemoteStatus,
 			onDidChangeAudiences: view.onDidChangeAudiences,
 			onDidRequestPermission: view.onDidRequestPermission,
 			onDidChangePermissions: view.onDidChangePermissions,
+			onDidRequestOpenExternal: view.onDidRequestOpenExternal,
 		};
 		const forward = <K extends keyof BrowserViewEventMap>(event: K) => {
 			listeners.add(events[event](data => {
@@ -539,6 +566,14 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 		for (const viewId of staleAgentViewIds) {
 			this.browserViews.deleteAndDispose(viewId);
+		}
+	}
+
+	async setSessionNetworkRestrictions(sessionId: string, restrictions: ISandboxNetworkRestrictions): Promise<void> {
+		for (const [, view] of this.browserViews) {
+			if (view.owner.type === 'agent' && view.owner.sessionId === sessionId && view.session.sandboxSessionId === sessionId) {
+				view.session.setSandboxNetworkRestrictions(sessionId, restrictions);
+			}
 		}
 	}
 
@@ -705,4 +740,9 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			sourceType: params.menuSourceType
 		});
 	}
+}
+
+/** The proxy of a session's remote network, if it has one. */
+function getSessionProxyInfo(browserSession: BrowserSession, config: IBrowserViewWindowConfiguration | undefined): ITunnelProxyInfo | undefined {
+	return browserSession.network ? config?.networkProxies?.[browserSession.network.authority] : undefined;
 }

@@ -4,7 +4,9 @@
 # fans out to parallel Unit/Integration/Smoke jobs that download and reuse that
 # build instead of recompiling. Each job repeats its suite 20 times, with each
 # repetition as its own step (continueOnError) so a single flaky failure does not
-# abort the run and every iteration produces its own timeline record. The
+# abort the run and every iteration produces its own timeline record. Windows
+# unit and integration iterations are too slow to fit in one job, so each is
+# split into an odd-iteration and an even-iteration job. The
 # pass/fail tally is read back from the build timeline by the vscode-probot
 # `SmokeFlaky` Azure Function (wired up via an ADO service hook on build
 # completion), which posts a summary to the Slack #build channel.

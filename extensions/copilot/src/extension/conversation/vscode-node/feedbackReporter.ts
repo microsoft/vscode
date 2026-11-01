@@ -16,13 +16,11 @@ import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { IObservable } from '../../../util/vs/base/common/observableInternal';
 import { basename } from '../../../util/vs/base/common/resources';
 import { splitLinesIncludeSeparators } from '../../../util/vs/base/common/strings';
-import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { InteractionOutcome, PromptQuery } from '../../inlineChat/node/promptCraftingTypes';
 import { Conversation, RequestDebugInformation, Turn } from '../../prompt/common/conversation';
 import { IntentInvocationMetadata } from '../../prompt/node/conversation';
 import { IFeedbackReporter } from '../../prompt/node/feedbackReporter';
 import { SearchFeedbackKind, SemanticSearchTextSearchProvider } from '../../workspaceSemanticSearch/node/semanticSearchTextSearchProvider';
-import { WorkspaceStateSnapshotHelper } from './logWorkspaceState';
 
 const SEPARATOR = '---------------------------------';
 
@@ -33,7 +31,6 @@ export class FeedbackReporter extends Disposable implements IFeedbackReporter {
 	readonly canReport: IObservable<boolean>;
 
 	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IRequestLogger private readonly _requestLogger: IRequestLogger,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -133,8 +130,6 @@ export class FeedbackReporter extends Disposable implements IFeedbackReporter {
 		const intent = turn.getMetadata(IntentInvocationMetadata)?.value.intent;
 		const intentDump = intent ? this._embedCodeblock('INTENT', `[${intent.id}] ${intent.description}`) : '';
 		const responseDump = this._embedCodeblock('ASSISTANT', turn.responseMessage?.message || '');
-		const workspaceState = await this._instantiationService.createInstance(WorkspaceStateSnapshotHelper).captureWorkspaceStateSnapshot([]);
-		const workspaceStateDump = this._embedCodeblock('WORKSPACE STATE', JSON.stringify(workspaceState, null, 2));
 		const toolsDump = params?.body?.tools ? this._embedCodeblock('TOOLS', JSON.stringify(params.body.tools, null, 2)) : '';
 		const metadata = this._embedCodeblock('METADATA', `requestID: ${turn.id}\nmodel: ${params?.model}`);
 		const edits = (await this._editLogService.getEditLog(turn.id))?.map((edit, i) => {
@@ -143,7 +138,7 @@ export class FeedbackReporter extends Disposable implements IFeedbackReporter {
 
 		const output: string[] = [];
 
-		appendPromptDetailsSection(output, intentDump, messagesDump, responseDump, workspaceStateDump, toolsDump, metadata, edits);
+		appendPromptDetailsSection(output, intentDump, messagesDump, responseDump, toolsDump, metadata, edits);
 		await appendSTestSection(output, turn);
 
 		await this._reportIssue('Feedback for sidebar chat', output.join('\n'));
@@ -194,12 +189,14 @@ export class FeedbackReporter extends Disposable implements IFeedbackReporter {
 }
 
 export async function openIssueReporter(args: { title: string; issueBody?: string; data: string; public?: boolean }) {
+	const privateUri = args.public === false ? vscode.Uri.parse('https://github.com/microsoft/vscode-internalbacklog') : undefined;
 	await vscode.commands.executeCommand('workbench.action.openIssueReporter', {
 		issueTitle: args.title,
 		issueSource: 'vscode',
 		data: args.data,
 		issueBody: args.issueBody ?? '',
-		privateUri: args.public === false ? vscode.Uri.parse('https://github.com/microsoft/vscode-internalbacklog') : undefined,
+		uri: privateUri,
+		privateUri,
 	});
 }
 

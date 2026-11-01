@@ -8,6 +8,18 @@ import { type AgentProvider } from './agent.js';
 const LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX = 'agent-host-';
 const REMOTE_AGENT_HOST_SESSION_TYPE_PREFIX = 'remote-';
 
+/** Identifies the Copilot agent family without changing the host's provider ID or implying runtime capabilities. */
+export function isCopilotAgentHostProvider(provider: AgentProvider | undefined): boolean {
+	return provider === 'copilotcli' || provider === 'copilot';
+}
+
+/** Identifies local and remote Copilot agent-host session types, preserving their existing URI schemes. */
+export function isCopilotAgentHostSessionType(sessionType: string): boolean {
+	const provider = parseAgentHostHarness(sessionType);
+	return provider !== undefined && isCopilotAgentHostProvider(provider)
+		&& (!isRemoteAgentHostSessionType(sessionType) || parseRemoteAgentHostSessionTypeAuthority(sessionType, provider) !== undefined);
+}
+
 /**
  * Builds the unique per-connection identifier for a remote agent host.
  *

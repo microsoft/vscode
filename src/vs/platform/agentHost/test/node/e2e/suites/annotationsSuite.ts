@@ -17,7 +17,6 @@
  */
 
 import assert from 'assert';
-import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { timeout } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
@@ -28,10 +27,11 @@ import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/regi
 import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../common/agent.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
 import { buildAnnotationsUri } from '../../../../common/annotationsUri.js';
-import { buildDefaultChatUri, ROOT_STATE_URI, type AnnotationsState, type StringOrMarkdown } from '../../../../common/state/sessionState.js';
+import { ROOT_STATE_URI, type AnnotationsState, type StringOrMarkdown } from '../../../../common/state/sessionState.js';
 import { createRealSession, driveTurnToCompletion, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 /** The subset of `Annotation` these tests assert on. */
 interface IObservedAnnotation {
@@ -59,7 +59,7 @@ export function defineAnnotationsTests(context: IAgentHostE2ETestContext): void 
 	}
 
 	async function createAnnotatedSession(prefix: string): Promise<{ sessionUri: string; annotationsUri: string; resource: string }> {
-		const workspace = mkdtempSync(join(tmpdir(), `ahp-${prefix}-`));
+		const workspace = createTestDirectory(join(tmpdir(), `ahp-${prefix}-`));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `${prefix}-${config.provider}`, createdSessions, URI.file(workspace));
 		const annotationsUri = buildAnnotationsUri(sessionUri);
@@ -98,7 +98,7 @@ export function defineAnnotationsTests(context: IAgentHostE2ETestContext): void 
 			type: ActionType.AnnotationsSet,
 			annotation: {
 				id: annotationId,
-				origin: { session: sessionUri, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-annotate' },
+				origin: { session: sessionUri, chat: defaultChatChannel(sessionUri), turnId: 'turn-annotate' },
 				resource,
 				resolved: false,
 				entries: [{ id: `${annotationId}:0`, text: 'needs a second look' }],
@@ -114,7 +114,7 @@ export function defineAnnotationsTests(context: IAgentHostE2ETestContext): void 
 			entries: annotation.entries.map(entry => entry.text),
 		})), [{
 			id: annotationId,
-			origin: { session: sessionUri, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-annotate' },
+			origin: { session: sessionUri, chat: defaultChatChannel(sessionUri), turnId: 'turn-annotate' },
 			resolved: false,
 			entries: ['needs a second look'],
 		}]);
@@ -126,14 +126,14 @@ export function defineAnnotationsTests(context: IAgentHostE2ETestContext): void 
 
 		dispatchAnnotationAction(annotationsUri, {
 			type: ActionType.AnnotationsSet,
-			annotation: { id: annotationId, origin: { session: sessionUri, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-resolve' }, resource, resolved: false, entries: [{ id: `${annotationId}:0`, text: 'why this branch?' }] },
+			annotation: { id: annotationId, origin: { session: sessionUri, chat: defaultChatChannel(sessionUri), turnId: 'turn-resolve' }, resource, resolved: false, entries: [{ id: `${annotationId}:0`, text: 'why this branch?' }] },
 		});
 		await annotationsAfter(annotationsUri, 'annotations/set');
 
 		// `annotations/updated` carries only the fields that change, so
 		// resolving must not disturb the entries already on the annotation.
 		context.client.clearReceived();
-		dispatchAnnotationAction(annotationsUri, { type: ActionType.AnnotationsUpdated, annotationId, resolved: true, origin: { session: sessionUri, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-resolve' } });
+		dispatchAnnotationAction(annotationsUri, { type: ActionType.AnnotationsUpdated, annotationId, resolved: true, origin: { session: sessionUri, chat: defaultChatChannel(sessionUri), turnId: 'turn-resolve' } });
 
 		const annotations = await annotationsAfter(annotationsUri, 'annotations/updated');
 
@@ -153,7 +153,7 @@ export function defineAnnotationsTests(context: IAgentHostE2ETestContext): void 
 
 		dispatchAnnotationAction(annotationsUri, {
 			type: ActionType.AnnotationsSet,
-			annotation: { id: annotationId, origin: { session: sessionUri, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-entries' }, resource, resolved: false, entries: [{ id: `${annotationId}:0`, text: 'original' }] },
+			annotation: { id: annotationId, origin: { session: sessionUri, chat: defaultChatChannel(sessionUri), turnId: 'turn-entries' }, resource, resolved: false, entries: [{ id: `${annotationId}:0`, text: 'original' }] },
 		});
 		await annotationsAfter(annotationsUri, 'annotations/set');
 
@@ -180,7 +180,7 @@ export function defineAnnotationsTests(context: IAgentHostE2ETestContext): void 
 
 		dispatchAnnotationAction(annotationsUri, {
 			type: ActionType.AnnotationsSet,
-			annotation: { id: annotationId, origin: { session: sessionUri, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-remove' }, resource, resolved: false, entries: [{ id: `${annotationId}:0`, text: 'transient' }] },
+			annotation: { id: annotationId, origin: { session: sessionUri, chat: defaultChatChannel(sessionUri), turnId: 'turn-remove' }, resource, resolved: false, entries: [{ id: `${annotationId}:0`, text: 'transient' }] },
 		});
 		await annotationsAfter(annotationsUri, 'annotations/set');
 
@@ -192,7 +192,7 @@ export function defineAnnotationsTests(context: IAgentHostE2ETestContext): void 
 
 	conformanceTest(context, 'annotations remain synchronized without retaining the conversation across eviction and restart', async function () {
 		const { sessionUri, annotationsUri, resource } = await createAnnotatedSession('annotations-residency');
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const annotationId = generateUuid();
 
 		async function residentConversationResources(): Promise<string[]> {
@@ -225,7 +225,7 @@ export function defineAnnotationsTests(context: IAgentHostE2ETestContext): void 
 		}
 
 		// A host-local command produces a completed, durable turn without model traffic.
-		await driveTurnToCompletion(context.client, sessionUri, 'turn-annotations-residency', '/rename Annotation Residency', nextClientSeq());
+		await driveTurnToCompletion(context.client, sessionUri, 'turn-annotations-residency', '/rename Annotation Residency', nextClientSeq(), { expectUnread: false });
 		const annotation = {
 			id: annotationId,
 			origin: { session: sessionUri, chat: chatUri, turnId: 'turn-annotations-residency' },

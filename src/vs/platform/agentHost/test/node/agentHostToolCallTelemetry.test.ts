@@ -25,7 +25,8 @@ import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelatio
 import { withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { CustomizationType, McpServerStatus, SessionInputRequestKind, type McpServerCustomization } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolCallContributor, type ToolCallResult } from '../../common/state/sessionState.js';
+import { chatToolCallComplete, chatToolCallReady, chatToolCallStart, chatTurnComplete } from '../common/chatActionBuilders.js';
+import { buildDefaultChatUri, buildSubagentChatUri, MessageKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolCallContributor, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
@@ -35,11 +36,14 @@ import { AgentHostChatContributions } from '../../node/agentHostChatContribution
 import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
+import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { IAgentHostScheduledChatMoves } from '../../node/chatContributions/scheduledChatMoves/scheduledChatMovesService.js';
+import { IAgentHostArchivedChatWorkspaceService } from '../../node/chatContributions/chatArchive/archivedChatWorkspaceService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
@@ -53,41 +57,25 @@ import { AgentHostClientConnectionService, IAgentHostClientConnectionService, ty
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import type { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
+import { AgentHostArtifactEventService, IAgentHostArtifactEventService } from '../../node/artifactIntegrations/agentHostArtifactRuntime.js';
+import { AgentHostArtifactIntegrationDirectory, IAgentHostArtifactIntegrationDirectory } from '../../node/artifactIntegrations/agentHostArtifactIntegrationDirectory.js';
+import { ArtifactIntegrationRegistry } from '../../../artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
-import { createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
+import { createNoopGitService, createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows, createTestWorktreeCleanupService } from './chatMetadataTestHelpers.js';
+import { IAgentHostWorktreeCleanupService } from '../../node/agentHostWorktreeCleanupService.js';
 import { createNoopWorktreeIsolation } from './worktreeTestHelpers.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
-
-class FakeChangesetService implements IAgentHostChangesetService {
-	declare readonly _serviceBrand: undefined;
-	registerStaticChangesets(): void { }
-	restoreStaticChangeset(): void { }
-	parsePersistedStaticChangesets(): { session?: undefined } { return {}; }
-	applyPersistedStaticChangesets(): void { }
-	restorePersistedStaticChangesets(): { session?: undefined } { return {}; }
-	persistChangesSummary(): void { }
-	isStaticChangesetComputeActive(): boolean { return false; }
-	getListMetadataKeys() { return undefined; }
-	computeListEntryChanges() { return undefined; }
-	refreshBranchChangeset(): void { }
-	refreshSessionChangeset(): void { }
-	refreshChangesetCatalog(): void { }
-	onWorkingDirectoryAvailable(): void { }
-	recomputeSubscribedChangesets(): void { }
-	async computeUncommittedChangeset(session: string): Promise<string> { return `${session}/changeset/uncommitted`; }
-	async computeTurnChangeset(session: string): Promise<string> { return `${session}/x`; }
-	async computeCompareTurnsChangeset(session: string): Promise<string> { return `${session}/y`; }
-	onToolCallEditsApplied(): void { }
-	onTurnComplete(): void { }
-	onSessionTruncated(): void { }
-	ensureChatChangesSummary(): void { }
-	refreshChatChangesSummary(): void { }
-}
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
+import { FakeChangesetService } from '../common/fakeChangesetService.js';
 
 class CapturingTelemetryService implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
@@ -140,6 +128,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(sessionKey),
 		});
 		stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
 	}
@@ -160,15 +149,15 @@ suite('AgentSideEffects — tool call telemetry', () => {
 	}
 
 	function toolStart(turnId: string, toolCallId: string, toolName: string, contributor?: ToolCallContributor): void {
-		fire({ type: ActionType.ChatToolCallStart, turnId, toolCallId, toolName, displayName: toolName, contributor });
+		fire(chatToolCallStart(turnId, toolCallId, toolName, toolName, { contributor }));
 	}
 
 	function toolComplete(turnId: string, toolCallId: string, result: ToolCallResult): void {
-		fire({ type: ActionType.ChatToolCallComplete, turnId, toolCallId, result });
+		fire(chatToolCallComplete(turnId, toolCallId, result));
 	}
 
 	function completeTurn(turnId: string): void {
-		fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1000 });
+		fire(chatTurnComplete(turnId, 1000));
 	}
 
 	function registerClientConnection(clientId: string, initiallyConnected: boolean): (connected: boolean) => void {
@@ -177,6 +166,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			hasSeenClient: candidate => candidate === clientId,
 			isClientConnected: candidate => connected && candidate === clientId,
 			isLocalClient: () => false,
+			usesLegacyChatUris: () => false,
 			getConnectedClientTransportCounts: () => connected ? new Map([[clientId, 1]]) : new Map(),
 			requestWorkspaceTrust: async () => false,
 			requestMcpAuthentication: async () => false,
@@ -264,6 +254,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			_serviceBrand: undefined,
 			onDidChange: Event.None,
 			initializeSession: async () => { },
+			adoptMcpServerOwnership: () => { },
 			getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
 			resolve: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
 			applyClientGlobalEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
@@ -271,49 +262,70 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			setEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
 			whenIdle: async () => { },
 		};
-		const sharedLocalTurns = new AgentHostLocalTurns(sessionDataService, logService);
+		const sharedLocalTurns = new AgentHostLocalTurns(createTestChatRows(sessionDataService, disposables), logService);
 		clientConnectionService = disposables.add(new AgentHostClientConnectionService());
 		const worktreeIsolation = createNoopWorktreeIsolation();
+		const authenticationService = disposables.add(new AgentHostAuthenticationService(logService));
+		const sessionStateStore = createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService);
+		const worktreeCleanup = createTestWorktreeCleanupService(disposables, worktreeIsolation);
 		const services = new ServiceCollection(
+			[IAgentHostAuthenticationService, authenticationService],
 			[IAgentHostLocalTurns, sharedLocalTurns],
 			[ILogService, logService],
 			[IAgentConfigurationService, configService],
 			[IAgentHostChangesetService, new FakeChangesetService()],
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentHostGitStateService, createNoopGitStateService()],
+			[IAgentHostGitService, createNoopGitService()],
 			[IAgentHostStateManager, stateManager],
 			[IAgentSessionRegistry, disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))))],
 			[IFileService, disposables.add(new FileService(logService))],
 			[ITelemetryService, telemetryService],
 			[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 			[ISessionDataService, sessionDataService],
+			[IAgentHostSessionStateStore, sessionStateStore],
 			[IAgentHostWorktreeIsolation, worktreeIsolation],
-			[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionDataService, worktreeIsolation)],
+			[IAgentHostWorktreeCleanupService, worktreeCleanup],
+			[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionStateStore, worktreeCleanup)],
 			[IAgentHostClientConnectionService, clientConnectionService],
 			[IAgentHostPeerChatPersistenceService, {
+				...createLegacyChatMetadataPersistence(sessionDataService),
 				_serviceBrand: undefined,
+				setRead: async () => { },
 				setArchived: async () => { },
 			}],
 			[ISessionWorkspaceConversionService, {
 				_serviceBrand: undefined,
-				requestSessionWorkspaceUpdate: () => { },
+				supportsChatIsolation: () => false,
+				canIsolateChat: () => false,
+				requestChatIsolation: () => { },
+				restoreChatIsolation: async () => { },
+				requestSessionWorkspaceUpdate: () => true,
 				isPending: () => false,
+				isConversionTurn: () => false,
+				onDidChangePending: Event.None,
 				cancel: () => { },
 				updateSessionWorkspace: async () => { },
-			}],
+			} satisfies ISessionWorkspaceConversionService],
+			[IAgentHostScheduledChatMoves, { _serviceBrand: undefined, schedule: () => { }, turnEnded: () => { } } satisfies IAgentHostScheduledChatMoves],
+			[IAgentHostArchivedChatWorkspaceService, { _serviceBrand: undefined, setChatWorkspaceAttached: async () => { } } satisfies IAgentHostArchivedChatWorkspaceService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		const chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 		services.set(IAgentHostChatContributions, chatContributions);
+		services.set(IAgentHostArtifactEventService, disposables.add(new AgentHostArtifactEventService()));
+		services.set(IAgentHostArtifactIntegrationDirectory, disposables.add(new AgentHostArtifactIntegrationDirectory(disposables.add(new ArtifactIntegrationRegistry()))));
 		services.set(IAgentHostSessionPromptService, {
 			_serviceBrand: undefined,
 			startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
 		});
-		services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService));
-		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService)));
+		services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService, createTestChatOwnershipService(stateManager)));
+		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService, createTestChatOwnershipService(stateManager))));
 		const providerService = createTestAgentHostProviderService(() => agent);
 		services.set(IAgentHostProviderService, providerService);
-		services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, new AgentHostSubscriptionService())));
+		const chatOwnership = createTestChatOwnershipService(stateManager);
+		services.set(IAgentHostChatOwnershipService, chatOwnership);
+		services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership, authenticationService, sessionStateStore)));
 		const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 		services.set(IAgentHostTelemetryReporter, telemetryReporter);
 		const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
@@ -344,13 +356,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		startTurn('turn-1');
 
 		toolStart('turn-1', 'tc-1', 'bash');
-		fire({
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-1',
-			toolCallId: 'tc-1',
-			invocationMessage: 'run',
-			confirmed: ToolCallConfirmationReason.NotNeeded,
-		});
+		fire(chatToolCallReady('turn-1', 'tc-1', 'run', { confirmed: ToolCallConfirmationReason.NotNeeded }));
 		toolComplete('turn-1', 'tc-1', { success: true, pastTenseMessage: 'ran' });
 		completeTurn('turn-1');
 
@@ -387,9 +393,32 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				turnId: 'turn-1',
 				model: undefined,
 				errorCode: undefined,
-				msg: undefined,
 			},
 		}]);
+	});
+
+	test('classifies tool calls in subagent chats by subagent kind and reports the phase model', () => {
+		setupSession();
+		agent.setModels([{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false }]);
+		startTurn('turn-1');
+		const runSubagentTool = (toolCallId: string, phase?: { subagentKind: 'fusionPhase'; model: string }) => {
+			const chatUri = buildSubagentChatUri(sessionUri, toolCallId);
+			stateManager.addChat(sessionKey, chatUri, creationTimeChatStorageResource(sessionKey, chatUri, buildDefaultChatUri(sessionKey)));
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId, agentName: 'agent', agentDisplayName: 'Agent', ...phase });
+			const turnId = stateManager.getActiveTurnId(chatUri) ?? 'missing-subagent-turn';
+			const fireOnChat = (action: ChatAction) => agent.fireProgress({ kind: 'action', resource: URI.parse(chatUri), action });
+			fireOnChat(chatToolCallStart(turnId, `${toolCallId}-view`, 'view', 'view'));
+			fireOnChat(chatToolCallComplete(turnId, `${toolCallId}-view`, { success: true, pastTenseMessage: 'viewed' }));
+			agent.fireProgress({ kind: 'subagent_completed', chat: URI.parse(defaultChatUri), toolCallId });
+		};
+		runSubagentTool('call-task');
+		runSubagentTool('fusion:fusion-1:phase-1', { subagentKind: 'fusionPhase', model: 'gpt-5.5' });
+		completeTurn('turn-1');
+
+		assert.deepStrictEqual(agentHostToolEvents().map(({ data }) => ({ toolCallId: data.toolCallId, isSubagentSession: data.isSubagentSession, subagentKind: data.subagentKind, model: data.model })), [
+			{ toolCallId: 'call-task-view', isSubagentSession: true, subagentKind: 'task', model: undefined },
+			{ toolCallId: 'fusion:fusion-1:phase-1-view', isSubagentSession: true, subagentKind: 'fusionPhase', model: { trusted: true, value: 'gpt-5.5' } },
+		]);
 	});
 
 	test('attributes tool telemetry to the initiating turn client', () => {
@@ -474,7 +503,6 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			turnId: 'turn-1',
 			model: undefined,
 			errorCode: 'denied',
-			msg: 'denied',
 		});
 	});
 
@@ -510,7 +538,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 
 	test('emits every bounded MCP source kind and omits unknown provenance', () => {
 		setupSession();
-		const sources = ['user', 'workspace', 'builtin', 'managed'] as const;
+		const sources = ['user', 'workspace', 'builtin', 'managed', 'account'] as const;
 		stateManager.setSessionCustomizations(sessionKey, [
 			...sources.map(source => ({
 				type: CustomizationType.McpServer,
@@ -545,6 +573,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			{ toolId: 'workspace', mcpSourceKind: 'workspace' },
 			{ toolId: 'builtin', mcpSourceKind: 'builtin' },
 			{ toolId: 'managed', mcpSourceKind: 'managed' },
+			{ toolId: 'account', mcpSourceKind: 'account' },
 			{ toolId: 'unknown', mcpSourceKind: undefined },
 		];
 		assert.deepStrictEqual({
@@ -561,13 +590,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		startTurn('turn-1');
 
 		toolStart('turn-1', 'tc-client', 'run_tests', { kind: ToolCallContributorKind.Client, clientId: 'client-1' });
-		fire({
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-1',
-			toolCallId: 'tc-client',
-			invocationMessage: 'run tests',
-			confirmed: ToolCallConfirmationReason.NotNeeded,
-		});
+		fire(chatToolCallReady('turn-1', 'tc-client', 'run tests', { confirmed: ToolCallConfirmationReason.NotNeeded }));
 		toolComplete('turn-1', 'tc-client', { success: true, pastTenseMessage: 'ran tests' });
 		completeTurn('turn-1');
 
@@ -696,33 +719,25 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		assert.deepStrictEqual(toolEvents().map(event => event.data.toolSourceKind), ['mcp', 'agentHost']);
 	});
 
-	test('excludes pending confirmation time from invocation timing', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-1');
-			toolStart('turn-1', 'tc-confirm-timing', 'write');
-			fire({
-				type: ActionType.ChatToolCallReady,
-				turnId: 'turn-1',
-				toolCallId: 'tc-confirm-timing',
-				invocationMessage: 'Write file',
-				confirmationTitle: 'Write file',
-			});
-			await timeout(10_000);
+	test('excludes pending confirmation time from invocation timing', () => runWithFakedTimers({}, async () => {
+		setupSession();
+		startTurn('turn-1');
+		toolStart('turn-1', 'tc-confirm-timing', 'write');
+		fire(chatToolCallReady('turn-1', 'tc-confirm-timing', 'Write file', { confirmationTitle: 'Write file' }));
+		await timeout(10_000);
 
-			const confirmed: ChatAction = {
-				type: ActionType.ChatToolCallConfirmed,
-				turnId: 'turn-1',
-				toolCallId: 'tc-confirm-timing',
-				approved: true,
-				confirmed: ToolCallConfirmationReason.UserAction,
-			};
-			stateManager.dispatchClientAction(defaultChatUri, confirmed, { clientId: 'test', clientSeq: 2 });
-			sideEffects.handleAction(defaultChatUri, confirmed);
-			await timeout(25);
-			toolComplete('turn-1', 'tc-confirm-timing', { success: true, pastTenseMessage: 'wrote file' });
-			completeTurn('turn-1');
-		});
+		const confirmed: ChatAction = {
+			type: ActionType.ChatToolCallConfirmed,
+			turnId: 'turn-1',
+			toolCallId: 'tc-confirm-timing',
+			approved: true,
+			confirmed: ToolCallConfirmationReason.UserAction,
+		};
+		stateManager.dispatchClientAction(defaultChatUri, confirmed, { clientId: 'test', clientSeq: 2 });
+		sideEffects.handleAction(defaultChatUri, confirmed);
+		await timeout(25);
+		toolComplete('turn-1', 'tc-confirm-timing', { success: true, pastTenseMessage: 'wrote file' });
+		completeTurn('turn-1');
 
 		const event = telemetry.events.find(event => event.eventName === 'languageModelToolInvoked');
 		const invocationTimeMs = (event?.data as { invocationTimeMs?: number } | undefined)?.invocationTimeMs;
@@ -733,7 +748,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			isMeasured: true,
 			excludesConfirmationDelay: true,
 		});
-	});
+	}));
 
 	test('emits error for a failure without a cancellation code', () => {
 		setupSession();
@@ -776,7 +791,6 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				turnId: 'turn-1',
 				model: undefined,
 				errorCode: 'failure',
-				msg: 'bridge call \'session_effect\' failed to schedule: GenericFailure',
 			},
 			agentHostLevel: 'usage',
 		});
@@ -813,29 +827,15 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		assert.strictEqual(toolEvents().length, 0);
 	});
 
-	test('emits once when a tool confirmation remains blocked', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-1');
+	test('emits once when a tool confirmation remains blocked', () => runWithFakedTimers({}, async () => {
+		setupSession();
+		startTurn('turn-1');
 
-			toolStart('turn-1', 'tc-confirm', 'write');
-			fire({
-				type: ActionType.ChatToolCallReady,
-				turnId: 'turn-1',
-				toolCallId: 'tc-confirm',
-				invocationMessage: 'Write file',
-				confirmationTitle: 'Write file',
-			});
-			fire({
-				type: ActionType.ChatToolCallReady,
-				turnId: 'turn-1',
-				toolCallId: 'tc-confirm',
-				invocationMessage: 'Write file',
-				confirmationTitle: 'Write file',
-			});
+		toolStart('turn-1', 'tc-confirm', 'write');
+		fire(chatToolCallReady('turn-1', 'tc-confirm', 'Write file', { confirmationTitle: 'Write file' }));
+		fire(chatToolCallReady('turn-1', 'tc-confirm', 'Write file', { confirmationTitle: 'Write file' }));
 
-			await timeout(5 * 60 * 1000);
-		});
+		await timeout(5 * 60 * 1000);
 
 		assert.deepStrictEqual(stalledEvents(), [{
 			eventName: 'agentHost.toolCallStalled',
@@ -851,31 +851,23 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				stalledTimeMs: true,
 			},
 		}]);
-	});
+	}));
 
-	test('replaces confirmation tracking with client execution tracking', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-1');
+	test('replaces confirmation tracking with client execution tracking', () => runWithFakedTimers({}, async () => {
+		setupSession();
+		startTurn('turn-1');
 
-			toolStart('turn-1', 'tc-client-stall', 'run_tests', { kind: ToolCallContributorKind.Client, clientId: 'client-1' });
-			fire({
-				type: ActionType.ChatToolCallReady,
-				turnId: 'turn-1',
-				toolCallId: 'tc-client-stall',
-				invocationMessage: 'Run tests',
-				confirmationTitle: 'Run tests',
-			});
-			fire({
-				type: ActionType.ChatToolCallConfirmed,
-				turnId: 'turn-1',
-				toolCallId: 'tc-client-stall',
-				approved: true,
-				confirmed: ToolCallConfirmationReason.UserAction,
-			});
-
-			await timeout(5 * 60 * 1000);
+		toolStart('turn-1', 'tc-client-stall', 'run_tests', { kind: ToolCallContributorKind.Client, clientId: 'client-1' });
+		fire(chatToolCallReady('turn-1', 'tc-client-stall', 'Run tests', { confirmationTitle: 'Run tests' }));
+		fire({
+			type: ActionType.ChatToolCallConfirmed,
+			turnId: 'turn-1',
+			toolCallId: 'tc-client-stall',
+			approved: true,
+			confirmed: ToolCallConfirmationReason.UserAction,
 		});
+
+		await timeout(5 * 60 * 1000);
 
 		assert.deepStrictEqual(stalledEvents(), [{
 			eventName: 'agentHost.toolCallStalled',
@@ -891,82 +883,52 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				stalledTimeMs: true,
 			},
 		}]);
-	});
+	}));
 
-	test('reports a disconnected client tool executor', async () => {
+	test('reports a disconnected client tool executor', () => runWithFakedTimers({}, async () => {
 		registerClientConnection('client-1', false);
 
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-1');
+		setupSession();
+		startTurn('turn-1');
 
-			toolStart('turn-1', 'tc-disconnected', 'run_tests', { kind: ToolCallContributorKind.Client, clientId: 'client-1' });
-			fire({
-				type: ActionType.ChatToolCallReady,
-				turnId: 'turn-1',
-				toolCallId: 'tc-disconnected',
-				invocationMessage: 'Run tests',
-				confirmed: ToolCallConfirmationReason.NotNeeded,
-			});
+		toolStart('turn-1', 'tc-disconnected', 'run_tests', { kind: ToolCallContributorKind.Client, clientId: 'client-1' });
+		fire(chatToolCallReady('turn-1', 'tc-disconnected', 'Run tests', { confirmed: ToolCallConfirmationReason.NotNeeded }));
 
-			await timeout(5 * 60 * 1000);
-		});
+		await timeout(5 * 60 * 1000);
 
 		assert.strictEqual(stalledEvents()[0].data.executorClientConnectionState, 'disconnected');
-	});
+	}));
 
-	test('does not emit after a client tool completes or its turn is cancelled', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-1');
+	test('does not emit after a client tool completes or its turn is cancelled', () => runWithFakedTimers({}, async () => {
+		setupSession();
+		startTurn('turn-1');
 
-			toolStart('turn-1', 'tc-complete', 'run_tests', { kind: ToolCallContributorKind.Client, clientId: 'client-1' });
-			fire({
-				type: ActionType.ChatToolCallReady,
-				turnId: 'turn-1',
-				toolCallId: 'tc-complete',
-				invocationMessage: 'Run tests',
-				confirmed: ToolCallConfirmationReason.NotNeeded,
-			});
-			toolComplete('turn-1', 'tc-complete', { success: true, pastTenseMessage: 'ran tests' });
+		toolStart('turn-1', 'tc-complete', 'run_tests', { kind: ToolCallContributorKind.Client, clientId: 'client-1' });
+		fire(chatToolCallReady('turn-1', 'tc-complete', 'Run tests', { confirmed: ToolCallConfirmationReason.NotNeeded }));
+		toolComplete('turn-1', 'tc-complete', { success: true, pastTenseMessage: 'ran tests' });
 
-			toolStart('turn-1', 'tc-cancel', 'write');
-			fire({
-				type: ActionType.ChatToolCallReady,
-				turnId: 'turn-1',
-				toolCallId: 'tc-cancel',
-				invocationMessage: 'Write file',
-				confirmationTitle: 'Write file',
-			});
-			fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 1000 });
+		toolStart('turn-1', 'tc-cancel', 'write');
+		fire(chatToolCallReady('turn-1', 'tc-cancel', 'Write file', { confirmationTitle: 'Write file' }));
+		fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 1000 });
 
-			await timeout(5 * 60 * 1000);
-		});
+		await timeout(5 * 60 * 1000);
 
 		assert.deepStrictEqual(stalledEvents(), []);
 		assert.deepStrictEqual(stalledCompletionEvents(), []);
-	});
+	}));
 
-	test('emits when a stalled client tool later completes', async () => {
+	test('emits when a stalled client tool later completes', () => runWithFakedTimers({}, async () => {
 		const setClientConnected = registerClientConnection('client-1', true);
 
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-1');
+		setupSession();
+		startTurn('turn-1');
 
-			toolStart('turn-1', 'tc-recovered', 'run_tests', { kind: ToolCallContributorKind.Client, clientId: 'client-1' });
-			fire({
-				type: ActionType.ChatToolCallReady,
-				turnId: 'turn-1',
-				toolCallId: 'tc-recovered',
-				invocationMessage: 'Run tests',
-				confirmed: ToolCallConfirmationReason.NotNeeded,
-			});
+		toolStart('turn-1', 'tc-recovered', 'run_tests', { kind: ToolCallContributorKind.Client, clientId: 'client-1' });
+		fire(chatToolCallReady('turn-1', 'tc-recovered', 'Run tests', { confirmed: ToolCallConfirmationReason.NotNeeded }));
 
-			await timeout(5 * 60 * 1000);
-			setClientConnected(false);
-			toolComplete('turn-1', 'tc-recovered', { success: true, pastTenseMessage: 'ran tests' });
-		});
+		await timeout(5 * 60 * 1000);
+		setClientConnected(false);
+		toolComplete('turn-1', 'tc-recovered', { success: true, pastTenseMessage: 'ran tests' });
 
 		assert.deepStrictEqual(stalledCompletionEvents(), [{
 			eventName: 'agentHost.stalledToolCallCompleted',
@@ -984,5 +946,5 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				timeAfterStallMs: true,
 			},
 		}]);
-	});
+	}));
 });

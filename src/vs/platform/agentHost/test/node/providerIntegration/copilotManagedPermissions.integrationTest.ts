@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CopilotClient, ToolSet, type CopilotSession, type PermissionRequest, type SessionConfig } from '@github/copilot-sdk';
+import { CopilotClient, ToolSet, type CopilotSession, type ManagedSettingsPermissions, type PermissionRequest, type SessionConfig } from '@github/copilot-sdk';
 import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -32,6 +32,48 @@ function resultType(result: RuntimeToolResult): string {
 
 suite('Agent Host Provider Integration - Copilot managed permissions', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('runtime independently enforces both approval-mode restrictions', async function () {
+		this.timeout(60_000);
+		const home = await mkdtemp(`${tmpdir()}/copilot-managed-modes-`);
+		const client = new CopilotClient({
+			mode: 'empty', baseDirectory: home, useLoggedInUser: false,
+			env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
+				PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR,
+				COPILOT_TELEMETRY_ENABLED: 'false',
+			})),
+		});
+		const results: boolean[][] = [];
+		try {
+			await client.start();
+			const restrictions: ManagedSettingsPermissions[] = [
+				{}, { disableBypassPermissionsMode: 'disable' }, { disableAssistedPermissionsMode: true },
+				{ disableBypassPermissionsMode: 'disable', disableAssistedPermissionsMode: true },
+			];
+			for (const permissions of restrictions) {
+				const session = await client.createSession({
+					workingDirectory: home, enableManagedSettings: true,
+					featureFlags: { AUTO_APPROVAL: true }, enableExperimentalMode: true,
+					availableTools: [], managedSettings: { permissions },
+					onPermissionRequest: async () => ({ kind: 'reject' }),
+				});
+				try {
+					const modes: boolean[] = [];
+					for (const mode of ['manual', 'assisted', 'allow-all'] as const) {
+						const result = await session.rpc.permissions.setMode({ mode });
+						modes.push(result.success && result.mode === mode);
+					}
+					results.push(modes);
+				} finally {
+					await session.disconnect();
+				}
+			}
+			assert.deepStrictEqual(results, [[true, true, true], [true, true, false], [true, false, true], [true, false, false]]);
+		} finally {
+			await client.stop();
+			await rm(home, { recursive: true, force: true });
+		}
+	});
 
 	for (const restriction of ['none', 'denied domain', 'terminal ask', 'terminal approval policy'] as const) {
 		const terminalApprovalPolicy = restriction === 'terminal approval policy';

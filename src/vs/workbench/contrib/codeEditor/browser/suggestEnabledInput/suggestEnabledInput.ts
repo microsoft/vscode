@@ -12,6 +12,7 @@ import { HistoryNavigator } from '../../../../../base/common/history.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { mixin } from '../../../../../base/common/objects.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI as uri } from '../../../../../base/common/uri.js';
 import './suggestEnabledInput.css';
 import { IEditorConstructionOptions } from '../../../../../editor/browser/config/editorConfiguration.js';
@@ -233,10 +234,14 @@ export class SuggestEnabledInput extends Widget {
 
 		this.setValue(options.value || '');
 
-		this._register(languageFeaturesService.completionProvider.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
+		this._register(languageFeaturesService.completionProvider.register({ scheme: scopeHandle.scheme, hasAccessToAllModels: true }, {
 			_debugDisplayName: `suggestEnabledInput/${id}`,
 			triggerCharacters: validatedSuggestProvider.triggerCharacters,
 			provideCompletionItems: (model: ITextModel, position: Position, _context: languages.CompletionContext) => {
+				if (!isEqual(model.uri, scopeHandle)) {
+					return undefined;
+				}
+
 				const query = model.getValue();
 
 				const zeroIndexedColumn = position.column - 1;

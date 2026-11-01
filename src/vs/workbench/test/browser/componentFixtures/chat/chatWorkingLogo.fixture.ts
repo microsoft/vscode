@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { ChatWorkingLogo } from '../../../../contrib/chat/browser/widget/chatWorkingLogo.js';
 import { ChatProgressAnimation } from '../../../../contrib/chat/common/constants.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
@@ -118,6 +119,13 @@ export default defineThemedFixtureGroup({ path: 'chat/logoMotion/' }, {
 	DrawMonochrome: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderSingleStyle(context, ChatProgressAnimation.DrawMonochrome) }),
 	DrawMonochromeNoIcon: defineComponentFixture({ render: context => renderSingleStyle(context, ChatProgressAnimation.DrawMonochromeNoIcon) }),
 	Performance: defineThemedFixtureGroup({
+		PixelSpinner: defineComponentFixture({
+			labels: { kind: 'animated' },
+			render: context => {
+				context.container.classList.add('chat-logo-motion-probe');
+				context.disposableStore.add(createPixelSpinner(context.container));
+			},
+		}),
 		Idle: defineComponentFixture({ render: context => renderPerformanceProbe(context, ChatProgressAnimation.Draw, false) }),
 		Draw: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderPerformanceProbe(context, ChatProgressAnimation.Draw) }),
 		DrawMonochrome: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderPerformanceProbe(context, ChatProgressAnimation.DrawMonochrome) }),
