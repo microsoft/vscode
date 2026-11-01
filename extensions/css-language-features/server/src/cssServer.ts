@@ -200,7 +200,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	function updateConfiguration(settings: { [languageId: string]: LanguageSettings }) {
 		for (const languageId in languageServices) {
 			languageServices[languageId].configure(settings[languageId]);
-			formatterSettings[languageId] = settings[languageId].format;
+			formatterSettings[languageId] = settings[languageId]?.format ?? {};
 		}
 		// reset all document settings
 		documentSettings = {};
