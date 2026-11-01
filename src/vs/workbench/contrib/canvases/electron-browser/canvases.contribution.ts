@@ -17,10 +17,13 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ICanvasService, CanvasInput } from '../common/canvas.js';
+import { registerCanvasCommands } from './canvasCommands.js';
 import { CanvasEditor, SessionCanvasFocusedContext } from './canvasEditor.js';
 import { CanvasService } from './canvasService.js';
 
 registerSingleton(ICanvasService, CanvasService, InstantiationType.Delayed);
+
+registerCanvasCommands();
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(CanvasEditor, CanvasInput.EDITOR_ID, localize('canvas.editor', "Canvas")),

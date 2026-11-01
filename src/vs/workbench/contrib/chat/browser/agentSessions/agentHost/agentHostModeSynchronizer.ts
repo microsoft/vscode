@@ -15,7 +15,6 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IChatWidget, IChatWidgetService } from '../../chat.js';
 import { ChatMode, IChatMode, IChatModes } from '../../../common/chatModes.js';
-import { ChatModeKind } from '../../../common/constants.js';
 import type { IChatModeChangeEvent } from '../../widget/input/chatInputPart.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 
@@ -144,16 +143,18 @@ export class AgentHostModeSynchronizer extends Disposable implements IWorkbenchC
 	private _findMode(modes: IChatModes, modeId: string): IChatMode | undefined {
 		return modes.findModeById(modeId) ?? modes.custom.find(mode => {
 			const uri = mode.uri?.get();
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): custom-mode matching needs the session connection mapper for editor-remote agent URIs
 			return uri && fromAgentHostUri(uri).toString() === modeId;
 		});
 	}
 
 	private _agentUriFromMode(mode: IChatMode): string | undefined {
-		if (mode.kind !== ChatModeKind.Agent || mode.id === ChatMode.Agent.id || mode.isBuiltin) {
+		if (mode.id === ChatMode.Agent.id || mode.isBuiltin) {
 			return undefined;
 		}
 
 		const uri = mode.uri?.get();
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): stored custom-agent selection needs the session connection mapper for editor-remote URIs
 		return uri ? fromAgentHostUri(uri).toString() : URI.parse(mode.id).toString();
 	}
 

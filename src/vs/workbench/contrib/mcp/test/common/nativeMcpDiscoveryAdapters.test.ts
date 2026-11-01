@@ -170,6 +170,23 @@ suite('MCP Discovery - nativeMcpDiscoveryAdapters', () => {
 		]);
 	});
 
+	test('claudeConfigToServerDefinition reads the OAuth client ID', async () => {
+		const servers = {
+			flat: { type: 'http', url: 'https://example.com/flat', oauthClientId: 'flat-client' },
+			nested: { type: 'http', url: 'https://example.com/nested', oauth: { clientId: 'nested-client' } },
+			both: { type: 'http', url: 'https://example.com/both', oauthClientId: 'flat-client', oauth: { clientId: 'nested-client' } },
+			none: { type: 'http', url: 'https://example.com/none' },
+		};
+		const defs = await claudeConfigToServerDefinition('prefix', VSBuffer.fromString(JSON.stringify({ mcpServers: servers })));
+
+		assert.deepStrictEqual(defs?.map(definition => [definition.label, definition.launch.type === McpServerTransportType.HTTP ? definition.launch.oauth : null]), [
+			['flat', { clientId: 'flat-client' }],
+			['nested', { clientId: 'nested-client' }],
+			['both', { clientId: 'nested-client' }],
+			['none', undefined],
+		]);
+	});
+
 	test('claudeConfigToServerDefinition forwards HTTP headers', async () => {
 		const contents = VSBuffer.fromString(JSON.stringify({
 			mcpServers: {

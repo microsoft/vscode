@@ -5,7 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 
-const GIT_BLOB_SCHEME = 'git-blob';
+export const GIT_BLOB_SCHEME = 'git-blob';
 
 interface IGitBlobUriQuery {
 	readonly sessionUri: string;

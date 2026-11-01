@@ -22,7 +22,6 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -412,8 +411,7 @@ export class OpenModelPickerAction extends Action2 {
 							ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local),
 							ContextKeyExpr.and(
 								IsSessionsWindowContext,
-								ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.AgentHostCopilot),
-								ContextKeyExpr.equals(`config.${AgentHostAllowSignedOutWhenUsableSettingId}`, true)))
+								ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.AgentHostCopilot)))
 					)
 			}
 		});
@@ -493,6 +491,7 @@ export class OpenModePickerAction extends Action2 {
 					order: 1,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
+						ChatContextKeys.agentPickerInAttachContext.negate(),
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
 						// Hide the agent picker while a delegation (continue in) target is pending
@@ -956,6 +955,7 @@ export class CancelAction extends Action2 {
 					ContextKeyExpr.or(ChatContextKeys.hasActiveRequest, ChatContextKeys.transcriptProgressActive),
 					ChatContextKeys.remoteJobCreating.negate()
 				),
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Escape },
 				win: { primary: KeyMod.Alt | KeyCode.Backspace },
 			}
 		});

@@ -9,6 +9,7 @@ import { AgentNetworkDomainSettingId } from '../../networkFilter/common/settings
 import { Registry } from '../../registry/common/platform.js';
 import { AgentSandboxEnabledSettingValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../sandbox/common/settings.js';
 import { localize } from '../../../nls.js';
+import { readAgentHostOTelPolicySettings } from './agentService.js';
 import { agentHostPolicySupport, AgentHostPolicySupportStatus } from './agentHostPolicySupport.js';
 
 export interface IAgentHostPolicyGap {
@@ -56,8 +57,7 @@ export function getAgentHostPolicyGapImpact(policyName: string): string {
 		case 'ChatEnabledPlugins':
 			return localize('policyGap.plugins', "The workbench filters synchronized plugins, but runtime discovery and more specific customization decisions do not have equivalent policy coverage.");
 		case 'ChatExtraMarketplaces':
-		case 'ChatStrictMarketplaces':
-			return localize('policyGap.marketplaces', "Shared marketplace discovery and installation honor these controls. Runtime-owned marketplace operations do not receive VS Code-only values and need separate verification. Strict marketplace rules do not retroactively disable installed plugins.");
+			return localize('policyGap.marketplaces', "Shared marketplace discovery and installation honor additional marketplaces. Runtime-owned marketplace operations do not receive VS Code-only values and need separate verification.");
 		case 'ChatStrictPluginOnlyCustomization':
 			return localize('policyGap.customizations', "The workbench filters synchronized customizations, but runtime discovery and standalone instructions do not have equivalent coverage across policy sources.");
 		case 'ChatHooks':
@@ -66,10 +66,8 @@ export function getAgentHostPolicyGapImpact(policyName: string): string {
 			return localize('policyGap.managedHooks', "Shared prompt discovery filters hooks, but the VS Code-only requirement is not delivered to runtime file hooks. Runtime-native managed-hook and SDK callback behavior needs separate verification.");
 		case 'ChatAgentMode':
 			return localize('policyGap.agentMode', "Agent Host session targets can remain available in the editor even when agent mode is disabled by policy.");
-		case 'CopilotOtelEnabled':
-			return localize('policyGap.otelEnabled', "A policy disabling OpenTelemetry can be overridden by a separately configured export destination or database recorder in the host's telemetry configuration.");
 		case 'CopilotOtelProtocol':
-			return localize('policyGap.otelProtocol', "Inherited OTLP protocol configuration can override the policy-selected exporter type.");
+			return localize('policyGap.otelProtocol', "For this local Copilot/VS Code policy diagnostic, inherited OTLP protocol configuration can still override an active collector exporter. It does not certify remote hosts or independently fetched runtime policy.");
 		case 'CopilotOtelCaptureIdentity':
 			return localize('policyGap.otelIdentity', "The Agent Host pipeline honors identity capture and suppression. Authenticated runtime account attribution still requires a runtime update and end-to-end verification; direct runtime exports use their own identity controls.");
 		case 'CopilotOtelHeaders':
@@ -85,8 +83,14 @@ function hasPolicyRequirement(policyName: string, value: unknown, configurationS
 		case 'ChatToolsTerminalEnableAutoApprove':
 		case 'ChatPluginsEnabled':
 		case 'ChatHooks':
-		case 'CopilotOtelEnabled':
 			return value !== true;
+		case 'CopilotOtelProtocol': {
+			const policySettings = readAgentHostOTelPolicySettings(configurationService);
+			if (policySettings.enabled === false) {
+				return false;
+			}
+			return value !== 'file' || policySettings.outfile === undefined;
+		}
 		case 'ChatAllowManagedMcpServersOnly':
 		case 'ChatAllowManagedHooksOnly':
 		case 'ChatStrictPluginOnlyCustomization':
@@ -95,7 +99,6 @@ function hasPolicyRequirement(policyName: string, value: unknown, configurationS
 			return value !== 'all';
 		case 'ChatToolsEligibleForAutoApproval':
 			return !isObject(value) || Object.values(value).some(eligible => eligible !== true);
-		case 'ChatStrictMarketplaces':
 		case 'ChatAllowedMcpServers':
 			// An empty allowlist denies everything; null means no restriction.
 			return value !== null;

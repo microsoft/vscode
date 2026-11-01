@@ -4,16 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Position } from '../../../common/core/position.js';
 import { IRange, Range } from '../../../common/core/range.js';
 import { TextEdit } from '../../../common/languages.js';
+import { DefaultLinesDiffComputer } from '../../../common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.js';
+import { StringEdit } from '../../../common/core/edits/stringEdit.js';
 import { EditorWorker } from '../../../common/services/editorWebWorker.js';
 import { ICommonModel } from '../../../common/services/textModelSync/textModelSync.impl.js';
 
 suite('EditorWebWorker', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	class WorkerWithModels extends EditorWorker {
 
@@ -35,6 +39,21 @@ suite('EditorWebWorker', () => {
 
 	let worker: WorkerWithModels;
 	let model: ICommonModel;
+
+	for (const hitTimeout of [false, true]) {
+		test(`string diff metadata preserves timeout status (${hitTimeout})`, async () => {
+			const diff = new DefaultLinesDiffComputer().computeDiff(['aaa', 'zzz'], ['AAA', 'zzz'], {
+				ignoreTrimWhitespace: false, maxComputationTimeMs: 500, computeMoves: false,
+			});
+			const stub = sinon.stub(DefaultLinesDiffComputer.prototype, 'computeDiff').returns({ ...diff, hitTimeout });
+			store.add(toDisposable(() => stub.restore()));
+			const result = await worker.$computeStringDiff('aaa\nzzz', 'AAA\nzzz', { maxComputationTimeMs: 500 }, 'advanced');
+			assert.deepStrictEqual({
+				isCoarse: result.isCoarse,
+				after: StringEdit.fromJson(result.edit).apply('aaa\nzzz'),
+			}, { isCoarse: hitTimeout, after: 'AAA\nzzz' });
+		});
+	}
 
 	setup(() => {
 		worker = new WorkerWithModels();

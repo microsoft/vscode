@@ -56,6 +56,7 @@ xattr -d com.apple.quarantine <path to server with web folder zip>
 
 - `--verbose` logs all the low level driver calls made to Code;
 - `-f PATTERN` (alias `-g PATTERN`) filters the tests to be run. You can also use pretty much any mocha argument;
+- `--shard INDEX/TOTAL` runs only one part of the suites, for example `--shard 1/2`. CI uses this to split the Electron smoke tests across jobs;
 - `--headless` will run playwright in headless mode when `--web` is used.
 
 **Note**: you can enable verbose logging of playwright library by setting a `DEBUG` environment variable before running the tests (<https://playwright.dev/docs/debug#verbose-api-logs>), for example to `pw:browser`.

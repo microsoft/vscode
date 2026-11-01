@@ -5,10 +5,11 @@
 
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../../base/browser/keyboardEvent.js';
+import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { Button } from '../../../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
-import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
@@ -588,23 +589,8 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 	}
 
 	private toPlainText(message: string | IMarkdownString): string {
-		const markdown = typeof message === 'string' ? message : message.value;
-		return markdown
-			.replace(/\[([^\]]*)\]\(([^)]+)\)/g, (_match, text, url) => text || this.basename(url))
-			.replace(/\*\*([^*]+)\*\*/g, '$1')
-			.replace(/__([^_]+)__/g, '$1')
-			.replace(/`([^`]+)`/g, '$1')
-			.replace(/[\\*_#>]/g, '');
-	}
-
-	private basename(url: string): string {
-		try {
-			const path = decodeURIComponent(url.split('?')[0].split('#')[0]);
-			const segments = path.split('/').filter(Boolean);
-			return segments.at(-1) ?? url;
-		} catch {
-			return url;
-		}
+		// Titles are markdown even as strings (e.g. "Run `zsh` command?"); empty link labels show the target's name.
+		return renderAsPlaintext(typeof message === 'string' ? new MarkdownString(message) : message, { useLinkFormatter: true });
 	}
 
 	private revealActiveSubagent(): void {

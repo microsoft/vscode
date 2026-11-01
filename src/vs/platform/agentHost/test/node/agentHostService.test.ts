@@ -13,6 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService, NullLoggerService } from '../../../log/common/log.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { IAgentHostConnection, IAgentHostShutdownRequest, IAgentHostStarter, IAgentHostStartRequest } from '../../common/agent.js';
+import type { IAgentHostProcessExitDiagnostics, IAgentHostProcessExitEvent } from '../../common/agentHostProcessExit.js';
 import { AgentHostOTelPolicyState, buildAgentHostOTelEnv, IAgentHostOTelSettings } from '../../common/agentService.js';
 import { AgentHostProcessManager } from '../../node/agentHostService.js';
 
@@ -35,7 +36,7 @@ class TestAgentHostStarter implements IAgentHostStarter {
 	readonly onWillShutdown = this._onWillShutdown.event;
 	private readonly _onDidStart = new Emitter<number>();
 
-	private readonly _exitEmitters: Emitter<{ code: number; signal: string }>[] = [];
+	private readonly _exitEmitters: Emitter<IAgentHostProcessExitEvent>[] = [];
 	private readonly _channel = new TestChannel();
 	readonly connectionStores: DisposableStore[] = [];
 	startCount = 0;
@@ -60,7 +61,7 @@ class TestAgentHostStarter implements IAgentHostStarter {
 			this._startError = undefined;
 			throw error;
 		}
-		const exitEmitter = new Emitter<{ code: number; signal: string }>();
+		const exitEmitter = new Emitter<IAgentHostProcessExitEvent>();
 		this._exitEmitters.push(exitEmitter);
 		const store = new DisposableStore();
 		store.add(exitEmitter);
@@ -101,8 +102,8 @@ class TestAgentHostStarter implements IAgentHostStarter {
 		await Event.toPromise(Event.filter(this._onDidStart.event, count => count >= startCount));
 	}
 
-	fireProcessExit(code: number): void {
-		this._exitEmitters.at(-1)?.fire({ code, signal: 'unknown' });
+	fireProcessExit(code: number, diagnostics?: IAgentHostProcessExitDiagnostics): void {
+		this._exitEmitters.at(-1)?.fire({ code, signal: 'unknown', diagnostics });
 	}
 
 	failNextStart(error: Error): void {
@@ -222,6 +223,47 @@ suite('AgentHostProcessManager', () => {
 				},
 			}],
 		});
+	});
+
+	test('reports collected exit diagnostics with the unexpected exit', async () => {
+		const { starter, telemetryService } = await createManager('linux');
+
+		starter.fireProcessExit(1, {
+			reason: 'abnormal-exit',
+			uptimeMs: 1500,
+			fatalSignature: 'startupFailure',
+			exitPath: 'processExit',
+			exitCaller: 'agentHostMain',
+			startupFailure: { name: 'Error', code: 'SQLITE_BUSY', msg: 'database is locked', callstack: 'Error: database is locked' },
+			workingSetMb: 120,
+			peakWorkingSetMb: 140,
+			memorySampleAgeMs: 900,
+		});
+		await starter.waitForStartCount(2);
+
+		assert.deepStrictEqual(telemetryService.errorEvents, [{
+			eventName: 'agentHost.processError',
+			data: {
+				hostLaunchKind: 'vscode_main_process',
+				kind: 'unexpectedExit',
+				code: 1,
+				restartCount: 0,
+				willRestart: true,
+				isError: true,
+				exitReason: 'abnormal-exit',
+				uptimeMs: 1500,
+				fatalSignature: 'startupFailure',
+				exitPath: 'processExit',
+				exitCaller: 'agentHostMain',
+				msg: 'database is locked',
+				callstack: 'Error: database is locked',
+				errorName: 'Error',
+				errorCode: 'SQLITE_BUSY',
+				workingSetMb: 120,
+				peakWorkingSetMb: 140,
+				memorySampleAgeMs: 900,
+			},
+		}]);
 	});
 
 	test('explicit restart disposes the current process and resets crash recovery', async () => {

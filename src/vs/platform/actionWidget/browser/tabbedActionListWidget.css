@@ -50,6 +50,30 @@
 	white-space: nowrap;
 }
 
+/* An image icon is drawn by the tab itself, so it survives the tab's label being replaced. It sits
+ * where a codicon would, with the same margin text buttons give codicons. */
+.action-widget .tabbed-action-list-tabbar .monaco-custom-radio .monaco-button.tabbed-action-list-tab-image-icon::before {
+	content: '';
+	flex: 0 0 auto;
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
+	margin: 0 0.2em;
+	background-image: var(--tabbed-action-list-tab-icon-light);
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: contain;
+}
+
+.vs-dark .action-widget .tabbed-action-list-tabbar .monaco-custom-radio .monaco-button.tabbed-action-list-tab-image-icon::before,
+.hc-black .action-widget .tabbed-action-list-tabbar .monaco-custom-radio .monaco-button.tabbed-action-list-tab-image-icon::before {
+	background-image: var(--tabbed-action-list-tab-icon-dark);
+}
+
+/* Images can't take the muted foreground of inactive tabs, so they fade to the same 70% instead. */
+.action-widget .tabbed-action-list-tabbar .monaco-custom-radio .monaco-button.tabbed-action-list-tab-image-icon:not(.active)::before {
+	opacity: 0.7;
+}
+
 .action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action {
 	display: flex;
 	align-items: center;
@@ -68,10 +92,27 @@
 	margin-left: auto;
 }
 
-.action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action:hover,
+/* Consecutive end-aligned actions stay grouped at the end of the tab bar. */
+.action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action.align-end ~ .tabbed-action-list-tabbar-action.align-end {
+	margin-left: var(--vscode-spacing-size40);
+}
+
+.action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action:hover:not(.disabled),
 .action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action.checked {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
+}
+
+/* Follows the checked rule at equal specificity, so a disabled action never looks pressed or interactive. */
+.action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action.disabled {
+	background-color: transparent;
+	color: var(--vscode-descriptionForeground);
+	cursor: default;
+}
+
+/* Dims only the icon, matching disabled buttons and toggles, so the focus outline stays fully visible. */
+.action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action.disabled > .codicon {
+	opacity: 0.4;
 }
 
 .action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action:focus-visible {

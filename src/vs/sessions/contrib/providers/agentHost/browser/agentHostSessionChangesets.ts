@@ -19,7 +19,7 @@ import { isAgentMergeMessage } from '../../../../../platform/agentHost/common/me
 import { ChangesetOperationTargetKind, InvokeChangesetOperationResult } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, ChangesetOperationStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildDefaultChatUri, ChangesetStatus, Changeset, isHostNoticeTurn, lastAttributableTurnId, MessageKind, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChangesetStatus, Changeset, isHostNoticeTurn, lastAttributableTurnId, MessageKind, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, ISessionTurnFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { isIChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -210,7 +210,7 @@ export function createChatChangesets(
 		if (!chatUri || !chatState || chatState instanceof Error || sessionState instanceof Error) {
 			return undefined;
 		}
-		const defaultChatUri = sessionState?.defaultChat ?? sessionState?.chats?.[0]?.resource;
+		const defaultChatUri = sessionState?.defaultChat;
 		if (isEqual(chatUri, lastChatUri) && defaultChatUri === lastDefaultChatUri
 			&& chatState.changesets === lastChatCatalogue && sessionState?.changesets === lastSessionCatalogue && lastChangesets !== undefined) {
 			return lastChangesets;
@@ -271,17 +271,17 @@ export function createActiveSessionSubscriptionObs<T>(
 
 /**
  * Selects the URI of the session's most recently modified chat — the one that
- * holds the session's "last turn". Falls back to the session's default chat (or
- * the synthesized default chat URI) when the state is absent/errored or no chat
- * is more recent.
+ * holds the session's "last turn". Falls back to the session's advertised
+ * default chat (`defaultChat`) when the
+ * state is absent/errored or lists no chat.
  *
  * Shared by {@link AgentHostLastTurnChangeset} and the output-stream-derived
  * last-turn changes so the "Last Turn Changes" changeset and the chat input
  * status pills always resolve the same chat.
  */
-export function selectMostRecentChatUri(sessionState: SessionState | Error | undefined | null, sessionUri: URI): URI {
+export function selectMostRecentChatUri(sessionState: SessionState | Error | undefined | null, defaultChat: string | undefined): URI | undefined {
 	if (!sessionState || sessionState instanceof Error) {
-		return URI.parse(buildDefaultChatUri(sessionUri));
+		return defaultChat !== undefined ? URI.parse(defaultChat) : undefined;
 	}
 
 	// `modifiedAt` is ISO 8601, so lexicographic compare is chronological.
@@ -289,7 +289,12 @@ export function selectMostRecentChatUri(sessionState: SessionState | Error | und
 		(best, c) => !best || c.modifiedAt > best.modifiedAt ? c : best,
 		undefined
 	);
-	return URI.parse(mostRecentChat?.resource ?? sessionState.defaultChat ?? buildDefaultChatUri(sessionUri));
+	const chat = mostRecentChat?.resource ?? defaultChat;
+	return chat !== undefined ? URI.parse(chat) : undefined;
+}
+
+function toUri(resource: string | undefined): URI | undefined {
+	return resource !== undefined ? URI.parse(resource) : undefined;
 }
 
 function toSessionChangesetOperationScope(scope: ChangesetOperationScope): SessionChangesetOperationScope {
@@ -547,6 +552,12 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			}
 		}
 
+		// Every user invocation (button bar, toolbars, Sync Changes, Create PR
+		// form, branch checkout) funnels through here, so this is the single
+		// place it is reported: after a confirmation was accepted and before the
+		// operation runs, so cancellations are excluded but failures are not.
+		this._options.onDidInvokeChangesetOperation?.(operationId, _meta);
+
 		this._setOperationLocallyRunning(operationId, true);
 		try {
 			return await connection.invokeChangesetOperation({
@@ -555,7 +566,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 				target: target?.kind === 'resource'
 					? {
 						kind: ChangesetOperationTargetKind.Resource,
-						resource: target.resource.toString()
+						resource: connection.resourceUris.toAgentHost(target.resource).toString()
 					}
 					: undefined,
 				_meta
@@ -656,7 +667,7 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 
 class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 	readonly id: string;
-	readonly label = localize('lastTurnChanges', "Last Turn Changes");
+	readonly label = localize('lastTurnChanges', "Last Turn");
 	readonly description = localize('lastTurnChangesDescription', "Show only changes made in the last turn");
 
 	readonly isDefault = observableValue(this, false);
@@ -697,7 +708,8 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 			? constObservable(chatUri)
 			: derivedOpts({ equalsFn: isEqual }, reader => {
 				const sessionState = sessionStateObs?.read(reader).read(reader);
-				return selectMostRecentChatUri(sessionState, sessionUri);
+				const advertised = sessionState && !(sessionState instanceof Error) ? sessionState.defaultChat : undefined;
+				return selectMostRecentChatUri(sessionState, advertised);
 			});
 
 		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
@@ -793,7 +805,7 @@ class AgentHostAgentMergeChangeset extends AbstractAgentHostChangeset {
 			options,
 			isActiveSessionObs,
 			StateComponents.Chat,
-			constObservable(chatUri ?? URI.parse(buildDefaultChatUri(sessionUri))),
+			constObservable(chatUri ?? toUri(options.getBackendDefaultChat(sessionUri, undefined))),
 		);
 
 		this.channelUriObs = derivedOpts({ equalsFn: isEqual }, reader => {

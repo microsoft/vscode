@@ -641,15 +641,27 @@ class DOMFocusController<T> implements IDisposable {
 			return;
 		}
 
-		// eslint-disable-next-line no-restricted-syntax
-		const tabIndexElement = focusedDomElement.querySelector('[tabIndex]');
+		const findTabbableElement = (element: HTMLElement): HTMLElement | undefined => {
+			for (const child of element.children) {
+				if (!isHTMLElement(child)) {
+					continue;
+				}
+				if (child.hasAttribute('tabIndex') && child.tabIndex !== -1 && !child.matches(':disabled')) {
+					const style = getWindow(child).getComputedStyle(child);
+					if (style.visibility !== 'hidden' && style.display !== 'none' && child.getClientRects().length > 0) {
+						return child;
+					}
+				}
+				const descendant = findTabbableElement(child);
+				if (descendant) {
+					return descendant;
+				}
+			}
+			return undefined;
+		};
+		const tabIndexElement = findTabbableElement(focusedDomElement);
 
-		if (!tabIndexElement || !(isHTMLElement(tabIndexElement)) || tabIndexElement.tabIndex === -1) {
-			return;
-		}
-
-		const style = getWindow(tabIndexElement).getComputedStyle(tabIndexElement);
-		if (style.visibility === 'hidden' || style.display === 'none') {
+		if (!tabIndexElement) {
 			return;
 		}
 
@@ -1630,6 +1642,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	updateElementHeight(index: number, size: number | undefined): void {
 		this.view.updateElementHeight(index, size, null);
+	}
+
+	withScrollAnchorAtBottom(fn: () => void): void {
+		this.view.withScrollAnchorAtBottom(fn);
 	}
 
 	rerender(): void {

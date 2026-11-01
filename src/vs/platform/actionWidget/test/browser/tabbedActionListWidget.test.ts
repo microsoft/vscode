@@ -30,6 +30,7 @@ import { TestAccessibilityService } from '../../../accessibility/test/common/tes
 import { Codicon } from '../../../../base/common/codicons.js';
 import { AnchorPosition } from '../../../../base/common/layout.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 
 interface ITestItem {
@@ -100,13 +101,13 @@ class FakeContextViewService implements Partial<IContextViewService> {
 	}
 }
 
-function createWidget(disposables: DisposableStore, motionReduced = true, contextViewService?: IContextViewService) {
+function createWidget(disposables: DisposableStore, motionReduced = true, contextViewService?: IContextViewService, hoverService: IHoverService = NullHoverService) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const contextView = new FakeContextViewService();
 	const onDidChangeReducedMotion = disposables.add(new Emitter<void>());
 	instantiationService.stub(IContextViewService, contextViewService ?? contextView as IContextViewService);
 	instantiationService.set(IKeybindingService, new MockKeybindingService());
-	instantiationService.set(IHoverService, NullHoverService);
+	instantiationService.set(IHoverService, hoverService);
 	instantiationService.set(IOpenerService, NullOpenerService);
 	instantiationService.set(IAccessibilityService, new class extends TestAccessibilityService {
 		override onDidChangeReducedMotion = onDidChangeReducedMotion.event;
@@ -223,6 +224,86 @@ suite('TabbedActionListWidget', () => {
 	test('construct + dispose without crashing', () => {
 		const { widget } = createWidget(disposables);
 		assert.strictEqual(widget.isVisible, false);
+	});
+
+	test('tab bar actions use managed hovers', () => {
+		const setupManagedHover = sinon.spy(NullHoverService.setupManagedHover);
+		const hoverService: IHoverService = { ...NullHoverService, setupManagedHover };
+		const { widget } = createWidget(disposables, true, undefined, hoverService);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			tabBarActions: [
+				{ id: 'workflow', icon: Codicon.layers, tooltip: 'Compare Models', useManagedHover: true, run: () => { } },
+				{ id: 'search', icon: Codicon.search, tooltip: 'Search Models', run: () => { } },
+			],
+			createActionList: () => ({ items: [] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		assert.deepStrictEqual({
+			managedHovers: setupManagedHover.getCalls().map(call => ({
+				action: call.args[1].dataset.id,
+				content: call.args[2],
+				nativeTitle: call.args[1].getAttribute('title'),
+			})),
+			searchTitle: document.querySelector<HTMLElement>('[data-id="search"]')?.title,
+		}, {
+			managedHovers: [{ action: 'workflow', content: 'Compare Models', nativeTitle: null }],
+			searchTitle: 'Search Models',
+		});
+	});
+
+	test('a disabled tab bar action explains why and does not run', () => {
+		const setupManagedHover = sinon.spy(NullHoverService.setupManagedHover);
+		const hoverService: IHoverService = { ...NullHoverService, setupManagedHover };
+		const { widget } = createWidget(disposables, true, undefined, hoverService);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		document.body.style.setProperty('--vscode-toolbar-hoverBackground', 'rgb(1, 2, 3)');
+		disposables.add({ dispose: () => { anchor.remove(); document.body.style.removeProperty('--vscode-toolbar-hoverBackground'); } });
+		let runs = 0;
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			tabBarActions: [
+				{ id: 'add', icon: Codicon.add, tooltip: 'Add Models...', checked: true, disabledReason: 'Not supported here', run: () => runs++ },
+				{ id: 'search', icon: Codicon.search, tooltip: 'Search Models', checked: true, run: () => { } },
+			],
+			createActionList: () => ({ items: [] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		const button = document.querySelector<HTMLElement>('[data-id="add"]')!;
+		button.click();
+		assert.deepStrictEqual({
+			label: button.getAttribute('aria-label'),
+			disabled: button.getAttribute('aria-disabled'),
+			description: button.getAttribute('aria-description'),
+			nativeTitle: button.getAttribute('title'),
+			managedHovers: setupManagedHover.getCalls().map(call => ({ action: call.args[1].dataset.id, content: call.args[2] })),
+			disabledClass: button.classList.contains('disabled'),
+			iconOpacity: mainWindow.getComputedStyle(button.querySelector('.codicon')!).opacity,
+			checkedBackground: mainWindow.getComputedStyle(button).backgroundColor,
+			enabledCheckedBackground: mainWindow.getComputedStyle(document.querySelector<HTMLElement>('[data-id="search"]')!).backgroundColor,
+			runs,
+		}, {
+			label: 'Add Models...',
+			disabled: 'true',
+			description: 'Not supported here',
+			nativeTitle: null,
+			managedHovers: [{ action: 'add', content: 'Not supported here' }],
+			disabledClass: true,
+			iconOpacity: '0.4',
+			checkedBackground: 'rgba(0, 0, 0, 0)',
+			enabledCheckedBackground: 'rgb(1, 2, 3)',
+			runs: 0,
+		});
 	});
 
 	test('Escape from a Details radio dismisses the entire popup, including retained search', async () => {
@@ -391,6 +472,70 @@ suite('TabbedActionListWidget', () => {
 		widget.hide();
 	});
 
+	test('Left collapses and Right expands a collapsible section like a tree', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const toggles: boolean[] = [];
+		const requested: string[] = [];
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			createActionList: () => ({
+				items: [
+					action('promoted'),
+					{ ...action('other-models'), section: 'other', isSectionToggle: true },
+					...['a', 'b'].map(id => ({ ...action(id), section: 'other' })),
+				],
+				listOptions: { collapsedByDefault: new Set(['other']), onDidToggleSection: (_, collapsed) => toggles.push(collapsed) },
+			}),
+			openItemDetails: item => {
+				requested.push(item.item!.id);
+				return false;
+			},
+			delegate: { onSelect: () => assert.fail('Arrows must not select'), onHide: () => { } },
+		});
+		const popup = contextView.getContextViewElement();
+		const list = popup.querySelector<HTMLElement>('.monaco-list')!;
+		const press = (key: 'ArrowLeft' | 'ArrowRight' | 'ArrowDown') => {
+			const event = new KeyboardEvent('keydown', { key, keyCode: key === 'ArrowLeft' ? 37 : key === 'ArrowRight' ? 39 : 40, bubbles: true, cancelable: true });
+			list.dispatchEvent(event);
+			return event.defaultPrevented;
+		};
+		// Count rows through aria-setsize: the list is virtualized, so a small viewport renders only some of them.
+		const state = () => {
+			const focusedRow = popup.querySelector('.monaco-list-row.focused');
+			return {
+				visibleRows: focusedRow?.getAttribute('aria-setsize'),
+				focused: focusedRow?.querySelector('.title')?.textContent,
+				expanded: popup.querySelector('.monaco-list-row[aria-expanded]')?.getAttribute('aria-expanded'),
+			};
+		};
+		const leftOnUnsectioned = press('ArrowLeft');
+		press('ArrowDown');
+		const leftOnCollapsed = press('ArrowLeft');
+		const expand = press('ArrowRight');
+		const afterExpand = state();
+		const rightOnExpanded = press('ArrowRight');
+		press('ArrowDown');
+		const rightOnChild = press('ArrowRight');
+		const collapseFromChild = press('ArrowLeft');
+		const afterCollapse = state();
+		assert.deepStrictEqual({ leftOnUnsectioned, leftOnCollapsed, expand, afterExpand, rightOnExpanded, rightOnChild, collapseFromChild, afterCollapse, toggles, requested }, {
+			leftOnUnsectioned: false,
+			leftOnCollapsed: false,
+			expand: true,
+			afterExpand: { visibleRows: '4', focused: 'other-models', expanded: 'true' },
+			rightOnExpanded: false,
+			rightOnChild: false,
+			collapseFromChild: true,
+			afterCollapse: { visibleRows: '2', focused: 'other-models', expanded: 'false' },
+			toggles: [false, true],
+			requested: ['a'],
+		});
+		widget.hide();
+	});
+
 	test('details defer list updates and restore toolbar focus after pin-like changes', async () => {
 		const { widget, contextView } = createWidget(disposables);
 		let builds = 0;
@@ -543,6 +688,32 @@ suite('TabbedActionListWidget', () => {
 		});
 		const rows = contextView.getContextViewElement().querySelectorAll('.monaco-list-row .title');
 		assert.deepStrictEqual(Array.from(rows, row => row.textContent), ['first', 'second']);
+	});
+
+	test('Enter on a row switch is left to the switch instead of selecting the row', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const changes: boolean[] = [];
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			createActionList: () => ({
+				items: [{ ...action('model'), inlineToggle: { label: 'Use in Auto', checked: true, onChange: checked => changes.push(checked) } }],
+			}),
+			delegate: { onSelect: () => assert.fail('The switch must not select the row'), onHide: () => { } },
+		});
+		const toggle = contextView.getContextViewElement().querySelector<HTMLButtonElement>('.action-list-item-inline-toggle .monaco-switch')!;
+		toggle.focus();
+		const enter = new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true });
+		toggle.dispatchEvent(enter);
+		// A synthetic keydown has no default action, so emulate the button's native activation.
+		if (!enter.defaultPrevented) {
+			toggle.click();
+		}
+		assert.deepStrictEqual({ enterPrevented: enter.defaultPrevented, changes, checked: toggle.getAttribute('aria-checked'), visible: widget.isVisible }, {
+			enterPrevented: false, changes: [false], checked: 'false', visible: true,
+		});
 	});
 
 	test('details scroll independently and retain a fixed Back button', async () => {
@@ -867,6 +1038,84 @@ suite('TabbedActionListWidget', () => {
 			widget.hide();
 		});
 	}
+
+	test('a size-preserving refresh keeps the popup height and skips re-measuring the sizing tab', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		anchor.style.cssText = 'position: fixed; top: 600px; width: 120px; height: 20px;';
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		let itemCount = 3;
+		let sizingBuilds = 0;
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Local' }, { id: 'Remote' }],
+			initialTab: 'Local',
+			sizingTab: 'Local',
+			width: 300,
+			createActionList: (_tab, forSizing) => {
+				if (forSizing) {
+					sizingBuilds++;
+				}
+				return { items: Array.from({ length: itemCount }, (_, index) => action(`item-${index}`)), listOptions: { anchorPosition: AnchorPosition.ABOVE } };
+			},
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		const popup = contextView.getContextViewElement().querySelector<HTMLElement>('.action-widget')!;
+		const initialHeight = popup.offsetHeight;
+		const initialBuilds = sizingBuilds;
+		itemCount = 8;
+		widget.refreshActiveList({ preserveSize: true });
+		const preserved = { sameHeight: popup.offsetHeight === initialHeight, sizingBuilds: sizingBuilds - initialBuilds };
+		widget.refreshActiveList();
+		assert.deepStrictEqual({ preserved, remeasured: { grew: popup.offsetHeight > initialHeight, sizingBuilds: sizingBuilds - initialBuilds } }, {
+			preserved: { sameHeight: true, sizingBuilds: 0 },
+			remeasured: { grew: true, sizingBuilds: 1 },
+		});
+	});
+
+	test('a refresh deferred while details are open keeps its size-preserving request', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		anchor.style.cssText = 'position: fixed; top: 600px; width: 120px; height: 20px;';
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		let itemCount = 3;
+		let sizingBuilds = 0;
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Local' }, { id: 'Remote' }],
+			initialTab: 'Local',
+			sizingTab: 'Local',
+			width: 300,
+			createActionList: (_tab, forSizing) => {
+				if (forSizing) {
+					sizingBuilds++;
+				}
+				return { items: Array.from({ length: itemCount }, (_, index) => action(`item-${index}`)), listOptions: { anchorPosition: AnchorPosition.ABOVE } };
+			},
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		const popup = contextView.getContextViewElement().querySelector<HTMLElement>('.action-widget')!;
+		const initialHeight = popup.offsetHeight;
+		const refreshWhileDetailsOpen = (options?: { preserveSize: boolean; preserveScrollPosition: boolean }) => {
+			widget.showDetails({ label: 'Details', backLabel: 'Back', render: container => { container.textContent = 'Details'; return { dispose: () => { } }; } });
+			itemCount++;
+			widget.refreshActiveList(options);
+			const builds = sizingBuilds;
+			widget.hideDetails();
+			return { sameHeight: popup.offsetHeight === initialHeight, sizingBuilds: sizingBuilds - builds };
+		};
+		assert.deepStrictEqual({
+			preserved: refreshWhileDetailsOpen({ preserveSize: true, preserveScrollPosition: true }),
+			remeasured: refreshWhileDetailsOpen(),
+		}, {
+			preserved: { sameHeight: true, sizingBuilds: 0 },
+			remeasured: { sameHeight: false, sizingBuilds: 1 },
+		});
+	});
 
 	test('refresh keeps the popup open when rebuilding removes the focused card control', async () => {
 		const { widget, contextView } = createWidget(disposables);
@@ -1378,6 +1627,57 @@ suite('TabbedActionListWidget', () => {
 				afterShrinking: { keepsLabel: false, marked: false },
 			},
 		);
+		widget.hide();
+	});
+
+	test('an image tab icon is drawn by the tab, with or without its label', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [
+				{ id: 'Local', label: 'Local models', icon: Codicon.deviceDesktop },
+				{ id: 'Provider', label: 'Provider models', icon: { light: URI.file('/provider-light.svg'), dark: URI.file('/provider-dark.svg') } },
+			],
+			initialTab: 'Local',
+			tabLabels: 'active',
+			createActionList: () => ({ items: [action('a')] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+
+		const tabs = () => {
+			const popups = [...document.querySelectorAll<HTMLElement>('.action-widget')]
+				.filter(popup => popup.querySelector('.tabbed-action-list-tabstrip'));
+			return [...popups[popups.length - 1].querySelectorAll<HTMLElement>('.tabbed-action-list-tabstrip .monaco-button')];
+		};
+		// The popup's container stands in for the workbench, which carries the theme class.
+		const imageIn = (tab: HTMLElement, theme: 'light' | 'dark') => {
+			contextView.getContextViewElement().classList.toggle('vs-dark', theme === 'dark');
+			const backgroundImage = mainWindow.getComputedStyle(tab, '::before').backgroundImage;
+			return backgroundImage.includes('provider-light.svg') ? 'light' : backgroundImage.includes('provider-dark.svg') ? 'dark' : undefined;
+		};
+		const describe = () => tabs().map(tab => ({
+			text: tab.textContent,
+			codicon: !!tab.querySelector('.codicon'),
+			images: [imageIn(tab, 'light'), imageIn(tab, 'dark')],
+			opacity: mainWindow.getComputedStyle(tab, '::before').opacity,
+			// An image-only tab has no text, but must still look and act like the other tabs.
+			textButton: tab.classList.contains('monaco-text-button'),
+		}));
+		const before = describe();
+		tabs()[1].click();
+
+		// Inactive tabs mute their codicons through color, which an image can only follow by fading.
+		const codiconTab = { codicon: true, images: [undefined, undefined], opacity: '1', textButton: true };
+		const imageTab = { codicon: false, images: ['light', 'dark'], textButton: true };
+		assert.deepStrictEqual({ before, after: describe() }, {
+			before: [{ text: 'Local models', ...codiconTab }, { text: '', ...imageTab, opacity: '0.7' }],
+			after: [{ text: '', ...codiconTab }, { text: 'Provider models', ...imageTab, opacity: '1' }],
+		});
 		widget.hide();
 	});
 

@@ -17,7 +17,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { getPermissionLevelBadge } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
-import { DEFAULT_PERMISSION_LEVELS, IPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
+import { IPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 
@@ -62,21 +62,17 @@ export class MobilePermissionPicker extends PermissionPicker {
 			return;
 		}
 
-		const policyRestricted = this._isPolicyRestricted();
-
-		const levels = this._delegate.availableLevels ?? DEFAULT_PERMISSION_LEVELS;
-		const items: IMobilePickerSheetItem[] = levels.map(level => {
+		const items: IMobilePickerSheetItem[] = this._getOfferedLevels().map(level => {
 			const meta = this._getPermissionLevelMeta(level);
+			const unavailable = this._getUnavailablePresentation(level);
 			return {
 				id: level,
 				label: meta.label,
-				badge: getPermissionLevelBadge(level).badge,
-				description: meta.detail,
+				badge: getPermissionLevelBadge(level, !!unavailable).badge,
+				description: unavailable ? unavailable.plainText : meta.detail,
 				icon: meta.icon,
 				checked: this._currentLevel === level,
-				// Default is never policy-restricted; elevated levels are
-				// disabled when enterprise policy turns off auto-approval.
-				...(level !== ChatPermissionLevel.Default && policyRestricted ? { disabled: true } : {}),
+				...(unavailable ? { disabled: true } : {}),
 			} satisfies IMobilePickerSheetItem;
 		});
 		items.push({

@@ -68,6 +68,10 @@ Use `scripts/test.sh` (or `scripts\test.bat` on Windows) for unit tests and `scr
 
 ## Coding Guidelines
 
+### Markdown
+
+- Do not hard-wrap Markdown prose to a fixed line width. Keep each paragraph on one source line and let the editor or renderer wrap it naturally. Preserve structural line breaks in lists, tables, code blocks, and intentional Markdown hard breaks.
+
 ### Indentation
 
 We use tabs, not spaces.
@@ -155,4 +159,4 @@ function f(x: number, y: string): void { }
 
 ## Learnings
 - Minimize the amount of assertions in tests. Prefer one snapshot-style `assert.deepStrictEqual` over multiple precise assertions, as they are much more difficult to understand and to update.
-- Do not stub a global object (e.g. `(mainWindow as any).ResizeObserver = ...`) or use `any` casts to install fakes in tests. Instead, make the dependency injectable: add an optional constructor parameter on the production class that defaults to the real implementation (e.g. `targetWindow.ResizeObserver`), and have the test pass a fake that implements the real interface.
+- Do not stub a global object (e.g. `(mainWindow as any).ResizeObserver = ...`) or use `any` casts to install fakes in tests. Instead, make the dependency injectable: add an optional constructor parameter on the production class that defaults to the real implementation (e.g. `dom.DisposableResizeObserver`'s `resizeObserverCtor` option, which defaults to `targetWindow.ResizeObserver`), and have the test pass a fake that implements the real interface.

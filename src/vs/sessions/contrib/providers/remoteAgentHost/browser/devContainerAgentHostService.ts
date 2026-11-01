@@ -176,7 +176,7 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 				AgentHostProtocolClient,
 				entry.connection.address,
 				connection.transportFactory,
-				{ clientInfo: agentsWindowAgentHostClientInfo, reconnectPolicy: getEntryTypeConfig(RemoteAgentHostEntryType.DevContainer).reconnect },
+				{ clientInfo: agentsWindowAgentHostClientInfo, reconnectPolicy: getEntryTypeConfig(RemoteAgentHostEntryType.DevContainer).reconnect, clientCertificates: connection.clientCertificates },
 			);
 			staged.initialConnection = undefined;
 			staged.sandboxSupported = connection.sandboxSupported;
@@ -260,6 +260,26 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 
 	isAvailable(workspaceUri: URI): Promise<boolean> {
 		return this._connector?.isAvailable(workspaceUri) ?? Promise.resolve(false);
+	}
+
+	getWorkspaces(): readonly { readonly workspaceUri: URI; readonly name: string }[] {
+		return [...this._storedConnections.values()].map(connection => ({
+			workspaceUri: URI.parse(connection.workspaceUri),
+			name: connection.name,
+		}));
+	}
+
+	addWorkspace(workspaceUri: URI, name: string): void {
+		this._ensureProvider(workspaceUri, name);
+		this._storeConnection(workspaceUri, name);
+		this._onDidChangeAvailability.fire();
+	}
+
+	async removeWorkspace(workspaceUri: URI): Promise<void> {
+		await this.disconnect(workspaceUri);
+		const key = getComparisonKey(workspaceUri);
+		this._removeStoredConnection(key);
+		this._removeProvider(key);
 	}
 
 	getSandboxSupported(workspaceUri: URI): boolean | undefined {
@@ -482,6 +502,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			address,
 			name,
 			devContainerSourceWorkspaceUri: workspaceUri,
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- keys the Dev Container worktree scope by the source host filesystem URI before connecting
 			devContainerWorktreeScope: findDevContainerSample(workspaceUri) ? undefined : getComparisonKey(fromAgentHostUri(workspaceUri)),
 			resolveDevContainerWorktreeConnection: workspaceUri.scheme === AGENT_HOST_SCHEME
 				? () => resolveDevContainerSourceConnection(workspaceUri, this._remoteAgentHostService, this._sessionsProvidersService, CancellationToken.None)

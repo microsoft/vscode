@@ -4,18 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot, SessionCatalogSyncTransitionResult, SessionCatalogSyncWriteResult, SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
+import { ISessionDataService, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
 import { META_GIT_STATE } from '../../common/agentHostGitStateService.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostCatalogSyncService, replayPendingCatalogSnapshot } from '../../node/agentHostCatalogSyncService.js';
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
+import { AgentHostSessionStateStore } from '../../node/agentHostSessionStateStore.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 const session = URI.parse('agenthost:test-session');
@@ -120,6 +123,12 @@ class RecordingCatalogDatabase extends AgentHostDatabase {
 suite('AgentHostCatalogSyncService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function syncStore(service: ISessionDataService): AgentHostSessionStateStore {
+		const database = new AgentHostDatabase(':memory:');
+		store.add(toDisposable(() => { void database.close(); }));
+		return store.add(createTestSessionStateStore(database, service));
+	}
+
 	async function createHarness(order?: string[]) {
 		const local = new RecordingSessionDatabase(order);
 		const central = store.add(new RecordingCatalogDatabase(order));
@@ -131,7 +140,7 @@ suite('AgentHostCatalogSyncService', () => {
 		return {
 			local,
 			central,
-			service: new AgentHostCatalogSyncService(createSessionDataService(local), central, new NullLogService()),
+			service: new AgentHostCatalogSyncService(createSessionDataService(local), central, syncStore(createSessionDataService(local)), new NullLogService()),
 		};
 	}
 
@@ -206,13 +215,35 @@ suite('AgentHostCatalogSyncService', () => {
 		});
 	});
 
+	test('acknowledges a normalized write that replays an acknowledged receipt', async () => {
+		const { local, central, service } = await createHarness();
+		await service.synchronize(session, { data: data('initial', 'Chat'), legacyMetadata: {} });
+		const snapshot = await activateChatCatalog(central);
+		const request = {
+			data: { ...data('aggregate'), chats: chatCatalogV2ToCatalogChats(snapshot) },
+			legacyMetadata: {},
+			chatCatalogRevision: snapshot.header.revision,
+		};
+		const first = await service.synchronize(session, request);
+		const replayed = await service.synchronize(session, request);
+		assert.deepStrictEqual({
+			first,
+			replayed,
+			receipt: (await local.getCatalogSyncSnapshot())?.state,
+		}, {
+			first: { status: 'acknowledged', sourceRevision: 1 },
+			replayed: { status: 'acknowledged', sourceRevision: 1 },
+			receipt: 'acknowledged',
+		});
+	});
+
 	for (const localStorage of [false, true]) {
 		test(`rebuilds normalized requests after a catalog revision conflict ${localStorage ? 'with' : 'without'} local storage`, async () => {
 			const { local, central, service } = await createHarness();
 			await service.synchronize(session, { data: data('initial', 'Chat'), legacyMetadata: {} });
 			await activateChatCatalog(central);
 			const sessionData = createSessionDataService(local);
-			const syncing = localStorage ? service : new AgentHostCatalogSyncService({ ...sessionData, tryOpenDatabase: async () => undefined }, central, new NullLogService());
+			const syncing = localStorage ? service : new AgentHostCatalogSyncService({ ...sessionData, tryOpenDatabase: async () => undefined }, central, syncStore(sessionData), new NullLogService());
 			const revisions: number[] = [];
 			const result = await syncing.synchronizeMigrationWithFactory(session, async () => {
 				const [snapshot] = await central.readCatalogSnapshot([session.toString()]);
@@ -294,7 +325,7 @@ suite('AgentHostCatalogSyncService', () => {
 				}
 			}
 		}();
-		const service = new AgentHostCatalogSyncService(createSessionDataService(local), central, logService);
+		const service = new AgentHostCatalogSyncService(createSessionDataService(local), central, syncStore(createSessionDataService(local)), logService);
 		const started = new DeferredPromise<void>();
 		const release = new DeferredPromise<void>();
 		const blocker = service.runExclusive(session, async () => {
@@ -339,7 +370,7 @@ suite('AgentHostCatalogSyncService', () => {
 				}
 			}
 		}();
-		const service = new AgentHostCatalogSyncService(createSessionDataService(local), central, logService);
+		const service = new AgentHostCatalogSyncService(createSessionDataService(local), central, syncStore(createSessionDataService(local)), logService);
 		local.failLocalWrite = true;
 
 		await assert.rejects(service.synchronize(session, { data: data('one'), legacyMetadata: {} }), /local write failed/);
@@ -407,7 +438,7 @@ suite('AgentHostCatalogSyncService', () => {
 				return undefined;
 			},
 		};
-		const service = new AgentHostCatalogSyncService(sessionDataService, central, new NullLogService());
+		const service = new AgentHostCatalogSyncService(sessionDataService, central, syncStore(sessionDataService), new NullLogService());
 
 		const result = await service.synchronizeMigrationWithFactory(session, async () => ({
 			data: data('migrated'),
@@ -457,7 +488,7 @@ suite('AgentHostCatalogSyncService', () => {
 		const service = new AgentHostCatalogSyncService({
 			...createSessionDataService(),
 			tryOpenDatabase: async () => undefined,
-		}, central, new NullLogService());
+		}, central, syncStore(createSessionDataService()), new NullLogService());
 
 		const result = await service.synchronizeMigrationWithFactory(session, async () => ({ data: data('migration'), legacyMetadata: {} }));
 		const catalog = await central.getSessionV2(session.toString());
@@ -484,7 +515,7 @@ suite('AgentHostCatalogSyncService', () => {
 		const service = new AgentHostCatalogSyncService({
 			...createSessionDataService(),
 			tryOpenDatabase: async () => undefined,
-		}, central, new NullLogService());
+		}, central, syncStore(createSessionDataService()), new NullLogService());
 
 		assert.deepStrictEqual(
 			await service.synchronizeMigrationWithFactory(session, async () => ({ data: data('migration'), legacyMetadata: {} })),
@@ -525,7 +556,7 @@ suite('AgentHostCatalogSyncService', () => {
 		const service = new AgentHostCatalogSyncService({
 			...createSessionDataService(),
 			tryOpenDatabase: async () => { throw new Error('probe failed'); },
-		}, central, new NullLogService());
+		}, central, syncStore(createSessionDataService()), new NullLogService());
 
 		await assert.rejects(
 			service.synchronizeMigrationWithFactory(session, async () => ({ data: data('migrated'), legacyMetadata: {} })),
@@ -545,7 +576,7 @@ suite('AgentHostCatalogSyncService', () => {
 		const service = new AgentHostCatalogSyncService({
 			...createSessionDataService(),
 			tryOpenDatabase: async () => undefined,
-		}, central, new NullLogService());
+		}, central, syncStore(createSessionDataService()), new NullLogService());
 
 		const result = await service.synchronizeMigrationWithFactory(session, async () => ({ data: data('migrated'), legacyMetadata: {} }));
 
@@ -589,7 +620,7 @@ suite('AgentHostCatalogSyncService', () => {
 		const service = new AgentHostCatalogSyncService({
 			...createSessionDataService(),
 			tryOpenDatabase: async () => undefined,
-		}, central, new NullLogService());
+		}, central, syncStore(createSessionDataService()), new NullLogService());
 
 		const result = await service.synchronizeMigrationWithFactory(session, async () => ({ data: data('stale migration'), legacyMetadata: {} }));
 		const winner = await central.getSessionV2(session.toString());
@@ -611,6 +642,51 @@ suite('AgentHostCatalogSyncService', () => {
 
 		await assert.rejects(service.synchronize(session, { data: data('one'), legacyMetadata: { customTitle: 'one' } }), /local write failed/);
 		assert.deepStrictEqual(central.calls, ['get']);
+	});
+
+	test('keeps the central adoption of a write only if session.db takes it, also across generation retries', async () => {
+		// Scripts what session.db answers to the generation transitions; afterwards, they run for real.
+		const synchronizeWithTransitions = async (transitions: SessionCatalogSyncTransitionResult[]) => {
+			class ScriptedTransitionDatabase extends RecordingSessionDatabase {
+				override async transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncTransitionResult> {
+					return transitions.shift() ?? super.transitionMetadataValuesAndCatalogSyncSnapshot(values, expectedSessionGeneration, snapshot, validate);
+				}
+			}
+			const local = new ScriptedTransitionDatabase();
+			// A receipt of an older generation makes the synchronization transition it
+			const encoded = encodeAgentHostCatalogPayload(data('Original'));
+			if (!encoded.ok) {
+				throw new Error(encoded.error);
+			}
+			const receipt = { sessionGeneration: 'older-generation', sourceRevision: 0, projectionVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION, payloadHash: encoded.value.payloadHash };
+			await local.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Original' }, { ...receipt, payload: encoded.value.payload, state: 'pending' });
+			await local.acknowledgeCatalogSyncSnapshot(receipt);
+			const central = store.add(new RecordingCatalogDatabase());
+			await central.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			const sessionDataService = createSessionDataService(local);
+			const sessionStateStore = store.add(createTestSessionStateStore(central, sessionDataService));
+			const service = new AgentHostCatalogSyncService(sessionDataService, central, sessionStateStore, new NullLogService());
+			// A loaded session synchronizes through central state, which adopts the request's values
+			await sessionStateStore.load(session);
+
+			const result = await service.synchronize(session, { data: data('Superseded'), legacyMetadata: { customTitle: 'Superseded' } });
+			const centralTitle = sessionStateStore.legacyMetadata(session, ['customTitle']).values.customTitle;
+			await sessionStateStore.whenIdle(session);
+			return { status: result.status, reason: result.status === 'pending' ? result.reason : undefined, centralTitle, localTitle: await local.getMetadata('customTitle') };
+		};
+
+		assert.deepStrictEqual({
+			applied: await synchronizeWithTransitions([]),
+			cancelled: await synchronizeWithTransitions(['cancelled']),
+			mismatchedThenCancelled: await synchronizeWithTransitions(['generationMismatch', 'cancelled']),
+			mismatchedOnEveryRetry: await synchronizeWithTransitions(['generationMismatch', 'generationMismatch', 'generationMismatch']),
+		}, {
+			applied: { status: 'acknowledged', reason: undefined, centralTitle: 'Superseded', localTitle: 'Superseded' },
+			cancelled: { status: 'pending', reason: 'cancelled', centralTitle: 'Original', localTitle: 'Original' },
+			// The retry starts from the original values, not from the adoption of the mismatched attempt
+			mismatchedThenCancelled: { status: 'pending', reason: 'cancelled', centralTitle: 'Original', localTitle: 'Original' },
+			mismatchedOnEveryRetry: { status: 'pending', reason: 'generationMismatch', centralTitle: 'Original', localTitle: 'Original' },
+		});
 	});
 
 	test('retains the pending payload when the central upsert fails', async () => {
@@ -738,7 +814,7 @@ suite('AgentHostCatalogSyncService', () => {
 			startTime: 1,
 			source: 'explicit',
 		}, { checkTombstone: false });
-		const service = new AgentHostCatalogSyncService(createSessionDataService(local), central, new NullLogService());
+		const service = new AgentHostCatalogSyncService(createSessionDataService(local), central, syncStore(createSessionDataService(local)), new NullLogService());
 		await service.synchronize(session, { data: data('pending'), legacyMetadata: {} });
 		central.failUpsert = false;
 		const started = new DeferredPromise<void>();
@@ -999,7 +1075,7 @@ suite('AgentHostCatalogSyncService', () => {
 		test(`serializes a ${operation} through another URI for the same session database`, async () => {
 			const local = store.add(await SessionDatabase.open(':memory:'));
 			const central = store.add(new AgentHostDatabase(':memory:'));
-			const service = new AgentHostCatalogSyncService(createSessionDataService(local), central, new NullLogService());
+			const service = new AgentHostCatalogSyncService(createSessionDataService(local), central, syncStore(createSessionDataService(local)), new NullLogService());
 			const legacySession = URI.parse('codex:/shared-session');
 			const standardSession = URI.parse('ahp-session:/shared-session');
 			for (const resource of [legacySession, standardSession]) {

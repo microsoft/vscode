@@ -22,6 +22,10 @@ export type ChatLinkPresentationStatusKind = LinkPresentationStatusKind;
 export type IChatLinkPresentationStatus = ILinkPresentationStatus;
 export type IChatLinkPresentation = ILinkPresentation;
 
+/**
+ * Applies rich presentation metadata to an existing link. Link owners remain
+ * responsible for activation behavior, including modifier-key handling.
+ */
 export class ChatRichLink implements IDisposable {
 	static mount(element: HTMLElement, authoredLabel: HTMLSpanElement): ChatRichLink {
 		return new ChatRichLink(element, authoredLabel);

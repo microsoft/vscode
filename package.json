@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.142.0",
-  "distro": "a0e7521b2a1e3289e4118fad155277b200aebd35",
+  "version": "1.145.0",
+  "distro": "165a83e58ea80a0a4a0a4332c175f1399b5be61e",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -84,8 +84,9 @@
     "stylelint": "node build/stylelint.ts",
     "playwright-install": "npm exec playwright install",
     "compile-extensions-build": "npm run gulp compile-extensions-build",
-    "hygiene": "npm run gulp hygiene",
+    "hygiene": "npm run gulp -- hygiene",
     "core-ci": "npm run gulp core-ci",
+    "core-ci-pr": "npm run gulp core-ci-pr",
     "perf": "node scripts/code-perf.js",
     "perf:css": "node .github/skills/auto-perf-optimize/scripts/workbench-css-performance.mts",
     "perf:chat": "node scripts/chat-simulation/test-chat-perf-regression.js",
@@ -102,7 +103,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@devcontainers/cli": "0.88.0",
-    "@github/copilot-sdk": "1.0.19-preview.0",
+    "@github/copilot-sdk": "1.0.27-unstable.40031404408.gba6c003",
     "@hpke/core": "^1.9.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
@@ -113,7 +114,7 @@
     "@microsoft/dev-tunnels-ssh-tcp": "^3.12.22",
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
-    "@vscode/codicons": "^0.0.46-44",
+    "@vscode/codicons": "^0.0.46-49",
     "@vscode/copilot-api": "^0.5.2",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/diff": "0.0.2-7",
@@ -121,7 +122,7 @@
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",
     "@vscode/os-proxy-resolver": "^0.4.0",
-    "@vscode/policy-watcher": "^1.6.0",
+    "@vscode/policy-watcher": "^1.7.0",
     "@vscode/proxy-agent": "^0.45.0",
     "@vscode/ripgrep-universal": "^1.18.0",
     "@vscode/sandbox-runtime": "0.0.1",
@@ -145,7 +146,7 @@
     "@xterm/xterm": "^6.1.0-beta.304",
     "chrome-remote-interface": "^0.33.0",
     "detect-libc": "^2.1.2",
-    "foundry-local-sdk": "2.0.1",
+    "foundry-local-sdk": "2.2.1",
     "http-proxy-agent": "^7.0.0",
     "https-proxy-agent": "^7.0.2",
     "jschardet": "3.1.4",
@@ -156,7 +157,7 @@
     "native-is-elevated": "0.9.0",
     "native-keymap": "^3.3.5",
     "node-addon-api": "^6.0.0",
-    "node-pty": "^1.2.0-beta.15",
+    "node-pty": "^1.2.0-beta.18",
     "open": "^10.1.2",
     "playwright-core": "1.61.0-alpha-2026-06-04",
     "ssh2": "^1.16.0",
@@ -172,9 +173,9 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.3.281",
+    "@anthropic-ai/claude-agent-sdk": "0.3.304",
     "@eslint/compat": "^2.1.0",
-    "@openai/codex": "0.157.0",
+    "@openai/codex": "0.163.0",
     "@playwright/cli": "^0.1.9",
     "@playwright/test": "^1.61.1",
     "@stylistic/eslint-plugin": "^5.10.0",
@@ -298,13 +299,13 @@
   "allowScripts": {
     "bufferutil@4.1.0": true,
     "cpu-features": false,
-    "foundry-local-sdk@2.0.1": true,
+    "foundry-local-sdk@2.2.1": true,
     "kerberos@2.1.1": true,
     "koffi@3.2.1": false,
     "native-keymap@3.3.9": true,
     "protobufjs@7.6.5": false,
     "native-is-elevated@0.9.0": true,
-    "node-pty@1.2.0-beta.15": true,
+    "node-pty@1.2.0-beta.18": true,
     "utf-8-validate@5.0.10": true,
     "windows-foreground-love@0.6.1": true,
     "@parcel/watcher@2.5.6": true,
@@ -313,7 +314,6 @@
     "@vscode/native-watchdog@1.4.6": true,
     "@vscode/ripgrep@1.17.1": true,
     "@vscode/deviceid@0.1.5": true,
-    "@vscode/policy-watcher@1.6.0": true,
     "@vscode/spdlog@0.15.8": true,
     "@vscode/sqlite3@5.1.12-vscode": true,
     "@vscode/windows-registry@1.3.0": true,
@@ -324,7 +324,8 @@
     "es5-ext": false,
     "husky": false,
     "@vscode/windows-ca-certs@0.3.4": true,
-    "@vscode/windows-process-tree@0.8.0": true
+    "@vscode/windows-process-tree@0.8.0": true,
+    "@vscode/policy-watcher@1.7.0": true
   },
-  "copilotRuntimeVersion": "1.0.95-0"
+  "copilotRuntimeVersion": "1.0.103-unstable.r40031404408.gba6c003"
 }

@@ -147,6 +147,25 @@ suite('modelRequestProjection', () => {
 		), false);
 	});
 
+	test('Git diff path prefixes match across platforms without eliding authored content', () => {
+		const diff = (prefix: string, text = 'preserved-content') => [
+			`diff --git a${prefix}\${workdir}/file b${prefix}\${workdir}/file`,
+			'new file mode 100644',
+			'--- /dev/null',
+			`+++ b${prefix}\${workdir}/file`,
+			'@@ -0,0 +1 @@',
+			`+${text}`,
+		].join('\n');
+		const project = (content: string) => projectModelRequest(request([{ role: 'user', content }]));
+		const expected = project(diff(''));
+		assert.deepStrictEqual([
+			modelRequestsMatch(expected, project(diff('/'))),
+			modelRequestsMatch(expected, project(diff('\\'))),
+			modelRequestsMatch(expected, project(diff('/', 'different-content'))),
+			modelRequestsMatch(expected, project(diff('/').replace('@@ -0,0 +1 @@', '@@ -0,0 +2 @@'))),
+		], [true, true, false, false]);
+	});
+
 	test('prose that merely contains a slash is left alone', () => {
 		const prose = [
 			'use a 3/4 ratio',

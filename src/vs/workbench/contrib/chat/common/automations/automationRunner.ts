@@ -25,6 +25,8 @@ export type AutomationDispatchFailure =
 export type IAutomationRunDispatch =
 	/** Dispatch was acknowledged without a correlated run or session. */
 	| { readonly kind: 'accepted' }
+	/** The request may have been accepted, but its outcome needs reconciliation. */
+	| { readonly kind: 'uncertain'; readonly message: string }
 	/** The host accepted the request and created a session for it. */
 	| { readonly kind: 'started'; readonly run: IAutomationRun; readonly sessionResource: URI }
 	/** Another run already held the automation's run slot, so nothing was dispatched. */

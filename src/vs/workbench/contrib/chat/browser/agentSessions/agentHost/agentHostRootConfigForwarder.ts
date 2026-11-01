@@ -7,7 +7,9 @@ import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
+import { AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { CopilotCliConfigKey } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ROOT_STATE_URI } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 
@@ -18,9 +20,9 @@ import { ROOT_STATE_URI } from '../../../../../../platform/agentHost/common/stat
  */
 export interface IForwardedRootConfigKey {
 	/** The root-config key this descriptor owns. */
-	readonly key: AgentHostConfigKey | CopilotCliConfigKey;
+	readonly key: AgentHostConfigKey | CopilotCliConfigKey | SessionConfigKey.Permissions | typeof AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey;
 
-	/** Compute the desired value; return `undefined` to skip the push. May be async. */
+	/** Compute the desired value; return `undefined` when unavailable to preserve the shared value. May be async. */
 	computeValue(): unknown | Promise<unknown>;
 
 	/** Wire up the triggers that should re-push this key; add disposables to `store`, call `push`. */
@@ -66,7 +68,7 @@ export class AgentHostRootConfigForwarder extends Disposable {
 	 * Managed keys whose schema the host has already advertised, so a key is
 	 * re-pushed only when its schema *first* appears (see {@link _onRootStateChanged}).
 	 */
-	private readonly _schemaSeen = new Set<AgentHostConfigKey | CopilotCliConfigKey>();
+	private readonly _schemaSeen = new Set<IForwardedRootConfigKey['key']>();
 
 	constructor(
 		private readonly _keys: readonly IForwardedRootConfigKey[],
@@ -133,7 +135,7 @@ export class AgentHostRootConfigForwarder extends Disposable {
 		}
 	}
 
-	private _schemaHasKey(key: AgentHostConfigKey | CopilotCliConfigKey): boolean {
+	private _schemaHasKey(key: IForwardedRootConfigKey['key']): boolean {
 		const rootState = this._agentHostService.rootState.value;
 		if (!rootState || rootState instanceof Error) {
 			return false;
@@ -149,7 +151,8 @@ export class AgentHostRootConfigForwarder extends Disposable {
 	 * re-dispatches an unchanged object value.
 	 */
 	private async _push(entry: IForwardedRootConfigKey): Promise<void> {
-		if (!this._schemaHasKey(entry.key)) {
+		const listeners = this._listeners.value;
+		if (!listeners || !this._schemaHasKey(entry.key)) {
 			return;
 		}
 
@@ -165,7 +168,7 @@ export class AgentHostRootConfigForwarder extends Disposable {
 
 		// Re-check after the await: a host restart / schema refresh may have landed
 		// while we resolved, so never dispatch a key the current schema dropped.
-		if (!this._schemaHasKey(entry.key)) {
+		if (this._listeners.value !== listeners || listeners.isDisposed || !this._schemaHasKey(entry.key)) {
 			return;
 		}
 		const rootState = this._agentHostService.rootState.value;

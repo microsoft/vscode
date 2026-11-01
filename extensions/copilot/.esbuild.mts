@@ -141,15 +141,10 @@ const shimVsCodeTypesPlugin: esbuild.Plugin = {
 			return {
 				contents: `
 					let vscode;
-					// See test/simulationExtension/extension.js for where and why this is created.
-					if (typeof COPILOT_SIMULATION_VSCODE !== 'undefined') {
-						vscode = COPILOT_SIMULATION_VSCODE;
-					} else {
-						try {
-							vscode = eval('require(' + JSON.stringify('vscode') + ')');
-						} catch (e) {
-							vscode = require('./src/util/common/test/shims/vscodeTypesShim.ts');
-						}
+					try {
+						vscode = eval('require(' + JSON.stringify('vscode') + ')');
+					} catch (e) {
+						vscode = require('./src/util/common/test/shims/vscodeTypesShim.ts');
 					}
 					module.exports = vscode;
 				`,
@@ -168,7 +163,6 @@ const nodeExtHostBuildOptions = {
 		{ in: './src/platform/diff/node/diffWorkerMain.ts', out: 'diffWorker' },
 		{ in: './src/extension/chatSessions/copilotcli/node/copilotCLITodoWorker.ts', out: 'copilotCLITodoWorker' },
 		{ in: './src/extension/onboardDebug/node/copilotDebugWorker/index.ts', out: 'copilotDebugCommand' },
-		{ in: './src/extension/chatSessions/vscode-node/copilotCLIShim.ts', out: 'copilotCLIShim' },
 		{ in: './src/test-extension.ts', out: 'test-extension' },
 		{ in: './src/sanity-test-extension.ts', out: 'sanity-test-extension' },
 	],
@@ -376,8 +370,7 @@ async function main() {
 				`**/baseline.old.json`,
 				`**/*.w.json`,
 				'**/*.sqlite',
-				'**/*.sqlite-journal',
-				'test/aml/out/**'
+				'**/*.sqlite-journal'
 			]
 		});
 		rebuild();

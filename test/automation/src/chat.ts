@@ -7,6 +7,9 @@ import { Code } from './code';
 import { closeModelConfigDetails, IModelConfigSection, openModelConfigDetails, readModelConfigSections, selectModelConfigDetailsOption } from './modelConfigPicker';
 
 const CHAT_VIEW = 'div[id="workbench.panel.chat"]';
+// The chat view sets `data-bound-chat-resource` once its widget is bound to a
+// chat session and clears it while it rebinds to another one.
+const CHAT_VIEW_BOUND_SESSION = `${CHAT_VIEW} .chat-viewpane[data-bound-chat-resource]`;
 const CHAT_EDITOR = '.editor-instance .interactive-session';
 const CHAT_INPUT_EDITOR = `${CHAT_VIEW} .interactive-input-part .monaco-editor[role="code"]`;
 const CHAT_INPUT_EDITOR_FOCUSED = `${CHAT_VIEW} .interactive-input-part .monaco-editor.focused[role="code"]`;
@@ -55,6 +58,26 @@ export class Chat {
 		await this.code.waitForElement(CHAT_VIEW);
 	}
 
+	/**
+	 * Returns the chat session resource the chat view is bound to, or
+	 * `undefined` when the view is not open or is rebinding to another session.
+	 */
+	async getChatViewSessionResource(): Promise<string | undefined> {
+		const [element] = await this.code.getElements(CHAT_VIEW_BOUND_SESSION, false) ?? [];
+		return element?.attributes['data-bound-chat-resource'];
+	}
+
+	/**
+	 * Waits until the chat view is bound to a chat session other than
+	 * `previousSessionResource`. Commands that start a new chat in the view
+	 * keep running after the command palette closes, so a message sent before
+	 * the new session is bound lands in the outgoing session and its response
+	 * is never shown.
+	 */
+	async waitForChatViewSessionChange(previousSessionResource: string | undefined, retryCount?: number): Promise<void> {
+		await this.code.waitForElement(CHAT_VIEW_BOUND_SESSION, element => !!element && element.attributes['data-bound-chat-resource'] !== previousSessionResource, retryCount);
+	}
+
 	async waitForChatEditor(retryCount?: number): Promise<void> {
 		await this.code.waitForElement(CHAT_EDITOR, undefined, retryCount);
 	}
@@ -69,9 +92,22 @@ export class Chat {
 			.waitFor({ state: 'visible' });
 	}
 
+	/**
+	 * Focuses a chat input by clicking near its bottom-right corner, past the end of its content.
+	 * Attachments can show as inline pills in the input, and clicking a pill opens its attachment
+	 * in an editor, so a click at the center could replace the active editor instead.
+	 */
+	private async clickInputPastContent(inputSelector: string): Promise<void> {
+		await this.code.waitForElement(inputSelector);
+		const box = await this.code.driver.currentPage.locator(inputSelector).first().boundingBox();
+		if (!box) {
+			throw new Error(`Chat input is not visible: ${inputSelector}`);
+		}
+		await this.code.waitAndClick(inputSelector, Math.max(box.width - 30, 1), Math.max(box.height - 5, 1));
+	}
+
 	async sendMessage(message: string): Promise<void> {
-		// Click on the chat input to focus it
-		await this.code.waitAndClick(CHAT_INPUT_EDITOR);
+		await this.clickInputPastContent(CHAT_INPUT_EDITOR);
 
 		// Wait for the editor to be focused
 		await this.waitForInputFocus();
@@ -92,7 +128,7 @@ export class Chat {
 	}
 
 	async sendEditorMessage(message: string): Promise<void> {
-		await this.code.waitAndClick(CHAT_EDITOR_INPUT_EDITOR);
+		await this.clickInputPastContent(CHAT_EDITOR_INPUT_EDITOR);
 		await this.code.waitForElement(CHAT_EDITOR_INPUT_EDITOR_FOCUSED);
 
 		// Insert via Monaco's executeEdits rather than character-by-character
@@ -354,7 +390,7 @@ export class Chat {
 
 	/**
 	 * Open the selected model's details page, which holds its configuration
-	 * (Thinking Effort / Context Size), by clicking the model picker's
+	 * (Effort Level / Context Size), by clicking the model picker's
 	 * configuration readout. The readout is only visible when the selected model
 	 * advertises configurable options, so this waits for it before clicking.
 	 */

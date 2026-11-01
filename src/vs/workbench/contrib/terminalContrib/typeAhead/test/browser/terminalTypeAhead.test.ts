@@ -12,7 +12,7 @@ import { IBeforeProcessDataEvent, ITerminalProcessManager } from '../../../../te
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { DEFAULT_LOCAL_ECHO_EXCLUDE, type ITerminalTypeAheadConfiguration } from '../../common/terminalTypeAheadConfiguration.js';
 import { isString } from '../../../../../../base/common/types.js';
 
@@ -48,25 +48,43 @@ suite('Workbench - Terminal Typeahead', () => {
 		test('creates sane data', () => {
 			const stubs = createPredictionStubs(5);
 			const clock = useFakeTimers();
-			try {
-				for (const s of stubs) { add.fire(s); }
+			ds.add(toDisposable(() => clock.restore()));
+			for (const s of stubs) { add.fire(s); }
 
-				for (let i = 0; i < stubs.length; i++) {
-					clock.tick(100);
-					(i % 2 ? fail : succeed).fire(stubs[i]);
-				}
-
-				assert.strictEqual(stats.accuracy, 3 / 5);
-				assert.strictEqual(stats.sampleSize, 5);
-				assert.deepStrictEqual(stats.latency, {
-					count: 3,
-					min: 100,
-					max: 500,
-					median: 300
-				});
-			} finally {
-				clock.restore();
+			for (let i = 0; i < stubs.length; i++) {
+				clock.tick(100);
+				(i % 2 ? fail : succeed).fire(stubs[i]);
 			}
+
+			assert.strictEqual(stats.accuracy, 3 / 5);
+			assert.strictEqual(stats.sampleSize, 5);
+			assert.deepStrictEqual(stats.latency, {
+				count: 3,
+				min: 100,
+				max: 500,
+				median: 300
+			});
+		});
+
+		test('sorts latencies numerically', () => {
+			const stubs = createPredictionStubs(3);
+			const clock = useFakeTimers();
+			ds.add(toDisposable(() => clock.restore()));
+			for (const s of stubs) { add.fire(s); }
+
+			clock.tick(5);
+			succeed.fire(stubs[0]);
+			clock.tick(45);
+			succeed.fire(stubs[1]);
+			clock.tick(150);
+			succeed.fire(stubs[2]);
+
+			assert.deepStrictEqual(stats.latency, {
+				count: 3,
+				min: 5,
+				max: 200,
+				median: 50
+			});
 		});
 
 		test('circular buffer', () => {

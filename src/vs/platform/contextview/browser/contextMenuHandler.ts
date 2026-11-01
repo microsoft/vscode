@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
+import { getContextMenuAutoSelectItem, IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
 import { $, addDisposableListener, EventType, getActiveElement, getWindow, isAncestor, isHTMLElement } from '../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { Menu } from '../../../base/browser/ui/menu/menu.js';
 import { ActionRunner, IRunEvent, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../base/common/actions.js';
 import { isCancellationError } from '../../../base/common/errors.js';
 import { combinedDisposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { isPopoverDOMPosition } from '../../../base/browser/ui/contextview/contextview.js';
 import { IContextViewService } from './contextView.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { INotificationService } from '../../notification/common/notification.js';
@@ -24,6 +25,7 @@ export interface IContextMenuHandlerOptions {
 export class ContextMenuHandler {
 	private focusToReturn: HTMLElement | null = null;
 	private lastContainer: HTMLElement | null = null;
+	private lastHostedAsPopover = false;
 	private block: HTMLElement | null = null;
 	private blockDisposable: IDisposable | null = null;
 	private options: IContextMenuHandlerOptions = { blockMouse: true };
@@ -57,8 +59,11 @@ export class ContextMenuHandler {
 			anchorAxisAlignment: delegate.anchorAxisAlignment,
 			closeAnimation: delegate.closeAnimation,
 			layer: delegate.layer,
-			render: (container) => {
+			hostAsPopover: delegate.hostAsPopover,
+			render: (container, context) => {
 				this.lastContainer = container;
+				// A popover-hosted context view handles outside clicks and focus restore itself
+				this.lastHostedAsPopover = !!context && isPopoverDOMPosition(context.domPosition);
 				const className = delegate.getMenuClassName ? delegate.getMenuClassName() : '';
 
 				if (className) {
@@ -66,7 +71,7 @@ export class ContextMenuHandler {
 				}
 
 				// Render invisible div to block mouse interaction in the rest of the UI
-				if (this.options.blockMouse) {
+				if (this.options.blockMouse && !this.lastHostedAsPopover) {
 					this.block = container.appendChild($('.context-view-block'));
 					this.block.style.position = 'fixed';
 					this.block.style.cursor = 'initial';
@@ -126,7 +131,12 @@ export class ContextMenuHandler {
 			},
 
 			focus: () => {
-				menu?.focus(!!delegate.autoSelectFirstItem);
+				const selection = getContextMenuAutoSelectItem(delegate, actions);
+				if (typeof selection === 'number') {
+					menu?.focus(selection);
+				} else {
+					menu?.focus(selection);
+				}
 			},
 
 			onHide: (didCancel?: boolean) => {
@@ -140,11 +150,12 @@ export class ContextMenuHandler {
 				this.blockDisposable?.dispose();
 				this.blockDisposable = null;
 
-				if (!!this.lastContainer && (getActiveElement() === this.lastContainer || isAncestor(getActiveElement(), this.lastContainer))) {
+				if (!this.lastHostedAsPopover && !!this.lastContainer && (getActiveElement() === this.lastContainer || isAncestor(getActiveElement(), this.lastContainer))) {
 					this.focusToReturn?.focus();
 				}
 
 				this.lastContainer = null;
+				this.lastHostedAsPopover = false;
 			}
 		}, shadowRootElement, !!shadowRootElement, delegate.useWindowContainerForShadowRoot);
 	}
