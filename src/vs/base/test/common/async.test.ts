@@ -2462,7 +2462,6 @@ suite('Async', () => {
 		});
 
 		test('tee - both iterators receive all values', async () => {
-			// TODO: Implementation bug - executors don't await start(), causing producers to finalize early
 			async function* sourceGenerator() {
 				yield 1;
 				yield 2;
@@ -2495,7 +2494,6 @@ suite('Async', () => {
 		});
 
 		test('tee - sequential consumption', async () => {
-			// TODO: Implementation bug - executors don't await start(), causing producers to finalize early
 			const source = new async.AsyncIterableProducer<number>(emitter => {
 				emitter.emitMany([1, 2, 3]);
 			});
@@ -2518,8 +2516,7 @@ suite('Async', () => {
 			assert.deepStrictEqual(result2, [1, 2, 3]);
 		});
 
-		test.skip('tee - empty source', async () => {
-			// TODO: Implementation bug - executors don't await start(), causing producers to finalize early
+		test('tee - empty source', async () => {
 			const source = new async.AsyncIterableProducer<number>(emitter => {
 				// Emit nothing
 			});
@@ -2546,8 +2543,7 @@ suite('Async', () => {
 			assert.deepStrictEqual(result2, []);
 		});
 
-		test.skip('tee - handles errors in source', async () => {
-			// TODO: Implementation bug - executors don't await start(), causing producers to finalize early
+		test('tee - handles errors in source', async () => {
 			const expectedError = new Error('source error');
 			const source = new async.AsyncIterableProducer<number>(async emitter => {
 				emitter.emitOne(1);
