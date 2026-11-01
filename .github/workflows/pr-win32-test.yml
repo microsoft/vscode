@@ -110,14 +110,16 @@ jobs:
 
       # The image is a Dev Drive in a VHDX, mounted at the parent of the workspace like the Dev Drive
       # below, which the job creates without an image. The WSL shard keeps its workspace on drive C.
+      # The first PowerShell of a job takes seconds to start, so this step runs in bash, and the
+      # PowerShell that attaches the image (vhd.ps1) starts while the image downloads.
       - name: Restore the workspace image
         id: image
         if: ${{ steps.image-scripts.outcome == 'success' && !(env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == '1') }}
         continue-on-error: true
         timeout-minutes: 5
-        shell: pwsh
+        shell: bash
         working-directory: ${{ runner.temp }}
-        run: node "$env:RUNNER_TEMP\workspace-image\image.ts" restore --name workspace-image-win32-x64.img --branch "$env:WORKSPACE_IMAGE_BRANCH"
+        run: node "$RUNNER_TEMP/workspace-image/image.ts" restore --name workspace-image-win32-x64.img --branch "$WORKSPACE_IMAGE_BRANCH"
         env:
           GH_TOKEN: ${{ github.token }}
           WORKSPACE_IMAGE_BRANCH: ${{ inputs.workspace_image_branch }}
