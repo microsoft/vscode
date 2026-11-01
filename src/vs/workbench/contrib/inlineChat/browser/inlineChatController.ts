@@ -42,7 +42,6 @@ import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '.
 import { isResponseVM } from '../../chat/common/model/chatViewModel.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../chat/common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsService, isILanguageModelChatSelector } from '../../chat/common/languageModels.js';
-import { isNotebookContainingCellEditor as isNotebookWithCellEditor } from '../../notebook/browser/notebookEditor.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { CellUri } from '../../notebook/common/notebookCommon.js';
 import { CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT, CTX_INLINE_CHAT_TERMINATED, CTX_INLINE_CHAT_VISIBLE, INLINE_CHAT_ID, InlineChatConfigKeys } from '../common/inlineChat.js';
