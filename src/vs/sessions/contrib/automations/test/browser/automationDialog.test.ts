@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
+import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -53,7 +55,7 @@ import { createWorkbenchDialogOptions } from '../../../../../workbench/browser/p
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { ChatInputPart } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
+import { ChatInputPart, IChatInputPartOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { IAutomationDescriptor, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { automationScheduleToLocal, automationScheduleToUTC } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
@@ -81,7 +83,17 @@ const REPOSITORY = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'git
 suite('Automation dialog creation', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function openDialog(options: IShowAutomationDialogOptions = {}, cloudConfigurationOrChoices?: IAutomationProviderConfiguration | IAutomationService['getCustomizationChoices'], sessionOverrides?: Partial<ISessionsManagementService>, repository?: IGitRepository, cloudCreatable = true, cloudEnabledAtOpen = true, canUpdate = true) {
+	for (const inputEditorOptions of [undefined, { fontSize: 16, lineHeight: 24 }]) {
+		test(`the prompt receives the entry's input metrics (${inputEditorOptions?.fontSize ?? 'default'})`, async () => {
+			const dialog = openDialog({}, undefined, undefined, undefined, true, true, true, inputEditorOptions);
+			const actual = dialog.getInputEditorOptions();
+			dialog.cancelButton.click();
+			await dialog.result;
+			assert.deepStrictEqual(actual, [inputEditorOptions]);
+		});
+	}
+
+	function openDialog(options: IShowAutomationDialogOptions = {}, cloudConfigurationOrChoices?: IAutomationProviderConfiguration | IAutomationService['getCustomizationChoices'], sessionOverrides?: Partial<ISessionsManagementService>, repository?: IGitRepository, cloudCreatable = true, cloudEnabledAtOpen = true, canUpdate = true, inputEditorOptions?: IChatInputPartOptions['inputEditorOptions']) {
 		const cloudConfiguration = typeof cloudConfigurationOrChoices === 'function' ? undefined : cloudConfigurationOrChoices;
 		const getCustomizationChoices = typeof cloudConfigurationOrChoices === 'function' ? cloudConfigurationOrChoices : undefined;
 		const configurationService = new TestConfigurationService();
@@ -91,6 +103,7 @@ suite('Automation dialog creation', () => {
 			contextKeyService: () => contextKeyService,
 		}, disposables);
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { });
+		instantiationService.stub(IChatViewFactory, { inputEditorOptions });
 		instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
 		const actionWidgetService = new RecordingActionWidgetService();
 		instantiationService.stub(IActionWidgetService, actionWidgetService);
@@ -212,6 +225,15 @@ suite('Automation dialog creation', () => {
 			layout: () => { },
 			dispose: () => { },
 		});
+		const inputCreations: sinon.SinonSpy[] = [];
+		const createChild = sinon.stub(instantiationService, 'createChild').callsFake(services => {
+			const child = new TestInstantiationService(services, false, instantiationService);
+			const createInstance = sinon.spy(child, 'createInstance');
+			disposables.add(toDisposable(() => createInstance.restore()));
+			inputCreations.push(createInstance);
+			return child;
+		});
+		disposables.add(toDisposable(() => createChild.restore()));
 		const result = instantiationService.createInstance(AutomationDialogService).showAutomationDialog(options);
 		const container = instantiationService.get(IWorkbenchLayoutService).activeContainer;
 		const buttons = Array.from(container.querySelectorAll<HTMLElement>('.automation-dialog-footer-actions .monaco-button'));
@@ -221,6 +243,9 @@ suite('Automation dialog creation', () => {
 		const nameInput = container.querySelector<HTMLInputElement>('.automation-form-input-host input')!;
 		return {
 			result, saveButton, cancelButton, nameInput, container, providers, actionWidgetService,
+			getInputEditorOptions: () => inputCreations.flatMap(spy => spy.getCalls())
+				.filter(call => call.args[0] === ChatInputPart)
+				.map(call => (call.args[2] as IChatInputPartOptions).inputEditorOptions),
 			openEventPicker: () => {
 				container.querySelector<HTMLElement>('.automation-event-button')!.click();
 				const tree = quickInputService.trees.at(-1);

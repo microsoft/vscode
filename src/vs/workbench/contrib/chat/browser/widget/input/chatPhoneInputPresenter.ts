@@ -21,11 +21,6 @@ import { IModePickerDelegate } from './modePickerActionItem.js';
 import { IModelPickerDelegate } from './modelPicker/modelPickerActionItem.js';
 import { getModelProviderIcon } from './modelPicker/modelProviderIcons.js';
 
-export interface IChatInputEditorMetrics {
-	readonly fontSize: number;
-	readonly lineHeight: number;
-}
-
 export interface IChatPhoneInputSessionContext {
 	readonly providerId: string;
 	readonly sessionId: string;
@@ -68,8 +63,6 @@ export interface IChatPhonePresenterImpl {
 	 * presentation. Drives a `_updateToolbar()` refresh on flips.
 	 */
 	readonly enabled: IObservable<boolean>;
-	readonly inputEditorMetrics?: IChatInputEditorMetrics;
-	readonly deferClipboardImageRead?: boolean;
 	readonly supportsUnifiedConfiguration?: boolean;
 	createActionViewItem?(action: IAction, mode: IModePickerDelegate, model: IModelPickerDelegate): IActionViewItem;
 
@@ -107,8 +100,6 @@ export interface IChatPhoneInputPresenter {
 
 	/** `true` when an impl is registered AND it reports phone layout. */
 	readonly enabled: IObservable<boolean>;
-	readonly inputEditorMetrics?: IChatInputEditorMetrics;
-	readonly deferClipboardImageRead?: boolean;
 	readonly supportsUnifiedConfiguration?: boolean;
 	createActionViewItem?(action: IAction, mode: IModePickerDelegate, model: IModelPickerDelegate): IActionViewItem | undefined;
 	registerSessionModelPicker(picker: IChatPhoneSessionModelPicker): IDisposable;
@@ -142,16 +133,6 @@ class ChatPhoneInputPresenterService extends Disposable implements IChatPhoneInp
 		const impl = this._impl.read(reader);
 		return impl ? impl.enabled.read(reader) : false;
 	});
-
-	get inputEditorMetrics(): IChatInputEditorMetrics | undefined {
-		const impl = this._impl.get();
-		return impl?.enabled.get() ? impl.inputEditorMetrics : undefined;
-	}
-
-	get deferClipboardImageRead(): boolean {
-		const impl = this._impl.get();
-		return !!impl?.enabled.get() && impl.deferClipboardImageRead === true;
-	}
 
 	get supportsUnifiedConfiguration(): boolean {
 		const impl = this._impl.get();

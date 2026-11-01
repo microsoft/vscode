@@ -67,8 +67,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { resolveGitRepositoryFromGitConfig } from '../../../../services/sessions/browser/gitHubRepositoryResolver.js';
 import { cloneRepository } from '../../../../services/sessions/browser/cloneRepository.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
-import { RepositoryPicker } from '../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
-import { ISessionsPresentation } from '../../../../services/presentation/browser/sessionsPresentation.js';
+import { ISessionRepositoryPicker } from '../../../../services/presentation/browser/sessionRepositoryPicker.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { CloudSandboxModels } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxModels.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -1162,7 +1161,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@IPathService private readonly pathService: IPathService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ICloudSandboxDraftPreparationService private readonly draftPreparationService: ICloudSandboxDraftPreparationService,
-		@ISessionsPresentation private readonly sessionsPresentation: ISessionsPresentation,
+		@ISessionRepositoryPicker private readonly sessionRepositoryPicker: ISessionRepositoryPicker,
 	) {
 		super();
 
@@ -2536,13 +2535,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					checkHost();
 					return repositories.map(repository => repository.fullName);
 				};
-				const selection = this.sessionsPresentation.pickRepository
-					? await this.sessionsPresentation.pickRepository(getRepositories, token)
-					: await store.add(this.instantiationService.createInstance(RepositoryPicker)).pickRepository(getRepositories, undefined, token);
+				const selection = await this.sessionRepositoryPicker.pickRepository(getRepositories, token);
 				if (selection) {
 					checkHost();
 				}
-				return selection?.repository;
+				return selection;
 			} catch (error) {
 				if (!isCancellationError(error) && !token.isCancellationRequested) {
 					this.notificationService.error(error);
