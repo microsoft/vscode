@@ -171,7 +171,7 @@ export function tildify(path: string, userHome: string, os = OS): string {
 		return `~/${normalizedPath.substr(normalizedUserHome.length)}`;
 	}
 
-	return path;
+	return normalizedPath;
 }
 
 export function untildify(path: string, userHome: string): string {

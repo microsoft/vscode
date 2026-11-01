@@ -227,6 +227,13 @@ suite('Labels', () => {
 		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Macintosh, tildify: { userHome: remoteUserHome } }), '~/folder/file.txt');
 		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Linux, tildify: { userHome: remoteUserHome } }), '~/folder/file.txt');
 
+		// Tildify: path not under user home with cross-scheme URI (e.g., git: URI on a remote SSH session)
+		const gitSchemeUri = URI.file('/other/folder/file.txt').with({ scheme: 'git' });
+		const remoteUserHome2 = URI.file('/home/user').with({ scheme: 'vscode-remote', authority: 'ssh-remote+host' });
+
+		assert.strictEqual(labels.getPathLabel(gitSchemeUri, { os: OperatingSystem.Linux, tildify: { userHome: remoteUserHome2 } }), '/other/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(gitSchemeUri, { os: OperatingSystem.Macintosh, tildify: { userHome: remoteUserHome2 } }), '/other/folder/file.txt');
+
 		// Relative
 
 		const winFolder = URI.file('c:/some');
