@@ -9138,8 +9138,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return spn || undefined;
 	}
 
+	/** A PAC file replaces `http.proxy` and `http.noProxy`. */
+	private _hasPacUrl(): boolean {
+		return !!this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.ProxyPacUrl)?.trim();
+	}
+
 	private _readNoProxy(env: Record<string, string | undefined>): string | undefined {
-		const configuredNoProxy = (this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.NoProxy) ?? [])
+		const configuredNoProxy = (this._hasPacUrl() ? [] : this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.NoProxy) ?? [])
 			.map(value => value.trim())
 			.filter(Boolean)
 			.join(',');
@@ -9147,7 +9152,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _readConfiguredProxy(): string | undefined {
-		return this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.Proxy)?.trim() || undefined;
+		return this._hasPacUrl() ? undefined : this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.Proxy)?.trim() || undefined;
 	}
 
 	private _readCopilotProxyState(): ICopilotClientProxyState {
