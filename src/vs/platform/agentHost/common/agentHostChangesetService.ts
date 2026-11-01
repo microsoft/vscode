@@ -54,6 +54,8 @@ export interface ITrackedTurnDatabase extends IDisposable {
 export interface ITrackedEditSource {
 	/** Chat whose turns recorded the edits in {@link db}. */
 	readonly chat: ProtocolURI;
+	/** Storage resource of {@link db}, which the content URIs of its edits address. */
+	readonly storage: ProtocolURI;
 	readonly db: ISessionDatabase;
 }
 
@@ -175,6 +177,14 @@ export interface IAgentHostChangesetService {
 	refreshSessionChangeset(session: ProtocolURI, strategy?: ChangesetDiffStrategy): void;
 
 	/**
+	 * Recomputes the Working Set changeset of a session or chat `owner` while a
+	 * client observes it and its working directory is available. It is computed
+	 * from the tracked edits that {@link openTrackedSessionDatabases} opens,
+	 * starting each file at the content the user last accepted.
+	 */
+	refreshWorkingSetChangeset(owner: ProtocolURI): void;
+
+	/**
 	 * Recomputes every changeset currently subscribed when a session is
 	 * materialized or restored.
 	 */
@@ -276,6 +286,13 @@ export interface IAgentHostChangesetService {
 	 * Changes, Branch Changes, and the chat's changes summary.
 	 */
 	onFileEditsDiscarded(owner: ProtocolURI, turnIds: readonly string[]): void;
+
+	/**
+	 * Hook called after the changes of a file in the tracked edits of `chat`
+	 * were accepted. Recomputes the Working Set changesets of the chat and its
+	 * session; the other changesets don't show acceptance.
+	 */
+	onFileEditsAccepted(chat: ProtocolURI): void;
 
 	/** Cancels pending changeset work after a chat or folder owner is removed. */
 	onChangesetOwnerRemoved?(owner: ProtocolURI): void;

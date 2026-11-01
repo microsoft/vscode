@@ -57,13 +57,19 @@ export interface IWorkspaceTrustManagementService {
 	canSetWorkspaceTrust(): boolean;
 	setWorkspaceTrust(trusted: boolean): Promise<void>;
 
+	isWorkspaceTrustSourceResolved(): boolean;
+	resolveWorkspaceTrust(): Promise<void>;
+
+	/** Rechecks changed source providers, returning untrusted if no stable source can be verified. */
 	getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo>;
+	/** Uses saved virtual identities directly; rejects if a required source provider changes before updating approvals. */
 	setUrisTrust(uri: URI[], trusted: boolean): Promise<void>;
 
 	/** Automatically trusts an exact scheme and authority for the registration's lifetime, without persisting user trust. */
 	registerTrustedAuthority(scheme: string, authority: string): IDisposable;
 
 	getTrustedUris(): URI[];
+	/** Preserves unchanged approvals; rejects if a newly resolved source's provider changes before persistence. */
 	setTrustedUris(uris: URI[]): Promise<void>;
 
 	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable;

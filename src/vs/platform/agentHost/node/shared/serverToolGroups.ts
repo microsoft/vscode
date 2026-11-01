@@ -5,10 +5,12 @@
 
 import { feedbackServerToolGroup } from './agentFeedbackServerTools.js';
 import { createSessionServerToolGroup, type ISessionServerToolAccessor } from './sessionServerTools.js';
-import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
+import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolDisplaySource, IServerToolGroup } from './agentServerToolHost.js';
 import { createAgentMergeServerToolGroup, type IAgentMergeToolAccessor } from './agentMergeServerTools.js';
+import { createArtifactIntegrationServerToolGroup, type IArtifactIntegrationToolAccessor } from './artifactIntegrationServerTools.js';
 import { createArtifactServerToolGroup, type IArtifactServerToolAccessor } from './artifactServerTools.js';
 import { createSessionIsolationToolGroup, type ISessionIsolationToolAccessor } from './sessionIsolationTools.js';
+import { createSessionMoveToolGroup, moveSessionToolDisplay } from './sessionMoveTools.js';
 
 /**
  * Builds the server-tool groups contributed to every agent host session, in
@@ -24,15 +26,20 @@ import { createSessionIsolationToolGroup, type ISessionIsolationToolAccessor } f
  * `sessionAccessor` is the runtime dependency of the session-management group
  * (list/create/delete sessions); it is provided by the host at construction.
  * When omitted (the pure display path) the session group's `execute` is inert,
- * but its definitions and display remain available.
+ * but its definitions and display remain available. The `move_session` group
+ * runs only with both `sessionAccessor` and `areAgentOrchestrationLimitsEnabled`,
+ * as the host provides them, and is otherwise left out.
  */
-export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccessor, agentMergeAccessor?: IAgentMergeToolAccessor, artifactAccessor?: IArtifactServerToolAccessor, areAgentOrchestrationLimitsEnabled?: () => boolean, isolationAccessor?: ISessionIsolationToolAccessor): readonly IServerToolGroup[] {
+export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccessor, agentMergeAccessor?: IAgentMergeToolAccessor, artifactAccessor?: IArtifactServerToolAccessor, areAgentOrchestrationLimitsEnabled?: () => boolean, isolationAccessor?: ISessionIsolationToolAccessor, artifactIntegrationAccessor?: IArtifactIntegrationToolAccessor): readonly IServerToolGroup[] {
 	return [
 		feedbackServerToolGroup,
 		createSessionServerToolGroup(sessionAccessor, areAgentOrchestrationLimitsEnabled),
 		createAgentMergeServerToolGroup(agentMergeAccessor),
 		createArtifactServerToolGroup(artifactAccessor),
+		createArtifactIntegrationServerToolGroup(artifactIntegrationAccessor),
 		createSessionIsolationToolGroup(isolationAccessor),
+		// Only where it can run, which takes the host's limits too: the pure display path below displays it through `moveSessionToolDisplay`.
+		...(sessionAccessor && areAgentOrchestrationLimitsEnabled ? [createSessionMoveToolGroup(sessionAccessor, areAgentOrchestrationLimitsEnabled)] : []),
 	];
 }
 
@@ -40,7 +47,7 @@ export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccess
  * The groups used by the pure {@link getServerToolDisplay} path. Built without a
  * session accessor since display never invokes `execute`.
  */
-const serverToolGroupsForDisplay: readonly IServerToolGroup[] = buildServerToolGroups();
+const serverToolGroupsForDisplay: readonly IServerToolDisplaySource[] = [...buildServerToolGroups(), moveSessionToolDisplay];
 
 /**
  * Whether {@link toolName} (a tool name as seen on a tool call) refers to the

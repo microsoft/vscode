@@ -174,6 +174,9 @@ variables:
     value: ${{ eq(parameters.VSCODE_BUILD_WEB, true) }}
   - name: VSCODE_CIBUILD
     value: ${{ or(in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI'), eq(parameters.VSCODE_BUILD_TYPE, 'CI')) }}
+  # ARM32-only artifact runs do not exercise server-web.
+  - name: VSCODE_ARTIFACT_SANITY_REQUIRES_WEB
+    value: ${{ and(parameters.VSCODE_RUN_ARTIFACT_SANITY_TESTS, or(parameters.VSCODE_BUILD_MACOS, parameters.VSCODE_BUILD_MACOS_ARM64, parameters.VSCODE_BUILD_WIN32, parameters.VSCODE_BUILD_WIN32_ARM64, parameters.VSCODE_BUILD_LINUX, parameters.VSCODE_BUILD_LINUX_ARM64, parameters.VSCODE_BUILD_ALPINE, parameters.VSCODE_BUILD_ALPINE_ARM64)) }}
   # Product architectures are split into their own stages. The existing Linux
   # stage continues to hold the CI test jobs.
   - name: VSCODE_BUILD_STAGE_LINUX_X64
@@ -333,6 +336,11 @@ extends:
       networkIsolationPolicy: Permissive,CFSClean,CFSClean2,CFSClean3
     stages:
 
+      # Reject at template expansion, before allocating agents. Web uploads the matching
+      # commit's webview bootstrap assets even when VSCODE_PUBLISH is false.
+      - ${{ if and(eq(variables.VSCODE_ARTIFACT_SANITY_REQUIRES_WEB, true), or(eq(variables.VSCODE_CIBUILD, true), ne(parameters.VSCODE_BUILD_WEB, true))) }}:
+        - 'Server-web artifact sanity requires a Product build with VSCODE_BUILD_WEB=true (uploads webview assets to the CDN even with VSCODE_PUBLISH=false)': error
+
       - stage: Quality
         dependsOn: []
         pool:
@@ -340,6 +348,10 @@ extends:
           os: linux
         jobs:
           - template: build/azure-pipelines/product-quality-checks.yml@self
+            parameters:
+              # Batched CI builds check only the files that their commits change.
+              # Scheduled and manual builds check every file.
+              VSCODE_CHECK_CHANGED_FILES: ${{ eq(variables['Build.Reason'], 'BatchedCI') }}
 
       - stage: Copilot
         dependsOn: []
@@ -373,10 +385,17 @@ extends:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_JOB_NAME: Unit
-                  VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                  VSCODE_JOB_NAME: UnitElectron
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
                   VSCODE_TEST_IDS:
                     - unit-electron
+              - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_JOB_NAME: Unit
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js, Browser & Copilot)
+                  VSCODE_TEST_IDS:
                     - unit-node
                     - unit-browser-chromium
                     - copilot
@@ -398,8 +417,15 @@ extends:
                   VSCODE_JOB_NAME: Integration
                   VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                   VSCODE_TEST_IDS:
-                    - integration-agent-host-e2e
                     - integration-electron
+              - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_JOB_NAME: AgentHostE2E
+                  VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - integration-agent-host-e2e
               - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -422,10 +448,17 @@ extends:
                   parameters:
                     VSCODE_ARCH: x64
                     VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                    VSCODE_JOB_NAME: Unit
-                    VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                    VSCODE_JOB_NAME: UnitElectron
+                    VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
                     VSCODE_TEST_IDS:
                       - unit-electron
+                - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
+                  parameters:
+                    VSCODE_ARCH: x64
+                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                    VSCODE_JOB_NAME: Unit
+                    VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js, Browser & Copilot)
+                    VSCODE_TEST_IDS:
                       - unit-node
                       - unit-browser-chromium
                       - copilot
@@ -447,8 +480,15 @@ extends:
                     VSCODE_JOB_NAME: Integration
                     VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                     VSCODE_TEST_IDS:
-                      - integration-agent-host-e2e
                       - integration-electron
+                - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
+                  parameters:
+                    VSCODE_ARCH: x64
+                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                    VSCODE_JOB_NAME: AgentHostE2E
+                    VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                    VSCODE_TEST_IDS:
+                      - integration-agent-host-e2e
                 - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
                   parameters:
                     VSCODE_ARCH: x64
@@ -505,10 +545,17 @@ extends:
                 parameters:
                   NPM_ARCH: x64
                   VSCODE_ARCH: x64
-                  VSCODE_JOB_NAME: Unit
-                  VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                  VSCODE_JOB_NAME: UnitElectron
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
                   VSCODE_TEST_IDS:
                     - unit-electron
+              - template: build/azure-pipelines/linux/product-build-linux-test.yml@self
+                parameters:
+                  NPM_ARCH: x64
+                  VSCODE_ARCH: x64
+                  VSCODE_JOB_NAME: Unit
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js, Browser & Copilot)
+                  VSCODE_TEST_IDS:
                     - unit-node
                     - unit-browser-chromium
                     - copilot
@@ -530,8 +577,15 @@ extends:
                   VSCODE_JOB_NAME: Integration
                   VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                   VSCODE_TEST_IDS:
-                    - integration-agent-host-e2e
                     - integration-electron
+              - template: build/azure-pipelines/linux/product-build-linux-test.yml@self
+                parameters:
+                  NPM_ARCH: x64
+                  VSCODE_ARCH: x64
+                  VSCODE_JOB_NAME: AgentHostE2E
+                  VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - integration-agent-host-e2e
               - template: build/azure-pipelines/linux/product-build-linux-test.yml@self
                 parameters:
                   NPM_ARCH: x64
@@ -602,10 +656,17 @@ extends:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_JOB_NAME: Unit
-                  VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                  VSCODE_JOB_NAME: UnitElectron
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
                   VSCODE_TEST_IDS:
                     - unit-electron
+              - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_JOB_NAME: Unit
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js, Browser & Copilot)
+                  VSCODE_TEST_IDS:
                     - unit-node
                     - unit-browser-chromium
                     - copilot
@@ -627,8 +688,15 @@ extends:
                   VSCODE_JOB_NAME: Integration
                   VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                   VSCODE_TEST_IDS:
-                    - integration-agent-host-e2e
                     - integration-electron
+              - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_JOB_NAME: AgentHostE2E
+                  VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - integration-agent-host-e2e
               - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -685,10 +753,16 @@ extends:
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                VSCODE_JOB_NAME: Unit
-                VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                VSCODE_JOB_NAME: UnitElectron
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
                 VSCODE_TEST_IDS:
                   - unit-electron
+            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_JOB_NAME: Unit
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js, Browser & Copilot)
+                VSCODE_TEST_IDS:
                   - unit-node
                   - unit-browser-webkit
                   - copilot
@@ -708,8 +782,14 @@ extends:
                 VSCODE_JOB_NAME: Integration
                 VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                 VSCODE_TEST_IDS:
-                  - integration-agent-host-e2e
                   - integration-electron
+            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_JOB_NAME: AgentHostE2E
+                VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - integration-agent-host-e2e
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -771,10 +851,17 @@ extends:
                 parameters:
                   VSCODE_ARCH: arm64
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_JOB_NAME: Unit
-                  VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                  VSCODE_JOB_NAME: UnitElectron
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
                   VSCODE_TEST_IDS:
                     - unit-electron
+              - template: build/azure-pipelines/darwin/product-build-darwin-test.yml@self
+                parameters:
+                  VSCODE_ARCH: arm64
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_JOB_NAME: Unit
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js, Browser & Copilot)
+                  VSCODE_TEST_IDS:
                     - unit-node
                     - unit-browser-webkit
                     - copilot
@@ -796,8 +883,15 @@ extends:
                   VSCODE_JOB_NAME: Integration
                   VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                   VSCODE_TEST_IDS:
-                    - integration-agent-host-e2e
                     - integration-electron
+              - template: build/azure-pipelines/darwin/product-build-darwin-test.yml@self
+                parameters:
+                  VSCODE_ARCH: arm64
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_JOB_NAME: AgentHostE2E
+                  VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - integration-agent-host-e2e
               - template: build/azure-pipelines/darwin/product-build-darwin-test.yml@self
                 parameters:
                   VSCODE_ARCH: arm64
@@ -957,32 +1051,23 @@ extends:
                   container: centos
                   arch: arm64
 
-            # Debian 11
+            # Debian 13
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
                 parameters:
-                  name: debian_11_amd64
-                  displayName: Debian 11 amd64
+                  name: debian_13_amd64
+                  displayName: Debian 13 amd64
                   poolName: 1es-ubuntu-22.04-x64
-                  container: debian-11
+                  container: debian-13
                   arch: amd64
-
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
-              - template: build/azure-pipelines/common/sanity-tests.yml@self
-                parameters:
-                  name: debian_11_arm32
-                  displayName: Debian 11 arm32
-                  poolName: 1es-azure-linux-3-arm64
-                  container: debian-11
-                  arch: arm
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
                 parameters:
-                  name: debian_11_arm64
-                  displayName: Debian 11 arm64
+                  name: debian_13_arm64
+                  displayName: Debian 13 arm64
                   poolName: 1es-azure-linux-3-arm64
-                  container: debian-11
+                  container: debian-13
                   arch: arm64
 
             # Debian 12
@@ -1157,12 +1242,14 @@ extends:
       # Artifact backed sanity coverage can run with or without publishing. Unpublished validation
       # builds cannot use the SanityTests stage above, which resolves builds through the update
       # service. Each artifact job's grep is scoped to exactly the
-      # targets its artifacts cover, and each stage depends only on the build stage producing them
-      # so one platform failing does not skip the rest.
+      # targets its artifacts cover. Server-web also needs the Web stage's commit-specific
+      # CDN bootstrap assets; waiting for Web prevents a race with their upload.
       - ${{ if and(eq(parameters.VSCODE_RUN_ARTIFACT_SANITY_TESTS, true), eq(variables['VSCODE_BUILD_STAGE_MACOS'], true)) }}:
         - stage: ArtifactSanityTestsMacOS
           displayName: Sanity Tests (Artifacts, macOS)
           dependsOn:
+            - ${{ if eq(variables.VSCODE_ARTIFACT_SANITY_REQUIRES_WEB, true) }}:
+              - Web
             - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_X64'], true) }}:
               - macOSX64
             - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_ARM64'], true) }}:
@@ -1226,6 +1313,8 @@ extends:
         - stage: ArtifactSanityTestsWindows
           displayName: Sanity Tests (Artifacts, Windows)
           dependsOn:
+            - ${{ if eq(variables.VSCODE_ARTIFACT_SANITY_REQUIRES_WEB, true) }}:
+              - Web
             - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
               - Windows
             - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS_ARM64'], true) }}:
@@ -1278,6 +1367,8 @@ extends:
         - stage: ArtifactSanityTestsAlpine
           displayName: Sanity Tests (Artifacts, Alpine)
           dependsOn:
+            - ${{ if eq(variables.VSCODE_ARTIFACT_SANITY_REQUIRES_WEB, true) }}:
+              - Web
             - Alpine
           variables:
             - name: BUILD_COMMIT
@@ -1319,6 +1410,8 @@ extends:
         - stage: ArtifactSanityTestsLinux
           displayName: Sanity Tests (Artifacts, Linux)
           dependsOn:
+            - ${{ if eq(variables.VSCODE_ARTIFACT_SANITY_REQUIRES_WEB, true) }}:
+              - Web
             - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX_X64'], true) }}:
               - LinuxX64
             - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX_ARM64'], true) }}:

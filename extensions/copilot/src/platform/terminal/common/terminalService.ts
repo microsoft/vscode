@@ -14,8 +14,6 @@ export interface ITerminalService {
 
 	readonly _serviceBrand: undefined;
 
-	readonly terminalBuffer: string;
-
 	readonly terminalLastCommand: vscode.TerminalExecutedCommand | undefined;
 
 	readonly terminalSelection: string;
@@ -98,10 +96,6 @@ export class NullTerminalService extends Disposable implements ITerminalService 
 	declare readonly _serviceBrand: undefined;
 
 	static readonly Instance = new NullTerminalService();
-
-	get terminalBuffer(): string {
-		return '';
-	}
 
 	get terminalLastCommand(): vscode.TerminalExecutedCommand | undefined {
 		return undefined;

@@ -14,6 +14,7 @@ import {
 	adaptLocalRequestBody,
 	buildContextLengthExceededBody,
 	buildFallbackChatRequest,
+	buildFallbackResponsesRequest,
 	buildInjectedAutoRequest,
 	classifyLocalModelRequest,
 	computeLocalModelLimits,
@@ -33,9 +34,11 @@ import {
 	readAutoSelectedModelId,
 	readLocalContextOverflow,
 	SseCommitScanner,
+	toChatCompletionFromResponses,
 	toStreamingLocalRequestBody,
 	type ILocalContextOverflow,
 	type ILocalModelBufferedRequest,
+	type ILocalModelFallbackModel,
 	type ILocalModelRouterEnv,
 	type ILocalPromptProgress,
 	type LocalModelFallbackReason,
@@ -731,7 +734,31 @@ export class LocalModelCopilotRequestHandler extends CopilotRequestHandler {
 		routing.ledger.record(ctx.sessionId, { kind: 'fallback', reason, fallbackModel: route.fallback.id, serving: route.serving });
 		this._report(routing, ctx, 'fallback', { reason, tier: route.tier });
 		// A 401 (expired token) goes back to the runtime, which renews `/auto`.
+		if (route.fallback.endpoint === 'responses') {
+			return this._sendResponsesFallback(request, ctx, body, route.fallback, token);
+		}
 		return this._sendToCapi(buildFallbackChatRequest(request, body, route.fallback, token), ctx);
+	}
+
+	/**
+	 * Calls a fallback that serves only the Responses API with the runtime's request translated, and answers in chat
+	 * completions: a streaming request gets the whole answer as one chunk. A non-2xx answer goes back as CAPI sent it.
+	 */
+	private async _sendResponsesFallback(request: ILocalModelBufferedRequest, ctx: CopilotRequestContext, body: LocalModelJsonBody, fallback: ILocalModelFallbackModel, token: string): Promise<Response> {
+		const response = await this._sendToCapi(buildFallbackResponsesRequest(request, body, fallback, token), ctx);
+		if (!response.ok) {
+			return response;
+		}
+		const stream = body.stream === true;
+		const json = parseJsonObject(new Uint8Array(await response.arrayBuffer()));
+		const answer = json ? toChatCompletionFromResponses(json, fallback.id, stream) : undefined;
+		if (!answer) {
+			this._logService.warn('[LocalModel] The Responses API fallback answered without a completed response');
+			return errorResponse(502, 'fallbackFailed', localize('localModel.fallbackFailed', "The cloud model could not finish its response. Try again."));
+		}
+		return stream
+			? new Response(`data: ${JSON.stringify(answer)}\n\ndata: [DONE]\n\n`, { status: response.status, headers: responseHeaders(response.headers, 'text/event-stream') })
+			: new Response(encodeJsonBody(answer), { status: response.status, headers: responseHeaders(response.headers, 'application/json') });
 	}
 
 	// #endregion

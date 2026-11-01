@@ -14,6 +14,7 @@ import product from '../product.json' with { type: 'json' };
 import { getDependencies } from './linux/dependencies-generator.ts';
 import { recommendedDeps as debianRecommendedDependencies } from './linux/debian/dep-lists.ts';
 import { recommendedDeps as rpmRecommendedDependencies } from './linux/rpm/dep-lists.ts';
+import { readFileSync } from 'fs';
 import * as path from 'path';
 import * as cp from 'child_process';
 import { promisify } from 'util';
@@ -22,6 +23,8 @@ const exec = promisify(cp.exec);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
 const linuxDesktopName = product.linuxDesktopName;
+const copilotLinkHelper = readFileSync(path.join(root, 'resources/linux/copilot-link.sh'), 'utf8');
+const rpmCopilotLinkHelper = copilotLinkHelper.replace(/%/g, '%%');
 
 const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
 
@@ -103,10 +106,12 @@ function prepareDebPackage(arch: string) {
 			.pipe(rename('DEBIAN/prerm'));
 
 		const postrm = gulp.src('resources/linux/debian/postrm.template', { base: '.' })
+			.pipe(replace('@@COPILOT_LINK_HELPER@@', () => copilotLinkHelper))
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename('DEBIAN/postrm'));
 
 		const postinst = gulp.src('resources/linux/debian/postinst.template', { base: '.' })
+			.pipe(replace('@@COPILOT_LINK_HELPER@@', () => copilotLinkHelper))
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@ARCHITECTURE@@', debArch))
 			.pipe(rename('DEBIAN/postinst'));
@@ -194,6 +199,7 @@ function prepareRpmPackage(arch: string) {
 			.pipe(rename(function (p) { p.dirname = 'BUILD/usr/share/' + product.applicationName + '/' + p.dirname; }));
 
 		const spec = gulp.src('resources/linux/rpm/code.spec.template', { base: '.' })
+			.pipe(replace('@@COPILOT_LINK_HELPER@@', () => rpmCopilotLinkHelper))
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@DESKTOP_NAME@@', linuxDesktopName))

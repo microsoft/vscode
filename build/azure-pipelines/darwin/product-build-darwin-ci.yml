@@ -7,6 +7,12 @@ parameters:
     type: string
   - name: VSCODE_TEST_IDS
     type: object
+  # Whether to include the steps and jobs that need a privileged service
+  # connection (signing, CDN uploads, Copilot test setup). Only
+  # sdk-validation-build.yml sets this to false.
+  - name: VSCODE_PRIVILEGED_CONNECTIONS
+    type: boolean
+    default: true
 
 jobs:
   - job: macOS${{ parameters.VSCODE_JOB_NAME }}
@@ -44,3 +50,4 @@ jobs:
           VSCODE_ARCH: arm64
           VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}
           VSCODE_TEST_IDS: ${{ parameters.VSCODE_TEST_IDS }}
+          VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}

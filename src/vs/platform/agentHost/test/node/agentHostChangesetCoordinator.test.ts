@@ -11,17 +11,18 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
-import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
+import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri, buildWorkingSetChangesetUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, ChangesetOperationScope, ChatOriginKind, ChangesetOperationStatus, SessionStatus, withSessionGitState, type ChangesetOperation, type ISessionFileDiff, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, ChangesetOperationScope, ChangesetStatus, ChatOriginKind, ChangesetOperationStatus, SessionStatus, withSessionGitState, type ChangesetOperation, type ISessionFileDiff, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChangesetCoordinator } from '../../node/agentHostChangesetCoordinator.js';
 import { resolveChangesetSubscriptions } from '../../node/agentHostChangesetSummary.js';
 import { ChangesetDiffStrategy, IAgentHostChangesetService, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
 import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
 import { AgentHostChangesetOperationService } from '../../node/agentHostChangesetOperationService.js';
+import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
@@ -51,7 +52,7 @@ suite('ChangesetSessionCoordinator', () => {
 			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 			defaultChat: buildDefaultChatUri(session),
 		}, { emitNotification });
-		stateManager.setSessionChangesets(session, buildDefaultChangesetCatalog(session, false));
+		stateManager.setSessionChangesets(session, buildDefaultChangesetCatalog(session, false, false));
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 	}
 
@@ -106,7 +107,7 @@ suite('ChangesetSessionCoordinator', () => {
 				super.scheduleOwnerOperationsUpdate(ownerKey);
 			}
 		}
-		const operationService = disposables.add(new RecordingOperationService(stateManager, gitStateService, subscriptions, configurationService, createTestChatOwnershipService(stateManager)));
+		const operationService = disposables.add(new RecordingOperationService(stateManager, gitStateService, subscriptions, configurationService, createTestChatOwnershipService(stateManager), disposables.add(new AgentHostFileEditCoordinator())));
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 			[ILogService, logService],
 			[IAgentHostStateManager, stateManager],
@@ -773,6 +774,7 @@ suite('ChangesetSessionCoordinator', () => {
 		await environment.gitService.waitForRootLookups(2);
 		await tick();
 		environment.changesets.clearRefreshes();
+		environment.gitStateService.clearRefreshes();
 
 		environment.monitor.fire(root);
 		await tick();
@@ -809,6 +811,30 @@ suite('ChangesetSessionCoordinator', () => {
 		assert.deepStrictEqual(environment.monitor.disposals, []);
 		environment.coordinator.onLastSubscriber(URI.parse(buildUncommittedChangesetUri(secondSession)));
 		assert.deepStrictEqual(environment.monitor.disposals, ['file:///repo']);
+	});
+
+	test('catches up Git state missed while no client observed the uncommitted changeset', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const root = URI.file('/repo');
+		const environment = createEnvironment(root);
+		createSession(environment.stateManager, session, 'file:///repo/worktree');
+		const changeset = URI.parse(buildUncommittedChangesetUri(session));
+
+		environment.coordinator.onFirstSubscriber(changeset);
+		await environment.monitor.waitForAcquisitions(1);
+		environment.coordinator.onLastSubscriber(changeset);
+		environment.gitStateService.clearRefreshes();
+
+		// E.g. a `git pull` in a terminal: the root is no longer watched.
+		environment.monitor.fire(root);
+		environment.coordinator.onFirstSubscriber(changeset);
+		await environment.monitor.waitForAcquisitions(2);
+		await tick();
+
+		assert.deepStrictEqual({ disposals: environment.monitor.disposals, gitStateRefreshes: environment.gitStateService.refreshed }, {
+			disposals: ['file:///repo'],
+			gitStateRefreshes: [session],
+		});
 	});
 
 	test('attaches deferred watch interest on materialization without re-querying an unchanged root', async () => {
@@ -937,6 +963,38 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	});
 
+	test('subscribes, registers, and refreshes the session Working Set without watching files, and drops it on the last unsubscribe', async () => {
+		const session = AgentSession.uri('mock', 'session-working-set').toString();
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, 'file:///repo/worktree');
+		const changeset = buildWorkingSetChangesetUri(session);
+
+		const handled = await environment.coordinator.tryHandleSubscribe(URI.parse(changeset), async () => session);
+		environment.coordinator.onFirstSubscriber(URI.parse(changeset));
+		await tick();
+		const subscribed = {
+			handled,
+			registered: environment.stateManager.getChangesetState(changeset)?.status,
+			subscriptions: [...environment.subscriptions.getSessionSubscriptions(session)],
+			workingSetRefreshes: [...environment.changesets.workingSetRefreshes],
+			rootLookups: environment.gitService.rootLookupCalls,
+			acquisitions: environment.monitor.acquisitions,
+		};
+		environment.coordinator.onLastSubscriber(URI.parse(changeset));
+
+		assert.deepStrictEqual({ subscribed, afterUnsubscribe: [...environment.subscriptions.getSessionSubscriptions(session)] }, {
+			subscribed: {
+				handled: true,
+				registered: ChangesetStatus.Computing,
+				subscriptions: [changeset],
+				workingSetRefreshes: [session],
+				rootLookups: [],
+				acquisitions: [],
+			},
+			afterUnsubscribe: [],
+		});
+	});
+
 	test('does not attach root state when watcher acquisition fails', async () => {
 		const session = AgentSession.uri('mock', 'session-1').toString();
 		const environment = createEnvironment();
@@ -1014,7 +1072,117 @@ suite('ChangesetSessionCoordinator', () => {
 		assert.deepStrictEqual({ acquisitions: environment.monitor.acquisitions, disposals: environment.monitor.disposals, uncommittedRefreshes: environment.changesets.uncommittedRefreshes }, {
 			acquisitions: ['file:///repo', 'file:///repo'],
 			disposals: ['file:///repo'],
-			uncommittedRefreshes: [firstSession, secondSession],
+			// The idle session catches up once the root is watched again, then follows the next root change.
+			uncommittedRefreshes: [firstSession, firstSession, secondSession],
+		});
+	});
+
+	for (const ending of ['completes', 'is disposed'] as const) {
+		test(`catches up an idle session sharing a root once another session's turn ${ending}`, async () => {
+			const idleSession = AgentSession.uri('mock', 'session-1').toString();
+			const activeSession = AgentSession.uri('mock', 'session-2').toString();
+			const root = URI.file('/repo');
+			const environment = createEnvironment(root);
+			createSession(environment.stateManager, idleSession, 'file:///repo/worktree-a');
+			createSession(environment.stateManager, activeSession, 'file:///repo/worktree-b');
+
+			environment.coordinator.onFirstSubscriber(URI.parse(buildUncommittedChangesetUri(idleSession)));
+			await environment.monitor.waitForAcquisitions(1);
+			environment.coordinator.onSessionTurnActiveChanged(activeSession, true);
+			await environment.gitService.waitForRootLookups(2);
+			await tick();
+			environment.gitStateService.clearRefreshes();
+
+			// E.g. a `git pull` in a terminal while the shared root is suspended.
+			environment.monitor.fire(root);
+			if (ending === 'is disposed') {
+				// Deleting a session disposes it before its turn's end is reported.
+				environment.coordinator.onSessionDisposed(activeSession);
+			}
+			environment.coordinator.onSessionTurnActiveChanged(activeSession, false);
+			await tick();
+
+			assert.deepStrictEqual({ acquisitions: environment.monitor.acquisitions, gitStateRefreshes: environment.gitStateService.refreshed }, {
+				acquisitions: ['file:///repo', 'file:///repo'],
+				gitStateRefreshes: [idleSession],
+			});
+		});
+
+		test(`catches up an idle session only once across shared roots when another session's turn ${ending}`, async () => {
+			const idleSession = AgentSession.uri('mock', 'session-1').toString();
+			const activeSession = AgentSession.uri('mock', 'session-2').toString();
+			const primaryRoot = URI.file('/projects/repoA');
+			const secondaryRoot = URI.file('/projects/repoB');
+			const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+				[primaryRoot.toString(), primaryRoot],
+				[secondaryRoot.toString(), secondaryRoot],
+			])));
+			for (const session of [idleSession, activeSession]) {
+				createMultiRootSession(environment.stateManager, session, [primaryRoot.toString(), secondaryRoot.toString()]);
+			}
+
+			environment.coordinator.onFirstSubscriber(URI.parse(buildUncommittedChangesetUri(idleSession)));
+			await environment.monitor.waitForAcquisitions(2);
+			environment.coordinator.onSessionTurnActiveChanged(activeSession, true);
+			await environment.monitor.waitForDisposals(2);
+			await tick();
+			environment.gitStateService.clearRefreshes();
+			environment.changesets.clearRefreshes();
+
+			if (ending === 'is disposed') {
+				environment.coordinator.onSessionDisposed(activeSession);
+			}
+			environment.coordinator.onSessionTurnActiveChanged(activeSession, false);
+			await environment.monitor.waitForAcquisitions(4);
+			await tick();
+
+			assert.deepStrictEqual({
+				acquisitions: environment.monitor.acquisitions,
+				refreshedWith: environment.gitStateService.refreshedWith,
+				recomputed: environment.changesets.recomputed,
+			}, {
+				acquisitions: [primaryRoot.toString(), secondaryRoot.toString(), primaryRoot.toString(), secondaryRoot.toString()],
+				refreshedWith: [{ sessionKey: idleSession, workingDirectory: primaryRoot.toString() }],
+				recomputed: [idleSession],
+			});
+		});
+	}
+
+	test('catches up a shared root only after its last active turn ends', async () => {
+		const idleSession = AgentSession.uri('mock', 'session-1').toString();
+		const firstActiveSession = AgentSession.uri('mock', 'session-2').toString();
+		const secondActiveSession = AgentSession.uri('mock', 'session-3').toString();
+		const environment = createEnvironment();
+		for (const session of [idleSession, firstActiveSession, secondActiveSession]) {
+			createSession(environment.stateManager, session, 'file:///repo/worktree');
+		}
+
+		environment.coordinator.onFirstSubscriber(URI.parse(buildUncommittedChangesetUri(idleSession)));
+		await environment.monitor.waitForAcquisitions(1);
+		environment.coordinator.onSessionTurnActiveChanged(firstActiveSession, true);
+		environment.coordinator.onSessionTurnActiveChanged(secondActiveSession, true);
+		await environment.gitService.waitForRootLookups(5);
+		await tick();
+		environment.gitStateService.clearRefreshes();
+
+		environment.coordinator.onSessionTurnActiveChanged(firstActiveSession, false);
+		await tick();
+		const whileActive = {
+			acquisitions: [...environment.monitor.acquisitions],
+			refreshed: [...environment.gitStateService.refreshed],
+		};
+		environment.coordinator.onSessionTurnActiveChanged(secondActiveSession, false);
+		await environment.monitor.waitForAcquisitions(2);
+		await tick();
+
+		assert.deepStrictEqual({
+			whileActive,
+			acquisitions: environment.monitor.acquisitions,
+			refreshed: environment.gitStateService.refreshed,
+		}, {
+			whileActive: { acquisitions: ['file:///repo'], refreshed: [] },
+			acquisitions: ['file:///repo', 'file:///repo'],
+			refreshed: [idleSession],
 		});
 	});
 
@@ -1043,7 +1211,8 @@ suite('ChangesetSessionCoordinator', () => {
 		assert.deepStrictEqual({ acquisitions: environment.monitor.acquisitions, disposals: environment.monitor.disposals, refreshes: environment.changesets.uncommittedRefreshes }, {
 			acquisitions: ['file:///repo', 'file:///repo'],
 			disposals: ['file:///repo'],
-			refreshes: [parentSession],
+			// The parent catches up on the subagent's turn, then follows the next root change.
+			refreshes: [parentSession, parentSession],
 		});
 	});
 
@@ -1348,6 +1517,117 @@ suite('ChangesetSessionCoordinator', () => {
 		}, {
 			removedOwners: [peer],
 			disposals: [],
+		});
+	});
+
+	test('the branch summary refreshes only the folders of chats in use, not those of archived chats or their subagents', () => {
+		const session = AgentSession.uri('mock', 'summary-in-use').toString();
+		const defaultChat = buildDefaultChatUri(session);
+		const visible = buildChatUri(session, 'visible');
+		const archived = buildChatUri(session, 'archived');
+		const subagent = buildChatUri(session, 'subagent');
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, 'file:///default');
+		const storage = creationTimeChatStorageResource(session, visible, defaultChat);
+		environment.stateManager.addChat(session, visible, storage, { workingDirectories: ['file:///visible'] });
+		environment.stateManager.addChat(session, archived, storage, { workingDirectories: ['file:///archived'] });
+		environment.stateManager.addChat(session, subagent, storage, { origin: { kind: ChatOriginKind.Tool, chat: archived, toolCallId: 'tool' }, workingDirectories: ['file:///deleted-worktree'] });
+		environment.stateManager.dispatchServerAction(archived, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+		environment.stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+
+		assert.deepStrictEqual([...new Set(environment.changesets.branchRefreshes)].sort(), [
+			buildBranchChangesetOwner(session, ['file:///default']),
+			buildBranchChangesetOwner(session, ['file:///visible']),
+		].sort());
+	});
+
+	for (const sideChat of [false, true]) {
+		test(`archiving a ${sideChat ? 'side' : 'peer'} chat releases its branch summary and unarchiving it subscribes again`, async () => {
+			const session = AgentSession.uri('mock', 'summary-archive-toggle').toString();
+			const defaultChat = buildDefaultChatUri(session);
+			const peer = buildChatUri(session, 'peer');
+			const defaultRoot = URI.file('/projects/default');
+			const peerRoot = URI.file('/projects/peer');
+			const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+				[defaultRoot.toString(), defaultRoot],
+				[peerRoot.toString(), peerRoot],
+			])));
+			createSession(environment.stateManager, session, defaultRoot.toString());
+			environment.stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, defaultChat), {
+				workingDirectories: [peerRoot.toString()],
+				origin: sideChat ? { kind: ChatOriginKind.SideChat, chat: defaultChat, turnId: 'turn' } : undefined,
+			});
+			environment.stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+			environment.coordinator.onFirstSubscriber(URI.parse(session));
+			await environment.monitor.waitForAcquisitions(2);
+			const peerOwner = buildBranchChangesetOwner(session, [peerRoot.toString()]);
+
+			environment.stateManager.dispatchServerAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+			await environment.monitor.waitForDisposals(1);
+			const archived = { removedOwners: [...environment.changesets.removedOwners], disposals: [...environment.monitor.disposals] };
+			environment.changesets.clearRefreshes();
+			environment.stateManager.dispatchServerAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: false });
+			await environment.monitor.waitForAcquisitions(3);
+
+			assert.deepStrictEqual({
+				archived,
+				restoredRefreshes: [...new Set(environment.changesets.branchRefreshes)],
+				acquisitions: environment.monitor.acquisitions.filter(root => root === peerRoot.toString()),
+			}, {
+				archived: { removedOwners: [peerOwner], disposals: [peerRoot.toString()] },
+				restoredRefreshes: [buildBranchChangesetOwner(session, [defaultRoot.toString()]), peerOwner],
+				acquisitions: [peerRoot.toString(), peerRoot.toString()],
+			});
+		});
+	}
+
+	test('detaching an archived summary-only side chat folder does not recreate its branch watcher', async () => {
+		const session = AgentSession.uri('mock', 'summary-only-archive').toString();
+		const defaultChat = buildDefaultChatUri(session);
+		const side = buildChatUri(session, 'side');
+		const defaultRoot = URI.file('/projects/default');
+		const sideRoot = URI.file('/projects/side');
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+			[defaultRoot.toString(), defaultRoot],
+			[sideRoot.toString(), sideRoot],
+		])));
+		createSession(environment.stateManager, session, defaultRoot.toString());
+		environment.stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatWorkingDirectorySet, directory: defaultRoot.toString() });
+		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: sideRoot.toString() });
+		environment.stateManager.registerRestoredChatSummary(session, side, {
+			storageResource: creationTimeChatStorageResource(session, side, defaultChat),
+			workingDirectories: [sideRoot.toString()],
+			origin: { kind: ChatOriginKind.SideChat, chat: defaultChat, turnId: 'turn' },
+		});
+		environment.stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		await environment.monitor.waitForAcquisitions(2);
+		const sideOwner = buildBranchChangesetOwner(session, [sideRoot.toString()]);
+
+		environment.stateManager.dispatchServerAction(side, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+		await environment.monitor.waitForDisposals(1);
+		environment.changesets.clearRefreshes();
+		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectoryRemoved, directory: sideRoot.toString() });
+		await tick();
+		const afterDetach = {
+			refreshed: [...new Set(environment.changesets.branchRefreshes)],
+			acquisitions: [...environment.monitor.acquisitions],
+			disposals: [...environment.monitor.disposals],
+			sideHydrated: environment.stateManager.getChatState(side) !== undefined,
+		};
+		environment.stateManager.dispatchServerAction(side, { type: ActionType.ChatIsArchivedChanged, isArchived: false });
+		await environment.monitor.waitForAcquisitions(3);
+
+		assert.deepStrictEqual({ afterDetach, removedOwners: environment.changesets.removedOwners }, {
+			afterDetach: {
+				refreshed: [buildBranchChangesetOwner(session, [defaultRoot.toString()])],
+				acquisitions: [defaultRoot.toString(), sideRoot.toString()],
+				disposals: [sideRoot.toString()],
+				sideHydrated: false,
+			},
+			removedOwners: [sideOwner],
 		});
 	});
 
@@ -1718,6 +1998,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	readonly uncommittedRefreshes: string[] = [];
 	readonly turnRefreshes: string[] = [];
 	readonly sessionRefreshes: string[] = [];
+	readonly workingSetRefreshes: string[] = [];
 	readonly chatSummaryRefreshes: string[] = [];
 	readonly workingDirectoryAvailable: string[] = [];
 	readonly recomputed: string[] = [];
@@ -1741,6 +2022,9 @@ class TestChangesetService implements IAgentHostChangesetService {
 	refreshSessionChangeset(session: string, strategy?: ChangesetDiffStrategy): void {
 		assert.strictEqual(strategy ?? 'fileEditTracker', 'fileEditTracker');
 		this.sessionRefreshes.push(session);
+	}
+	refreshWorkingSetChangeset(owner: string): void {
+		this.workingSetRefreshes.push(owner);
 	}
 	onWorkingDirectoryAvailable(session: string): void {
 		this.workingDirectoryAvailable.push(session);
@@ -1783,6 +2067,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	openTrackedTurnDatabase(): undefined { return undefined; }
 	openTrackedSessionDatabases() { return { sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }; }
 	onFileEditsDiscarded(): void { }
+	onFileEditsAccepted(): void { }
 	ensureChatChangesSummary(_chat: string): void { }
 	refreshChatChangesSummary(chat: string): void {
 		this.chatSummaryRefreshes.push(chat);
@@ -1796,6 +2081,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 		this.uncommittedRefreshes.length = 0;
 		this.turnRefreshes.length = 0;
 		this.sessionRefreshes.length = 0;
+		this.workingSetRefreshes.length = 0;
 		this.chatSummaryRefreshes.length = 0;
 		this.recomputed.length = 0;
 	}

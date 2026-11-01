@@ -18,6 +18,7 @@ import { ConfigurationTarget } from '../../../platform/configuration/common/conf
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { canLog, ILogService, LogLevel } from '../../../platform/log/common/log.js';
+import { McpServerPolicyValues } from '../../../platform/mcp/common/allowedMcpServers.js';
 import product from '../../../platform/product/common/product.js';
 import { StorageScope } from '../../../platform/storage/common/storage.js';
 import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerEnvironmentVariableExpansion, McpServerLaunch, McpServerStaticMetadata, McpServerStaticToolAvailability, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
@@ -139,6 +140,10 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 	 */
 	async $expandEnvironmentVariables(launch: McpServerLaunch.Serialized, _expansion: McpServerEnvironmentVariableExpansion): Promise<McpServerLaunch.Serialized> {
 		return launch;
+	}
+
+	async $resolveMcpPolicyVariables(values: readonly string[]): Promise<McpServerPolicyValues> {
+		return Object.fromEntries(values.map(value => [value, value]));
 	}
 
 	$stopMcp(id: number): void {

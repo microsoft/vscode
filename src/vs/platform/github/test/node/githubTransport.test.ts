@@ -237,6 +237,39 @@ suite('GitHubTransport', () => {
 		});
 	});
 
+	test('records the page where GitHub lets the user authorize a credential refused for single sign-on', async () => {
+		const refuse = async (header: string | undefined, url = 'https://api.github.example.test/repos/o/r/pulls') => {
+			const transport = disposables.add(new GitHubTransport(async () => new Response('{"message":"Resource protected by organization SAML enforcement."}', {
+				status: 403, headers: header ? { 'x-github-sso': header } : {},
+			})));
+			try {
+				await transport.rest(accountA, 'token', { method: 'GET', url, etag: false }, signal());
+				return 'resolved';
+			} catch (error) {
+				return error instanceof GitHubRequestError ? [error.kind, error.responseMetadata?.ssoAuthorizationUrl] : String(error);
+			}
+		};
+		const page = 'https://github.example.test/orgs/octo/sso?authorization_request=abc';
+
+		assert.deepStrictEqual({
+			apiHost: await refuse(`required; url=${page}`),
+			sameHost: await refuse(`required; url=https://ghe.example.test/orgs/octo/sso?authorization_request=abc`, 'https://ghe.example.test/api/v3/repos/o/r'),
+			otherHost: await refuse('required; url=https://evil.example.test/orgs/octo/sso?authorization_request=abc'),
+			insecure: await refuse(`required; url=${page.replace('https:', 'http:')}`),
+			otherPage: await refuse('required; url=https://github.example.test/login'),
+			partialResults: await refuse('partial-results; organizations=21955855'),
+			missing: await refuse(undefined),
+		}, {
+			apiHost: ['authorization', page],
+			sameHost: ['authorization', 'https://ghe.example.test/orgs/octo/sso?authorization_request=abc'],
+			otherHost: ['authorization', undefined],
+			insecure: ['authorization', undefined],
+			otherPage: ['authorization', undefined],
+			partialResults: ['authorization', undefined],
+			missing: ['authorization', undefined],
+		});
+	});
+
 	test('coalesces buffered and legacy JSON reads without changing either result shape', async () => {
 		const started = new DeferredPromise<void>();
 		const release = new DeferredPromise<Response>();
@@ -936,6 +969,38 @@ suite('GitHubTransport', () => {
 			assert.deepStrictEqual({ attempts, locked: stream.locked, timers: scheduler.pendingCount }, { attempts: 1, locked: false, timers: 0 });
 		});
 	}
+
+	test('keeps response byte limits independent in concurrent and cached reads', async () => {
+		const response = new DeferredPromise<void>();
+		let calls = 0;
+		const transport = disposables.add(new GitHubTransport(async () => {
+			calls++;
+			await response.p;
+			return new Response('12345678', { headers: { etag: '"eight-bytes"' } });
+		}, undefined, false, undefined, { maximumResponseBytes: 8 }));
+		const request: GitHubRestTextRequest = { method: 'GET', url: 'https://github.example.test/repos/o/r', responseBody: 'text' };
+		const normal = transport.restText(accountA, 'token', request, signal());
+		const limited = assert.rejects(transport.restText(accountA, 'token', { ...request, maximumResponseBytes: 4 }, signal()), { kind: 'responseTooLarge' });
+		await response.complete();
+		const body = (await normal).data;
+		await limited;
+		await assert.rejects(transport.restText(accountA, 'token', { ...request, maximumResponseBytes: 4 }, signal()), { kind: 'responseTooLarge' });
+		assert.deepStrictEqual({ body, calls }, { body: '12345678', calls: 3 });
+	});
+
+	test('a per-request byte limit cannot raise the transport limit', async () => {
+		let calls = 0;
+		const transport = disposables.add(new GitHubTransport(async () => {
+			calls++;
+			return new Response('12345');
+		}, undefined, false, undefined, { maximumResponseBytes: 4 }));
+		const request: GitHubRestTextRequest = { method: 'GET', url: 'https://github.example.test/repos/o/r', responseBody: 'text' };
+		await assert.rejects(transport.restText(accountA, 'token', { ...request, maximumResponseBytes: 8 }, signal()), { kind: 'responseTooLarge' });
+		for (const maximumResponseBytes of [0, -1, Infinity, 1.5]) {
+			await assert.rejects(transport.restText(accountA, 'token', { ...request, maximumResponseBytes }, signal()), { kind: 'validation' });
+		}
+		assert.strictEqual(calls, 1);
+	});
 
 	for (const kind of ['responseTooLarge', 'malformedResponse'] as const) {
 		test(`does not reclassify or retry ${kind} body validation failures`, async () => {

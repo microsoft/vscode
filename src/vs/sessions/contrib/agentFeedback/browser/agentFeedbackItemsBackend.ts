@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { getComparisonKey } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -18,6 +19,7 @@ import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewServic
 import { IAgentHostSessionsProvider, isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackReply } from './agentFeedbackModel.js';
 
 // --- Backend interface --------------------------------------------------------
@@ -174,6 +176,7 @@ interface IFeedbackMetaView {
 	readonly codeSelection?: string;
 	readonly diffHunks?: string;
 	readonly sourcePRReviewCommentId?: string;
+	readonly sourcePRReviewCommentAuthor?: string;
 	readonly sourcePullRequest?: IFeedbackPullRequest;
 	readonly pendingAgentReveal?: boolean;
 }
@@ -220,6 +223,7 @@ function readFeedbackMeta(annotation: Annotation): IFeedbackMetaView | undefined
 		codeSelection: base.codeSelection,
 		diffHunks: base.diffHunks,
 		sourcePRReviewCommentId: base.sourcePRReviewCommentId,
+		sourcePRReviewCommentAuthor: base.sourcePRReviewCommentAuthor,
 		sourcePullRequest: base.sourcePullRequest,
 		pendingAgentReveal: base.pendingAgentReveal,
 	};
@@ -266,6 +270,7 @@ function feedbackToAnnotation(feedback: IAgentFeedback, connection: IAgentConnec
 		codeSelection: feedback.codeSelection,
 		diffHunks: feedback.diffHunks,
 		sourcePRReviewCommentId: feedback.sourcePRReviewCommentId,
+		sourcePRReviewCommentAuthor: feedback.sourcePRReviewCommentAuthor,
 		sourcePullRequest: feedback.sourcePullRequest,
 		pendingAgentReveal: feedback.pendingAgentReveal,
 	};
@@ -305,6 +310,7 @@ function annotationToFeedback(annotation: Annotation, sessionResource: URI, conn
 		diffHunks: meta?.diffHunks,
 		kind: meta?.kind ?? AgentFeedbackKind.UserReview,
 		sourcePRReviewCommentId: meta?.sourcePRReviewCommentId,
+		sourcePRReviewCommentAuthor: meta?.sourcePRReviewCommentAuthor,
 		sourcePullRequest: meta?.sourcePullRequest,
 		replies: replies.length ? replies : undefined,
 		state: annotation.resolved ? AgentFeedbackState.Resolved : (meta?.state ?? AgentFeedbackState.Accepted),
@@ -326,10 +332,11 @@ interface ITrackedChannel {
  * via the `annotations/set` upsert (and `annotations/removed`) actions, with
  * feedback semantics carried in {@link Annotation._meta}.
  *
- * A per-session subscription is acquired lazily and held for the backend's
- * lifetime so reads are synchronous and server-driven changes surface via
- * {@link onDidChangeItems}. A local cache backs reads before the first
- * snapshot arrives.
+ * A per-session subscription is acquired lazily and held while the session is
+ * visible so reads are synchronous and server-driven changes surface via
+ * {@link onDidChangeItems}. It is released once the session leaves the screen
+ * and the host has acknowledged its feedback writes, and acquired again on the
+ * next read. A local cache backs reads before the first snapshot arrives.
  */
 export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements IAgentFeedbackItemsBackend {
 
@@ -358,22 +365,45 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 	 */
 	private readonly _loadedBySession = new Set<string>();
 	private readonly _suspendedAnnotationsReconciliation = new Set<string>();
+	/** Sessions on screen, whose annotations subscriptions are held. */
+	private _visibleSessionKeys = new Set<string>();
+	/** Hidden sessions whose subscriptions are released once the host acknowledges their feedback writes. */
+	private readonly _releaseOnAcknowledgement = new Set<string>();
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super();
 
-		// Release a session's annotations subscription when the session is
-		// permanently deleted. Otherwise the per-session wire subscription
-		// acquired lazily in `_ensureChannel` would be held for the lifetime of
-		// this (singleton-owned) backend.
+		// Release a deleted session's subscription and its cached feedback.
 		this._register(this._sessionsManagementService.onDidDeleteSession(session => this._releaseChannel(session.resource)));
+		// Rebind held subscriptions to the provider's current connection, and
+		// resume those of visible sessions whose channel became available again.
 		this._register(this._sessionsManagementService.onDidChangeSessions(() => {
-			for (const resource of this._sessionResourceByKey.values()) {
-				this._ensureChannel(resource);
+			for (const [key, resource] of this._sessionResourceByKey) {
+				if (this._channelBySession.has(key) || this._visibleSessionKeys.has(key)) {
+					this._ensureChannel(resource);
+				}
 			}
+		}));
+		// Hold subscriptions only for visible sessions. Otherwise this
+		// singleton-owned backend would keep one for every session ever opened
+		// in the window.
+		this._register(autorun(reader => {
+			const visible = new Set<string>();
+			const activeSession = this._sessionsService.activeSession.read(reader);
+			if (activeSession) {
+				visible.add(activeSession.resource.toString());
+			}
+			for (const session of this._sessionsService.visibleSessionPanes.read(reader)) {
+				if (session) {
+					visible.add(session.resource.toString());
+				}
+			}
+			this._visibleSessionKeys = visible;
+			this._releaseHiddenChannels();
 		}));
 	}
 
@@ -545,6 +575,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 				item.diffHunks ?? null,
 				item.kind,
 				item.sourcePRReviewCommentId ?? null,
+				item.sourcePRReviewCommentAuthor ?? null,
 				item.sourcePullRequest ?? null,
 				item.replies ?? null,
 				item.state,
@@ -585,6 +616,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		this._channels.deleteAndDispose(key);
 		this._channelBySession.delete(key);
 		this._loadedBySession.delete(key);
+		this._releaseOnAcknowledgement.delete(key);
 	}
 
 	private _releaseChannel(sessionResource: URI): void {
@@ -593,6 +625,37 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		this._sessionResourceByKey.delete(key);
 		this._cacheBySession.delete(key);
 		this._signatureBySession.delete(key);
+	}
+
+	/**
+	 * Releases the subscription of every session that is no longer visible; the
+	 * next read acquires it again.
+	 */
+	private _releaseHiddenChannels(): void {
+		for (const [key, resource] of [...this._sessionResourceByKey]) {
+			if (!this._visibleSessionKeys.has(key)) {
+				this._releaseHiddenChannel(key, resource);
+			}
+		}
+	}
+
+	/**
+	 * Releases a hidden session's subscription. A session with feedback keeps
+	 * its last known items, so reads stay consistent while the snapshot reloads.
+	 */
+	private _releaseHiddenChannel(key: string, resource: URI): void {
+		// Releasing the last reference discards writes the host has not
+		// acknowledged yet, so a reconnect could not resend them and the next
+		// snapshot would erase them. Release once they are acknowledged.
+		if (this._channelBySession.get(key)?.subscription.hasPendingActions) {
+			this._releaseOnAcknowledgement.add(key);
+			return;
+		}
+		if (this._cacheBySession.get(key)?.length) {
+			this._suspendChannel(resource);
+		} else {
+			this._releaseChannel(resource);
+		}
 	}
 
 	private _ensureChannel(sessionResource: URI): ITrackedChannel | undefined {
@@ -639,7 +702,12 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 			this._cacheBySession.set(key, items);
 			this._signatureBySession.set(key, this._feedbackSignature(items));
 		}
-		store.add(ref.object.onDidChange(() => this._onAnnotationsChange(sessionResource)));
+		store.add(ref.object.onDidChange(() => {
+			this._onAnnotationsChange(sessionResource);
+			if (this._releaseOnAcknowledgement.has(key) && !this._visibleSessionKeys.has(key)) {
+				this._releaseHiddenChannel(key, sessionResource);
+			}
+		}));
 
 		this._channels.set(key, store);
 		this._channelBySession.set(key, channel);

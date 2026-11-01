@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
 import type { ChildProcessWithoutNullStreams } from 'child_process';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
@@ -38,6 +39,7 @@ import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitl
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { CodexAgent } from '../../../node/codex/codexAgent.js';
+import { codexRetainedCommandOutputContent } from '../../../node/codex/codexTerminalOutput.js';
 import { ICodexAppServerClient, ClientRequestMethod, ClientRequestParams } from '../../../node/codex/codexAppServerClient.js';
 import { ICodexProxyHandle, ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { Thread } from '../../../node/codex/protocol/generated/v2/Thread.js';
@@ -199,7 +201,7 @@ function createHarness(store: DisposableStore, sessionData = createSessionDataSe
 	};
 	const events: (readonly IAgentDiscoveredChat[])[] = [];
 	store.add(agent.onDidDiscoverChats(chats => events.push(chats)));
-	return { agent, internal, client, files, filesystem, events, downloader };
+	return { agent, internal, client, files, filesystem, events, downloader, config };
 }
 
 suite('Codex chat discovery', () => {
@@ -265,14 +267,10 @@ suite('Codex chat discovery', () => {
 			const store = disposables.add(new DisposableStore());
 			const telemetry = new TestAgentHostStartupTelemetryService();
 			const startupPerformance = store.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService()));
-			const setupChecked = new DeferredPromise<void>();
 			const downloader = new class extends RecordingAgentSdkDownloader {
 				checks = 0;
 				override async isSdkResolvableWithoutDownload(): Promise<boolean> {
 					this.checks++;
-					if (this.checks === 1) {
-						void setupChecked.complete();
-					}
 					return super.isSdkResolvableWithoutDownload();
 				}
 			};
@@ -282,10 +280,11 @@ suite('Codex chat discovery', () => {
 				downloads++;
 				throw new Error('unexpected download');
 			};
-			const { agent, internal, client } = createHarness(store, undefined, startupPerformance, downloader);
-			internal._activated = active;
+			const { agent, internal, client, config } = createHarness(store, undefined, startupPerformance, downloader);
+			internal._activated = false;
 			client.threads = [];
-			await setupChecked.p;
+			await Event.toPromise(config.onDidRootConfigChange);
+			internal._activated = active;
 			const setupChecks = downloader.checks;
 			const first = await agent.listChatsToMigrate();
 			const initialChecks = downloader.checks - setupChecks;
@@ -548,7 +547,7 @@ suite('Codex chat discovery', () => {
 			await agent.startChatDiscovery();
 			const session = AgentSession.uri('codex', 'first');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			await agent.materializeChat(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session) }, undefined);
+			await agent.materializeChat(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session) }, undefined);
 			client.turns = [turn('one', 'First message')];
 			await agent.chats.getMessages(chat, session);
 			const observed = agent as import('../../../common/agent.js').IAgent;
@@ -791,7 +790,7 @@ suite('Codex chat discovery', () => {
 			await agent.startChatDiscovery();
 			const session = AgentSession.uri('codex', 'first');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			await agent.materializeChat(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session) }, undefined);
+			await agent.materializeChat(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session) }, undefined);
 			client.threads = [thread('first', 2, 'Renamed after opening')];
 			filesystem.changeHomeFile('session_index.jsonl');
 			await timeout(6000);
@@ -809,7 +808,7 @@ suite('Codex chat discovery', () => {
 			await agent.startChatDiscovery();
 			const session = AgentSession.uri('codex', 'first');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			await agent.materializeChat(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session) }, undefined);
+			await agent.materializeChat(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session) }, undefined);
 			client.turns = [turn('one', 'First message')];
 			await agent.chats.getMessages(chat, session);
 			const observed = agent as import('../../../common/agent.js').IAgent;
@@ -879,9 +878,9 @@ suite('Codex chat discovery', () => {
 			await agent.startChatDiscovery();
 			const session = AgentSession.uri('codex', 'first');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			await agent.materializeChat(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session) }, undefined);
+			await agent.materializeChat(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session) }, undefined);
 			client.turns = [turn('Working')];
-			const initial = await agent.chats.getMessages(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session) });
+			const initial = await agent.chats.getMessages(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session) });
 			const observed = agent as import('../../../common/agent.js').IAgent;
 			let refreshed: ReturnType<typeof retainedContent>;
 			if (observed.onDidChangeChatHistory) {
@@ -905,6 +904,108 @@ suite('Codex chat discovery', () => {
 			];
 			assert.deepStrictEqual({ initial: retainedContent(initial), refreshed }, { initial: expected, refreshed: expected });
 			watch?.dispose();
+		} finally {
+			store.dispose();
+		}
+	}));
+
+	test('restored history looks up retained command output for every command in one batch', () => runWithFakedTimers({}, async () => {
+		const store = disposables.add(new DisposableStore());
+		const database = new TestSessionDatabase();
+		const largeOutput = `BEGIN\n${'x'.repeat(80_000)}\nEND\n`;
+		await database.createTurn('stored-turn');
+		await database.storeTerminalOutput('stored-turn', 'cmd-large', VSBuffer.fromString(largeOutput).buffer);
+		await database.storeTerminalOutput('stored-turn', 'cmd-short', VSBuffer.fromString('stored full output').buffer);
+		const { agent, client } = createHarness(store, createSessionDataService(database));
+		const inline = Array.from({ length: 500 }, (_, index) => `cmd-inline-${index}`);
+		const command = (id: string, aggregatedOutput: string) => ({
+			type: 'commandExecution' as const, id, command: 'build', cwd: '/tmp',
+			processId: null, source: 'agent' as const, status: 'completed' as const, commandActions: [],
+			pluginId: null, scriptPath: null,
+			aggregatedOutput, exitCode: 0, durationMs: 5,
+		});
+		const context = (session: URI) => ({ resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session) });
+		try {
+			await agent.startChatDiscovery();
+			const session = AgentSession.uri('codex', 'first');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			await agent.materializeChat(chat, context(session), undefined);
+			client.turns = [{
+				id: 'one', rootTurnId: null, status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000, itemsView: 'full',
+				items: [
+					{ type: 'userMessage', id: 'one-user', clientId: null, content: [{ type: 'text', text: 'Run it', text_elements: [] }] },
+					command('cmd-large', largeOutput),
+					command('cmd-short', 'short output'),
+					command('cmd-missing', largeOutput),
+					...inline.map(id => command(id, 'inline output')),
+				],
+			}];
+			const batchedLookups = spy(database, 'getTerminalOutputSizes');
+			const singleLookups = spy(database, 'getTerminalOutputSize');
+			const contentReads = spy(database, 'readTerminalOutput');
+			store.add(toDisposable(() => { batchedLookups.restore(); singleLookups.restore(); contentReads.restore(); }));
+
+			const turns = await agent.chats.getMessages(chat, context(session));
+
+			const terminalContent = turns.flatMap(turn => turn.responseParts).flatMap(part =>
+				part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed && part.toolCall.content?.some(content => content.type === ToolResultContentType.Terminal)
+					? [[part.toolCall.toolCallId, part.toolCall.content] as const]
+					: []);
+			assert.deepStrictEqual({
+				terminalContent,
+				batchedLookups: batchedLookups.args.map(([toolCallIds]) => toolCallIds),
+				singleLookups: singleLookups.callCount,
+				contentReads: contentReads.args.map(([toolCallId]) => toolCallId),
+			}, {
+				terminalContent: [
+					['cmd-large', codexRetainedCommandOutputContent(buildNonPtyShellTerminalUri(session, session, chat, 'cmd-large'), largeOutput, 0)],
+					['cmd-short', codexRetainedCommandOutputContent(buildNonPtyShellTerminalUri(session, session, chat, 'cmd-short'), 'stored full output', 0)],
+				],
+				batchedLookups: [['cmd-large', 'cmd-short', 'cmd-missing', ...inline]],
+				singleLookups: 0,
+				contentReads: ['cmd-short'],
+			});
+		} finally {
+			store.dispose();
+		}
+	}));
+
+	test('restored history keeps replayed command output when the retained output lookup fails', () => runWithFakedTimers({}, async () => {
+		const store = disposables.add(new DisposableStore());
+		const database = new class extends TestSessionDatabase {
+			override async getTerminalOutputSizes(): Promise<Map<string, number>> {
+				throw new Error('Cannot look up output');
+			}
+		}();
+		const largeOutput = `BEGIN\n${'x'.repeat(80_000)}\nEND\n`;
+		await database.createTurn('stored-turn');
+		await database.storeTerminalOutput('stored-turn', 'cmd-large', VSBuffer.fromString(largeOutput).buffer);
+		const { agent, client } = createHarness(store, createSessionDataService(database));
+		const context = (session: URI) => ({ resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session) });
+		try {
+			await agent.startChatDiscovery();
+			const session = AgentSession.uri('codex', 'first');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			await agent.materializeChat(chat, context(session), undefined);
+			client.turns = [{
+				id: 'one', rootTurnId: null, status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000, itemsView: 'full',
+				items: [
+					{ type: 'userMessage', id: 'one-user', clientId: null, content: [{ type: 'text', text: 'Run it', text_elements: [] }] },
+					{
+						type: 'commandExecution', id: 'cmd-large', command: 'build', cwd: '/tmp',
+						processId: null, source: 'agent', status: 'completed', commandActions: [],
+						pluginId: null, scriptPath: null,
+						aggregatedOutput: largeOutput, exitCode: 0, durationMs: 5,
+					},
+				],
+			}];
+
+			const turns = await agent.chats.getMessages(chat, context(session));
+
+			const tool = turns.flatMap(turn => turn.responseParts).find(part => part.kind === ResponsePartKind.ToolCall);
+			assert.deepStrictEqual(tool?.kind === ResponsePartKind.ToolCall && tool.toolCall.status === ToolCallStatus.Completed
+				? tool.toolCall.content?.map(content => content.type)
+				: undefined, [ToolResultContentType.Text]);
 		} finally {
 			store.dispose();
 		}

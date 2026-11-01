@@ -17,7 +17,7 @@ import { getComparisonKey, isEqual } from '../../../../../base/common/resources.
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
-import { agentHostAuthority, fromAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, isCloudSandboxPlaceholderTitle } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -70,6 +70,8 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		this.sessionType = remoteAgentHostSessionTypeId(authority, CLOUD_SANDBOX_AGENT_PROVIDER);
 		this._sessionListStore = this._register(instantiationService.createInstance(AgentHostSessionListStore, {
 			onDidNotification: this._notifications.event,
+			resourceUris: createAgentHostResourceUriMapper(authority),
+			initializeResult: derived(reader => this._connection.read(reader)?.initializeResult.read(reader)),
 			listSessions: async () => (await this._requireConnection().listSessions()).map(session => this._withListedTitle(session)),
 			disposeChat: chat => this._requireConnection().disposeChat(chat),
 			disposeSession: session => this._requireConnection().disposeSession(session),
@@ -82,7 +84,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		}));
 		this._controller = this._register(instantiationService.createInstance(AgentHostSessionListController,
 			this.sessionType, CLOUD_SANDBOX_AGENT_PROVIDER, this._sessionListStore,
-			'', authority));
+			'', authority, true));
 		const sessionsChanged = observableSignalFromEvent(this, this._controller.onDidChangeChatSessionItems);
 		this._items = derived(this, reader => {
 			sessionsChanged.read(reader);
@@ -95,6 +97,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 				const project = projectUri ? getGitHubRepositoryFromRemoteUrl(projectUri) : undefined;
 				const repository = project
 					? `${project.owner}/${project.repo}`.toLowerCase()
+					// eslint-disable-next-line local/code-agent-host-uri-mapping -- recognizes legacy wrapped filesystem project entries in the session-list cache
 					: !projectUri || fromAgentHostUri(URI.parse(projectUri)).scheme === Schemas.file
 						? discoveredRepositories.get(getComparisonKey(URI.parse(entry.summary.resource)))?.repository
 						: undefined;
@@ -272,6 +275,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		const directory = entry?.summary.workingDirectories?.[0];
 		const connection = this._connection.get();
 		return directory && connection
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- unwraps a legacy cached working-directory wrapper before applying the connection mapper
 			? connection.resourceUris.fromAgentHost(fromAgentHostUri(URI.parse(directory)))
 			: undefined;
 	}
@@ -310,7 +314,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 			if (this._store.isDisposed) {
 				throw new CancellationError();
 			}
-			if (resource.scheme !== this.sessionType || resource.fragment) {
+			if (resource.scheme !== this.sessionType) {
 				throw new Error(localize('cloudSandbox.archiveInvalidSession', "The session does not belong to this sandbox."));
 			}
 			const rawId = AgentSession.id(resource);

@@ -80,8 +80,8 @@ export interface IUserRequestCounters {
 /** Keys of {@link IStoredSessionStats} that hold simple incrementable counters. */
 export type SessionLifecycleCounterKey =
 	| 'feedbackAdded' | 'feedbackConverted' | 'feedbackReplyAdded' | 'feedbackSubmitted'
-	| 'createPullRequest' | 'createDraftPullRequest' | 'updatePullRequest' | 'mergePullRequest' | 'checkoutPullRequest'
-	| 'initializeRepository' | 'commit' | 'commitAndSync'
+	| 'createPullRequest' | 'createDraftPullRequest' | 'mergePullRequest' | 'checkoutPullRequest'
+	| 'initializeRepository' | 'commit' | 'commitAndSync' | 'syncChanges' | 'mergeChanges'
 	| 'sessionRestored' | 'stickinessToggled' | 'maximizeToggled'
 	| 'chatDeleted' | 'chatRenamed' | 'sessionRenamed' | 'fixCIChecks' | 'taskRun';
 
@@ -135,12 +135,16 @@ interface IStoredSessionStats {
 	feedbackSubmitted: number;
 	createPullRequest: number;
 	createDraftPullRequest: number;
-	updatePullRequest: number;
 	mergePullRequest: number;
 	checkoutPullRequest: number;
 	initializeRepository: number;
 	commit: number;
 	commitAndSync: number;
+	// Optional so rows persisted before these counters existed still load;
+	// `createEntry` always sets them, and `bumpCounter` and `buildSummary`
+	// default them.
+	syncChanges?: number;
+	mergeChanges?: number;
 	sessionRestored: number;
 	stickinessToggled: number;
 	maximizeToggled: number;
@@ -212,12 +216,13 @@ export interface ISessionLifecycleSummary {
 	feedbackSubmitted: number;
 	createPullRequest: number;
 	createDraftPullRequest: number;
-	updatePullRequest: number;
 	mergePullRequest: number;
 	checkoutPullRequest: number;
 	initializeRepository: number;
 	commit: number;
 	commitAndSync: number;
+	syncChanges: number;
+	mergeChanges: number;
 	sessionRestored: number;
 	stickinessToggled: number;
 	maximizeToggled: number;
@@ -318,7 +323,7 @@ export class SessionsLifecycleTracker extends Disposable {
 	/** Increment a named counter. Creates a tracking entry if the session is not yet tracked. */
 	bumpCounter(session: ISession, key: SessionLifecycleCounterKey): void {
 		const entry = this._ensure(session);
-		entry[key]++;
+		entry[key] = (entry[key] ?? 0) + 1;
 		this._updateObservedState(entry, session);
 		this._save();
 	}
@@ -705,12 +710,13 @@ function createEntry(session: ISession, appLaunchCount: number): IStoredSessionS
 		feedbackSubmitted: 0,
 		createPullRequest: 0,
 		createDraftPullRequest: 0,
-		updatePullRequest: 0,
 		mergePullRequest: 0,
 		checkoutPullRequest: 0,
 		initializeRepository: 0,
 		commit: 0,
 		commitAndSync: 0,
+		syncChanges: 0,
+		mergeChanges: 0,
 		sessionRestored: 0,
 		stickinessToggled: 0,
 		maximizeToggled: 0,
@@ -768,12 +774,13 @@ function buildSummary(sessionId: string, entry: IStoredSessionStats, reason: Ses
 		feedbackSubmitted: entry.feedbackSubmitted,
 		createPullRequest: entry.createPullRequest,
 		createDraftPullRequest: entry.createDraftPullRequest,
-		updatePullRequest: entry.updatePullRequest,
 		mergePullRequest: entry.mergePullRequest,
 		checkoutPullRequest: entry.checkoutPullRequest,
 		initializeRepository: entry.initializeRepository,
 		commit: entry.commit,
 		commitAndSync: entry.commitAndSync,
+		syncChanges: entry.syncChanges ?? 0,
+		mergeChanges: entry.mergeChanges ?? 0,
 		sessionRestored: entry.sessionRestored,
 		stickinessToggled: entry.stickinessToggled,
 		maximizeToggled: entry.maximizeToggled,

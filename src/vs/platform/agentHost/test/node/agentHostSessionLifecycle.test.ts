@@ -11,7 +11,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { mock } from '../../../../base/test/common/mock.js';
 import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey } from '../../common/agentHostSchema.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, buildDefaultChatUri, isSessionStatusArchived, MessageKind, SessionStatus, withSessionExternal, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { chatTurnStarted } from '../common/chatActionBuilders.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, buildDefaultChatUri, isSessionStatusArchived, SessionStatus, withSessionExternal, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import type { IAgentHostPullRequestStatus, IAgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
@@ -196,6 +197,14 @@ suite('AgentHostSessionLifecycle', () => {
 		});
 	});
 
+	for (const [age, shouldArchive] of [[DAY_MS - 1, false], [DAY_MS, true]] as const) {
+		test(`one-day automatic marking requires 24 hours of inactivity (age=${age})`, async () => {
+			const { lifecycle, archivedSessions } = createHarness({ status: mergedPullRequestStatus(), modifiedTime: NOW - age, archiveAfterDays: 1, deleteAfterDays: 0 });
+			await lifecycle.run();
+			assert.strictEqual(archivedSessions.length, shouldArchive ? 1 : 0);
+		});
+	}
+
 	test('does not archive when GitHub still reports the pull request open', async () => {
 		const { lifecycle, stateManager, session, restored, resolved } = createHarness({
 			status: { ...mergedPullRequestStatus(), state: 'open' },
@@ -304,12 +313,7 @@ suite('AgentHostSessionLifecycle', () => {
 			status: mergedPullRequestStatus(),
 			onResolve: (_configurationService, manager, resource, resolveCount) => {
 				if (resolveCount === 2) {
-					manager.dispatchServerAction(buildDefaultChatUri(resource.toString()), {
-						type: ActionType.ChatTurnStarted,
-						turnId: 'turn-1',
-						startedAt: new Date(NOW).toISOString(),
-						message: { text: 'continue', origin: { kind: MessageKind.User } },
-					});
+					manager.dispatchServerAction(buildDefaultChatUri(resource.toString()), chatTurnStarted('turn-1', 'continue', new Date(NOW).toISOString()));
 				}
 			},
 		});
@@ -375,6 +379,14 @@ suite('AgentHostSessionLifecycle', () => {
 			summary: undefined,
 		});
 	});
+
+	for (const [age, shouldDelete] of [[DAY_MS - 1, false], [DAY_MS, true]] as const) {
+		test(`one-day permanent deletion requires an additional 24 hours after automatic marking (age=${age})`, async () => {
+			const { lifecycle, deleted } = createHarness({ status: mergedPullRequestStatus(), sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived, autoArchivedAt: NOW - age, archiveAfterDays: 0, deleteAfterDays: 1 });
+			await lifecycle.run();
+			assert.strictEqual(deleted.length, shouldDelete ? 1 : 0);
+		});
+	}
 
 	test('keeps archived sessions during the permanent deletion grace period', async () => {
 		const { lifecycle, stateManager, session, restored, resolved, deleted } = createHarness({

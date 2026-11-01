@@ -5,11 +5,14 @@
 
 import assert from 'assert';
 import { $, append } from '../../../../../../../../base/browser/dom.js';
+import { isManagedHoverTooltipMarkdownString } from '../../../../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../../../../base/browser/window.js';
 import { IAction } from '../../../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../../../base/common/event.js';
+import { isMarkdownString } from '../../../../../../../../base/common/htmlContent.js';
+import { ResolvedKeybinding } from '../../../../../../../../base/common/keybindings.js';
 import { toDisposable } from '../../../../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -68,7 +71,7 @@ suite('ModelPickerActionItem', () => {
 	 * name followed by its thinking effort / context size readout. By default the
 	 * name has no icon, so it keeps its label even when the picker is compact.
 	 */
-	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly minimal?: boolean; readonly comparison?: IModelPickerComparison; readonly itemWidth?: number; readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[]; readonly showModelIcon?: boolean; readonly configurationService?: TestConfigurationService } = {}) {
+	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly minimal?: boolean; readonly comparison?: IModelPickerComparison; readonly comparisonBusy?: IObservable<boolean>; readonly comparisonKeybindingLabel?: string; readonly itemWidth?: number; readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[]; readonly showModelIcon?: boolean; readonly configurationService?: TestConfigurationService } = {}) {
 		const models = options.models ? [...options.models] : [model];
 		let modelReads = 0;
 		const modelsChanged = disposables.add(new Emitter<string>());
@@ -98,6 +101,7 @@ suite('ModelPickerActionItem', () => {
 		const currentModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('currentModel', model);
 		const delegate: IModelPickerDelegate = {
 			comparison: options.comparison,
+			comparisonBusy: options.comparisonBusy,
 			currentModel,
 			setModel: () => { },
 			setModelProgrammatically: () => { },
@@ -115,7 +119,13 @@ suite('ModelPickerActionItem', () => {
 			{ compact, minimal: constObservable(options.minimal ?? false) },
 			instantiationService,
 			new MockContextKeyService(),
-			new MockKeybindingService(),
+			new class extends MockKeybindingService {
+				override lookupKeybinding(commandId: string): ResolvedKeybinding | undefined {
+					return options.comparisonKeybindingLabel && commandId === options.comparison?.startCommandId
+						? upcastPartial<ResolvedKeybinding>({ getLabel: () => options.comparisonKeybindingLabel! })
+						: undefined;
+				}
+			}(),
 		));
 
 		const session = append(mainWindow.document.body, $('.interactive-session'));
@@ -309,7 +319,11 @@ suite('ModelPickerActionItem', () => {
 		const { domNode } = renderPicker(createModel('First'), {
 			comparison: upcastPartial<IModelPickerComparison>({ available: constObservable(true), summary, state }),
 		});
-		const label = () => domNode.querySelector('.chat-input-picker-label')?.textContent;
+		const label = () => ({
+			text: domNode.querySelector('.model-picker-name .chat-input-picker-label')?.textContent,
+			compare: !!domNode.querySelector('.codicon-compare'),
+			ariaLabel: domNode.querySelector('.model-picker-name')?.getAttribute('aria-label'),
+		});
 		const initial = label();
 		state.set({
 			title: 'Attempts', description: 'Select models.', summary: '10 Attempts', selectedModelIds: ['model'],
@@ -319,63 +333,105 @@ suite('ModelPickerActionItem', () => {
 		summary.set('3 Attempts', undefined);
 		const committed = label();
 		state.set(undefined, undefined);
-		assert.deepStrictEqual({ initial, duringSetup, committed, dismissed: label() }, {
-			initial: 'First', duringSetup: 'First', committed: '3 Attempts', dismissed: '3 Attempts',
+		const dismissed = label();
+		summary.set(undefined, undefined);
+		assert.deepStrictEqual({ initial, duringSetup, committed, dismissed, reset: label() }, {
+			initial: { text: 'First', compare: false, ariaLabel: 'Models, First' },
+			duringSetup: { text: 'First', compare: false, ariaLabel: 'Models, First' },
+			committed: { text: undefined, compare: true, ariaLabel: 'Models, 3 Attempts' },
+			dismissed: { text: undefined, compare: true, ariaLabel: 'Models, 3 Attempts' },
+			reset: { text: 'First', compare: false, ariaLabel: 'Models, First' },
 		});
 	});
 
-	test('composer keeps the labeled summary when variants repeat a model icon', () => {
+	test('composer uses one compare icon and preserves variant names in its accessible label and hover', () => {
 		const model = createModel('First');
-		const { domNode } = renderPicker(model, {
+		const { domNode, getHoverContents } = renderPicker(model, {
 			compact: true,
 			showModelIcon: true,
 			comparison: upcastPartial<IModelPickerComparison>({
 				available: constObservable(true),
 				summary: constObservable('First, First Max'),
-				summaryModelIds: constObservable([model.identifier, model.identifier]),
 				state: constObservable(undefined),
 			}),
 		});
 
 		assert.deepStrictEqual({
 			label: domNode.querySelector('.chat-input-picker-label')?.textContent,
-			attemptIcons: domNode.querySelector('.chat-input-picker-comparison-attempt-icons')?.childElementCount,
+			compareIcons: domNode.querySelectorAll('.model-picker-name > .codicon-compare').length,
+			icons: domNode.querySelectorAll('.model-picker-name > .codicon').length,
 			ariaLabel: domNode.querySelector('.model-picker-name')?.getAttribute('aria-label'),
+			hover: getHoverContents(),
 		}, {
-			label: 'First, First Max',
-			attemptIcons: undefined,
+			label: undefined,
+			compareIcons: 1,
+			icons: 1,
 			ariaLabel: 'Models, First, First Max',
+			hover: 'Models • First, First Max',
+		});
+	});
+
+	test('composer replaces the compare icon with progress in the same compact control', () => {
+		const busy = observableValue('comparisonBusy', false);
+		const { domNode, item } = renderPicker(createModel('First'), {
+			compact: true,
+			showModelIcon: true,
+			comparisonBusy: busy,
+			comparison: upcastPartial<IModelPickerComparison>({
+				available: constObservable(true),
+				summary: constObservable('3 Attempts'),
+				state: constObservable(undefined),
+			}),
+		});
+		const state = () => ({
+			compare: domNode.querySelectorAll('.model-picker-name > .codicon-compare').length,
+			loading: domNode.querySelectorAll('.model-picker-name > .codicon-loading-compact').length,
+			busy: domNode.classList.contains('comparison-busy'),
+			minimumWidth: item.minimumWidth,
+			ariaLabel: domNode.querySelector('.model-picker-name')?.getAttribute('aria-label'),
+		});
+		const idle = state();
+		busy.set(true, undefined);
+		const sending = state();
+		busy.set(false, undefined);
+
+		assert.deepStrictEqual({ idle, sending, settled: state() }, {
+			idle: { compare: 1, loading: 0, busy: false, minimumWidth: 22, ariaLabel: 'Models, 3 Attempts' },
+			sending: { compare: 0, loading: 1, busy: true, minimumWidth: 22, ariaLabel: 'Models, 3 Attempts' },
+			settled: { compare: 1, loading: 0, busy: false, minimumWidth: 22, ariaLabel: 'Models, 3 Attempts' },
 		});
 	});
 
 	for (const presentation of [
-		{ name: 'expanded', compact: false, minimal: false, attemptIcons: 2, layers: false },
-		{ name: 'compact', compact: true, minimal: false, attemptIcons: undefined, layers: true },
-		{ name: 'minimal', compact: false, minimal: true, attemptIcons: undefined, layers: true },
+		{ name: 'expanded', compact: false, minimal: false, showModelIcon: true },
+		{ name: 'compact', compact: true, minimal: false, showModelIcon: true },
+		{ name: 'minimal', compact: false, minimal: true, showModelIcon: true },
+		{ name: 'without model icons', compact: false, minimal: false, showModelIcon: false },
 	]) {
-		test(`composer uses ${presentation.name === 'expanded' ? 'attempt icons' : 'the layers fallback'} for ${presentation.name === 'expanded' ? 'an' : 'a'} ${presentation.name} distinct-model comparison`, () => {
+		test(`composer uses one compare icon for a distinct-model comparison (${presentation.name})`, () => {
 			const first = createModel('First');
 			const second = createModel('Second');
 			const { domNode } = renderPicker(first, {
 				compact: presentation.compact,
 				minimal: presentation.minimal,
 				models: [first, second],
-				showModelIcon: true,
+				showModelIcon: presentation.showModelIcon,
 				comparison: upcastPartial<IModelPickerComparison>({
 					available: constObservable(true),
 					summary: constObservable('First, Second'),
-					summaryModelIds: constObservable([first.identifier, second.identifier]),
 					state: constObservable(undefined),
 				}),
 			});
 
 			assert.deepStrictEqual({
-				attemptIcons: domNode.querySelector('.chat-input-picker-comparison-attempt-icons')?.childElementCount,
-				layers: !!domNode.querySelector('.codicon-layers'),
+				compareIcons: domNode.querySelectorAll('.model-picker-name > .codicon-compare').length,
+				icons: domNode.querySelectorAll('.model-picker-name > .codicon').length,
+				label: domNode.querySelector('.chat-input-picker-label')?.textContent,
 				ariaLabel: domNode.querySelector('.model-picker-name')?.getAttribute('aria-label'),
 			}, {
-				attemptIcons: presentation.attemptIcons,
-				layers: presentation.layers,
+				compareIcons: 1,
+				icons: 1,
+				label: undefined,
 				ariaLabel: 'Models, First, Second',
 			});
 		});
@@ -387,11 +443,62 @@ suite('ModelPickerActionItem', () => {
 				available: constObservable(true),
 				summary: constObservable('3 Attempts'),
 				state: constObservable(undefined),
+				label: 'Compare Models',
+				description: constObservable('Run one prompt in parallel and compare results.'),
+				startCommandId: 'test.compareModels',
 			}),
+			comparisonKeybindingLabel: 'Ctrl+Alt+M',
 		});
 
 		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
-		assert.strictEqual(item['_getHoverContents'](), 'Models • 3 Attempts');
+		assert.strictEqual(item['_getHoverContents'](), 'Models • 3 Attempts\n\nCompare Models (Ctrl+Alt+M)\n\nRun one prompt in parallel and compare results.');
+	});
+
+	test('hover advertises comparison without a shortcut when the command is unbound', () => {
+		const { getHoverContents } = renderPicker(createModel('First'), {
+			comparison: upcastPartial<IModelPickerComparison>({
+				available: constObservable(true),
+				summary: constObservable(undefined),
+				state: constObservable(undefined),
+				label: 'Compare Models',
+				startCommandId: 'test.compareModels',
+			}),
+		});
+
+		assert.strictEqual(getHoverContents(), 'Models • First\n\nCompare Models');
+	});
+
+	test('a chat on Copilot Fusion or a HydraFusion model shown as a Fusion tier names it in its label and describes Fusion in its hover', () => {
+		const auto = createModel('auto');
+		const fusion: ILanguageModelChatMetadataAndIdentifier = {
+			...auto,
+			metadata: {
+				...auto.metadata, name: 'Copilot Fusion', autoModelFusion: true, autoModelProviderTiers: true,
+				configurationSchema: { properties: { tier: { type: 'string', group: 'navigation', title: 'Effort Level', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'], default: 'balance' } } },
+			},
+		};
+		const max = createModel('hydrafusion-max');
+		const hydraFusionMax: ILanguageModelChatMetadataAndIdentifier = { ...max, metadata: { ...max.metadata, name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' }, configurationSchema: undefined } };
+		const read = (selected: ILanguageModelChatMetadataAndIdentifier) => {
+			const { domNode, getHoverContents } = renderPicker(selected, { models: [fusion, hydraFusionMax] });
+			const hover = getHoverContents();
+			return {
+				label: domNode.querySelector('.chat-input-picker-label')?.textContent,
+				hover: isManagedHoverTooltipMarkdownString(hover) && isMarkdownString(hover.markdown) ? { markdown: hover.markdown.value, fallback: hover.markdownNotSupportedFallback } : hover,
+			};
+		};
+		const description = 'Copilot Fusion selects a single model or orchestrates multiple models to complete your task.';
+		const learnMore = '[Learn more](https://aka.ms/vscode-copilot-fusion)';
+		assert.deepStrictEqual({ fusion: read(fusion), hydraFusionMax: read(hydraFusionMax) }, {
+			fusion: {
+				label: 'Copilot Fusion',
+				hover: { markdown: `Models • Copilot Fusion\n\n${description} ${learnMore}`, fallback: `Models • Copilot Fusion\n\n${description}` },
+			},
+			hydraFusionMax: {
+				label: 'Copilot Fusion',
+				hover: { markdown: `Models • Copilot Fusion Max\n\n${description} ${learnMore}`, fallback: `Models • Copilot Fusion Max\n\n${description}` },
+			},
+		});
 	});
 
 	test('a directly selected on-device model reads "<model> · On-device", as in the Copilot CLI and app', () => {

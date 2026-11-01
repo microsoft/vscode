@@ -8,7 +8,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { SpecedToolAliases } from '../../tools/languageModelToolsService.js';
 import { CLAUDE_AGENTS_SOURCE_FOLDER, isInClaudeRulesFolder } from '../config/promptFileLocations.js';
-import { PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
+import { IValue, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
 import { PromptsType, Target } from '../promptTypes.js';
 
 export namespace GithubPromptHeaderAttributes {
@@ -25,9 +25,13 @@ export function isTarget(value: unknown): value is Target {
 }
 
 
-interface IAttributeDefinition {
-	readonly type: string;
+export interface IAttributeDefinition {
+	readonly type: IValue['type'] | readonly IValue['type'][];
 	readonly description: string;
+	readonly required?: boolean;
+	readonly allowNull?: boolean;
+	readonly itemType?: IValue['type'];
+	readonly scalarType?: 'boolean' | 'string';
 	readonly defaults?: readonly string[];
 	readonly items?: readonly { name: string; description?: string }[];
 	readonly enums?: readonly { name: string; description?: string }[];
@@ -58,11 +62,11 @@ export const promptFileAttributes: Record<string, IAttributeDefinition> = {
 		description: localize('promptHeader.prompt.argumentHint', 'The argument-hint describes what inputs the prompt expects or supports.'),
 	},
 	[PromptHeaderAttributes.model]: {
-		type: 'scalar | sequence',
+		type: ['scalar', 'sequence'],
 		description: localize('promptHeader.prompt.model', 'The model to use in this prompt. Can also be a list of models. The first available model will be used.'),
 	},
 	[PromptHeaderAttributes.tools]: {
-		type: 'scalar | sequence',
+		type: ['scalar', 'sequence'],
 		description: localize('promptHeader.prompt.tools', 'The tools to use in this prompt.'),
 		defaults: ['[]', '[\'search\', \'edit\', \'web\']'],
 	},
@@ -97,7 +101,7 @@ export const instructionAttributes: Record<string, IAttributeDefinition> = {
 		],
 	},
 	[PromptHeaderAttributes.excludeAgent]: {
-		type: 'scalar | sequence',
+		type: ['scalar', 'sequence'],
 		description: localize('promptHeader.instructions.excludeAgent', 'One or more agents to exclude from using this instruction file.'),
 	},
 };
@@ -117,7 +121,7 @@ export const customAgentAttributes: Record<string, IAttributeDefinition> = {
 		description: localize('promptHeader.agent.argumentHint', 'The argument-hint describes what inputs the custom agent expects or supports.'),
 	},
 	[PromptHeaderAttributes.model]: {
-		type: 'scalar | sequence',
+		type: ['scalar', 'sequence'],
 		description: localize('promptHeader.agent.model', 'Specify the model that runs this custom agent. This is supported by the GitHub Copilot harness. You can also provide an ordered list of model preferences; the first available model will be used.'),
 	},
 	[PromptHeaderAttributes.reasoningEffort]: {
@@ -132,7 +136,7 @@ export const customAgentAttributes: Record<string, IAttributeDefinition> = {
 		],
 	},
 	[PromptHeaderAttributes.tools]: {
-		type: 'scalar | sequence',
+		type: ['scalar', 'sequence'],
 		description: localize('promptHeader.agent.tools', 'The set of tools that the custom agent has access to.'),
 		defaults: ['[]', '[search, edit, web]'],
 	},
@@ -147,6 +151,7 @@ export const customAgentAttributes: Record<string, IAttributeDefinition> = {
 	},
 	[PromptHeaderAttributes.infer]: {
 		type: 'scalar',
+		scalarType: 'boolean',
 		description: localize('promptHeader.agent.infer', 'Controls visibility of the agent.'),
 		enums: booleanAttributeEnumValues,
 	},
@@ -162,6 +167,7 @@ export const customAgentAttributes: Record<string, IAttributeDefinition> = {
 	},
 	[PromptHeaderAttributes.disableModelInvocation]: {
 		type: 'scalar',
+		scalarType: 'boolean',
 		description: localize('promptHeader.agent.disableModelInvocation', 'If true, prevents the agent from being invoked as a subagent.'),
 		enums: booleanAttributeEnumValues,
 	},
@@ -177,6 +183,180 @@ export const customAgentAttributes: Record<string, IAttributeDefinition> = {
 		type: 'map',
 		description: localize('promptHeader.agent.hooks', 'Lifecycle hooks scoped to this agent. Define hooks that run only while this agent is active.'),
 	},
+};
+
+export const githubCopilotAgentAttributes: Record<string, IAttributeDefinition> = {
+	[PromptHeaderAttributes.name]: {
+		type: 'scalar',
+		description: localize('promptHeader.githubCopilotAgent.name', 'The name of the custom agent. If omitted, the name is derived from the file name.'),
+	},
+	[PromptHeaderAttributes.description]: {
+		type: 'scalar',
+		description: localize('promptHeader.githubCopilotAgent.description', 'Describes what the custom agent does and when it should be used.'),
+		required: true,
+	},
+	[PromptHeaderAttributes.tools]: {
+		type: ['scalar', 'sequence'],
+		description: localize('promptHeader.githubCopilotAgent.tools', 'The tools available to the custom agent. Use a comma-separated string or an array of tool names.'),
+		defaults: ['["*"]'],
+		itemType: 'scalar',
+	},
+	[GithubPromptHeaderAttributes.mcpServers]: {
+		type: 'map',
+		description: localize('promptHeader.githubCopilotAgent.mcpServers', 'Agent-scoped local or remote MCP server configurations.'),
+		allowNull: true,
+	},
+	[PromptHeaderAttributes.infer]: {
+		type: 'scalar',
+		scalarType: 'boolean',
+		description: localize('promptHeader.githubCopilotAgent.infer', 'Legacy inverse of `disable-model-invocation`. Set to false to prevent model-driven invocation.'),
+		enums: booleanAttributeEnumValues,
+	},
+	[PromptHeaderAttributes.disableModelInvocation]: {
+		type: 'scalar',
+		scalarType: 'boolean',
+		description: localize('promptHeader.githubCopilotAgent.disableModelInvocation', 'Whether to prevent the model from selecting this custom agent.'),
+		enums: booleanAttributeEnumValues,
+	},
+	[PromptHeaderAttributes.userInvocable]: {
+		type: 'scalar',
+		scalarType: 'boolean',
+		description: localize('promptHeader.githubCopilotAgent.userInvocable', 'Whether users can select and invoke this custom agent.'),
+		enums: booleanAttributeEnumValues,
+	},
+	[PromptHeaderAttributes.model]: {
+		type: ['scalar', 'sequence'],
+		description: localize('promptHeader.githubCopilotAgent.model', 'The model to use. An array is treated as an ordered list of model preferences.'),
+		itemType: 'scalar',
+	},
+	[PromptHeaderAttributes.modelPolicy]: {
+		type: 'scalar',
+		description: localize('promptHeader.githubCopilotAgent.modelPolicy', 'Controls whether the configured model list is preferred or required.'),
+		enums: [
+			{ name: 'preferred' },
+			{ name: 'required' },
+		],
+	},
+	[PromptHeaderAttributes.reasoningEffort]: {
+		type: 'scalar',
+		description: localize('promptHeader.githubCopilotAgent.reasoningEffort', 'The reasoning-effort override for this custom agent. Supported values depend on the selected model.'),
+	},
+	[GithubPromptHeaderAttributes.github]: {
+		type: 'map',
+		description: localize('promptHeader.githubCopilotAgent.github', 'Configures GitHub MCP toolsets and permission policies for this custom agent.'),
+	},
+	[PromptHeaderAttributes.skills]: {
+		type: 'sequence',
+		description: localize('promptHeader.githubCopilotAgent.skills', 'The skills to load into the custom agent context.'),
+		itemType: 'scalar',
+	},
+	[PromptHeaderAttributes.deferredToolLoading]: {
+		type: 'scalar',
+		scalarType: 'boolean',
+		description: localize('promptHeader.githubCopilotAgent.deferredToolLoading', 'Whether tools can be loaded on demand for this custom agent.'),
+		enums: booleanAttributeEnumValues,
+	},
+	[PromptHeaderAttributes.strictToolsList]: {
+		type: 'scalar',
+		scalarType: 'boolean',
+		description: localize('promptHeader.githubCopilotAgent.strictToolsList', 'Whether to omit standard required tools that are not listed explicitly.'),
+		enums: booleanAttributeEnumValues,
+	},
+	[PromptHeaderAttributes.includeCustomInstructions]: {
+		type: 'scalar',
+		scalarType: 'boolean',
+		description: localize('promptHeader.githubCopilotAgent.includeCustomInstructions', 'Whether repository custom instructions are included in the custom agent context.'),
+		enums: booleanAttributeEnumValues,
+	},
+	[PromptHeaderAttributes.hooks]: {
+		type: 'map',
+		description: localize('promptHeader.githubCopilotAgent.hooks', 'Lifecycle hooks that run while this custom agent is active.'),
+	},
+	[PromptHeaderAttributes.target]: {
+		type: 'scalar',
+		description: localize('promptHeader.githubCopilotAgent.target', 'Overrides the harness used to interpret this custom agent file.'),
+		enums: targetAttributeEnumValues,
+	},
+};
+
+export const githubCopilotGithubProperties: Record<string, IAttributeDefinition> = {
+	toolsets: {
+		type: 'sequence',
+		description: localize('promptHeader.githubCopilotAgent.github.toolsets', 'GitHub MCP toolsets available to the custom agent.'),
+		itemType: 'scalar',
+	},
+	permissions: {
+		type: 'map',
+		description: localize('promptHeader.githubCopilotAgent.github.permissions', 'GitHub MCP permission policy.'),
+	},
+};
+
+export const githubCopilotMcpLocalServerProperties: Record<string, IAttributeDefinition> = {
+	type: {
+		type: 'scalar',
+		description: localize('promptHeader.githubCopilotAgent.mcp.local.type', 'Local MCP server transport type.'),
+		enums: [{ name: 'local' }, { name: 'stdio' }],
+	},
+	command: {
+		type: 'scalar',
+		description: localize('promptHeader.githubCopilotAgent.mcp.command', 'Command used to start the MCP server.'),
+	},
+	args: {
+		type: 'sequence',
+		description: localize('promptHeader.githubCopilotAgent.mcp.args', 'Arguments passed to the MCP server command.'),
+		itemType: 'scalar',
+	},
+	tools: {
+		type: 'sequence',
+		description: localize('promptHeader.githubCopilotAgent.mcp.tools', 'Tools exposed from the MCP server.'),
+		itemType: 'scalar',
+	},
+	cwd: {
+		type: 'scalar',
+		description: localize('promptHeader.githubCopilotAgent.mcp.cwd', 'Working directory used to start the MCP server.'),
+	},
+	env: {
+		type: 'map',
+		description: localize('promptHeader.githubCopilotAgent.mcp.env', 'Environment variables passed to the MCP server.'),
+	},
+	timeout: {
+		type: 'scalar',
+		description: localize('promptHeader.githubCopilotAgent.mcp.timeout', 'Positive startup timeout.'),
+	},
+	deferTools: {
+		type: 'scalar',
+		description: localize('promptHeader.githubCopilotAgent.mcp.deferTools', 'Controls whether MCP tools are deferred.'),
+		enums: [{ name: 'auto' }, { name: 'never' }],
+	},
+};
+
+export const githubCopilotMcpRemoteServerProperties: Record<string, IAttributeDefinition> = {
+	type: {
+		type: 'scalar',
+		description: localize('promptHeader.githubCopilotAgent.mcp.remote.type', 'Remote MCP server transport type.'),
+		enums: [{ name: 'http' }, { name: 'sse' }],
+	},
+	url: {
+		type: 'scalar',
+		description: localize('promptHeader.githubCopilotAgent.mcp.url', 'Remote MCP server URL.'),
+	},
+	tools: githubCopilotMcpLocalServerProperties.tools,
+	headers: {
+		type: 'map',
+		description: localize('promptHeader.githubCopilotAgent.mcp.headers', 'HTTP headers sent to the MCP server.'),
+	},
+	timeout: githubCopilotMcpLocalServerProperties.timeout,
+	deferTools: githubCopilotMcpLocalServerProperties.deferTools,
+};
+
+export const githubCopilotBodyPlaceholders: Record<string, string> = {
+	cwd: localize('promptBody.githubCopilot.cwd', 'Current working directory.'),
+	homedir: localize('promptBody.githubCopilot.homedir', "User's home directory."),
+	configDir: localize('promptBody.githubCopilot.configDir', 'Copilot configuration directory.'),
+	grepToolName: localize('promptBody.githubCopilot.grepToolName', 'Effective file-content search tool name.'),
+	globToolName: localize('promptBody.githubCopilot.globToolName', 'Effective file-globbing tool name.'),
+	shellToolName: localize('promptBody.githubCopilot.shellToolName', 'Effective shell tool name.'),
+	shellCommandExamples: localize('promptBody.githubCopilot.shellCommandExamples', 'Shell-appropriate command examples.'),
 };
 
 // Attribute metadata for skill files (`SKILL.md`).
@@ -204,11 +384,11 @@ export const skillAttributes: Record<string, IAttributeDefinition> = {
 		enums: booleanAttributeEnumValues,
 	},
 	[PromptHeaderAttributes.license]: {
-		type: 'scalar | map',
+		type: ['scalar', 'map'],
 		description: localize('promptHeader.skill.license', 'License information for the skill.'),
 	},
 	[PromptHeaderAttributes.compatibility]: {
-		type: 'scalar | map',
+		type: ['scalar', 'map'],
 		description: localize('promptHeader.skill.compatibility', 'Compatibility metadata for environments or runtimes.'),
 	},
 	[PromptHeaderAttributes.metadata]: {
@@ -229,7 +409,6 @@ const allAttributeNames: Record<PromptsType, string[]> = {
 	[PromptsType.skill]: Object.keys(skillAttributes),
 	[PromptsType.hook]: [], // hooks are JSON files, not markdown with YAML frontmatter
 };
-const githubCopilotAgentAttributeNames = [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.target, GithubPromptHeaderAttributes.mcpServers, GithubPromptHeaderAttributes.github, PromptHeaderAttributes.infer];
 const recommendedAttributeNames: Record<PromptsType, string[]> = {
 	[PromptsType.prompt]: allAttributeNames[PromptsType.prompt].filter(name => !isNonRecommendedAttribute(name)),
 	[PromptsType.instructions]: allAttributeNames[PromptsType.instructions].filter(name => !isNonRecommendedAttribute(name)),
@@ -246,7 +425,7 @@ export function getValidAttributeNames(promptType: PromptsType, includeNonRecomm
 		return Object.keys(claudeAgentAttributes);
 	} else if (target === Target.GitHubCopilot) {
 		if (promptType === PromptsType.agent) {
-			return githubCopilotAgentAttributeNames;
+			return Object.keys(githubCopilotAgentAttributes);
 		}
 	}
 	return includeNonRecommended ? allAttributeNames[promptType] : recommendedAttributeNames[promptType];
@@ -257,21 +436,26 @@ export function isNonRecommendedAttribute(attributeName: string): boolean {
 }
 
 export function getAttributeDefinition(attributeName: string, promptType: PromptsType, target: Target): IAttributeDefinition | undefined {
+	const getOwnDefinition = (definitions: Record<string, IAttributeDefinition>): IAttributeDefinition | undefined =>
+		Object.hasOwn(definitions, attributeName) ? definitions[attributeName] : undefined;
 	switch (promptType) {
 		case PromptsType.instructions:
 			if (target === Target.Claude) {
-				return claudeRulesAttributes[attributeName];
+				return getOwnDefinition(claudeRulesAttributes);
 			}
-			return instructionAttributes[attributeName];
+			return getOwnDefinition(instructionAttributes);
 		case PromptsType.skill:
-			return skillAttributes[attributeName];
+			return getOwnDefinition(skillAttributes);
 		case PromptsType.agent:
 			if (target === Target.Claude) {
-				return claudeAgentAttributes[attributeName];
+				return getOwnDefinition(claudeAgentAttributes);
 			}
-			return customAgentAttributes[attributeName];
+			if (target === Target.GitHubCopilot) {
+				return getOwnDefinition(githubCopilotAgentAttributes);
+			}
+			return getOwnDefinition(customAgentAttributes);
 		case PromptsType.prompt:
-			return promptFileAttributes[attributeName];
+			return getOwnDefinition(promptFileAttributes);
 		default:
 			return undefined;
 	}
@@ -284,6 +468,13 @@ export const knownGithubCopilotTools = [
 	{ name: SpecedToolAliases.edit, description: localize('githubCopilot.edit', 'Edit files') },
 	{ name: SpecedToolAliases.search, description: localize('githubCopilot.search', 'Search files') },
 	{ name: SpecedToolAliases.agent, description: localize('githubCopilot.agent', 'Use subagents') },
+	{ name: SpecedToolAliases.web, description: localize('githubCopilot.web', 'Fetch URLs and search the web') },
+	{ name: SpecedToolAliases.todo, description: localize('githubCopilot.todo', 'Manage task lists') },
+];
+
+export const knownGithubCopilotToolNamespaces = [
+	{ name: 'github/*', description: localize('githubCopilot.githubTools', 'Use GitHub tools') },
+	{ name: 'playwright/*', description: localize('githubCopilot.playwrightTools', 'Use browser automation tools') },
 ];
 
 export interface IValueEntry {
@@ -389,7 +580,7 @@ export const claudeAgentAttributes: Record<string, IAttributeDefinition> = {
 		description: localize('attribute.mcpServers', "MCP servers available to this subagent."),
 	},
 	'hooks': {
-		type: 'object',
+		type: 'map',
 		description: localize('attribute.hooks', "Lifecycle hooks scoped to this subagent."),
 	},
 	'memory': {
@@ -423,7 +614,7 @@ export function isVSCodeOrDefaultTarget(target: Target): boolean {
 	return target === Target.VSCode || target === Target.Undefined;
 }
 
-export function getTarget(promptType: PromptsType, header: PromptHeader | URI): Target {
+export function getTarget(promptType: PromptsType, header: PromptHeader | URI, defaultTarget = Target.Undefined): Target {
 	const uri = header instanceof URI ? header : header.uri;
 	if (promptType === PromptsType.agent) {
 		const parentDir = dirname(uri);
@@ -436,7 +627,7 @@ export function getTarget(promptType: PromptsType, header: PromptHeader | URI): 
 				return target;
 			}
 		}
-		return Target.Undefined;
+		return defaultTarget;
 	} else if (promptType === PromptsType.instructions) {
 		if (isInClaudeRulesFolder(uri)) {
 			return Target.Claude;
