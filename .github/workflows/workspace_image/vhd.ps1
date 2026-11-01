@@ -1,13 +1,15 @@
 # Attaches the VHDX of a workspace image and mounts its volume at a folder, or creates one (see
 # README.md).
 #
-#   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -Prepare
+#   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -Prepare [-WaitFor C:\a\_temp\workspace-image.vhdx.ready -MountFolder C:\a\vscode [-CachedIo] [-Trust]]
 #   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -MountFolder C:\a\vscode [-CachedIo] [-Trust]
 #   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -Create -MountFolder C:\a\vscode [-MaximumSizeGB 200] [-BlockSizeMB 1]
 #   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -MountFolder C:\a\vscode -Detach
 #
 # -Prepare creates the empty file that image.ts restores a VHDX into, as a temporary file, whose data
-# Windows keeps in memory while it has enough instead of writing it to the disk.
+# Windows keeps in memory while it has enough instead of writing it to the disk. With -WaitFor, the
+# same process then compiles the virtual disk API while image.ts restores the VHDX, and attaches it
+# when image.ts creates the file that -WaitFor names, so that neither takes time of the job.
 # Without another switch, attaches the VHDX with the virtual disk API (see Vhd.cs), and mounts its
 # volume at the empty folder. -CachedIo opens the VHDX through the file system cache, so that the
 # data of the temporary file is read from memory. -Trust trusts the Dev Drive of the VHDX on this
@@ -20,6 +22,7 @@ param(
 	[string] $Path,
 	[string] $MountFolder,
 	[switch] $Prepare,
+	[string] $WaitFor,
 	[switch] $CachedIo,
 	[switch] $Trust,
 	[switch] $Create,
@@ -49,10 +52,12 @@ function Import-Vhd {
 }
 
 if ($Prepare) {
-	New-Item -ItemType File -Path $Path -Force | Out-Null
-	(Get-Item $Path).Attributes = 'Temporary'
+	# Created under another name, so that the file appears with its attribute
+	New-Item -ItemType File -Path "$Path.new" -Force | Out-Null
+	(Get-Item "$Path.new").Attributes = 'Temporary'
+	Move-Item -Force "$Path.new" $Path
 	Step "prepared $Path"
-	return
+	if (-not $WaitFor) { return }
 }
 
 if ($Detach) {
@@ -86,6 +91,15 @@ if ($Create) {
 	Step "formatted a Dev Drive and mounted it at $MountFolder"
 	fsutil devdrv query $MountFolder | Out-Host
 	return
+}
+
+if ($WaitFor) {
+	$deadline = (Get-Date).AddMinutes(10)
+	while (-not (Test-Path $WaitFor)) {
+		if ((Get-Date) -gt $deadline) { throw "No $WaitFor" }
+		Start-Sleep -Milliseconds 20
+	}
+	Step "found $WaitFor"
 }
 
 # OPEN_VIRTUAL_DISK_FLAG_CACHED_IO, then without it

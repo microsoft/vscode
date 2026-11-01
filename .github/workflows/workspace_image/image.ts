@@ -23,7 +23,7 @@
 //
 // `restore` reads the API with the token in GH_TOKEN, which needs `actions: read`.
 
-import { spawnSync, type SpawnSyncOptions } from 'child_process';
+import { spawn, spawnSync, type SpawnSyncOptions } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -605,17 +605,39 @@ async function mount(source: Source, root: string, connections: number): Promise
 			};
 		}
 		case 'win32': {
-			// A Dev Drive in a VHDX, in a temporary file, attached through the file system cache
+			// A Dev Drive in a VHDX, in a temporary file, attached through the file system cache. One
+			// PowerShell prepares the file, compiles the virtual disk API while the image downloads, and
+			// attaches the VHDX when it is complete.
 			const file = path.join(temp, 'workspace-image.vhdx');
-			const script = path.join(import.meta.dirname, 'vhd.ps1');
-			run('pwsh', ['-NoProfile', '-NonInteractive', '-File', script, '-Path', file, '-Prepare']);
-			log(await unpack(source, file, { sparse: false, existing: true, connections }));
-			// A volume can only be mounted at an empty folder
-			fs.rmdirSync(ws);
+			const ready = `${file}.ready`;
+			fs.rmSync(file, { force: true });
+			fs.rmSync(ready, { force: true });
+			const attach = spawn('pwsh', ['-NoProfile', '-NonInteractive', '-File', path.join(import.meta.dirname, 'vhd.ps1'), '-Path', file, '-Prepare', '-WaitFor', ready, '-MountFolder', root, '-CachedIo', '-Trust'], { stdio: 'inherit' });
+			const exited = new Promise<number | null>(resolve => {
+				attach.on('error', () => resolve(null));
+				attach.on('exit', code => resolve(code));
+			});
+			let removed = false;
 			try {
-				run('pwsh', ['-NoProfile', '-NonInteractive', '-File', script, '-Path', file, '-MountFolder', root, '-CachedIo', '-Trust']);
+				while (!fs.existsSync(file)) {
+					if (await Promise.race([exited.then(() => true), new Promise<false>(resolve => setTimeout(() => resolve(false), 20))])) {
+						throw new Error('vhd.ps1 exited before it prepared the file');
+					}
+				}
+				log(await unpack(source, file, { sparse: false, existing: true, connections }));
+				// A volume can only be mounted at an empty folder
+				fs.rmdirSync(ws);
+				removed = true;
+				fs.writeFileSync(ready, '');
+				const code = await exited;
+				if (code !== 0) {
+					throw new Error(`vhd.ps1 exited with ${code}`);
+				}
 			} catch (err) {
-				fs.mkdirSync(ws, { recursive: true });
+				attach.kill();
+				if (removed) {
+					fs.mkdirSync(ws, { recursive: true });
+				}
 				throw err;
 			}
 			return () => {
