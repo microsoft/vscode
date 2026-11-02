@@ -138,6 +138,10 @@ function isWindowsSignType(type: string): boolean {
 	return type === 'sign-windows' || type === 'sign-windows-appx';
 }
 
+function isDarwinSignType(type: string): boolean {
+	return type === 'sign-darwin' || type === 'notarize-darwin';
+}
+
 /**
  * ESRP's own session timeout. The Windows sign job times out after 90 minutes,
  * so Windows sessions have to give up well before that.
@@ -248,6 +252,176 @@ export async function runWithEsrpStallGuard(command: string, args: string[], sta
 	}
 }
 
+export interface EsrpDownloadStallOptions {
+	/** How long a download is measured before it can be called stalled. */
+	readonly windowMs: number;
+	/** The slowest download rate that is not a stall. */
+	readonly minBytesPerSecond: number;
+}
+
+export const DEFAULT_ESRP_DOWNLOAD_STALL_WINDOW_SECONDS = 60;
+export const DEFAULT_ESRP_DOWNLOAD_MIN_MB_PER_SECOND = 1;
+export const MAX_ESRP_DOWNLOAD_STALL_RESUBMISSIONS = 2;
+
+/**
+ * Some connections from Azure Storage to the macOS agents run at about 0.2 MB/s
+ * for their whole life (IcM 891066261), where downloads normally run at about
+ * 20 MB/s. ESRP downloads a signed file on a single connection without a
+ * timeout, so such a download takes 25-40 minutes. Across 876 macOS downloads,
+ * stalls averaged below 1 MB/s and healthy slow ones 1.5-3 MB/s.
+ */
+export function getEsrpDownloadStallOptions(env: NodeJS.ProcessEnv = process.env): EsrpDownloadStallOptions {
+	const positive = (value: string | undefined, fallback: number) => {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+	};
+	return {
+		windowMs: positive(env['VSCODE_ESRP_DOWNLOAD_STALL_WINDOW_SECONDS'], DEFAULT_ESRP_DOWNLOAD_STALL_WINDOW_SECONDS) * 1000,
+		minBytesPerSecond: positive(env['VSCODE_ESRP_DOWNLOAD_MIN_MB_PER_SECOND'], DEFAULT_ESRP_DOWNLOAD_MIN_MB_PER_SECOND) * 1024 * 1024,
+	};
+}
+
+export interface EsrpDownloadStall {
+	readonly file: string;
+	readonly bytesPerSecond: number;
+}
+
+/**
+ * Measures how fast ESRP downloads signed files. ESRP downloads each signed file
+ * to `<file>.tmp` next to it, checks its hash and only then replaces the file,
+ * so the growth of the `.tmp` files is the download rate.
+ */
+export class EsrpDownloadMonitor {
+	private readonly samples = new Map<string, { readonly time: number; readonly size: number }[]>();
+	private readonly options: EsrpDownloadStallOptions;
+
+	constructor(options: EsrpDownloadStallOptions) {
+		this.options = options;
+	}
+
+	/** Records the current sizes of the `.tmp` files and returns a download that stalled. */
+	sample(sizes: ReadonlyMap<string, number>, now = Date.now()): EsrpDownloadStall | undefined {
+		for (const file of [...this.samples.keys()]) {
+			if (!sizes.has(file)) {
+				this.samples.delete(file);
+			}
+		}
+		for (const [file, size] of sizes) {
+			let samples = this.samples.get(file);
+			if (!samples) {
+				samples = [];
+				this.samples.set(file, samples);
+			}
+			samples.push({ time: now, size });
+			// Keep the latest sample that is at least a window old, and the ones after it.
+			while (samples.length > 1 && samples[1].time <= now - this.options.windowMs) {
+				samples.shift();
+			}
+			const oldest = samples[0];
+			if (oldest.time <= now - this.options.windowMs) {
+				const bytesPerSecond = (size - oldest.size) / ((now - oldest.time) / 1000);
+				if (bytesPerSecond < this.options.minBytesPerSecond) {
+					return { file, bytesPerSecond };
+				}
+			}
+		}
+		return undefined;
+	}
+}
+
+function globToRegExp(glob: string): RegExp {
+	const source = glob.split('').map(c => c === '*' ? '[^/\\\\]*' : c === '?' ? '[^/\\\\]' : c.replace(/[.+^${}()|[\]\\]/g, '\\$&')).join('');
+	return new RegExp(`^${source}$`);
+}
+
+/** Returns the `.tmp` files of ESRP downloads in progress for the files of `pattern` in `folder`, with their sizes. */
+export function getEsrpDownloadTempFiles(folder: string, pattern: string): Map<string, number> {
+	const matches = globToRegExp(pattern);
+	const result = new Map<string, number>();
+	let entries: string[];
+	try {
+		entries = fs.readdirSync(folder);
+	} catch {
+		return result;
+	}
+	for (const entry of entries) {
+		if (entry.endsWith('.tmp') && matches.test(entry.slice(0, -'.tmp'.length))) {
+			try {
+				result.set(path.join(folder, entry), fs.statSync(path.join(folder, entry)).size);
+			} catch {
+				// Moved into place since it was listed
+			}
+		}
+	}
+	return result;
+}
+
+/**
+ * Runs an ESRP session for macOS files and stops it once one of its signed-file
+ * downloads stalls. Killing the session leaves the original file in place (ESRP
+ * replaces it only after a complete, verified download), so the caller can submit
+ * the file again, which downloads it on a new connection.
+ */
+export async function runWithEsrpDownloadStallGuard(command: string, args: string[], getTempFiles: () => ReadonlyMap<string, number>, options: EsrpDownloadStallOptions, pollIntervalMs = 15_000): Promise<{ exitCode: number | null; stalled?: EsrpDownloadStall }> {
+	const monitor = new EsrpDownloadMonitor(options);
+	const child = cp.spawn(command, args, { stdio: 'inherit' });
+
+	let stalled: EsrpDownloadStall | undefined;
+	let resolveExit!: (exitCode: number | null) => void;
+	const exited = new Promise<number | null>((resolve, reject) => {
+		resolveExit = resolve;
+		child.once('error', reject);
+		child.once('close', resolve);
+	});
+	const timer = setInterval(() => {
+		stalled = monitor.sample(getTempFiles());
+		if (stalled) {
+			clearInterval(timer);
+			killProcessTree(child);
+			// Don't wait on a process that survived the kill.
+			setTimeout(() => resolveExit(null), 30_000).unref();
+		}
+	}, pollIntervalMs);
+
+	try {
+		return { exitCode: await exited, stalled };
+	} finally {
+		clearInterval(timer);
+	}
+}
+
+function removeEsrpDownloadTempFiles(folder: string, pattern: string): void {
+	for (const file of getEsrpDownloadTempFiles(folder, pattern).keys()) {
+		// ESRP opens the .tmp file without truncating it, so a leftover one would fail its hash check.
+		fs.rmSync(file, { force: true });
+	}
+}
+
+async function runDarwinSession(type: string, folderPath: string, pattern: string, args: string[]): Promise<void> {
+	const options = getEsrpDownloadStallOptions();
+	for (let attempt = 1; ; attempt++) {
+		removeEsrpDownloadTempFiles(folderPath, pattern);
+		const guard = attempt <= MAX_ESRP_DOWNLOAD_STALL_RESUBMISSIONS;
+		const { exitCode, stalled } = guard
+			? await runWithEsrpDownloadStallGuard('dotnet', args, () => getEsrpDownloadTempFiles(folderPath, pattern), options)
+			: { exitCode: cp.spawnSync('dotnet', args, { stdio: 'inherit' }).status, stalled: undefined };
+
+		if (stalled) {
+			const rate = (stalled.bytesPerSecond / 1024 / 1024).toFixed(2);
+			const file = path.basename(stalled.file, '.tmp');
+			console.log(`[esrp-stall] type=${type} file=${file} rate=${rate}MB/s window=${options.windowMs / 1000}s attempt=${attempt} action=resubmit`);
+			console.log(`##vso[task.logissue type=warning]ESRP download of ${file} stalled at ${rate} MB/s; submitting it again (attempt ${attempt + 1}).`);
+			continue;
+		}
+		if (exitCode !== 0) {
+			console.error('ESRP failed');
+			console.error(`dotnet exited with code ${exitCode}`);
+			process.exit(1);
+		}
+		return;
+	}
+}
+
 export function main([esrpCliPath, type, folderPath, pattern]: string[]): void | Promise<void> {
 	const tmp = new Temp();
 	process.on('exit', () => tmp.dispose());
@@ -334,6 +508,14 @@ export function main([esrpCliPath, type, folderPath, pattern]: string[]): void |
 				process.exit(1);
 			}
 		}, err => {
+			console.error('ESRP failed');
+			console.error(err);
+			process.exit(1);
+		});
+	}
+
+	if (isDarwinSignType(type)) {
+		return runDarwinSession(type, folderPath, pattern, args).catch(err => {
 			console.error('ESRP failed');
 			console.error(err);
 			process.exit(1);
