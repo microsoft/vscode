@@ -132,7 +132,10 @@ export class AgentHostGenericConfigChips extends Disposable {
 		const localBackend = toAgentHostBackendSessionUri(sessionResource, this._connectionsService);
 		if (localBackend && localProvider && isUntitledChatSession(sessionResource) && !provisionalBackend) {
 			this._subRef.clear();
-			if (!this._initialResolved || this._initialResolved.sessionResource.toString() !== sessionResource.toString()) {
+			const prepared = this._provisional.getResolvedConfig(sessionResource) ?? this._provisional.getPreparedSessionConfig(sessionResource);
+			if (prepared) {
+				this._initialResolved = { sessionResource, result: prepared };
+			} else if (!this._initialResolved || this._initialResolved.sessionResource.toString() !== sessionResource.toString()) {
 				this._initialResolved = undefined;
 				void this._refreshInitialResolved(sessionResource, localProvider, resolution);
 			}
@@ -140,7 +143,15 @@ export class AgentHostGenericConfigChips extends Disposable {
 			return;
 		}
 
-		this._initialResolved = undefined;
+		if (!localProvider || !isUntitledChatSession(sessionResource) || !isEqual(this._initialResolved?.sessionResource, sessionResource) || resolution.connection !== this._connectionsService.ambientConnection) {
+			this._initialResolved = undefined;
+		}
+		if (localProvider && isUntitledChatSession(sessionResource) && resolution.connection === this._connectionsService.ambientConnection) {
+			const prepared = this._provisional.getPreparedSessionConfig(sessionResource);
+			if (prepared) {
+				this._initialResolved = { sessionResource, result: prepared };
+			}
+		}
 		this._cancelInitialResolve();
 		const current = this._subRef.value;
 		if (current && !(current.sub.value instanceof Error) && isEqual(current.sessionResource, sessionResource) && current.connection === resolution.connection && isEqual(current.backendSession, resolution.backendSession)) {
@@ -165,7 +176,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 	}
 
 	private async _refreshInitialResolved(sessionResource: URI, provider: string, resolution: IAgentHostSessionResolution): Promise<void> {
-		const result = await this._initialConfig.resolve(sessionResource, provider, resolution, this._readWorkingDirectory());
+		const result = await this._initialConfig.resolve(sessionResource, provider, resolution, this._readWorkingDirectory(), this._provisional.getInitialSessionConfig());
 		if (result && result === this._initialConfig.value && isEqual(this._widget.viewModel?.sessionResource, sessionResource) && this._initialConfig.isCurrent(sessionResource, resolution)) {
 			this._initialResolved = { sessionResource, result };
 			this._sync();
@@ -187,7 +198,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 
 	private _readSchemaProperties(): readonly [string, SessionConfigPropertySchema][] | undefined {
 		const sessionResource = this._widget.viewModel?.sessionResource;
-		if (this._subRef.value) {
+		if (this._subRef.value && this._subRef.value.sub.value !== undefined) {
 			const state = this._subRef.value.sub.value;
 			if (!state || state instanceof Error || !state.config) {
 				return undefined;

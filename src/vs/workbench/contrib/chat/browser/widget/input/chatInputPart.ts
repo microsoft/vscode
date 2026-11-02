@@ -3517,6 +3517,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.contextUsageWidget.update(model.lastRequest);
 	}
 
+	/** Refreshes controls after the incoming session's context keys have all been applied. */
+	refreshToolbars(): void {
+		this.inputActionsToolbar?.refresh();
+		this.executeToolbar?.refresh();
+		this.secondaryToolbar?.refresh();
+		this.updateChatSessionPickerContainer();
+		this._toolbarRelayoutScheduler.schedule();
+	}
+
+	private updateChatSessionPickerContainer(): void {
+		// eslint-disable-next-line no-restricted-syntax
+		this.chatSessionPickerContainer = this.inputActionsToolbar?.getElement().querySelector<HTMLElement>('.chat-sessionPicker-container')
+			// eslint-disable-next-line no-restricted-syntax
+			?? this.secondaryToolbar?.getElement().querySelector<HTMLElement>('.chat-sessionPicker-container')
+			?? undefined;
+	}
+
 	private handleViewModelChange(e: IChatWidgetViewModelChangeEvent): void {
 		this.updateDeferredNotificationsEligibility(e);
 		transaction(observableTransaction => {
@@ -4224,13 +4241,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputActionsToolbar.getElement().classList.add('chat-input-toolbar');
 		this.inputActionsToolbar.context = { widget } satisfies IChatExecuteActionContext;
 		this._register(this.inputActionsToolbar.onDidChangeMenuItems(() => {
-			// Update container reference for the pickers (cloud sessions host them in the primary toolbar)
-			const toolbarElement = this.inputActionsToolbar.getElement();
-			// eslint-disable-next-line no-restricted-syntax
-			const primaryPickerContainer = toolbarElement.querySelector('.chat-sessionPicker-container');
-			if (primaryPickerContainer) {
-				this.chatSessionPickerContainer = primaryPickerContainer as HTMLElement;
-			}
+			this.updateChatSessionPickerContainer();
 			if (this.cachedWidth && typeof this.cachedInputToolbarWidth === 'number' && this.cachedInputToolbarWidth !== this.inputActionsToolbar.getItemsWidth()) {
 				this._toolbarRelayoutScheduler.schedule();
 			}
@@ -4245,6 +4256,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (enabled !== lastPhoneEnabled) {
 				lastPhoneEnabled = enabled;
 				this.inputActionsToolbar.refresh();
+				this.updateChatSessionPickerContainer();
 			}
 		}));
 		this.executeToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarsContainer, this.options.menus.executeToolbar, {
@@ -4539,15 +4551,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		dom.append(responsivePickerContainer, genericChipsContainer);
 		if (this.options.renderSecondaryToolbar !== false) {
 			this._register(this.secondaryToolbar.onDidChangeMenuItems(() => {
-				// Update container reference for the pickers when the secondary toolbar hosts one.
-				// Only assign when found so we don't overwrite a valid primary container reference
-				// for session types whose pickers live in the primary toolbar (e.g. cloud).
-				const toolbarElement = this.secondaryToolbar.getElement();
-				// eslint-disable-next-line no-restricted-syntax
-				const container = toolbarElement.querySelector('.chat-sessionPicker-container');
-				if (dom.isHTMLElement(container)) {
-					this.chatSessionPickerContainer = container;
-				}
+				this.updateChatSessionPickerContainer();
 			}));
 		}
 

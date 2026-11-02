@@ -52,6 +52,63 @@ import '../../../../browser/widget/media/chat.css';
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('refreshes session toolbars synchronously before scheduling layout', () => {
+		const updates: string[] = [];
+		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			inputActionsToolbar: { refresh: () => updates.push('input'), getElement: () => dom.$('div') },
+			executeToolbar: { refresh: () => updates.push('execute') },
+			secondaryToolbar: { refresh: () => updates.push('secondary'), getElement: () => dom.$('div') },
+			_toolbarRelayoutScheduler: { schedule: () => updates.push('layout') },
+		});
+		input.refreshToolbars();
+		assert.deepStrictEqual(updates, ['input', 'execute', 'secondary', 'layout']);
+	});
+
+	for (const placement of ['primary', 'secondary'] as const) {
+		test(`keeps dependent session options in the attached ${placement} toolbar after synchronous refresh`, () => {
+			const root = dom.append(mainWindow.document.body, dom.$('div'));
+			store.add(toDisposable(() => root.remove()));
+			const primary = dom.append(root, dom.$('div'));
+			const secondary = dom.append(root, dom.$('div'));
+			const toolbar = placement === 'primary' ? primary : secondary;
+			const oldContainer = dom.append(toolbar, dom.$('.chat-sessionPicker-container'));
+			const groups = [{ id: 'initial' }];
+			const selected: string[] = [];
+			const refresh = (element: HTMLElement) => {
+				dom.clearNode(element);
+				if (element === toolbar) {
+					dom.append(element, dom.$('.chat-sessionPicker-container'));
+				}
+			};
+			const input: { refreshToolbars(): void; refreshChatSessionPickers(): void } = Object.assign(Object.create(ChatInputPart.prototype), {
+				inputActionsToolbar: { refresh: () => refresh(primary), getElement: () => primary },
+				executeToolbar: { refresh: () => { } },
+				secondaryToolbar: { refresh: () => refresh(secondary), getElement: () => secondary },
+				_toolbarRelayoutScheduler: { schedule: () => { } },
+				chatSessionPickerContainer: oldContainer,
+				chatSessionPickerWidgets: new Map([['initial', {}]]),
+				_lastSessionPickerAction: {},
+				getCurrentSessionResource: () => undefined,
+				getAllOptionsGroups: () => groups,
+				getVisibleOptionGroupsModeAndUpdateContextKeys: () => groups,
+				createChatSessionPickerWidgets: () => groups.map(group => ({
+					render: (container: HTMLElement) => {
+						const button = dom.append(container, dom.$('button', undefined, group.id));
+						store.add(dom.addDisposableListener(button, dom.EventType.CLICK, () => selected.push(group.id)));
+					},
+				})),
+			});
+			input.refreshToolbars();
+			groups.push({ id: 'dependent' });
+			input.refreshChatSessionPickers();
+			const buttons = [...toolbar.querySelectorAll('button')];
+			buttons.at(-1)?.click();
+			assert.deepStrictEqual({ detachedOldContainer: !oldContainer.isConnected, labels: buttons.map(button => button.textContent), selected }, {
+				detachedOldContainer: true, labels: ['initial', 'dependent'], selected: ['dependent'],
+			});
+		});
+	}
+
 	for (const { preserveFocus, moveFocus } of [
 		{ preserveFocus: undefined, moveFocus: false },
 		{ preserveFocus: true, moveFocus: false },

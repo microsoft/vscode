@@ -3135,12 +3135,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._setResponseIdentity(undefined);
 			this.updateWorkingProgressBorder();
 			this.onDidChangeItems();
+			this.requestInProgress.set(false);
+			this.hasActiveRequest.set(false);
 			this._hasPendingRequestsContextKey.set(false);
 			this._chatSessionSupportsRenameContextKey.set(false);
 			if (!this.viewOptions.isSessionsWindow) {
 				this.policyReadOnly = false;
 				this.setReadOnly(false);
 			}
+			this.inputPart.refreshToolbars();
 			return;
 		}
 
@@ -3289,6 +3292,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewOptions.renderArtifactsWidget !== false) {
 			this.input.renderArtifactsWidget(this.viewModel.sessionResource);
 		}
+		this.inputPart.refreshToolbars();
 	}
 
 	private bindSessionCapabilities(model: IChatModel): IDisposable {
