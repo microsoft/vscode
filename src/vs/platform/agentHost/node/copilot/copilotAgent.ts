@@ -884,6 +884,8 @@ type CopilotCliRecoveryEstimateClassification = {
  */
 const MAX_STARTUP_CONFIG_RETRIES = 1;
 const MAX_SESSION_RESTORE_ATTEMPTS = 5;
+/** How many SDK clients chat config resolution tries when the client is replaced while it resolves managed settings. */
+const MAX_CHAT_CONFIG_CLIENT_ATTEMPTS = 3;
 /** Bounds the background Computer Use plugin download, including a stalled response body. */
 const COMPUTER_USE_DOWNLOAD_TIMEOUT_MS = 2 * 60 * 1000;
 /** Clients show the helper app's icon at up to 64 pixels, so 128 stays sharp on Retina displays. */
@@ -7373,8 +7375,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (params.config?.[SessionConfigKey.AutoApprove] === undefined) {
 			delete values[SessionConfigKey.AutoApprove];
 		}
-		const client = await this._ensureClient();
-		const resolved = await this._managedSettingsResolver.resolve(client.rpc.managedSettings, this._githubCredentials.token, params.workingDirectory?.fsPath);
+		const resolved = await this._resolveChatConfigManagedSettings(params.workingDirectory?.fsPath);
 		const policy = getCopilotApprovalPolicy(resolved.resolved,
 			this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true,
 			this._managedSettingsService.permissions);
@@ -7384,6 +7385,27 @@ export class CopilotAgent extends Disposable implements IAgent {
 			type: 'object', title: localize('copilot.runtimeModelConfiguration', "Runtime Model Configuration"), readOnly: true,
 		};
 		return result;
+	}
+
+	/**
+	 * Resolves managed settings for {@link resolveChatConfig}, retrying with the current SDK client when the one it
+	 * acquired is stopped or replaced before the query settles. That restart disposes the query's connection and can
+	 * land right after the first start, for example when a CAPI proxy resolved through a client sharing this agent
+	 * host's network arrives while the client is starting. Unlike chat turns, config resolution does not defer it.
+	 */
+	private async _resolveChatConfigManagedSettings(workingDirectory: string | undefined): ReturnType<CopilotManagedSettingsResolver['resolve']> {
+		for (let attempt = 1; ; attempt++) {
+			const client = await this._ensureClient();
+			const generation = this._clientGeneration;
+			try {
+				return await this._managedSettingsResolver.resolve(client.rpc.managedSettings, this._githubCredentials.token, workingDirectory);
+			} catch (error) {
+				if (attempt >= MAX_CHAT_CONFIG_CLIENT_ATTEMPTS || this._shutdownPromise || this._client === client && this._clientGeneration === generation) {
+					throw error;
+				}
+				this._logService.info('[Copilot] SDK client replaced while resolving chat config; retrying with the current client', error);
+			}
+		}
 	}
 
 	getInheritedChatConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
