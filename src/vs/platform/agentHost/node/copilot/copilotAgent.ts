@@ -193,10 +193,15 @@ export function offersFusionAutoTier(metadata: CopilotAutoTierMetadata): boolean
 	return metadata.tiers.some(tier => tier.type === 'fusion' && isInAutoTierPicker(tier));
 }
 
-/** The tiers a catalog's provider metadata lets this account run, and whether they present Auto as Fusion. */
+/** The tiers a discovered catalog's provider metadata lets this account run (none without metadata), and whether they present Auto as Fusion. */
 function getAutoModeTierSupport(metadata: CopilotAutoTierMetadata | undefined): IAutoModeTierSupport {
 	const fusion = !!metadata && offersFusionAutoTier(metadata);
-	return createAutoModeTierSupport(metadata?.tiers.filter(tier => isRunnableAutoTier(tier) && (fusion || tier.type !== 'fusion')).map(tier => tier.id), fusion);
+	return createAutoModeTierSupport(metadata?.tiers.filter(tier => isRunnableAutoTier(tier) && (fusion || tier.type !== 'fusion')).map(tier => tier.id) ?? [], fusion);
+}
+
+/** A scoped caller's catalog's tiers, or unknown while its model discovery has not completed. */
+function getScopedAutoModeTierSupport(catalog: ICopilotModelCatalog | undefined): IAutoModeTierSupport {
+	return catalog ? getAutoModeTierSupport(catalog.autoTierMetadata) : createAutoModeTierSupport(undefined);
 }
 
 /**
@@ -1120,6 +1125,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _fallbackAutoModelsByMetadata = new WeakMap<CopilotAutoTierMetadata, IAgentModelInfo>();
 	private _fallbackAutoModelWithoutTiers: IAgentModelInfo | undefined;
 	private _autoTierMetadata: CopilotAutoTierMetadata | undefined;
+	/** Whether a catalog has published {@link _autoTierMetadata}; until then, the host-wide tiers are unknown. */
+	private _autoTierMetadataPublished = false;
 	/** The last logged Auto presentation, so it is logged when it changes rather than on every publish. */
 	private _loggedAutoPresentation: string | undefined;
 	private _byokModels: readonly IAgentModelInfo[] = [];
@@ -3496,6 +3503,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		this._logService.info(`[Copilot] Auth token ${token ? 'updated' : 'cleared'}`);
+		this._forgetAdvertisedAutoTiers();
 		this._managedSettingsResolver.invalidate();
 		const policySessionRelease = this._customizationInstallations.releasePolicySession();
 		if (policySessionRelease) {
@@ -4600,9 +4608,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** Call only with the metadata of the catalog being published, so validation matches the picker. */
 	private _setAutoTierMetadata(metadata: CopilotAutoTierMetadata | undefined): void {
-		if (metadata === this._autoTierMetadata) {
+		if (this._autoTierMetadataPublished && metadata === this._autoTierMetadata) {
 			return;
 		}
+		this._autoTierMetadataPublished = true;
 		this._autoTierMetadata = metadata;
 		this._applyAdvertisedAutoModeTiers();
 		if (metadata) {
@@ -4625,6 +4634,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._loggedAutoPresentation = presentation;
 			this._logService.info(`[Copilot] Auto presentation: ${presentation}`);
 		}
+	}
+
+	/**
+	 * Another account's catalog decides its tiers, so until it is published a requested tier is left to the runtime. The
+	 * picker keeps presenting the last catalog's tiers meanwhile.
+	 */
+	private _forgetAdvertisedAutoTiers(): void {
+		this._autoTierMetadataPublished = false;
+		setAdvertisedAutoModeTiers(undefined);
 	}
 
 	private _applyAdvertisedAutoModeTiers(): void {
@@ -9003,7 +9021,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const requestedModel = omitCopilotManagedModelDefaults(model, policy);
 		const omittedContextDefault = model.config?.[ContextSizeConfigKey] !== undefined && requestedModel.config?.[ContextSizeConfigKey] === undefined;
 		// Clear stale SDK preferences when a selection or an override is removed.
-		const autoTierSupport = credentials ? getAutoModeTierSupport(catalog?.autoTierMetadata) : undefined;
+		const autoTierSupport = credentials ? getScopedAutoModeTierSupport(catalog) : undefined;
 		const autoTier = isAutoModel(model.id)
 			? resolveCopilotAutoTier(requestedModel, this._configurationService, this._logService, context.ownerSessionId, context.surface?.isInlineChatSurface === true, autoTierSupport) ?? (hasCopilotManagedAutoPreference(policy) ? undefined : null)
 			: undefined;
@@ -9328,15 +9346,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			...launchPlan,
 			availableModels,
 			modelPolicyModels: () => credentials ? availableModels() : this._capiModels.map(model => this._asPresented(model)),
-			autoTierSupport: () => credentials ? getAutoModeTierSupport(this._getScopedModelCatalog(credentials)?.autoTierMetadata) : getAdvertisedAutoModeTierSupport(),
-			whenAutoTierSupportReady: credentials ? async () => {
-				// Joins the caller's in-flight model discovery rather than starting one; without its catalog the launch sends the runtime's default tier.
-				const entry = this._scopedModelCatalogs.get(credentials);
-				if (entry && !entry.catalog) {
-					this._logService.trace(`[Copilot] Waiting for scoped model discovery before resolving Auto tiers`);
-					await entry.promise.catch(error => this._logService.warn(`[Copilot] Scoped model discovery failed before launching with Auto tiers: ${getErrorMessage(error)}`));
-				}
-			} : undefined,
+			autoTierSupport: () => credentials ? getScopedAutoModeTierSupport(this._getScopedModelCatalog(credentials)) : getAdvertisedAutoModeTierSupport(),
 			managedSettingsResolver: this._managedSettingsResolver,
 		};
 		const { owner, chatChannelUri } = identity;

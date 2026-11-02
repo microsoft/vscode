@@ -3413,7 +3413,7 @@ suite('getCopilotAutoTier', () => {
 		], ['intelligence', 'efficiency', undefined, undefined]);
 	});
 
-	test('accepts exactly the provider-advertised tiers, and none without provider metadata', () => {
+	test('accepts exactly the provider-advertised tiers, and leaves any tier to the runtime until they are known', () => {
 		const tiersOf = () => ['balance', 'hydrafusion', 'efficiency', 'premium-v2'].map(tier => getCopilotAutoTier({ id: 'auto', config: { tier } }));
 		let advertised, noneRunnable;
 		try {
@@ -3427,8 +3427,8 @@ suite('getCopilotAutoTier', () => {
 		assert.deepStrictEqual({ advertised, noneRunnable, noMetadata: tiersOf() }, {
 			advertised: ['balance', 'hydrafusion', undefined, 'premium-v2'],
 			noneRunnable: [undefined, undefined, undefined, undefined],
-			// Without provider tiers Auto has no picker, and the runtime would reject any tier.
-			noMetadata: [undefined, undefined, undefined, undefined],
+			// The runtime validates a tier against its own catalog until the provider's tiers are known here.
+			noMetadata: ['balance', 'hydrafusion', 'efficiency', 'premium-v2'],
 		});
 	});
 
@@ -3445,8 +3445,8 @@ suite('getCopilotAutoTier', () => {
 		} finally {
 			setAdvertisedAutoModeTiers(undefined);
 		}
-		// Without provider tiers, no tier is sent at all.
-		assert.deepStrictEqual({ withBalance, withoutBalance, noProviderTiers: resolve() }, { withBalance: 'balance', withoutBalance: undefined, noProviderTiers: undefined });
+		// Until the provider's tiers are known, neither is whether Auto is Fusion, so the runtime gets the tier as is.
+		assert.deepStrictEqual({ withBalance, withoutBalance, noProviderTiers: resolve() }, { withBalance: 'balance', withoutBalance: undefined, noProviderTiers: 'efficiency' });
 	});
 
 	test('under Fusion, an Efficiency override the provider cannot run as Balance still takes precedence over the picker', () => {
@@ -3483,7 +3483,10 @@ suite('getCopilotAutoTier', () => {
 			setAdvertisedAutoModeTiers(['balance', 'hydrafusion'], true);
 			const fastNotAccepted = resolve(fusion, true);
 			setAdvertisedAutoModeTiers(['efficiency', 'balance', 'fast']);
-			result = { ...fusionTiers, fastNotAccepted, inlineNotFusion: resolve({ id: 'auto', config: { tier: 'efficiency' } }, true) };
+			const inlineNotFusion = resolve({ id: 'auto', config: { tier: 'efficiency' } }, true);
+			// Until the provider's tiers are known, inline chat runs at the runtime's default rather than at a deeper preference.
+			setAdvertisedAutoModeTiers(undefined);
+			result = { ...fusionTiers, fastNotAccepted, inlineNotFusion, inlineTiersUnknown: resolve(fusion, true), panelTiersUnknown: resolve(fusion, false) };
 		} finally {
 			setAdvertisedAutoModeTiers(undefined);
 		}
@@ -3495,6 +3498,8 @@ suite('getCopilotAutoTier', () => {
 			panel: 'hydrafusion',
 			fastNotAccepted: 'hydrafusion',
 			inlineNotFusion: 'efficiency',
+			inlineTiersUnknown: undefined,
+			panelTiersUnknown: 'hydrafusion',
 		});
 	});
 
@@ -3558,7 +3563,7 @@ suite('getCopilotAutoTier', () => {
 		}, {
 			fusion: ['balance', 'intelligence', 'balance'],
 			providerTiersWithoutFusion: ['efficiency', 'intelligence', 'efficiency'],
-			noProviderTiers: [undefined, undefined, undefined],
+			noProviderTiers: ['efficiency', 'intelligence', 'efficiency'],
 			noRunnableProviderTiers: false,
 		});
 	});
@@ -4401,14 +4406,14 @@ suite('CopilotSessionLauncher auto tier', () => {
 		return capiCalls;
 	}
 
-	test('sends no Auto tier without provider metadata, not even a preference or override for a built-in tier', async () => {
+	test('leaves a saved preference or override to the runtime until the provider\'s tiers are known', async () => {
 		setAdvertisedAutoModeTiers(undefined);
 		assert.deepStrictEqual({
 			savedPreference: await capiOptionsFor('create', { id: 'auto', config: { tier: 'intelligence' } }),
 			override: await capiOptionsFor('create', { id: 'auto' }, 'balance'),
 		}, {
-			savedPreference: [undefined],
-			override: [undefined],
+			savedPreference: [{ autoTier: 'intelligence' }],
+			override: [{ autoTier: 'balance' }],
 		});
 	});
 

@@ -5,7 +5,6 @@
 
 import type { AttributedPermissionResult, ContextTier, CopilotClient, CopilotExpAssignmentResponse, CopilotSession, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsPermissions, ModelCapabilitiesOverride, NamedProviderConfig, PermissionHandler, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
-import { raceCancellation } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -449,8 +448,6 @@ interface ICopilotSessionLaunchBase {
 	readonly modelPolicyModels?: () => readonly IAgentModelInfo[];
 	/** The Auto tiers this chat's catalog accepts: a scoped caller's own catalog, else the host-wide one. */
 	readonly autoTierSupport?: () => IAutoModeTierSupport;
-	/** Settles once {@link autoTierSupport} reflects the chat's catalog, joining a scoped caller's in-flight model discovery. Never rejects. */
-	readonly whenAutoTierSupportReady?: () => Promise<void>;
 	readonly managedSettingsResolver?: CopilotManagedSettingsResolver;
 
 	/**
@@ -703,8 +700,8 @@ export function getCopilotContextTier(model: ModelSelection | undefined, longCon
 }
 
 /**
- * The Auto routing preference ("Optimize for"), only when the chat's catalog offers that tier: without provider tiers
- * Auto has no picker, and a preference saved from an earlier one would apply unseen. Profiles left on concrete models are ignored.
+ * The Auto routing preference ("Optimize for"), when the chat's catalog offers that tier or its tiers are not known yet,
+ * in which case the runtime validates it. Profiles left on concrete models are ignored.
  */
 export function getCopilotAutoTier(model: ModelSelection | undefined, support = getAdvertisedAutoModeTierSupport()): string | undefined {
 	if (!isAutoModel(model?.id)) {
@@ -795,6 +792,11 @@ export function resolveCopilotAutoTier(model: ModelSelection | undefined, config
 	const forced = resolveForcedAutoTier(model, configurationService, logService, sessionId, isInlineChat, support);
 	if (forced !== undefined) {
 		return forced ?? undefined;
+	}
+	// Inline chat pins Fusion's fast tier, which needs the provider's tiers; until they are known, it runs at the runtime's
+	// default rather than at a deeper saved preference.
+	if (isInlineChat && !support.tiers) {
+		return undefined;
 	}
 	const tier = getCopilotAutoTier(model, support);
 	if (tier === undefined) {
@@ -1418,11 +1420,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			&& this._configurationService.getRootValue(platformRootSchema, AgentHostCanvasesEnabledConfigKey) === true;
 		if (canvasRuntimeEnabled && !plan.extensionSdkPath) {
 			throw new Error(`Extension SDK path is unavailable for canvas-enabled Copilot session '${plan.sessionId}'`);
-		}
-		// A scoped caller's Auto tiers come from its own model discovery, which may still be running. A cancelled launch
-		// stops waiting without cancelling the shared discovery; the launch then throws.
-		if (plan.whenAutoTierSupportReady) {
-			await raceCancellation(plan.whenAutoTierSupportReady(), runtime.cancellationToken ?? CancellationToken.None);
 		}
 		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
 		// renderer reports no BYOK models), merged into the returned config so both
