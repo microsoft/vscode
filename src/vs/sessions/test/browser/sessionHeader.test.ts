@@ -178,6 +178,21 @@ suite('Sessions - Headers', () => {
 		return dragEvent;
 	}
 
+	test('a drag from the title of a header in the title bar of its window, such as the chat\'s drag handle, still carries the session', () => {
+		const { header, session } = createHarness(disposables);
+		header.setWindowChrome(true);
+		const title = header.titleElement;
+		title.draggable = true;
+
+		title.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true, cancelable: true }));
+		const dragEvent = new DragEvent(EventType.DRAG_START, { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() });
+		title.dispatchEvent(dragEvent);
+		disposables.add(toDisposable(() => LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>().clearData(DraggedSessionIdentifier.prototype)));
+		header.element.dispatchEvent(new DragEvent(EventType.DRAG_END));
+
+		assert.deepStrictEqual({ prevented: dragEvent.defaultPrevented, session: JSON.parse(dragEvent.dataTransfer!.getData(SessionsDataTransfers.SESSION) || '{}').sessionId }, { prevented: false, session: session.sessionId });
+	});
+
 	test('a small pointer move over the title actions toolbar does not start a session drag', () => {
 		const { header } = createHarness(disposables);
 

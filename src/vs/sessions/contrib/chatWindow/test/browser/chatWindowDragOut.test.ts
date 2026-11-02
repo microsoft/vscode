@@ -24,7 +24,7 @@ suite('Chat Window Drag Out', () => {
 	}();
 	const outside = mainWindow.screenX + mainWindow.outerWidth + 5000;
 
-	function setup(options: { readonly enabled: boolean; readonly hasProvider?: boolean }) {
+	function setup(options: { readonly enabled: boolean; readonly hasProvider?: boolean; readonly dragToOpenWindow?: boolean }) {
 		// No drag over a window lingers from an earlier test
 		mainWindow.dispatchEvent(new DragEvent('dragleave'));
 
@@ -35,15 +35,21 @@ suite('Chat Window Drag Out', () => {
 		const context = {
 			hostService,
 			isEnabled: () => options.enabled,
+			dragToOpenWindow: () => options.dragToOpenWindow ?? true,
 			hasProvider: observableValue('hasProvider', options.hasProvider ?? true),
 			open: async (session: ISession, chat: URI, openOptions: { readonly bounds: Partial<IRectangle> }) => { opened.push({ session: session.sessionId, chat: chat.toString(), bounds: openOptions.bounds }); }
 		};
 		const element = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
 		element.style.cssText = 'width: 200px; height: 100px;';
 
-		const dragEnd = async () => {
+		const dragEnd = async (init?: DragEventInit, dropEffect?: DataTransfer['dropEffect']) => {
+			const event = new DragEvent('dragend', init);
+			if (dropEffect) {
+				// A drag the browser did not start keeps `none`: stand in for one that something accepted
+				Object.defineProperty(event, 'dataTransfer', { value: { dropEffect } });
+			}
 			try {
-				return await openChatWindowAtDragEnd(context, new DragEvent('dragend'), element, session, chat, 'Chat A');
+				return await openChatWindowAtDragEnd(context, event, element, session, chat, 'Chat A');
 			} finally {
 				element.remove();
 			}
@@ -76,5 +82,19 @@ suite('Chat Window Drag Out', () => {
 			disabled: { result: false, opened: 0 },
 			withoutProvider: { result: false, opened: 0 }
 		});
+	});
+
+	test('a chat drag out of the window follows the setting and the Alt key of tabs, and opens nothing when dropped into another app', async () => {
+		const withAlt = setup({ enabled: true });
+		const settingOff = setup({ enabled: true, dragToOpenWindow: false });
+		const settingOffWithAlt = setup({ enabled: true, dragToOpenWindow: false });
+		const intoAnotherApp = setup({ enabled: true });
+
+		assert.deepStrictEqual({
+			withAlt: await withAlt.dragEnd({ altKey: true }),
+			settingOff: await settingOff.dragEnd(),
+			settingOffWithAlt: await settingOffWithAlt.dragEnd({ altKey: true }),
+			intoAnotherApp: await intoAnotherApp.dragEnd(undefined, 'copy'),
+		}, { withAlt: false, settingOff: false, settingOffWithAlt: true, intoAnotherApp: false });
 	});
 });

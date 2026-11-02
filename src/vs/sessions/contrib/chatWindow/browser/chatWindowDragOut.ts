@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getWindow } from '../../../../base/browser/dom.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IRectangle } from '../../../../platform/window/common/window.js';
@@ -28,6 +31,9 @@ export interface IChatWindowDragOutContext {
 	/** Whether chat windows can open: they are enabled and AI features show. */
 	isEnabled(): boolean;
 
+	/** Whether a drag out of the window opens a window, as for tabs (`workbench.editor.dragToOpenWindow`, toggled by Alt). */
+	dragToOpenWindow(): boolean;
+
 	/** Whether a chat window provider is registered. */
 	readonly hasProvider: IObservable<boolean>;
 
@@ -36,12 +42,20 @@ export interface IChatWindowDragOutContext {
 
 /**
  * Opens a chat window for a chat, or the chat a session shows, whose drag
- * ended outside the windows, where it ended, like a tab dragged out of the window opens a new window. Inside
- * a window, or with chat windows not enabled, nothing happens. Returns
- * whether it opened one.
+ * from the main window ended outside the windows, where it ended, like a tab
+ * dragged out of the window opens a new window, following the same setting
+ * and Alt key. Inside a window, dropped into another app, or with chat
+ * windows not enabled, nothing happens. Returns whether it opened one.
  */
 export async function openChatWindowAtDragEnd(context: IChatWindowDragOutContext, e: DragEvent, offsetElement: HTMLElement, session: ISession, chat: URI | undefined, name: string): Promise<boolean> {
-	if (!context.isEnabled() || !context.hasProvider.get() || isWindowDraggedOver()) {
+	if (
+		!context.isEnabled() ||
+		!context.hasProvider.get() ||
+		getWindow(offsetElement) !== mainWindow || // from the main window only: a chat window already shows its chat
+		(context.dragToOpenWindow() ? e.altKey : !e.altKey) ||
+		(e.dataTransfer && e.dataTransfer.dropEffect !== 'none') || // dropped somewhere, such as into another app
+		isWindowDraggedOver()
+	) {
 		return false;
 	}
 
@@ -68,6 +82,7 @@ export class ChatWindowDragOutContribution extends Disposable implements IWorkbe
 		@IChatWindowService chatWindowService: IChatWindowService,
 		@IHostService hostService: IHostService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -75,6 +90,7 @@ export class ChatWindowDragOutContribution extends Disposable implements IWorkbe
 		const context: IChatWindowDragOutContext = {
 			hostService,
 			isEnabled: () => contextKeyService.contextMatchesRules(ChatWindowsEnabledContext),
+			dragToOpenWindow: () => configurationService.getValue<boolean>('workbench.editor.dragToOpenWindow') !== false,
 			hasProvider: chatWindowService.hasProvider,
 			open: (session, chat, options) => instantiationService.invokeFunction(openChatInWindow, session, chat, options)
 		};
