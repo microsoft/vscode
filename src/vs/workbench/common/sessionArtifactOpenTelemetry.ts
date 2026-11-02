@@ -18,7 +18,7 @@ export interface ISessionArtifactOpen {
 	readonly surface: SessionArtifactOpenSurface;
 	/** SHA-1 hash of the Agents window session id. */
 	readonly agentSessionId?: string;
-	/** Backend agent host session id, as reported by agentHost.toolInvoked. */
+	/** Backend agent host session id, as reported by agentHost.toolInvoked. Only set for VS Code agent hosts. */
 	readonly backendSessionId?: string;
 	readonly kind: SessionArtifactOpenKind;
 	readonly isArtifact: boolean;
@@ -39,7 +39,7 @@ type SessionArtifactOpenClassification = {
 	comment: 'Tracks when a user opens a recorded artifact or reference of an agent session, from the Agents window or an editor window.';
 	surface: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the item was opened from the Agents window or an editor window.' };
 	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique Agents window session identifier, used to correlate opens for the same session without exposing provider or resource details. Only reported from the Agents window.' };
-	backendSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Backend agent host session identifier, matching agentHost.toolInvoked, to correlate opens with the artifacts recorded in the session. Only reported from an editor window.' };
+	backendSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Backend agent host session identifier, matching agentHost.toolInvoked, to correlate opens with the artifacts recorded in the session. Only reported from an editor window, for VS Code agent hosts; omitted for other hosts, whose session resources are opaque.' };
 	itemCategory: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the opened item was recorded as an artifact or a reference.' };
 	itemKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded kind of the opened item: pullRequest, issue, commit, website, file, or resource.' };
 	itemSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the opened item was recorded on the session (by the agent or a host action) or is an image the agent generated in its response, which is listed without being recorded.' };

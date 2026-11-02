@@ -27,9 +27,10 @@ import { ChangesetKind, DefaultChangesetKind } from '../../../../../../platform/
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ISessionArtifact, SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { AgentHostArtifactRemovalCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
+import { AgentHostNativeImplementationMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostSessionUrisMeta.js';
 import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
 import { BackgroundWorkKind, type BackgroundShellWork } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
-import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, ChatSummary, ChildCustomization, ComponentToState, Customization, CustomizationType, FileEditKind, ResponsePartKind, SessionLifecycle, SessionState, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, Turn, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, ChatSummary, ChildCustomization, ComponentToState, Customization, CustomizationType, FileEditKind, ResponsePartKind, RootState, SessionLifecycle, SessionState, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, Turn, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
@@ -86,14 +87,18 @@ class StaticAgentConnection extends mock<IAgentConnection>() {
 	readonly removeSessionArtifactCalls: { readonly session: URI; readonly artifactId: string }[] = [];
 	readonly invokedChangesetOperations: InvokeChangesetOperationParams[] = [];
 	override readonly initializeResult;
+	override readonly rootState = upcastPartial<IAgentSubscription<RootState>>({ value: undefined, verifiedValue: undefined });
 	removeSessionArtifactError: Error | undefined;
 	invokeChangesetOperationError: ((params: InvokeChangesetOperationParams) => Error | undefined) | undefined;
 	private readonly emitters = new Map<StateComponents, Emitter<unknown>>();
 
-	constructor(private readonly values: ReadonlyMap<StateComponents, SessionState | ChatState | ChangesetState>, supportsArtifactRemoval = false) {
+	constructor(private readonly values: ReadonlyMap<StateComponents, SessionState | ChatState | ChangesetState>, supportsArtifactRemoval = false, nativeHost = false) {
 		super();
-		this.initializeResult = constObservable<InitializeResult | undefined>(supportsArtifactRemoval ? upcastPartial<InitializeResult>({
-			_meta: { [AgentHostArtifactRemovalCapabilityMetaKey]: true },
+		this.initializeResult = constObservable<InitializeResult | undefined>(supportsArtifactRemoval || nativeHost ? upcastPartial<InitializeResult>({
+			_meta: {
+				...(supportsArtifactRemoval ? { [AgentHostArtifactRemovalCapabilityMetaKey]: true } : {}),
+				...(nativeHost ? { [AgentHostNativeImplementationMetaKey]: true } : {}),
+			},
 		}) : undefined);
 	}
 
@@ -284,7 +289,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	};
 
-	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local', workbenchGitHubService?: IWorkbenchGitHubService, transcript?: { service: IChatArtifactsService; local?: boolean }, options?: { sessionResource?: URI; configurationService?: IConfigurationService; defaultChangesetKind?: DefaultChangesetKind; dialogService?: IDialogService; notificationService?: INotificationService; supportsSessionWorkingSet?: boolean; getUriLabel?: ILabelService['getUriLabel']; workingSetUndo?: boolean; openerService?: IOpenerService; resourceUris?: IAgentHostResourceUriMapper; telemetryService?: ITelemetryService }) {
+	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local', workbenchGitHubService?: IWorkbenchGitHubService, transcript?: { service: IChatArtifactsService; local?: boolean }, options?: { sessionResource?: URI; configurationService?: IConfigurationService; defaultChangesetKind?: DefaultChangesetKind; dialogService?: IDialogService; notificationService?: INotificationService; supportsSessionWorkingSet?: boolean; getUriLabel?: ILabelService['getUriLabel']; workingSetUndo?: boolean; openerService?: IOpenerService; resourceUris?: IAgentHostResourceUriMapper; telemetryService?: ITelemetryService; nativeHost?: boolean }) {
 		const instantiationService = createInstantiationService();
 		if (options?.telemetryService) {
 			instantiationService.stub(ITelemetryService, options.telemetryService);
@@ -314,7 +319,7 @@ suite('AgentHostSessionInputPills', () => {
 		if (initialChat) {
 			states.set(StateComponents.Chat, initialChat);
 		}
-		const connection = new StaticAgentConnection(states);
+		const connection = new StaticAgentConnection(states, false, options?.nativeHost);
 		connection.resourceUris = options?.resourceUris ?? createAgentHostResourceUriMapper(connectionAuthority);
 		const sessionResource = options?.sessionResource ?? URI.parse('agent-host-test:/session');
 		const persistentContent = document.createElement('div');
@@ -751,7 +756,7 @@ suite('AgentHostSessionInputPills', () => {
 			const harness = createActivityPills(upcastPartial<SessionState>({
 				defaultChat: 'vendor-chat:/main', chats: [],
 				_meta: withSessionArtifacts(undefined, [recorded]),
-			}), undefined, undefined, 'local', undefined, undefined, { openerService: new TestOpenerService(), telemetryService });
+			}), undefined, undefined, 'local', undefined, undefined, { openerService: new TestOpenerService(), telemetryService, nativeHost: true });
 			if (dropdown) {
 				harness.dropdown(dropdown.pill).find(item => item.label === dropdown.item)?.select();
 			} else {

@@ -31,6 +31,7 @@ import { branchChangesetLabel, ChangesetKind, resolveChangesetUriTemplate, resol
 import { affectsAgentHostProviderPreference, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
+import { isNativeAgentHost } from '../../../../../../platform/agentHost/common/meta/agentHostSessionUrisMeta.js';
 import { type IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, getAgentHostChatId, getSessionChatResource, getSessionRelatedPullRequestUrls, readSessionFolderGitHubState, readSessionGitHubState, SessionLifecycle, SessionState, SessionStatus, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
@@ -237,6 +238,17 @@ function resolutionEquals(first: IAgentHostSessionResolution | undefined, second
 		&& first.connectionAuthority === second.connectionAuthority
 		&& first.defaultChangesetKind === second.defaultChangesetKind
 		&& isEqual(first.backendSession, second.backendSession));
+}
+
+/**
+ * Returns the backend session id matching `agentHost.toolInvoked`, which only VS Code agent hosts emit.
+ * Other hosts advertise opaque session resources that may contain user content, so it is omitted for them.
+ */
+function getTelemetryBackendSessionId(resolution: IAgentHostSessionResolution): string | undefined {
+	const root = resolution.connection.rootState.value;
+	return isNativeAgentHost(resolution.connection.initializeResult.get(), root instanceof Error ? undefined : root)
+		? AgentSession.id(resolution.backendSession)
+		: undefined;
 }
 
 function changesetTargetEquals(
@@ -1606,7 +1618,7 @@ export class AgentHostSessionInputPills extends Disposable {
 	private _openRecorded(resolution: IAgentHostSessionResolution | undefined, artifact: ISessionArtifact | undefined, open: () => void): void {
 		open();
 		if (resolution && artifact) {
-			reportSessionArtifactOpen(this._telemetryService, { surface: 'editorWindow', backendSessionId: AgentSession.id(resolution.backendSession), kind: artifact.type, isArtifact: artifact.isArtifact, source: 'recorded' });
+			reportSessionArtifactOpen(this._telemetryService, { surface: 'editorWindow', backendSessionId: getTelemetryBackendSessionId(resolution), kind: artifact.type, isArtifact: artifact.isArtifact, source: 'recorded' });
 		}
 	}
 
