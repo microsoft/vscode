@@ -19,6 +19,7 @@ import {
 } from '../mobilePreview.ts';
 import { getBundleOptions } from '../bundle.ts';
 import { getBootstrapEntryPointsForTarget } from '../../lib/esbuild.ts';
+import { writePnpmLockfile } from '../../lib/test/pnpmLockfileFixture.ts';
 import { getResourcePaths } from '../resources.ts';
 import policy from '../mobilePreviewPolicy.json' with { type: 'json' };
 import packageJson from '../../../package.json' with { type: 'json' };
@@ -33,7 +34,6 @@ const build = { commit: '0123456789abcdef0123456789abcdef01234567', version: '1.
 async function createFixture(t: TestContext) {
 	const directory = path.resolve(import.meta.dirname, '../../../.build/mobile-preview-tests');
 	await fs.mkdir(directory, { recursive: true });
-	// npm 11 redacts UUID path segments even in --parseable dependency output.
 	const root = await fs.mkdtemp(path.join(directory, 'fixture-'));
 	t.after(() => fs.rm(root, { recursive: true, force: true }));
 	const write = async (file: string, contents: string) => {
@@ -221,6 +221,11 @@ suite('isolated mobile preview', () => {
 		await write('extensions/auth/ThirdPartyNotices.txt', 'Extension notices');
 		await write('extensions/auth/node_modules/unused/package.json', '{"name":"unused","version":"1.0.0","license":"MIT"}');
 		await write('extensions/auth/node_modules/unused/LICENSE', 'Dependency license text');
+		writePnpmLockfile(path.join(root, 'extensions/auth/pnpm-lock.yaml'), { unused: { version: '1.0.0' } });
+		await write('extensions/auth/node_modules/.modules.yaml', JSON.stringify({
+			nodeLinker: 'hoisted',
+			hoistedLocations: { 'unused@1.0.0': ['node_modules/unused'] },
+		}));
 		await write('extensions/grammar/package.json', '{"name":"grammar","publisher":"vscode","version":"1.0.0","license":"MIT","engines":{"vscode":"^1.0.0"}}');
 		await packageMobilePreviewExtensions(root, ['auth', 'grammar']);
 		const manifest = JSON.parse(await fs.readFile(path.join(preview, 'extensions/auth/package.json'), 'utf8'));
