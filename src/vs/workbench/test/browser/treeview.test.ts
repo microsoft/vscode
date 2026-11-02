@@ -10,6 +10,8 @@ import { TestInstantiationService } from '../../../platform/instantiation/test/c
 import { ITreeItem, IViewDescriptorService, TreeItemCollapsibleState } from '../../common/views.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ViewDescriptorService } from '../../services/views/browser/viewDescriptorService.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { toDisposable } from '../../../base/common/lifecycle.js';
 
 suite('TreeView', function () {
 
@@ -56,6 +58,24 @@ suite('TreeView', function () {
 		treeView.setVisibility(true);
 		await treeView.refresh();
 		assert.strictEqual(largestBatchSize, 100);
+	});
+
+	test('tree created after layout renders rows', async () => {
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		// Mirror a view that starts collapsed: when expanded, it is laid out before it becomes visible and creates
+		// its tree, and the new tree cannot measure itself because the pane hides it until its data has loaded
+		treeView.setVisibility(false);
+		treeView.show(container);
+		treeView.layout(220, 300);
+		container.style.display = 'none';
+		treeView.setVisibility(true);
+		container.style.display = '';
+		await treeView.refresh();
+
+		assert.strictEqual(container.querySelectorAll('.monaco-list-row').length, 10);
 	});
 
 
