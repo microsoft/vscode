@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISerializedGrid, ISerializedNode, IViewSize, Orientation } from '../../../../base/browser/ui/grid/grid.js';
+import { Direction, ISerializedGrid, ISerializedNode, IViewSize, Orientation } from '../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable } from '../../../../base/common/observable.js';
-import { IPartGridView, PartGrid, PartGridCellContent } from '../../../browser/parts/partGrid/partGrid.js';
+import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { IPartGridView, PartGrid, PartGridCellContent, PartGridLocation } from '../../../browser/parts/partGrid/partGrid.js';
 import { IContentPart } from '../../../services/editor/common/editorGroupsService.js';
-import { ChatWindowLayoutMode } from '../common/chatWindowLayout.js';
+import { ChatWindowLayoutMode, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
 import { ChatWindowPartSizes } from '../common/chatWindowState.js';
 
 /** The cells of a chat window's grid. */
@@ -18,7 +18,14 @@ export const enum ChatWindowGridCell {
 	Chat = 'chat',
 	Main = 'main',
 	Strip = 'strip',
+	Terminals = 'terminals',
 }
+
+/** The share of the height of their column that the terminals take until the user sizes them. */
+const TERMINALS_SHARE = 0.3;
+
+/** The key of the sizes under which the terminals' last size is kept, whatever the arrangement it showed in. */
+const TERMINALS_SIZE_KEY = 'terminals';
 
 /** A row or column of chrome in a chat window's grid, such as its title row or its strip. */
 export interface IChatWindowGridChrome {
@@ -36,6 +43,8 @@ export interface IChatWindowGridCells {
 	readonly chat: IContentPart;
 	readonly titleRow?: IChatWindowGridChrome;
 	readonly strip?: IChatWindowGridChrome;
+	/** The part that holds the window's terminals, once it exists. */
+	readonly terminals?: IObservable<IContentPart | undefined>;
 }
 
 type TopologyNode = { readonly cell: ChatWindowGridCell } | { readonly orientation: Orientation; readonly children: readonly TopologyNode[] };
@@ -44,25 +53,62 @@ function isBranch(node: TopologyNode): node is { readonly orientation: Orientati
 	return (node as { children?: unknown }).children !== undefined;
 }
 
+/** Builds a branch without nesting a branch of the same orientation in it, or keeping a branch of a single child. */
+function branch(orientation: Orientation, ...children: TopologyNode[]): TopologyNode {
+	const flat = children.flatMap(child => isBranch(child) && child.orientation === orientation ? child.children : [child]);
+	return flat.length === 1 ? flat[0] : { orientation, children: flat };
+}
+
+/** Where the terminals show in `mode`: without the main part beside the chat, below the chat is across the window. */
+function getEffectiveTerminalPosition(mode: ChatWindowLayoutMode, position: ChatWindowTerminalPosition): ChatWindowTerminalPosition {
+	return mode === ChatWindowLayoutMode.ChatOnly && position === ChatWindowTerminalPosition.UnderEditor ? ChatWindowTerminalPosition.FullWidth : position;
+}
+
 /**
  * How a chat window arranges its cells for a layout mode, as chat windows always did:
  * - side by side (and chat only): the title row above the chat's column only, the main part beside it running to the
- *   top of the window, and no strip: it shows inside the chat;
+ *   top of the window, and no strip: it shows inside the chat; the terminals below the chat, below the main part, or
+ *   across the bottom of the window, as `cells.terminals` says (below the main part is across the window in chat only);
  * - stacked (and editor only): the title row across the window, the main part above the chat, and the strip in a
- *   column of its own at the right.
+ *   column of its own at the right; the terminals across the bottom of the chat and the main part, the strip running
+ *   past them while stacked, and stopping above them in editor only.
  * The cells a mode hides, the chat or the main part, stay in the grid, so that showing them is not a move.
  */
-export function getChatWindowTopology(mode: ChatWindowLayoutMode, cells: { readonly titleRow: boolean; readonly strip: boolean }): TopologyNode {
+export function getChatWindowTopology(mode: ChatWindowLayoutMode, cells: { readonly titleRow: boolean; readonly strip: boolean; readonly terminals?: ChatWindowTerminalPosition }): TopologyNode {
 	const titleRow: TopologyNode[] = cells.titleRow ? [{ cell: ChatWindowGridCell.TitleRow }] : [];
 	const strip: TopologyNode[] = cells.strip ? [{ cell: ChatWindowGridCell.Strip }] : [];
+	const terminals: TopologyNode[] = cells.terminals !== undefined ? [{ cell: ChatWindowGridCell.Terminals }] : [];
 	const chat: TopologyNode = { cell: ChatWindowGridCell.Chat };
 	const main: TopologyNode = { cell: ChatWindowGridCell.Main };
 	if (mode === ChatWindowLayoutMode.SideBySide || mode === ChatWindowLayoutMode.ChatOnly) {
-		return { orientation: Orientation.HORIZONTAL, children: [titleRow.length ? { orientation: Orientation.VERTICAL, children: [...titleRow, chat] } : chat, main] };
+		const left = branch(Orientation.VERTICAL, ...titleRow, chat);
+		if (cells.terminals === undefined) {
+			return branch(Orientation.HORIZONTAL, left, main);
+		}
+		switch (getEffectiveTerminalPosition(mode, cells.terminals)) {
+			case ChatWindowTerminalPosition.UnderChat: return branch(Orientation.HORIZONTAL, branch(Orientation.VERTICAL, left, ...terminals), main);
+			case ChatWindowTerminalPosition.UnderEditor: return branch(Orientation.HORIZONTAL, left, branch(Orientation.VERTICAL, main, ...terminals));
+			default: return branch(Orientation.VERTICAL, branch(Orientation.HORIZONTAL, left, main), ...terminals);
+		}
 	}
-	const parts: TopologyNode = { orientation: Orientation.VERTICAL, children: [main, chat] };
-	const row: TopologyNode = strip.length ? { orientation: Orientation.HORIZONTAL, children: [parts, ...strip] } : parts;
-	return titleRow.length ? { orientation: Orientation.VERTICAL, children: [...titleRow, row] } : row;
+	const parts = branch(Orientation.VERTICAL, main, chat, ...(mode === ChatWindowLayoutMode.Stacked ? terminals : []));
+	const row = branch(Orientation.HORIZONTAL, parts, ...strip);
+	return branch(Orientation.VERTICAL, ...titleRow, row, ...(mode === ChatWindowLayoutMode.EditorOnly ? terminals : []));
+}
+
+/** Where the terminals go in the grid of `mode`, beside a cell or at the bottom edge, as {@link getChatWindowTopology} places them. */
+function getTerminalsLocation(mode: ChatWindowLayoutMode, position: ChatWindowTerminalPosition): PartGridLocation {
+	if (mode === ChatWindowLayoutMode.Stacked) {
+		return { reference: ChatWindowGridCell.Chat, direction: Direction.Down };
+	}
+	if (mode === ChatWindowLayoutMode.EditorOnly) {
+		return { edge: Direction.Down };
+	}
+	switch (getEffectiveTerminalPosition(mode, position)) {
+		case ChatWindowTerminalPosition.UnderChat: return { reference: ChatWindowGridCell.Chat, direction: Direction.Down };
+		case ChatWindowTerminalPosition.UnderEditor: return { reference: ChatWindowGridCell.Main, direction: Direction.Down };
+		default: return { edge: Direction.Down };
+	}
 }
 
 function describeTopology(node: TopologyNode): string {
@@ -115,16 +161,28 @@ class ChromeView implements IPartGridView {
 }
 
 /**
- * The grid of a chat window, on the workbench's part grid: its title row, its chat part, its main part and its strip,
- * arranged for its layout mode. The sizes the user gives its cells are kept per arrangement, so that a mode shows with
- * the sizes it had, and can be exported to come back for the chat after a reload.
+ * The grid of a chat window, on the workbench's part grid: its title row, its chat part, its main part, its strip and the
+ * part that holds its terminals, arranged for its layout mode. The sizes the user gives its cells are kept per
+ * arrangement, so that a mode shows with the sizes it had, and can be exported to come back for the chat after a reload.
+ *
+ * The terminals' part joins the grid where the terminal position says once it exists, and moves when the position
+ * changes. Like every part, it hides while it has no editors. It keeps its height as the window is resized, and tall
+ * terminals give way first when an arrangement shows that they did not show in yet.
  */
 export class ChatWindowGrid extends Disposable {
 
 	private readonly _grid = this._register(new MutableDisposable<PartGrid>());
+	private readonly _gridListener = this._register(new MutableDisposable());
 	private _topologyKey: string | undefined;
+	/** The key of the arrangement without the terminals: while it stays, the terminals join or move rather than rebuild. */
+	private _baseTopologyKey: string | undefined;
+	private _terminalsInGrid = false;
 	private _dimension: IViewSize | undefined;
 	private _sizes: ChatWindowPartSizes = {};
+
+	private readonly _terminalsVisible = observableValue<boolean>(this, false);
+	/** Whether the part that holds the window's terminals shows: it is in the grid and has editors. */
+	readonly terminalsVisible: IObservable<boolean> = this._terminalsVisible;
 
 	private readonly _titleRow: ChromeView | undefined;
 	private readonly _strip: ChromeView | undefined;
@@ -135,6 +193,7 @@ export class ChatWindowGrid extends Disposable {
 		private readonly _layoutMode: IObservable<ChatWindowLayoutMode>,
 		private readonly _gap: IObservable<number>,
 		sizes: ChatWindowPartSizes | undefined,
+		private readonly _terminalPosition: IObservable<ChatWindowTerminalPosition> = constObservable(ChatWindowTerminalPosition.FullWidth),
 	) {
 		super();
 		this._sizes = { ...sizes };
@@ -145,6 +204,8 @@ export class ChatWindowGrid extends Disposable {
 			this._layoutMode.read(reader);
 			_cells.strip?.visible.read(reader);
 			_cells.titleRow?.visible.read(reader);
+			_cells.terminals?.read(reader);
+			this._terminalPosition.read(reader);
 			this._update();
 		}));
 		this._register(autorun(reader => this._grid.value?.setGap(this._gap.read(reader))));
@@ -166,9 +227,23 @@ export class ChatWindowGrid extends Disposable {
 		if (first) {
 			// Arranged once the window has its size, so that the parts take their shares of it.
 			this._update();
-		} else {
-			this._grid.value?.layout(width, height);
+		} else if (this._grid.value) {
+			// The terminals keep their height as the window is resized: the other parts take what it grows or shrinks by.
+			const grid = this._grid.value;
+			const terminalsHeight = grid.isCellVisible(ChatWindowGridCell.Terminals) ? grid.getCellSize(ChatWindowGridCell.Terminals).height : undefined;
+			grid.layout(width, height);
+			if (terminalsHeight !== undefined) {
+				this._resizeTerminals(grid, terminalsHeight);
+			}
 		}
+	}
+
+	private _resizeTerminals(grid: PartGrid, height: number): void {
+		grid.resizeCell(ChatWindowGridCell.Terminals, { width: grid.getCellSize(ChatWindowGridCell.Terminals).width, height });
+	}
+
+	private _updateTerminalsVisible(): void {
+		this._terminalsVisible.set(!!this._grid.value?.isCellVisible(ChatWindowGridCell.Terminals), undefined);
 	}
 
 	private _update(): void {
@@ -186,6 +261,7 @@ export class ChatWindowGrid extends Disposable {
 		if (this._strip && (mode === ChatWindowLayoutMode.Stacked || mode === ChatWindowLayoutMode.EditorOnly)) {
 			grid.setCellVisible(ChatWindowGridCell.Strip, !!this._cells.strip?.visible.get());
 		}
+		this._updateTerminalsVisible();
 	}
 
 	/** The sizes of the cells per arrangement, including the one shown. */
@@ -200,23 +276,53 @@ export class ChatWindowGrid extends Disposable {
 			return;
 		}
 		const sizes: Record<string, { width: number; height: number }> = {};
-		for (const cell of [ChatWindowGridCell.Chat, ChatWindowGridCell.Main]) {
+		for (const cell of [ChatWindowGridCell.Chat, ChatWindowGridCell.Main, ChatWindowGridCell.Terminals]) {
 			if (grid.isCellVisible(cell)) {
 				const { width, height } = grid.getCellSize(cell);
 				sizes[cell] = { width, height };
 			}
 		}
 		this._sizes[this._topologyKey] = { ...this._sizes[this._topologyKey], ...sizes };
+		if (sizes[ChatWindowGridCell.Terminals]) {
+			this._sizes[TERMINALS_SIZE_KEY] = { [ChatWindowGridCell.Terminals]: sizes[ChatWindowGridCell.Terminals] };
+		}
 	}
 
 	private _arrange(mode: ChatWindowLayoutMode, dimension: IViewSize): void {
-		const topology = getChatWindowTopology(mode, { titleRow: !!this._titleRow, strip: !!this._strip });
+		const terminals = this._cells.terminals?.get();
+		const position = this._terminalPosition.get();
+		const chrome = { titleRow: !!this._titleRow, strip: !!this._strip };
+		const topology = getChatWindowTopology(mode, { ...chrome, terminals: terminals ? position : undefined });
 		const key = describeTopology(topology);
 		if (key === this._topologyKey) {
 			return;
 		}
 		this._rememberSizes();
+		const previousKey = this._topologyKey;
 		this._topologyKey = key;
+
+		// While the rest of the arrangement stays, the terminals join it, move in it or leave it, as the part grid does.
+		const baseKey = describeTopology(getChatWindowTopology(mode, chrome));
+		const grid = this._grid.value;
+		if (grid && baseKey === this._baseTopologyKey) {
+			if (!terminals) {
+				grid.removeCell(ChatWindowGridCell.Terminals);
+				this._terminalsInGrid = false;
+			} else if (this._terminalsInGrid) {
+				const height = this._sizes[previousKey ?? '']?.[ChatWindowGridCell.Terminals]?.height;
+				grid.moveCell(ChatWindowGridCell.Terminals, getTerminalsLocation(mode, position));
+				if (height !== undefined) {
+					this._resizeTerminals(grid, height);
+				}
+			} else {
+				const remembered = this._sizes[key] ?? {};
+				grid.addPart(ChatWindowGridCell.Terminals, terminals, getTerminalsLocation(mode, position), this._terminalsHeight(remembered, dimension.height));
+				this._terminalsInGrid = true;
+			}
+			return;
+		}
+		this._baseTopologyKey = baseKey;
+		this._terminalsInGrid = !!terminals;
 
 		const remembered = this._sizes[key] ?? {};
 		const orientation = isBranch(topology) ? topology.orientation : Orientation.HORIZONTAL;
@@ -225,9 +331,28 @@ export class ChatWindowGrid extends Disposable {
 		const serializedRoot: ISerializedNode = { type: 'branch', data: root.type === 'branch' ? root.data : [root], size: orientation === Orientation.HORIZONTAL ? height : width };
 		const serializedGrid: ISerializedGrid = { root: serializedRoot, orientation, width, height };
 		const state = { grid: serializedGrid, hidden: [], parts: {} };
-		this._grid.value = PartGrid.restore(this._container, state, id => this._contentOf(id));
-		this._grid.value.setGap(this._gap.get());
-		this._grid.value.layout(width, height);
+		const partGrid = this._grid.value = PartGrid.restore(this._container, state, id => this._contentOf(id));
+		this._gridListener.value = partGrid.onDidChangePartEmpty(() => this._updateTerminalsVisible());
+		partGrid.setGap(this._gap.get());
+		partGrid.layout(width, height);
+	}
+
+	/**
+	 * The height the terminals take in an arrangement: what they showed with in it, else what they last showed with, else
+	 * their share of `total`. Tall terminals give way first: last shown taller than their share, they take only their
+	 * least height in an arrangement they did not show in yet, so that the chat and the main part keep their heights.
+	 */
+	private _terminalsHeight(remembered: Record<string, { readonly width: number; readonly height: number }>, total: number): number {
+		const own = remembered[ChatWindowGridCell.Terminals]?.height;
+		if (own !== undefined) {
+			return own;
+		}
+		const share = Math.round(total * TERMINALS_SHARE);
+		const last = this._sizes[TERMINALS_SIZE_KEY]?.[ChatWindowGridCell.Terminals]?.height;
+		if (last === undefined) {
+			return share;
+		}
+		return last > share ? Math.min(share, this._cells.terminals?.get()?.minimumHeight ?? 0) : last;
 	}
 
 	private _contentOf(id: string): PartGridCellContent {
@@ -235,6 +360,7 @@ export class ChatWindowGrid extends Disposable {
 			case ChatWindowGridCell.Main: return { part: this._cells.main };
 			case ChatWindowGridCell.Chat: return { part: this._cells.chat };
 			case ChatWindowGridCell.TitleRow: return { view: this._titleRow! };
+			case ChatWindowGridCell.Terminals: return { part: this._cells.terminals!.get()! };
 			default: return { view: this._strip! };
 		}
 	}
@@ -277,6 +403,9 @@ export class ChatWindowGrid extends Disposable {
 			}
 			if (child.cell === ChatWindowGridCell.Strip) {
 				return horizontal ? this._strip?.minimumWidth ?? 0 : undefined;
+			}
+			if (child.cell === ChatWindowGridCell.Terminals) {
+				return horizontal ? undefined : Math.min(total, this._terminalsHeight(remembered, total));
 			}
 			return undefined;
 		});

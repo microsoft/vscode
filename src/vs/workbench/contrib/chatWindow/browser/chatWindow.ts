@@ -14,7 +14,7 @@ import { IEditorGroupViewOptions } from '../../../browser/parts/editor/editor.js
 import { IEditorPartOptions } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
-import { ChatWindowLayoutMode, ChatWindowSplitLayout } from '../common/chatWindowLayout.js';
+import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
 
 export const IChatWindowService = createDecorator<IChatWindowService>('chatWindowService');
 
@@ -34,7 +34,10 @@ export interface IChatWindowOpenOptions {
 	readonly preserveFocus?: boolean;
 	/** The editors its main part starts with. */
 	readonly editors?: IChatWindowEditors;
-	/** Whether to show its terminals as it opens. */
+	/**
+	 * Whether to show its terminals as it opens: the window creates the part that holds its terminals, which the feature
+	 * that shows terminals fills (see {@link IChatWindow.getOrCreateTerminalsPart}). It hides while it has none.
+	 */
 	readonly showTerminals?: boolean;
 }
 
@@ -101,7 +104,10 @@ export interface IChatWindowLook {
 	readonly className?: string;
 	/** Paints a background behind the chat part's element, such as a wallpaper. */
 	paintChatBackground?(element: HTMLElement): IDisposable;
-	/** Options of the main part of the window, such as how its tabs show, that override the user's settings there. */
+	/**
+	 * Options of the main part of the window, such as how its tabs show, that override the user's settings there; also of
+	 * the part that holds its terminals.
+	 */
 	readonly mainPartOptions?: IObservable<DeepPartial<IEditorPartOptions>>;
 	/** Options of the groups of the main part of the window, such as the menus of their title areas. */
 	readonly mainPartGroupViewOptions?: IEditorGroupViewOptions;
@@ -143,6 +149,21 @@ export interface IChatWindow {
 	readonly mainPart: IEditorPart;
 	/** The part that shows the chat. */
 	readonly chatPart: IEditorPart;
+	/**
+	 * The part that holds its terminals, once created (see {@link getOrCreateTerminalsPart}), until the window closes. It is
+	 * a part like the others: what it shows is what the feature that shows terminals opens in it.
+	 */
+	readonly terminalsPart: IObservable<IEditorPart | undefined>;
+	/** Whether the part that holds its terminals shows: it exists and has editors. */
+	readonly terminalsVisible: IObservable<boolean>;
+	/**
+	 * Where the part that holds its terminals sits: below the chat, below the main part, or across the bottom of the window.
+	 * While {@link ChatWindowLayoutMode.Stacked}, the part is across the bottom of the chat and the main part, whatever the
+	 * position, which applies again side by side.
+	 */
+	readonly terminalPosition: IObservable<ChatWindowTerminalPosition>;
+	/** Fires as it closes, before its parts close: what shows in them, such as terminals, can leave the window first. */
+	readonly onWillClose: Event<void>;
 	readonly onDidClose: Event<void>;
 
 	setLayoutMode(mode: ChatWindowLayoutMode): void;
@@ -150,6 +171,13 @@ export interface IChatWindow {
 	setSplitLayout(splitLayout: ChatWindowSplitLayout): void;
 	/** In {@link ChatWindowLayoutMode.Stacked}: collapses the chat to its input, or expands it to show its conversation too. */
 	toggleConversation(): void;
+	/**
+	 * The part that holds its terminals, created at its {@link terminalPosition} the first time. Like every part of the
+	 * window, it hides while it has no editors.
+	 */
+	getOrCreateTerminalsPart(): IEditorPart;
+	/** Moves the part that holds its terminals to `position`, which becomes the default of chat windows. */
+	setTerminalPosition(position: ChatWindowTerminalPosition): void;
 	/** Shows its main part, as last arranged with the chat, when only the chat shows. */
 	showEditor(): void;
 	/** Focuses the chat while it shows, else the main part. */

@@ -6,7 +6,7 @@
 import { $, append, getActiveWindow } from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -20,10 +20,10 @@ import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/brows
 import { bindEditorPartsToWindow } from '../../../services/editor/browser/editorPartWindowBinding.js';
 import { IContentPart, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { ChatWindowLayoutCell, ChatWindowLayoutMode, ChatWindowSplitLayout } from '../common/chatWindowLayout.js';
+import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
 import { ChatWindowChatLayouts, ChatWindowChatSizes, ChatWindowDefaults, ChatWindowState } from '../common/chatWindowState.js';
 import { IChatWindow, IChatWindowContent, IChatWindowEditors, IChatWindowOpenOptions, IChatWindowProvider, IChatWindowService } from './chatWindow.js';
-import { bindWindowLayoutContext } from './chatWindowContextKeys.js';
+import { bindWindowLayoutContext, bindWindowTerminalsContext } from './chatWindowContextKeys.js';
 import { deserializeChatWindowEditors, serializeChatWindowEditors } from './chatWindowEditors.js';
 import { InFlightOperations, openCleaningUpOnFailure } from './chatWindowOpening.js';
 import { bindMainPartVisible, moveEditorsToChatWindow, showChatInsteadOfEmptyMainPart, trackMainPartEditors } from './chatWindowParts.js';
@@ -41,6 +41,10 @@ export interface IChatWindowHost {
 	closeWindow(): void;
 	/** Whether the window unloads: its parts close with it, which must not close it again or change its layout. */
 	isUnloading(): boolean;
+	/** Creates the part that holds the window's terminals, in the window's grid. */
+	createTerminalsPart(): IContentPart;
+	/** Whether the part that holds the window's terminals shows in the window's grid. */
+	readonly terminalsVisible: IObservable<boolean>;
 }
 
 /**
@@ -52,8 +56,16 @@ export interface IChatWindowHost {
  */
 export class ChatWindow extends Disposable implements IChatWindow {
 
+	private readonly _onWillClose = this._register(new Emitter<void>());
+	readonly onWillClose: Event<void> = this._onWillClose.event;
+
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose: Event<void> = this._onDidClose.event;
+
+	private readonly _terminalsPart = observableValue<IContentPart | undefined>(this, undefined);
+	readonly terminalsPart: IObservable<IContentPart | undefined> = this._terminalsPart;
+
+	private _willClose = false;
 
 	private _closed = false;
 	/** Set while it closes, so that editors closing with it do not change its layout or close it again. */
@@ -90,6 +102,27 @@ export class ChatWindow extends Disposable implements IChatWindow {
 	get layoutMode(): IObservable<ChatWindowLayoutMode> { return this.state.layoutMode; }
 	get splitLayout(): IObservable<ChatWindowSplitLayout> { return this.state.splitLayout; }
 	get inputOnly(): IObservable<boolean> { return this.state.inputOnly; }
+	get terminalPosition(): IObservable<ChatWindowTerminalPosition> { return this.state.terminalPosition; }
+	get terminalsVisible(): IObservable<boolean> { return this._host.terminalsVisible; }
+
+	getOrCreateTerminalsPart(): IContentPart {
+		let part = this._terminalsPart.get();
+		if (!part) {
+			part = this._host.createTerminalsPart();
+			this._terminalsPart.set(part, undefined);
+			const created = part;
+			Event.once(part.onWillClose)(() => {
+				if (this._terminalsPart.get() === created) {
+					this._terminalsPart.set(undefined, undefined);
+				}
+			});
+		}
+		return part;
+	}
+
+	setTerminalPosition(position: ChatWindowTerminalPosition): void {
+		this.state.setTerminalPosition(position);
+	}
 
 	/** Whether the chat shows: not while only the main part does. */
 	get chatVisible(): boolean {
@@ -140,10 +173,24 @@ export class ChatWindow extends Disposable implements IChatWindow {
 			this._closing = false;
 			return false;
 		}
+		this.willUnload();
 		this._closed = true;
 		this._host.closeWindow();
 		this._onDidClose.fire();
 		return true;
+	}
+
+	/**
+	 * Lets what shows in its other parts, such as terminals, leave the window as it goes away, then closes those parts:
+	 * once, as it closes or as its window unloads, before the parts close with it.
+	 */
+	willUnload(): void {
+		if (this._willClose) {
+			return;
+		}
+		this._willClose = true;
+		this._onWillClose.fire();
+		this._terminalsPart.get()?.close();
 	}
 
 	/** Ends the chat window without closing its parts again: its window went away. */
@@ -187,7 +234,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			provider: this._provider,
 			windows: this._windows,
 			open: (chat: URI, options: IChatWindowOpenOptions) => this.open(chat, options),
-			terminalsShown: () => false,
+			terminalsShown: window => window.terminalsVisible.get(),
 		}));
 	}
 
@@ -287,8 +334,11 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		disposables.add(bindMainPartVisible(windowContextKeyService, state.layoutMode));
 		let unloading = false;
 		disposables.add(auxiliaryWindow.onUnload(() => unloading = true));
+		// What shows in its other parts, such as terminals, leaves the window as it unloads, before its parts close.
+		disposables.add(Event.once(auxiliaryWindow.onUnload)(() => window.willUnload()));
 		// Closes the parts as the window unloads, unless the chat window closed them first.
 		const partsBinding = disposables.add(bindEditorPartsToWindow(auxiliaryWindow, [chatPart, mainPart], this._editorGroupsService));
+		const gridRef = observableValue<ChatWindowGrid | undefined>(this, undefined);
 
 		const window: ChatWindow = disposables.add(new ChatWindow(windowId, content, state, mainPart, chatPart, {
 			focusWindow: () => {
@@ -301,7 +351,21 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 				auxiliaryWindow.window.close();
 			},
 			isUnloading: () => unloading,
+			createTerminalsPart: () => {
+				const part = this._editorGroupsService.createEditorPart({ container: append(host, $('.chat-window-terminals-part')), label: localize('chatWindow.terminalsPart', "Terminals"), services });
+				const store = new DisposableStore();
+				disposables.add(store);
+				if (look.mainPartOptions) {
+					const partOptions = look.mainPartOptions;
+					const enforced = store.add(new MutableDisposable());
+					store.add(autorun(reader => enforced.value = part.enforcePartOptions(partOptions.read(reader))));
+				}
+				Event.once(part.onWillClose)(() => store.dispose());
+				return part;
+			},
+			terminalsVisible: derived(this, reader => gridRef.read(reader)?.terminalsVisible.read(reader) ?? false),
 		}));
+		disposables.add(bindWindowTerminalsContext(windowContextKeyService, { terminalsVisible: window.terminalsVisible, terminalPosition: state.terminalPosition }));
 
 		// The provider's chrome, with the window's services: its title row first in the window, its strip last.
 		const windowInstantiationService = disposables.add(this._instantiationService.createChild(services));
@@ -328,7 +392,9 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			chat: chatPart,
 			titleRow: titleRow && { element: titleRowElement, visible: titleRow.visible, size: titleRow.size, layout: (width, height) => titleRow.layout(width, height) },
 			strip: strip && { element: stripElement, visible: strip.visible, size: strip.size, layout: (width, height) => strip.layout(width, height) },
-		}, state.layoutMode, look.gap, this._chatSizes.get(chat)));
+			terminals: window.terminalsPart,
+		}, state.layoutMode, look.gap, this._chatSizes.get(chat), state.terminalPosition));
+		gridRef.set(grid, undefined);
 		// What the window shows is what it shows again for its chat: the sizes of its parts per arrangement.
 		const saveSizes = () => this._chatSizes.set(content.chat.get(), grid.exportSizes());
 		disposables.add(this._storageService.onWillSaveState(saveSizes));
@@ -346,6 +412,9 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		moveEditorsToChatWindow(options?.editors?.moveFrom ?? [], mainPart.activeGroup);
 		await this._openEditors(options?.editors, mainPart);
 		showChatInsteadOfEmptyMainPart(mainPart, window);
+		if (options?.showTerminals) {
+			window.getOrCreateTerminalsPart();
+		}
 
 		this._windows.set([...this._windows.get(), window], undefined);
 		disposables.add(toDisposable(() => this._remove(window)));

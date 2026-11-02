@@ -49,7 +49,9 @@ suite('Chat window', () => {
 
 	function createPart(events: string[], name: string, options?: { veto?: boolean }) {
 		const group = new TestGroup(events, name);
+		const onWillClose = disposables.add(new Emitter<void>());
 		const part = new class extends mock<IContentPart>() {
+			override readonly onWillClose = onWillClose.event;
 			override readonly groups = [group];
 			override readonly activeGroup = group;
 			override readonly onDidAddGroup = Event.None;
@@ -62,6 +64,7 @@ suite('Chat window', () => {
 				for (const editor of [...group.testEditors]) {
 					group.fireCloseEditor(editor);
 				}
+				onWillClose.fire();
 				return true;
 			}
 		}();
@@ -85,7 +88,13 @@ suite('Chat window', () => {
 			focusWindow: () => events.push('focus window'),
 			closeWindow: () => events.push('close window'),
 			isUnloading: () => !!options?.unloading?.value,
+			createTerminalsPart: () => {
+				events.push('create terminals');
+				return createPart(events, 'terminals').part;
+			},
+			terminalsVisible: constObservable(false),
 		}));
+		disposables.add(window.onWillClose(() => events.push('will close')));
 		disposables.add(window.onDidClose(() => events.push('closed')));
 		return { window, state, main, chat, chatInput, onDidEnd, events };
 	}
@@ -114,7 +123,7 @@ suite('Chat window', () => {
 
 		chat.group.fireCloseEditor(chatInput);
 
-		assert.deepStrictEqual(events, ['close chat', 'close main', 'close window', 'closed']);
+		assert.deepStrictEqual(events, ['close chat', 'close main', 'will close', 'close window', 'closed']);
 	});
 
 	test('the end of its chat closes the window, and closing it again does nothing', () => {
@@ -123,7 +132,7 @@ suite('Chat window', () => {
 		onDidEnd.fire();
 		window.close();
 
-		assert.deepStrictEqual(events, ['close chat', 'close main', 'close window', 'closed']);
+		assert.deepStrictEqual(events, ['close chat', 'close main', 'will close', 'close window', 'closed']);
 	});
 
 	test('the window stays open when its main part cannot close, such as for an editor that cannot move to the main window', () => {
@@ -146,6 +155,32 @@ suite('Chat window', () => {
 		window.didClose();
 
 		assert.deepStrictEqual({ mode: state.layoutMode.get(), events }, { mode: ChatWindowLayoutMode.SideBySide, events: ['closed'] });
+	});
+
+	test('the part that holds its terminals is created once, and closes after what shows in it left the window, as the window closes, once', () => {
+		const { window, events } = createWindow();
+
+		const first = window.getOrCreateTerminalsPart();
+		const second = window.getOrCreateTerminalsPart();
+		const created = window.terminalsPart.get() === first && first === second;
+		window.close();
+		window.willUnload();
+
+		assert.deepStrictEqual({ created, closedPart: window.terminalsPart.get(), events }, {
+			created: true,
+			closedPart: undefined,
+			events: ['create terminals', 'close chat', 'close main', 'will close', 'close terminals', 'close window', 'closed'],
+		});
+	});
+
+	test('its terminals stay when a close does not happen, and leave the window as it unloads', () => {
+		const { window, events } = createWindow({ vetoMain: true });
+
+		window.getOrCreateTerminalsPart();
+		window.close();
+		window.willUnload();
+
+		assert.deepStrictEqual(events, ['create terminals', 'close chat', 'close main', 'will close', 'close terminals']);
 	});
 
 	test('focusing it focuses its window, and its chat while the chat shows, else its main part', () => {

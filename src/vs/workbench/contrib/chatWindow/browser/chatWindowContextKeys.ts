@@ -6,8 +6,8 @@
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { LayoutModeContext, SplitLayoutContext } from '../../../common/contextkeys.js';
-import { ChatWindowLayoutMode, ChatWindowSplitLayout } from '../common/chatWindowLayout.js';
+import { LayoutModeContext, SplitLayoutContext, TerminalsPositionContext, TerminalsVisibleContext } from '../../../common/contextkeys.js';
+import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
 
 /** The layout state of a window, as its generic context keys describe it. */
 export interface IWindowLayoutState {
@@ -31,6 +31,34 @@ export function bindWindowLayoutContext(contextKeyService: IContextKeyService, s
 			binding.dispose();
 			layoutMode.reset();
 			splitLayout.reset();
+		}
+	};
+}
+
+/** The state of the part that holds a window's terminals, as its generic context keys describe it. */
+export interface IWindowTerminalsState {
+	/** Whether the part shows. */
+	readonly terminalsVisible: IObservable<boolean>;
+	/** Where the part sits. */
+	readonly terminalPosition: IObservable<ChatWindowTerminalPosition>;
+}
+
+/**
+ * Binds the generic per-window terminals keys (`terminalsVisible`, `terminalsPosition`) in `contextKeyService`, the window's
+ * own context, to follow `state`. They are reset when the binding is disposed.
+ */
+export function bindWindowTerminalsContext(contextKeyService: IContextKeyService, state: IWindowTerminalsState): IDisposable {
+	const visible = TerminalsVisibleContext.bindTo(contextKeyService);
+	const position = TerminalsPositionContext.bindTo(contextKeyService);
+	const binding = autorun(reader => {
+		visible.set(state.terminalsVisible.read(reader));
+		position.set(state.terminalPosition.read(reader));
+	});
+	return {
+		dispose: () => {
+			binding.dispose();
+			visible.reset();
+			position.reset();
 		}
 	};
 }

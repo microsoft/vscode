@@ -202,6 +202,12 @@ export const LayoutModeContext = new RawContextKey<string | undefined>('layoutMo
 /** How the window arranges its chat and its editor parts while both show, or will next show. Unset in windows without layout modes. */
 export const SplitLayoutContext = new RawContextKey<string | undefined>('splitLayout', undefined, { type: 'string', description: localize('splitLayout', "How the window arranges its chat and its editor parts while both show, or as they will next show together, either 'stacked' or 'sideBySide'. Unset in windows without layout modes.") });
 
+/** Whether the window shows the part that holds its terminals. Unset in windows without such a part. */
+export const TerminalsVisibleContext = new RawContextKey<boolean | undefined>('terminalsVisible', undefined, { type: 'boolean', description: localize('terminalsVisible', "Whether the window shows the part that holds its terminals. Unset in windows without such a part.") });
+
+/** Where the part that holds the window's terminals sits. Unset in windows without such a part. */
+export const TerminalsPositionContext = new RawContextKey<string | undefined>('terminalsPosition', undefined, { type: 'string', description: localize('terminalsPosition', "Where the part that holds the window's terminals sits, either 'underChat', 'underEditor' or 'fullWidth'. Unset in windows without such a part.") });
+
 //#endregion
 
 
