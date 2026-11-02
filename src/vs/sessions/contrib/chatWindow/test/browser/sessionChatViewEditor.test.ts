@@ -11,6 +11,10 @@ import { IViewEditorRegistry, ViewEditorExtensions } from '../../../../../workbe
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../base/common/event.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IChatWindow } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { IContentPart, IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { createSessionViewTestServices, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import { IInputOnlySessionView, ISessionChatViewHost, SessionChatViewEditorView, SESSION_CHAT_VIEW_HOST_OPTIONS, SESSION_CHAT_VIEW_MINIMUM_HEIGHT, SESSION_CHAT_VIEW_TYPE, SessionChatViewInputOnly } from '../../browser/sessionChatViewEditor.js';
 
@@ -115,6 +119,8 @@ suite('Session chat view editor', () => {
 			session: constObservable(undefined),
 			window: constObservable(undefined),
 			header: constObservable({ element: titleRow, actionsElement: undefined, setShown: () => { } }),
+			showsTitle: constObservable(false),
+			createTitle: () => undefined,
 			attach: () => Disposable.None,
 		};
 		const first = instantiationService.createInstance(SessionChatViewEditorView, host);
@@ -131,6 +137,8 @@ suite('Session chat view editor', () => {
 			session: constObservable(createTestActiveSession('session')),
 			window: constObservable(undefined),
 			header: constObservable(undefined),
+			showsTitle: constObservable(false),
+			createTitle: () => undefined,
 			attach: () => Disposable.None,
 		};
 		const view = disposables.add(instantiationService.createInstance(SessionChatViewEditorView, host));
@@ -141,5 +149,45 @@ suite('Session chat view editor', () => {
 		view.saveViewState();
 
 		assert.deepStrictEqual({ primary: view.sessionView.primaryChatView.get() === chatViews.at(-1), saved }, { primary: true, saved: ['chat'] });
+	});
+	test('its own title row shows at the top of its card while its host says so, as tall in chat only as side by side, with the chat below it', () => {
+		const { instantiationService } = createSessionViewTestServices(disposables);
+		const run = (mode: ChatWindowLayoutMode) => {
+			const showsTitle = observableValue('showsTitle', true);
+			const titleElement = $('.own-title');
+			const window = upcastPartial<IChatWindow>({
+				layoutMode: constObservable(mode),
+				inputOnly: constObservable(false),
+				mainPart: upcastPartial<IContentPart>({ activeGroup: upcastPartial<IEditorGroup>({ activeEditorPane: undefined, onDidActiveEditorChange: Event.None }), onDidChangeActiveGroup: Event.None }),
+			});
+			const host: ISessionChatViewHost = {
+				session: constObservable(undefined),
+				window: constObservable(window),
+				header: constObservable(undefined),
+				showsTitle,
+				createTitle: container => {
+					container.insertBefore(titleElement, container.firstChild);
+					return { element: titleElement, size: constObservable(33), layout: () => { }, dispose: () => titleElement.remove() };
+				},
+				attach: () => Disposable.None,
+			};
+			const view = disposables.add(instantiationService.createInstance(SessionChatViewEditorView, host));
+			let chat: { height: number; top: number } | undefined;
+			view.sessionView.layout = (_width, height, top) => { chat = { height, top }; };
+			view.layout(400, 800, 0, 0);
+			const read = () => ({ shown: titleElement.style.display !== 'none' && view.element.firstElementChild === titleElement, extraMinimumHeight: view.minimumHeight - SESSION_CHAT_VIEW_MINIMUM_HEIGHT, chat });
+			const shown = read();
+			showsTitle.set(false, undefined);
+			const hidden = read();
+			showsTitle.set(true, undefined);
+			return { shown, hidden, shownAgain: read() };
+		};
+
+		const expected = {
+			shown: { shown: true, extraMinimumHeight: 33, chat: { height: 767, top: 33 } },
+			hidden: { shown: false, extraMinimumHeight: 0, chat: { height: 800, top: 0 } },
+			shownAgain: { shown: true, extraMinimumHeight: 33, chat: { height: 767, top: 33 } },
+		};
+		assert.deepStrictEqual({ chatOnly: run(ChatWindowLayoutMode.ChatOnly), sideBySide: run(ChatWindowLayoutMode.SideBySide) }, { chatOnly: expected, sideBySide: expected });
 	});
 });

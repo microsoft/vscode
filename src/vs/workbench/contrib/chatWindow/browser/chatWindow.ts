@@ -76,11 +76,6 @@ export interface IChatWindowChromeElement extends IDisposable {
 	readonly visible: IObservable<boolean>;
 	/** The room it takes while it shows: the height of a row, the width of a column. */
 	readonly size: IObservable<number>;
-	/**
-	 * For the title row: whether, side by side and in chat only, it is the header of the chat's card, in the chat's cell, as
-	 * long as it says so (the default); a row across the window otherwise, as it always is stacked and in editor only.
-	 */
-	readonly headsChat?: IObservable<boolean>;
 	layout(width: number, height: number): void;
 }
 

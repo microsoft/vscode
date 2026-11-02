@@ -114,6 +114,14 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		connectedCompact: 24 as const,
 	};
 
+	/**
+	 * The height of a row of modern UI editor tabs, `compact` or not: what lines up with the tabs of an editor part, such as
+	 * a title row beside them.
+	 */
+	static getModernUITabRowHeight(compact: boolean): number {
+		return compact ? EditorTabsControl.EDITOR_TAB_HEIGHT.modernUICompact : EditorTabsControl.EDITOR_TAB_HEIGHT.modernUI;
+	}
+
 	protected editorActionsToolbarContainer: HTMLElement | undefined;
 	private editorActionsToolbar: WorkbenchToolBar | undefined;
 	private readonly editorActionsToolbarDisposables = this._register(new DisposableStore());
@@ -617,7 +625,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			if (usesModernMultiTabHeight && this.parent.closest(CONNECTED_EDITOR_TABS_SELECTOR)) {
 				return (isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.connectedCompact : EditorTabsControl.EDITOR_TAB_HEIGHT.connected) + 1;
 			}
-			return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.modernUICompact : EditorTabsControl.EDITOR_TAB_HEIGHT.modernUI;
+			return EditorTabsControl.getModernUITabRowHeight(isCompact);
 		}
 		return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.compact : EditorTabsControl.EDITOR_TAB_HEIGHT.normal;
 	}

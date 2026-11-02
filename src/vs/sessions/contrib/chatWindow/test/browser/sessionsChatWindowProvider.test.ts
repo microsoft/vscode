@@ -37,7 +37,7 @@ import { ActiveSessionState, IChangesSessionObservables, IChangesViewService } f
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../../browser/parts/sessionActivityBar.js';
-import { alignChatWindowHeaderActions, focusChatWindowUnlessFocused, getChatWindowMainPartOptions, getMainPartTabRowHeight, isChatWindowStripInColumn, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';
+import { alignChatWindowHeaderActions, focusChatWindowUnlessFocused, getChatWindowMainPartOptions, getChatWindowTitleHeight, isChatWindowStripInColumn, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';
 
 suite('Sessions chat window provider', () => {
 
@@ -240,21 +240,11 @@ suite('Sessions chat window provider', () => {
 		assert.deepStrictEqual({ column: SESSION_ACTIVITY_BAR_COLUMN_WIDTH, insets }, { column: 34, insets: ['20: 7px', '22: 6px', '0: none'] });
 	});
 
-	test('the title row is as tall as the row of tabs of the main part: from the top of its card, frame included, to the bottom of the tabs, without the breadcrumbs', () => {
-		const card = append(mainWindow.document.body, $('.part-grid-card', { style: 'position: absolute; top: 0; border-top: 1px solid; padding-top: 4px;' }));
-		try {
-			const part = append(card, $('.part.editor'));
-			const group = append(part, $('.editor-group-container'));
-			const title = append(group, $('.title'));
-			append(title, $('.tabs-and-actions-container', { style: 'height: 35px;' }));
-			append(title, $('.breadcrumbs-below-tabs', { style: 'height: 22px;' }));
-			const withTabs = getMainPartTabRowHeight(part);
-			card.style.display = 'none';
-			const hidden = getMainPartTabRowHeight(part);
-
-			assert.deepStrictEqual({ withTabs, hidden }, { withTabs: 40, hidden: 0 });
-		} finally {
-			card.remove();
-		}
+	test('the title rows are as tall as the row of tabs of the main part, its card\'s frame included, in every layout: no measuring, so from the first frame', () => {
+		assert.deepStrictEqual({
+			cards: getChatWindowTitleHeight(false, true),
+			compactDensity: getChatWindowTitleHeight(false, false),
+			compactTabs: getChatWindowTitleHeight(true, true),
+		}, { cards: 33, compactDensity: 32, compactTabs: 29 });
 	});
 });

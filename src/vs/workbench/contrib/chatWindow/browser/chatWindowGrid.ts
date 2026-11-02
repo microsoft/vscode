@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../base/browser/dom.js';
 import { Direction, ISerializedGrid, ISerializedNode, IViewSize, Orientation } from '../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -36,8 +35,6 @@ export interface IChatWindowGridChrome {
 	readonly visible: IObservable<boolean>;
 	/** The height of a row, the width of a column. */
 	readonly size: IObservable<number>;
-	/** For the title row: whether it may be the header of the chat's card; see {@link IChatWindowChromeElement.headsChat}. */
-	readonly headsChat?: IObservable<boolean>;
 	layout(width: number, height: number): void;
 }
 
@@ -69,31 +66,30 @@ function getEffectiveTerminalPosition(mode: ChatWindowLayoutMode, position: Chat
 }
 
 /**
- * How a chat window arranges its cells for a layout mode, as chat windows always did:
- * - side by side (and chat only): the title row above the chat's column only, the main part beside it running to the
- *   top of the window, and no strip: it shows inside the chat; the terminals below the chat, below the main part, or
- *   across the bottom of the window, as `cells.terminals` says (below the main part is across the window in chat only);
- * - stacked (and editor only): the title row across the window, the main part above the chat, and the strip in a
- *   column of its own at the right; the terminals across the bottom of the chat and the main part, the strip running
- *   past them while stacked, and stopping above them in editor only.
+ * How a chat window arranges its cells for a layout mode, as chat windows always did, below the title row, which is
+ * across the top of the window while it shows:
+ * - side by side (and chat only): the chat beside the main part, and no strip: it shows inside the chat; the terminals
+ *   below the chat, below the main part, or across the bottom of the window, as `cells.terminals` says (below the main
+ *   part is across the window in chat only);
+ * - stacked (and editor only): the main part above the chat, and the strip in a column of its own at the right; the
+ *   terminals across the bottom of the chat and the main part, the strip running past them while stacked, and stopping
+ *   above them in editor only.
  * The cells a mode hides, the chat or the main part, stay in the grid, so that showing them is not a move.
  */
-export function getChatWindowTopology(mode: ChatWindowLayoutMode, cells: { readonly titleRow: boolean; readonly titleAcross?: boolean; readonly strip: boolean; readonly terminals?: ChatWindowTerminalPosition }): TopologyNode {
+export function getChatWindowTopology(mode: ChatWindowLayoutMode, cells: { readonly titleRow: boolean; readonly strip: boolean; readonly terminals?: ChatWindowTerminalPosition }): TopologyNode {
 	const titleRow: TopologyNode[] = cells.titleRow ? [{ cell: ChatWindowGridCell.TitleRow }] : [];
 	const strip: TopologyNode[] = cells.strip ? [{ cell: ChatWindowGridCell.Strip }] : [];
 	const terminals: TopologyNode[] = cells.terminals !== undefined ? [{ cell: ChatWindowGridCell.Terminals }] : [];
 	const chat: TopologyNode = { cell: ChatWindowGridCell.Chat };
 	const main: TopologyNode = { cell: ChatWindowGridCell.Main };
 	if (mode === ChatWindowLayoutMode.SideBySide || mode === ChatWindowLayoutMode.ChatOnly) {
-		// The title row is the header of the chat's card, in the chat's cell (see ChatCellView), unless it is across the window.
-		const across: TopologyNode[] = cells.titleAcross ? titleRow : [];
 		if (cells.terminals === undefined) {
-			return branch(Orientation.VERTICAL, ...across, branch(Orientation.HORIZONTAL, chat, main));
+			return branch(Orientation.VERTICAL, ...titleRow, branch(Orientation.HORIZONTAL, chat, main));
 		}
 		switch (getEffectiveTerminalPosition(mode, cells.terminals)) {
-			case ChatWindowTerminalPosition.UnderChat: return branch(Orientation.VERTICAL, ...across, branch(Orientation.HORIZONTAL, branch(Orientation.VERTICAL, chat, ...terminals), main));
-			case ChatWindowTerminalPosition.UnderEditor: return branch(Orientation.VERTICAL, ...across, branch(Orientation.HORIZONTAL, chat, branch(Orientation.VERTICAL, main, ...terminals)));
-			default: return branch(Orientation.VERTICAL, ...across, branch(Orientation.HORIZONTAL, chat, main), ...terminals);
+			case ChatWindowTerminalPosition.UnderChat: return branch(Orientation.VERTICAL, ...titleRow, branch(Orientation.HORIZONTAL, branch(Orientation.VERTICAL, chat, ...terminals), main));
+			case ChatWindowTerminalPosition.UnderEditor: return branch(Orientation.VERTICAL, ...titleRow, branch(Orientation.HORIZONTAL, chat, branch(Orientation.VERTICAL, main, ...terminals)));
+			default: return branch(Orientation.VERTICAL, ...titleRow, branch(Orientation.HORIZONTAL, chat, main), ...terminals);
 		}
 	}
 	const parts = branch(Orientation.VERTICAL, main, chat, ...(mode === ChatWindowLayoutMode.Stacked ? terminals : []));
@@ -129,50 +125,6 @@ function getShare(node: TopologyNode, orientation: Orientation): number {
 		case ChatWindowGridCell.Main: return orientation === Orientation.HORIZONTAL ? 0.6 : 0.55;
 		case ChatWindowGridCell.Chat: return orientation === Orientation.HORIZONTAL ? 0.4 : 0.45;
 		default: return 0;
-	}
-}
-
-/**
- * The chat's cell: the chat part, and above it the title row while the title row is the header of the chat's card (side
- * by side and chat only), so that they are one card, one surface, with no edge between them.
- */
-class ChatCellView implements IPartGridView {
-
-	readonly element = $('.chat-window-chat-cell');
-	readonly onDidChange: Event<IViewSize | undefined>;
-	private _title: ChromeView | undefined;
-
-	constructor(private readonly _titleRow: ChromeView | undefined, private readonly _chat: IContentPart) {
-		this.element.appendChild(_chat.element as HTMLElement);
-		this.onDidChange = _titleRow ? Event.any(_titleRow.onDidChange, Event.map(_chat.onDidChange, () => undefined)) : Event.map(_chat.onDidChange, () => undefined);
-	}
-
-	/** Shows the title row above the chat, in the chat's card; without it, the title row is a cell of its own. */
-	setTitleShown(shown: boolean): void {
-		this._title = shown ? this._titleRow : undefined;
-		if (this._title) {
-			this.element.insertBefore(this._title.element, this.element.firstChild);
-		}
-	}
-
-	private get _titleHeight(): number { return this._title?.minimumHeight ?? 0; }
-
-	get minimumWidth(): number { return this._chat.minimumWidth; }
-	get maximumWidth(): number { return this._chat.maximumWidth; }
-	get minimumHeight(): number { return this._chat.minimumHeight + this._titleHeight; }
-	get maximumHeight(): number { return this._chat.maximumHeight + this._titleHeight; }
-
-	layout(width: number, height: number, top: number, left: number): void {
-		const titleHeight = Math.min(this._titleHeight, height);
-		if (this._title) {
-			this._title.element.style.height = `${titleHeight}px`;
-			this._title.layout(width, titleHeight);
-		}
-		this._chat.layout(width, height - titleHeight, top + titleHeight, left);
-	}
-
-	setVisible(visible: boolean): void {
-		this._chat.setVisible(visible);
 	}
 }
 
@@ -228,8 +180,6 @@ export class ChatWindowGrid extends Disposable {
 	private _terminalsInGrid = false;
 	private _dimension: IViewSize | undefined;
 	private _outerInsets: IGridEdgeInsets = NO_GRID_EDGE_INSETS;
-	/** Whether the title row is the header of the chat's card, in the chat's cell: side by side and chat only. */
-	private _titleInChat = false;
 	private _sizes: ChatWindowPartSizes = {};
 
 	private readonly _terminalsVisible = observableValue<boolean>(this, false);
@@ -237,7 +187,6 @@ export class ChatWindowGrid extends Disposable {
 	readonly terminalsVisible: IObservable<boolean> = this._terminalsVisible;
 
 	private readonly _titleRow: ChromeView | undefined;
-	private readonly _chatCell: ChatCellView;
 	private readonly _strip: ChromeView | undefined;
 
 	constructor(
@@ -252,13 +201,11 @@ export class ChatWindowGrid extends Disposable {
 		this._sizes = { ...sizes };
 		this._titleRow = _cells.titleRow && this._register(new ChromeView(_cells.titleRow, 'row'));
 		this._strip = _cells.strip && this._register(new ChromeView(_cells.strip, 'column'));
-		this._chatCell = new ChatCellView(this._titleRow, _cells.chat);
 
 		this._register(autorun(reader => {
 			this._layoutMode.read(reader);
 			_cells.strip?.visible.read(reader);
 			_cells.titleRow?.visible.read(reader);
-			_cells.titleRow?.headsChat?.read(reader);
 			_cells.terminals?.read(reader);
 			this._terminalPosition.read(reader);
 			this._update();
@@ -266,17 +213,12 @@ export class ChatWindowGrid extends Disposable {
 		this._register(autorun(reader => this._grid.value?.setGap(this._gap.read(reader))));
 	}
 
-	/** The element of the chat's cell: the chat, and its title row while that is the header of the chat's card. */
-	get chatElement(): HTMLElement {
-		return this._chatCell.element;
-	}
-
 	/** The part grid of the window, for what acts on its cells, such as moving a part. */
 	get partGrid(): PartGrid | undefined {
 		return this._grid.value;
 	}
 
-	/** The arrangement shown, such as `row(column(titleRow,chat),main)`. */
+	/** The arrangement shown, such as `column(titleRow,row(chat,main))`. */
 	get topology(): string | undefined {
 		return this._topologyKey;
 	}
@@ -315,7 +257,7 @@ export class ChatWindowGrid extends Disposable {
 		const grid = this._grid.value!;
 		grid.setCellVisible(ChatWindowGridCell.Chat, mode !== ChatWindowLayoutMode.EditorOnly);
 		grid.setCellVisible(ChatWindowGridCell.Main, mode !== ChatWindowLayoutMode.ChatOnly);
-		if (this._titleRow && !this._titleInChat) {
+		if (this._titleRow) {
 			grid.setCellVisible(ChatWindowGridCell.TitleRow, !!this._cells.titleRow?.visible.get());
 		}
 		if (this._strip && (mode === ChatWindowLayoutMode.Stacked || mode === ChatWindowLayoutMode.EditorOnly)) {
@@ -351,8 +293,7 @@ export class ChatWindowGrid extends Disposable {
 	private _arrange(mode: ChatWindowLayoutMode, dimension: IViewSize): void {
 		const terminals = this._cells.terminals?.get();
 		const position = this._terminalPosition.get();
-		const titleAcross = !!this._titleRow && this._cells.titleRow?.headsChat?.get() === false;
-		const chrome = { titleRow: !!this._titleRow, titleAcross, strip: !!this._strip };
+		const chrome = { titleRow: !!this._titleRow, strip: !!this._strip };
 		const topology = getChatWindowTopology(mode, { ...chrome, terminals: terminals ? position : undefined });
 		const key = describeTopology(topology);
 		if (key === this._topologyKey) {
@@ -395,9 +336,6 @@ export class ChatWindowGrid extends Disposable {
 		const serializedRoot: ISerializedNode = { type: 'branch', data: root.type === 'branch' ? root.data : [root], size: orientation === Orientation.HORIZONTAL ? height : width };
 		const serializedGrid: ISerializedGrid = { root: serializedRoot, orientation, width, height };
 		const state = { grid: serializedGrid, hidden: [], parts: {} };
-		this._titleInChat = !!this._titleRow && !titleAcross && (mode === ChatWindowLayoutMode.SideBySide || mode === ChatWindowLayoutMode.ChatOnly);
-		this._container.classList.toggle('chat-window-title-over-chat', this._titleInChat);
-		this._chatCell.setTitleShown(this._titleInChat);
 		const partGrid = this._grid.value = PartGrid.restore(this._container, state, id => this._contentOf(id));
 		this._gridListener.value = partGrid.onDidChangePartEmpty(() => this._updateTerminalsVisible());
 		partGrid.setGap(this._gap.get());
@@ -432,7 +370,7 @@ export class ChatWindowGrid extends Disposable {
 	private _contentOf(id: string): PartGridCellContent {
 		switch (id) {
 			case ChatWindowGridCell.Main: return { part: this._cells.main };
-			case ChatWindowGridCell.Chat: return { view: this._chatCell };
+			case ChatWindowGridCell.Chat: return { part: this._cells.chat };
 			case ChatWindowGridCell.TitleRow: return { view: this._titleRow! };
 			case ChatWindowGridCell.Terminals: return { part: this._cells.terminals!.get()! };
 			default: return { view: this._strip! };

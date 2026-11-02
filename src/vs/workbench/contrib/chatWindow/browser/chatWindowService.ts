@@ -320,7 +320,6 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		});
 		const windowId = auxiliaryWindow.window.vscodeWindowId;
 		const container = auxiliaryWindow.container;
-		container.classList.add('chat-window');
 
 		// The window's own context, scoped to the body of its document: keys pressed while no element of the window has
 		// focus resolve in it, and never in the main window's.
@@ -334,7 +333,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		services.set(IContextKeyService, windowContextKeyService);
 
 		// The main part first: it is the window's main part, where what the window opens goes by default.
-		const host = append(container, $('.chat-window-parts'));
+		// The classes of the window go on its own element: those of the container follow the main window's.
+		const host = append(container, $('.chat-window-parts.chat-window'));
 		const mainPartElement = append(host, $('.chat-window-main-part'));
 		const chatPartElement = append(host, $('.chat-window-chat-part'));
 		const look = provider.look;
@@ -404,12 +404,12 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		}
 
 		if (look.className) {
-			container.classList.add(look.className);
+			host.classList.add(look.className);
 		}
 		const grid = disposables.add(new ChatWindowGrid(host, {
 			main: mainPart,
 			chat: chatPart,
-			titleRow: titleRow && { element: titleRowElement, visible: titleRow.visible, size: titleRow.size, headsChat: titleRow.headsChat, layout: (width, height) => titleRow.layout(width, height) },
+			titleRow: titleRow && { element: titleRowElement, visible: titleRow.visible, size: titleRow.size, layout: (width, height) => titleRow.layout(width, height) },
 			strip: strip && { element: stripElement, visible: strip.visible, size: strip.size, layout: (width, height) => strip.layout(width, height) },
 			terminals: window.terminalsPart,
 		}, state.layoutMode, look.gap, this._chatSizes.get(chat), state.terminalPosition));
@@ -419,14 +419,19 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		disposables.add(this._storageService.onWillSaveState(saveSizes));
 		disposables.add(auxiliaryWindow.onBeforeUnload(saveSizes));
 		if (look.paintChatBackground) {
-			// Behind the chat's whole card, its title row too while that is the header of the card.
-			disposables.add(look.paintChatBackground(grid.chatElement));
+			disposables.add(look.paintChatBackground(chatPartElement));
 		}
 		const outerInsets = look.outerInsets;
 		if (outerInsets) {
 			disposables.add(autorun(reader => grid.setOuterInsets(outerInsets.read(reader))));
 		}
 		disposables.add(auxiliaryWindow.onWillLayout(dimension => grid.layout(dimension.width, dimension.height)));
+		// Again once the styles of the window have loaded, which draw the frames of its cards: the parts are inside them.
+		auxiliaryWindow.whenStylesHaveLoaded.then(() => {
+			if (!disposables.isDisposed) {
+				auxiliaryWindow.layout();
+			}
+		});
 
 		disposables.add(autorun(reader => {
 			auxiliaryWindow.window.document.title = content.title.read(reader);

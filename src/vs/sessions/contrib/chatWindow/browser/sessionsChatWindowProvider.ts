@@ -50,10 +50,25 @@ import { IChangesViewService } from '../../changes/common/changesViewService.js'
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../common/chatWindows.js';
 import { ChatModelHold, chatWindowTitle, closeChatWindowsOfGoneChats, followReplacedWindowSessions, IGoneChatWindow, IReplaceableChatWindow, isChatWindowChatGone } from './chatWindowOpening.js';
-import { ISessionChatViewHeaderHost, ISessionChatViewHost, registerSessionChatViewHost, SESSION_CHAT_VIEW_TYPE } from './sessionChatViewEditor.js';
+import { ISessionChatViewHeaderHost, ISessionChatViewHost, ISessionChatViewTitle, registerSessionChatViewHost, SESSION_CHAT_VIEW_TYPE } from './sessionChatViewEditor.js';
+import { EditorTabsControl } from '../../../../workbench/browser/parts/editor/editorTabsControl.js';
 
 /** How long restoring a chat window waits for its session to load. */
 const RESTORE_SESSION_TIMEOUT = 30_000;
+
+/** The width of the frame of the cards of a chat window. */
+const CARD_FRAME_WIDTH = 1;
+
+/** A title row of a chat window, and where the session header shows in it. */
+interface IChatWindowTitle extends IDisposable {
+	readonly element: HTMLElement;
+	readonly size: IObservable<number>;
+	readonly header: ISessionChatViewHeaderHost | undefined;
+	layout(width: number, height: number): void;
+}
+
+/** Creates a title row of a chat window; see `SessionsChatWindowProvider._createTitle`. */
+type ChatWindowTitleFactory = (window: IChatWindow, content: SessionsChatWindowContent, container: HTMLElement, instantiationService: IInstantiationService, overChat: boolean) => IChatWindowTitle | undefined;
 
 /**
  * The options of the main part of a chat window: its tabs follow `workbench.editor.showTabs`, live, as the main window's
@@ -145,15 +160,30 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 	private readonly _session = observableValue<IActiveSession | undefined>(this, undefined);
 	readonly session: IObservable<IActiveSession | undefined> = this._session;
 	readonly window = observableValue<IChatWindow | undefined>(this, undefined);
-	readonly header = observableValue<ISessionChatViewHeaderHost | undefined>(this, undefined);
+	/** Where the session header shows in the title row of the window, once it has one. */
+	readonly windowHeader = observableValue<ISessionChatViewHeaderHost | undefined>(this, undefined);
+	/** Where the session header shows in the view's own title row, once it has one. */
+	private readonly _viewHeader = observableValue<ISessionChatViewHeaderHost | undefined>(this, undefined);
 	private readonly _view = observableValue<SessionView | undefined>(this, undefined);
-	/** Whether the session header shows: not while the chats of the session show as tabs, which replace it. */
-	readonly headerShown: IObservable<boolean> = derived(this, reader => this._view.read(reader)?.headerShown.read(reader) ?? true);
+	/**
+	 * Whether the view shows its own title row, at the top of the chat's card: with a single chat, side by side and in chat
+	 * only, as the session view shows its header then. Otherwise, such as with the chats of the session as tabs, which
+	 * replace the header, the title row of the window shows, across the window, as the main window's title bar does.
+	 */
+	readonly showsTitle: IObservable<boolean> = derived(this, reader => {
+		const mode = this.window.read(reader)?.layoutMode.read(reader);
+		return !!this._viewHeader.read(reader)
+			&& (mode === ChatWindowLayoutMode.SideBySide || mode === ChatWindowLayoutMode.ChatOnly)
+			&& (this._view.read(reader)?.headerShown.read(reader) ?? true);
+	});
+	/** The title row the session header shows in: the one that shows. */
+	readonly header: IObservable<ISessionChatViewHeaderHost | undefined> = derived(this, reader => this.showsTitle.read(reader) ? this._viewHeader.read(reader) : this.windowHeader.read(reader));
 	private readonly _heldChat: ChatModelHold;
 
 	constructor(
 		readonly sourceSession: ISession,
 		chatResource: URI,
+		private readonly _titleFactory: ChatWindowTitleFactory,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionsPartService private readonly _sessionsPartService: ISessionsPartService,
 		@IChangesViewService private readonly _changesViewService: IChangesViewService,
@@ -207,6 +237,27 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 		if (focused && session) {
 			this._sessionsService.setActive(session);
 		}
+	}
+
+	createTitle(container: HTMLElement, instantiationService: IInstantiationService): ISessionChatViewTitle | undefined {
+		const window = this.window.get();
+		const title = window && this._titleFactory(window, this, container, instantiationService, true);
+		if (!title) {
+			return undefined;
+		}
+		const header = title.header;
+		this._viewHeader.set(header, undefined);
+		return {
+			element: title.element,
+			size: title.size,
+			layout: (width, height) => title.layout(width, height),
+			dispose: () => {
+				if (this._viewHeader.get() === header) {
+					this._viewHeader.set(undefined, undefined);
+				}
+				title.dispose();
+			},
+		};
 	}
 
 	attach(view: SessionView): IDisposable {
@@ -280,6 +331,8 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 	readonly onDidRemoveChats: Event<readonly URI[]>;
 	readonly look: IChatWindowLook;
 	readonly chrome: IChatWindowChrome;
+	/** The height of the title rows of chat windows. */
+	private readonly _titleHeight: IObservable<number>;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -301,14 +354,11 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 
 		const density = observableConfigValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY, ModernUIDensity.Default, _configurationService);
 		const showTabs = observableConfigValue<string | undefined>('workbench.editor.showTabs', undefined, _configurationService);
+		const tabHeight = observableConfigValue<string | undefined>('workbench.editor.tabHeight', undefined, _configurationService);
+		this._titleHeight = derived(this, reader => getChatWindowTitleHeight(tabHeight.read(reader) === 'compact', density.read(reader) !== ModernUIDensity.Compact));
 		this.look = {
 			// The parts are cards, as the main window's are, unless Layout Density is compact, which keeps them flush.
 			gap: derived(reader => density.read(reader) === ModernUIDensity.Compact ? 0 : AGENTS_FLOATING_PANEL_GAP),
-			// The cards keep the gap to the edges of the window as the main window's do; the title row is at the top.
-			outerInsets: derived(reader => {
-				const gap = density.read(reader) === ModernUIDensity.Compact ? 0 : AGENTS_FLOATING_PANEL_GAP;
-				return { top: 0, right: gap, bottom: gap, left: gap };
-			}),
 			className: 'agents-chat-window',
 			paintChatBackground: element => this._instantiationService.createInstance(SessionsChatSurface, element),
 			mainPartOptions: derived(reader => getChatWindowMainPartOptions(showTabs.read(reader))),
@@ -335,7 +385,7 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		// session shows in the grid, else its main chat.
 		const shown = this._sessionsService.visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId && !candidate.scopedChatResource);
 		const chat = resolved.chat ?? shown?.activeChat.get().resource ?? session.mainChat.get().resource;
-		const content = this._instantiationService.createInstance(SessionsChatWindowContent, session, chat);
+		const content = this._instantiationService.createInstance(SessionsChatWindowContent, session, chat, (window, windowContent, container, instantiationService, overChat) => this._createTitle(window, windowContent, container, instantiationService, overChat));
 		this._contents.set([...this._contents.get(), content], undefined);
 		Event.once(content.onWillDispose)(() => this._contents.set(this._contents.get().filter(candidate => candidate !== content), undefined));
 		return content;
@@ -401,43 +451,59 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 	}
 
 	/**
-	 * The title row: the title bar, as other windows of the Agents window have one, which shows the session header in
-	 * place of the title of the chat, as the window's top row in every layout. Only with a custom title bar.
+	 * The title row of the window: across its top, while the view does not show its own (see
+	 * {@link SessionsChatWindowContent.showsTitle}). Only with a custom title bar.
 	 */
 	private _createTitleRow(window: IChatWindow, container: HTMLElement, instantiationService: IInstantiationService): IChatWindowChromeElement | undefined {
 		const content = this._contentOf(window);
-		if (!content || !isNative || !hasCustomTitlebar(this._configurationService)) {
+		const title = content && this._createTitle(window, content, container, instantiationService, false);
+		if (!content || !title) {
+			return undefined;
+		}
+		content.windowHeader.set(title.header, undefined);
+		return {
+			visible: derived(reader => !content.showsTitle.read(reader)),
+			size: title.size,
+			layout: (width, height) => title.layout(width, height),
+			dispose: () => {
+				if (content.windowHeader.get() === title.header) {
+					content.windowHeader.set(undefined, undefined);
+				}
+				title.dispose();
+			},
+		};
+	}
+
+	/**
+	 * A title row of a chat window: the title bar, as other windows of the Agents window have one, which shows the session
+	 * header in place of the title of the chat. The title row of the window, or, `overChat`, the view's own, over the chat
+	 * only: the window controls at the right then stay at the top right of the window while the main part is beside it.
+	 * As tall as the row of tabs of the main part, from the first frame, in every layout. Only with a custom title bar.
+	 */
+	private _createTitle(window: IChatWindow, content: SessionsChatWindowContent, container: HTMLElement, instantiationService: IInstantiationService, overChat: boolean): IChatWindowTitle | undefined {
+		if (!isNative || !hasCustomTitlebar(this._configurationService)) {
 			return undefined;
 		}
 		const store = new DisposableStore();
 		const titlebar = store.add(this._titleService.createAuxiliaryTitlebarPart(container, window.mainPart, instantiationService));
 		const size = observableFromEvent(this, titlebar.onDidChange, () => titlebar.height);
+		let header: ISessionChatViewHeaderHost | undefined;
 		if (titlebar instanceof TitlebarPart) {
-			// As tall as the row of tabs of the main part, in every layout, as it last showed while the main part is hidden.
-			const rowHeight = observableValue<number>(this, 0);
-			const measure = () => {
-				const height = getMainPartTabRowHeight(window.mainPart.element as HTMLElement);
-				if (height) {
-					rowHeight.set(height, undefined);
-				}
-			};
-			store.add(window.mainPart.onDidLayout(() => measure()));
-			store.add(autorun(reader => titlebar.setHeight(rowHeight.read(reader) || undefined)));
+			store.add(autorun(reader => titlebar.setHeight(this._titleHeight.read(reader))));
 			store.add(autorun(reader => titlebar.setTitle(content.title.read(reader))));
-			// Above the chat only while the main part is beside it: the window controls then stay at the top right of the window.
-			store.add(autorun(reader => titlebar.element.classList.toggle('header-chat-column', window.layoutMode.read(reader) === ChatWindowLayoutMode.SideBySide && content.headerShown.read(reader))));
-			content.header.set({
+			if (overChat) {
+				store.add(autorun(reader => titlebar.element.classList.toggle('header-chat-column', window.layoutMode.read(reader) === ChatWindowLayoutMode.SideBySide)));
+			}
+			header = {
 				element: titlebar.getSessionHeaderHost(),
 				actionsElement: titlebar.getSessionHeaderActionsHost(),
 				setShown: shown => titlebar.setHostsSessionHeader(shown),
-			}, undefined);
-			store.add(toDisposable(() => content.header.set(undefined, undefined)));
+			};
 		}
 		return {
-			visible: constObservable(true),
+			element: titlebar.element,
 			size,
-			// With the chats of the session as tabs, the title row is across the window, as the main window's title bar is.
-			headsChat: content.headerShown,
+			header,
 			layout: (width, height) => {
 				if (titlebar instanceof TitlebarPart) {
 					alignChatWindowHeaderActions(titlebar.element, titlebar.getSessionHeaderActionsHost());
@@ -470,21 +536,9 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 }
 
 /**
- * The height of the row of tabs of an editor part, from the top of the card it is in, its frame included, to the bottom of
- * the first row its group at the top shows: the tabs, without the breadcrumbs below them, or the toolbar of an empty group.
- * 0 while the part does not show.
+ * The height of the title rows of chat windows: that of the row of tabs of an editor part, with `compactTabs` or not,
+ * and, with `cards`, the frame of the card the tabs are in, so that a title row lines up with the tabs beside it.
  */
-export function getMainPartTabRowHeight(part: HTMLElement): number {
-	const top = (part.closest('.part-grid-card') ?? part).getBoundingClientRect().top;
-	// The groups as they show, rather than as the editor part arranges them: the first one at the top.
-	// eslint-disable-next-line no-restricted-syntax
-	for (const group of part.querySelectorAll<HTMLElement>('.editor-group-container')) {
-		const title = Array.from(group.children).find(child => (child.classList.contains('title') || child.classList.contains('editor-group-container-toolbar')) && child.getBoundingClientRect().height > 0);
-		if (!title) {
-			continue;
-		}
-		const row = title.classList.contains('title') ? Array.from(title.children).find(child => child.getBoundingClientRect().height > 0) ?? title : title;
-		return Math.max(0, Math.round(row.getBoundingClientRect().bottom - top));
-	}
-	return 0;
+export function getChatWindowTitleHeight(compactTabs: boolean, cards: boolean): number {
+	return EditorTabsControl.getModernUITabRowHeight(compactTabs) + (cards ? CARD_FRAME_WIDTH : 0);
 }

@@ -47,14 +47,26 @@ export interface ISessionChatViewHeaderHost {
 	setShown(shown: boolean): void;
 }
 
+/** The view's own title row, at the top of its card. */
+export interface ISessionChatViewTitle extends IDisposable {
+	readonly element: HTMLElement;
+	/** Its height. */
+	readonly size: IObservable<number>;
+	layout(width: number, height: number): void;
+}
+
 /** What a session chat view shows, and the window it shows in, as whoever opens its editor gives it. */
 export interface ISessionChatViewHost {
 	/** The session the view shows: the session of its window. */
 	readonly session: IObservable<IActiveSession | undefined>;
 	/** The chat window the view shows in, once it shows. */
 	readonly window: IObservable<IChatWindow | undefined>;
-	/** Where the session header shows, outside of the view; in the view while undefined. */
+	/** Where the session header shows: in the title row that shows, the view's own or its window's; in the view while undefined. */
 	readonly header: IObservable<ISessionChatViewHeaderHost | undefined>;
+	/** Whether the view shows its own title row (see {@link createTitle}); the title row of its window does not meanwhile. */
+	readonly showsTitle: IObservable<boolean>;
+	/** Creates the view's own title row into `container`, once the view shows in its window; none without title rows. */
+	createTitle(container: HTMLElement, instantiationService: IInstantiationService): ISessionChatViewTitle | undefined;
 	/** Called with the session view of the editor once it is created, until the returned disposable is disposed. */
 	attach(view: SessionView): IDisposable;
 }
@@ -167,11 +179,15 @@ export class SessionChatViewEditorView extends Disposable implements IViewEditor
 	readonly onDidChange: Event<{ width: number; height: number } | undefined> = this._onDidChange.event;
 
 	private readonly _inputOnly: SessionChatViewInputOnly;
+	/** The view's own title row while it shows. */
+	private _title: ISessionChatViewTitle | undefined;
+	private _dimension: { width: number; height: number; top: number; left: number } | undefined;
 
 	readonly minimumWidth = SESSION_CHAT_VIEW_MINIMUM_WIDTH;
 	readonly maximumWidth = Number.POSITIVE_INFINITY;
-	get minimumHeight(): number { return this._inputOnly.minimumHeight.get(); }
-	get maximumHeight(): number { return this._inputOnly.maximumHeight.get(); }
+	get minimumHeight(): number { return this._inputOnly.minimumHeight.get() + this._titleHeight; }
+	get maximumHeight(): number { return this._inputOnly.maximumHeight.get() + this._titleHeight; }
+	private get _titleHeight(): number { return this._title?.size.get() ?? 0; }
 
 	constructor(
 		host: ISessionChatViewHost | undefined,
@@ -180,7 +196,8 @@ export class SessionChatViewEditorView extends Disposable implements IViewEditor
 	) {
 		super();
 
-		this.element = $('.session-chat-view-editor');
+		// Styled as the session views of the Agents window are, which show in its sessions part or in a window of their own.
+		this.element = $('.session-chat-view-editor.sessions-window-host');
 		// The active editor, for what the chat shows, such as the checked entries of its Session Activity Bar, is the one of
 		// its window's main part, as the main window's chat reads the one of its editor area.
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
@@ -233,6 +250,31 @@ export class SessionChatViewEditorView extends Disposable implements IViewEditor
 			const mode = host.window.read(reader)?.layoutMode.read(reader);
 			sessionView.setPartVisible(mode !== ChatWindowLayoutMode.EditorOnly);
 		}));
+		// Its own title row, at the top of its card, while it shows; the title row of its window otherwise.
+		const title = derived(this, reader => {
+			if (!host.window.read(reader)) {
+				return undefined;
+			}
+			const created = host.createTitle(this.element, scopedInstantiationService);
+			if (created) {
+				reader.store.add(created);
+			}
+			return created;
+		});
+		this._register(autorun(reader => {
+			const ownTitle = title.read(reader);
+			const shown = !!ownTitle && host.showsTitle.read(reader);
+			ownTitle?.size.read(reader);
+			if (ownTitle) {
+				ownTitle.element.style.display = shown ? '' : 'none';
+			}
+			this.element.classList.toggle('shows-title', shown);
+			this._title = shown ? ownTitle : undefined;
+			if (this._dimension) {
+				this.layout(this._dimension.width, this._dimension.height, this._dimension.top, this._dimension.left);
+			}
+			this._onDidChange.fire(undefined);
+		}));
 		// The session header is the top row of the window in every layout, also while the chat shows only its input.
 		const headerShown = this._register(new MutableDisposable());
 		this._register(autorun(reader => {
@@ -243,7 +285,10 @@ export class SessionChatViewEditorView extends Disposable implements IViewEditor
 	}
 
 	layout(width: number, height: number, top: number, left: number): void {
-		this.sessionView.layout(width, height, top, left);
+		this._dimension = { width, height, top, left };
+		const titleHeight = Math.min(this._titleHeight, height);
+		this._title?.layout(width, titleHeight);
+		this.sessionView.layout(width, height - titleHeight, top + titleHeight, left);
 	}
 
 	focus(): void {

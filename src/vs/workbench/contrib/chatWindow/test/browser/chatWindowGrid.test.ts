@@ -61,62 +61,43 @@ suite('Chat window grid', () => {
 		}
 
 		assert.deepStrictEqual(layouts, {
-			[ChatWindowLayoutMode.SideBySide]: { topology: 'row(chat, main)', visible: ['chat', 'main'] },
-			[ChatWindowLayoutMode.ChatOnly]: { topology: 'row(chat, main)', visible: ['chat'] },
+			[ChatWindowLayoutMode.SideBySide]: { topology: 'column(titleRow, row(chat, main))', visible: ['titleRow', 'chat', 'main'] },
+			[ChatWindowLayoutMode.ChatOnly]: { topology: 'column(titleRow, row(chat, main))', visible: ['titleRow', 'chat'] },
 			[ChatWindowLayoutMode.Stacked]: { topology: 'column(titleRow, row(column(main, chat), strip))', visible: ['titleRow', 'chat', 'main', 'strip'] },
 			[ChatWindowLayoutMode.EditorOnly]: { topology: 'column(titleRow, row(column(main, chat), strip))', visible: ['titleRow', 'main', 'strip'] },
 		});
 	});
 
-	test('side by side and in chat only, the title row is the header of the chat\'s card, in the chat\'s cell; stacked and in editor only, a row of its own', () => {
+	test('the title row is across the top of the window in every mode, and shows or hides as it says, without moving or rebuilding anything', () => {
 		const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.SideBySide);
-		const container = $('div');
-		const titleRow = createChrome(30);
-		const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat: createPart('chat'), titleRow, strip: createChrome(34) }, mode, constObservable(0), undefined));
+		const shown = observableValue('shown', false);
+		const titleRow = { ...createChrome(30), visible: shown };
+		const grid = disposables.add(new ChatWindowGrid($('div'), { main: createPart('main'), chat: createPart('chat'), titleRow, strip: createChrome(34) }, mode, constObservable(0), undefined));
 		grid.layout(1000, 800);
-		const read = () => ({ inChatCell: grid.chatElement.contains(titleRow.element), overChat: container.classList.contains('chat-window-title-over-chat') });
-		const layouts: Record<string, ReturnType<typeof read>> = {};
-		for (const candidate of [ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.EditorOnly]) {
-			mode.set(candidate, undefined);
-			layouts[candidate] = read();
-		}
+		const partGrid = grid.partGrid;
+		const parent = titleRow.element.parentElement;
+		const read = () => ({ topology: grid.topology, visible: grid.partGrid!.isCellVisible(ChatWindowGridCell.TitleRow), chatHeight: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).height });
+		const hidden = read();
+		shown.set(true, undefined);
+		const visible = read();
+		shown.set(false, undefined);
+		const hiddenAgain = { ...read(), sameGrid: grid.partGrid === partGrid, sameParent: titleRow.element.parentElement === parent };
 
-		assert.deepStrictEqual(layouts, {
-			[ChatWindowLayoutMode.SideBySide]: { inChatCell: true, overChat: true },
-			[ChatWindowLayoutMode.ChatOnly]: { inChatCell: true, overChat: true },
-			[ChatWindowLayoutMode.Stacked]: { inChatCell: false, overChat: false },
-			[ChatWindowLayoutMode.EditorOnly]: { inChatCell: false, overChat: false },
-		});
-	});
-
-	test('with the chats of the session as tabs, the title row is across the window, as the main window\'s title bar, and heads the chat\'s card again with a single chat', () => {
-		const headsChat = observableValue('headsChat', true);
-		const container = $('div');
-		const titleRow = { ...createChrome(30), headsChat };
-		const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat: createPart('chat'), titleRow, strip: createChrome(34) }, constObservable(ChatWindowLayoutMode.SideBySide), constObservable(0), undefined));
-		grid.layout(1000, 800);
-		const read = () => ({ topology: grid.topology, inChatCell: grid.chatElement.contains(titleRow.element), titleVisible: grid.partGrid!.isCellVisible(ChatWindowGridCell.TitleRow), chatHeight: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).height });
-		const oneChat = read();
-		headsChat.set(false, undefined);
-		const twoChats = read();
-		headsChat.set(true, undefined);
-		const oneChatAgain = read();
-
-		assert.deepStrictEqual({ oneChat, twoChats, oneChatAgain }, {
-			oneChat: { topology: 'row(chat,main)', inChatCell: true, titleVisible: false, chatHeight: 800 },
-			twoChats: { topology: 'column(titleRow,row(chat,main))', inChatCell: false, titleVisible: true, chatHeight: 770 },
-			oneChatAgain: { topology: 'row(chat,main)', inChatCell: true, titleVisible: false, chatHeight: 800 },
+		assert.deepStrictEqual({ hidden, visible, hiddenAgain }, {
+			hidden: { topology: 'column(titleRow,row(chat,main))', visible: false, chatHeight: 800 },
+			visible: { topology: 'column(titleRow,row(chat,main))', visible: true, chatHeight: 770 },
+			hiddenAgain: { topology: 'column(titleRow,row(chat,main))', visible: false, chatHeight: 800, sameGrid: true, sameParent: true },
 		});
 	});
 
 	test('opens with the main part wider and taller than the chat, and the title row and strip as large as they say', () => {
 		const { mode, grid } = setup();
-		const sideBySide = { chat: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width, main: grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width, chatHeight: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).height };
+		const sideBySide = { chat: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width, main: grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width, titleRow: grid.partGrid!.getCellSize(ChatWindowGridCell.TitleRow).height };
 		mode.set(ChatWindowLayoutMode.Stacked, undefined);
 		const stacked = { chat: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).height, main: grid.partGrid!.getCellSize(ChatWindowGridCell.Main).height, strip: grid.partGrid!.getCellSize(ChatWindowGridCell.Strip).width };
 
 		assert.deepStrictEqual({ sideBySide, stacked }, {
-			sideBySide: { chat: 400, main: 600, chatHeight: 800 },
+			sideBySide: { chat: 400, main: 600, titleRow: 30 },
 			stacked: { chat: 346, main: 424, strip: 34 },
 		});
 	});
@@ -210,14 +191,14 @@ suite('Chat window grid', () => {
 		}
 
 		assert.deepStrictEqual({ before, layouts }, {
-			before: 'row(chat, main)',
+			before: 'column(titleRow, row(chat, main))',
 			layouts: {
-				'sideBySide/fullWidth': 'column(row(chat, main), terminals)',
-				'sideBySide/underChat': 'row(column(chat, terminals), main)',
-				'sideBySide/underEditor': 'row(chat, column(main, terminals))',
-				'chatOnly/fullWidth': 'column(row(chat, main), terminals)',
-				'chatOnly/underChat': 'row(column(chat, terminals), main)',
-				'chatOnly/underEditor': 'column(row(chat, main), terminals)',
+				'sideBySide/fullWidth': 'column(titleRow, row(chat, main), terminals)',
+				'sideBySide/underChat': 'column(titleRow, row(column(chat, terminals), main))',
+				'sideBySide/underEditor': 'column(titleRow, row(chat, column(main, terminals)))',
+				'chatOnly/fullWidth': 'column(titleRow, row(chat, main), terminals)',
+				'chatOnly/underChat': 'column(titleRow, row(column(chat, terminals), main))',
+				'chatOnly/underEditor': 'column(titleRow, row(chat, main), terminals)',
 				'stacked/fullWidth': 'column(titleRow, row(column(main, chat, terminals), strip))',
 				'stacked/underChat': 'column(titleRow, row(column(main, chat, terminals), strip))',
 				'stacked/underEditor': 'column(titleRow, row(column(main, chat, terminals), strip))',
@@ -244,9 +225,9 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual({ moved: grid.partGrid === partGrid, moves }, {
 			moved: true,
 			moves: [
-				{ topology: 'row(column(chat, terminals), main)', height: 200, asNew: true },
-				{ topology: 'row(chat, column(main, terminals))', height: 200, asNew: true },
-				{ topology: 'column(row(chat, main), terminals)', height: 200, asNew: true },
+				{ topology: 'column(titleRow, row(column(chat, terminals), main))', height: 200, asNew: true },
+				{ topology: 'column(titleRow, row(chat, column(main, terminals)))', height: 200, asNew: true },
+				{ topology: 'column(titleRow, row(chat, main), terminals)', height: 200, asNew: true },
 			],
 		});
 	});
@@ -264,7 +245,7 @@ suite('Chat window grid', () => {
 
 		assert.deepStrictEqual({ beforeFirst, hidden, shownAgain: { visible: grid.terminalsVisible.get(), height: height() }, rebuilt: grid.partGrid !== partGrid }, {
 			beforeFirst: false,
-			hidden: { visible: false, chatWidth, chatHeight: 800 },
+			hidden: { visible: false, chatWidth, chatHeight: 770 },
 			shownAgain: { visible: true, height: 225 },
 			rebuilt: false,
 		});
