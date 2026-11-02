@@ -82,7 +82,7 @@ import { IPreferencesService } from '../../../services/preferences/common/prefer
 import { importAMDNodeModule } from '../../../../amdX.js';
 import type { IMarker, Terminal as XTermTerminal, IBufferLine } from '@xterm/xterm';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
-import { terminalStrings } from '../common/terminalStrings.js';
+import { getTerminalAccessibleTitle, terminalStrings } from '../common/terminalStrings.js';
 import { TerminalIconPicker } from './terminalIconPicker.js';
 import { TerminalResizeDebouncer } from './terminalResizeDebouncer.js';
 import { openContextMenu } from './terminalContextMenu.js';
@@ -2159,8 +2159,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _setAriaLabel(xterm: XTermTerminal | undefined, terminalId: number, title: string | undefined): void {
 		const labelParts: string[] = [];
 		if (xterm && xterm.textarea) {
-			if (title && title.length > 0) {
-				labelParts.push(nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", terminalId, title));
+			const accessibleTitle = getTerminalAccessibleTitle(title ?? '', this._shellLaunchConfig.hostLabel);
+			if (accessibleTitle) {
+				labelParts.push(nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", terminalId, accessibleTitle));
 			} else {
 				labelParts.push(nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", terminalId));
 			}

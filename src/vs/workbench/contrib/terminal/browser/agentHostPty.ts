@@ -80,7 +80,13 @@ function isCopilotSentinelCommand(commandLine: string): boolean {
 }
 
 /**
- * Returns the process title to show for a host-reported terminal title.
+ * Returns the process title to report for a host-reported terminal title.
+ *
+ * The terminal shows it as it shows a local terminal's process name: the base
+ * name of a path, or the text before the first space. That is deliberate. The
+ * VS Code agent host reports the name of the foreground process, which on Linux
+ * can be several words a process set itself, such as `npm run watch`, and local
+ * terminals show that as `npm` too.
  *
  * A Windows host titles a terminal with its shell's path and never reports a
  * process name. The terminal shortens Windows paths only for processes it knows

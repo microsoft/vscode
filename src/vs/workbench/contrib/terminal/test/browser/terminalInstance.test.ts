@@ -513,6 +513,34 @@ suite('Workbench - TerminalInstance', () => {
 			});
 		});
 
+		test('shows a custom pty\'s process titles like local process names', async () => {
+			// Agent host terminals report their host's titles this way, see getProcessTitle in agentHostPty.ts.
+			const instance = await createTerminalInstance(undefined, undefined, { customPtyImplementation: () => store.add(new TestTerminalChildProcess(false)) });
+			const titles: string[] = [];
+			for (const title of ['npm run watch', '/usr/bin/zsh']) {
+				await instance.rename(title, TitleEventSource.Process);
+				titles.push(instance.title);
+			}
+			deepStrictEqual(titles, ['npm', 'zsh']);
+		});
+
+		test('the screen reader label of a terminal names the remote host it runs on', async () => {
+			const labels: string[] = [];
+			const expected: string[] = [];
+			for (const hostLabel of [undefined, 'devbox']) {
+				const instance = await createTerminalInstance(undefined, undefined, { hostLabel });
+				const container = document.createElement('div');
+				document.body.appendChild(container);
+				store.add(toDisposable(() => container.remove()));
+				instance.attachToElement(container);
+				instance.setVisible(true);
+				await instance.rename('zsh', TitleEventSource.Process);
+				labels.push(instance.xterm!.raw.textarea!.getAttribute('aria-label')!.split('\n')[0]);
+				expected.push(`Terminal ${instance.instanceId}, zsh${hostLabel ? ` on ${hostLabel}` : ''}`);
+			}
+			deepStrictEqual(labels, expected);
+		});
+
 		test('should preserve agent shell type detected from sequence until the parent shell returns', async () => {
 			const instance = await createTerminalInstance() as TerminalInstance;
 			const onTitleChange = (title: string) => (instance as unknown as Record<string, (value: string) => void>)['_onTitleChange'](title);
