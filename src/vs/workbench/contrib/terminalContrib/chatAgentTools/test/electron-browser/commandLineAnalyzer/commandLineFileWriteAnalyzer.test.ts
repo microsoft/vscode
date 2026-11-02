@@ -11,6 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { ITreeSitterLibraryService } from '../../../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
+import { FileOperationError, FileOperationResult, IFileStatWithPartialMetadata } from '../../../../../../../platform/files/common/files.js';
 import type { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService, toWorkspaceFolder } from '../../../../../../../platform/workspace/common/workspace.js';
@@ -24,6 +25,28 @@ import { CommandLineFileWriteAnalyzer } from '../../../browser/tools/commandLine
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../../../browser/treeSitterCommandParser.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
 
+/** Real path per literal path, where unlisted paths resolve to themselves. */
+type RealpathResult = URI | 'missing' | 'dangling';
+
+class TestFileService extends FileService {
+	readonly realpaths = new Map<string, RealpathResult>();
+
+	override async realpath(resource: URI): Promise<URI | undefined> {
+		const result = this.realpaths.get(resource.toString()) ?? resource;
+		if (!URI.isUri(result)) {
+			throw new FileOperationError('File not found', FileOperationResult.FILE_NOT_FOUND);
+		}
+		return result;
+	}
+
+	override async stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
+		if (this.realpaths.get(resource.toString()) !== 'dangling') {
+			throw new FileOperationError('File not found', FileOperationResult.FILE_NOT_FOUND);
+		}
+		return { resource, name: resource.path, size: 0, mtime: 0, ctime: 0, etag: '', readonly: false, locked: false, executable: false, isFile: false, isDirectory: false, isSymbolicLink: true };
+	}
+}
+
 suite('CommandLineFileWriteAnalyzer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -31,12 +54,13 @@ suite('CommandLineFileWriteAnalyzer', () => {
 	let parser: TreeSitterCommandParser;
 	let analyzer: CommandLineFileWriteAnalyzer;
 	let configurationService: TestConfigurationService;
+	let fileService: TestFileService;
 	let workspaceContextService: TestContextService;
 
 	const mockLog = (..._args: unknown[]) => { };
 
 	setup(() => {
-		const fileService = store.add(new FileService(new NullLogService()));
+		fileService = store.add(new TestFileService(new NullLogService()));
 		const fileSystemProvider = new TestIPCFileSystemProvider();
 		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 
@@ -128,6 +152,30 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('percent-style variable - block', () => t('echo hello > %HOME%/file.txt', 'outsideWorkspace', false, 1));
 			test('cmd delayed-expansion variable - block', () => t('echo hello > !APPDATA!\\file.txt', 'outsideWorkspace', false, 1));
 			test('literal unmatched exclamation mark - allow', () => t('echo hello > important!.txt', 'outsideWorkspace', true, 1));
+
+			// Symlinks (followed by the shell when it writes)
+			test('symlink resolving outside workspace - block', async () => {
+				fileService.realpaths.set(URI.file('/workspace/project/link/file.txt').toString(), URI.file('/outside/file.txt'));
+				await t('echo hello > link/file.txt', 'outsideWorkspace', false, 1);
+			});
+			test('new file below symlink resolving outside workspace - block', async () => {
+				fileService.realpaths.set(URI.file('/workspace/project/link/file.txt').toString(), 'missing');
+				fileService.realpaths.set(URI.file('/workspace/project/link').toString(), URI.file('/outside'));
+				await t('echo hello > link/file.txt', 'outsideWorkspace', false, 1);
+			});
+			test('dangling symlink - block', async () => {
+				fileService.realpaths.set(URI.file('/workspace/project/link').toString(), 'dangling');
+				await t('echo hello > link', 'outsideWorkspace', false, 1);
+			});
+			test('symlink resolving inside workspace - allow', async () => {
+				fileService.realpaths.set(URI.file('/workspace/project/link/file.txt').toString(), URI.file('/workspace/project/target/file.txt'));
+				await t('echo hello > link/file.txt', 'outsideWorkspace', true, 1);
+			});
+			test('new file in a workspace opened through a symlink - allow', async () => {
+				fileService.realpaths.set(URI.file('/workspace/project').toString(), URI.file('/real/project'));
+				fileService.realpaths.set(URI.file('/workspace/project/new.txt').toString(), 'missing');
+				await t('echo hello > new.txt', 'outsideWorkspace', true, 1);
+			});
 		});
 
 		suite('tilde and environment-variable expansion', () => {
