@@ -11,6 +11,9 @@ export type SessionArtifactOpenSurface = 'agentsWindow' | 'editorWindow';
 /** Bounded kind of an opened agent session artifact. */
 export type SessionArtifactOpenKind = 'pullRequest' | 'issue' | 'commit' | 'website' | 'file' | 'resource';
 
+/** Whether an opened item was recorded on the session, or derived from an image the agent generated in its response. */
+export type SessionArtifactOpenSource = 'recorded' | 'generatedImage';
+
 export interface ISessionArtifactOpen {
 	readonly surface: SessionArtifactOpenSurface;
 	/** SHA-1 hash of the Agents window session id. */
@@ -19,6 +22,7 @@ export interface ISessionArtifactOpen {
 	readonly backendSessionId?: string;
 	readonly kind: SessionArtifactOpenKind;
 	readonly isArtifact: boolean;
+	readonly source: SessionArtifactOpenSource;
 }
 
 type SessionArtifactOpenEvent = {
@@ -27,6 +31,7 @@ type SessionArtifactOpenEvent = {
 	backendSessionId?: string;
 	itemCategory: 'artifact' | 'reference';
 	itemKind: SessionArtifactOpenKind;
+	itemSource: SessionArtifactOpenSource;
 };
 
 type SessionArtifactOpenClassification = {
@@ -37,6 +42,7 @@ type SessionArtifactOpenClassification = {
 	backendSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Backend agent host session identifier, matching agentHost.toolInvoked, to correlate opens with the artifacts recorded in the session. Only reported from an editor window.' };
 	itemCategory: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the opened item was recorded as an artifact or a reference.' };
 	itemKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded kind of the opened item: pullRequest, issue, commit, website, file, or resource.' };
+	itemSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the opened item was recorded on the session (by the agent or a host action) or is an image the agent generated in its response, which is listed without being recorded.' };
 };
 
 /**
@@ -49,5 +55,6 @@ export function reportSessionArtifactOpen(telemetryService: ITelemetryService, o
 		...(open.backendSessionId !== undefined ? { backendSessionId: open.backendSessionId } : {}),
 		itemCategory: open.isArtifact ? 'artifact' : 'reference',
 		itemKind: open.kind,
+		itemSource: open.source,
 	});
 }

@@ -1606,7 +1606,7 @@ export class AgentHostSessionInputPills extends Disposable {
 	private _openRecorded(resolution: IAgentHostSessionResolution | undefined, artifact: ISessionArtifact | undefined, open: () => void): void {
 		open();
 		if (resolution && artifact) {
-			reportSessionArtifactOpen(this._telemetryService, { surface: 'editorWindow', backendSessionId: AgentSession.id(resolution.backendSession), kind: artifact.type, isArtifact: artifact.isArtifact });
+			reportSessionArtifactOpen(this._telemetryService, { surface: 'editorWindow', backendSessionId: AgentSession.id(resolution.backendSession), kind: artifact.type, isArtifact: artifact.isArtifact, source: 'recorded' });
 		}
 	}
 

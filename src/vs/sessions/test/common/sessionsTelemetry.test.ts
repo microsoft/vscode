@@ -109,6 +109,7 @@ suite('sessionsTelemetry helpers', () => {
 					agentSessionId: hashSessionIdForTelemetry('provider:session'),
 					itemCategory: 'artifact',
 					itemKind: 'file',
+					itemSource: 'recorded',
 				},
 			},
 			{
@@ -118,6 +119,7 @@ suite('sessionsTelemetry helpers', () => {
 					agentSessionId: hashSessionIdForTelemetry('provider:session'),
 					itemCategory: 'reference',
 					itemKind: 'website',
+					itemSource: 'recorded',
 				},
 			},
 		]);

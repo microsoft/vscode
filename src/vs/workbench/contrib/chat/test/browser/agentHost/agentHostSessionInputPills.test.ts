@@ -765,9 +765,9 @@ suite('AgentHostSessionInputPills', () => {
 			website: openRecorded({ id: 'docs', label: 'Docs', link: 'https://example.com/docs', type: SessionArtifactType.Website, isArtifact: true }, { pill: '1 Artifact', item: 'Docs' }),
 			reference: openRecorded({ id: 'spec', label: 'Spec', uri: URI.file('/workspace/spec.md').toString(), type: SessionArtifactType.File, isArtifact: false }, { pill: '1 Reference', item: 'spec.md' }),
 		}, {
-			file: [{ eventName: 'agents/sessionArtifactOpen', data: { surface: 'editorWindow', backendSessionId: 'sessions/42', itemCategory: 'artifact', itemKind: 'file' } }],
-			website: [{ eventName: 'agents/sessionArtifactOpen', data: { surface: 'editorWindow', backendSessionId: 'sessions/42', itemCategory: 'artifact', itemKind: 'website' } }],
-			reference: [{ eventName: 'agents/sessionArtifactOpen', data: { surface: 'editorWindow', backendSessionId: 'sessions/42', itemCategory: 'reference', itemKind: 'file' } }],
+			file: [{ eventName: 'agents/sessionArtifactOpen', data: { surface: 'editorWindow', backendSessionId: 'sessions/42', itemCategory: 'artifact', itemKind: 'file', itemSource: 'recorded' } }],
+			website: [{ eventName: 'agents/sessionArtifactOpen', data: { surface: 'editorWindow', backendSessionId: 'sessions/42', itemCategory: 'artifact', itemKind: 'website', itemSource: 'recorded' } }],
+			reference: [{ eventName: 'agents/sessionArtifactOpen', data: { surface: 'editorWindow', backendSessionId: 'sessions/42', itemCategory: 'reference', itemKind: 'file', itemSource: 'recorded' } }],
 		});
 	});
 
