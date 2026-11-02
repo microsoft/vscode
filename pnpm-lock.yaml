@@ -267,6 +267,9 @@ importers:
       '@types/eslint':
         specifier: ^9.6.1
         version: 9.6.1
+      '@types/estree':
+        specifier: ^1.0.9
+        version: 1.0.9
       '@types/http-proxy-agent':
         specifier: ^2.0.1
         version: 2.0.1
@@ -336,6 +339,9 @@ importers:
       '@vscode/gulp-electron':
         specifier: ^1.43.0
         version: 1.43.1
+      '@vscode/gulp-vinyl-zip':
+        specifier: ^2.7.0
+        version: 2.7.0
       '@vscode/l10n-dev':
         specifier: 0.0.35
         version: 0.0.35
@@ -396,6 +402,9 @@ importers:
       eslint-plugin-jsdoc:
         specifier: ^63.3.3
         version: 63.3.3(eslint@10.8.0)
+      eslint-visitor-keys:
+        specifier: ^5.0.1
+        version: 5.0.1
       event-stream:
         specifier: 3.3.4
         version: 3.3.4
@@ -540,6 +549,9 @@ importers:
       util:
         specifier: ^0.12.4
         version: 0.12.5
+      vinyl-fs:
+        specifier: ^3.0.3
+        version: 3.0.3
       xml2js:
         specifier: ^0.5.0
         version: 0.5.0
@@ -2968,9 +2980,6 @@ packages:
 
   '@types/esrecurse@4.3.1':
     resolution: {integrity: sha512-xJBAbDifo5hpffDBuHl0Y8ywswbiAp/Wi7Y/GtAgSlZyIABppyurxVueOPE8LUQOxdlgi6Zqce7uoEpqNTeiUw==}
-
-  '@types/estree@1.0.8':
-    resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
 
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
@@ -11093,7 +11102,7 @@ snapshots:
   '@types/eslint-scope@3.7.7':
     dependencies:
       '@types/eslint': 9.6.1
-      '@types/estree': 1.0.8
+      '@types/estree': 1.0.9
 
   '@types/eslint@9.6.1':
     dependencies:
@@ -11101,8 +11110,6 @@ snapshots:
       '@types/json-schema': 7.0.15
 
   '@types/esrecurse@4.3.1': {}
-
-  '@types/estree@1.0.8': {}
 
   '@types/estree@1.0.9': {}
 
@@ -14243,7 +14250,7 @@ snapshots:
   glob-stream@6.1.0:
     dependencies:
       extend: 3.0.2
-      glob: 7.1.6
+      glob: 7.2.3
       glob-parent: 3.1.0
       is-negated-glob: 1.0.0
       ordered-read-streams: 1.0.1
@@ -16796,7 +16803,7 @@ snapshots:
   remove-bom-stream@1.2.0:
     dependencies:
       remove-bom-buffer: 3.0.0
-      safe-buffer: 5.1.2
+      safe-buffer: 5.2.1
       through2: 2.0.5
 
   remove-trailing-separator@1.1.0: {}
@@ -18198,7 +18205,7 @@ snapshots:
   webpack@5.105.4(webpack-cli@5.1.4):
     dependencies:
       '@types/eslint-scope': 3.7.7
-      '@types/estree': 1.0.8
+      '@types/estree': 1.0.9
       '@types/json-schema': 7.0.15
       '@webassemblyjs/ast': 1.14.1
       '@webassemblyjs/wasm-edit': 1.14.1

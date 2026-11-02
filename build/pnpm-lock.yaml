@@ -35,6 +35,9 @@ importers:
       '@electron/osx-sign':
         specifier: ^2.0.0
         version: 2.0.0
+      '@malept/cross-spawn-promise':
+        specifier: ^2.0.0
+        version: 2.0.0
       '@types/ansi-colors':
         specifier: ^3.2.0
         version: 3.2.0
@@ -122,6 +125,9 @@ importers:
       '@types/vinyl':
         specifier: ^2.0.12
         version: 2.0.12
+      '@types/vinyl-fs':
+        specifier: ^2.4.9
+        version: 2.4.9
       '@types/xml2js':
         specifier: 0.0.33
         version: 0.0.33
@@ -176,12 +182,18 @@ importers:
       ternary-stream:
         specifier: ^3.0.0
         version: 3.0.0
+      through:
+        specifier: ^2.3.8
+        version: 2.3.8
       through2:
         specifier: ^4.0.2
         version: 4.0.2
       tree-sitter:
         specifier: ^0.25.1
         version: 0.25.1
+      vinyl:
+        specifier: ^2.2.1
+        version: 2.2.1
       vscode-universal-bundler:
         specifier: ^0.1.3
         version: 0.1.3
