@@ -513,7 +513,7 @@ let nextPort = 19222;
  * @returns {Promise<{ page: import('@playwright/test').Page, browser: import('@playwright/test').Browser, close: () => Promise<void> }>}
  */
 async function launchVSCode(executable, launchArgs, env, opts = {}) {
-	const { chromium } = require('playwright');
+	const { chromium } = require('@playwright/test');
 	const port = nextPort++;
 
 	const args = [`--remote-debugging-port=${port}`, ...launchArgs];

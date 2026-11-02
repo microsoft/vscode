@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Need to set this env variable even before import to avoid stat beat
+// Disables Statsbeat for CommonJS output such as chat-lib. Bundled builds disable it in .esbuild.mts
+// because bundlers evaluate imports before this assignment.
 process.env.APPLICATION_INSIGHTS_NO_STATSBEAT = 'true';
 
 import * as appInsights from 'applicationinsights';
