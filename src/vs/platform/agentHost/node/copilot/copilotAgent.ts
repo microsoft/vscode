@@ -3503,6 +3503,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		this._logService.info(`[Copilot] Auth token ${token ? 'updated' : 'cleared'}`);
+		this._forgetAdvertisedAutoTiers();
 		this._managedSettingsResolver.invalidate();
 		const policySessionRelease = this._customizationInstallations.releasePolicySession();
 		if (policySessionRelease) {
@@ -4633,6 +4634,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._loggedAutoPresentation = presentation;
 			this._logService.info(`[Copilot] Auto presentation: ${presentation}`);
 		}
+	}
+
+	/**
+	 * Another account's catalog decides its tiers, so until it is published a requested tier is left to the runtime. The
+	 * picker keeps presenting the last catalog's tiers meanwhile.
+	 */
+	private _forgetAdvertisedAutoTiers(): void {
+		this._autoTierMetadataPublished = false;
+		setAdvertisedAutoModeTiers(undefined);
 	}
 
 	private _applyAdvertisedAutoModeTiers(): void {

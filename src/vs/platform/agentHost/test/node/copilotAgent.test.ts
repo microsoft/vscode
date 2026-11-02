@@ -9983,6 +9983,36 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('forgets the previous account\'s Auto tiers until the new account\'s catalog is published', async () => {
+		const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		afterTest(async () => {
+			setAdvertisedAutoModeTiers(undefined);
+			await disposeAgent(agent);
+		});
+		const tiers = () => getAdvertisedAutoModeTierSupport().tiers;
+		await agent.authenticate('https://api.github.com', 'account-a');
+		await agent.refreshModels();
+		const accountA = tiers();
+
+		const gate = new DeferredPromise<void>();
+		client.modelListGate = gate.p;
+		client.autoTierMetadata = {
+			defaultTier: 'balance',
+			tiers: [{ id: 'intelligence', displayName: 'Intelligence', description: '', type: 'auto', status: { enabled: true } }],
+		};
+		await agent.authenticate('https://api.github.com', 'account-b');
+		const accountBPending = tiers();
+		gate.complete();
+		await agent.refreshModels();
+
+		assert.deepStrictEqual({ accountA, accountBPending, accountB: tiers() }, {
+			accountA: new Set(),
+			accountBPending: undefined,
+			accountB: new Set(['intelligence']),
+		});
+	});
+
 	test('coalesces concurrent refreshModels calls onto one models.list request', async () => {
 		const client = new TestCopilotClient([], [{
 			id: 'gpt-4o',
