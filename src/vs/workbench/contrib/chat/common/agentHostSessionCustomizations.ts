@@ -65,13 +65,18 @@ export function sessionChatCustomizationsEqual(a: readonly ISessionChatCustomiza
 	return a === b || (a.length === b.length && a.every((customization, i) => sessionChatCustomizationEqual(customization, b[i])));
 }
 
+/** Maps a `vscode-agent-host-file:` URI, which names a published same-host plugin resource, back to client space; other URIs are unchanged. */
+export function fromAgentHostFileUri(uri: URI, resourceUris: Pick<IAgentHostResourceUriMapper, 'fromAgentHost'>): URI {
+	return uri.scheme === AGENT_HOST_FILE_SCHEME ? resourceUris.fromAgentHost(uri.with({ scheme: Schemas.file })) : uri;
+}
+
 /** Resolves host-authored resources and this client's plugin sources; foreign client sources are opaque. */
 export function getAgentHostCustomizationUri(uri: URI, connection: { readonly clientId?: string; readonly resourceUris: IAgentHostResourceUriMapper }, container?: Pick<PluginCustomization, 'clientId'>): URI | undefined {
 	if (container?.clientId !== undefined) {
 		if (container.clientId !== connection.clientId) {
 			return undefined;
 		}
-		return uri.scheme === AGENT_HOST_FILE_SCHEME ? connection.resourceUris.fromAgentHost(uri.with({ scheme: Schemas.file })) : uri;
+		return fromAgentHostFileUri(uri, connection.resourceUris);
 	}
 	return connection.resourceUris.fromAgentHost(uri);
 }

@@ -24,7 +24,7 @@ import { IAccessibilityService } from '../../../../../../../platform/accessibili
 import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction, withActionWidgetDropdownMotion } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ITabBarAction, ITabDescriptor, TabbedActionListWidget } from '../../../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
-import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_IDS } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
@@ -656,7 +656,7 @@ export class TabbedModelPicker extends Disposable {
 		if (!derived.hydraFusionModels) {
 			const auto = this._autoModel(context)?.metadata;
 			const fusion = auto?.autoModelFusion;
-			derived.hydraFusionModels = [...COPILOT_HYDRA_FUSION_MODEL_NAMES.keys()]
+			derived.hydraFusionModels = [...COPILOT_HYDRA_FUSION_MODEL_IDS]
 				// Under Fusion, HydraFusion is offered only as one of the provider's tiers.
 				.filter(id => id !== COPILOT_HYDRA_FUSION_MODEL_ID || !fusion || !!getFusionTierLabel(auto, id))
 				.map(id => context.models.find(model => model.metadata.id === id && isHydraFusionModel(model) && !isUserProvidedModel(model, this._languageModelsService) && !requiresNewerVSCode(model, context.controlModels, context.unavailableContext.currentVSCodeVersion)))
@@ -1419,7 +1419,7 @@ export class TabbedModelPicker extends Disposable {
 				},
 			} : undefined,
 			modelChoices: ownTiers.length ? {
-				ariaLabel: localize('chat.modelPicker.hydraFusionTiers', "HydraFusion tier"),
+				ariaLabel: localize('chat.modelPicker.hydraFusionTiers', "Copilot Fusion effort level"),
 				choices: ownTiers.map(tier => ({ label: getHydraFusionTierLabel(tier.metadata.id), model: tier })),
 			} : undefined,
 			// Only Fusion offers HydraFusion among its tiers, each described as the tier it is.

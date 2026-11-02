@@ -49,7 +49,7 @@ import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatConte
 import { CodeBlockPart, ICodeBlockData } from '../../../../browser/widget/chatContentParts/codeBlockPart.js';
 import { IChatOutputRendererService, type RenderedOutputPart } from '../../../../browser/chatOutputItemRenderer.js';
 import { IChatOutputPartStateCache, IOutputPartState } from '../../../../browser/widget/chatContentParts/chatOutputPartStateCache.js';
-import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
+import { IChatRequestViewModel, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { IChatContentInlineReference } from '../../../../common/chatService/chatService.js';
 import { getChatMarkdownImageId } from '../../../../common/chatImageExtraction.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
@@ -1291,6 +1291,30 @@ suite('ChatMarkdownContentPart', () => {
 		assert.ok(!renderedCodeBlocks[0].text.includes('<vscode_codeblock_uri'));
 		assert.strictEqual(renderedCodeBlocks[0].codemapperUri?.toString(), 'file:///test.ts');
 	});
+
+	for (const marker of [
+		'<vscode_codeblock_uri isEdit subAgentInvocationId="agent%2Fone">file:///example.ts</vscode_codeblock_uri>',
+		'<vscode_codeblock_uri isEdit subAgentInvocationId="agent%2',
+	]) {
+		test(`request code preserves literal marker text: ${marker}`, () => {
+			const context = {
+				...createRenderContext(),
+				element: upcastPartial<IChatRequestViewModel>({
+					id: 'literal-request',
+					sessionResource: URI.parse('chat-session://test/session1'),
+					message: { text: marker, parts: [] },
+					contentReferences: [],
+				}),
+			};
+			const markdown = new MarkdownString(`\`\`\`html\n${marker}\n\`\`\``);
+			createMarkdownPart(markdown, context);
+			createMarkdownPart(JSON.parse(JSON.stringify(markdown)), context);
+			assert.deepStrictEqual(renderedCodeBlocks.map(block => ({ text: block.text, resource: block.codemapperUri })), [
+				{ text: marker, resource: undefined },
+				{ text: marker, resource: undefined },
+			]);
+		});
+	}
 
 	test('code block toolbar context is set correctly with code text', () => {
 		// Simulates the scenario in #255290: the copy button should have

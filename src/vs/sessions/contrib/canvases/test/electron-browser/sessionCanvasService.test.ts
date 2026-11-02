@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -35,7 +35,7 @@ import { IActiveSession, IChatDeletedEvent, ISessionsChangeEvent, ISessionsManag
 import { ISessionEditorWorkingSetOwner, SessionEditorWorkingSetService } from '../../../layout/common/sessionEditorWorkingSet.js';
 import { ISessionCanvasRegistryService } from '../../common/sessionCanvas.js';
 import { registerSessionCanvasActions, REOPEN_SESSION_CANVAS_COMMAND_ID } from '../../electron-browser/sessionCanvasActions.js';
-import { CanvasInput } from '../../../../../workbench/contrib/canvases/common/canvas.js';
+import { CanvasInput, getCanvasReferenceKey, ICanvas, ICanvasModelResolution, ICanvasReference } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasService } from '../../../../../workbench/contrib/canvases/electron-browser/canvasService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
@@ -43,6 +43,7 @@ import { SessionCanvasContextService } from '../../electron-browser/sessionCanva
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
+import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID } from '../../browser/pinnedCanvases.js';
 
 suite('SessionCanvasService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,6 +52,33 @@ suite('SessionCanvasService', () => {
 		availableCanvases: constObservable([]),
 		openCanvas: async () => { },
 	});
+
+	/** Pins whose live canvases tests set directly, and the one the canvas page shows. */
+	function createPinnedCanvases() {
+		const pinned = observableValue<ReadonlyMap<string, { readonly reference: ICanvasReference; readonly canvas: ICanvas }>>('pinned', new Map());
+		const shown = observableValue<ICanvasReference | undefined>('shown', undefined);
+		const service = upcastPartial<IPinnedCanvasService>({
+			entries: derived(reader => [...pinned.read(reader).values()].map(({ reference }) => upcastPartial<IPinnedCanvas>({
+				identity: { ...reference, extensionId: 'user:preview', canvasId: 'preview', instanceId: 'preview' },
+			}))),
+			getTrackedCanvas: (reference: ICanvasReference, reader?: IReader) => pinned.read(reader).get(getCanvasReferenceKey(reference))?.canvas,
+			isPinned: (reference: ICanvasReference, reader?: IReader) => pinned.read(reader).has(getCanvasReferenceKey(reference)),
+			isShown: (reference: ICanvasReference, reader?: IReader) => {
+				const current = shown.read(reader);
+				return !!current && getCanvasReferenceKey(current) === getCanvasReferenceKey(reference);
+			},
+		});
+		return {
+			service,
+			pin: (reference: ICanvasReference, canvas: ICanvas) => pinned.set(new Map([...pinned.get(), [getCanvasReferenceKey(reference), { reference, canvas }]]), undefined),
+			unpin: (reference: ICanvasReference) => {
+				const next = new Map(pinned.get());
+				next.delete(getCanvasReferenceKey(reference));
+				pinned.set(next, undefined);
+			},
+			show: (reference: ICanvasReference | undefined) => shown.set(reference, undefined),
+		};
+	}
 
 	function createHarness(canvasesEnabled = true, initialCanvases?: readonly ISessionCanvas[]) {
 		const sessionResource = URI.parse('agent-host-session:/session');
@@ -136,6 +164,7 @@ suite('SessionCanvasService', () => {
 			activeGroup: editorGroup,
 			mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ activeGroup: editorGroup, windowId: 1 }),
 		});
+		const pinnedCanvases = createPinnedCanvases();
 		const contextService = store.add(new SessionCanvasContextService(
 			sessionsService,
 			sessionsManagementService,
@@ -144,6 +173,7 @@ suite('SessionCanvasService', () => {
 			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
 			upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }),
 			upcastPartial<ICustomViewService>({ activeCustomView }),
+			pinnedCanvases.service,
 		));
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IEditorGroupsService, editorGroupsService);
@@ -170,7 +200,12 @@ suite('SessionCanvasService', () => {
 		const setFindEditorsHandler = (handler: (resource: URI) => readonly IEditorIdentifier[]) => findEditorsHandler = handler;
 		const setCloseEditorsHandler = (handler: () => Promise<void>) => closeEditorsHandler = handler;
 		const setCreateBrowserModelHandler = (handler: (url: string, openSource: string | undefined) => Promise<IBrowserViewModel>) => createBrowserModelHandler = handler;
-		return { activeChat, activeCustomView, activeSession, canvas, canvasService, canvases, chat, chatDeleted, chats, closeSettled, contextService, definition, definitionOpens, editorWorkingSetService, isArchived, opened, openOptions, openSettled, session, sessionChanges, get closeCount() { return closeCount; }, setCanvasesEnabled, setCloseEditorsHandler, setCreateBrowserModelHandler, setFindEditorsHandler, setOpenEditorHandler };
+		/** Opens the canvas page, a custom view like the real one, on a pin; `undefined` closes it. */
+		const showPinnedCanvasPage = (reference: ICanvasReference | undefined) => transaction(tx => {
+			activeCustomView.set(reference ? upcastPartial<ICustomViewDescriptor>({ id: PINNED_CANVAS_PAGE_ID }) : undefined, tx);
+			pinnedCanvases.show(reference);
+		});
+		return { activeChat, activeCustomView, activeSession, canvas, canvasService, canvases, chat, chatDeleted, chats, closeSettled, contextService, definition, definitionOpens, editorWorkingSetService, isArchived, opened, openOptions, openSettled, pinnedCanvases, session, sessionChanges, get closeCount() { return closeCount; }, setCanvasesEnabled, setCloseEditorsHandler, setCreateBrowserModelHandler, setFindEditorsHandler, setOpenEditorHandler, showPinnedCanvasPage };
 	}
 
 	function owner(session: IActiveSession, chatResource?: URI): ISessionEditorWorkingSetOwner {
@@ -949,6 +984,129 @@ suite('SessionCanvasService', () => {
 		assert.deepStrictEqual({ hidden, restored: canvasService.isOwnerPresentable(input.reference), disposed: input.isDisposed() }, { hidden: false, restored: true, disposed: false });
 	});
 
+	test('presents a pinned canvas of a hidden chat only on its page, never as an editor beside the active chat', async () => {
+		const harness = createHarness(true, []);
+		const pinnedCanvas: ISessionCanvas = {
+			resource: URI.parse('agent-host-canvas:/pinned'),
+			instanceId: 'pinned',
+			title: 'Pinned',
+			source: URI.parse('https://example.test/pinned'),
+		};
+		const otherChat = upcastPartial<IChat>({ resource: URI.parse('agent-host-chat:/session/other'), canvases: observableValue('otherCanvases', [pinnedCanvas]) });
+		harness.chats.set([harness.chat, otherChat], undefined);
+		const reference: ICanvasReference = { providerId: harness.session.providerId, session: harness.session.resource, chat: otherChat.resource, canvas: pinnedCanvas.resource };
+		let created = 0;
+		let disposed = 0;
+		harness.setCreateBrowserModelHandler(async () => {
+			created++;
+			return upcastPartial<IBrowserViewModel>({ onWillDispose: Event.None, dispose: () => disposed++ });
+		});
+		const presentability = () => ({
+			ownerPresentable: harness.canvasService.isOwnerPresentable(reference),
+			presentable: harness.canvasService.isPresentable(reference),
+			tracked: harness.contextService.getTrackedCanvas(reference)?.title,
+		});
+
+		harness.pinnedCanvases.pin(reference, pinnedCanvas);
+		const pinnedOnly = presentability();
+		const rejectedWhileHidden = await harness.canvasService.resolveCanvasModel(reference, pinnedCanvas.source!).then(() => false, () => true);
+		harness.showPinnedCanvasPage(reference);
+		const shown = presentability();
+		const first = await harness.canvasService.resolveCanvasModel(reference, pinnedCanvas.source!);
+		const second = await harness.canvasService.resolveCanvasModel(reference, pinnedCanvas.source!);
+		harness.showPinnedCanvasPage(undefined);
+		const retainedWhileHidden = disposed;
+		harness.pinnedCanvases.unpin(reference);
+
+		assert.deepStrictEqual({
+			pinnedOnly,
+			rejectedWhileHidden,
+			shown,
+			reused: [first.reused, second.reused],
+			created,
+			retainedWhileHidden,
+			disposedAfterUnpin: disposed,
+			opened: harness.opened.length,
+		}, {
+			pinnedOnly: { ownerPresentable: false, presentable: false, tracked: 'Pinned' },
+			rejectedWhileHidden: true,
+			shown: { ownerPresentable: false, presentable: true, tracked: 'Pinned' },
+			reused: [false, true],
+			created: 1,
+			retainedWhileHidden: 0,
+			disposedAfterUnpin: 1,
+			opened: 0,
+		});
+	});
+
+	test('loads the new source of a pinned canvas that its page sees before the canvas service reconciles it', async () => {
+		const harness = createHarness(true, []);
+		const pinnedCanvas: ISessionCanvas = {
+			resource: URI.parse('agent-host-canvas:/pinned'),
+			instanceId: 'pinned',
+			title: 'Pinned',
+			source: URI.parse('https://example.test/pinned'),
+		};
+		const otherCanvases = observableValue<readonly ISessionCanvas[] | undefined>('otherCanvases', [pinnedCanvas]);
+		const otherChat = upcastPartial<IChat>({ resource: URI.parse('agent-host-chat:/session/other'), canvases: otherCanvases });
+		harness.chats.set([harness.chat, otherChat], undefined);
+		const reference: ICanvasReference = { providerId: harness.session.providerId, session: harness.session.resource, chat: otherChat.resource, canvas: pinnedCanvas.resource };
+		const models: string[] = [];
+		harness.setCreateBrowserModelHandler(async url => {
+			models.push(`create ${url}`);
+			return upcastPartial<IBrowserViewModel>({ onWillDispose: Event.None, dispose: () => models.push(`dispose ${url}`) });
+		});
+		harness.pinnedCanvases.pin(reference, pinnedCanvas);
+		harness.showPinnedCanvasPage(reference);
+		await harness.canvasService.resolveCanvasModel(reference, pinnedCanvas.source!);
+
+		// The canvas restarts with a new source, and the page asks for it before the service reconciles the same update.
+		const restarted: ISessionCanvas = { ...pinnedCanvas, source: URI.parse('https://example.test/pinned?restarted') };
+		let resolution: Promise<ICanvasModelResolution> | undefined;
+		transaction(tx => {
+			otherCanvases.set([restarted], tx);
+			harness.pinnedCanvases.pin(reference, restarted);
+			resolution = harness.canvasService.resolveCanvasModel(reference, restarted.source!);
+		});
+		const result = await resolution!;
+
+		assert.deepStrictEqual({ reused: result.reused, models }, {
+			reused: false,
+			models: ['create https://example.test/pinned', 'dispose https://example.test/pinned', 'create https://example.test/pinned?restarted'],
+		});
+	});
+
+	test('keeps the model a pinned canvas page shows when the user closes its editor tab, and releases it once unpinned', async () => {
+		const harness = createHarness();
+		await harness.openSettled[0];
+		await Promise.resolve();
+		const input = harness.opened[0];
+		const models: string[] = [];
+		harness.setCreateBrowserModelHandler(async () => {
+			models.push('create');
+			return upcastPartial<IBrowserViewModel>({ onWillDispose: Event.None, dispose: () => models.push('dispose') });
+		});
+		harness.pinnedCanvases.pin(input.reference, harness.canvas);
+		harness.showPinnedCanvasPage(input.reference);
+		const shown = await harness.canvasService.resolveCanvasModel(input.reference, harness.canvas.source!);
+
+		input.dispose();
+		const afterTabClose = {
+			models: [...models],
+			sameModel: (await harness.canvasService.resolveCanvasModel(input.reference, harness.canvas.source!)).model === shown.model,
+			reopened: harness.opened.length,
+		};
+		harness.showPinnedCanvasPage(undefined);
+		const whilePinned = [...models];
+		harness.pinnedCanvases.unpin(input.reference);
+
+		assert.deepStrictEqual({ afterTabClose, whilePinned, afterUnpin: models }, {
+			afterTabClose: { models: ['create'], sameModel: true, reopened: 1 },
+			whilePinned: ['create'],
+			afterUnpin: ['create', 'dispose'],
+		});
+	});
+
 	test('keeps an open canvas in its main-window group while an auxiliary window is active', () => {
 		const input = upcastPartial<CanvasInput>({});
 		const activeGroup = upcastPartial<IEditorGroup>({ id: 1, windowId: 1, contains: () => false });
@@ -965,6 +1123,7 @@ suite('SessionCanvasService', () => {
 			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
 			upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }),
 			upcastPartial<ICustomViewService>({ activeCustomView: constObservable(undefined) }),
+			createPinnedCanvases().service,
 		));
 		const owner = { providerId: 'local-agent-host', session: URI.parse('agent-host-session:/session'), chat: URI.parse('agent-host-chat:/session/main') };
 		const mainWindow = contextService.getEditorGroup(owner, input, false)?.id;

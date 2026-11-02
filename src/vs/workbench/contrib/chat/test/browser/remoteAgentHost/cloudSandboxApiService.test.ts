@@ -41,6 +41,7 @@ import { EnvironmentsClient } from '../../../../../../platform/github/common/mis
 import { ITelemetryService, type ITelemetryData } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { CloudSandboxLifecycleTelemetry } from '../../../browser/remoteAgentHost/cloudSandboxLifecycleTelemetry.js';
+import { chatTurnComplete, chatTurnStarted } from '../../../../../../platform/agentHost/test/common/chatActionBuilders.js';
 
 function jsonResponse(body: unknown, statusCode = 200, headers: Record<string, string | string[]> = {}): IRequestContext {
 	return {
@@ -3502,11 +3503,8 @@ suite('CloudSandboxApiService abandoned sandbox discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const startTime = Date.UTC(2026, 9, 18, 19);
 	const oneHour = 60 * 60_000;
-	const turnStarted: StateAction = {
-		type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date(startTime).toISOString(),
-		message: { text: 'Keep this conversation', origin: { kind: MessageKind.User } },
-	};
-	const turnComplete: StateAction = { type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 1 };
+	const turnStarted: StateAction = chatTurnStarted('turn', 'Keep this conversation', new Date(startTime).toISOString());
+	const turnComplete: StateAction = chatTurnComplete('turn', 1);
 
 	function emptyTask(id: string, updatedAt = startTime - oneHour) {
 		return {

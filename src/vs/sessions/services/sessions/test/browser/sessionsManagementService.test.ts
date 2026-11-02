@@ -29,7 +29,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
-import { IProgress, IProgressService, IProgressStep } from '../../../../../platform/progress/common/progress.js';
+import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
@@ -47,9 +47,9 @@ import { IPathService } from '../../../../../workbench/services/path/common/path
 import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ICopilotHomeService } from '../../../../../platform/environment/common/copilotHome.js';
 import { TestCopilotHomeService } from '../../../../../platform/environment/test/common/testCopilotHomeService.js';
-import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestPathService, TestProgressService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
+import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SESSION_WORKSPACE_GROUP_REMOTE, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IChatMovedEvent, ISessionChatMoveDestination, type IForkChatOptions, type INestedChatWorkspace, NestedChatWorkspaceError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, type ICreateNewChatOptions } from '../../common/sessionsProvider.js';
@@ -182,12 +182,6 @@ class TestChatService extends mock<IChatService>() {
 		if (this.cancelError) {
 			throw this.cancelError;
 		}
-	}
-}
-
-class TestProgressService extends mock<IProgressService>() {
-	override async withProgress<R>(_options: Parameters<IProgressService['withProgress']>[0], task: (progress: IProgress<IProgressStep>) => Promise<R>): Promise<R> {
-		return task({ report() { } });
 	}
 }
 
@@ -4609,6 +4603,58 @@ suite('SessionsManagementService', () => {
 			canOpen: false,
 			granted: [],
 			prompts: [worktree.toString()],
+		});
+	});
+
+	suite('remote agent environment trust prompt', () => {
+		const folder = URI.file('/remote/project');
+		const makeWorkspace = (group: string | undefined): ISessionWorkspace => ({
+			uri: folder,
+			label: 'project',
+			group,
+			icon: Codicon.remote,
+			folders: [{ root: folder, workingDirectory: folder, name: 'project', description: undefined }],
+			requiresWorkspaceTrust: true,
+			isVirtualWorkspace: false,
+		});
+
+		async function requestOpenTrust(group: string | undefined, providerId: string, via: 'canOpenSession' | 'openNewSession'): Promise<(string | undefined)[]> {
+			const workspace = makeWorkspace(group);
+			const session = stubSession({ sessionId: 'remote-open', providerId, workspace: constObservable(workspace) });
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(session); }
+				override resolveWorkspace(): ISessionWorkspace { return workspace; }
+			};
+			const trustManagement = new class extends TestWorkspaceTrustManagementService {
+				override async getUriTrustInfo(uri: URI) { return { uri, trusted: false }; }
+			};
+			const requests: ResourceTrustRequestOptions[] = [];
+			const trustRequest = new class extends mock<IWorkspaceTrustRequestService>() {
+				override async requestResourcesTrust(options: ResourceTrustRequestOptions) { requests.push(options); return false; }
+			};
+			const { view } = createSessionsManagementService(session, disposables, provider, trustManagement, trustRequest);
+			if (via === 'canOpenSession') {
+				await view.canOpenSession(session);
+			} else {
+				await view.openNewSession({ folderUri: folder });
+			}
+			return requests.map(request => request.remoteHostLabel);
+		}
+
+		test('identifies the provider when opening a session', async () => {
+			assert.deepStrictEqual(await requestOpenTrust(SESSION_WORKSPACE_GROUP_REMOTE, 'test', 'canOpenSession'), ['Test']);
+		});
+
+		test('identifies the provider when creating a new session', async () => {
+			assert.deepStrictEqual(await requestOpenTrust(SESSION_WORKSPACE_GROUP_REMOTE, 'test', 'openNewSession'), ['Test']);
+		});
+
+		test('falls back to a generic label when the provider is unknown', async () => {
+			assert.deepStrictEqual(await requestOpenTrust(SESSION_WORKSPACE_GROUP_REMOTE, 'missing', 'canOpenSession'), ['Remote Agent Environment']);
+		});
+
+		test('does not identify a remote environment for a local folder', async () => {
+			assert.deepStrictEqual(await requestOpenTrust(undefined, 'test', 'canOpenSession'), [undefined]);
 		});
 	});
 

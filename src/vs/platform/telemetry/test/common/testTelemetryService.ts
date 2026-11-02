@@ -16,3 +16,20 @@ export class TestTelemetryService extends NullTelemetryServiceShape {
 		}
 	}
 }
+
+function isTelemetryData(data: unknown): data is Record<string, unknown> {
+	return typeof data === 'object' && data !== null;
+}
+
+/**
+ * Records only the `publicLog2` events that carry a data object, typing each payload as a record.
+ */
+export class TestDataTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
+
+	override publicLog2(eventName?: string, data?: unknown): void {
+		if (eventName && isTelemetryData(data)) {
+			this.events.push({ name: eventName, data });
+		}
+	}
+}
