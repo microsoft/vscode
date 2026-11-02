@@ -70,6 +70,10 @@ function prepareDevContainerWorkspace(workspacePath: string, port: number, optio
 			GITHUB_COPILOT_API_TOKEN: 'smoketest-fake-agent-host-token',
 			VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: mockServerUrl,
 			VSCODE_SMOKE_TEST_PROXY_HEADER: process.env.VSCODE_SMOKE_TEST_PROXY_HEADER ?? 'dev-container',
+			// `vscode-smoke.test` only resolves inside the container, but a local container's agent host resolves
+			// proxies through the client. Keep the mock server requests away from the client's proxy.
+			NO_PROXY: 'vscode-smoke.test',
+			no_proxy: 'vscode-smoke.test',
 		},
 		postCreateCommand: getDevContainerCliInstallCommand(options.codePath),
 	}, null, 2));
