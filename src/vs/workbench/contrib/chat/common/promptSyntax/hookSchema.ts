@@ -283,7 +283,7 @@ export const hookFileSchema: IJSONSchema = {
 		// VS Code / PascalCase format
 		properties: {
 			hooks: {
-				deprecationMessage: nls.localize('hookFile.localFormatDeprecated', 'The Local hook format is deprecated. Use the Copilot CLI format with "version": 1, camelCase event names, and "timeoutSec" instead of "timeout".'),
+				deprecationMessage: nls.localize('hookFile.localFormatDeprecated', 'The Local hook format is deprecated. Use the Copilot CLI format with "version": 1, camelCase event names, and "timeoutSec" instead of "timeout". Migration may require script changes: CLI hooks use different JSON input/output shapes (for example, "toolName" instead of "tool_name" and top-level "permissionDecision" instead of "hookSpecificOutput.permissionDecision"). Renaming configuration fields alone may change behavior.'),
 				properties: vscodeHookProperties
 			}
 		}
