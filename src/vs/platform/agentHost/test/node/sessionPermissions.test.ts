@@ -761,6 +761,8 @@ suite('SessionPermissionManager', () => {
 			const files = [
 				join('.GITHUB', 'agents', 'dev-helper.md'),
 				join('.GITHUB', 'hooks', 'say-hi.json'),
+				join('.GITHUB', 'copilot', 'settings.json'),
+				join('.github', 'COPILOT', 'SETTINGS.LOCAL.JSON'),
 				join('.CLAUDE', 'agents', 'dev-helper.md'),
 				join('.CLAUDE', 'settings.json'),
 				join('.CLAUDE', 'settings.local.json'),
@@ -845,6 +847,8 @@ suite('SessionPermissionManager', () => {
 		const files = [
 			join('.github', 'agents', 'dev-helper.md'),
 			join('.github', 'hooks', 'say-hi.json'),
+			join('.github', 'copilot', 'settings.json'),
+			join('.github', 'copilot', 'settings.local.json'),
 			join('.claude', 'agents', 'dev-helper.md'),
 			join('.claude', 'settings.json'),
 			join('.claude', 'settings.local.json'),
@@ -857,6 +861,32 @@ suite('SessionPermissionManager', () => {
 			results.push(await permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri));
 		}
 		assert.deepStrictEqual(results, files.map(() => undefined));
+	});
+
+	test('requires confirmation for Copilot hook settings and MCP files despite explicit edit approval', async () => {
+		configService.updateRootConfig({
+			[AgentHostEditAutoApprovePatternsConfigKey]: {
+				'**/*': true,
+				'**/.github/copilot/settings.json': true,
+				'**/.github/copilot/settings.local.json': true,
+				'**/.mcp.json': true,
+			},
+		});
+		const files = [
+			join('.github', 'copilot', 'settings.json'),
+			join('.github', 'copilot', 'settings.local.json'),
+			'.mcp.json',
+		];
+		const results = await Promise.all(['', 'nested'].flatMap(directory =>
+			files.map(file => permissions.getAutoApproval(writeEvent(join(workDir, directory, file)), sessionUri))));
+
+		assert.deepStrictEqual({
+			protectedFiles: results,
+			ordinaryFile: await permissions.getAutoApproval(writeEvent(join(workDir, '.github', 'copilot', 'notes.md')), sessionUri),
+		}, {
+			protectedFiles: [...files, ...files].map(() => undefined),
+			ordinaryFile: ToolCallConfirmationReason.NotNeeded,
+		});
 	});
 
 	test('requires confirmation for configured custom hook file location', async () => {
