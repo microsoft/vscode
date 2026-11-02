@@ -118,11 +118,14 @@ export function getReplacedTimeGlobals(): string[] {
  * Fake timers (sinon, `pushGlobalTimeApi`) that a suite installed and did not restore. Every later suite then runs on a
  * clock that nobody advances, and `dom.ts` requests its animation frames from a fake that never runs them.
  */
-export const fakeTimersDetector: IIsolationDetector<ReadonlySet<string>> = {
+export const fakeTimersDetector: IIsolationDetector<ReturnType<typeof captureTimeGlobals>> = {
 	kind: 'timers',
-	snapshot: () => new Set(getReplacedTimeGlobals()),
+	snapshot: () => captureTimeGlobals(),
 	check: before => {
-		const replaced = getReplacedTimeGlobals().filter(name => !before.has(name));
+		// Report what this suite changed, even when an earlier suite had already replaced the same global.
+		const current = captureTimeGlobals();
+		const replaced = (Object.keys(originalTimeGlobals) as (keyof typeof originalTimeGlobals)[])
+			.filter(name => current[name] !== before[name] && current[name] !== originalTimeGlobals[name]);
 		return replaced.length ? [`left fake ${replaced.join(', ')} installed`] : [];
 	},
 };
