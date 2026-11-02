@@ -20,6 +20,8 @@ steps:
     - template: ../../common/ensure-test-artifact-directories.yml@self
 
   - template: ../../common/setup-node.yml@self
+    parameters:
+      os: macOS
 
   - template: ../../distro/download-distro.yml@self
 
