@@ -9,7 +9,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IViewEditorRegistry, ViewEditorExtensions } from '../../../../../workbench/browser/parts/editor/viewEditorRegistry.js';
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
-import { IInputOnlySessionView, SESSION_CHAT_VIEW_HOST_OPTIONS, SESSION_CHAT_VIEW_MINIMUM_HEIGHT, SESSION_CHAT_VIEW_TYPE, SessionChatViewInputOnly } from '../../browser/sessionChatViewEditor.js';
+import { $ } from '../../../../../base/browser/dom.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { createSessionViewTestServices } from '../../../../test/browser/sessionViewTestUtils.js';
+import { IInputOnlySessionView, ISessionChatViewHost, SessionChatViewEditorView, SESSION_CHAT_VIEW_HOST_OPTIONS, SESSION_CHAT_VIEW_MINIMUM_HEIGHT, SESSION_CHAT_VIEW_TYPE, SessionChatViewInputOnly } from '../../browser/sessionChatViewEditor.js';
 
 suite('Session chat view editor', () => {
 
@@ -103,5 +106,22 @@ suite('Session chat view editor', () => {
 		chatView.setInputOnly(false);
 
 		assert.deepStrictEqual({ inputOnly, conversation: read().chosen }, { inputOnly: true, conversation: false });
+	});
+
+	test('the session header leaves the title row it shows in with its view, so that the view that shows the chat after a move is the only one there', () => {
+		const { instantiationService } = createSessionViewTestServices(disposables);
+		const titleRow = $('.title-row');
+		const host: ISessionChatViewHost = {
+			session: constObservable(undefined),
+			window: constObservable(undefined),
+			header: constObservable({ element: titleRow, actionsElement: undefined, setShown: () => { } }),
+			attach: () => Disposable.None,
+		};
+		const first = instantiationService.createInstance(SessionChatViewEditorView, host);
+		const second = disposables.add(instantiationService.createInstance(SessionChatViewEditorView, host));
+		const whileBoth = titleRow.childElementCount;
+		first.dispose();
+
+		assert.deepStrictEqual({ whileBoth, afterMove: titleRow.childElementCount, ofSecond: titleRow.firstElementChild?.parentElement === titleRow && second.sessionView.element.contains(titleRow.firstElementChild) === false }, { whileBoth: 2, afterMove: 1, ofSecond: true });
 	});
 });

@@ -201,6 +201,9 @@ export class SessionChatViewEditorView extends Disposable implements IViewEditor
 			trackActiveGroup();
 		}));
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
+		// The session header leaves the host it shows in, such as the title row of its window, with this view: a view that
+		// shows the chat again after it moved has its own.
+		this._register(toDisposable(() => this.sessionView.setHeaderHost(undefined)));
 		const sessionView = this.sessionView = this._register(scopedInstantiationService.createInstance(SessionView, SESSION_CHAT_VIEW_HOST_OPTIONS));
 		this.element.appendChild(sessionView.element);
 		// The one session view of its window: styled as the active one of the grid is.
