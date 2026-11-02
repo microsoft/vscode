@@ -6,23 +6,23 @@ Make sure you are on **Node v12.x**.
 
 ```bash
 # Build extensions in the VS Code repo (if needed)
-npm i && npm run compile
+pnpm install && pnpm run compile
 
 # Dev (Electron)
-npm run smoketest
+pnpm run smoketest
 
 # Dev (Web - Must be run on distro)
-npm run smoketest -- --web --browser [chromium|webkit]
+pnpm run smoketest --web --browser [chromium|webkit]
 
 # Build (Electron)
-npm run smoketest -- --build <path to latest version>
-example: npm run smoketest -- --build /Applications/Visual\ Studio\ Code\ -\ Insiders.app
+pnpm run smoketest --build <path to latest version>
+example: pnpm run smoketest --build /Applications/Visual\ Studio\ Code\ -\ Insiders.app
 
 # Build (Web - read instructions below)
-npm run smoketest -- --build <path to server web build (ends in -web)> --web --browser [chromium|webkit]
+pnpm run smoketest --build <path to server web build (ends in -web)> --web --browser [chromium|webkit]
 
 # Remote (Electron)
-npm run smoketest -- --build <path to latest version> --remote
+pnpm run smoketest --build <path to latest version> --remote
 ```
 
 \* This step is necessary only when running without `--build` and OSS doesn't already exist in the `.build/electron` directory.
@@ -34,9 +34,9 @@ You must always run the smoketest version that matches the release you are testi
 ```bash
 git fetch
 git checkout release/1.22
-npm i && npm run compile
+pnpm install && pnpm run compile
 cd test/smoke
-npm i
+pnpm install
 ```
 
 #### Web
@@ -65,7 +65,7 @@ xattr -d com.apple.quarantine <path to server with web folder zip>
 
 ```bash
 cd test/smoke
-npm run watch
+pnpm run watch
 ```
 
 ## Troubleshooting
@@ -92,7 +92,7 @@ These Windows suites check that an Agent Host in WSL uses its Windows client's p
 .\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -Distribution Ubuntu -WslServerPath ~/devel/vscode -WslNodePath ~/.local/node/bin/node
 ```
 
-The distribution needs WSL 2 NAT networking and the `krb5-kdc`, `krb5-admin-server`, `squid-openssl`, `openssl` and `curl` packages; the script does not start their system services. `-WslServerPath` is an extracted Linux VS Code server, or a source checkout set up with `npm run install-fast` and `npm run build-fast -- --client-only`, for which `-WslNodePath` names a Linux Node. A packaged client needs a server of the same commit. The Agent Host uses its bundled Copilot SDK and runtime; to test a locally built runtime, `-WslCopilotRuntimePath` seeds the WSL Agent Host's `runtimePath` with a `copilot-runtime` next to its matching `runtime.node`. `-ProxyScheme Https` uses TLS to the proxy as well; the bundled Copilot runtime authenticates with Kerberos only to `http://` proxies, so its model requests then fail with `non_http_proxy`. Any further arguments, such as `--build`, go to the smoke test.
+The distribution needs WSL 2 NAT networking and the `krb5-kdc`, `krb5-admin-server`, `squid-openssl`, `openssl` and `curl` packages; the script does not start their system services. `-WslServerPath` is an extracted Linux VS Code server, or a source checkout set up with `pnpm run install-fast` and `pnpm run build-fast --client-only`, for which `-WslNodePath` names a Linux Node. A packaged client needs a server of the same commit. The Agent Host uses its bundled Copilot SDK and runtime; to test a locally built runtime, `-WslCopilotRuntimePath` seeds the WSL Agent Host's `runtimePath` with a `copilot-runtime` next to its matching `runtime.node`. `-ProxyScheme Https` uses TLS to the proxy as well; the bundled Copilot runtime authenticates with Kerberos only to `http://` proxies, so its model requests then fail with `non_http_proxy`. Any further arguments, such as `--build`, go to the smoke test.
 
 In WSL, the script starts an MIT Kerberos KDC as root and a Squid proxy that requires Kerberos, with a one-day test CA for the HTTPS mock server and, with `-ProxyScheme Https`, the proxy. Only Squid resolves `vscode-smoke.test`, the mock server's host. On Windows, the script registers the realm's KDC and the `localhost` host mapping with `ksetup`, adds the test CA to the machine's trusted roots, and allows inbound connections from WSL to the mock server through the firewall. These changes need administrator rights: the script asks for them once for setup and once for cleanup, unless it already runs elevated, as CI agents do. In CI, it fails rather than prompt when it does not run elevated. A PAC served on `127.0.0.1:44444` and set in the user's proxy settings sends only `vscode-smoke.test` to the proxy on `localhost:3129`. The smoke tests run with network-only credentials for the realm, like `runas /netonly`, so Windows obtains the Kerberos tickets; this needs the Secondary Logon service and a user account rather than LocalSystem. The WSL Agent Host gets no proxy, credentials or CA, and its Kerberos ticket cache is empty.
 
@@ -113,7 +113,7 @@ The shared container fixture reads the selected desktop's product quality and co
 Run the local and SSH Dev Container cases:
 
 ```bash
-npm run smoketest -- --tracing -g 'Agents Window \((SSH )?Dev Container AgentHost\)'
+pnpm run smoketest --tracing -g 'Agents Window \((SSH )?Dev Container AgentHost\)'
 ```
 
 The Tunnel suite uses a real private Dev Tunnel with remote editor access and agent-host support. The fixture provisions and verifies exactly the editor control port 31545 and agent-host port 31546, then starts the normal `tunnel` command. It is opt-in because ordinary PR smoke jobs do not have account credentials. Supply a GitHub user token authorized to create, connect to, and delete Dev Tunnels, plus a compatible tunnel CLI if it cannot be discovered:
@@ -121,7 +121,7 @@ The Tunnel suite uses a real private Dev Tunnel with remote editor access and ag
 ```bash
 export VSCODE_SMOKE_TEST_TUNNEL_TOKEN="$(gh auth token)"
 export VSCODE_SMOKE_TEST_TUNNEL_CLI="/path/to/code-tunnel-insiders"
-npm run smoketest -- --tracing -g 'Agents Window \(Tunnel Dev Container AgentHost\)'
+pnpm run smoketest --tracing -g 'Agents Window \(Tunnel Dev Container AgentHost\)'
 unset VSCODE_SMOKE_TEST_TUNNEL_TOKEN
 ```
 
@@ -132,7 +132,7 @@ The WSL suite runs on Windows with an explicitly selected WSL 2 distribution. Do
 ```powershell
 $env:VSCODE_SMOKE_TEST_WSL_DISTRO = 'Ubuntu'
 $env:VSCODE_SMOKE_TEST_WSL_SERVER_PATH = '/path/to/linux/server'
-npm run smoketest -- --tracing -g 'Agents Window \(WSL Dev Container AgentHost\)'
+pnpm run smoketest --tracing -g 'Agents Window \(WSL Dev Container AgentHost\)'
 Remove-Item Env:VSCODE_SMOKE_TEST_WSL_DISTRO, Env:VSCODE_SMOKE_TEST_WSL_SERVER_PATH
 ```
 

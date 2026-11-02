@@ -107,6 +107,8 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
+      - template: ../common/install-pnpm.yml@self
+
       - task: NuGetAuthenticate@1
         displayName: Setup NuGet Authentication
 
@@ -163,12 +165,12 @@ jobs:
           set -e
 
           for i in {1..5}; do # try 5 times
-            npm ci && break
+            pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
+              echo "pnpm install failed too many times" >&2
               exit 1
             fi
-            echo "Npm install failed $i, trying again..."
+            echo "pnpm install failed $i, trying again..."
           done
         env:
           npm_config_arch: $(NPM_ARCH)
@@ -208,7 +210,7 @@ jobs:
       - script: node build/azure-pipelines/distro/mixin-quality.ts
         displayName: Mixin distro quality
 
-      - script: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_copilot_shim_alpine_$(VSCODE_ARCH)=Alpine CLI (${{ upper(parameters.VSCODE_ARCH) }})"
+      - script: pnpm exec deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_copilot_shim_alpine_$(VSCODE_ARCH)=Alpine CLI (${{ upper(parameters.VSCODE_ARCH) }})"
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Wait for Copilot shim artifact (background)
@@ -222,24 +224,24 @@ jobs:
         parameters:
           vscodePlatform: alpine
 
-      - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
+      - script: pnpm exec deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Download Copilot VSIX (background)
 
       - template: ../common/mixin-vscode-capi.yml@self
 
-      - script: npm run gulp core-ci
+      - script: pnpm run gulp core-ci
         env:
           GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Compile
 
-      - script: npx deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
+      - script: pnpm exec deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Download Copilot VSIX
 
-      - script: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_copilot_shim_alpine_$(VSCODE_ARCH)=Alpine CLI (${{ upper(parameters.VSCODE_ARCH) }})"
+      - script: pnpm exec deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_copilot_shim_alpine_$(VSCODE_ARCH)=Alpine CLI (${{ upper(parameters.VSCODE_ARCH) }})"
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Wait for Copilot shim artifact
@@ -254,7 +256,7 @@ jobs:
       - script: |
           set -e
           TARGET=$([ "$VSCODE_ARCH" == "x64" ] && echo "linux-alpine" || echo "alpine-arm64") # TODO@joaomoreno
-          npm run gulp vscode-reh-$TARGET-min-ci
+          pnpm run gulp vscode-reh-$TARGET-min-ci
           (cd .. && mv vscode-reh-$TARGET vscode-server-$TARGET) # TODO@joaomoreno
           tar -xzf $(Build.ArtifactStagingDirectory)/copilot-shim/*.tar.gz -C $(Build.ArtifactStagingDirectory)/copilot-shim
           install -D -m 755 $(Build.ArtifactStagingDirectory)/copilot-shim/copilot ../vscode-server-$TARGET/bin/copilot-shim/copilot
@@ -272,7 +274,7 @@ jobs:
       - script: |
           set -e
           TARGET=$([ "$VSCODE_ARCH" == "x64" ] && echo "linux-alpine" || echo "alpine-arm64")
-          npm run gulp vscode-reh-web-$TARGET-min-ci
+          pnpm run gulp vscode-reh-web-$TARGET-min-ci
           (cd .. && mv vscode-reh-web-$TARGET vscode-server-$TARGET-web) # TODO@joaomoreno
           ARCHIVE_PATH="$(Build.ArtifactStagingDirectory)/out/web/vscode-server-$TARGET-web.tar.gz"
           DIR_PATH="$(realpath ../vscode-server-$TARGET-web)"

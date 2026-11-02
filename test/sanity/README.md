@@ -45,7 +45,7 @@ When installing the extension from the Marketplace fails in any UI test, `<test>
 To run CLI tests for all platforms on given commit of Insiders build, from the root directory run:
 
 ```bash
-npm run sanity-test -- --commit 19228f26df517fecbfda96c20956f7c521e072be --quality insider -g "cli*"
+pnpm run sanity-test --commit 19228f26df517fecbfda96c20956f7c521e072be --quality insider -g "cli*"
 ```
 
 ### Testing Unpublished Builds
@@ -56,7 +56,7 @@ passing `--artifacts-dir`, which resolves each target from downloaded build pipe
 as `<artifacts-dir>/<artifact-name>/<file>`:
 
 ```bash
-npm run sanity-test -- --commit <commit> --quality insider --artifacts-dir /tmp/artifacts -g "linux.*x64"
+pnpm run sanity-test --commit <commit> --quality insider --artifacts-dir /tmp/artifacts -g "linux.*x64"
 ```
 
 Every target has a `targetArtifacts` mapping in `src/context.ts`; an unmapped target fails with an
@@ -110,7 +110,7 @@ The marker is created only by `scripts/provision-copilot-shim-runner.sh`. It req
 For a prepared workspace, the safe source-only helper check is:
 
 ```bash
-npm run test-copilot-shim-rendering
+pnpm run test-copilot-shim-rendering
 ```
 
 It verifies the checked-in `resources/linux/copilot-link.sh` source has no unresolved rendering markers or RPM macros, has literal Stable/Insiders targets, and defines `vscode_copilot_link`. It does not invoke a package manager or mutate package state.
@@ -118,7 +118,7 @@ It verifies the checked-in `resources/linux/copilot-link.sh` source has no unres
 On Linux, this check runs the same helper with `sh` and `bash` against stub shims and a temporary link path. It covers the `CopilotCliCommand` policy that each shim reports, the DEB `add-copilot-command` debconf answer, and hand-over on removal. It doesn't need root and doesn't touch `/usr/bin/copilot`:
 
 ```bash
-npm run test-copilot-shim-helper
+pnpm run test-copilot-shim-helper
 ```
 
 ### Fixture Manifest and Generation
@@ -143,8 +143,8 @@ Keep every entry in its own parent directory so its prepared payload cannot be c
 From `test/sanity`, after compiling this package and preparing the disposable inputs:
 
 ```bash
-npm run compile
-npm run generate-copilot-shim-fixtures -- \
+pnpm run compile
+pnpm run generate-copilot-shim-fixtures \
 	--plan ./fixtures/copilot-shim-fixture-plan.json \
 	--output ./artifacts/copilot-shim-fixtures
 ```
@@ -156,12 +156,12 @@ This creates `./artifacts/copilot-shim-fixtures/copilot-shim-fixtures.json`. A `
 Use one disposable Debian-family runner and one disposable RPM-family runner. The exact focused commands are:
 
 ```bash
-npm run test-copilot-shim -- \
+pnpm run test-copilot-shim \
 	--fixtures ./artifacts/copilot-shim-fixtures/copilot-shim-fixtures.json \
 	--format deb \
 	--grep 'DEB (K[1-9]|OSS|warns)'
 
-npm run test-copilot-shim -- \
+pnpm run test-copilot-shim \
 	--fixtures ./artifacts/copilot-shim-fixtures/copilot-shim-fixtures.json \
 	--format rpm \
 	--grep 'RPM (K[1-9]|OSS|warns)'

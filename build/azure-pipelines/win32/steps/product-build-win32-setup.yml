@@ -80,6 +80,8 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
+  - template: ../../common/install-pnpm.yml@self
+
   - ${{ if and(eq(parameters.VSCODE_CIBUILD, false), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, false)) }}:
     - task: NuGetAuthenticate@1
       displayName: Setup NuGet Authentication
@@ -87,14 +89,9 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { npm ci }
+      exec { pnpm install --frozen-lockfile }
     env:
       npm_config_arch: $(VSCODE_ARCH)
-      npm_config_foreground_scripts: "true"
-      ${{ if and(eq(parameters.VSCODE_CIBUILD, true), gt(length(parameters.VSCODE_TEST_IDS), 0)) }}:
-        # Use an absolute path so nested installs share the existing CI logs artifact.
-        npm_config_timing: "true"
-        npm_config_logs_dir: $(Build.SourcesDirectory)/.build/logs/npm
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-token-code-oss)"
