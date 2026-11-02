@@ -8,6 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isStringArray } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
@@ -15,13 +16,16 @@ import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/st
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { JsonValue } from '../../../../platform/github/common/client/types.js';
+import { AutomationTrigger } from '../../../../platform/github/common/missionControl/automations.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { AutomationInterval, AutomationTarget, AutomationWorkspaceIsolation, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, isAutomationModelConfiguration } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationInterval, AutomationTarget, AutomationWorkspaceIsolation, IAutomationCloudTrigger, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, isAutomationModelConfiguration } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { type AutomationCatalogueState, type AutomationMutationGuard, AutomationMutationUncertainError, AutomationToolCatalog, AutomationSessionTemplateAuthorityError, AutomationUnavailableError, assertAutomationTargetAuthority, ConfigureAutomationToolReferenceName, IAutomationProviderConfiguration, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { type AutomationCatalogueState, type AutomationMutationGuard, AutomationMutationUncertainError, AutomationRepositoryOwnershipUnavailableError, AutomationSessionTemplateAuthorityError, AutomationToolCatalog, AutomationTriggerCatalog, AutomationUnavailableError, assertAutomationTargetAuthority, ConfigureAutomationToolReferenceName, IAutomationProviderConfiguration, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { automationTriggerChoices, canEditAutomationTriggers } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IChatAutomationConfiguredData } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -89,7 +93,10 @@ interface IAutomationProviderToolOutput {
 	readonly state: AutomationCatalogueState;
 	readonly historyState?: AutomationCatalogueState;
 	readonly canCreateAutomation: boolean;
-	readonly configuration?: Pick<IAutomationProviderConfiguration, 'sessionTypes' | 'description' | 'timeZone' | 'targetChangeDisabledReason'> & { readonly tools: AutomationToolCatalog };
+	readonly configuration?: Pick<IAutomationProviderConfiguration, 'sessionTypes' | 'description' | 'timeZone' | 'targetChangeDisabledReason'> & {
+		readonly tools?: AutomationToolCatalog;
+		readonly triggers?: AutomationTriggerCatalog;
+	};
 	readonly unavailableReason?: string;
 	readonly automations: readonly IAutomationListToolOutput[];
 }
@@ -132,7 +139,7 @@ export class ListAutomationsTool implements IToolImpl {
 			icon: Codicon.calendar,
 			displayName: localize('automation.tool.list.displayName', "List Automations"),
 			userDescription: localize('automation.tool.list.userDescription', "List scheduled agent automations"),
-			modelDescription: 'List enabled Automation providers and their currently visible automations. Use this before configuring or running an automation to obtain stable IDs, provider configuration, canCreateAutomation, and availableOperations. A provider\'s state applies only to that provider and never makes automations from another provider unavailable. When a provider is "ready", its automations array is complete for its known repositories; otherwise it may be incomplete, including when empty. Cloud discovery is not account-wide. This tool refreshes cloud definitions and requests the provider tool catalog without changing saved automations. activeRun reports a known active run; historyState, when available, reports history readiness separately from definition readiness. A missing activeRun does not prove an uncertain request failed or is safe to repeat. Only a ready tool catalog supplies selectable tool IDs; loading or error is not an empty catalog. List again after loading completes or to retry a catalog error.',
+			modelDescription: 'List enabled Automation providers and their currently visible automations. Use this before configuring or running an automation to obtain stable IDs, provider configuration, canCreateAutomation, and availableOperations. A provider\'s state applies only to that provider and never makes automations from another provider unavailable. When a provider is "ready", its automations array is complete for its known repositories; otherwise it may be incomplete, including when empty. Cloud discovery is not account-wide. This tool refreshes cloud definitions and requests the provider tool and trigger catalogs without changing saved automations. activeRun reports a known active run; historyState, when available, reports history readiness separately from definition readiness. A missing activeRun does not prove an uncertain request failed or is safe to repeat. Only ready catalogs supply selectable tool IDs or event triggers; loading or error is not an empty catalog. List again after loading completes or to retry a catalog error.',
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
 			runsInWorkspace: false,
@@ -166,6 +173,7 @@ export class ListAutomationsTool implements IToolImpl {
 			}
 			const configuration = store.configuration;
 			let tools: AutomationToolCatalog | undefined;
+			let triggers: AutomationTriggerCatalog | undefined;
 			let refreshError: string | undefined;
 			if (configuration) {
 				const uncertainRuns = uncertainAutomationRuns.get(configuration);
@@ -180,8 +188,12 @@ export class ListAutomationsTool implements IToolImpl {
 				if (token.isCancellationRequested || store.enabled?.get() === false || !isAutomationsEnabled(this.configurationService)) {
 					return [];
 				}
-				tools = configuration.tools.get();
-				configuration.loadTools();
+				if (configuration.tools) {
+					tools = configuration.tools.get();
+					configuration.loadTools();
+				}
+				triggers = configuration.triggers?.get();
+				configuration.loadTriggers?.();
 			}
 			if (store.enabled?.get() === false) {
 				return [];
@@ -195,13 +207,14 @@ export class ListAutomationsTool implements IToolImpl {
 				state,
 				...(historyState !== undefined ? { historyState } : {}),
 				canCreateAutomation: store.canCreateAutomation.get(),
-				...(configuration && tools ? {
+				...(configuration && (tools || triggers) ? {
 					configuration: {
 						sessionTypes: configuration.sessionTypes,
 						description: configuration.description,
 						timeZone: configuration.timeZone,
 						targetChangeDisabledReason: configuration.targetChangeDisabledReason,
-						tools,
+						...(tools ? { tools } : {}),
+						...(triggers ? { triggers } : {}),
 					}
 				} : {}),
 				...(unavailableReason !== undefined ? { unavailableReason } : {}),
@@ -495,7 +508,9 @@ Use "customizationIds" to preserve an explicit customization selection. An empty
 
 Cloud automations default to user-owned and require a private or internal GitHub.com repository with default isolation. Set "ownership": "repository" only when creating a shared automation: repository readers can view it and writers can manage it. Ownership cannot change after creation. Daily/weekly cloud schedules require "timeZone": "UTC" and minutes 0, 15, 30, or 45. "manual" removes the schedule. Creation defaults to enabled: scheduled work runs without VS Code and may consume credits. Set "enabled": false to save without scheduling.
 
-For cloud, use "sessionTemplate.modelId" and "sessionTemplate.config" with "tools" IDs from the ready provider catalog and optional "reasoningEffort". Preserve saved tool IDs outside that catalog on unrelated updates. Cloud template reset (null), custom agents, modelConfiguration, local mode/approval settings, and MCP management are not supported.
+For cloud event automations, set schedule.interval to "manual" and provide "cloudTrigger" from a ready provider trigger catalog. Set requireActorWritePermission explicitly; true is least privilege. Repository settings may require it. Event triggers can be set only during creation through this tool.
+
+For cloud, use "sessionTemplate.modelId" and "sessionTemplate.config" with an explicit "tools" array of IDs from the ready provider catalog and optional "reasoningEffort". Use an empty tools array for least privilege when no tools are needed. Preserve saved tool IDs outside that catalog on unrelated updates. Cloud template reset (null), custom agents, modelConfiguration, local mode/approval settings, and MCP management are not supported.
 
 The change uses the current tool-approval policy. When approval is required, the user sees a normal tool confirmation. If the user cancels or denies the request, do not retry unless they ask you to. An unknown result may already have changed remote state; refresh with listAutomations before considering another request.`,
 			source: ToolDataSource.Internal,
@@ -561,6 +576,27 @@ The change uses the current tool-approval policy. When approval is required, the
 								description: 'Required for daily/weekly cloud schedules; omit for local-time Agent Host schedules.',
 							},
 						},
+					},
+					cloudTrigger: {
+						type: 'object',
+						additionalProperties: false,
+						description: 'Cloud event trigger on create only. Requires schedule.interval manual and a ready provider trigger catalog.',
+						properties: {
+							triggers: {
+								type: 'object',
+								minProperties: 1,
+								description: 'Event trigger entries keyed by provider trigger ID.',
+								additionalProperties: {
+									type: 'object',
+									additionalProperties: true,
+								},
+							},
+							requireActorWritePermission: {
+								type: 'boolean',
+								description: 'Whether event activity must come from an actor with repository write access. Set explicitly; true is least privilege.',
+							},
+						},
+						required: ['triggers', 'requireActorWritePermission'],
 					},
 					target: {
 						type: 'object',
@@ -742,6 +778,9 @@ The change uses the current tool-approval policy. When approval is required, the
 			const patch = target ? { ...proposal.initialValues, target } : proposal.initialValues;
 			return this.completeOperation('update', await this.applyUpdate(proposal.existing, patch, token));
 		} catch (error) {
+			if (token.isCancellationRequested) {
+				return this.completeOperation(proposal.kind, automationToolCancelled());
+			}
 			if (error instanceof AutomationToolMutationBlockedError) {
 				return this.completeOperation(proposal.kind, error.result);
 			}
@@ -749,7 +788,7 @@ The change uses the current tool-approval policy. When approval is required, the
 				logAutomationConfigureOutcome(this.telemetryService, proposal.kind, 'failed');
 				return automationUnknownOutcome(error.message, proposal.existing);
 			}
-			if (error instanceof AutomationToolInputError || error instanceof AutomationUnavailableError) {
+			if (error instanceof AutomationToolInputError || error instanceof AutomationUnavailableError || error instanceof AutomationRepositoryOwnershipUnavailableError) {
 				return this.completeOperation(proposal.kind, automationToolError(error.message));
 			}
 			if (error instanceof AutomationSessionTemplateAuthorityError) {
@@ -766,13 +805,18 @@ The change uses the current tool-approval policy. When approval is required, the
 		return result;
 	}
 
-	private async applyCreate(options: ICreateAutomationOptions, token: CancellationToken): Promise<IToolResult> {
+	private async applyCreate(initialOptions: ICreateAutomationOptions, token: CancellationToken): Promise<IToolResult> {
 		const blocked = this.getMutationBlockedResult(token);
 		if (blocked) {
 			return blocked;
 		}
-		if (!this.automationService.canCreateAutomation(options.target.providerId)) {
+		if (!this.automationService.canCreateAutomation(initialOptions.target.providerId)) {
 			return automationToolError('The selected provider is unavailable or does not support automations. Connect to an Agent Host that supports automations.');
+		}
+		const options = await this.validateProviderCreateOptions(initialOptions, token);
+		const afterValidation = this.getMutationBlockedResult(token);
+		if (afterValidation) {
+			return afterValidation;
 		}
 		if (options.ownership !== undefined && !this.automationService.getProviderConfiguration?.(options.target.providerId)) {
 			return automationToolError('The selected provider does not support automation ownership. Omit ownership for this provider.');
@@ -783,6 +827,69 @@ The change uses the current tool-approval policy. When approval is required, the
 		result.toolSpecificData = toAutomationConfiguredData(created, 'created');
 		result.toolResultMessage = localize('automation.tool.configure.created', "Created automation {0}", created.name);
 		return result;
+	}
+
+	private async validateProviderCreateOptions(options: ICreateAutomationOptions, token: CancellationToken): Promise<ICreateAutomationOptions> {
+		const configuration = this.automationService.getProviderConfiguration?.(options.target.providerId);
+		if (!configuration) {
+			return options;
+		}
+
+		let target = options.target;
+		let allowReadAccessTriggers: boolean | undefined;
+		if (target.kind === 'workspace' && configuration.getWorkspaceTarget) {
+			const targetState = await waitForState(
+				configuration.getWorkspaceTarget(target.folderUri),
+				state => state.pending !== true,
+				undefined,
+				token,
+			);
+			if (targetState.disabledReason || !targetState.workspace) {
+				throw new AutomationToolInputError(targetState.disabledReason ?? 'The selected repository is not available for cloud automations.');
+			}
+			target = { ...target, folderUri: targetState.workspace };
+			allowReadAccessTriggers = targetState.allowReadAccessTriggers;
+		}
+
+		if (configuration.tools) {
+			const selectedTools = options.sessionTemplate?.config?.tools;
+			if (!isStringArray(selectedTools)) {
+				throw new AutomationToolInputError('Select cloud tools explicitly, using an empty array for least privilege when none are needed.');
+			}
+			const catalog = configuration.tools.get();
+			configuration.loadTools();
+			if (catalog.kind !== 'ready') {
+				throw new AutomationToolInputError(catalog.kind === 'error'
+					? `The provider tool catalog is unavailable: ${catalog.message}`
+					: 'The provider tool catalog is still loading. Call listAutomations again before creating the automation.');
+			}
+			const availableTools = new Set(catalog.groups.flatMap(group => group.tools.map(tool => tool.id)));
+			const unavailableTool = selectedTools.find(id => !availableTools.has(id));
+			if (unavailableTool) {
+				throw new AutomationToolInputError(`Cloud tool "${unavailableTool}" is not in the ready provider catalog.`);
+			}
+		}
+
+		if (options.cloudTrigger) {
+			if (target.kind !== 'workspace') {
+				throw new AutomationToolInputError('Cloud event triggers require a workspace repository target.');
+			}
+			const catalog = configuration.triggers?.get();
+			configuration.loadTriggers?.();
+			if (!catalog || catalog.kind !== 'ready') {
+				throw new AutomationToolInputError(catalog?.kind === 'error'
+					? `The provider trigger catalog is unavailable: ${catalog.message}`
+					: 'The provider trigger catalog is still loading. Call listAutomations again before creating the automation.');
+			}
+			if (!canEditAutomationTriggers(options.cloudTrigger.triggers, automationTriggerChoices(catalog.definitions))) {
+				throw new AutomationToolInputError('The selected cloud trigger is not supported by the ready provider catalog.');
+			}
+			if (options.cloudTrigger.requireActorWritePermission !== true && allowReadAccessTriggers !== true) {
+				throw new AutomationToolInputError('Repository settings require event triggers to run only for actors with write access.');
+			}
+		}
+
+		return target === options.target ? options : { ...options, target };
 	}
 
 	private async applyUpdate(existing: IAutomationDescriptor, patch: IUpdateAutomationOptions, token: CancellationToken): Promise<IToolResult> {
@@ -871,7 +978,7 @@ The change uses the current tool-approval policy. When approval is required, the
 			throw new AutomationToolInputError('configureAutomation input must be an object.');
 		}
 		const input = rawInput;
-		assertKnownProperties(input, ['automationId', 'ownership', 'customizationIds', 'name', 'prompt', 'schedule', 'target', 'modelId', 'mode', 'permissionLevel', 'sessionTemplate', 'enabled'], 'configureAutomation input');
+		assertKnownProperties(input, ['automationId', 'ownership', 'customizationIds', 'name', 'prompt', 'schedule', 'cloudTrigger', 'target', 'modelId', 'mode', 'permissionLevel', 'sessionTemplate', 'enabled'], 'configureAutomation input');
 
 		const automationId = readOptionalNonEmptyString(input, 'automationId');
 		const existing = automationId ? this.automationService.getAutomation(automationId) : undefined;
@@ -897,6 +1004,10 @@ The change uses the current tool-approval policy. When approval is required, the
 		}
 
 		const schedule = parseSchedule(input, existing?.schedule, !existing);
+		const cloudTrigger = parseCloudTrigger(input, existing);
+		if (cloudTrigger && schedule?.interval !== 'manual') {
+			throw new AutomationToolInputError('"cloudTrigger" requires "schedule.interval" to be "manual".');
+		}
 		if (schedule && existing?.cloudTrigger && existing.schedule.interval === 'custom') {
 			throw new AutomationToolInputError('Edit event triggers in the automation dialog or on GitHub. Omit schedule when editing other fields.');
 		}
@@ -947,6 +1058,7 @@ The change uses the current tool-approval policy. When approval is required, the
 				name,
 				prompt,
 				schedule,
+				...(cloudTrigger ? { cloudTrigger } : {}),
 				target,
 				...(modelId ? { modelId } : {}),
 				...(mode ? { mode } : {}),
@@ -1043,6 +1155,38 @@ function parseSchedule(input: Record<string, unknown>, existing: IAutomationSche
 		throw new AutomationToolInputError('Weekday schedules use local time and do not support "timeZone".');
 	}
 	return { interval, scheduleHour, scheduleMinute, scheduleDay, ...(timeZone ? { timeZone } : {}) };
+}
+
+function parseCloudTrigger(input: Record<string, unknown>, existing: IAutomationDescriptor | undefined): IAutomationCloudTrigger | undefined {
+	const rawValue = input.cloudTrigger;
+	if (rawValue === undefined) {
+		return undefined;
+	}
+	if (existing) {
+		throw new AutomationToolInputError('"cloudTrigger" can only be set when creating an automation.');
+	}
+	if (!isRecord(rawValue)) {
+		throw new AutomationToolInputError('"cloudTrigger" must be an object.');
+	}
+	assertKnownProperties(rawValue, ['triggers', 'requireActorWritePermission'], '"cloudTrigger"');
+	if (!isRecord(rawValue.triggers) || Object.keys(rawValue.triggers).length === 0) {
+		throw new AutomationToolInputError('"cloudTrigger.triggers" must be a non-empty object.');
+	}
+	if (typeof rawValue.requireActorWritePermission !== 'boolean') {
+		throw new AutomationToolInputError('"cloudTrigger.requireActorWritePermission" must be a boolean.');
+	}
+	const cloneState = { nodes: 0, rootField: 'cloudTrigger.triggers' };
+	const triggers: Record<string, AutomationTrigger> = {};
+	for (const [name, trigger] of Object.entries(rawValue.triggers)) {
+		if (!name.trim() || !isRecord(trigger)) {
+			throw new AutomationToolInputError('"cloudTrigger.triggers" must contain non-empty trigger IDs mapped to objects.');
+		}
+		triggers[name] = cloneJsonObject(trigger, `cloudTrigger.triggers.${name}`, cloneState, 0);
+	}
+	if (JSON.stringify(triggers).length > MAX_SESSION_TEMPLATE_CONFIG_LENGTH) {
+		throw new AutomationToolInputError(`"cloudTrigger.triggers" must not exceed ${MAX_SESSION_TEMPLATE_CONFIG_LENGTH} characters.`);
+	}
+	return { triggers, requireActorWritePermission: rawValue.requireActorWritePermission };
 }
 
 function parseTarget(input: Record<string, unknown>, existing: IAutomationDescriptor | undefined, currentTarget: AutomationTarget | undefined): AutomationTarget | undefined {
@@ -1157,7 +1301,7 @@ function parseSessionTemplateConfiguration(rawConfig: unknown, field: string): R
 	return undefined;
 }
 
-function cloneJsonObject(value: Record<string, unknown>, field: string, state: { nodes: number; readonly rootField: string }, depth: number): Record<string, unknown> {
+function cloneJsonObject(value: Record<string, unknown>, field: string, state: { nodes: number; readonly rootField: string }, depth: number): Record<string, JsonValue> {
 	const prototype = Object.getPrototypeOf(value);
 	if (prototype !== Object.prototype && prototype !== null) {
 		throw new AutomationToolInputError(`"${field}" must contain only JSON values.`);
@@ -1165,7 +1309,7 @@ function cloneJsonObject(value: Record<string, unknown>, field: string, state: {
 	return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, cloneJsonValue(entry, `${field}.${key}`, state, depth + 1)]));
 }
 
-function cloneJsonValue(value: unknown, field: string, state: { nodes: number; readonly rootField: string }, depth: number): unknown {
+function cloneJsonValue(value: unknown, field: string, state: { nodes: number; readonly rootField: string }, depth: number): JsonValue {
 	assertJsonComplexity(field, state, depth);
 	if (value === null || typeof value === 'string' || typeof value === 'boolean') {
 		return value;

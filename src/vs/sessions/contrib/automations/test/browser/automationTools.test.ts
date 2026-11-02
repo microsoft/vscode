@@ -17,7 +17,7 @@ import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { type AutomationCatalogueState, AutomationMutationUncertainError, AutomationSessionTemplateAuthorityError, AutomationUnavailableError, IAutomationCustomizationChoice, IAutomationProviderConfiguration, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { type AutomationCatalogueState, AutomationMutationUncertainError, AutomationRepositoryOwnershipUnavailableError, AutomationSessionTemplateAuthorityError, AutomationUnavailableError, IAutomationCustomizationChoice, IAutomationProviderConfiguration, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -276,6 +276,7 @@ interface IListProviderOptions {
 	readonly canCreateAutomation?: boolean;
 	readonly unavailableReason?: string;
 	readonly automations?: readonly IAutomationDescriptor[];
+	readonly configuration?: IAutomationProviderConfiguration;
 }
 
 function createListAutomationsTool(
@@ -296,6 +297,7 @@ function createListAutomationsTool(
 			canCreateAutomation: constObservable(options.canCreateAutomation ?? true),
 			unavailableReason: constObservable(options.unavailableReason),
 			automations: constObservable(options.automations ?? []),
+			configuration: options.configuration,
 		});
 		return upcastPartial<ISessionsProvider>({
 			id: options.id,
@@ -385,6 +387,101 @@ suite('AutomationTools', () => {
 			sharingDisclosed: confirmation?.includes('repository access'),
 			returnedOwnership: JSON.parse(getText(result)).automation.ownership,
 		}, { declaredProperties: ['ownership', 'customizationIds'], ownership: ['repository'], sharingDisclosed: true, returnedOwnership: 'repository' });
+	});
+
+	test('configureAutomation validates cloud repository, trigger and tool permissions without replacing the selected template', async () => {
+		const service = new FakeAutomationService();
+		const canonicalWorkspace = URI.parse('https://github.com/microsoft/vscode');
+		service.configuration = upcastPartial<IAutomationProviderConfiguration>({
+			sessionTypes: ['cloud'],
+			tools: constObservable({
+				kind: 'ready',
+				groups: [{ id: 'github', label: 'GitHub', tools: [{ id: 'read', label: 'Read repository' }] }],
+			}),
+			loadTools: () => { },
+			triggers: constObservable({
+				kind: 'ready',
+				definitions: [{
+					name: 'issues',
+					title: 'Issues',
+					description: 'Issue activity',
+					fields: [{ name: 'types', required: true, options: ['opened'] }],
+				}],
+			}),
+			loadTriggers: () => { },
+			getWorkspaceTarget: () => constObservable({
+				workspace: canonicalWorkspace,
+				repositoryLabel: 'microsoft/vscode',
+				isRepository: true,
+				isPrivateRepository: true,
+				allowReadAccessTriggers: false,
+			}),
+		});
+		const tool = createConfigureAutomationTool(service, new FakeSessionsManagementService(undefined, false, [providerSessionType('cloud', 'cloud')]), createConfigurationService());
+		const target = { kind: 'workspace', folderUri: FOLDER.toString(), providerId: 'cloud', sessionTypeId: 'cloud' };
+		const cloudTrigger = { triggers: { issues: { types: ['opened'] } }, requireActorWritePermission: true };
+		const selectedTemplate = { modelId: 'gpt-test', config: { tools: ['read'], reasoningEffort: 'high' } };
+		const base = { name: 'Issue review', prompt: 'Review the issue', schedule: { interval: 'manual' }, target, enabled: false };
+
+		const missingTools = await invoke(tool, { ...base, cloudTrigger, sessionTemplate: { modelId: 'gpt-test', config: { reasoningEffort: 'high' } } });
+		const unsupportedTool = await invoke(tool, { ...base, cloudTrigger, sessionTemplate: { ...selectedTemplate, config: { ...selectedTemplate.config, tools: ['write'] } } });
+		const broadTrigger = await invoke(tool, { ...base, cloudTrigger: { ...cloudTrigger, requireActorWritePermission: false }, sessionTemplate: selectedTemplate });
+		const unsupportedTrigger = await invoke(tool, { ...base, cloudTrigger: { ...cloudTrigger, triggers: { issues: { types: ['closed'] } } }, sessionTemplate: selectedTemplate });
+		const result = await invoke(tool, { ...base, cloudTrigger, sessionTemplate: selectedTemplate });
+		const created = service.created[0];
+		const returned = JSON.parse(getText(result)).automation;
+
+		assert.deepStrictEqual({
+			errors: [missingTools, unsupportedTool, broadTrigger, unsupportedTrigger].map(result => result.toolResultError),
+			created: created && {
+				target: created.target,
+				cloudTrigger: created.cloudTrigger,
+				sessionTemplate: created.sessionTemplate,
+				enabled: created.enabled,
+			},
+			returned: {
+				target: returned.target,
+				cloudTrigger: returned.cloudTrigger,
+				sessionTemplate: returned.sessionTemplate,
+				enabled: returned.enabled,
+			},
+		}, {
+			errors: [
+				'Select cloud tools explicitly, using an empty array for least privilege when none are needed.',
+				'Cloud tool "write" is not in the ready provider catalog.',
+				'Repository settings require event triggers to run only for actors with write access.',
+				'The selected cloud trigger is not supported by the ready provider catalog.',
+			],
+			created: {
+				target: { ...target, folderUri: canonicalWorkspace, isolation: { kind: 'default' } },
+				cloudTrigger,
+				sessionTemplate: selectedTemplate,
+				enabled: false,
+			},
+			returned: {
+				target: { ...target, folderUri: canonicalWorkspace.toString(), isolation: { kind: 'default' } },
+				cloudTrigger,
+				sessionTemplate: selectedTemplate,
+				enabled: false,
+			},
+		});
+	});
+
+	test('configureAutomation maps unavailable repository ownership to a provider tool error', async () => {
+		const service = new class extends FakeAutomationService {
+			override async createAutomation(): Promise<IAutomationDescriptor> {
+				throw new AutomationRepositoryOwnershipUnavailableError('Repository ownership requires organization policy approval.');
+			}
+		}();
+		const tool = createConfigureAutomationTool(service, new FakeSessionsManagementService(createSession({ workspace: FOLDER })), createConfigurationService());
+		const result = await invoke(tool, { name: 'Shared', prompt: 'Review', schedule: { interval: 'manual' } });
+		assert.deepStrictEqual({
+			error: result.toolResultError,
+			created: service.created,
+		}, {
+			error: 'Repository ownership requires organization policy approval.',
+			created: [],
+		});
 	});
 
 	test('configureAutomation rejects unsupported ownership and customization selections before mutation', async () => {
@@ -603,6 +700,36 @@ suite('AutomationTools', () => {
 				availableOperations: ['run', 'update', 'delete'],
 			}],
 		}]);
+	});
+
+	test('listAutomations starts provider trigger discovery and returns its current catalog', async () => {
+		const automationService = new FakeAutomationService();
+		let triggerLoads = 0;
+		const configuration = upcastPartial<IAutomationProviderConfiguration>({
+			sessionTypes: ['cloud'],
+			triggers: constObservable({
+				kind: 'ready',
+				definitions: [{
+					name: 'issues',
+					title: 'Issues',
+					description: 'Issue activity',
+					fields: [{ name: 'types', required: true, options: ['opened'] }],
+				}],
+			}),
+			loadTriggers: () => triggerLoads++,
+		});
+		const tool = createListAutomationsTool(automationService, createConfigurationService(), [{ id: 'cloud', configuration }]);
+
+		const result = await invoke(tool, {});
+		const providers = JSON.parse(getText(result));
+
+		assert.deepStrictEqual({
+			triggerLoads,
+			configuration: providers[0].configuration,
+		}, {
+			triggerLoads: 1,
+			configuration: { sessionTypes: ['cloud'], triggers: configuration.triggers?.get() },
+		});
 	});
 
 	test('listAutomations describes provider-scoped state and operations', () => {

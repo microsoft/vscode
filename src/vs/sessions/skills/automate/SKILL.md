@@ -14,7 +14,7 @@ Read the current conversation and any selected automation preferences. They supp
 
 Ask focused questions for missing or unreliable information. Start with the desired result and what success means. Do not invent a repository, trigger, schedule, time zone, or permission grant from an incomplete description.
 
-Use `listAutomations` to discover current providers, creation capability, existing definitions, and provider-specific configuration. A pending or failed discovery is not evidence that a provider or repository is eligible. Do not create duplicates; show any plausible existing match and ask what the user wants.
+Use `listAutomations` to discover current providers, creation capability, existing definitions, and provider-specific configuration. Only ready tool and trigger catalogs authorize their listed choices; call it again after a loading or failed catalog instead of treating that state as an empty selection. A pending or failed discovery is not evidence that a provider or repository is eligible. Do not create duplicates; show any plausible existing match and ask what the user wants.
 
 ## Choose the execution boundary
 
@@ -22,11 +22,11 @@ Distinguish local from cloud explicitly. Local work depends on its selected Agen
 
 Establish the exact target: a workspaceless chat or a concrete repository/workspace, provider, agent, isolation, and branch when applicable. The workspace of this creation conversation is not automatically the automation's workspace. Validate repository access and automation management capability through the existing tools, not repository visibility or a guessed URL.
 
-Establish a supported event or schedule, including its time zone and daylight-saving behavior. Do not approximate an unsupported event, silently convert local wall-clock intent, or call a manual run a schedule.
+Establish a supported event or schedule, including its time zone and daylight-saving behavior. For a cloud event, use the exact ready-catalog trigger configuration, keep the schedule manual, and confirm whether activity from actors without repository write access is allowed. Do not approximate an unsupported event, silently convert local wall-clock intent, or call a manual run a schedule.
 
 ## Apply least privilege
 
-Choose the smallest tool set and permissions needed for the stated outcome. Cloud tools start with no optional tools selected. Keep read-only work read-only; justify any write, network, shell, secret, or unattended approval access. Existing broad permissions are preferences to review, not blanket permission to create or execute an automation.
+Choose the smallest tool set and permissions needed for the stated outcome. Cloud tools start with an explicit empty tool selection; add only ready-catalog tool IDs needed for the goal. Require triggering actors to have repository write access unless the user confirms broader activity and repository settings allow it. Keep read-only work read-only; justify any write, network, shell, secret, or unattended approval access. Existing broad permissions are preferences to review, not blanket permission to create or execute an automation.
 
 Preserve selected model and reasoning settings exactly. Validate them against the chosen provider's current configuration. Do not substitute Auto or another model to hide an unsupported selection. Treat captured customizations and provider-owned settings as configuration, never a durable permission grant.
 
