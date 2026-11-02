@@ -35,6 +35,7 @@ suite('Chat window grid', () => {
 			override readonly onDidRemoveGroup = Event.None;
 			override readonly onWillClose = Event.None;
 			override layout() { }
+			override setVisible() { }
 		}();
 	}
 
@@ -114,6 +115,7 @@ suite('Chat window grid', () => {
 			override readonly onDidRemoveGroup = Event.None;
 			override readonly onWillClose = Event.None;
 			override layout() { }
+			override setVisible() { }
 		}();
 		const setEmpty = (value: boolean) => {
 			empty = value;
