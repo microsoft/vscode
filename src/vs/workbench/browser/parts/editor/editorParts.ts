@@ -415,13 +415,20 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		const documentParts = this.parts.filter(part => part.element?.ownerDocument === document);
 		if (documentParts.length > 1) {
 
-			// The part that contains the focused element
+			// The closest part that contains the focused element
 			const activeElement = getActiveElement();
+			let focusedPart: EditorPart | undefined;
+			let focusedContainer: HTMLElement | undefined;
 			for (const part of documentParts) {
 				const container = part.getContainer();
-				if (container && isAncestor(activeElement, container)) {
-					return part;
+				if (container && isAncestor(activeElement, container) && (!focusedContainer || isAncestor(container, focusedContainer))) {
+					focusedPart = part;
+					focusedContainer = container;
 				}
+			}
+
+			if (focusedPart) {
+				return focusedPart;
 			}
 
 			// A modal part stays active while it was the last active part of the document

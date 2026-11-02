@@ -140,6 +140,19 @@ suite('Editor Parts', () => {
 		assert.deepStrictEqual({ focusInA, focusInB, focusInNoPart, focusInMain }, { focusInA: 'a', focusInB: 'b', focusInNoPart: 'main', focusInMain: 'main' });
 	});
 
+	test('a part inside another part is the active part with focus in it', async () => {
+		const { instantiationService, parts } = await createServices();
+		const outer = createOwnedPart(instantiationService, parts);
+		const inner = disposables.add(instantiationService.createInstance(TestOwnedEditorPart, parts));
+		disposables.add(parts.registerPart(inner));
+		inner.create(outer.getContainer()!.appendChild(mainWindow.document.createElement('div')));
+		inner.layout(200, 100, 0, 0);
+
+		focusIn(inner.getContainer()!);
+
+		assert.deepStrictEqual({ inner: parts.activePart === inner, element: parts.getPart(mainWindow.document.activeElement as HTMLElement) === inner }, { inner: true, element: true });
+	});
+
 	test('a modal part stays the active part while it was the last active part, also with focus in no part', async () => {
 		const { instantiationService, parts } = await createServices();
 		createOwnedPart(instantiationService, parts);

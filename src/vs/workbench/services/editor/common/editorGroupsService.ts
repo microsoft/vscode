@@ -605,6 +605,11 @@ export interface IContentPart extends IEditorPart {
 	layout(width: number, height: number, top: number, left: number): void;
 
 	/**
+	 * Tells the part whether it shows, such as when its owner hides it.
+	 */
+	setVisible(visible: boolean): void;
+
+	/**
 	 * Fired right before the part closes.
 	 */
 	readonly onWillClose: Event<void>;

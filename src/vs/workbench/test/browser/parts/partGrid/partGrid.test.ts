@@ -15,6 +15,7 @@ import { SyncDescriptor } from '../../../../../platform/instantiation/common/des
 import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IPartGridView, PartGrid } from '../../../../browser/parts/partGrid/partGrid.js';
+import { ContentPart } from '../../../../browser/parts/editor/contentPart.js';
 import { GRID_GAP_SASH_CLASS } from '../../../../browser/parts/partGrid/partGridGap.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
@@ -235,5 +236,38 @@ suite('Part Grid', () => {
 		const style = mainWindow.getComputedStyle(sash, '::after');
 
 		assert.deepStrictEqual({ content: style.content, shadow: style.boxShadow.replace(/rgba?\([^)]*\)\s*/g, '').trim() }, { content: '""', shadow: '0px -6px 0px 0px, 0px 6px 0px 0px' });
+	});
+
+	test('a cell keeps its hidden state when it swaps places, and its part is told when it hides or shows', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		const side = createPart(parts);
+		const chat = createPart(parts);
+		await openEditor(side, '/side.txt');
+		await openEditor(chat, '/chat.txt');
+		grid.addPart('side', side);
+		grid.addPart('chat', chat, { reference: 'side', direction: Direction.Right });
+		const visibility: boolean[] = [];
+		disposables.add((side as ContentPart).onDidVisibilityChange(visible => visibility.push(visible)));
+
+		grid.setCellVisible('side', false);
+		grid.swapCells('side', 'chat');
+
+		assert.deepStrictEqual({ shape: grid.describe(), sideVisible: grid.isCellVisible('side'), sideWidth: grid.getCellSize('side').width, chatWidth: grid.getCellSize('chat').width, visibility: visibility.includes(false) }, {
+			shape: 'row(chat, side)', sideVisible: false, sideWidth: 0, chatWidth: 1000, visibility: true
+		});
+	});
+
+	test('the border of a card counts in the size constraints of its cell', () => {
+		const container = createContainer();
+		container.style.setProperty('--part-grid-card-border-width', '1px');
+		const grid = disposables.add(new PartGrid(container));
+		const heights: number[] = [];
+		const fixed: IPartGridView = { ...createView(), layout: (width, height) => heights.push(height) };
+		grid.addView('title', fixed);
+		grid.addView('other', createView(), { edge: Direction.Down });
+		grid.layout(1000, 800);
+
+		assert.deepStrictEqual({ cellHeight: grid.getCellSize('title').height, contentHeight: heights[heights.length - 1] }, { cellHeight: 32, contentHeight: 30 });
 	});
 });

@@ -65,8 +65,10 @@ class PartGridCell implements ISerializableView {
 	get minimumHeight(): number { return this.view.minimumHeight + this.verticalFrame; }
 	get maximumHeight(): number { return this.view.maximumHeight + this.verticalFrame; }
 
-	private get horizontalFrame(): number { return this.insets.left + this.insets.right; }
-	private get verticalFrame(): number { return this.insets.top + this.insets.bottom; }
+	private get horizontalFrame(): number { return this.insets.left + this.insets.right + this.border.left + this.border.right; }
+	private get verticalFrame(): number { return this.insets.top + this.insets.bottom + this.border.top + this.border.bottom; }
+
+	private border: IGridEdgeInsets = NO_GRID_EDGE_INSETS;
 
 	readonly onDidChange: Event<IViewSize | undefined>;
 
@@ -83,7 +85,9 @@ class PartGridCell implements ISerializableView {
 	 */
 	setInsets(insets: IGridEdgeInsets): boolean {
 		const current = this.insets;
-		if (current.top === insets.top && current.right === insets.right && current.bottom === insets.bottom && current.left === insets.left) {
+		const currentBorder = this.border;
+		this.border = this.readBorder();
+		if (current.top === insets.top && current.right === insets.right && current.bottom === insets.bottom && current.left === insets.left && sameInsets(currentBorder, this.border)) {
 			return false;
 		}
 
@@ -91,6 +95,19 @@ class PartGridCell implements ISerializableView {
 		this.layoutCard();
 
 		return true;
+	}
+
+	/**
+	 * The border of the card, which the owner's look may draw: its content is inside it.
+	 */
+	private readBorder(): IGridEdgeInsets {
+		if (!this.card.isConnected) {
+			return this.border;
+		}
+
+		const style = getWindow(this.card).getComputedStyle(this.card);
+		const width = (value: string) => parseFloat(value) || 0;
+		return { top: width(style.borderTopWidth), right: width(style.borderRightWidth), bottom: width(style.borderBottomWidth), left: width(style.borderLeftWidth) };
 	}
 
 	layout(width: number, height: number, top: number, left: number): void {
@@ -107,19 +124,12 @@ class PartGridCell implements ISerializableView {
 			return;
 		}
 
-		// The content is inside the card's border, which the owner's look may draw
-		const style = getWindow(this.card).getComputedStyle(this.card);
-		const border = (value: string) => parseFloat(value) || 0;
-		const borderTop = border(style.borderTopWidth);
-		const borderRight = border(style.borderRightWidth);
-		const borderBottom = border(style.borderBottomWidth);
-		const borderLeft = border(style.borderLeftWidth);
-
+		const border = this.border;
 		this.view.layout(
-			Math.max(0, layout.width - insets.left - insets.right - borderLeft - borderRight),
-			Math.max(0, layout.height - insets.top - insets.bottom - borderTop - borderBottom),
-			layout.top + insets.top + borderTop,
-			layout.left + insets.left + borderLeft
+			Math.max(0, layout.width - this.horizontalFrame),
+			Math.max(0, layout.height - this.verticalFrame),
+			layout.top + insets.top + border.top,
+			layout.left + insets.left + border.left
 		);
 	}
 
@@ -130,6 +140,10 @@ class PartGridCell implements ISerializableView {
 	toJSON(): object {
 		return { id: this.id };
 	}
+}
+
+function sameInsets(a: IGridEdgeInsets, b: IGridEdgeInsets): boolean {
+	return a.top === b.top && a.right === b.right && a.bottom === b.bottom && a.left === b.left;
 }
 
 function createCell(id: string, content: PartGridCellContent): PartGridCell {
@@ -145,7 +159,8 @@ function createCell(id: string, content: PartGridCellContent): PartGridCell {
 		get minimumHeight() { return part.minimumHeight; },
 		get maximumHeight() { return part.maximumHeight; },
 		onDidChange: part.onDidChange,
-		layout: (width, height, top, left) => part.layout(width, height, top, left)
+		layout: (width, height, top, left) => part.layout(width, height, top, left),
+		setVisible: visible => part.setVisible(visible)
 	}, part);
 }
 
@@ -417,7 +432,9 @@ export class PartGrid extends Disposable {
 	 */
 	swapCells(id: string, otherId: string): void {
 		this.grid?.swapViews(this.getCell(id), this.getCell(otherId));
-		this.applyLook();
+
+		// Swapping shows both cells again
+		this.updateAllVisibility();
 	}
 
 	/**
