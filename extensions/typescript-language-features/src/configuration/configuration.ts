@@ -227,12 +227,13 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 	}
 
 	protected readDisableAutomaticTypeAcquisition(configuration: vscode.WorkspaceConfiguration): boolean {
+		const backgroundNetworkEnabled = vscode.workspace.getConfiguration().get<boolean>('extensions.backgroundNetwork.enabled', true);
 		const enabled = readUnifiedConfig<boolean | undefined>('tsserver.automaticTypeAcquisition.enabled', undefined, { fallbackSection: 'typescript' });
 		if (enabled !== undefined) {
-			return !enabled;
+			return !enabled || !backgroundNetworkEnabled;
 		}
 		// Fall back to the old deprecated setting
-		return configuration.get<boolean>('typescript.disableAutomaticTypeAcquisition', false);
+		return configuration.get<boolean>('typescript.disableAutomaticTypeAcquisition', false) || !backgroundNetworkEnabled;
 	}
 
 	protected readLocale(): string | null {

@@ -29,6 +29,7 @@ import { RemoteRecommendations } from './remoteRecommendations.js';
 import { IRemoteExtensionsScannerService } from '../../../../platform/remote/common/remoteExtensionsScanner.js';
 import { IUserDataInitializationService } from '../../../services/userData/browser/userDataInit.js';
 import { isString } from '../../../../base/common/types.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export class ExtensionRecommendationsService extends Disposable implements IExtensionRecommendationsService {
 
@@ -62,6 +63,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IRemoteExtensionsScannerService private readonly remoteExtensionsScannerService: IRemoteExtensionsScannerService,
 		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -113,14 +115,20 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 	}
 
 	private isEnabled(): boolean {
-		return this.galleryService.isEnabled() && !this.environmentService.isExtensionDevelopment;
+		return this.configurationService.getValue<boolean>('extensions.backgroundNetwork.enabled') && this.galleryService.isEnabled() && !this.environmentService.isExtensionDevelopment;
 	}
 
 	private async activateProactiveRecommendations(): Promise<void> {
+		if (!this.isEnabled()) {
+			return;
+		}
 		await Promise.all([this.exeBasedRecommendations.activate(), this.configBasedRecommendations.activate()]);
 	}
 
 	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason; reasonText: string } } {
+		if (!this.isEnabled()) {
+			return Object.create(null);
+		}
 		/* Activate proactive recommendations */
 		this.activateProactiveRecommendations();
 

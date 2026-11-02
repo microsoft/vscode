@@ -4,7 +4,7 @@
 	"container.title": "Trinoris Coordination",
 	"view.title": "Overview",
 	"command.refresh": "Refresh Coordination",
-	"command.selectWorkspace": "Select Coordination Workspace",
+	"command.selectWorkspace": "Switch Workspace",
 	"command.openCliSettings": "Configure Trinoris Agent CLI",
 	"command.openAgentIdentitySettings": "Configure Trinoris Agent Identity",
 	"command.showOutput": "Show Trinoris Coordination Logs",

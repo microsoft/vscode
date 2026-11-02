@@ -26,6 +26,7 @@ export interface IBuildFeatures {
 	readonly review: boolean;
 	readonly sync: boolean;
 	readonly productServices: boolean;
+	readonly backgroundNetwork: boolean;
 	readonly terminal: true;
 	readonly bundledExtensions: '*' | readonly string[];
 	readonly agents: { readonly codex: boolean; readonly claude: boolean };
@@ -40,7 +41,7 @@ let loggedProfile: BuildFeatureProfile | undefined;
 
 const booleanFeatureKeys: readonly (keyof Omit<IBuildFeatures, 'terminal' | 'agents'>)[] = [
 	'coordinationUI', 'copilotChat', 'chatPanel', 'git', 'sourceControlUI', 'scmService', 'debugUI', 'debugService', 'tasks', 'notebooks', 'testing',
-	'remote', 'extensionsUI', 'welcome', 'review', 'sync', 'productServices'
+	'remote', 'extensionsUI', 'welcome', 'review', 'sync', 'productServices', 'backgroundNetwork'
 ];
 
 function validateBuildFeatureConfiguration(): void {
@@ -124,11 +125,13 @@ export function getBuildFeatureDefines(): Record<string, string> {
 		review: 'REVIEW',
 		sync: 'SYNC',
 		productServices: 'PRODUCT_SERVICES',
+		backgroundNetwork: 'BACKGROUND_NETWORK',
 		terminal: 'TERMINAL',
 	};
 	const defines = Object.fromEntries(Object.entries(names).map(([key, name]) => [`__VSCODE_BUILD_FEATURE_${name}__`, JSON.stringify(features[key as keyof IBuildFeatures])]));
 	defines['__VSCODE_BUILD_FEATURE_CODEX__'] = JSON.stringify(features.agents.codex);
 	defines['__VSCODE_BUILD_FEATURE_CLAUDE__'] = JSON.stringify(features.agents.claude);
+	defines['__VSCODE_BUILD_BUNDLED_EXTENSIONS__'] = JSON.stringify(features.bundledExtensions);
 	return defines;
 }
 

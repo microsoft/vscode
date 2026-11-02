@@ -21,7 +21,9 @@ interface IBuildFeatures {
 	readonly review: boolean;
 	readonly sync: boolean;
 	readonly productServices: boolean;
+	readonly backgroundNetwork: boolean;
 	readonly terminal: true;
+	readonly bundledExtensions: '*' | readonly string[];
 	readonly agents: { readonly codex: boolean; readonly claude: boolean };
 }
 
@@ -43,9 +45,11 @@ declare global {
 	const __VSCODE_BUILD_FEATURE_REVIEW__: boolean;
 	const __VSCODE_BUILD_FEATURE_SYNC__: boolean;
 	const __VSCODE_BUILD_FEATURE_PRODUCT_SERVICES__: boolean;
+	const __VSCODE_BUILD_FEATURE_BACKGROUND_NETWORK__: boolean;
 	const __VSCODE_BUILD_FEATURE_TERMINAL__: boolean;
 	const __VSCODE_BUILD_FEATURE_CODEX__: boolean;
 	const __VSCODE_BUILD_FEATURE_CLAUDE__: boolean;
+	const __VSCODE_BUILD_BUNDLED_EXTENSIONS__: '*' | readonly string[];
 }
 
 const developmentBuildFeatures: Record<'default' | 'minimal', IBuildFeatures> = {
@@ -67,7 +71,9 @@ const developmentBuildFeatures: Record<'default' | 'minimal', IBuildFeatures> = 
 		review: true,
 		sync: true,
 		productServices: true,
+		backgroundNetwork: true,
 		terminal: true,
+		bundledExtensions: '*',
 		agents: { codex: true, claude: true },
 	},
 	minimal: {
@@ -88,7 +94,19 @@ const developmentBuildFeatures: Record<'default' | 'minimal', IBuildFeatures> = 
 		review: false,
 		sync: false,
 		productServices: false,
+		backgroundNetwork: false,
 		terminal: true,
+		bundledExtensions: [
+			'vscode.configuration-editing',
+			'vscode.css-language-features',
+			'vscode.emmet',
+			'vscode.html-language-features',
+			'vscode.json-language-features',
+			'vscode.references-view',
+			'vscode.search-result',
+			'vscode.typescript-language-features',
+			'trinoris.coordination',
+		],
 		agents: { codex: true, claude: true },
 	},
 };
@@ -104,6 +122,7 @@ function getDevelopmentBuildFeatures(): IBuildFeatures {
 }
 
 const developmentFeatures = typeof __VSCODE_BUILD_FEATURE_COPILOT_CHAT__ === 'undefined' ? getDevelopmentBuildFeatures() : undefined;
+const bundledExtensions = typeof __VSCODE_BUILD_BUNDLED_EXTENSIONS__ === 'undefined' ? developmentFeatures!.bundledExtensions : __VSCODE_BUILD_BUNDLED_EXTENSIONS__;
 
 // Export primitive flags as well as the object below. Bundlers can fold direct
 // boolean imports and remove disabled feature branches from packaged bundles.
@@ -124,6 +143,7 @@ export const buildFeatureWelcome = typeof __VSCODE_BUILD_FEATURE_WELCOME__ === '
 export const buildFeatureReview = typeof __VSCODE_BUILD_FEATURE_REVIEW__ === 'undefined' ? developmentFeatures!.review : __VSCODE_BUILD_FEATURE_REVIEW__;
 export const buildFeatureSync = typeof __VSCODE_BUILD_FEATURE_SYNC__ === 'undefined' ? developmentFeatures!.sync : __VSCODE_BUILD_FEATURE_SYNC__;
 export const buildFeatureProductServices = typeof __VSCODE_BUILD_FEATURE_PRODUCT_SERVICES__ === 'undefined' ? developmentFeatures!.productServices : __VSCODE_BUILD_FEATURE_PRODUCT_SERVICES__;
+export const buildFeatureBackgroundNetwork = typeof __VSCODE_BUILD_FEATURE_BACKGROUND_NETWORK__ === 'undefined' ? developmentFeatures!.backgroundNetwork : __VSCODE_BUILD_FEATURE_BACKGROUND_NETWORK__;
 export const buildFeatureCodex = typeof __VSCODE_BUILD_FEATURE_CODEX__ === 'undefined' ? developmentFeatures!.agents.codex : __VSCODE_BUILD_FEATURE_CODEX__;
 export const buildFeatureClaude = typeof __VSCODE_BUILD_FEATURE_CLAUDE__ === 'undefined' ? developmentFeatures!.agents.claude : __VSCODE_BUILD_FEATURE_CLAUDE__;
 
@@ -145,6 +165,26 @@ export const buildFeatures: IBuildFeatures = {
 	review: buildFeatureReview,
 	sync: buildFeatureSync,
 	productServices: buildFeatureProductServices,
+	backgroundNetwork: buildFeatureBackgroundNetwork,
 	terminal: true,
+	bundledExtensions,
 	agents: { codex: buildFeatureCodex, claude: buildFeatureClaude },
 };
+
+export function isBuildFeatureExtensionBundled(extensionId: string): boolean {
+	const id = extensionId.toLowerCase();
+	const featureEnabled = (() => {
+		switch (id) {
+			case 'trinoris.coordination': return buildFeatureCoordinationUI;
+			case 'vscode.git':
+			case 'vscode.git-base': return buildFeatureGit;
+			case 'vscode.github': return buildFeatureReview;
+			case 'vscode.github-authentication': return buildFeatureReview || buildFeatureCopilotChat;
+			case 'github.copilot-chat': return buildFeatureCopilotChat;
+			case 'ms-vscode.js-debug':
+			case 'ms-vscode.js-debug-companion': return buildFeatureDebugUI;
+			default: return true;
+		}
+	})();
+	return featureEnabled && (buildFeatures.bundledExtensions === '*' || buildFeatures.bundledExtensions.includes(id));
+}

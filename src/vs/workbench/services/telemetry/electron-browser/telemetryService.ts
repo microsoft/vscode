@@ -25,7 +25,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
 
 	private impl: ITelemetryService;
-	public readonly sendErrorTelemetry: boolean;
+	get sendErrorTelemetry(): boolean { return this.impl.sendErrorTelemetry; }
 
 	get sessionId(): string { return this.impl.sessionId; }
 	get machineId(): string { return this.impl.machineId; }
@@ -44,7 +44,10 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	) {
 		super();
 
-		if (supportsTelemetry(productService, environmentService)) {
+		const createTelemetryService = (): ITelemetryService => {
+			if (!supportsTelemetry(productService, environmentService) || configurationService.getValue<boolean>('extensions.backgroundNetwork.enabled') !== true) {
+				return NullTelemetryService;
+			}
 			const isInternal = isInternalTelemetry(productService, configurationService);
 			const channel = sharedProcessService.getChannel('telemetryAppender');
 			const config: ITelemetryServiceConfig = {
@@ -66,13 +69,17 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 				sendErrorTelemetry: true,
 				waitForExperimentProperties: experimentsEnabled(configurationService, productService, environmentService),
 			};
-
-			this.impl = this._register(new BaseTelemetryService(config, configurationService, productService));
-		} else {
-			this.impl = NullTelemetryService;
-		}
-
-		this.sendErrorTelemetry = this.impl.sendErrorTelemetry;
+			return this._register(new BaseTelemetryService(config, configurationService, productService));
+		};
+		this.impl = createTelemetryService();
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('extensions.backgroundNetwork.enabled')) {
+				if (this.impl instanceof BaseTelemetryService) {
+					this.impl.dispose();
+				}
+				this.impl = createTelemetryService();
+			}
+		}));
 
 		this._register(requestService.onDidCompleteRequest(e => {
 			if (e.callSite === NO_FETCH_TELEMETRY || productService.quality === 'stable') {

@@ -1134,6 +1134,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private initializeAutoUpdate(): void {
 		// Register listeners for auto updates
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('extensions.backgroundNetwork.enabled') && this.isBackgroundNetworkEnabled()) {
+				this.eventuallyCheckForUpdates(true);
+			}
 			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
 				if (this.isAutoUpdateEnabled()) {
 					this.eventuallyAutoUpdateExtensions();
@@ -1182,7 +1185,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			if (this.isAutoCheckUpdatesEnabled()) {
 				this.checkForUpdates('Connection is no longer metered');
 			}
-			if (isWeb && !this.isAutoUpdateEnabled()) {
+			if (isWeb && this.isBackgroundNetworkEnabled() && !this.isAutoUpdateEnabled()) {
 				this.autoUpdateBuiltinExtensions();
 			}
 		}));
@@ -1194,9 +1197,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this.eventuallyCheckForUpdates(true);
 
 		if (isWeb) {
-			this.syncPinnedBuiltinExtensions();
+			if (this.isBackgroundNetworkEnabled()) {
+				this.syncPinnedBuiltinExtensions();
+			}
 			// Always auto update builtin extensions in web
-			if (!this.isAutoUpdateEnabled()) {
+			if (this.isBackgroundNetworkEnabled() && !this.isAutoUpdateEnabled()) {
 				this.autoUpdateBuiltinExtensions();
 			}
 		}
@@ -1216,6 +1221,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private isAutoUpdateEnabled(): boolean {
+		if (!this.isBackgroundNetworkEnabled()) {
+			return false;
+		}
 		if (this.meteredConnectionService.isConnectionMetered) {
 			return false;
 		}
@@ -1461,6 +1469,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		options.text = options.text ? this.resolveQueryText(options.text) : options.text;
 		options.includePreRelease = isUndefined(options.includePreRelease) ? this.extensionManagementService.preferPreReleases : options.includePreRelease;
 
+		await this.extensionGalleryManifestService.getExtensionGalleryManifest();
 		const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
 		const pager = await this.galleryService.query(options, token);
 		this.syncInstalledExtensionsWithGallery(pager.firstPage);
@@ -1484,6 +1493,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		extensionInfos.forEach(e => e.preRelease = e.preRelease ?? this.extensionManagementService.preferPreReleases);
+		await this.extensionGalleryManifestService.getExtensionGalleryManifest();
 		const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
 		const galleryExtensions = await this.galleryService.getExtensions(extensionInfos, arg1, arg2);
 		this.syncInstalledExtensionsWithGallery(galleryExtensions);
@@ -2036,6 +2046,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!this.galleryService.isEnabled()) {
 			return;
 		}
+		await this.extensionGalleryManifestService.getExtensionGalleryManifest();
 		const extensions: Extensions[] = [];
 		if (this.localExtensions) {
 			extensions.push(this.localExtensions);
@@ -2214,14 +2225,24 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private isAutoCheckUpdatesEnabled(): boolean {
+		if (!this.isBackgroundNetworkEnabled()) {
+			return false;
+		}
 		if (this.meteredConnectionService.isConnectionMetered) {
 			return false;
 		}
 		return this.configurationService.getValue(AutoCheckUpdatesConfigurationKey);
 	}
 
+	private isBackgroundNetworkEnabled(): boolean {
+		return this.configurationService.getValue<boolean>('extensions.backgroundNetwork.enabled');
+	}
+
 	private eventuallyCheckForUpdates(immediate = false): void {
 		this.updatesCheckDelayer.cancel();
+		if (!this.isBackgroundNetworkEnabled()) {
+			return;
+		}
 		this.updatesCheckDelayer.trigger(async () => {
 			if (this.isAutoCheckUpdatesEnabled()) {
 				await this.checkForUpdates();

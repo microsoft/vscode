@@ -28,7 +28,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
 
 	private impl: ITelemetryService = NullTelemetryService;
-	public readonly sendErrorTelemetry = true;
+	get sendErrorTelemetry(): boolean { return this.impl.sendErrorTelemetry; }
 
 	get sessionId(): string { return this.impl.sessionId; }
 	get machineId(): string { return this.impl.machineId; }
@@ -53,7 +53,14 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 
 		// When the level changes it could change from off to on and we want to make sure telemetry is properly intialized
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TELEMETRY_SETTING_ID)) {
+			if (e.affectsConfiguration(TELEMETRY_SETTING_ID) || e.affectsConfiguration('extensions.backgroundNetwork.enabled')) {
+				if (e.affectsConfiguration('extensions.backgroundNetwork.enabled') && configurationService.getValue<boolean>('extensions.backgroundNetwork.enabled') !== true) {
+					if (this.impl instanceof BaseTelemetryService) {
+						this.impl.dispose();
+					}
+					this.impl = NullTelemetryService;
+					return;
+				}
 				this.impl = this.initializeService(environmentService, loggerService, configurationService, storageService, productService, remoteAgentService, meteredConnectionService);
 			}
 		}));
@@ -96,7 +103,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		remoteAgentService: IRemoteAgentService,
 		meteredConnectionService: IMeteredConnectionService
 	) {
-		const telemetrySupported = supportsTelemetry(productService, environmentService) && productService.aiConfig?.ariaKey;
+		const telemetrySupported = configurationService.getValue<boolean>('extensions.backgroundNetwork.enabled') === true && supportsTelemetry(productService, environmentService) && productService.aiConfig?.ariaKey;
 		if (telemetrySupported && getTelemetryLevel(configurationService) !== TelemetryLevel.NONE && this.impl === NullTelemetryService) {
 			// If remote server is present send telemetry through that, else use the client side appender
 			const appenders: ITelemetryAppender[] = [];

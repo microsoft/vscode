@@ -18,6 +18,7 @@
 			"review": true,
 			"sync": true,
 			"productServices": true,
+			"backgroundNetwork": true,
 			"terminal": true,
 			"bundledExtensions": "*",
 			"agents": {
@@ -43,6 +44,7 @@
 			"review": false,
 			"sync": false,
 			"productServices": false,
+			"backgroundNetwork": false,
 			"terminal": true,
 			"bundledExtensions": [
 				"vscode.configuration-editing",

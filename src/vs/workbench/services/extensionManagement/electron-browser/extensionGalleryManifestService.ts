@@ -66,6 +66,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 
 	private readonly commonHeadersPromise: Promise<IHeaders>;
 	private extensionGalleryManifest: IExtensionGalleryManifest | null = null;
+	private readonly manifestChannels: { name: string; channel: ReturnType<ISharedProcessService['getChannel']> }[];
 
 	private _onDidChangeExtensionGalleryManifest = this._register(new Emitter<IExtensionGalleryManifest | null>());
 	override readonly onDidChangeExtensionGalleryManifest = this._onDidChangeExtensionGalleryManifest.event;
@@ -100,32 +101,38 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			storageService,
 			telemetryService);
 
-		const channels = [{ name: 'shared process', channel: sharedProcessService.getChannel('extensionGalleryManifest') }];
+		this.manifestChannels = [{ name: 'shared process', channel: sharedProcessService.getChannel('extensionGalleryManifest') }];
 		const remoteConnection = remoteAgentService.getConnection();
 		if (remoteConnection) {
-			channels.push({ name: 'remote server', channel: remoteConnection.getChannel('extensionGalleryManifest') });
+			this.manifestChannels.push({ name: 'remote server', channel: remoteConnection.getChannel('extensionGalleryManifest') });
 		}
-		const updateChannels = (manifest: IExtensionGalleryManifest | null) => {
-			this.logService.trace(`[Marketplace] Updating channels with manifest ${manifest ? 'available' : 'unavailable'}`);
-			for (const { name, channel } of channels) {
-				try {
-					channel.call('setExtensionGalleryManifest', [manifest, this.extensionGalleryAccessToken, this.extensionGalleryServiceIndexUrl])
-						.catch(error => this.logService.error(`[Marketplace] Unable to update marketplace manifest in the ${name}`, error));
-				} catch (error) {
-					this.logService.error(`[Marketplace] Unable to update marketplace manifest in the ${name}`, error);
-				}
+		this._register(this.onDidChangeExtensionGalleryManifest(manifest => this.updateManifestChannels(manifest)));
+		if (configurationService.getValue<boolean>('extensions.backgroundNetwork.enabled')) {
+			this.initializeManifestChannels();
+		}
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('extensions.backgroundNetwork.enabled') && configurationService.getValue<boolean>('extensions.backgroundNetwork.enabled')) {
+				this.initializeManifestChannels();
 			}
-		};
-		this.getExtensionGalleryManifest().then(manifest => {
-			if (this._store.isDisposed) {
-				this.logService.trace('[Marketplace] Store is already disposed, skipping channel initialization');
-				return;
-			}
-			updateChannels(manifest);
-			this._register(this.onDidChangeExtensionGalleryManifest(manifest => updateChannels(manifest)));
-		}).catch(error => {
+		}));
+	}
+
+	private initializeManifestChannels(): void {
+		this.getExtensionGalleryManifest().then(manifest => this.updateManifestChannels(manifest)).catch(error => {
 			this.logService.error('[Marketplace] Error during initial gallery manifest bootstrap', error);
 		});
+	}
+
+	private updateManifestChannels(manifest: IExtensionGalleryManifest | null): void {
+		this.logService.trace(`[Marketplace] Updating channels with manifest ${manifest ? 'available' : 'unavailable'}`);
+		for (const { name, channel } of this.manifestChannels) {
+			try {
+				channel.call('setExtensionGalleryManifest', [manifest, this.extensionGalleryAccessToken, this.extensionGalleryServiceIndexUrl])
+					.catch(error => this.logService.error(`[Marketplace] Unable to update marketplace manifest in the ${name}`, error));
+			} catch (error) {
+				this.logService.error(`[Marketplace] Unable to update marketplace manifest in the ${name}`, error);
+			}
+		}
 	}
 
 	private extensionGalleryManifestPromise: Promise<void> | undefined;
@@ -134,6 +141,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			this.extensionGalleryManifestPromise = this.doGetExtensionGalleryManifest();
 		}
 		await this.extensionGalleryManifestPromise;
+		this.updateManifestChannels(this.extensionGalleryManifest);
 		return this.extensionGalleryManifest;
 	}
 

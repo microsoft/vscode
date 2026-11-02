@@ -228,7 +228,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 
 	const fileSchemaErrors = new Map<string, string>();
 	const schemaRequestAliases = new Map<string, { readonly requestUrl: string }>();
-	let schemaDownloadEnabled = !!workspace.getConfiguration().get(SettingIds.enableSchemaDownload);
+	let schemaDownloadEnabled = !!workspace.getConfiguration().get(SettingIds.enableSchemaDownload) && workspace.getConfiguration().get<boolean>('extensions.backgroundNetwork.enabled', true);
 	let trustedDomains = workspace.getConfiguration().get<Record<string, boolean>>(SettingIds.trustedDomains, {});
 
 	let isClientReady = false;
@@ -619,8 +619,8 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 	toDispose.push(workspace.onDidChangeConfiguration(e => {
 		if (e.affectsConfiguration(SettingIds.enableFormatter)) {
 			updateFormatterRegistration();
-		} else if (e.affectsConfiguration(SettingIds.enableSchemaDownload)) {
-			schemaDownloadEnabled = !!workspace.getConfiguration().get(SettingIds.enableSchemaDownload);
+		} else if (e.affectsConfiguration(SettingIds.enableSchemaDownload) || e.affectsConfiguration('extensions.backgroundNetwork.enabled')) {
+			schemaDownloadEnabled = !!workspace.getConfiguration().get(SettingIds.enableSchemaDownload) && workspace.getConfiguration().get<boolean>('extensions.backgroundNetwork.enabled', true);
 			triggerValidation();
 		} else if (e.affectsConfiguration(SettingIds.editorFoldingMaximumRegions) || e.affectsConfiguration(SettingIds.editorColorDecoratorsLimit)) {
 			client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings(true) });

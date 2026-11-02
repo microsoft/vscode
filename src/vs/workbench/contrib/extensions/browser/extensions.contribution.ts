@@ -38,6 +38,7 @@ import * as jsonContributionRegistry from '../../../../platform/jsonschemas/comm
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import product from '../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { buildFeatureBackgroundNetwork } from '../../../../platform/product/common/buildFeatures.js';
 import { ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { Extensions, IQuickAccessRegistry } from '../../../../platform/quickinput/common/quickAccess.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
@@ -136,6 +137,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		title: localize('extensionsConfigurationTitle', "Extensions"),
 		type: 'object',
 		properties: {
+			'extensions.backgroundNetwork.enabled': {
+				type: 'boolean',
+				default: buildFeatureBackgroundNetwork,
+				scope: ConfigurationScope.APPLICATION,
+				tags: ['usesOnlineServices'],
+				description: localize('extensions.backgroundNetwork.enabled', "Allow automatic background network requests for extension recommendations, marketplace metadata, extension update checks, TypeScript type acquisition, and remote JSON schemas. User-initiated extension searches and installs remain available when disabled.")
+			},
 			'extensions.autoUpdate': {
 				type: 'string',
 				enum: ['on', 'off'],
