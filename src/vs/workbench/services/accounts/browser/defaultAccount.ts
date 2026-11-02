@@ -485,6 +485,13 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			this.updateDefaultAccount();
 		}));
 
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(this.defaultAccountConfig.authenticationProvider.enterpriseProviderConfig)) {
+				this.logService.debug('[DefaultAccount] Authentication provider configuration changed, updating default account');
+				this.updateDefaultAccount();
+			}
+		}));
+
 		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(e => {
 			const defaultAccountProvider = this.getDefaultAccountAuthenticationProvider();
 			if (e.id !== defaultAccountProvider.id) {
