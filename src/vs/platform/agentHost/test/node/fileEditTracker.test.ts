@@ -391,13 +391,14 @@ suite('FileEditTracker', () => {
 		await fileService.writeFile(URI.file('/workspace/marker.txt'), VSBuffer.fromString('after'));
 		await localTracker.completeEdit('/workspace/marker.txt');
 		const chatUri = buildChatUri('copilot:/test-session', 'side');
-		const result = await localTracker.takeCompletedEdit('turn-1', 'tc-marker', '/workspace/marker.txt', 'edit', undefined, 'model', false, undefined, chatUri);
+		const result = await localTracker.takeCompletedEdit('turn-1', 'tc-marker', '/workspace/marker.txt', 'edit', undefined, 'model', false, undefined, chatUri, undefined, undefined, 'edit-account');
 
 		assert.deepStrictEqual({
 			marker: result && getFileEditAttributionMarker(result),
 			arcReportCount,
 			sessionUri: recordedEdit?.sessionUri,
 			chatUri: recordedEdit?.chatUri,
+			copilotTrackingId: recordedEdit?.copilotTrackingId,
 		}, {
 			marker: {
 				version: 1,
@@ -409,6 +410,7 @@ suite('FileEditTracker', () => {
 			arcReportCount: 1,
 			sessionUri: 'copilot:/test-session',
 			chatUri,
+			copilotTrackingId: 'edit-account',
 		});
 	});
 
