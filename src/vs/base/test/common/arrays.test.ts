@@ -484,5 +484,61 @@ suite('Arrays', () => {
 
 			test('TakeWhile Empty', () => testMonotonous([], value => value <= 5));
 		});
+
+		suite('dequeue / removeLast / takeCount boundaries', () => {
+			test('dequeue on empty queue', () => {
+				const queue = new arrays.ArrayQueue<number>([]);
+				assert.strictEqual(queue.length, 0);
+				assert.strictEqual(queue.dequeue(), undefined);
+				assert.strictEqual(queue.dequeue(), undefined);
+				assert.strictEqual(queue.length, 0);
+				assert.strictEqual(queue.peek(), undefined);
+				assert.strictEqual(queue.peekLast(), undefined);
+			});
+
+			test('removeLast on empty queue', () => {
+				const queue = new arrays.ArrayQueue<number>([]);
+				assert.strictEqual(queue.length, 0);
+				assert.strictEqual(queue.removeLast(), undefined);
+				assert.strictEqual(queue.removeLast(), undefined);
+				assert.strictEqual(queue.length, 0);
+				assert.strictEqual(queue.peek(), undefined);
+				assert.strictEqual(queue.peekLast(), undefined);
+			});
+
+			test('dequeue and removeLast until empty and beyond', () => {
+				const queue = new arrays.ArrayQueue([1, 2, 3]);
+				assert.strictEqual(queue.length, 3);
+				assert.strictEqual(queue.dequeue(), 1);
+				assert.strictEqual(queue.removeLast(), 3);
+				assert.strictEqual(queue.length, 1);
+				assert.strictEqual(queue.dequeue(), 2);
+				assert.strictEqual(queue.length, 0);
+				assert.strictEqual(queue.dequeue(), undefined);
+				assert.strictEqual(queue.removeLast(), undefined);
+				assert.strictEqual(queue.length, 0);
+				assert.strictEqual(queue.peek(), undefined);
+				assert.strictEqual(queue.peekLast(), undefined);
+			});
+
+			test('takeCount boundaries and clamping', () => {
+				const queue = new arrays.ArrayQueue([1, 2, 3, 4, 5]);
+				assert.deepStrictEqual(queue.takeCount(0), []);
+				assert.deepStrictEqual(queue.takeCount(-2), []);
+				assert.strictEqual(queue.length, 5);
+
+				assert.deepStrictEqual(queue.takeCount(2), [1, 2]);
+				assert.strictEqual(queue.length, 3);
+				assert.strictEqual(queue.peek(), 3);
+
+				assert.deepStrictEqual(queue.takeCount(10), [3, 4, 5]);
+				assert.strictEqual(queue.length, 0);
+				assert.strictEqual(queue.peek(), undefined);
+				assert.strictEqual(queue.peekLast(), undefined);
+
+				assert.deepStrictEqual(queue.takeCount(1), []);
+				assert.strictEqual(queue.length, 0);
+			});
+		});
 	});
 });
