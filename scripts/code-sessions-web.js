@@ -128,7 +128,7 @@ function getSessionsHTML(host, port, cssModules, useMock, useMobile) {
 	// The mobile entry point is a separate, allow-listed bundle with its own
 	// workbench. The mock variant swaps in the same mock services as desktop.
 	const entryModule = useMobile
-		? (useMock ? 'test/sessions.web.mobile.test.internal' : 'sessions.web.mobile.main.internal')
+		? (useMock ? 'test/sessions.web.mobile.test.internal' : 'agents.web.mobile.main.internal')
 		: (useMock ? 'test/sessions.web.test.internal' : 'sessions.web.main.internal');
 
 	// Expose safe-area insets without disabling browser zoom.

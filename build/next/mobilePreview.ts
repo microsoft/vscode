@@ -14,7 +14,7 @@ import { parse as parseJsonc, type ParseError } from 'jsonc-parser';
 import policy from './mobilePreviewPolicy.json' with { type: 'json' };
 
 export const mobilePreviewDirectory = 'out-mobile-preview';
-export const mobilePreviewEntryPoint = 'vs/sessions/sessions.web.mobile.main.internal';
+export const mobilePreviewEntryPoint = 'vs/sessions/agents.web.mobile.main.internal';
 export const mobilePreviewManifestName = 'mobile-preview.json';
 const manifestKind = 'sessions-mobile-preview';
 export const mobilePreviewEntrypoints = {

@@ -7,7 +7,7 @@
 // It mirrors sessions.web.main.internal.ts but loads the allow-listed mobile
 // entry point and creates the mobile workbench.
 
-import './sessions.web.mobile.main.js';
+import './agents.web.mobile.main.js';
 import { create as createSessionsWorkbench } from './browser/web.factory.js';
 import { createMobileSessionsWorkbench } from './browser/mobile/mobileWorkbench.js';
 import { IWorkbenchConstructionOptions } from '../workbench/browser/web.api.js';
