@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, IReference } from '../../../base/common/lifecycle.js';
-import { extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, normalizePath, type IExtUri } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Event } from '../../../base/common/event.js';
@@ -52,6 +52,8 @@ export interface IFileEditRecord {
 	kind: FileEditKind;
 	/** For renames, the original file path before the move. */
 	originalPath?: string;
+	/** Database-local snapshot revision and history position, when read from storage. */
+	editOrder?: number;
 	/** Number of lines added (informational, for diff metadata). */
 	addedLines: number | undefined;
 	/** Number of lines removed (informational, for diff metadata). */
@@ -206,6 +208,9 @@ export interface ISessionRowsWatermark {
 }
 
 export interface ISessionDatabase extends IDisposable {
+	/** The host file provider's comparison contract; never used to rewrite exact row/blob keys. */
+	readonly fileEditUriIdentity: IExtUri;
+
 	/**
 	 * Create a turn record. Must be called before storing file edits that
 	 * reference this turn.
@@ -407,40 +412,43 @@ export interface ISessionDatabase extends IDisposable {
 	 * or cumulative provider turn snapshot.
 	 *
 	 * If a record for the same `toolCallId` and `filePath` already exists
-	 * it is replaced.
+	 * it is replaced. Paths remain verbatim row/blob keys; an explicit `order` must come from {@link reserveFileEditOrder}.
 	 */
-	storeFileEdit(edit: IFileEditRecord & IFileEditContent): Promise<void>;
+	storeFileEdit(edit: IFileEditRecord & IFileEditContent, order?: number): Promise<void>;
+
+	/** Reserves a position in this database's edit history before asynchronous tool-result delivery can reorder snapshots. */
+	reserveFileEditOrder(): Promise<number>;
 
 	/**
-	 * Stores a single file's snapshots atomically and in order, rolling back if `beforeCommit` throws.
-	 * The callback runs after insertion; use its supplied content reader because the public reader waits for queued writes.
+	 * Atomically stores snapshots of one file under the host provider's identity, preserving their recorded paths and order.
+	 * The callback can roll back by throwing; use its supplied content reader because the public reader waits for queued writes.
 	 */
 	storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: (readContent: ISessionDatabase['readFileEditContent']) => Promise<void> | void): Promise<void>;
 
 	/**
 	 * Retrieve file-edit metadata for the given tool call IDs.
 	 * Content blobs are **not** included — use {@link readFileEditContent}
-	 * to fetch them on demand. Results are returned in insertion order.
+	 * to fetch them on demand. Results are returned in recorded edit order.
 	 */
 	getFileEdits(toolCallIds: string[]): Promise<IFileEditRecord[]>;
 
 	/**
 	 * Retrieve file-edit metadata for all edits in this session.
 	 * Content blobs are **not** included — use {@link readFileEditContent}
-	 * to fetch them on demand. Results are returned in insertion order.
+	 * to fetch them on demand. Results are returned in recorded edit order.
 	 */
 	getAllFileEdits(): Promise<IFileEditRecord[]>;
 
 	/**
 	 * Retrieve file-edit metadata for all edits belonging to a specific turn.
 	 * Content blobs are **not** included — use {@link readFileEditContent}
-	 * to fetch them on demand. Results are returned in insertion order.
+	 * to fetch them on demand. Results are returned in recorded edit order.
 	 */
 	getFileEditsByTurn(turnId: string): Promise<IFileEditRecord[]>;
 
 	/**
 	 * Read the before/after content blobs for a single file edit.
-	 * Returns `undefined` if no edit exists for the given key.
+	 * Returns `undefined` if no edit exists for the exact recorded key, not another spelling of the same host file.
 	 */
 	readFileEditContent(toolCallId: string, filePath: string): Promise<IFileEditContent | undefined>;
 

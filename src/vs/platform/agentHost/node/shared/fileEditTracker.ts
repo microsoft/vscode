@@ -9,7 +9,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IFileService } from '../../../files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IDiffComputeService, IOffsetEdit } from '../../common/diffComputeService.js';
 import { AttributedToolResultFileEditContent, FILE_EDIT_ATTRIBUTION_PROPERTY, IAgentEditAttributionService, IFileEditAttributionMarker } from '../../common/fileEditAttribution.js';
@@ -18,6 +18,7 @@ import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { FileEditKind, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { IAgentHostFileEditCoordinator } from '../agentHostFileEditCoordinator.js';
+import { getFileEditPathKey } from '../fileEditIdentity.js';
 import { extractAiChunks } from './editChunkExtractor.js';
 import { IEditSurvivalReporterFactory } from './editSurvivalReporter.js';
 import { IEditArcReporterService } from './editArcReporter.js';
@@ -31,6 +32,7 @@ interface IFileSnapshot {
 
 /** An edit tool call on a file that started and hasn't completed. */
 interface IPendingEdit {
+	readonly filePath: string;
 	/** The file's content when the edit started. */
 	readonly before: Promise<IFileSnapshot>;
 	/** How many edits of the file had completed when this one started, see {@link IFileEdits.completions}. */
@@ -41,6 +43,8 @@ interface IPendingEdit {
 }
 
 interface ICompletedEdit {
+	readonly filePath: string;
+	readonly order: number;
 	readonly beforeContent: VSBuffer;
 	readonly beforeExisted: boolean;
 	readonly afterContent: VSBuffer;
@@ -50,9 +54,8 @@ interface ICompletedEdit {
 }
 
 /**
- * The edit tool calls on one file, oldest first. Agents run the edits of a
- * file one after another, in the order they start them, but a batch of tool
- * calls starts all of its edits before any of them runs.
+ * The edit tool calls on one host file, oldest first.
+ * Callbacks for one spelling are ordered, but aliases can finish out of order.
  */
 interface IFileEdits {
 	readonly pending: IPendingEdit[];
@@ -66,11 +69,14 @@ interface IFileEdits {
 }
 
 /**
- * The index of the oldest edit made with `toolInput`, or -1 when there is
- * none or the caller didn't say which input the edit was made with.
+ * Matches the callback's path and input first; legacy input-less callbacks use the physical file's FIFO.
  */
-function indexOfEdit(edits: readonly { readonly toolInput: unknown }[], toolInput: unknown): number {
-	return toolInput === undefined ? -1 : edits.findIndex(edit => equals(edit.toolInput, toolInput));
+function indexOfEdit(edits: readonly { readonly filePath: string; readonly toolInput: unknown }[], toolInput: unknown, filePath: string): number {
+	if (toolInput === undefined) {
+		return edits.length ? 0 : -1;
+	}
+	const exact = edits.findIndex(edit => edit.filePath === filePath && equals(edit.toolInput, toolInput));
+	return exact >= 0 ? exact : edits.findIndex(edit => equals(edit.toolInput, toolInput));
 }
 
 /**
@@ -82,7 +88,7 @@ export class FileEditTracker extends Disposable {
 	private readonly _runningEdits = this._register(new DisposableStore());
 
 	/**
-	 * The edit tool calls on each file, keyed by file path. Populated by
+	 * The edit tool calls on each file, keyed by host file identity. Populated by
 	 * {@link trackEditStart} before the edit tool runs, completed by
 	 * {@link completeEdit} when it finishes, and drained by
 	 * {@link takeCompletedEdit}, which persists the edit to the database.
@@ -145,6 +151,7 @@ export class FileEditTracker extends Disposable {
 		};
 		const edits = this._getEdits(filePath);
 		const entry: IPendingEdit = {
+			filePath,
 			before: isThenable(acquired) ? acquired.then(snapshot) : snapshot(acquired),
 			completionsBefore: edits.completions,
 			toolInput,
@@ -174,13 +181,16 @@ export class FileEditTracker extends Disposable {
 	 * @param toolInput - Input of the edit tool call, as passed to {@link trackEditStart}.
 	 */
 	async completeEdit(filePath: string, toolInput?: unknown): Promise<void> {
-		const edits = this._edits.get(filePath);
+		const edits = this._edits.get(getFileEditPathKey(filePath, this._fileEditCoordinator.uriIdentity));
 		if (!edits?.pending.length) {
 			return;
 		}
-		// Edits complete in the order they started, so pending edits that started before this one missed their completion.
-		this._releaseEdits(edits.pending.splice(0, Math.max(indexOfEdit(edits.pending, toolInput), 0)));
-		const [pending] = edits.pending.splice(0, 1);
+		const index = indexOfEdit(edits.pending, toolInput, filePath);
+		if (index < 0) {
+			this._logService.trace(`[FileEditTracker] No matching pending edit: ${filePath}`);
+			return;
+		}
+		const pending = this._takeEdit(edits.pending, index);
 		edits.completing++;
 		try {
 			const snapshot = await pending.before;
@@ -191,8 +201,20 @@ export class FileEditTracker extends Disposable {
 			// An edit that started before others of the file completed runs after them, so it starts from what the last of them wrote.
 			const before = edits.lastAfter && edits.completions > pending.completionsBefore ? edits.lastAfter : snapshot;
 			edits.completions++;
-			edits.lastAfter = edits.pending.length ? after : undefined;
+			edits.lastAfter = edits.pending.length || edits.completing > 1 ? after : undefined;
+			const ref = this._sessionDataService.openDatabase(URI.parse(this._sessionUri));
+			let order: number;
+			try {
+				order = await ref.object.reserveFileEditOrder();
+			} finally {
+				ref.dispose();
+			}
+			if (this._store.isDisposed) {
+				return;
+			}
 			edits.completed.push({
+				filePath: pending.filePath,
+				order,
 				beforeContent: before.content,
 				beforeExisted: before.existed,
 				afterContent: after.content,
@@ -200,6 +222,9 @@ export class FileEditTracker extends Disposable {
 				mode: pending.mode,
 				lease: pending.lease,
 			});
+		} catch (error) {
+			this._runningEdits.delete(pending.lease);
+			throw error;
 		} finally {
 			edits.completing--;
 			this._deleteIfSettled(filePath, edits);
@@ -218,46 +243,57 @@ export class FileEditTracker extends Disposable {
 	 * edits of the file, as passed to {@link trackEditStart}.
 	 */
 	takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext?: IAgentHostClientTelemetryContext, chatUri?: string, autoTierSnapshot?: string | Promise<string | undefined>, fusionModel?: string): Promise<ToolResultFileEditContent | undefined> {
-		const edits = this._edits.get(filePath);
+		const key = getFileEditPathKey(filePath, this._fileEditCoordinator.uriIdentity);
+		const edits = this._edits.get(key);
 		if (!edits) {
 			return Promise.resolve(undefined);
 		}
-		const completedIndex = indexOfEdit(edits.completed, toolInput);
-		const pendingIndex = indexOfEdit(edits.pending, toolInput);
-		if (completedIndex === -1 && (pendingIndex !== -1 || !edits.completed.length)) {
-			// The tool failed before it completed, so it left the file as it was. Pending edits that started before it missed their completion.
-			this._releaseEdits(edits.pending.splice(0, Math.max(pendingIndex, 0) + 1));
+		const completedIndex = indexOfEdit(edits.completed, toolInput, filePath);
+		const pendingIndex = indexOfEdit(edits.pending, toolInput, filePath);
+		if (completedIndex === -1) {
+			if (pendingIndex !== -1) {
+				this._runningEdits.delete(this._takeEdit(edits.pending, pendingIndex).lease);
+			} else {
+				this._logService.trace(`[FileEditTracker] No matching edit result: ${filePath}`);
+			}
 			this._deleteIfSettled(filePath, edits);
 			return Promise.resolve(undefined);
 		}
-		// Edits are taken in the order they completed, so completed edits before this one missed being taken.
-		this._releaseEdits(edits.completed.splice(0, Math.max(completedIndex, 0)));
-		const [edit] = edits.completed.splice(0, 1);
+		const edit = this._takeEdit(edits.completed, completedIndex);
 		this._deleteIfSettled(filePath, edits);
-		return this._completedEditSequencer.queue(filePath, () => this._processCompletedEdit(edit, turnId, toolCallId, filePath, toolName, toolInput, modelId, isSubagent, clientContext, chatUri, autoTierSnapshot, fusionModel))
-			.finally(() => this._runningEdits.delete(edit.lease));
+		// Claimed persistence can outlive the tracker, so its promise now owns the lease.
+		this._runningEdits.deleteAndLeak(edit.lease);
+		return this._completedEditSequencer.queue(key, () => this._processCompletedEdit(edit, turnId, toolCallId, filePath, toolName, toolInput, modelId, isSubagent, clientContext, chatUri, autoTierSnapshot, fusionModel))
+			.finally(() => edit.lease.dispose());
 	}
 
 	private _getEdits(filePath: string): IFileEdits {
-		let edits = this._edits.get(filePath);
+		const key = getFileEditPathKey(filePath, this._fileEditCoordinator.uriIdentity);
+		let edits = this._edits.get(key);
 		if (!edits) {
 			edits = { pending: [], completed: [], completing: 0, completions: 0, lastAfter: undefined };
-			this._edits.set(filePath, edits);
+			this._edits.set(key, edits);
 		}
 		return edits;
 	}
 
 	/** Forgets the edits of a file once none is left, which releases the content they hold. */
 	private _deleteIfSettled(filePath: string, edits: IFileEdits): void {
-		if (!edits.pending.length && !edits.completed.length && !edits.completing && this._edits.get(filePath) === edits) {
-			this._edits.delete(filePath);
+		const key = getFileEditPathKey(filePath, this._fileEditCoordinator.uriIdentity);
+		if (!edits.pending.length && !edits.completed.length && !edits.completing && this._edits.get(key) === edits) {
+			this._edits.delete(key);
 		}
 	}
 
-	private _releaseEdits(edits: readonly { readonly lease: IDisposable }[]): void {
-		for (const edit of edits) {
-			this._runningEdits.delete(edit.lease);
+	private _takeEdit<T extends { readonly filePath: string; readonly lease: IDisposable }>(edits: T[], index: number): T {
+		const [edit] = edits.splice(index, 1);
+		// Earlier callbacks of this spelling were missed; other spellings may still be running.
+		for (let i = index - 1; i >= 0; i--) {
+			if (edits[i].filePath === edit.filePath) {
+				this._runningEdits.delete(edits.splice(i, 1)[0].lease);
+			}
 		}
+		return edit;
 	}
 
 	private async _processCompletedEdit(edit: ICompletedEdit, turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext: IAgentHostClientTelemetryContext | undefined, chatUri: string | undefined, autoTierSnapshot: string | Promise<string | undefined> | undefined, fusionModel: string | undefined): Promise<ToolResultFileEditContent | undefined> {
@@ -300,12 +336,13 @@ export class FileEditTracker extends Disposable {
 					afterContent: afterBytes,
 					addedLines,
 					removedLines,
-				});
+				}, edit.order);
 			} finally {
 				ref.dispose();
 			}
 		} catch (err) {
 			this._logService.warn(`[FileEditTracker] Failed to persist file edit to database: ${filePath}`, err);
+			throw err;
 		}
 
 		const autoTier = isThenable<string | undefined>(autoTierSnapshot) ? await autoTierSnapshot : autoTierSnapshot;
@@ -406,8 +443,11 @@ export class FileEditTracker extends Disposable {
 			const content = await this._fileService.readFile(URI.file(filePath));
 			return { content: content.value, existed: true };
 		} catch (err) {
-			this._logService.trace(`[FileEditTracker] Could not read file for snapshot: ${filePath}`, err);
-			return { content: VSBuffer.fromString(''), existed: false };
+			if (toFileOperationResult(err) === FileOperationResult.FILE_NOT_FOUND) {
+				return { content: VSBuffer.fromString(''), existed: false };
+			}
+			this._logService.warn(`[FileEditTracker] Could not read file for snapshot: ${filePath}`, err);
+			throw err;
 		}
 	}
 }

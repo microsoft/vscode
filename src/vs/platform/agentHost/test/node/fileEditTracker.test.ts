@@ -12,6 +12,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
+import { isLinux } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -32,8 +33,10 @@ import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { SessionDataService } from '../../node/sessionDataService.js';
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory, type IEditSurvivalReporterLaunchParams } from '../../node/shared/editSurvivalReporter.js';
 import { FileEditTracker } from '../../node/shared/fileEditTracker.js';
+import { computeWorkingSetFiles } from '../../node/sessionDiffAggregator.js';
 import { IEditArcReporterLaunchParams, IEditArcReporterService, NullEditArcReporterService } from '../../node/shared/editArcReporter.js';
 import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
+import { createTestFileEditCoordinator } from './fileEditTestUtils.js';
 
 suite('FileEditTracker', () => {
 
@@ -106,7 +109,7 @@ suite('FileEditTracker', () => {
 	}
 
 	setup(async () => {
-		fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+		fileEditCoordinator = createTestFileEditCoordinator(disposables);
 		fileService = createInMemoryFileService(disposables, Schemas.file);
 
 		db = disposables.add(await SessionDatabase.open(':memory:'));
@@ -131,6 +134,268 @@ suite('FileEditTracker', () => {
 		await db.close();
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	(isLinux ? test.skip : test)('settles an edit completed and claimed through a case alias', async () => {
+		const startedPath = '/workspace/File.txt';
+		const completedPath = '/workspace/file.txt';
+		await fileService.writeFile(URI.file(startedPath), VSBuffer.fromString('before'));
+		await tracker.trackEditStart(startedPath);
+		await fileService.writeFile(URI.file(completedPath), VSBuffer.fromString('after'));
+		await tracker.completeEdit(completedPath);
+		const result = await tracker.takeCompletedEdit('turn-1', 'alias', completedPath, 'edit', undefined, 'model', false);
+
+		assert.deepStrictEqual({
+			recorded: await readRecordedEdit('alias', completedPath),
+			hasResult: result !== undefined,
+			editing: fileEditCoordinator.isEditing(URI.file(startedPath)),
+		}, { recorded: 'before -> after', hasResult: true, editing: false });
+	});
+
+	(isLinux ? test.skip : test)('orders batched alias snapshots and their asynchronous persistence by the physical file', async () => {
+		const paths = ['/workspace/File.txt', '/workspace/file.txt'];
+		for (const path of paths) {
+			await fileService.writeFile(URI.file(path), VSBuffer.fromString('original'));
+			await tracker.trackEditStart(path, undefined, { path });
+		}
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const order: string[] = [];
+		const compute = stub(diffComputeService, 'computeDiffCounts').callsFake(async before => {
+			order.push(before);
+			if (before === 'original') {
+				started.complete();
+				await release.p;
+				order.push('first persisted');
+			}
+			return { added: 1, removed: 1, changes: [] };
+		});
+		try {
+			await fileService.writeFile(URI.file(paths[0]), VSBuffer.fromString('first'));
+			await tracker.completeEdit(paths[0], { path: paths[0] });
+			const first = tracker.takeCompletedEdit('turn-1', 'first', paths[0], 'edit', { path: paths[0] }, 'model', false);
+			await started.p;
+			await fileService.writeFile(URI.file(paths[1]), VSBuffer.fromString('second'));
+			await tracker.completeEdit(paths[1], { path: paths[1] });
+			const second = tracker.takeCompletedEdit('turn-1', 'second', paths[1], 'edit', { path: paths[1] }, 'model', false);
+			release.complete();
+			await Promise.all([first, second]);
+
+			assert.deepStrictEqual({
+				order,
+				recorded: await Promise.all(paths.map((path, index) => readRecordedEdit(index === 0 ? 'first' : 'second', path))),
+				editing: paths.map(path => fileEditCoordinator.isEditing(URI.file(path))),
+			}, { order: ['original', 'first persisted', 'first'], recorded: ['original -> first', 'first -> second'], editing: [false, false] });
+		} finally {
+			release.complete();
+			compute.restore();
+		}
+	});
+
+	(isLinux ? test.skip : test)('releases failed and disposed edits through aliases', async () => {
+		const first = '/workspace/File.txt';
+		const alias = '/workspace/file.txt';
+		await tracker.trackEditStart(first);
+		const failed = await tracker.takeCompletedEdit('turn-1', 'failed', alias, 'edit', undefined, 'model', false);
+		const afterFailure = fileEditCoordinator.isEditing(URI.file(first));
+		await tracker.trackEditStart(alias);
+		tracker.dispose();
+		assert.deepStrictEqual({ failed, afterFailure, afterDisposal: fileEditCoordinator.isEditing(URI.file(first)) }, {
+			failed: undefined, afterFailure: false, afterDisposal: false,
+		});
+	});
+
+	for (const withToolInput of [true, false]) {
+		(isLinux ? test.skip : test)(`retains a concurrently running alias when another spelling finishes first (tool input: ${withToolInput})`, async () => {
+			const paths = ['/workspace/File.txt', '/workspace/file.txt'];
+			const inputs = paths.map(path => withToolInput ? { path } : undefined);
+			for (const [index, path] of paths.entries()) {
+				await fileService.writeFile(URI.file(path), VSBuffer.fromString('original'));
+				await tracker.trackEditStart(path, undefined, inputs[index]);
+			}
+			await fileService.writeFile(URI.file(paths[1]), VSBuffer.fromString('second call'));
+			await tracker.completeEdit(paths[1], inputs[1]);
+			await tracker.takeCompletedEdit('turn-1', 'second', paths[1], 'edit', inputs[1], 'model', false);
+			const whileFirstRuns = fileEditCoordinator.isEditing(URI.file(paths[0]));
+			await fileService.writeFile(URI.file(paths[0]), VSBuffer.fromString('first call'));
+			await tracker.completeEdit(paths[0], inputs[0]);
+			await tracker.takeCompletedEdit('turn-1', 'first', paths[0], 'edit', inputs[0], 'model', false);
+
+			assert.deepStrictEqual({
+				whileFirstRuns,
+				recorded: [await readRecordedEdit('second', paths[1]), await readRecordedEdit('first', paths[0])],
+				afterBoth: fileEditCoordinator.isEditing(URI.file(paths[0])),
+			}, { whileFirstRuns: true, recorded: ['original -> second call', 'second call -> first call'], afterBoth: false });
+		});
+	}
+
+	for (const phase of ['pending', 'completed'] as const) {
+		(isLinux ? test.skip : test)(`a failed alias callback cannot consume another ${phase} edit`, async () => {
+			const first = '/workspace/File.txt';
+			const alias = '/workspace/file.txt';
+			const firstInput = { path: first };
+			const failedInput = { path: alias };
+			await fileService.writeFile(URI.file(first), VSBuffer.fromString('original'));
+			await tracker.trackEditStart(first, undefined, firstInput);
+			await fileService.writeFile(URI.file(first), VSBuffer.fromString('changed'));
+			if (phase === 'completed') {
+				await tracker.completeEdit(first, firstInput);
+			}
+			const failedRead = stub(fileService, 'readFile').rejects(new Error('snapshot failed'));
+			try {
+				await assert.rejects(tracker.trackEditStart(alias, undefined, failedInput), /snapshot failed/);
+			} finally {
+				failedRead.restore();
+			}
+			await tracker.completeEdit(alias, failedInput);
+			const failed = await tracker.takeCompletedEdit('turn-1', 'failed', alias, 'edit', failedInput, 'model', false);
+			const stillEditing = fileEditCoordinator.isEditing(URI.file(first));
+			if (phase === 'pending') {
+				await tracker.completeEdit(first, firstInput);
+			}
+			await tracker.takeCompletedEdit('turn-1', 'first', first, 'edit', firstInput, 'model', false);
+			assert.deepStrictEqual({ failed, stillEditing, records: (await db.getAllFileEdits()).map(record => record.toolCallId), contents: await readRecordedEdit('first', first) }, {
+				failed: undefined, stillEditing: true, records: ['first'], contents: 'original -> changed',
+			});
+		});
+	}
+
+	(isLinux ? test.skip : test)('persists alias snapshots in completion order even when claimed in reverse order', async () => {
+		const paths = ['/workspace/File.txt', '/workspace/file.txt'];
+		for (const path of paths) {
+			await fileService.writeFile(URI.file(path), VSBuffer.fromString('original'));
+			await tracker.trackEditStart(path, undefined, { path });
+		}
+		await fileService.writeFile(URI.file(paths[0]), VSBuffer.fromString('first'));
+		await tracker.completeEdit(paths[0], { path: paths[0] });
+		await fileService.writeFile(URI.file(paths[1]), VSBuffer.fromString('second'));
+		await tracker.completeEdit(paths[1], { path: paths[1] });
+		await tracker.takeCompletedEdit('turn-1', 'second', paths[1], 'edit', { path: paths[1] }, 'model', false);
+		await tracker.takeCompletedEdit('turn-1', 'first', paths[0], 'edit', { path: paths[0] }, 'model', false);
+
+		assert.deepStrictEqual({
+			order: (await db.getAllFileEdits()).map(record => record.toolCallId),
+			files: (await computeWorkingSetFiles([{ sessionUri: 'copilot:/test-session', db }], diffComputeService)).length,
+			editing: fileEditCoordinator.isEditing(URI.file(paths[0])),
+		}, { order: ['first', 'second'], files: 1, editing: false });
+	});
+
+	test('preserves missed-result cleanup for ordered callbacks using the identical spelling', async () => {
+		const path = '/workspace/file.txt';
+		for (const text of ['missed', 'last']) {
+			await tracker.trackEditStart(path, undefined, { text });
+			await fileService.writeFile(URI.file(path), VSBuffer.fromString(text));
+			await tracker.completeEdit(path, { text });
+		}
+		await tracker.takeCompletedEdit('turn-1', 'last', path, 'edit', { text: 'last' }, 'model', false);
+		assert.deepStrictEqual({ editing: fileEditCoordinator.isEditing(URI.file(path)), records: (await db.getAllFileEdits()).map(record => record.toolCallId) }, {
+			editing: false, records: ['last'],
+		});
+	});
+
+	for (const fail of [false, true]) {
+		test(`disposing the tracker keeps a claimed persistence lease until it settles (failure: ${fail})`, async () => {
+			const path = '/workspace/file.txt';
+			await tracker.trackEditStart(path);
+			await fileService.writeFile(URI.file(path), VSBuffer.fromString('first'));
+			await tracker.completeEdit(path);
+			await tracker.takeCompletedEdit('turn-1', 'first', path, 'edit', undefined, 'model', false);
+			await tracker.trackEditStart(path);
+			await fileService.writeFile(URI.file(path), VSBuffer.fromString('second'));
+			await tracker.completeEdit(path);
+			const started = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const diff = stub(diffComputeService, 'computeDiffCounts').callsFake(async () => {
+				started.complete();
+				await release.p;
+				return { added: 1, removed: 1, changes: [] };
+			});
+			const failingWrite = fail ? stub(db, 'storeFileEdit').rejects(new Error('persist failed')) : undefined;
+			try {
+				const saving = tracker.takeCompletedEdit('turn-1', 'second', path, 'edit', undefined, 'model', false).then(() => 'saved', error => error.message);
+				await started.p;
+				tracker.dispose();
+				const editingAfterDisposal = fileEditCoordinator.isEditing(URI.file(path));
+				const decision = fileEditCoordinator.runExclusive(URI.file(path), async () => (await db.getAllFileEdits()).map(record => record.toolCallId));
+				release.complete();
+				assert.deepStrictEqual({
+					editingAfterDisposal, outcome: await saving, decision: await decision,
+					editingAfterPersistence: fileEditCoordinator.isEditing(URI.file(path)),
+				}, {
+					editingAfterDisposal: true, outcome: fail ? 'persist failed' : 'saved',
+					decision: fail ? ['first'] : ['first', 'second'], editingAfterPersistence: false,
+				});
+			} finally {
+				release.complete();
+				diff.restore();
+				failingWrite?.restore();
+			}
+		});
+	}
+
+	(isLinux ? test.skip : test)('retains the last snapshot for concurrent completions of one multi-path tool call', async () => {
+		const paths = ['/workspace/File.txt', '/workspace/file.txt'];
+		const input = { paths };
+		for (const path of paths) {
+			await fileService.writeFile(URI.file(path), VSBuffer.fromString('original'));
+			await tracker.trackEditStart(path, undefined, input);
+			await fileService.writeFile(URI.file(path), VSBuffer.fromString('changed'));
+		}
+		await Promise.all(paths.map(path => tracker.completeEdit(path, input)));
+		for (const path of paths) {
+			await tracker.takeCompletedEdit('turn-1', 'same-call', path, 'apply_patch', input, 'model', false);
+		}
+		assert.deepStrictEqual(await Promise.all(paths.map(path => readRecordedEdit('same-call', path))), ['original -> changed', 'changed -> changed']);
+	});
+
+	(isLinux ? test.skip : test)('claims an input-less completed alias before a newer pending edit', async () => {
+		const first = '/workspace/File.txt';
+		const alias = '/workspace/file.txt';
+		await fileService.writeFile(URI.file(first), VSBuffer.fromString('original'));
+		await tracker.trackEditStart(first);
+		await fileService.writeFile(URI.file(first), VSBuffer.fromString('first'));
+		await tracker.completeEdit(first);
+		await fileService.writeFile(URI.file(alias), VSBuffer.fromString('first'));
+		await tracker.trackEditStart(alias);
+		await tracker.takeCompletedEdit('turn-1', 'first', alias, 'edit', undefined, 'model', false);
+		await fileService.writeFile(URI.file(alias), VSBuffer.fromString('second'));
+		await tracker.completeEdit(alias);
+		await tracker.takeCompletedEdit('turn-1', 'second', alias, 'edit', undefined, 'model', false);
+		assert.deepStrictEqual({
+			recorded: [await readRecordedEdit('first', alias), await readRecordedEdit('second', alias)],
+			editing: fileEditCoordinator.isEditing(URI.file(first)),
+		}, { recorded: ['original -> first', 'first -> second'], editing: false });
+	});
+
+	for (const phase of ['start', 'complete', 'persist'] as const) {
+		test(`snapshot ${phase} failures surface and release the file for a later edit`, async () => {
+			const path = '/workspace/failure.txt';
+			await fileService.writeFile(URI.file(path), VSBuffer.fromString('before'));
+			if (phase !== 'start') {
+				await tracker.trackEditStart(path);
+				await fileService.writeFile(URI.file(path), VSBuffer.fromString('after'));
+			}
+			if (phase === 'persist') {
+				await tracker.completeEdit(path);
+			}
+			const failure = new Error(`${phase} failed`);
+			const failing = phase === 'persist' ? stub(db, 'storeFileEdit').rejects(failure) : stub(fileService, 'readFile').rejects(failure);
+			try {
+				await assert.rejects(phase === 'start' ? tracker.trackEditStart(path)
+					: phase === 'complete' ? tracker.completeEdit(path)
+						: tracker.takeCompletedEdit('turn-1', 'failed', path, 'edit', undefined, 'model', false), failure);
+			} finally {
+				failing.restore();
+			}
+			const afterFailure = fileEditCoordinator.isEditing(URI.file(path));
+			await tracker.trackEditStart(path);
+			await fileService.writeFile(URI.file(path), VSBuffer.fromString('retry'));
+			await tracker.completeEdit(path);
+			await tracker.takeCompletedEdit('turn-1', 'retry', path, 'edit', undefined, 'model', false);
+			assert.deepStrictEqual({ afterFailure, afterRetry: fileEditCoordinator.isEditing(URI.file(path)), recorded: await readRecordedEdit('retry', path) }, {
+				afterFailure: false, afterRetry: false, recorded: `${phase === 'start' ? 'before' : 'after'} -> retry`,
+			});
+		});
+	}
 
 	test('releases an unsuccessful tool without requiring a post-tool snapshot', async () => {
 		const resource = URI.file('/workspace/failed.txt');

@@ -27,7 +27,8 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, SessionStatus, ToolCallContributorKind, ToolResultContentType, type ToolDefinition } from '../../common/state/sessionState.js';
 import { createAgentChatContext } from '../../node/agentChatContext.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
-import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
+import { IAgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
+import { createTestFileEditCoordinator } from './fileEditTestUtils.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { ClaudeSdkMessageRouter } from '../../node/claude/claudeSdkMessageRouter.js';
 import { SessionClientToolsModel } from '../../node/claude/clientTools/claudeSessionClientToolsModel.js';
@@ -88,7 +89,7 @@ function createRouter(
 	const services = new ServiceCollection(
 		[ILogService, new NullLogService()],
 		[IFileService, fileService],
-		[IAgentHostFileEditCoordinator, disposables.add(new AgentHostFileEditCoordinator())],
+		[IAgentHostFileEditCoordinator, createTestFileEditCoordinator(disposables)],
 		[IDiffComputeService, createZeroDiffComputeService()],
 		[IAgentEditAttributionService, attributionService],
 		[IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory()],

@@ -8,8 +8,10 @@ import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { parseSessionDbUri, type ISessionDbUriFields } from '../../common/sessionDbUri.js';
 import { AhpErrorCodes, ContentEncoding, ProtocolError, type ResourceReadResult } from '../../common/state/sessionProtocol.js';
+import { FileEditKind } from '../../common/state/sessionState.js';
 import type { IAgentHostResourceProvider } from '../agentHostResourceProviders.js';
 import { getWorkingSetFileEditRecords } from '../fileEditAccept.js';
+import { getFileEditPathKey } from '../fileEditIdentity.js';
 import { computeWorkingSetFileContents } from '../workingSetFileContents.js';
 
 /** Reads before/after file-edit content, and Working Set baselines, from a session database. */
@@ -53,11 +55,17 @@ export class SessionDbResourceProvider implements IAgentHostResourceProvider {
 
 	/** Computes the Working Set baseline from the file's records up to and including the addressed one. */
 	private async _readWorkingSetBaseline(db: ISessionDatabase, fields: ISessionDbUriFields): Promise<Uint8Array | undefined> {
-		const records = (await db.getAllFileEdits()).filter(record => record.filePath === fields.filePath);
-		const end = records.findIndex(record => record.toolCallId === fields.toolCallId);
+		const identity = db.fileEditUriIdentity;
+		const key = getFileEditPathKey(fields.filePath, identity);
+		const all = await db.getAllFileEdits();
+		const end = all.findIndex(record => record.toolCallId === fields.toolCallId && record.filePath === fields.filePath);
 		if (end < 0) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `File edit not found: toolCallId=${fields.toolCallId}, filePath=${fields.filePath}`);
 		}
-		return (await computeWorkingSetFileContents(db, getWorkingSetFileEditRecords(records.slice(0, end + 1)), this._diffComputeService)).baseline;
+		const prefix = all.slice(0, end + 1);
+		const renamedAway = prefix.findLastIndex(record => record.kind === FileEditKind.Rename && record.originalPath !== undefined
+			&& getFileEditPathKey(record.originalPath, identity) === key && getFileEditPathKey(record.filePath, identity) !== key);
+		const records = prefix.slice(renamedAway + 1).filter(record => getFileEditPathKey(record.filePath, identity) === key);
+		return (await computeWorkingSetFileContents(db, getWorkingSetFileEditRecords(records), this._diffComputeService)).baseline;
 	}
 }

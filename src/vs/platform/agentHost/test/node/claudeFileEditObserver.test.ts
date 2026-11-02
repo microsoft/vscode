@@ -31,7 +31,8 @@ import { ClaudeMapperState } from '../../node/claude/claudeMapSessionEvents.js';
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
 import { IEditArcReporterLaunchParams, IEditArcReporterService } from '../../node/shared/editArcReporter.js';
 import { createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
+import { IAgentHostFileEditCoordinator, type AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
+import { createTestFileEditCoordinator } from './fileEditTestUtils.js';
 import { TestChatOwnerRef } from './agentChatContextTestUtils.js';
 
 interface IObserverHarness {
@@ -49,7 +50,7 @@ function createObserver(disposables: Pick<import('../../../../base/common/lifecy
 	const db = new TestSessionDatabase();
 	const dbRef: IReference<ISessionDatabase> = { object: db, dispose: () => { } };
 	const arcReports: IEditArcReporterLaunchParams[] = [];
-	const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+	const fileEditCoordinator = createTestFileEditCoordinator(disposables);
 
 	const services = new ServiceCollection(
 		[ILogService, new NullLogService()],

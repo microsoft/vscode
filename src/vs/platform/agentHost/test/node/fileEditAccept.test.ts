@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isLinux } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { ISessionDatabase } from '../../common/sessionDataService.js';
@@ -11,7 +12,7 @@ import { FileEditKind, type ISessionFileDiff } from '../../common/state/sessionS
 import { createFileEditAcceptRecord, createPartialFileEditAcceptRecord, FILE_EDIT_ACCEPT_TOOL_CALL_ID_PREFIX, getUnacceptedFileEditRecords, isFileEditAcceptRecord, readFileEditEndContent } from '../../node/fileEditAccept.js';
 import { SessionDbResourceProvider } from '../../node/resourceProviders/sessionDbResourceProvider.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, computeWorkingSetDiffs, type ISessionDiffSource } from '../../node/sessionDiffAggregator.js';
+import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, computeWorkingSetDiffs, computeWorkingSetFiles, getWorkingSetFileNonce, type ISessionDiffSource } from '../../node/sessionDiffAggregator.js';
 import { createSessionDataService, TestDiffComputeService } from '../common/sessionTestHelpers.js';
 import { InProcessDiffComputeService } from './inProcessDiffComputeService.js';
 
@@ -66,6 +67,211 @@ function lines(changes: Record<number, string> = {}): string {
 suite('fileEditAccept', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	(isLinux ? test.skip : test)('coalesces pre-existing case aliases without losing their ordered snapshots', async () => {
+		const db = disposables.add(await SessionDatabase.open(':memory:'));
+		const sources = [{ sessionUri: SESSION, db }];
+		const alias = '/repo/FILE.ts';
+		const diffService = new InProcessDiffComputeService();
+		await storeEdit(db, 't1', 'tc1', FileEditKind.Create, undefined, 'first\n');
+		await storeEdit(db, 't1', 'tc2', FileEditKind.Edit, 'first\n', 'second\n', alias);
+		const beforeAccept = await readDiffs(sources, await computeWorkingSetDiffs(sources, diffService));
+		await accept(db, alias);
+
+		assert.deepStrictEqual({
+			beforeAccept,
+			afterAccept: await readDiffs(sources, await computeWorkingSetDiffs(sources, diffService)),
+			recorded: (await db.getAllFileEdits()).filter(record => !isFileEditAcceptRecord(record)).map(record => [record.toolCallId, record.filePath]),
+		}, {
+			beforeAccept: [{ file: URI.file(alias).toString(), before: undefined, after: 'second\n' }],
+			afterAccept: [],
+			recorded: [['tc1', FILE], ['tc2', alias]],
+		});
+	});
+
+	(isLinux ? test.skip : test)('rebases old alias records from the same tool call and addresses their exact snapshots', async () => {
+		const db = disposables.add(await SessionDatabase.open(':memory:'));
+		const sources = [{ sessionUri: SESSION, db }];
+		const diffService = new InProcessDiffComputeService();
+		const alias = '/repo/FILE.ts';
+		await storeEdit(db, 't1', 'same-call', FileEditKind.Edit, lines(), lines({ 0: 'L1' }));
+		const firstNonce = (await computeWorkingSetFiles(sources, diffService))[0].nonce;
+		await storeEdit(db, 't1', 'same-call', FileEditKind.Edit, lines({ 0: 'L1', 2: 'user' }), lines({ 0: 'L1', 2: 'user', 5: 'L6' }), alias);
+		const files = await computeWorkingSetFiles(sources, diffService);
+
+		assert.deepStrictEqual({
+			workingSet: await readDiffs(sources, files.map(file => file.diff)),
+			nonceChanged: firstNonce !== files[0].nonce,
+			records: (await db.getAllFileEdits()).map(record => [record.toolCallId, record.filePath]),
+			blobs: await Promise.all([FILE, alias].map(async path => {
+				const content = await db.readFileEditContent('same-call', path);
+				return content?.afterContent && new TextDecoder().decode(content.afterContent);
+			})),
+		}, {
+			workingSet: [{ file: URI.file(alias).toString(), before: lines({ 2: 'user' }), after: lines({ 0: 'L1', 2: 'user', 5: 'L6' }) }],
+			nonceChanged: true,
+			records: [['same-call', FILE], ['same-call', alias]],
+			blobs: [lines({ 0: 'L1' }), lines({ 0: 'L1', 2: 'user', 5: 'L6' })],
+		});
+	});
+
+	(isLinux ? test.skip : test)('uses the holding database order rather than source traversal order for alias history', async () => {
+		const parent = disposables.add(await SessionDatabase.open(':memory:'));
+		const holder = disposables.add(await SessionDatabase.open(':memory:'));
+		const alias = '/repo/FILE.ts';
+		for (const db of [parent, holder]) {
+			await storeEdit(db, 't1', 'first', FileEditKind.Edit, 'original', 'first');
+			if (db === holder) {
+				await storeEdit(db, 't1', 'second', FileEditKind.Edit, 'first', 'second', alias);
+			}
+			await storeEdit(db, 't1', 'third', FileEditKind.Edit, 'second', 'third');
+		}
+		const sources = [{ sessionUri: SESSION, db: parent }, { sessionUri: PEER, db: holder }];
+		const files = await computeWorkingSetFiles(sources, new InProcessDiffComputeService());
+		assert.deepStrictEqual({
+			contents: await readDiffs(sources, files.map(file => file.diff)),
+			session: await readDiffs(sources, await computeUnionedDiffs(sources, new InProcessDiffComputeService())),
+			nonce: files[0].nonce,
+		}, {
+			contents: [{ file: URI.file(FILE).toString(), before: 'original', after: 'third' }],
+			session: [{ file: URI.file(FILE).toString(), before: 'original', after: 'third' }],
+			nonce: getWorkingSetFileNonce(await holder.getAllFileEdits()),
+		});
+	});
+
+	test('a recreated path baseline excludes the identity renamed away from it', async () => {
+		const db = disposables.add(await SessionDatabase.open(':memory:'));
+		const sources = [{ sessionUri: SESSION, db }];
+		await storeEdit(db, 't1', 'old', FileEditKind.Edit, 'o\na\n', 'o\nm\n');
+		await db.storeFileEdit({
+			turnId: 't1', toolCallId: 'rename', filePath: OTHER_FILE, originalPath: FILE, kind: FileEditKind.Rename,
+			beforeContent: encode('o\nm\n'), afterContent: encode('o\nm\n'), addedLines: undefined, removedLines: undefined,
+		});
+		await storeEdit(db, 't2', 'new', FileEditKind.Edit, 'o\nm\n', 'o\nM\n');
+		await storeEdit(db, 't2', 'after-user-edit', FileEditKind.Edit, 'u\nM\n', 'u\nM\nadded\n');
+		const files = await computeWorkingSetFiles(sources, new InProcessDiffComputeService());
+		assert.deepStrictEqual(await readDiffs(sources, files.map(file => file.diff)), [
+			{ file: URI.file(FILE).toString(), before: 'u\nm\n', after: 'u\nM\nadded\n' },
+			{ file: URI.file(OTHER_FILE).toString(), before: 'o\na\n', after: 'o\nm\n' },
+		]);
+	});
+
+	test('a working-set nonce changes when earlier history arrives or a cumulative snapshot is replaced', async () => {
+		const db = disposables.add(await SessionDatabase.open(':memory:'));
+		const sources = [{ sessionUri: SESSION, db }];
+		const diffService = new InProcessDiffComputeService();
+		const first = await db.reserveFileEditOrder();
+		const second = await db.reserveFileEditOrder();
+		const row = (toolCallId: string, before: string, after: string) => ({
+			turnId: 't1', toolCallId, filePath: FILE, kind: FileEditKind.Edit,
+			beforeContent: encode(before), afterContent: encode(after), addedLines: undefined, removedLines: undefined,
+		});
+		await db.storeFileEdit(row('second', 'middle', 'final'), second);
+		const initial = (await computeWorkingSetFiles(sources, diffService))[0].nonce;
+		await db.storeFileEdit(row('first', 'original', 'middle'), first);
+		const backfilled = (await computeWorkingSetFiles(sources, diffService))[0].nonce;
+		await db.storeFileEdit(row('second', 'middle', 'new final'));
+		const updated = (await computeWorkingSetFiles(sources, diffService))[0].nonce;
+		assert.deepStrictEqual({ backfilled: initial !== backfilled, updated: backfilled !== updated }, { backfilled: true, updated: true });
+	});
+
+	for (const completeHolder of [false, true]) {
+		test(`orders fork renames before grouping a recreated alias (complete holder: ${completeHolder})`, async () => {
+			const parent = disposables.add(await SessionDatabase.open(':memory:'));
+			const fork = disposables.add(await SessionDatabase.open(':memory:'));
+			const recreated = '/repo/FILE.ts';
+			for (const db of [parent, fork]) {
+				await storeEdit(db, 't1', 'first', FileEditKind.Create, undefined, 'old');
+				if (db === fork) {
+					await db.storeFileEdit({
+						turnId: 't2', toolCallId: 'rename', filePath: OTHER_FILE, originalPath: FILE, kind: FileEditKind.Rename,
+						beforeContent: encode('old'), afterContent: encode('old'), addedLines: undefined, removedLines: undefined,
+					});
+				}
+				if (db === parent || completeHolder) {
+					await storeEdit(db, 't3', 'recreated', FileEditKind.Create, undefined, 'new', recreated);
+				}
+			}
+			const sources = [{ sessionUri: SESSION, db: parent }, { sessionUri: PEER, db: fork }];
+			const diffService = new InProcessDiffComputeService();
+			const expected = [
+				{ file: URI.file(recreated).toString(), before: undefined, after: 'new' },
+				{ file: URI.file(OTHER_FILE).toString(), before: undefined, after: 'old' },
+			];
+			assert.deepStrictEqual({
+				workingSet: await readDiffs(sources, await computeWorkingSetDiffs(sources, diffService)),
+				session: await readDiffs(sources, await computeUnionedDiffs(sources, diffService)),
+			}, { workingSet: expected, session: expected });
+		});
+	}
+
+	test('conflicting copied history fails explicitly instead of dropping records', async () => {
+		const first = disposables.add(await SessionDatabase.open(':memory:'));
+		const second = disposables.add(await SessionDatabase.open(':memory:'));
+		for (const [db, calls] of [[first, ['a', 'b']], [second, ['b', 'a']]] as const) {
+			for (const call of calls) {
+				await storeEdit(db, 'turn', call, FileEditKind.Edit, 'before', call);
+			}
+		}
+		await assert.rejects(computeWorkingSetFiles([{ sessionUri: SESSION, db: first }, { sessionUri: PEER, db: second }], new InProcessDiffComputeService()),
+			/Could not determine the order of the recorded file changes across chats/);
+		assert.deepStrictEqual(await Promise.all([first, second].map(async db => (await db.getAllFileEdits()).map(record => record.toolCallId))), [['a', 'b'], ['b', 'a']]);
+	});
+
+	test('does not prioritize an independent rename before an initial creation', async () => {
+		const creator = disposables.add(await SessionDatabase.open(':memory:'));
+		const renamer = disposables.add(await SessionDatabase.open(':memory:'));
+		await storeEdit(creator, 't1', 'create', FileEditKind.Create, undefined, 'content');
+		await renamer.storeFileEdit({
+			turnId: 't2', toolCallId: 'rename', filePath: OTHER_FILE, originalPath: FILE, kind: FileEditKind.Rename,
+			beforeContent: encode('content'), afterContent: encode('content'), addedLines: undefined, removedLines: undefined,
+		});
+		const sources = [{ sessionUri: SESSION, db: creator }, { sessionUri: PEER, db: renamer }];
+		const diffService = new InProcessDiffComputeService();
+		const expected = [{ file: URI.file(OTHER_FILE).toString(), before: undefined, after: 'content' }];
+		assert.deepStrictEqual({
+			workingSet: await readDiffs(sources, await computeWorkingSetDiffs(sources, diffService)),
+			session: await readDiffs(sources, await computeUnionedDiffs(sources, diffService)),
+		}, { workingSet: expected, session: expected });
+	});
+
+	test('a recorded deletion makes recreation precede an independent rename', async () => {
+		const parent = disposables.add(await SessionDatabase.open(':memory:'));
+		const fork = disposables.add(await SessionDatabase.open(':memory:'));
+		for (const db of [parent, fork]) {
+			await storeEdit(db, 't1', 'first', FileEditKind.Create, undefined, 'old');
+		}
+		await storeEdit(parent, 't2', 'delete', FileEditKind.Delete, 'old', undefined);
+		await storeEdit(parent, 't3', 'recreate', FileEditKind.Create, undefined, 'new');
+		await fork.storeFileEdit({
+			turnId: 't4', toolCallId: 'rename', filePath: OTHER_FILE, originalPath: FILE, kind: FileEditKind.Rename,
+			beforeContent: encode('new'), afterContent: encode('new'), addedLines: undefined, removedLines: undefined,
+		});
+		const sources = [{ sessionUri: SESSION, db: parent }, { sessionUri: PEER, db: fork }];
+		const diffService = new InProcessDiffComputeService();
+		const expected = [{ file: URI.file(OTHER_FILE).toString(), before: undefined, after: 'new' }];
+		assert.deepStrictEqual({
+			workingSet: await readDiffs(sources, await computeWorkingSetDiffs(sources, diffService)),
+			session: await readDiffs(sources, await computeUnionedDiffs(sources, diffService)),
+		}, { workingSet: expected, session: expected });
+	});
+
+	(isLinux ? test.skip : test)('stores an alias batch atomically without replacing same-call rows', async () => {
+		const db = disposables.add(await SessionDatabase.open(':memory:'));
+		const alias = '/repo/FILE.ts';
+		const row = (filePath: string, text: string) => ({
+			turnId: 't1', toolCallId: 'same-call', filePath, kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined, beforeContent: encode(text), afterContent: encode(text),
+		});
+		await db.storeFileEdits([row(FILE, 'first'), row(alias, 'second')]);
+		await assert.rejects(db.storeFileEdits([row(FILE, 'changed'), row(alias, 'changed')], async read => {
+			assert.strictEqual(new TextDecoder().decode((await read('same-call', FILE))?.afterContent), 'changed');
+			throw new Error('abort batch');
+		}), /abort batch/);
+		assert.deepStrictEqual(await Promise.all((await db.getAllFileEdits()).map(async record => [
+			record.filePath, new TextDecoder().decode((await db.readFileEditContent(record.toolCallId, record.filePath))?.afterContent),
+		])), [[FILE, 'first'], [alias, 'second']]);
+	});
 
 	test('an accept row starts the working set at the accepted content, and the other changesets ignore it', async () => {
 		const db = disposables.add(await SessionDatabase.open(':memory:'));

@@ -36,7 +36,7 @@ import { GitRepositoryRootsContribution } from '../../node/chatContributions/git
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
-import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
+import { createTestFileEditCoordinator } from './fileEditTestUtils.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createSessionDataService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
@@ -188,7 +188,7 @@ suite('AgentHostChangesetStrategy', () => {
 			createTestChatOwnershipService(state),
 			sessionStateStore,
 			createTestAgentHostProviderService(() => undefined),
-			disposables.add(new AgentHostFileEditCoordinator()),
+			createTestFileEditCoordinator(disposables),
 		));
 		state.createSession({
 			resource: session,

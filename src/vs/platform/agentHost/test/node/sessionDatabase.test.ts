@@ -267,6 +267,52 @@ suite('SessionDatabase', () => {
 
 	suite('file edits', () => {
 
+		test('migrates existing row order and preserves reserved completion order across late and legacy writes', async () => {
+			const directory = await fs.mkdtemp(join(tmpdir(), 'file-edit-order-'));
+			try {
+				const path = join(directory, 'session.db');
+				const legacy = await TestableSessionDatabase.open(path, sessionDatabaseMigrations.filter(migration => migration.version <= 18));
+				try {
+					await legacy.runRaw(`INSERT INTO turns (id) VALUES ('turn');
+						INSERT INTO file_edits (rowid, turn_id, tool_call_id, file_path, edit_type, before_content, after_content)
+						VALUES (20, 'turn', 'old-first', '/file.txt', 'edit', CAST('original' AS BLOB), CAST('first' AS BLOB)),
+							(30, 'turn', 'old-second', '/FILE.txt', 'edit', CAST('first' AS BLOB), CAST('second' AS BLOB));`);
+				} finally {
+					await legacy.close();
+				}
+				const upgraded = disposables.add(await TestableSessionDatabase.open(path));
+				db = upgraded;
+				const untouched = await upgraded.getRaw('SELECT COUNT(*) AS count FROM file_edits WHERE edit_order IS NULL');
+				const early = await upgraded.reserveFileEditOrder();
+				const late = await upgraded.reserveFileEditOrder();
+				const edit = (toolCallId: string) => ({ turnId: 'turn', toolCallId, filePath: '/file.txt', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined });
+				await upgraded.storeFileEdit(edit('late'), late);
+				await upgraded.storeFileEdit(edit('early'), early);
+				await upgraded.runRaw(`INSERT INTO file_edits (turn_id, tool_call_id, file_path, edit_type)
+					VALUES ('turn', 'legacy-writer', '/file.txt', 'edit');`);
+				await assert.rejects(upgraded.storeFileEdit(edit('invalid'), late + 100), /must be reserved/);
+				const records = await upgraded.getAllFileEdits();
+				await upgraded.close();
+				db2 = disposables.add(await SessionDatabase.open(path));
+				assert.deepStrictEqual({
+					reserved: [early, late],
+					untouchedLegacyRows: untouched?.count,
+					order: records.map(record => [record.toolCallId, record.filePath]),
+					reopened: await db2.getAllFileEdits(),
+					next: await db2.reserveFileEditOrder(),
+				}, {
+					reserved: [31, 32],
+					untouchedLegacyRows: 2,
+					order: [['old-first', '/file.txt'], ['old-second', '/FILE.txt'], ['early', '/file.txt'], ['late', '/file.txt'], ['legacy-writer', '/file.txt']],
+					reopened: records,
+					next: 34,
+				});
+			} finally {
+				await Promise.all([db?.close(), db2?.close()]);
+				await fs.rm(directory, { recursive: true, force: true });
+			}
+		});
+
 		test('store and retrieve a file edit', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 
@@ -289,6 +335,7 @@ suite('SessionDatabase', () => {
 				kind: FileEditKind.Edit,
 				filePath: '/workspace/file.ts',
 				originalPath: undefined,
+				editOrder: 1,
 				addedLines: 5,
 				removedLines: 2,
 			}]);
@@ -1036,7 +1083,7 @@ suite('SessionDatabase', () => {
 				tables: await db.getAllTables(),
 				records: await db.getPersistedTurns(),
 			}, {
-				tables: ['assistant_response_parts', 'catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reasoning_timing', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				tables: ['assistant_response_parts', 'catalog_sync_snapshot', 'chat_drafts', 'file_edit_sequence', 'file_edits', 'local_turns', 'reasoning_timing', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
 				records: [{ kind: 'local', turnId: 'local-1', chatUri: 'chat', anchorTurnId: undefined, seq: 1, payload: '{"id":"local-1"}' }],
 			});
 		});
@@ -2063,7 +2110,7 @@ suite('SessionDatabase', () => {
 				title: await db.getMetadata('customTitle'),
 				snapshot: await db.getCatalogSyncSnapshot(),
 			}, {
-				tables: ['assistant_response_parts', 'catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reasoning_timing', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				tables: ['assistant_response_parts', 'catalog_sync_snapshot', 'chat_drafts', 'file_edit_sequence', 'file_edits', 'local_turns', 'reasoning_timing', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
 				title: 'After upgrade',
 				snapshot: snapshot(1),
 			});
@@ -2090,7 +2137,7 @@ suite('SessionDatabase', () => {
 				tables: await upgraded.getAllTables(),
 				snapshot: await upgraded.getCatalogSyncSnapshot(),
 			}, {
-				tables: ['assistant_response_parts', 'catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reasoning_timing', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				tables: ['assistant_response_parts', 'catalog_sync_snapshot', 'chat_drafts', 'file_edit_sequence', 'file_edits', 'local_turns', 'reasoning_timing', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
 				snapshot: snapshot(1),
 			});
 		});

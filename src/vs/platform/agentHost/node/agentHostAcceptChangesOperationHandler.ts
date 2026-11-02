@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { basename, extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { basename } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
@@ -13,23 +13,16 @@ import { IAgentHostChangesetService, type ITrackedEditSource } from '../common/a
 import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import type { IFileEditContent, IFileEditRecord, ISessionDatabase } from '../common/sessionDataService.js';
-import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams, type InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
+import { ChangesetOperationTargetKind, type ChangesetOperationTarget, type InvokeChangesetOperationParams, type InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { FileEditKind, type TextRange, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { createFileEditAcceptRecord, createPartialFileEditAcceptRecord, fileEditContentEquals, getWorkingSetFileEditRecords, isFileEditAcceptRecord, readFileEditAcceptedContent, readFileEditEndContent } from './fileEditAccept.js';
+import { getFileEditRecordKey, isFileEditPath } from './fileEditIdentity.js';
 import { getWorkingSetFileNonce, isPathWithinFolderScope } from './sessionDiffAggregator.js';
 import { createChangedSinceShownError } from './workingSetNonce.js';
 import { computeWorkingSetFileContents, computeWorkingSetRangeChanges } from './workingSetFileContents.js';
-
-function isFilePath(path: string | undefined, resource: URI): boolean {
-	return path !== undefined && extUriBiasedIgnorePathCase.isEqual(URI.file(path), resource);
-}
-
-/** Identifies an edit row across databases, as the Working Set does. */
-function getFileEditKey(record: IFileEditRecord): string {
-	return `${record.toolCallId}\0${record.filePath}`;
-}
+import { FileEditsInProgressError, IAgentHostFileEditCoordinator } from './agentHostFileEditCoordinator.js';
 
 /**
  * Accepts changes to a file in a Working Set changeset: every change, or the
@@ -47,6 +40,7 @@ export class AgentHostAcceptChangesOperationHandler implements IChangesetOperati
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
 		@IDiffComputeService private readonly _diffComputeService: IDiffComputeService,
+		@IAgentHostFileEditCoordinator private readonly _fileEditCoordinator: IAgentHostFileEditCoordinator,
 	) { }
 
 	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
@@ -63,9 +57,20 @@ export class AgentHostAcceptChangesOperationHandler implements IChangesetOperati
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${owner}`);
 		}
 		const resource = URI.parse(target.resource);
-		const shownNonce = target.nonce;
 		this._throwIfCancelled(token);
+		try {
+			return await this._fileEditCoordinator.runExclusive(resource, () => this._accept(owner, resource, target, token), undefined, token);
+		} catch (error) {
+			this._throwIfCancelled(token);
+			if (error instanceof FileEditsInProgressError) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.acceptChanges.editInProgress', "The agent is still editing '{0}'. Try again once it has finished.", basename(resource)));
+			}
+			throw error;
+		}
+	}
 
+	private async _accept(owner: ProtocolURI, resource: URI, target: ChangesetOperationTarget, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
+		const shownNonce = target.nonce;
 		const tracked = this._changesets.openTrackedSessionDatabases(owner);
 		let acceptedChat: ProtocolURI;
 		try {
@@ -74,12 +79,12 @@ export class AgentHostAcceptChangesOperationHandler implements IChangesetOperati
 			const seen = new Set<string>();
 			const matches: { readonly source: ITrackedEditSource; readonly records: readonly IFileEditRecord[] }[] = [];
 			for (const source of tracked.sources) {
-				const records = this._getFileEditRecords(await source.db.getAllFileEdits(), resource, tracked.folderScope);
-				if (records.some(record => !seen.has(getFileEditKey(record)))) {
+				const records = this._getFileEditRecords(source.db, await source.db.getAllFileEdits(), resource, tracked.folderScope);
+				if (records.some(record => !seen.has(getFileEditRecordKey(record)))) {
 					matches.push({ source, records });
 				}
 				for (const record of records) {
-					seen.add(getFileEditKey(record));
+					seen.add(getFileEditRecordKey(record));
 				}
 			}
 			const [match, ...otherMatches] = matches;
@@ -93,7 +98,7 @@ export class AgentHostAcceptChangesOperationHandler implements IChangesetOperati
 
 			const { source, records } = match;
 			const last = records[records.length - 1];
-			if (shownNonce !== undefined && shownNonce !== getWorkingSetFileNonce(last)) {
+			if (shownNonce !== undefined && shownNonce !== getWorkingSetFileNonce(records)) {
 				throw createChangedSinceShownError(resource);
 			}
 			const current = await readFileEditEndContent(source.db, last);
@@ -108,13 +113,17 @@ export class AgentHostAcceptChangesOperationHandler implements IChangesetOperati
 			this._logService.info(`[AgentHostAcceptChangesOperationHandler] Accepting ${target.kind === ChangesetOperationTargetKind.Range ? 'a range of the ' : ''}changes to '${resource.fsPath}' for ${owner}`);
 			await source.db.storeFileEdits([row], async readContent => {
 				// Accepting must not cover an edit recorded since the file's rows were read, as one of a turn that runs.
-				const rows = (await source.db.getAllFileEdits()).filter(record => isFilePath(record.filePath, resource));
-				const previous = rows.at(-2);
-				if (shownNonce !== undefined && previous && shownNonce !== getWorkingSetFileNonce(previous)) {
+				const rows = (await source.db.getAllFileEdits()).filter(record => isFileEditPath(record.filePath, resource, source.db.fileEditUriIdentity) && getFileEditRecordKey(record) !== getFileEditRecordKey(row));
+				const previous = rows.at(-1);
+				if (shownNonce !== undefined && shownNonce !== getWorkingSetFileNonce(rows)) {
 					throw createChangedSinceShownError(resource);
 				}
 				const content = previous && await readFileEditEndContent({ readFileEditContent: readContent }, previous);
-				if (previous?.toolCallId !== last.toolCallId || !fileEditContentEquals(content, current)) {
+				this._throwIfCancelled(token);
+				if (this._fileEditCoordinator.isEditing(resource)) {
+					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.acceptChanges.editInProgress', "The agent is still editing '{0}'. Try again once it has finished.", basename(resource)));
+				}
+				if (!previous || getWorkingSetFileNonce(rows) !== getWorkingSetFileNonce(records) || !fileEditContentEquals(content, current)) {
 					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.acceptChanges.changedDuringAccept', "'{0}' changed while its changes were being accepted. Try again.", basename(resource)));
 				}
 			});
@@ -178,11 +187,12 @@ export class AgentHostAcceptChangesOperationHandler implements IChangesetOperati
 	 * `folderScope`. A renamed file's records span more than one path, so a
 	 * rename that touches `resource` is rejected.
 	 */
-	private _getFileEditRecords(records: readonly IFileEditRecord[], resource: URI, folderScope: readonly URI[] | undefined): IFileEditRecord[] {
-		if (records.some(record => record.kind === FileEditKind.Rename && (isFilePath(record.filePath, resource) || isFilePath(record.originalPath, resource)))) {
+	private _getFileEditRecords(db: ISessionDatabase, records: readonly IFileEditRecord[], resource: URI, folderScope: readonly URI[] | undefined): IFileEditRecord[] {
+		const identity = db.fileEditUriIdentity;
+		if (records.some(record => record.kind === FileEditKind.Rename && (isFileEditPath(record.filePath, resource, identity) || isFileEditPath(record.originalPath, resource, identity)))) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.acceptChanges.renamed', "Changes to a renamed file can't be accepted."));
 		}
-		return records.filter(record => isFilePath(record.filePath, resource) && (!folderScope || isPathWithinFolderScope(record.filePath, folderScope)));
+		return records.filter(record => isFileEditPath(record.filePath, resource, identity) && (!folderScope || isPathWithinFolderScope(record.filePath, folderScope, identity)));
 	}
 
 	/**
@@ -194,7 +204,7 @@ export class AgentHostAcceptChangesOperationHandler implements IChangesetOperati
 	private async _throwIfEditedByOtherChats(otherChatDatabases: readonly ISessionDatabase[], resource: URI, copied: ReadonlySet<string>): Promise<void> {
 		for (const db of otherChatDatabases) {
 			const records = await db.getAllFileEdits();
-			if (records.some(record => (isFilePath(record.filePath, resource) || isFilePath(record.originalPath, resource)) && !copied.has(getFileEditKey(record)))) {
+			if (records.some(record => (isFileEditPath(record.filePath, resource, db.fileEditUriIdentity) || isFileEditPath(record.originalPath, resource, db.fileEditUriIdentity)) && !copied.has(getFileEditRecordKey(record)))) {
 				throw this._createEditedByOtherChatsError(resource);
 			}
 		}

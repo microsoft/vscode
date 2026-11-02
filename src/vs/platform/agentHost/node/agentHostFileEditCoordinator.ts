@@ -3,13 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError, raceTimeout } from '../../../base/common/async.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import type { IExtUri } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
+import { IFileService } from '../../files/common/files.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { URI as ProtocolURI } from '../common/state/sessionState.js';
+import { createFileEditUriIdentity } from './fileEditIdentity.js';
 
 export const IAgentHostFileEditCoordinator = createDecorator<IAgentHostFileEditCoordinator>('agentHostFileEditCoordinator');
 
@@ -64,6 +68,7 @@ export function describeDiscardedFileEdits(edits: IDiscardedFileEdits): string {
  */
 export interface IAgentHostFileEditCoordinator {
 	readonly _serviceBrand: undefined;
+	readonly uriIdentity: IExtUri;
 
 	/** Fires when changes that an agent made to a file were discarded, so the agent can be told. */
 	readonly onDidDiscardFileEdits: Event<IDiscardedFileEdits>;
@@ -99,7 +104,7 @@ export interface IAgentHostFileEditCoordinator {
 	 * {@link FileEditsInProgressError}, without running `task`, when the edit
 	 * tool calls don't finish within `timeoutMs`.
 	 */
-	runExclusive<T>(resource: URI, task: () => Promise<T>, timeoutMs?: number): Promise<T>;
+	runExclusive<T>(resource: URI, task: () => Promise<T>, timeoutMs?: number, token?: CancellationToken): Promise<T>;
 
 	/** Reports discarded changes; see {@link onDidDiscardFileEdits}. */
 	reportDiscarded(edits: IDiscardedFileEdits): void;
@@ -117,6 +122,7 @@ interface IFileState {
 export class AgentHostFileEditCoordinator extends Disposable implements IAgentHostFileEditCoordinator {
 
 	declare readonly _serviceBrand: undefined;
+	readonly uriIdentity: IExtUri;
 
 	private readonly _files = new Map<string, IFileState>();
 	private readonly _coordinatedProviders = new Map<string, number>();
@@ -127,8 +133,13 @@ export class AgentHostFileEditCoordinator extends Disposable implements IAgentHo
 	private readonly _onDidChangeEditing = this._register(new Emitter<URI>());
 	readonly onDidChangeEditing = this._onDidChangeEditing.event;
 
+	constructor(@IFileService fileService: IFileService) {
+		super();
+		this.uriIdentity = createFileEditUriIdentity(fileService);
+	}
+
 	isEditing(resource: URI): boolean {
-		return (this._files.get(extUriBiasedIgnorePathCase.getComparisonKey(resource))?.edits ?? 0) > 0;
+		return (this._files.get(this.uriIdentity.getComparisonKey(resource))?.edits ?? 0) > 0;
 	}
 
 	registerCoordinatedProvider(provider: string): IDisposable {
@@ -153,7 +164,7 @@ export class AgentHostFileEditCoordinator extends Disposable implements IAgentHo
 	}
 
 	async beginEdit(resource: URI): Promise<IDisposable> {
-		const key = extUriBiasedIgnorePathCase.getComparisonKey(resource);
+		const key = this.uriIdentity.getComparisonKey(resource);
 		// A change of the file that runs or waits goes first; one that comes later waits for this edit.
 		for (let exclusive = this._files.get(key)?.exclusive; exclusive; exclusive = this._files.get(key)?.exclusive) {
 			await exclusive.catch(() => { });
@@ -162,7 +173,7 @@ export class AgentHostFileEditCoordinator extends Disposable implements IAgentHo
 	}
 
 	markEditing(resource: URI): IDisposable {
-		const key = extUriBiasedIgnorePathCase.getComparisonKey(resource);
+		const key = this.uriIdentity.getComparisonKey(resource);
 		const state = this._getState(key);
 		state.edits++;
 		if (state.edits === 1) {
@@ -186,29 +197,46 @@ export class AgentHostFileEditCoordinator extends Disposable implements IAgentHo
 		});
 	}
 
-	async runExclusive<T>(resource: URI, task: () => Promise<T>, timeoutMs = DEFAULT_EDITS_TIMEOUT_MS): Promise<T> {
-		const key = extUriBiasedIgnorePathCase.getComparisonKey(resource);
+	async runExclusive<T>(resource: URI, task: () => Promise<T>, timeoutMs = DEFAULT_EDITS_TIMEOUT_MS, token = CancellationToken.None): Promise<T> {
+		const key = this.uriIdentity.getComparisonKey(resource);
 		const state = this._getState(key);
 		const previous = state.exclusive;
+		let taskStarted = false;
 		const run = (async () => {
 			await previous?.catch(() => { });
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			if (state.edits > 0) {
 				state.idle ??= new DeferredPromise<void>();
-				const idle = await raceTimeout(state.idle.p.then(() => true), timeoutMs);
+				const idle = await raceTimeout(raceCancellationError(state.idle.p.then(() => true), token), timeoutMs);
 				if (!idle) {
 					throw new FileEditsInProgressError(resource);
 				}
 			}
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			taskStarted = true;
 			return task();
 		})();
 		state.exclusive = run;
-		try {
-			return await run;
-		} finally {
+		const settled = run.finally(() => {
 			if (state.exclusive === run) {
 				state.exclusive = undefined;
 				this._deleteIfUnused(key, state);
 			}
+		});
+		const cancelledWhileWaiting = new DeferredPromise<never>();
+		const listener = token.onCancellationRequested(() => {
+			if (!taskStarted) {
+				cancelledWhileWaiting.error(new CancellationError());
+			}
+		});
+		try {
+			return await Promise.race([settled, cancelledWhileWaiting.p]);
+		} finally {
+			listener.dispose();
 		}
 	}
 

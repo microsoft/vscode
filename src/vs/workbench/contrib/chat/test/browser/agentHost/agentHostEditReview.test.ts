@@ -149,6 +149,7 @@ suite('AgentHostEditReview', () => {
 	let review: AgentHostEditReview;
 	let createReview: () => AgentHostEditReview;
 	let connectionAuthority: string;
+	let canonicalUri: (uri: URI) => URI;
 	let backendSession: URI;
 	let modelService: IModelService;
 	let models: ResourceMap<ITextModel>;
@@ -369,6 +370,7 @@ suite('AgentHostEditReview', () => {
 		vetoClose = false;
 		host = new TestAgentHost();
 		connectionAuthority = 'local';
+		canonicalUri = uri => uri;
 		backendSession = URI.parse('copilot:/session');
 		store.add(host.onDidChangeWorkingSet);
 		store.add(host.onDidErrorWorkingSet);
@@ -521,7 +523,7 @@ suite('AgentHostEditReview', () => {
 		}());
 		collection.set(IUriIdentityService, new class extends mock<IUriIdentityService>() {
 			override asCanonicalUri(uri: URI): URI {
-				return uri;
+				return canonicalUri(uri);
 			}
 		}());
 
@@ -535,6 +537,33 @@ suite('AgentHostEditReview', () => {
 	teardown(() => store.clear());
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const operation of ['keep', 'undo'] as const) {
+		test(`${operation} recovers from old alias entries when the host publishes one authoritative working-set file`, async () => {
+			canonicalUri = uri => uri.scheme === Schemas.file ? uri.with({ path: uri.path.toLowerCase() }) : uri;
+			hostWrites('/a.ts', 'A\nB\n');
+			const first = workingSetFile('/A.ts', undefined, 'A\n', 'first');
+			const latest = workingSetFile('/a.ts', 'A\n', 'A\nB\n', 'latest');
+			host.setWorkingSet([first, latest]);
+			await review.resolveEntry(URI.file('/a.ts'));
+			const entry = getEntry('/a.ts');
+			const decide = () => operation === 'keep' ? review.accept() : review.reject();
+			host.setWorkingSet([{ ...latest, edit: { ...latest.edit, before: undefined } }]);
+			await review.resolveEntry(URI.file('/a.ts'));
+			const ready = { editing: !!entry.isCurrentlyBeingModifiedBy.get(), waiting: entry.waitsForLastEdits.get(), content: entry.modifiedModel.getValue() };
+			host.afterOperation = () => host.setWorkingSet([]);
+			const settled = await raceTimeout(decide().then(() => true), 1000);
+			await review.resolveEntry(URI.file('/a.ts'));
+
+			assert.deepStrictEqual({ ready, settled, entries: review.entries.get().length, invoked: host.invoked, errors }, {
+				ready: { editing: false, waiting: false, content: 'A\nB\n' },
+				settled: true,
+				entries: 0,
+				invoked: [`${operation} /a.ts @latest`],
+				errors: [],
+			});
+		});
+	}
 
 	test('hiding review releases editor restrictions and re-enabling reviews the latest host changes', async () => {
 		review.dispose();

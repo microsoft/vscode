@@ -13,6 +13,7 @@ const catalogRuntimeHashKey = 'sessionStorageCatalogHash';
 export class CompatibleSessionDatabase implements ISessionDatabase {
 	constructor(private readonly raw: ISessionDatabase, private readonly identity: SessionStorageIdentity) { }
 	dispose(): void { this.raw.dispose(); }
+	get fileEditUriIdentity() { return this.raw.fileEditUriIdentity; }
 
 	async getMetadataObject<T extends Record<string, unknown>>(obj: T): Promise<{ [K in keyof T]: string | undefined }> {
 		const keys = Object.keys(obj);
@@ -193,9 +194,13 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 		return result;
 	}
 
-	async storeFileEdit(...[edit]: Parameters<ISessionDatabase['storeFileEdit']>): ReturnType<ISessionDatabase['storeFileEdit']> {
-		const result = await this.raw.storeFileEdit(edit);
+	async storeFileEdit(...[edit, order]: Parameters<ISessionDatabase['storeFileEdit']>): ReturnType<ISessionDatabase['storeFileEdit']> {
+		const result = await this.raw.storeFileEdit(edit, order);
 		return result;
+	}
+
+	reserveFileEditOrder(): Promise<number> {
+		return this.raw.reserveFileEditOrder();
 	}
 
 	async storeFileEdits(...[edits, beforeCommit]: Parameters<ISessionDatabase['storeFileEdits']>): ReturnType<ISessionDatabase['storeFileEdits']> {

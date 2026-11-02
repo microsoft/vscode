@@ -108,6 +108,7 @@ import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from '../../nod
 import { CopilotMcpToolRoutingCache, getMcpRoutingCacheKey, getMcpRoutingProxyName, type ICopilotMcpRoutingServer } from '../../node/copilot/copilotMcpToolRoutingCache.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostFileEditCoordinator, describeDiscardedFileEdits, IAgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
+import { createTestFileEditCoordinator } from './fileEditTestUtils.js';
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter, type ICanvasExtensionsReadyEvent } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
@@ -1763,7 +1764,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		services.set(INativeEnvironmentService, environmentService);
 		services.set(ICopilotHomeService, new TestCopilotHomeService(URI.file('/mock-home'), options?.copilotHome ? URI.file(options.copilotHome) : undefined));
 	}
-	services.set(IAgentHostFileEditCoordinator, options?.fileEditCoordinator ?? disposables.add(new AgentHostFileEditCoordinator()));
+	services.set(IAgentHostFileEditCoordinator, options?.fileEditCoordinator ?? createTestFileEditCoordinator(disposables));
 	const terminalManager = disposables.add(new TestAgentHostTerminalManager());
 	services.set(IAgentHostTerminalManager, terminalManager);
 	if (options?.editServices) {
@@ -19569,7 +19570,7 @@ Use the attached image as context.
 		});
 
 		test('an edit holds back changes of its file by the host from before its snapshots until it is recorded', async () => {
-			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+			const fileEditCoordinator = createTestFileEditCoordinator(disposables);
 			const sessionDatabase = new TestSessionDatabase();
 			const write = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
 			sessionDatabase.storeFileEdit = async edit => {
@@ -19607,7 +19608,7 @@ Use the attached image as context.
 		});
 
 		test('root and subagent lifecycle completion cannot release a still-running SDK edit', async () => {
-			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+			const fileEditCoordinator = createTestFileEditCoordinator(disposables);
 			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
 			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, { captureRuntime: capturedRuntime, fileEditCoordinator });
 			session.resetTurnState('turn-parent');
@@ -19632,7 +19633,7 @@ Use the attached image as context.
 		});
 
 		test('a completed background subagent holds its file until its edit is recorded', async () => {
-			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+			const fileEditCoordinator = createTestFileEditCoordinator(disposables);
 			const write = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
 			const sessionDatabase = new class extends TestSessionDatabase {
 				override async storeFileEdit(...args: Parameters<ISessionDatabase['storeFileEdit']>): Promise<void> {
@@ -19674,7 +19675,7 @@ Use the attached image as context.
 		});
 
 		test('a waiting SDK edit can continue after its root turn ends', async () => {
-			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+			const fileEditCoordinator = createTestFileEditCoordinator(disposables);
 			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
 			const { session, mockSession } = await createAgentSession(disposables, { captureRuntime: capturedRuntime, fileEditCoordinator });
 			session.resetTurnState('turn-edit');
@@ -19698,7 +19699,7 @@ Use the attached image as context.
 
 		for (const startNextTurn of [false, true]) {
 			test(`a late SDK edit completion releases its file without publishing to another turn (nextTurn=${startNextTurn})`, async () => {
-				const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+				const fileEditCoordinator = createTestFileEditCoordinator(disposables);
 				const sessionDatabase = new TestSessionDatabase();
 				const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
 				const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { sessionDatabase, captureRuntime: capturedRuntime, fileEditCoordinator });
@@ -19729,7 +19730,7 @@ Use the attached image as context.
 		}
 
 		test('tells the agent about its changes the user undid, once, with its next tool result or prompt', async () => {
-			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+			const fileEditCoordinator = createTestFileEditCoordinator(disposables);
 			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
 			const { session } = await createAgentSession(disposables, { captureRuntime: capturedRuntime, fileEditCoordinator });
 			const runtime = capturedRuntime.current!;
@@ -25483,7 +25484,7 @@ Use the attached image as context.
 
 		test('saves generated images without asking the agent to display or register them again and preserves pending Undo context', async () => {
 			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
-			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+			const fileEditCoordinator = createTestFileEditCoordinator(disposables);
 			const sessionDirectory = URI.file('/mock-state-home/.copilot/session-state/test-session-1');
 			const { session, storedFileContents } = await createAgentSession(disposables, {
 				captureRuntime: capturedRuntime,
