@@ -1472,19 +1472,22 @@ suite('PluginInstallService', () => {
 		});
 
 		test('keeps legacy source handling for repository-root plugins', async () => {
+			const singlePlugin = createPlugin({
+				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
+			});
 			const { service, state } = createService({
-				singlePluginManifestResult: createPlugin({
-					sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
-				}),
+				singlePluginManifestResult: singlePlugin,
 			});
 			const result = await service.installPluginFromSource('owner/catalog#release/v1', { plugin: 'test-plugin' });
 
 			assert.deepStrictEqual({
 				success: result.success,
+				installedAtExpectedUri: isEqual(result.installedUri, service.getPluginInstallUri(singlePlugin)),
 				sources: state.ensurePluginSourceDescriptors,
 				installedSource: result.matchedPlugin?.sourceDescriptor,
 			}, {
 				success: true,
+				installedAtExpectedUri: true,
 				sources: [
 					{ kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
 					{ kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
@@ -1509,12 +1512,14 @@ suite('PluginInstallService', () => {
 
 			assert.deepStrictEqual({
 				success: result.success,
+				installedAtExpectedUri: isEqual(result.installedUri, installUri),
 				name: result.matchedPlugin?.name,
 				manifests: state.singlePluginManifestDirectories.map(uri => uri.path),
 				sources: state.ensurePluginSourceDescriptors,
 				registeredMarketplaces: state.updatedMarketplaces,
 			}, {
 				success: true,
+				installedAtExpectedUri: true,
 				name: 'selected-plugin',
 				manifests: ['/cache/plugin-source/plugins/selected-plugin'],
 				sources: [
@@ -1544,12 +1549,14 @@ suite('PluginInstallService', () => {
 
 			assert.deepStrictEqual({
 				success: result.success,
+				installedAtExpectedUri: isEqual(result.installedUri, service.getPluginInstallUri(plugin)),
 				name: result.matchedPlugin?.name,
 				source: result.matchedPlugin?.sourceDescriptor,
 				registeredMarketplaces: state.updatedMarketplaces,
 				installed: state.addedPlugins.map(entry => ({ uri: entry.uri, name: entry.plugin.name })),
 			}, {
 				success: true,
+				installedAtExpectedUri: true,
 				name: 'spark',
 				source: { kind: PluginSourceKind.RelativePath, path: 'plugins/spark' },
 				registeredMarketplaces: undefined,
@@ -1643,8 +1650,10 @@ suite('PluginInstallService', () => {
 				readPluginsResult: [discoveredPlugin],
 			});
 
-			await service.installPluginFromSource('file:///some/marketplace');
+			const result = await service.installPluginFromSource('file:///some/marketplace');
 
+			assert.strictEqual(result.success, true);
+			assert.ok(isEqual(result.installedUri, service.getPluginInstallUri(discoveredPlugin)));
 			assert.strictEqual(state.notifications.length, 0);
 			assert.strictEqual(state.addedPlugins.length, 1);
 			assert.strictEqual(state.addedPlugins[0].plugin.name, 'local-marketplace-plugin');
@@ -1680,8 +1689,10 @@ suite('PluginInstallService', () => {
 				isPluginDirectoryResult: true,
 			});
 
-			await service.installPluginFromSource('/abs/my-plugin');
+			const result = await service.installPluginFromSource('/abs/my-plugin');
 
+			assert.strictEqual(result.success, true);
+			assert.ok(isEqual(result.installedUri, URI.file('/abs/my-plugin')));
 			assert.strictEqual(state.notifications.length, 0);
 			assert.strictEqual(state.addedPlugins.length, 0);
 			assert.deepStrictEqual(state.updatedPluginLocations, { '/abs/my-plugin': true });
@@ -1695,8 +1706,10 @@ suite('PluginInstallService', () => {
 				userHome: '/home/user',
 			});
 
-			await service.installPluginFromSource('~/my-plugin');
+			const result = await service.installPluginFromSource('~/my-plugin');
 
+			assert.strictEqual(result.success, true);
+			assert.ok(isEqual(result.installedUri, URI.file('/home/user/my-plugin')));
 			assert.deepStrictEqual(state.updatedPluginLocations, { '~/my-plugin': true });
 		});
 
@@ -1706,8 +1719,10 @@ suite('PluginInstallService', () => {
 				isPluginDirectoryResult: true,
 			});
 
-			await service.installPluginFromSource('file:///some/plugin');
+			const result = await service.installPluginFromSource('file:///some/plugin');
 
+			assert.strictEqual(result.success, true);
+			assert.ok(isEqual(result.installedUri, URI.file('/some/plugin')));
 			assert.strictEqual(state.addedPlugins.length, 0);
 			assert.ok(state.updatedPluginLocations);
 			assert.deepStrictEqual(Object.values(state.updatedPluginLocations!), [true]);
@@ -1756,8 +1771,10 @@ suite('PluginInstallService', () => {
 				readPluginsResult: [discoveredPlugin],
 			});
 
-			await service.installPluginFromSource('owner/my-plugin');
+			const result = await service.installPluginFromSource('owner/my-plugin');
 
+			assert.strictEqual(result.success, true);
+			assert.ok(isEqual(result.installedUri, service.getPluginInstallUri(discoveredPlugin)));
 			assert.strictEqual(state.addedPlugins.length, 1);
 			assert.strictEqual(state.addedPlugins[0].plugin.name, 'my-discovered-plugin');
 		});
@@ -1797,8 +1814,10 @@ suite('PluginInstallService', () => {
 				quickPickResult: { label: 'plugin-b' },
 			});
 
-			await service.installPluginFromSource('owner/multi-repo');
+			const result = await service.installPluginFromSource('owner/multi-repo');
 
+			assert.strictEqual(result.success, true);
+			assert.ok(isEqual(result.installedUri, service.getPluginInstallUri(pluginB)));
 			assert.strictEqual(state.addedPlugins.length, 1);
 			assert.strictEqual(state.addedPlugins[0].plugin.name, 'plugin-b');
 			assert.ok(state.addedPlugins[0].uri.includes('plugins/b'));
@@ -1881,8 +1900,10 @@ suite('PluginInstallService', () => {
 				readPluginsResult: [discoveredPlugin],
 			});
 
-			await service.installPluginFromSource('owner/my-plugin');
+			const result = await service.installPluginFromSource('owner/my-plugin');
 
+			assert.strictEqual(result.success, true);
+			assert.ok(isEqual(result.installedUri, service.getPluginInstallUri(discoveredPlugin)));
 			assert.deepStrictEqual(state.updatedMarketplaces, ['owner/my-plugin']);
 		});
 
@@ -1908,8 +1929,10 @@ suite('PluginInstallService', () => {
 				quickPickResult: { label: 'plugin-a' },
 			});
 
-			await service.installPluginFromSource('owner/multi-repo');
+			const result = await service.installPluginFromSource('owner/multi-repo');
 
+			assert.strictEqual(result.success, true);
+			assert.ok(isEqual(result.installedUri, service.getPluginInstallUri(pluginA)));
 			assert.deepStrictEqual(state.updatedMarketplaces, ['owner/multi-repo']);
 		});
 
@@ -1928,8 +1951,10 @@ suite('PluginInstallService', () => {
 				configuredMarketplaces: ['owner/my-plugin'],
 			});
 
-			await service.installPluginFromSource('owner/my-plugin');
+			const result = await service.installPluginFromSource('owner/my-plugin');
 
+			assert.strictEqual(result.success, true);
+			assert.ok(isEqual(result.installedUri, service.getPluginInstallUri(discoveredPlugin)));
 			assert.strictEqual(state.updatedMarketplaces, undefined);
 		});
 
@@ -1948,8 +1973,10 @@ suite('PluginInstallService', () => {
 				singlePluginManifestResult: singlePlugin,
 			});
 
-			await service.installPluginFromSource('owner/single-plugin-repo');
+			const result = await service.installPluginFromSource('owner/single-plugin-repo');
 
+			assert.strictEqual(result.success, true);
+			assert.ok(isEqual(result.installedUri, service.getPluginInstallUri(singlePlugin)));
 			assert.strictEqual(state.addedPlugins.length, 1);
 			assert.strictEqual(state.addedPlugins[0].plugin.name, 'single-plugin-repo');
 			assert.strictEqual(state.notifications.length, 0);

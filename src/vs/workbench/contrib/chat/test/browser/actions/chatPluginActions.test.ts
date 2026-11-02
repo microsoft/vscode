@@ -27,14 +27,19 @@ import { AICustomizationManagementCommands, AICustomizationManagementSection } f
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationMarketplaceManagementProvider, ICustomizationPluginInstallProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
-import { IPluginInstallService } from '../../../common/plugins/pluginInstallService.js';
+import { IInstallPluginFromSourceResult, IPluginInstallService } from '../../../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService, parseMarketplaceReference } from '../../../common/plugins/pluginMarketplaceService.js';
 import { isMarketplaceReferenceAllowed, StrictKnownMarketplaces } from '../../../common/plugins/strictKnownMarketplaces.js';
 
 suite('InstallFromSourceAction', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createFixture(pluginInstallProvider?: ICustomizationPluginInstallProvider, localInstallResult: { readonly success: boolean; readonly message?: string } = { success: true }) {
+	function createFixture(
+		pluginInstallProvider?: ICustomizationPluginInstallProvider,
+		localInstallResult: IInstallPluginFromSourceResult = { success: true },
+		skipReveal = true,
+		revealError?: Error,
+	) {
 		const instantiationService = workbenchInstantiationService({}, store);
 		const acceptEmitter = store.add(new Emitter<void>());
 		const hideEmitter = store.add(new Emitter<IQuickInputHideEvent>());
@@ -62,6 +67,16 @@ suite('InstallFromSourceAction', () => {
 		const localInstalls: string[] = [];
 		const validations: string[] = [];
 		const notifications: Parameters<INotificationService['error']>[0][] = [];
+		const commands: { id: string; args: unknown[] }[] = [];
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T | undefined> {
+				commands.push({ id, args });
+				if (revealError) {
+					throw revealError;
+				}
+				return undefined;
+			}
+		}());
 		instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
 			override createInputBox() { return inputBox; }
 		}());
@@ -91,9 +106,68 @@ suite('InstallFromSourceAction', () => {
 				assert.fail('Source installation must not update VS Code configuration');
 			}
 		}());
-		const result = instantiationService.invokeFunction(accessor => new InstallFromSourceAction().run(accessor, { skipReveal: true }));
-		return { inputBox, acceptEmitter, showEmitter, result, localInstalls, validations, notifications, session, activeSessionResource, harnesses };
+		const result = instantiationService.invokeFunction(accessor => new InstallFromSourceAction().run(accessor, { skipReveal }));
+		return { inputBox, acceptEmitter, showEmitter, result, localInstalls, validations, notifications, commands, session, activeSessionResource, harnesses };
 	}
+
+	test('reveals the installed URI in Chat Customizations for the installing session', async () => {
+		const pluginUri = URI.file('/test/plugin');
+		const fixture = createFixture(undefined, { success: true, installedUri: pluginUri }, false);
+		store.add(fixture.showEmitter.event(() => assert.fail('Successful installation must not reopen the input')));
+		fixture.harnesses.set('other', { id: 'other', label: 'Other', icon: { id: 'vm' } });
+		fixture.inputBox.value = 'owner/repo';
+		fixture.acceptEmitter.fire();
+		fixture.activeSessionResource.set(URI.parse('other:/session'), undefined);
+
+		assert.deepStrictEqual({ installed: await fixture.result, commands: fixture.commands }, {
+			installed: true,
+			commands: [{
+				id: AICustomizationManagementCommands.OpenEditor,
+				args: [{
+					section: AICustomizationManagementSection.Plugins,
+					revealUri: pluginUri,
+					sessionResource: fixture.session,
+				}],
+			}],
+		});
+	});
+
+	test('opens the installing harness plugins view after a provider-owned installation', async () => {
+		const fixture = createFixture({ installFromSource: async () => { } }, undefined, false);
+		fixture.inputBox.value = 'owner/repo';
+		fixture.acceptEmitter.fire();
+
+		assert.deepStrictEqual({ installed: await fixture.result, commands: fixture.commands, localInstalls: fixture.localInstalls }, {
+			installed: true,
+			commands: [{
+				id: AICustomizationManagementCommands.OpenEditor,
+				args: [{
+					section: AICustomizationManagementSection.Plugins,
+					revealUri: undefined,
+					sessionResource: fixture.session,
+				}],
+			}],
+			localInstalls: [],
+		});
+	});
+
+	test('skips post-install navigation when skipReveal is true', async () => {
+		const fixture = createFixture(undefined, { success: true, installedUri: URI.file('/test/plugin') });
+		fixture.inputBox.value = 'owner/repo';
+		fixture.acceptEmitter.fire();
+
+		assert.deepStrictEqual({ installed: await fixture.result, commands: fixture.commands }, { installed: true, commands: [] });
+	});
+
+	test('reports reveal failures without failing installation or reopening the input', async () => {
+		const error = new Error('Failed to open editor');
+		const fixture = createFixture(undefined, { success: true, installedUri: URI.file('/test/plugin') }, false, error);
+		store.add(fixture.showEmitter.event(() => assert.fail('Successful installation must not reopen the input')));
+		fixture.inputBox.value = 'owner/repo';
+		fixture.acceptEmitter.fire();
+
+		assert.deepStrictEqual({ installed: await fixture.result, notifications: fixture.notifications }, { installed: true, notifications: [error] });
+	});
 
 	test('uses the harness installer for repository, folder, and marketplace sources without changing VS Code plugin locations', async () => {
 		const sources = ['owner/repo', 'https://github.com/owner/repo.git', '/plugins/example', '~/plugins/example', 'file:///plugins/example', 'plugin@marketplace'];
