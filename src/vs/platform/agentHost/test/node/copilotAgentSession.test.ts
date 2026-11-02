@@ -1347,6 +1347,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	/** Per-key root config values returned by the fake configuration service's `getRootValue`. */
 	rootValues?: Record<string, unknown>;
 	fileContents?: Record<string, string>;
+	fileRead?: (resource: URI) => Promise<VSBuffer>;
 	fileReadErrors?: readonly string[];
 	fileWriteError?: Error;
 	shellInitWriteFailures?: number;
@@ -1567,7 +1568,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			if (options?.fileReadErrors?.includes(resource.toString()) || options?.fileReadErrors?.includes(resource.fsPath)) {
 				throw new Error('read failed');
 			}
-			return { value: VSBuffer.fromString(storedFileContents.get(resource.toString()) ?? storedFileContents.get(resource.fsPath) ?? '') };
+			return { value: options?.fileRead ? await options.fileRead(resource) : VSBuffer.fromString(storedFileContents.get(resource.toString()) ?? storedFileContents.get(resource.fsPath) ?? '') };
 		},
 		exists: async (resource: URI) => storedFileContents.has(resource.toString()) || storedFileContents.has(resource.fsPath),
 		hasCapability: (resource: URI, capability: FileSystemProviderCapabilities) =>
@@ -19606,6 +19607,84 @@ Use the attached image as context.
 				editing: false,
 			});
 		});
+
+		for (const [phase, aliases, failures] of [['pre', false, 1], ['post', false, 1], ['pre', true, 1], ['post', true, 1], ['pre', true, 2], ['post', true, 2]] as const) {
+			test(`a failed multi-file ${phase}-tool hook drains other snapshots before tool completion (aliases: ${aliases}, failures: ${failures})`, async () => {
+				const fileEditCoordinator = createTestFileEditCoordinator(disposables, aliases ? new class extends mock<IFileService>() {
+					override hasProvider(): boolean { return true; }
+					override hasCapability(): boolean { return false; }
+				}() : undefined);
+				const sessionDatabase = new TestSessionDatabase();
+				const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+				const delayedRead = new DeferredPromise<void>();
+				const releaseRead = new DeferredPromise<void>();
+				const first = URI.file(aliases ? '/repo/FILE.txt' : '/repo/a.txt');
+				const second = URI.file(aliases ? '/repo/file.txt' : '/repo/b.txt');
+				const failedFiles = [first, ...(failures === 2 ? [URI.file('/repo/FiLe.txt')] : [])];
+				let blocked = false;
+				let text = 'before';
+				const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+					sessionDatabase, captureRuntime: capturedRuntime, fileEditCoordinator,
+					fileRead: async resource => {
+						if ((blocked || (aliases && phase === 'pre')) && failedFiles.some(file => resource.toString() === file.toString())) {
+							throw new Error('snapshot failed');
+						}
+						if (blocked && resource.toString() === second.toString()) {
+							delayedRead.complete();
+							await releaseRead.p;
+						}
+						return VSBuffer.fromString(text);
+					},
+				});
+				session.resetTurnState('turn-edit');
+				mockSession.fire('user.message', { content: 'Edit both files' });
+				const patch = ['*** Begin Patch', ...[...failedFiles, second].flatMap(file => [`*** Update File: ${file.fsPath}`, '@@', '+after']), '*** End Patch'].join('\n');
+				const hook = { sessionId: 'test-session-1', timestamp: new Date(0), workingDirectory: '/repo', toolName: 'apply_patch', toolArgs: patch };
+				const postHook = { ...hook, toolResult: { textResultForLlm: '', resultType: 'success' as const } };
+				mockSession.fire('tool.execution_start', { toolCallId: 'patch', toolName: hook.toolName, arguments: patch });
+				if (phase === 'post') {
+					await capturedRuntime.current!.handlePreToolUse(hook);
+					text = 'after';
+				}
+				blocked = true;
+				const completion = waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
+				let returned = false;
+				let failure = '';
+				const hooks = (phase === 'pre' ? capturedRuntime.current!.handlePreToolUse(hook) : capturedRuntime.current!.handlePostToolUse(postHook))
+					.catch(error => { failure = error.message; })
+					.then(async () => {
+						returned = true;
+						blocked = false;
+						if (phase === 'pre') {
+							text = 'after';
+							await capturedRuntime.current!.handlePostToolUse(postHook).catch(error => { failure = error.message; });
+						}
+						mockSession.fire('tool.execution_complete', { toolCallId: 'patch', success: true });
+					});
+				try {
+					await delayedRead.p;
+					await timeout(0);
+					const returnedWhileSnapshotPending = returned;
+					releaseRead.complete();
+					await Promise.all([hooks, completion]);
+					await timeout(0);
+					const content = await sessionDatabase.readFileEditContent('patch', second.fsPath);
+					const decision = await fileEditCoordinator.runExclusive(second, async () => 'settled', 0).catch(error => error.message);
+					assert.deepStrictEqual({
+						returnedWhileSnapshotPending, failure, decision,
+						before: content?.beforeContent && new TextDecoder().decode(content.beforeContent),
+						after: content?.afterContent && new TextDecoder().decode(content.afterContent),
+						editing: [...failedFiles, second].map(resource => fileEditCoordinator.isEditing(resource)),
+					}, {
+						returnedWhileSnapshotPending: false, failure: 'snapshot failed', decision: 'settled',
+						before: 'before', after: 'after', editing: [...failedFiles, second].map(() => false),
+					});
+				} finally {
+					releaseRead.complete();
+					await hooks;
+				}
+			});
+		}
 
 		test('root and subagent lifecycle completion cannot release a still-running SDK edit', async () => {
 			const fileEditCoordinator = createTestFileEditCoordinator(disposables);

@@ -359,6 +359,58 @@ suite('Agent Host file edit identity', () => {
 		});
 	}
 
+	for (const useAlias of [false, true]) {
+		(useAlias && isLinux ? test.skip : test)(`an edit queued behind Undo cannot restore the undone snapshot (alias: ${useAlias})`, async () => {
+			const harness = await createHarness();
+			const exclusive = spy(harness.coordinator, 'runExclusive');
+			try {
+				const path = join(harness.root, 'file.md');
+				const alias = useAlias ? join(harness.root, 'FILE.md') : path;
+				const firstInput = { edit: 'first' };
+				const secondInput = { edit: 'second' };
+				await harness.fileService.writeFile(URI.file(path), VSBuffer.fromString('original\n'));
+				await harness.tracker.trackEditStart(path, undefined, firstInput);
+				await harness.fileService.writeFile(URI.file(path), VSBuffer.fromString('first\n'));
+				const decision = harness.undo.invoke({
+					channel: buildSessionChangesetUri(SESSION),
+					operationId: AGENT_HOST_DISCARD_CHANGES_OPERATION_ID,
+					target: { kind: ChangesetOperationTargetKind.Resource, resource: URI.file(path).toString() },
+				}, CancellationToken.None);
+				const queuedExclusive = exclusive.callCount;
+				const secondStarted = harness.tracker.trackEditStart(alias, undefined, secondInput);
+				await harness.tracker.completeEdit(path, firstInput);
+				await harness.tracker.takeCompletedEdit('turn', 'first', path, 'edit', firstInput, 'model', false);
+				await Promise.all([decision, secondStarted]);
+				const afterFirstUndo = await fs.readFile(path, 'utf8');
+				await harness.fileService.writeFile(URI.file(alias), VSBuffer.fromString('second\n'));
+				await harness.tracker.completeEdit(alias, secondInput);
+				await harness.tracker.takeCompletedEdit('turn', 'second', alias, 'edit', secondInput, 'model', false);
+				const secondRecord = await harness.db.readFileEditContent('second', alias);
+				await harness.decide('undo', alias);
+				assert.deepStrictEqual({
+					queuedExclusive,
+					afterFirstUndo,
+					secondBefore: new TextDecoder().decode(secondRecord?.beforeContent),
+					secondAfter: new TextDecoder().decode(secondRecord?.afterContent),
+					afterSecondUndo: await fs.readFile(path, 'utf8'),
+					workingSet: await harness.workingSet(),
+					editing: harness.coordinator.isEditing(URI.file(path)),
+				}, {
+					queuedExclusive: 1,
+					afterFirstUndo: 'original\n',
+					secondBefore: 'original\n',
+					secondAfter: 'second\n',
+					afterSecondUndo: 'original\n',
+					workingSet: [],
+					editing: false,
+				});
+			} finally {
+				exclusive.restore();
+				await harness.dispose();
+			}
+		});
+	}
+
 	for (const scope of ['session', 'turn'] as const) {
 		test(`${scope} Undo waits for a late reserved snapshot before changing the file`, async () => {
 			const harness = await createHarness();

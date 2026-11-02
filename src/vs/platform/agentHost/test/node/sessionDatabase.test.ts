@@ -297,15 +297,99 @@ suite('SessionDatabase', () => {
 				assert.deepStrictEqual({
 					reserved: [early, late],
 					untouchedLegacyRows: untouched?.count,
+					legacyRevisionsAbsent: records.slice(0, 2).every(record => record.editRevision === undefined),
+					newRevisionsPresent: records.slice(2).every(record => !!record.editRevision),
 					order: records.map(record => [record.toolCallId, record.filePath]),
 					reopened: await db2.getAllFileEdits(),
 					next: await db2.reserveFileEditOrder(),
 				}, {
 					reserved: [31, 32],
 					untouchedLegacyRows: 2,
+					legacyRevisionsAbsent: true,
+					newRevisionsPresent: true,
 					order: [['old-first', '/file.txt'], ['old-second', '/FILE.txt'], ['early', '/file.txt'], ['late', '/file.txt'], ['legacy-writer', '/file.txt']],
 					reopened: records,
 					next: 34,
+				});
+			} finally {
+				await Promise.all([db?.close(), db2?.close()]);
+				await fs.rm(directory, { recursive: true, force: true });
+			}
+		});
+
+		test('snapshot revisions survive copies and differ after independent identical replacements', async () => {
+			const directory = await fs.mkdtemp(join(tmpdir(), 'file-edit-revision-'));
+			try {
+				const path = join(directory, 'session.db');
+				const copyPath = join(directory, 'copy.db');
+				db = disposables.add(await SessionDatabase.open(path));
+				const edit = {
+					turnId: 'turn', toolCallId: 'a', filePath: '/file.txt', kind: FileEditKind.Edit,
+					beforeContent: new TextEncoder().encode('original'), afterContent: new TextEncoder().encode('after'),
+					addedLines: undefined, removedLines: undefined,
+				};
+				await db.storeFileEdit(edit);
+				const original = (await db.getAllFileEdits())[0];
+				await db.vacuumInto(copyPath);
+				db2 = disposables.add(await SessionDatabase.open(copyPath));
+				await db2.remapTurnIds(new Map([['turn', 'fork-turn']]));
+				const copied = (await db2.getAllFileEdits())[0];
+				await db.storeFileEdit({ ...edit, editRevision: original.editRevision });
+				await db2.storeFileEdit({ ...edit, turnId: 'fork-turn', editRevision: copied.editRevision });
+				const parent = (await db.getAllFileEdits())[0];
+				const fork = (await db2.getAllFileEdits())[0];
+				const byTool = (await db.getFileEdits(['a']))[0];
+				const byTurn = (await db.getFileEditsByTurn('turn'))[0];
+				await db.close();
+				db = disposables.add(await SessionDatabase.open(path));
+				assert.deepStrictEqual({
+					present: !!original.editRevision,
+					copyPreserved: original.editRevision === copied.editRevision,
+					equalLocalOrders: parent.editOrder === fork.editOrder,
+					distinctRevisions: new Set([original.editRevision, parent.editRevision, fork.editRevision]).size,
+					allQueriesAgree: parent.editRevision === byTool.editRevision && parent.editRevision === byTurn.editRevision,
+					reopened: (await db.getAllFileEdits())[0],
+				}, {
+					present: true, copyPreserved: true, equalLocalOrders: true, distinctRevisions: 3,
+					allQueriesAgree: true, reopened: parent,
+				});
+			} finally {
+				await Promise.all([db?.close(), db2?.close()]);
+				await fs.rm(directory, { recursive: true, force: true });
+			}
+		});
+
+		test('upgrades version 19 without rewriting snapshots and versions older writers', async () => {
+			const directory = await fs.mkdtemp(join(tmpdir(), 'file-edit-revision-upgrade-'));
+			try {
+				const path = join(directory, 'session.db');
+				const legacy = await TestableSessionDatabase.open(path, sessionDatabaseMigrations.filter(migration => migration.version <= 19));
+				try {
+					await legacy.runRaw(`INSERT INTO turns (id) VALUES ('turn');
+						INSERT INTO file_edits (rowid, turn_id, tool_call_id, file_path, edit_type, before_content, after_content)
+						VALUES (37, 'turn', 'old', '/file.txt', 'edit', CAST('original' AS BLOB), CAST('after' AS BLOB));`);
+				} finally {
+					await legacy.close();
+				}
+				const upgraded = disposables.add(await TestableSessionDatabase.open(path));
+				db = upgraded;
+				const untouched = await upgraded.getRaw('SELECT rowid, edit_order, edit_revision, hex(before_content) AS before_hex, hex(after_content) AS after_hex FROM file_edits');
+				const insert = `INSERT OR REPLACE INTO file_edits (turn_id, tool_call_id, file_path, edit_type)
+					VALUES ('turn', 'older-writer', '/file.txt', 'edit');`;
+				await upgraded.runRaw(insert);
+				const first = (await upgraded.getFileEdits(['older-writer']))[0].editRevision;
+				await upgraded.runRaw(insert);
+				const records = await upgraded.getAllFileEdits();
+				await upgraded.close();
+				db2 = disposables.add(await SessionDatabase.open(path));
+				assert.deepStrictEqual({
+					untouched,
+					olderWriterVersioned: !!first && !!records[1].editRevision,
+					olderWriterRenewed: first !== records[1].editRevision,
+					reopened: await db2.getAllFileEdits(),
+				}, {
+					untouched: { rowid: 37, edit_order: 1, edit_revision: null, before_hex: '6F726967696E616C', after_hex: '6166746572' },
+					olderWriterVersioned: true, olderWriterRenewed: true, reopened: records,
 				});
 			} finally {
 				await Promise.all([db?.close(), db2?.close()]);
@@ -329,13 +413,14 @@ suite('SessionDatabase', () => {
 			});
 
 			const edits = await db.getFileEdits(['tc-1']);
-			assert.deepStrictEqual(edits, [{
+			assert.deepStrictEqual(edits.map(({ editRevision, ...record }) => ({ ...record, hasRevision: !!editRevision })), [{
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
 				kind: FileEditKind.Edit,
 				filePath: '/workspace/file.ts',
 				originalPath: undefined,
 				editOrder: 1,
+				hasRevision: true,
 				addedLines: 5,
 				removedLines: 2,
 			}]);

@@ -259,6 +259,235 @@ suite('FileEditTracker', () => {
 		});
 	}
 
+	(isLinux ? test.skip : test)('a claimed failed spelling does not block a later successful alias callback', async () => {
+		const first = '/workspace/File.txt';
+		const alias = '/workspace/file.txt';
+		const input = { paths: [first, alias] };
+		await fileService.writeFile(URI.file(alias), VSBuffer.fromString('original'));
+		const snapshot = await fileService.readFile(URI.file(alias));
+		let text = 'original';
+		const read = stub(fileService, 'readFile').callsFake(async resource => {
+			if (resource.toString() === URI.file(first).toString()) {
+				throw new Error('snapshot failed');
+			}
+			return { ...snapshot, value: VSBuffer.fromString(text) };
+		});
+		try {
+			const failedStart = assert.rejects(tracker.trackEditStart(first, undefined, input), /snapshot failed/);
+			await Promise.all([failedStart, tracker.trackEditStart(alias, undefined, input)]);
+			text = 'first';
+			await Promise.all([tracker.completeEdit(first, input), tracker.completeEdit(alias, input)]);
+			const failed = await tracker.takeCompletedEdit('turn-1', 'failed', first, 'apply_patch', input, 'model', false);
+			read.restore();
+			await fileService.writeFile(URI.file(alias), VSBuffer.fromString('first'));
+			await tracker.trackEditStart(alias, undefined, input);
+			await tracker.takeCompletedEdit('turn-1', 'first', alias, 'apply_patch', input, 'model', false);
+			await fileService.writeFile(URI.file(first), VSBuffer.fromString('second'));
+			await tracker.completeEdit(first, input);
+			await tracker.takeCompletedEdit('turn-1', 'second', first, 'apply_patch', input, 'model', false);
+			assert.deepStrictEqual({
+				failed,
+				recorded: [await readRecordedEdit('first', alias), await readRecordedEdit('second', first)],
+				editing: fileEditCoordinator.isEditing(URI.file(alias)),
+			}, { failed: undefined, recorded: ['original -> first', 'first -> second'], editing: false });
+		} finally {
+			read.restore();
+		}
+	});
+
+	for (const [aliasedCompletion, withToolInput] of [[false, false], [false, true], [true, false], [true, true]]) {
+		(isLinux ? test.skip : test)(`retires every spelling of a claimed failed operation (aliased completion: ${aliasedCompletion}, input: ${withToolInput})`, async () => {
+			const first = '/workspace/File.txt';
+			const callback = aliasedCompletion ? '/workspace/FILE.txt' : first;
+			const keeper = '/workspace/fILE.txt';
+			const input = withToolInput ? { edit: 'retry' } : undefined;
+			const keeperInput = { edit: 'keeper' };
+			for (const path of [first, callback, keeper]) {
+				await fileService.writeFile(URI.file(path), VSBuffer.fromString('before'));
+			}
+			await tracker.trackEditStart(first, undefined, input);
+			await tracker.trackEditStart(keeper, undefined, keeperInput);
+			const read = stub(fileService, 'readFile').rejects(new Error('snapshot failed'));
+			try {
+				await assert.rejects(tracker.completeEdit(callback, input), /snapshot failed/);
+			} finally {
+				read.restore();
+			}
+			const failed = await tracker.takeCompletedEdit('turn-1', 'failed', callback, 'edit', input, 'model', false);
+			await tracker.trackEditStart(callback, undefined, input);
+			await tracker.completeEdit(keeper, keeperInput);
+			await tracker.takeCompletedEdit('turn-1', 'keeper', keeper, 'edit', keeperInput, 'model', false);
+			await fileService.writeFile(URI.file(first), VSBuffer.fromString('after'));
+			await tracker.completeEdit(first, input);
+			await tracker.takeCompletedEdit('turn-1', 'retry', first, 'edit', input, 'model', false);
+			const decision = await fileEditCoordinator.runExclusive(URI.file(first), async () => 'settled', 0).catch(error => error.message);
+			assert.deepStrictEqual({
+				failed,
+				retry: await readRecordedEdit('retry', first),
+				editing: fileEditCoordinator.isEditing(URI.file(first)),
+				decision,
+			}, { failed: undefined, retry: 'before -> after', editing: false, decision: 'settled' });
+		});
+	}
+
+	for (const [earlyCallback, withToolInput] of [['complete', false], ['complete', true], ['claim', false], ['claim', true]] as const) {
+		(isLinux ? test.skip : test)(`a rejected before-read cannot leave a failure after its result is claimed (${earlyCallback}, input: ${withToolInput})`, async () => {
+			const first = '/workspace/File.txt';
+			const callback = '/workspace/FILE.txt';
+			const keeper = '/workspace/fILE.txt';
+			const input = withToolInput ? { edit: 'retry' } : undefined;
+			const keeperInput = { edit: 'keeper' };
+			for (const path of [first, callback, keeper]) {
+				await fileService.writeFile(URI.file(path), VSBuffer.fromString('before'));
+			}
+			const snapshot = await fileService.readFile(URI.file(first));
+			const started = new DeferredPromise<void>();
+			const beforeRead = new DeferredPromise<typeof snapshot>();
+			const read = stub(fileService, 'readFile').callsFake(async resource => {
+				if (resource.toString() === URI.file(first).toString()) {
+					started.complete();
+					return beforeRead.p;
+				}
+				return snapshot;
+			});
+			const rejectedStart = assert.rejects(tracker.trackEditStart(first, undefined, input), /snapshot failed/);
+			try {
+				await started.p;
+				await tracker.trackEditStart(keeper, undefined, keeperInput);
+				const rejectedCompletion = earlyCallback === 'complete'
+					? assert.rejects(tracker.completeEdit(callback, input), /snapshot failed/)
+					: undefined;
+				if (earlyCallback === 'claim') {
+					await tracker.takeCompletedEdit('turn-1', 'failed', callback, 'edit', input, 'model', false);
+				}
+				beforeRead.error(new Error('snapshot failed'));
+				await Promise.all([rejectedStart, rejectedCompletion]);
+				read.restore();
+				if (earlyCallback === 'complete') {
+					await tracker.takeCompletedEdit('turn-1', 'failed', callback, 'edit', input, 'model', false);
+				}
+				await tracker.trackEditStart(callback, undefined, input);
+				await tracker.completeEdit(keeper, keeperInput);
+				await tracker.takeCompletedEdit('turn-1', 'keeper', keeper, 'edit', keeperInput, 'model', false);
+				await fileService.writeFile(URI.file(first), VSBuffer.fromString('after'));
+				await tracker.completeEdit(first, input);
+				await tracker.takeCompletedEdit('turn-1', 'retry', first, 'edit', input, 'model', false);
+				const decision = await fileEditCoordinator.runExclusive(URI.file(first), async () => 'settled', 0).catch(error => error.message);
+				assert.deepStrictEqual({
+					retry: await readRecordedEdit('retry', first),
+					editing: fileEditCoordinator.isEditing(URI.file(first)),
+					decision,
+				}, { retry: 'before -> after', editing: false, decision: 'settled' });
+			} finally {
+				beforeRead.error(new Error('snapshot failed'));
+				read.restore();
+				await rejectedStart;
+			}
+		});
+	}
+
+	for (const [reverseClaims, withToolInput] of [[false, false], [false, true], [true, false], [true, true]]) {
+		(isLinux ? test.skip : test)(`failed results prefer callback ownership over another failure's original spelling (reverse: ${reverseClaims}, input: ${withToolInput})`, async () => {
+			const first = '/workspace/FILE.txt';
+			const second = '/workspace/File.txt';
+			const firstCallback = '/workspace/FIlE.txt';
+			const healthy = '/workspace/file.txt';
+			const input = withToolInput ? { paths: [first, second, healthy] } : undefined;
+			for (const path of [first, second, firstCallback, healthy]) {
+				await fileService.writeFile(URI.file(path), VSBuffer.fromString('before'));
+			}
+			for (const path of [first, second, healthy]) {
+				await tracker.trackEditStart(path, undefined, input);
+			}
+			const started = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const read = stub(fileService, 'readFile').callsFake(async resource => {
+				if (resource.toString() === URI.file(firstCallback).toString()) {
+					started.complete();
+					await release.p;
+				}
+				throw new Error('snapshot failed');
+			});
+			const firstFailure = assert.rejects(tracker.completeEdit(firstCallback, input), /snapshot failed/);
+			try {
+				await started.p;
+				const secondFailure = assert.rejects(tracker.completeEdit(first, input), /snapshot failed/);
+				release.complete();
+				await Promise.all([firstFailure, secondFailure]);
+				read.restore();
+				const claims = reverseClaims ? [first, firstCallback] : [firstCallback, first];
+				const failed = await Promise.all(claims.map(path => tracker.takeCompletedEdit('turn-1', 'patch', path, 'apply_patch', input, 'model', false)));
+				const editingBeforeHealthyCompletion = fileEditCoordinator.isEditing(URI.file(healthy));
+				await fileService.writeFile(URI.file(healthy), VSBuffer.fromString('after'));
+				await tracker.completeEdit(healthy, input);
+				await tracker.takeCompletedEdit('turn-1', 'patch', healthy, 'apply_patch', input, 'model', false);
+				assert.deepStrictEqual({
+					failed,
+					editingBeforeHealthyCompletion,
+					recorded: await readRecordedEdit('patch', healthy),
+					editingAfter: fileEditCoordinator.isEditing(URI.file(healthy)),
+				}, { failed: [undefined, undefined], editingBeforeHealthyCompletion: true, recorded: 'before -> after', editingAfter: false });
+			} finally {
+				release.complete();
+				read.restore();
+				await firstFailure;
+			}
+		});
+	}
+
+	for (const [reverseFailures, withToolInput] of [[false, false], [false, true], [true, false], [true, true]]) {
+		(isLinux ? test.skip : test)(`same-callback failures retain completion-claim order when before-reads reject (reverse: ${reverseFailures}, input: ${withToolInput})`, async () => {
+			const first = '/workspace/File.txt';
+			const second = '/workspace/FILE.txt';
+			const callback = '/workspace/FIlE.txt';
+			const healthy = '/workspace/file.txt';
+			const input = withToolInput ? { paths: [first, second, healthy] } : undefined;
+			for (const path of [first, second, callback, healthy]) {
+				await fileService.writeFile(URI.file(path), VSBuffer.fromString('before'));
+			}
+			const snapshot = await fileService.readFile(URI.file(healthy));
+			const reads = [first, second].map(filePath => ({ filePath, resource: URI.file(filePath), started: new DeferredPromise<void>(), result: new DeferredPromise<typeof snapshot>() }));
+			const read = stub(fileService, 'readFile').callsFake(async resource => {
+				const pending = reads.find(read => read.resource.toString() === resource.toString());
+				if (pending) {
+					pending.started.complete();
+					return pending.result.p;
+				}
+				return snapshot;
+			});
+			const rejected = reads.map(read => assert.rejects(tracker.trackEditStart(read.filePath, undefined, input), /snapshot failed/));
+			try {
+				await Promise.all(reads.map(read => read.started.p));
+				await tracker.trackEditStart(healthy, undefined, input);
+				rejected.push(assert.rejects(tracker.completeEdit(callback, input), /snapshot failed/));
+				rejected.push(assert.rejects(tracker.completeEdit(callback, input), /snapshot failed/));
+				const firstFailure = reverseFailures ? 1 : 0;
+				reads[firstFailure].result.error(new Error('snapshot failed'));
+				await rejected[firstFailure];
+				reads[1 - firstFailure].result.error(new Error('snapshot failed'));
+				await Promise.all(rejected);
+				read.restore();
+				const failed = await Promise.all([callback, second].map(path => tracker.takeCompletedEdit('turn-1', 'patch', path, 'apply_patch', input, 'model', false)));
+				const editingBeforeHealthyCompletion = fileEditCoordinator.isEditing(URI.file(healthy));
+				await fileService.writeFile(URI.file(healthy), VSBuffer.fromString('after'));
+				await tracker.completeEdit(healthy, input);
+				await tracker.takeCompletedEdit('turn-1', 'patch', healthy, 'apply_patch', input, 'model', false);
+				assert.deepStrictEqual({
+					failed,
+					editingBeforeHealthyCompletion,
+					recorded: await readRecordedEdit('patch', healthy),
+					editingAfter: fileEditCoordinator.isEditing(URI.file(healthy)),
+				}, { failed: [undefined, undefined], editingBeforeHealthyCompletion: true, recorded: 'before -> after', editingAfter: false });
+			} finally {
+				for (const read of reads) {
+					read.result.error(new Error('snapshot failed'));
+				}
+				read.restore();
+				await Promise.all(rejected);
+			}
+		});
+	}
+
 	(isLinux ? test.skip : test)('persists alias snapshots in completion order even when claimed in reverse order', async () => {
 		const paths = ['/workspace/File.txt', '/workspace/file.txt'];
 		for (const path of paths) {
@@ -278,6 +507,145 @@ suite('FileEditTracker', () => {
 			editing: fileEditCoordinator.isEditing(URI.file(paths[0])),
 		}, { order: ['first', 'second'], files: 1, editing: false });
 	});
+
+	for (const [useAlias, delayReservation] of [[false, false], [false, true], [true, false], [true, true]]) {
+		(useAlias && isLinux ? test.skip : test)(`serializes overlapping snapshot reads before recording completion order (alias: ${useAlias}, delayed reservation: ${delayReservation})`, async () => {
+			const paths = ['/workspace/File.txt', useAlias ? '/workspace/file.txt' : '/workspace/File.txt'];
+			const inputs = paths.map((path, index) => ({ path, index }));
+			const resource = URI.file(paths[0]);
+			const unrelated = URI.file('/workspace/unrelated.txt');
+			for (const [index, path] of paths.entries()) {
+				await fileService.writeFile(URI.file(path), VSBuffer.fromString('original'));
+				await tracker.trackEditStart(path, undefined, inputs[index]);
+			}
+			await tracker.trackEditStart(unrelated.fsPath);
+			await fileService.writeFile(unrelated, VSBuffer.fromString('unrelated'));
+			const unrelatedSnapshot = await fileService.readFile(unrelated);
+			await fileService.writeFile(resource, VSBuffer.fromString('first'));
+			const firstSnapshot = await fileService.readFile(resource);
+			const started = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const reservedOrders = delayReservation ? [await db.reserveFileEditOrder(), await db.reserveFileEditOrder(), await db.reserveFileEditOrder()] : [];
+			let reservationCalls = 0;
+			const reserve = delayReservation ? stub(db, 'reserveFileEditOrder').callsFake(async () => {
+				const order = reservedOrders[reservationCalls++];
+				if (order === undefined) {
+					throw new Error('Unexpected snapshot order reservation');
+				}
+				if (reservationCalls === 1) {
+					started.complete();
+					await release.p;
+				}
+				return order;
+			}) : undefined;
+			let snapshotReads = 0;
+			const read = stub(fileService, 'readFile').callsFake(async target => {
+				if (fileEditCoordinator.uriIdentity.isEqual(target, unrelated)) {
+					return unrelatedSnapshot;
+				}
+				if (++snapshotReads === 1) {
+					if (!delayReservation) {
+						started.complete();
+						await release.p;
+					}
+					return firstSnapshot;
+				}
+				return { ...firstSnapshot, value: VSBuffer.fromString('second') };
+			});
+			try {
+				const first = tracker.completeEdit(paths[0], inputs[0]);
+				await started.p;
+				await fileService.writeFile(resource, VSBuffer.fromString('second'));
+				const second = tracker.completeEdit(paths[1], inputs[1]);
+				await tracker.completeEdit(unrelated.fsPath);
+				const readsWhileFirstIsPending = snapshotReads;
+				release.complete();
+				await Promise.all([first, second]);
+				for (const [index, path] of paths.entries()) {
+					await tracker.takeCompletedEdit('turn-1', index === 0 ? 'first' : 'second', path, 'edit', inputs[index], 'model', false);
+				}
+				await tracker.takeCompletedEdit('turn-1', 'unrelated', unrelated.fsPath, 'edit', undefined, 'model', false);
+				read.restore();
+				const files = await computeWorkingSetFiles([{ sessionUri: 'copilot:/test-session', db }], diffComputeService);
+				const file = files.find(file => file.diff.after && fileEditCoordinator.uriIdentity.isEqual(URI.parse(file.diff.after.uri), resource))!;
+				const after = parseSessionDbUri(file.diff.after!.content.uri)!;
+				const content = await db.readFileEditContent(after.toolCallId, after.filePath);
+				assert.deepStrictEqual({
+					readsWhileFirstIsPending,
+					recorded: [await readRecordedEdit('first', paths[0]), await readRecordedEdit('second', paths[1])],
+					order: (await db.getAllFileEdits()).filter(record => record.toolCallId !== 'unrelated').map(record => record.toolCallId),
+					workingSetAfter: new TextDecoder().decode(content?.afterContent),
+					fileAfter: (await fileService.readFile(resource)).value.toString(),
+					editing: fileEditCoordinator.isEditing(resource),
+				}, {
+					readsWhileFirstIsPending: 1,
+					recorded: ['original -> first', 'first -> second'],
+					order: ['first', 'second'],
+					workingSetAfter: 'second',
+					fileAfter: 'second',
+					editing: false,
+				});
+			} finally {
+				release.complete();
+				read.restore();
+				reserve?.restore();
+			}
+		});
+	}
+
+	for (const dispose of [false, true]) {
+		test(`queued snapshot completions settle after the first read ${dispose ? 'is disposed' : 'fails'}`, async () => {
+			const resource = URI.file('/workspace/queued.txt');
+			const inputs = [{ index: 0 }, { index: 1 }];
+			await fileService.writeFile(resource, VSBuffer.fromString('original'));
+			for (const input of inputs) {
+				await tracker.trackEditStart(resource.fsPath, undefined, input);
+			}
+			await fileService.writeFile(resource, VSBuffer.fromString('first'));
+			const snapshot = await fileService.readFile(resource);
+			const started = new DeferredPromise<void>();
+			const readResult = new DeferredPromise<typeof snapshot>();
+			let snapshotReads = 0;
+			const read = stub(fileService, 'readFile').callsFake(async () => {
+				if (++snapshotReads === 1) {
+					started.complete();
+					return readResult.p;
+				}
+				return { ...snapshot, value: VSBuffer.fromString('second') };
+			});
+			try {
+				const first = tracker.completeEdit(resource.fsPath, inputs[0]).then(() => 'completed', error => error.message);
+				await started.p;
+				await fileService.writeFile(resource, VSBuffer.fromString('second'));
+				const second = tracker.completeEdit(resource.fsPath, inputs[1]);
+				if (dispose) {
+					tracker.dispose();
+					readResult.complete(snapshot);
+				} else {
+					readResult.error(new Error('snapshot failed'));
+				}
+				const firstOutcome = await first;
+				await second;
+				const result = await tracker.takeCompletedEdit('turn-1', 'second', resource.fsPath, 'edit', inputs[1], 'model', false);
+				assert.deepStrictEqual({
+					firstOutcome,
+					snapshotReads,
+					hasResult: result !== undefined,
+					recorded: await readRecordedEdit('second', resource.fsPath),
+					editing: fileEditCoordinator.isEditing(resource),
+				}, {
+					firstOutcome: dispose ? 'completed' : 'snapshot failed',
+					snapshotReads: dispose ? 1 : 2,
+					hasResult: !dispose,
+					recorded: dispose ? 'not recorded' : 'original -> second',
+					editing: false,
+				});
+			} finally {
+				readResult.complete(snapshot);
+				read.restore();
+			}
+		});
+	}
 
 	test('preserves missed-result cleanup for ordered callbacks using the identical spelling', async () => {
 		const path = '/workspace/file.txt';

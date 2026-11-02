@@ -9,6 +9,7 @@ import type { Database, RunResult } from '@vscode/sqlite3';
 import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionRowsWatermark, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord, type StoredAssistantResponsePart } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { extUriBiasedIgnorePathCase, type IExtUri } from '../../../base/common/resources.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, ResponsePartKind, type Message } from '../common/state/sessionState.js';
 import { configureSqliteJournal } from './agentHostSqliteJournal.js';
@@ -294,6 +295,16 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 			END`,
 		].join(';\n'),
 	},
+	{
+		version: 20,
+		sql: [
+			`ALTER TABLE file_edits ADD COLUMN edit_revision TEXT`,
+			`CREATE TRIGGER file_edits_assign_revision AFTER INSERT ON file_edits WHEN NEW.edit_revision IS NULL
+			BEGIN
+				UPDATE file_edits SET edit_revision = lower(hex(randomblob(16))) WHERE rowid = NEW.rowid;
+			END`,
+		].join(';\n'),
+	},
 ];
 
 function isStoredAssistantResponsePart(part: unknown): part is StoredAssistantResponsePart {
@@ -386,8 +397,8 @@ async function insertFileEdit(db: Database, edit: IFileEditRecord & IFileEditCon
 	await dbRun(
 		db,
 		`INSERT OR REPLACE INTO file_edits
-			(turn_id, tool_call_id, file_path, edit_type, original_path, before_content, after_content, added_lines, removed_lines, edit_order)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			(turn_id, tool_call_id, file_path, edit_type, original_path, before_content, after_content, added_lines, removed_lines, edit_order, edit_revision)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[
 			edit.turnId,
 			edit.toolCallId,
@@ -399,6 +410,7 @@ async function insertFileEdit(db: Database, edit: IFileEditRecord & IFileEditCon
 			edit.addedLines ?? null,
 			edit.removedLines ?? null,
 			order ?? null,
+			generateUuid(),
 		],
 	);
 }
@@ -1147,7 +1159,7 @@ export class SessionDatabase implements ISessionDatabase {
 		const placeholders = toolCallIds.map(() => '?').join(',');
 		const rows = await dbAll(
 			db,
-			`SELECT turn_id, tool_call_id, file_path, edit_type, original_path, added_lines, removed_lines, COALESCE(edit_order, rowid) AS edit_order
+			`SELECT turn_id, tool_call_id, file_path, edit_type, original_path, added_lines, removed_lines, COALESCE(edit_order, rowid) AS edit_order, edit_revision
 				FROM file_edits
 				WHERE tool_call_id IN (${placeholders})
 				ORDER BY COALESCE(edit_order, rowid)`,
@@ -1160,6 +1172,7 @@ export class SessionDatabase implements ISessionDatabase {
 			kind: (row.edit_type as IFileEditRecord['kind']) ?? 'edit',
 			originalPath: row.original_path as string | undefined ?? undefined,
 			editOrder: row.edit_order as number,
+			editRevision: typeof row.edit_revision === 'string' ? row.edit_revision : undefined,
 			addedLines: row.added_lines as number | undefined ?? undefined,
 			removedLines: row.removed_lines as number | undefined ?? undefined,
 		}));
@@ -1169,7 +1182,7 @@ export class SessionDatabase implements ISessionDatabase {
 		const db = await this._ensureDb();
 		const rows = await dbAll(
 			db,
-			`SELECT turn_id, tool_call_id, file_path, edit_type, original_path, added_lines, removed_lines, COALESCE(edit_order, rowid) AS edit_order
+			`SELECT turn_id, tool_call_id, file_path, edit_type, original_path, added_lines, removed_lines, COALESCE(edit_order, rowid) AS edit_order, edit_revision
 				FROM file_edits
 				ORDER BY COALESCE(edit_order, rowid)`,
 			[],
@@ -1181,6 +1194,7 @@ export class SessionDatabase implements ISessionDatabase {
 			kind: (row.edit_type as IFileEditRecord['kind']) ?? 'edit',
 			originalPath: row.original_path as string | undefined ?? undefined,
 			editOrder: row.edit_order as number,
+			editRevision: typeof row.edit_revision === 'string' ? row.edit_revision : undefined,
 			addedLines: row.added_lines as number | undefined ?? undefined,
 			removedLines: row.removed_lines as number | undefined ?? undefined,
 		}));
@@ -1191,7 +1205,7 @@ export class SessionDatabase implements ISessionDatabase {
 		const foreign = await this._mayHaveForeignTurns(db);
 		const rows = await dbAll(
 			db,
-			`SELECT turn_id, tool_call_id, file_path, edit_type, original_path, added_lines, removed_lines, COALESCE(edit_order, rowid) AS edit_order
+			`SELECT turn_id, tool_call_id, file_path, edit_type, original_path, added_lines, removed_lines, COALESCE(edit_order, rowid) AS edit_order, edit_revision
 				FROM file_edits
 				WHERE turn_id IN (
 					SELECT id FROM turns WHERE (id = ?1 OR (event_id = ?1 AND NOT EXISTS (
@@ -1208,6 +1222,7 @@ export class SessionDatabase implements ISessionDatabase {
 			kind: (row.edit_type as IFileEditRecord['kind']) ?? 'edit',
 			originalPath: row.original_path as string | undefined ?? undefined,
 			editOrder: row.edit_order as number,
+			editRevision: typeof row.edit_revision === 'string' ? row.edit_revision : undefined,
 			addedLines: row.added_lines as number | undefined ?? undefined,
 			removedLines: row.removed_lines as number | undefined ?? undefined,
 		}));

@@ -12,7 +12,7 @@ import type { IFileEditRecord, ISessionDatabase } from '../common/sessionDataSer
 import type { IDiffComputeService } from '../common/diffComputeService.js';
 import { FileEditKind, type ISessionFileDiff } from '../common/state/sessionState.js';
 import { buildSessionDbUri } from '../common/sessionDbUri.js';
-import { getWorkingSetFileEditRecords, isFileEditAcceptRecord } from './fileEditAccept.js';
+import { fileEditContentEquals, getWorkingSetFileEditRecords, isFileEditAcceptRecord } from './fileEditAccept.js';
 import { getFileEditPathKey, getFileEditRecordKey } from './fileEditIdentity.js';
 import { computeWorkingSetFileContents } from './workingSetFileContents.js';
 
@@ -321,11 +321,12 @@ export async function computeSessionDiffs(
  * the correct database.
  *
  * Sources are unioned in array order (session first, peers next); within a
- * source, edits keep their insertion order. When a file is touched by more than
+ * source, edits keep their recorded order. When a file is touched by more than
  * one source the "before" comes from the earliest source that touched it and the
  * "after" from the latest, which matches the shared working tree the chats edit.
  * A record held by more than one source, like those a forked chat's database
  * copies from its parent, counts once, in the earliest source that holds it.
+ * Only a copy-stable snapshot revision can synchronize source histories; legacy copies retain source precedence.
  *
  * TODO (debt): this always does a full recompute — it ignores the
  * {@link IIncrementalDiffOptions} fast/slow paths that {@link computeSessionDiffs}
@@ -384,22 +385,22 @@ export async function computeWorkingSetFiles(
  */
 export function getWorkingSetFileNonce(records: readonly IFileEditRecord[]): string {
 	const hash = new StringSHA1();
-	hash.update(JSON.stringify(records.map(record => [getFileEditRecordKey(record), record.turnId, record.kind, record.originalPath, record.editOrder])));
+	hash.update(JSON.stringify(records.map(record => [getFileEditRecordKey(record), record.turnId, record.kind, record.originalPath, record.editOrder, record.editRevision])));
 	return hash.digest();
 }
 
+type FileEditSourceRecords = ReadonlyMap<string, { readonly record: IFileEditRecord; readonly index: number }>;
+
 /** Replays shared histories in database order before following renames or coalescing paths. */
 function orderFileEditSources(
-	sources: readonly ISessionDiffSource[],
 	perSourceEdits: readonly (readonly IFileEditRecord[])[],
-	sourceRecords: readonly ReadonlyMap<string, { readonly record: IFileEditRecord; readonly index: number }>[],
+	sourceRecords: readonly FileEditSourceRecords[],
 ): { readonly record: IFileEditRecord; readonly sourceIdx: number }[] {
 	if (perSourceEdits.length === 1 && sourceRecords[0].size === perSourceEdits[0].length) {
 		return perSourceEdits[0].map(record => ({ record, sourceIdx: 0 }));
 	}
 	const cursors = perSourceEdits.map(() => 0);
 	const result: { readonly record: IFileEditRecord; readonly sourceIdx: number }[] = [];
-	const present = new Set<string>();
 	while (cursors.some((cursor, sourceIdx) => cursor < perSourceEdits[sourceIdx].length)) {
 		const ready: { readonly record: IFileEditRecord; readonly sourceIdx: number }[] = [];
 		const seen = new Set<string>();
@@ -420,27 +421,8 @@ function orderFileEditSources(
 		if (ready.length === 0) {
 			throw new Error(localize('agentHost.fileEdits.conflictingOrder', "Could not determine the order of the recorded file changes across chats."));
 		}
-		// An unordered fork rename must not consume a later creation of its old path.
-		const next = ready.find(({ record, sourceIdx }) => {
-			const originalPath = record.originalPath;
-			if (record.kind !== FileEditKind.Rename || !originalPath) {
-				return false;
-			}
-			const originalKey = getFileEditPathKey(originalPath, sources[sourceIdx].db.fileEditUriIdentity);
-			return present.has(originalKey) && ready.some(candidate => candidate.record.kind === FileEditKind.Create
-				&& getFileEditPathKey(candidate.record.filePath, sources[candidate.sourceIdx].db.fileEditUriIdentity) === originalKey);
-		}) ?? ready[0];
+		const next = ready[0];
 		result.push(next);
-		const identity = sources[next.sourceIdx].db.fileEditUriIdentity;
-		const pathKey = getFileEditPathKey(next.record.filePath, identity);
-		if (next.record.kind === FileEditKind.Rename && next.record.originalPath) {
-			present.delete(getFileEditPathKey(next.record.originalPath, identity));
-		}
-		if (next.record.kind === FileEditKind.Delete) {
-			present.delete(pathKey);
-		} else {
-			present.add(pathKey);
-		}
 		const key = getFileEditRecordKey(next.record);
 		for (let sourceIdx = 0; sourceIdx < perSourceEdits.length; sourceIdx++) {
 			const record = perSourceEdits[sourceIdx][cursors[sourceIdx]];
@@ -450,6 +432,58 @@ function orderFileEditSources(
 		}
 	}
 	return result;
+}
+
+/** Finds a database holding the authoritative snapshots needed to rebase a file's Working Set. */
+async function findFileEditHolder(sources: readonly ISessionDiffSource[], sourceRecords: readonly FileEditSourceRecords[], editKeys: readonly string[]): Promise<number> {
+	for (let candidateIdx = 0; candidateIdx < sourceRecords.length; candidateIdx++) {
+		const candidate = sourceRecords[candidateIdx];
+		if (!editKeys.every(key => candidate.has(key))) {
+			continue;
+		}
+		let matches = true;
+		let previousIndex = -1;
+		for (const key of editKeys) {
+			const entry = candidate.get(key)!;
+			if (entry.index <= previousIndex) {
+				matches = false;
+				break;
+			}
+			previousIndex = entry.index;
+			const sourceIdx = sourceRecords.findIndex(records => records.has(key));
+			if (sourceIdx === candidateIdx) {
+				continue;
+			}
+			const authoritative = sourceRecords[sourceIdx].get(key)!.record;
+			const copy = entry.record;
+			if (authoritative.kind !== copy.kind || authoritative.originalPath !== copy.originalPath) {
+				matches = false;
+				break;
+			}
+			if (authoritative.editRevision !== undefined || copy.editRevision !== undefined) {
+				if (authoritative.editRevision !== copy.editRevision) {
+					matches = false;
+					break;
+				}
+				continue;
+			}
+			const [content, copiedContent] = await Promises.settled([
+				sources[sourceIdx].db.readFileEditContent(authoritative.toolCallId, authoritative.filePath),
+				sources[candidateIdx].db.readFileEditContent(copy.toolCallId, copy.filePath),
+			]);
+			if (!content || !copiedContent) {
+				throw new Error(localize('agentHost.fileEdits.missingCopy', "Could not read a recorded file change while comparing chat histories."));
+			}
+			if (!fileEditContentEquals(content.beforeContent, copiedContent.beforeContent) || !fileEditContentEquals(content.afterContent, copiedContent.afterContent)) {
+				matches = false;
+				break;
+			}
+		}
+		if (matches) {
+			return candidateIdx;
+		}
+	}
+	return -1;
 }
 
 /**
@@ -463,10 +497,20 @@ async function computeUnionedFileDiffs(
 	folderScope: readonly URI[] | undefined,
 	fromAcceptedContent: boolean,
 ): Promise<{ readonly diff: ISessionFileDiff; readonly records: readonly IFileEditRecord[] }[]> {
-	// Shared records synchronize source histories before file identities are constructed.
 	const perSourceEdits = (await Promises.settled(sources.map(source => source.db.getAllFileEdits())))
 		.map(records => fromAcceptedContent ? records : withoutAcceptRecords(records));
 	const sourceRecords = perSourceEdits.map(edits => new Map(edits.map((record, index) => [getFileEditRecordKey(record), { record, index }])));
+	const authoritativeRecords = new Map<string, IFileEditRecord>();
+	const orderingEdits = perSourceEdits.map(records => records.filter(record => {
+		const key = getFileEditRecordKey(record);
+		const authoritative = authoritativeRecords.get(key);
+		if (!authoritative) {
+			authoritativeRecords.set(key, record);
+			return true;
+		}
+		return record.editRevision !== undefined && record.editRevision === authoritative.editRevision;
+	}));
+	const orderingRecords = orderingEdits.map(edits => new Map(edits.map((record, index) => [getFileEditRecordKey(record), { record, index }])));
 
 	const pathToIdentityKey = new Map<string, string>();
 	const identities = new Map<string, IFileIdentity & { editKeys: string[] }>();
@@ -474,7 +518,7 @@ async function computeUnionedFileDiffs(
 	// A forked chat's database starts as a copy of its parent's, so the parent's
 	// records can appear in more than one source. Counting a copy again would
 	// make it the file's last edit and hide edits the parent made after the fork.
-	const orderedEdits = orderFileEditSources(sources, perSourceEdits, sourceRecords);
+	const orderedEdits = orderFileEditSources(orderingEdits, orderingRecords);
 	for (const { record: edit, sourceIdx } of orderedEdits) {
 		const uriIdentity = sources[sourceIdx].db.fileEditUriIdentity;
 		const isAccept = isFileEditAcceptRecord(edit);
@@ -537,41 +581,40 @@ async function computeUnionedFileDiffs(
 	const diffPromises: Promise<void>[] = [];
 
 	for (const observed of identities.values()) {
-		let identity = observed;
-		const { editKeys } = identity;
-		const holderIdx = sourceRecords.findIndex(records => editKeys.every(key => records.has(key)));
-		let records = editKeys.map(key => sourceRecords.find(source => source.has(key))!.get(key)!.record);
-		if (holderIdx >= 0) {
-			const holder = sourceRecords[holderIdx];
-			const ordered = editKeys.map(key => holder.get(key)!.record);
-			records = ordered;
-			const rows = fromAcceptedContent ? getWorkingSetFileEditRecords(ordered) : ordered;
-			const first = rows[0];
-			const last = rows[rows.length - 1];
-			identity = {
-				...identity,
-				firstToolCallId: first.toolCallId,
-				firstFilePath: first.filePath,
-				firstResourcePath: first.kind === FileEditKind.Rename && first.originalPath ? first.originalPath : first.filePath,
-				firstKind: isFileEditAcceptRecord(first) ? (first.kind === FileEditKind.Delete ? FileEditKind.Create : FileEditKind.Edit) : first.kind,
-				firstSourceIdx: holderIdx,
-				lastToolCallId: last.toolCallId,
-				lastFilePath: last.filePath,
-				lastKind: last.kind,
-				lastSourceIdx: holderIdx,
-				terminalPath: last.filePath,
-				rowsSinceBaseline: fromAcceptedContent ? rows.map(record => ({ record, sourceIdx: holderIdx })) : undefined,
-			};
-		}
-		const uriIdentity = sources[identity.lastSourceIdx].db.fileEditUriIdentity;
-		// Apply the folder scope by the identity's FINAL path, mirroring
-		// `computeTurnDiffs`: a rename that lands in scope is kept (with its
-		// full before/after chain) and one that leaves scope is dropped.
-		if (folderScope && !isPathWithinFolderScope(identity.terminalPath, folderScope, uriIdentity)) {
-			continue;
-		}
-		// The Working Set also counts accept rows, which the identity's last edit leaves out.
 		diffPromises.push((async () => {
+			let identity = observed;
+			if (folderScope && !isPathWithinFolderScope(identity.terminalPath, folderScope, sources[identity.lastSourceIdx].db.fileEditUriIdentity)) {
+				return;
+			}
+			const { editKeys } = identity;
+			const holderIdx = fromAcceptedContent ? await findFileEditHolder(sources, sourceRecords, editKeys) : -1;
+			let records = editKeys.map(key => authoritativeRecords.get(key)!);
+			if (holderIdx >= 0) {
+				const holder = sourceRecords[holderIdx];
+				const ordered = editKeys.map(key => holder.get(key)!.record);
+				records = ordered;
+				const rows = getWorkingSetFileEditRecords(ordered);
+				const first = rows[0];
+				const last = rows[rows.length - 1];
+				identity = {
+					...identity,
+					firstToolCallId: first.toolCallId,
+					firstFilePath: first.filePath,
+					firstResourcePath: first.kind === FileEditKind.Rename && first.originalPath ? first.originalPath : first.filePath,
+					firstKind: isFileEditAcceptRecord(first) ? (first.kind === FileEditKind.Delete ? FileEditKind.Create : FileEditKind.Edit) : first.kind,
+					firstSourceIdx: holderIdx,
+					lastToolCallId: last.toolCallId,
+					lastFilePath: last.filePath,
+					lastKind: last.kind,
+					lastSourceIdx: holderIdx,
+					terminalPath: last.filePath,
+					rowsSinceBaseline: rows.map(record => ({ record, sourceIdx: holderIdx })),
+				};
+			}
+			const uriIdentity = sources[identity.lastSourceIdx].db.fileEditUriIdentity;
+			if (folderScope && !isPathWithinFolderScope(identity.terminalPath, folderScope, uriIdentity)) {
+				return;
+			}
 			// Without a database that holds all of the file's records, their order
 			// is unknown: an accept row in a forked chat can follow, in source
 			// order, an edit its parent made after it. The file's first and last

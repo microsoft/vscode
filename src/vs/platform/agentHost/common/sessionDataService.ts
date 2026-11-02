@@ -52,8 +52,10 @@ export interface IFileEditRecord {
 	kind: FileEditKind;
 	/** For renames, the original file path before the move. */
 	originalPath?: string;
-	/** Database-local snapshot revision and history position, when read from storage. */
+	/** Database-local history position, not a cross-database revision identity. */
 	editOrder?: number;
+	/** Opaque snapshot identity, preserved by database copies and renewed on every replacement; absent on legacy rows. */
+	editRevision?: string;
 	/** Number of lines added (informational, for diff metadata). */
 	addedLines: number | undefined;
 	/** Number of lines removed (informational, for diff metadata). */
@@ -413,6 +415,7 @@ export interface ISessionDatabase extends IDisposable {
 	 *
 	 * If a record for the same `toolCallId` and `filePath` already exists
 	 * it is replaced. Paths remain verbatim row/blob keys; an explicit `order` must come from {@link reserveFileEditOrder}.
+	 * Every write receives a new snapshot revision, regardless of metadata supplied by the caller.
 	 */
 	storeFileEdit(edit: IFileEditRecord & IFileEditContent, order?: number): Promise<void>;
 
