@@ -4246,11 +4246,14 @@ export class CopilotAgentSession extends Disposable {
 						const reportedRound = this._mcpRoutingReportedRounds.get(server.serverName);
 						// A call from a later model response on the same connection means the previous "search again"
 						// found nothing: the snapshot tool search reads, refreshed since, still lacks this server.
-						if (rootCall && reportedRound !== undefined && reportedRound < this._rootModelRound && !(await this._hasCurrentMcpServerTools(server.serverName))) {
+						// The mark is rechecked after the read, since a reconnect meanwhile clears it.
+						if (rootCall && reportedRound !== undefined && reportedRound < this._rootModelRound
+							&& !(await this._hasCurrentMcpServerTools(server.serverName))
+							&& this._mcpRoutingReportedRounds.get(server.serverName) === reportedRound) {
 							this._logService.warn(`[Copilot:${this.sessionId}] MCP server '${server.serverName}' is connected and lists ${liveTools.length} tools, but none are available to the session; its configured tool filter may exclude them`);
 							return this._toolSearchFailure(`The ${displayName} MCP server is connected and lists these tools: ${liveToolNames}. None of them are available in this session, so searching again will not find them. The server's configuration may restrict which tools are exposed, for example a "tools" allowlist naming tools the server no longer offers. Do not search for or call this server's tools again; tell the user to check its MCP configuration.`);
 						}
-						if (rootCall && reportedRound === undefined) {
+						if (rootCall && !this._mcpRoutingReportedRounds.has(server.serverName)) {
 							this._mcpRoutingReportedRounds.set(server.serverName, this._rootModelRound);
 						}
 						return {
