@@ -887,9 +887,15 @@ importers:
         specifier: ^10.1.1
         version: 10.1.1
     devDependencies:
+      '@types/glob':
+        specifier: 7.1.3
+        version: 7.1.3
       '@types/node':
         specifier: 24.x
         version: 24.12.4
+      glob:
+        specifier: ^5.0.13
+        version: 5.0.15
 
   extensions/json-language-features/server:
     dependencies:
@@ -11136,7 +11142,6 @@ snapshots:
     dependencies:
       '@types/minimatch': 3.0.3
       '@types/node': 24.12.4
-    optional: true
 
   '@types/http-cache-semantics@4.2.0': {}
 
