@@ -249,6 +249,11 @@ export class SessionChatViewEditorView extends Disposable implements IViewEditor
 	focus(): void {
 		this.sessionView.focus();
 	}
+
+	/** Saves what the chat shows, such as where it is scrolled to, before its editor moves: the view where it moves to shows the same. */
+	saveViewState(): void {
+		this.sessionView.primaryChatView.get()?.saveViewState();
+	}
 }
 
 Registry.as<IViewEditorRegistry>(ViewEditorExtensions.ViewEditors).register({

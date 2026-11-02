@@ -265,6 +265,14 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	}
 
 	/**
+	 * Saves what the view shows of its chat, such as where it is scrolled to, so that another view of the chat shows the
+	 * same, such as after the chat moved. The default implementation is a no-op.
+	 */
+	saveViewState(): void {
+		// no-op by default
+	}
+
+	/**
 	 * Prefill the input with the given text. The default implementation is
 	 * a no-op; subclasses that host an input widget (e.g. `NewChatView`)
 	 * override this.

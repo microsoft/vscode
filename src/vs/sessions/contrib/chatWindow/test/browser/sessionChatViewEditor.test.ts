@@ -11,7 +11,7 @@ import { IViewEditorRegistry, ViewEditorExtensions } from '../../../../../workbe
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { createSessionViewTestServices } from '../../../../test/browser/sessionViewTestUtils.js';
+import { createSessionViewTestServices, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import { IInputOnlySessionView, ISessionChatViewHost, SessionChatViewEditorView, SESSION_CHAT_VIEW_HOST_OPTIONS, SESSION_CHAT_VIEW_MINIMUM_HEIGHT, SESSION_CHAT_VIEW_TYPE, SessionChatViewInputOnly } from '../../browser/sessionChatViewEditor.js';
 
 suite('Session chat view editor', () => {
@@ -123,5 +123,23 @@ suite('Session chat view editor', () => {
 		first.dispose();
 
 		assert.deepStrictEqual({ whileBoth, afterMove: titleRow.childElementCount, ofSecond: titleRow.firstElementChild?.parentElement === titleRow && second.sessionView.element.contains(titleRow.firstElementChild) === false }, { whileBoth: 2, afterMove: 1, ofSecond: true });
+	});
+
+	test('before its editor moves, the chat saves what it shows, such as where it is scrolled to, for the view where it moves to', () => {
+		const { instantiationService, chatViews } = createSessionViewTestServices(disposables);
+		const host: ISessionChatViewHost = {
+			session: constObservable(createTestActiveSession('session')),
+			window: constObservable(undefined),
+			header: constObservable(undefined),
+			attach: () => Disposable.None,
+		};
+		const view = disposables.add(instantiationService.createInstance(SessionChatViewEditorView, host));
+		const saved: string[] = [];
+		for (const chatView of chatViews) {
+			chatView.saveViewState = () => saved.push(chatView.kind);
+		}
+		view.saveViewState();
+
+		assert.deepStrictEqual({ primary: view.sessionView.primaryChatView.get() === chatViews.at(-1), saved }, { primary: true, saved: ['chat'] });
 	});
 });

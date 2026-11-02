@@ -1280,6 +1280,10 @@ export class ChatView extends AbstractChatView {
 		this._inputOnlyEnabled.set(false, undefined);
 	}
 
+	override saveViewState(): void {
+		this._saveCurrentViewState();
+	}
+
 	override setInputOnly(inputOnly: boolean): void {
 		if (this._inputOnlyMaxHeight === undefined || (inputOnly && !this.canShowInputOnly.get())) {
 			return;
