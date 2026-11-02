@@ -5,6 +5,7 @@
 
 import { $, append, getActiveWindow } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
@@ -98,7 +99,8 @@ export class ChatWindow extends Disposable implements IChatWindow {
 				return;
 			}
 			if (e.context !== EditorCloseContext.MOVE) {
-				this.close();
+				// Once the editor closed: closing the window closes the part whose group still closes the editor.
+				disposableTimeout(() => this.close(), 0, this._store);
 			} else if (!this.chatPart.groups.some(candidate => candidate.contains(content.input)) && !this.mainPart.groups.some(candidate => candidate.contains(content.input))) {
 				this._host.didMoveChatOut();
 			}

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -127,10 +128,13 @@ suite('Chat window', () => {
 		assert.deepStrictEqual(modes, [ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.ChatOnly]);
 	});
 
-	test('closing the chat\'s editor closes the window, closing its chat part before its main part', () => {
+	test('closing the chat\'s editor closes the window once the editor closed, closing its chat part before its main part', async () => {
 		const { chat, chatInput, events } = createWindow();
 
 		chat.group.fireCloseEditor(chatInput);
+		const whileClosing = events.length;
+		await timeout(0);
+		assert.strictEqual(whileClosing, 0);
 
 		assert.deepStrictEqual(events, ['close chat', 'close main', 'will close', 'close window', 'closed']);
 	});
@@ -152,7 +156,7 @@ suite('Chat window', () => {
 		assert.deepStrictEqual({ closed, events }, { closed: false, events: ['close chat', 'close main'] });
 	});
 
-	test('its parts closing as its window unloads neither close it again nor change its layout', () => {
+	test('its parts closing as its window unloads neither close it again nor change its layout', async () => {
 		const unloading = { value: false };
 		const { window, state, main, chat, chatInput, events } = createWindow({ unloading });
 		const file = editor();
@@ -162,6 +166,7 @@ suite('Chat window', () => {
 		main.group.fireCloseEditor(file);
 		chat.group.fireCloseEditor(chatInput);
 		window.didClose();
+		await timeout(0);
 
 		assert.deepStrictEqual({ mode: state.layoutMode.get(), events }, { mode: ChatWindowLayoutMode.SideBySide, events: ['closed'] });
 	});
@@ -202,13 +207,14 @@ suite('Chat window', () => {
 		assert.deepStrictEqual(events, ['focus window', 'focus chat', 'focus window', 'focus main']);
 	});
 
-	test('the chat\'s editor moves between the groups of its part, such as when the part splits, and still closes the window when it closes there', () => {
+	test('the chat\'s editor moves between the groups of its part, such as when the part splits, and still closes the window when it closes there', async () => {
 		const { chat, chatInput, events } = createWindow();
 		const split = chat.addGroup();
 		split.testEditors.push(chatInput);
 		chat.group.fireCloseEditor(chatInput, EditorCloseContext.MOVE);
 		const afterMove = [...events];
 		split.fireCloseEditor(chatInput);
+		await timeout(0);
 
 		assert.deepStrictEqual({ afterMove, events }, { afterMove: [], events: ['close chat', 'close main', 'will close', 'close window', 'closed'] });
 	});
