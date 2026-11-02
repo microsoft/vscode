@@ -11,6 +11,7 @@ import * as path from 'path';
 import { suite, test, type TestContext } from 'node:test';
 import { create } from 'tar';
 import { ensureNpmPackage, materializeNpmPackageVersion, type EnsureNpmPackageOptions } from '../npmPackage.ts';
+import { writePnpmLockfile } from './pnpmLockfileFixture.ts';
 
 const packageName = '@github/copilot-darwin-arm64';
 const version = '1.0.73';
@@ -33,9 +34,7 @@ function createFixture(t: TestContext, fromLockfile: boolean) {
 		targetDir,
 		materialize: (options: EnsureNpmPackageOptions, expectedIntegrity = integrity) => {
 			if (fromLockfile) {
-				fs.writeFileSync(path.join(root, 'package-lock.json'), JSON.stringify({
-					packages: { [`node_modules/${packageName}`]: { version, integrity: expectedIntegrity } }
-				}));
+				writePnpmLockfile(path.join(root, 'pnpm-lock.yaml'), { [packageName]: { version, integrity: expectedIntegrity } });
 				ensureNpmPackage(packageName, nodeModulesRoot, options);
 			} else {
 				materializeNpmPackageVersion(packageName, version, targetDir, expectedIntegrity, options);

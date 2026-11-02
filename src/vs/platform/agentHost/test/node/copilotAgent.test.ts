@@ -1383,6 +1383,18 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 		});
 	}
 
+	registerSharedNetworkClient(): IDisposable {
+		return Disposable.None;
+	}
+
+	notifySharedNetworkClientChanged(): void { }
+
+	readonly clientKerberosLookups: string[] = [];
+	async lookupClientKerberosAuthorization(proxyUrl: string): Promise<string | undefined> {
+		this.clientKerberosLookups.push(proxyUrl);
+		return 'Negotiate client-ticket';
+	}
+
 	getConfigurationValue<T>(_key: string): T | undefined {
 		return undefined;
 	}
@@ -3052,6 +3064,60 @@ suite('CopilotAgent', () => {
 			assert.strictEqual(client.managedSettingsRequests.at(-1)?.gitHubToken, 'new-token');
 		} finally {
 			gate.complete(client.managedSettingsResolution);
+			await disposeAgent(agent);
+		}
+	});
+
+	test('managed settings retry eager config on the restarted client when a resolved proxy restarts it', async () => {
+		class DisposingConnectionClient extends TestCopilotClient {
+			readonly connection = new DeferredPromise<ManagedSettingsResolveResult>();
+
+			override async stop(): ReturnType<ITestCopilotClient['stop']> {
+				this.connection.error(new Error('Pending response rejected since connection got disposed'));
+				return super.stop();
+			}
+		}
+		const proxy = 'http://client-proxy.example:8080';
+		const proxyResolver = new TestProxyResolver();
+		const proxyResolved = new DeferredPromise<void>();
+		proxyResolver.resolvedProxy = proxy;
+		proxyResolver.resolveProxyGate = proxyResolved.p;
+		const client = new DisposingConnectionClient([]);
+		const firstQueryStarted = new DeferredPromise<void>();
+		const restricted: ManagedSettingsResolveResult = {
+			...client.managedSettingsResolution,
+			resolved: {
+				...client.managedSettingsResolution.resolved,
+				bypassPermissionsDisabled: true,
+				settings: { permissions: { disableBypassPermissionsMode: 'disable', disableAssistedPermissionsMode: true } },
+			},
+		};
+		client.resolveManagedSettings = async () => {
+			if (!firstQueryStarted.isSettled) {
+				firstQueryStarted.complete();
+				return client.connection.p;
+			}
+			return restricted;
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client, proxyResolver });
+		try {
+			const config = agent.resolveChatConfig({});
+			await firstQueryStarted.p;
+			proxyResolved.complete();
+			assert.deepStrictEqual({
+				availableApprovalModes: (await config).values.availableApprovalModes,
+				startCallCount: client.startCallCount,
+				stopCallCount: client.stopCallCount,
+				httpsProxy: getCreatedClientOptions(agent).at(-1)?.env?.['HTTPS_PROXY'],
+			}, {
+				availableApprovalModes: ['default'],
+				startCallCount: 2,
+				stopCallCount: 1,
+				httpsProxy: proxy,
+			});
+		} finally {
+			proxyResolved.complete();
+			client.connection.complete(client.managedSettingsResolution);
 			await disposeAgent(agent);
 		}
 	});
@@ -13851,6 +13917,32 @@ suite('CopilotAgent', () => {
 				noProxy: '127.0.0.1,localhost',
 				lowercaseNoProxy: undefined,
 			});
+		});
+
+		test('registers a runtime-scoped fallback Kerberos callback backed by clients sharing the network', async () => {
+			const proxyResolver = new TestProxyResolver();
+			const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), proxyResolver });
+			try {
+				await agent.listChatsToMigrate();
+				const callback = getCreatedClientOptions(agent).at(-1)?.kerberosAuth;
+				const signal = new AbortController().signal;
+				assert.deepStrictEqual({
+					mode: callback?.mode,
+					scope: callback?.scope,
+					tokens: [
+						await callback?.callback({ spn: 'HTTP/proxy.example@EXAMPLE.COM' }, signal),
+						await callback?.callback({ spn: 'ldap/directory.example' }, signal),
+					],
+					lookups: proxyResolver.clientKerberosLookups,
+				}, {
+					mode: 'fallback',
+					scope: 'runtime',
+					tokens: ['client-ticket', undefined],
+					lookups: ['http://proxy.example'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
 		});
 
 		test('forwards the configured Kerberos proxy SPN to the Copilot runtime', async () => {
