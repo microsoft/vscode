@@ -149,6 +149,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			compositeSize: 0,
 			iconSize: 16,
 			compact: true, // Only applies to icons, not labels
+			reserveBadgeSpace: true,
 			overflowActionSize: 44,
 			colors: theme => ({
 				activeBackgroundColor: theme.getColor(PANEL_BACKGROUND), // Background color for overflow action
