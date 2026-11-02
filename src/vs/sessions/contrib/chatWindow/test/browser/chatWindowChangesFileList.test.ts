@@ -7,9 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IMenuItem, isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { MultiDiffEditorFilesViewAndPositionMenu } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { Menus } from '../../../../browser/menus.js';
-import { ToggleSessionsDiffEditorWordWrapAction } from '../../../changes/browser/changesViewActions.js';
 import { SessionChangesEditor } from '../../../changes/browser/sessionChangesEditor.js';
 import '../../browser/chatWindowChangesFileList.js';
 
@@ -33,7 +31,7 @@ suite('Chat window - Changes editor file list', () => {
 		);
 	});
 
-	test('the header row layout actions hold the overflow submenus and word wrap, and nothing is added to the editor title', () => {
+	test('this adds nothing to the header row overflow (the Changes editor registers it) nor to the editor title', () => {
 		const chatWindowHeaderItems = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(item => !!item.when?.keys().includes('sessions.chatWindow'));
 		assert.deepStrictEqual(
 			{
@@ -42,19 +40,10 @@ suite('Chat window - Changes editor file list', () => {
 				editorTitle: MenuRegistry.getMenuItems(MenuId.EditorTitle).filter(item => isIMenuItem(item) && item.command.id === 'multiDiffEditor.toggleFileList' && !!item.when?.keys().includes('sessions.chatWindow')).length,
 			},
 			{
-				overflow: [Menus.SessionsDiffEditorView.id, MultiDiffEditorFilesViewAndPositionMenu.id, ToggleSessionsDiffEditorWordWrapAction.ID].map(id => `true:${id}`).sort(),
+				overflow: [],
 				inline: ['multiDiffEditor.toggleFileList'],
 				editorTitle: 0,
 			},
 		);
-	});
-
-	test('the files view and position submenu reuses the core commands', () => {
-		assert.deepStrictEqual(chatWindowItems(MultiDiffEditorFilesViewAndPositionMenu).map(entry => entry.command.id), [
-			'multiDiffEditor.viewFileListAsList',
-			'multiDiffEditor.viewFileListAsTree',
-			'multiDiffEditor.positionFileListLeft',
-			'multiDiffEditor.positionFileListRight',
-		]);
 	});
 });
