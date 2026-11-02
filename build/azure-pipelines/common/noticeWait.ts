@@ -15,19 +15,22 @@ const SHIPPING_NOTICE_NAME = 'ThirdPartyNotices.new.txt';
 export const MAX_NOTICE_WAIT_MS = 45 * 60_000;
 // Without a readable Quality job state, keep the previous 15 minute budget.
 export const UNKNOWN_QUALITY_NOTICE_WAIT_MS = 15 * 60_000;
-// The artifact upload is asynchronous, so a notice listed when Quality completes
-// may still be committing.
-export const COMPLETED_QUALITY_GRACE_MS = 5 * 60_000;
+/**
+ * What the last poll found in notice_output. After the Quality job completes its
+ * uploads are final, so every platform finds the same thing.
+ * - `absent`: no shipping notice listed
+ * - `invalid`: listed, but missing from the download or too small to use
+ * - `unknown`: not determined, e.g. a transient API or download error
+ */
+export type NoticeAvailability = 'absent' | 'invalid' | 'unknown';
 
 export interface NoticePollState {
 	/** Time since polling started. */
 	readonly elapsedMs: number;
 	/** Last Quality job state read from the timeline, or undefined if it was never read. */
 	readonly qualityState: string | undefined;
-	/** Time since the Quality job was first seen completed. */
-	readonly qualityCompletedForMs: number | undefined;
-	/** Whether the shipping notice is listed in notice_output, or undefined if that is unknown. */
-	readonly shippingListed: boolean | undefined;
+	/** What this poll found, read after the Quality job state. */
+	readonly notice: NoticeAvailability;
 }
 
 /**
@@ -44,11 +47,11 @@ export function getNoticeGiveUpReason(state: NoticePollState): string | undefine
 	if (state.qualityState !== 'completed') {
 		return undefined;
 	}
-	if (state.shippingListed === false) {
-		return `Quality job completed without ${SHIPPING_NOTICE_NAME}`;
+	// Decide only on what the completed Quality job left behind, never on how long
+	// this platform has been looking at it, so every platform decides the same way.
+	switch (state.notice) {
+		case 'absent': return `Quality job completed without ${SHIPPING_NOTICE_NAME}`;
+		case 'invalid': return `Quality job completed with an incomplete or empty ${SHIPPING_NOTICE_NAME}`;
+		case 'unknown': return undefined;
 	}
-	if ((state.qualityCompletedForMs ?? 0) >= COMPLETED_QUALITY_GRACE_MS) {
-		return `${SHIPPING_NOTICE_NAME} still not valid ${COMPLETED_QUALITY_GRACE_MS / 60_000} minutes after the Quality job completed`;
-	}
-	return undefined;
 }

@@ -40,7 +40,7 @@ import type { ReadableStream } from 'stream/web';
 import { pipeline } from 'node:stream/promises';
 import yauzl from 'yauzl';
 import { e, requestAZDOAPI } from './publish.ts';
-import { getNoticeGiveUpReason } from './noticeWait.ts';
+import { getNoticeGiveUpReason, type NoticeAvailability } from './noticeWait.ts';
 import { retry } from './retry.ts';
 
 const ARTIFACT_NAME = 'notice_output';
@@ -232,13 +232,12 @@ interface ExtractedNotice {
 
 // Downloads + extracts the notice_output artifact into tmpDir and validates that
 // ThirdPartyNotices.new.txt is actually present AND non-empty (>1KB). Returns the
-// extracted notice on success, or undefined if the file is missing/too small in
-// the EXTRACTED output -- which, when the container listing claimed it was there,
-// means the content is still committing (mid-upload). The caller treats undefined
-// as "not ready yet" and re-polls; it must NEVER be treated as terminal fallback,
-// because a fast platform that hits this window would otherwise ship the legacy
-// notice while its peers ship the CG notice (the cross-arch mismatch bug).
-async function tryExtractNotice(artifact: NoticeArtifact, tmpDir: string): Promise<ExtractedNotice | undefined> {
+// extracted notice on success, or 'invalid' if the file is missing/too small in
+// the EXTRACTED output -- which, while the Quality job is still running, means the
+// content is still committing (mid-upload). The caller re-polls; only once the
+// Quality job has completed (uploads are final, so every platform sees the same
+// content) is 'invalid' terminal.
+async function tryExtractNotice(artifact: NoticeArtifact, tmpDir: string): Promise<ExtractedNotice | 'invalid'> {
 	fs.rmSync(tmpDir, { recursive: true, force: true });
 	fs.mkdirSync(tmpDir, { recursive: true });
 	const artifactZipPath = path.join(tmpDir, 'notice_output.zip');
@@ -252,7 +251,7 @@ async function tryExtractNotice(artifact: NoticeArtifact, tmpDir: string): Promi
 
 	if (!shipping) {
 		log(`  * ${SHIPPING_NOTICE_NAME} listed but not yet in extracted output (mid-upload); will recheck next poll.`);
-		return undefined;
+		return 'invalid';
 	}
 
 	const size = fs.statSync(shipping).size;
@@ -260,7 +259,7 @@ async function tryExtractNotice(artifact: NoticeArtifact, tmpDir: string): Promi
 	// still in flight. Either way, do not accept it -- re-poll.
 	if (size <= 1024) {
 		log(`  * ${SHIPPING_NOTICE_NAME} extracted but too small (${size} bytes; mid-upload or empty merge); will recheck next poll.`);
-		return undefined;
+		return 'invalid';
 	}
 
 	const metaFile = files.find(f => path.basename(f) === 'notice-meta.txt');
@@ -272,26 +271,21 @@ async function tryExtractNotice(artifact: NoticeArtifact, tmpDir: string): Promi
 async function waitForNotice(tmpDir: string): Promise<ExtractedNotice | undefined> {
 	const startTime = Date.now();
 	let qualityState: string | undefined;
-	let qualityCompletedAt: number | undefined;
 
 	for (let attempt = 1; ; attempt++) {
 		const elapsedMs = Date.now() - startTime;
-		let shippingListed: boolean | undefined;
+		let notice: NoticeAvailability = 'unknown';
 
 		try {
 			log(`Waiting for ${ARTIFACT_NAME} artifact (attempt ${attempt}, ${Math.round(elapsedMs / 1000)}s elapsed)...`);
 
-			// Keep the last known state if the timeline can't be read this time.
+			// Read the Quality job state BEFORE the artifact, so a completed state
+			// means the artifact read below is final. Keep the last known state if
+			// the timeline can't be read this time.
 			const qualityJob = await getQualityJob().catch(() => undefined);
 			if (qualityJob) {
 				log(`  * Quality job: state=${qualityJob.state}, result=${qualityJob.result ?? 'n/a'}`);
 				qualityState = qualityJob.state;
-				if (qualityState === 'completed') {
-					qualityCompletedAt ??= Date.now();
-				} else {
-					// A retried Quality job runs again.
-					qualityCompletedAt = undefined;
-				}
 			}
 
 			const allArtifacts = await retry(() => getPipelineArtifacts());
@@ -299,7 +293,7 @@ async function waitForNotice(tmpDir: string): Promise<ExtractedNotice | undefine
 
 			const artifact = allArtifacts.find(a => a.name === ARTIFACT_NAME);
 			if (!artifact) {
-				shippingListed = false;
+				notice = 'absent';
 			} else {
 				// The notice_output container is populated in TWO phases by the
 				// Quality stage (first generated.txt + meta, then seconds-to-minutes
@@ -313,8 +307,9 @@ async function waitForNotice(tmpDir: string): Promise<ExtractedNotice | undefine
 					log('  * could not list notice_output files yet; will recheck next poll');
 				} else {
 					log(`  * notice_output files: ${files.map(f => path.basename(f)).join(', ') || '(empty)'}`);
-					shippingListed = files.some(f => path.basename(f) === SHIPPING_NOTICE_NAME);
-					if (shippingListed) {
+					if (!files.some(f => path.basename(f) === SHIPPING_NOTICE_NAME)) {
+						notice = 'absent';
+					} else {
 						log(`  * ${SHIPPING_NOTICE_NAME} listed; verifying extracted content...`);
 						const extracted = await tryExtractNotice(artifact, tmpDir).catch(err => {
 							// A download/extract failure here (e.g. partial zip mid-upload)
@@ -322,7 +317,9 @@ async function waitForNotice(tmpDir: string): Promise<ExtractedNotice | undefine
 							log(`  * download/extract attempt failed (${err}); will recheck next poll.`);
 							return undefined;
 						});
-						if (extracted) {
+						if (extracted === 'invalid') {
+							notice = 'invalid';
+						} else if (extracted) {
 							log(`  * ${SHIPPING_NOTICE_NAME} extracted and validated (${extracted.size} bytes); accepting.`);
 							return extracted;
 						}
@@ -333,12 +330,7 @@ async function waitForNotice(tmpDir: string): Promise<ExtractedNotice | undefine
 			console.error(`[notice-cutover] WARNING: poll attempt failed: ${err}`);
 		}
 
-		const reason = getNoticeGiveUpReason({
-			elapsedMs: Date.now() - startTime,
-			qualityState,
-			qualityCompletedForMs: qualityCompletedAt === undefined ? undefined : Date.now() - qualityCompletedAt,
-			shippingListed,
-		});
+		const reason = getNoticeGiveUpReason({ elapsedMs: Date.now() - startTime, qualityState, notice });
 		if (reason) {
 			log(`Giving up: ${reason}.`);
 			return undefined;
