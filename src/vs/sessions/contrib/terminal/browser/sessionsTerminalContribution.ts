@@ -18,7 +18,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
-import { ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
+import { ITerminalInstance, ITerminalLocationOptions, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
@@ -33,6 +33,7 @@ import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { CustomViewVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionTaskRunnerRegistry } from '../../chat/browser/sessionTaskRunner.js';
 import { AgentHostSessionTaskRunner } from './agentHostSessionTaskRunner.js';
+import { ChatWindowTerminals } from './chatWindowTerminals.js';
 
 interface ISessionTerminalInfo {
 	/** The cwd to use for terminal matching/creation. For agent host sessions this is the unwrapped file URI. */
@@ -111,6 +112,8 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	private readonly _sessionTerminals = new Map<string, Set<number>>();
 	private readonly _trackedTerminalScopes = new Map<number, ITrackedTerminalScope>();
 	private readonly _standaloneTerminalIds = new Set<number>();
+	/** Terminals that chat windows show, which the terminal panel leaves to them. */
+	private readonly _chatWindowTerminalIds = new Set<number>();
 	/** In-flight terminal work for drafts, retained only until each operation settles. */
 	private readonly _pendingTerminalOperations = new Map<string, IPendingTerminalOperation>();
 	private readonly _sessionTerminalGenerations = new Map<string, number>();
@@ -232,6 +235,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		this._register(this._terminalService.onDidDisposeInstance(instance => {
 			this._removeTerminalFromTrackedSessions(instance.instanceId);
 			this._standaloneTerminalIds.delete(instance.instanceId);
+			this._chatWindowTerminalIds.delete(instance.instanceId);
 		}));
 
 		// Hide restored terminals from a previous window session that don't
@@ -337,7 +341,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 	}
 
-	private async _ensureTerminal(cwd: URI, focus: boolean, session?: ISession, generation?: number, requireCwdMatch = false): Promise<ITerminalInstance[]> {
+	private async _ensureTerminal(cwd: URI, focus: boolean, session?: ISession, generation?: number, requireCwdMatch = false, location?: ITerminalLocationOptions): Promise<ITerminalInstance[]> {
 		if (session && this._isTerminalOperationCancelled(session, generation)) {
 			return [];
 		}
@@ -358,7 +362,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 		if (existing.length === 0) {
 			try {
-				const instance = await this._createTerminalForSession(cwd, session);
+				const instance = await this._createTerminalForSession(cwd, session, location);
 				const createdInstance = this._getAvailableTerminal(instance, `activate created terminal for ${cwd.fsPath}`);
 				if (!createdInstance) {
 					return [];
@@ -371,7 +375,10 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 					return [];
 				}
 				existing = [createdInstance];
-				this._terminalService.setActiveInstance(createdInstance);
+				// A terminal created where it shows, such as in a chat window, is not the panel's.
+				if (!location) {
+					this._terminalService.setActiveInstance(createdInstance);
+				}
 				this._logService.trace(`[SessionsTerminal] Created terminal ${createdInstance.instanceId} for ${cwd.fsPath}`);
 			} catch (e) {
 				this._logService.trace(`[SessionsTerminal] Cannot create terminal for ${cwd.fsPath}: ${e}`);
@@ -426,15 +433,15 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	 * Creates a terminal for the given cwd. If the session is backed by an
 	 * agent host, creates an agent host terminal; otherwise creates a local one.
 	 */
-	private async _createTerminalForSession(cwd: URI, session: ISession | undefined): Promise<ITerminalInstance> {
+	private async _createTerminalForSession(cwd: URI, session: ISession | undefined, location?: ITerminalLocationOptions): Promise<ITerminalInstance> {
 		const address = session && this._getSessionAgentHostAddress(session);
 		if (address) {
-			const instance = await this._agentHostTerminalService.createTerminalForEntry(address, { cwd });
+			const instance = await this._agentHostTerminalService.createTerminalForEntry(address, { cwd, location });
 			if (instance) {
 				return instance;
 			}
 		}
-		return this._terminalService.createTerminal({ config: { cwd } });
+		return this._terminalService.createTerminal({ config: { cwd }, location });
 	}
 
 	/**
@@ -722,7 +729,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 		for (const instance of [...this._terminalService.instances]) {
 			// Skip hidden tool terminals — managed by the chat tool lifecycle
-			if (instance.shellLaunchConfig.hideFromUser || this._standaloneTerminalIds.has(instance.instanceId)) {
+			if (instance.shellLaunchConfig.hideFromUser || this._standaloneTerminalIds.has(instance.instanceId) || this._chatWindowTerminalIds.has(instance.instanceId)) {
 				continue;
 			}
 			const currentInstance = this._getAvailableTerminal(instance, 'update terminal visibility');
@@ -763,7 +770,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		let mostRecent: ITerminalInstance | undefined;
 		let mostRecentTimestamp = -1;
 		for (const instance of foreground) {
-			if (this._standaloneTerminalIds.has(instance.instanceId)) {
+			if (this._standaloneTerminalIds.has(instance.instanceId) || this._chatWindowTerminalIds.has(instance.instanceId)) {
 				continue;
 			}
 			if (!await this._terminalMatchesScope(instance, activeKey, activeAgentHostAddress)) {
@@ -915,6 +922,35 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 	}
 
+	/**
+	 * The terminal a chat window shows `session` with: one of the session's terminals in its working directory that no
+	 * other chat window shows, or a new one there, created at `location`, in the chat window, rather than in the panel of
+	 * the main window and moved.
+	 */
+	async getChatWindowTerminal(session: IActiveSession, location?: ITerminalLocationOptions): Promise<ITerminalInstance | undefined> {
+		const cwd = this._getActiveSessionTerminalInfo(session)?.cwd ?? await this._pathService.userHome();
+		const instances = await this._ensureTerminal(cwd, false, session, undefined, true, location);
+		const free = instances.find(instance => !this._chatWindowTerminalIds.has(instance.instanceId));
+		if (free || !instances.length) {
+			return free ?? instances[0];
+		}
+		// Each chat window of the session has terminals of its own: the session's terminals are all in other windows.
+		const created = this._getAvailableTerminal(await this._createTerminalForSession(cwd, session, location), `chat window terminal for ${cwd.fsPath}`);
+		if (created) {
+			this._trackTerminalsForSession(session.sessionId, [created], { sessionId: session.sessionId, key: cwd.fsPath.toLowerCase(), agentHostAddress: this._getSessionAgentHostAddress(session) });
+		}
+		return created;
+	}
+
+	/** Leaves `instance` to the chat window that shows it, out of the terminal panel, or gives it back to the panel. */
+	setShownInChatWindow(instance: ITerminalInstance, shown: boolean): void {
+		if (shown) {
+			this._chatWindowTerminalIds.add(instance.instanceId);
+		} else {
+			this._chatWindowTerminalIds.delete(instance.instanceId);
+		}
+	}
+
 	async showAllTerminals(): Promise<void> {
 		for (const instance of this._terminalService.instances) {
 			if (!this._terminalService.foregroundInstances.includes(instance)) {
@@ -926,6 +962,23 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 }
 
 registerWorkbenchContribution2(SessionsTerminalContribution.ID, SessionsTerminalContribution, WorkbenchPhase.AfterRestored);
+
+/** Shows the terminals of the sessions of chat windows in the windows; see {@link ChatWindowTerminals}. */
+export class ChatWindowTerminalsContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessionsChatWindowTerminals';
+
+	readonly terminals: ChatWindowTerminals;
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+		this.terminals = this._register(instantiationService.createInstance(ChatWindowTerminals, getWorkbenchContribution<SessionsTerminalContribution>(SessionsTerminalContribution.ID)));
+	}
+}
+
+registerWorkbenchContribution2(ChatWindowTerminalsContribution.ID, ChatWindowTerminalsContribution, WorkbenchPhase.AfterRestored);
 
 /**
  * Registers an {@link AgentHostSessionTaskRunner} with the

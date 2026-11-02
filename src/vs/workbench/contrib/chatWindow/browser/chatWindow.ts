@@ -13,7 +13,7 @@ import { DeepPartial } from '../../../../base/common/types.js';
 import { IEditorGroupViewOptions } from '../../../browser/parts/editor/editor.js';
 import { IEditorPartOptions } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { IEditorGroup, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
+import { IContentPart, IEditorGroup, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
 
 export const IChatWindowService = createDecorator<IChatWindowService>('chatWindowService');
@@ -153,7 +153,7 @@ export interface IChatWindow {
 	 * The part that holds its terminals, once created (see {@link getOrCreateTerminalsPart}), until the window closes. It is
 	 * a part like the others: what it shows is what the feature that shows terminals opens in it.
 	 */
-	readonly terminalsPart: IObservable<IEditorPart | undefined>;
+	readonly terminalsPart: IObservable<IContentPart | undefined>;
 	/** Whether the part that holds its terminals shows: it exists and has editors. */
 	readonly terminalsVisible: IObservable<boolean>;
 	/**
@@ -175,7 +175,7 @@ export interface IChatWindow {
 	 * The part that holds its terminals, created at its {@link terminalPosition} the first time. Like every part of the
 	 * window, it hides while it has no editors.
 	 */
-	getOrCreateTerminalsPart(): IEditorPart;
+	getOrCreateTerminalsPart(): IContentPart;
 	/** Moves the part that holds its terminals to `position`, which becomes the default of chat windows. */
 	setTerminalPosition(position: ChatWindowTerminalPosition): void;
 	/** Shows its main part, as last arranged with the chat, when only the chat shows. */

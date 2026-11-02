@@ -18,7 +18,8 @@ import { TerminalBuiltinLinkType } from '../../browser/links.js';
 import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalSearchLinkOpener } from '../../browser/terminalLinkOpeners.js';
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
-import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IEditorService, PreferredGroup } from '../../../../../services/editor/common/editorService.js';
+import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import type { Terminal } from '@xterm/xterm';
@@ -68,7 +69,15 @@ suite('Workbench - TerminalLinkOpeners', () => {
 	let fileService: TestFileService;
 	let searchService: TestSearchService;
 	let activationResult: ITerminalLinkActivationResult | undefined;
+	let openedInGroup: PreferredGroup | undefined;
 	let xterm: Terminal;
+
+	/** The parts of the windows, the first of each window its main part, and the active group. */
+	const editorParts: { parts: IEditorPart[]; activeGroup: IEditorGroup | undefined } = { parts: [], activeGroup: undefined };
+	function createPart(windowId: number, groupId: number): IEditorPart {
+		const group = { id: groupId } as IEditorGroup;
+		return { windowId, activeGroup: group, groups: [group] } as Partial<IEditorPart> as IEditorPart;
+	}
 
 	setup(async () => {
 		instantiationService = store.add(new TestInstantiationService());
@@ -91,8 +100,18 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				}
 			}
 		} as Partial<IQuickInputService>);
+		editorParts.parts = [];
+		editorParts.activeGroup = undefined;
+		openedInGroup = undefined;
+		instantiationService.stub(IEditorGroupsService, {
+			get parts() { return editorParts.parts; },
+			get activeGroup() { return editorParts.activeGroup ?? editorParts.parts[0]?.activeGroup; },
+			getPart(group: IEditorGroup) { return editorParts.parts.find(part => part.groups.includes(group))!; },
+			activeModalEditorPart: undefined,
+		} as Partial<IEditorGroupsService>);
 		instantiationService.stub(IEditorService, {
-			async openEditor(editor: ITextResourceEditorInput): Promise<any> {
+			async openEditor(editor: ITextResourceEditorInput, group?: PreferredGroup): Promise<any> {
+				openedInGroup = group;
 				activationResult = {
 					source: 'editor',
 					link: editor.resource?.toString()
@@ -105,6 +124,23 @@ suite('Workbench - TerminalLinkOpeners', () => {
 		} as Partial<IEditorService>);
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = store.add(new TerminalCtor({ allowProposedApi: true, logger: TestXtermLogger }));
+	});
+
+	suite('TerminalLocalFileLinkOpener', () => {
+		test('opens a file in the main part of the window it is opened from, such as from a terminal in another part of the window, else in the active group', async () => {
+			const mainWindowPart = createPart(1, 1);
+			const windowMainPart = createPart(2, 2);
+			const terminalsPart = createPart(2, 3);
+			editorParts.parts = [mainWindowPart, windowMainPart, terminalsPart];
+			const opener = instantiationService.createInstance(TerminalLocalFileLinkOpener);
+			const groups: (number | undefined)[] = [];
+			for (const active of [mainWindowPart, windowMainPart, terminalsPart]) {
+				editorParts.activeGroup = active.activeGroup;
+				await opener.open({ text: 'foo', uri: URI.file('/foo'), type: TerminalBuiltinLinkType.LocalFile, bufferRange: { start: { x: 1, y: 1 }, end: { x: 3, y: 1 } } });
+				groups.push((openedInGroup as IEditorGroup | undefined)?.id);
+			}
+			deepStrictEqual(groups, [undefined, undefined, 2]);
+		});
 	});
 
 	suite('TerminalSearchLinkOpener', () => {
