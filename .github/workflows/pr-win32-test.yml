@@ -41,6 +41,10 @@ on:
         description: Reason for selecting the Agent Host test profile
         type: string
         default: Change detection unavailable
+      workspace_image_branch:
+        description: The branch whose workspace images the jobs use (see .github/workflows/workspace_image/README.md)
+        type: string
+        default: main
 
 env:
   NPM_ARCH: x64
@@ -73,6 +77,53 @@ jobs:
       UNIT_TESTS: 'true'
       TEST_SELECTION: 'true'
     steps: &steps
+      # A workspace image of main holds a workspace whose dependencies, Electron and Playwright browsers
+      # are installed, which the checkout updates (see .github/workflows/workspace_image/README.md). Its
+      # scripts run before the checkout, so they come from the API, at the commit that the job tests.
+      - name: Download the workspace image scripts
+        id: image-scripts
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/workspace-image"
+          mkdir -p "$dir"
+          echo '{ "type": "module" }' > "$dir/package.json"
+          files=(.nvmrc .github/workflows/workspace_image/{image.ts,vhd.ps1,Vhd.cs})
+          args=()
+          for file in "${files[@]}"; do
+            args+=(-o "$dir/${file##*/}" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/contents/$file?ref=$GITHUB_SHA")
+          done
+          curl -fsSL --retry 3 --parallel -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github.raw' "${args[@]}"
+          for file in "${files[@]}"; do
+            [ -s "$dir/${file##*/}" ]
+          done
+          echo "node-version=$(tr -d '[:space:]' < "$dir/.nvmrc")" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js
+        if: steps.image-scripts.outcome == 'success'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.image-scripts.outputs.node-version }}
+
+      # The image is a Dev Drive in a VHDX, mounted at the parent of the workspace like the Dev Drive
+      # below, which the job creates without an image. The WSL shard keeps its workspace on drive C.
+      # The first PowerShell of a job takes seconds to start, so this step runs in bash, and the
+      # PowerShell that attaches the image (vhd.ps1) starts while the image downloads.
+      - name: Restore the workspace image
+        id: image
+        if: ${{ steps.image-scripts.outcome == 'success' && !(env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == '1') }}
+        continue-on-error: true
+        timeout-minutes: 5
+        shell: bash
+        working-directory: ${{ runner.temp }}
+        run: node "$RUNNER_TEMP/workspace-image/image.ts" restore --name workspace-image-win32-x64.img --branch "$WORKSPACE_IMAGE_BRANCH"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKSPACE_IMAGE_BRANCH: ${{ inputs.workspace_image_branch }}
+
       # The larger runners keep the workspace on the OS disk, where creating many small files, such as
       # extracting node_modules, takes twice as long as on the 1ES runners' temporary disk. A Dev Drive in
       # a VHDX on the same disk is faster than both. It is mounted at the parent of the workspace, so that
@@ -81,7 +132,7 @@ jobs:
       # runs-on of electron-smoke-1), and WSL cannot open folders on a volume that is mounted in a folder of
       # drive C: anyway.
       - name: Move the workspace to a Dev Drive
-        if: ${{ !(env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == '1') }}
+        if: ${{ steps.image.outputs.used != 'true' && !(env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == '1') }}
         shell: pwsh
         working-directory: ${{ runner.temp }}
         run: |
@@ -118,6 +169,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
+          # Keeps the files of the workspace image, and reuses its .git
+          clean: false
 
       # The WSL steps only run in shard 1, which is where test/smoke/src/shard.ts pins the WSL suite.
       # pr-node-modules.yml fills this cache on main, so pull requests don't download the installer.
@@ -135,22 +188,30 @@ jobs:
           WSL_INSTALLER_CACHE_DIR: ${{ github.workspace }}\.build\wsl-installer
 
       - name: Setup Node.js
+        if: steps.image-scripts.outcome != 'success'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
+
+      - name: Compare the dependencies with the workspace image
+        id: image-deps
+        if: steps.image.outputs.used == 'true'
+        shell: pwsh
+        run: node "$env:RUNNER_TEMP\workspace-image\image.ts" deps
 
       - name: Setup pnpm
         uses: ./.github/actions/setup-pnpm
 
       - name: Restore node_modules cache
         id: cache-node-modules
+        if: steps.image.outputs.used != 'true'
         uses: ./.github/actions/restore-node-modules
         with:
           key-prefix: node_modules-windows
           key-args: "win32 ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
 
       - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        if: steps.cache-node-modules.outputs.cache-hit != 'true' && steps.image-deps.outputs.current != 'true'
         shell: pwsh
         run: |
           . build/azure-pipelines/win32/exec.ps1

@@ -37,6 +37,10 @@ on:
         description: Reason for selecting the Agent Host test profile
         type: string
         default: Change detection unavailable
+      workspace_image_branch:
+        description: The branch whose workspace images the jobs use (see .github/workflows/workspace_image/README.md)
+        type: string
+        default: main
 
 env:
   NPM_ARCH: x64
@@ -69,15 +73,65 @@ jobs:
       UNIT_TESTS: 'true'
       UNIT_TEST_SUITE: electron
     steps: &steps
+      # A workspace image of main holds a workspace whose dependencies, Electron and Playwright browsers
+      # are installed, which the checkout updates (see .github/workflows/workspace_image/README.md). Its
+      # scripts run before the checkout, so they come from the API, at the commit that the job tests.
+      - name: Download the workspace image scripts
+        id: image-scripts
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/workspace-image"
+          mkdir -p "$dir"
+          echo '{ "type": "module" }' > "$dir/package.json"
+          files=(.nvmrc .github/workflows/workspace_image/image.ts)
+          args=()
+          for file in "${files[@]}"; do
+            args+=(-o "$dir/${file##*/}" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/contents/$file?ref=$GITHUB_SHA")
+          done
+          curl -fsSL --retry 3 --parallel -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github.raw' "${args[@]}"
+          for file in "${files[@]}"; do
+            [ -s "$dir/${file##*/}" ]
+          done
+          echo "node-version=$(tr -d '[:space:]' < "$dir/.nvmrc")" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js
+        if: steps.image-scripts.outcome == 'success'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.image-scripts.outputs.node-version }}
+
+      # Without an image, the job installs everything as before
+      - name: Restore the workspace image
+        id: image
+        if: steps.image-scripts.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 5
+        working-directory: ${{ runner.temp }}
+        run: node "$RUNNER_TEMP/workspace-image/image.ts" restore --name workspace-image-linux-x64.img --branch "$WORKSPACE_IMAGE_BRANCH"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKSPACE_IMAGE_BRANCH: ${{ inputs.workspace_image_branch }}
+
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
+          # Keeps the files of the workspace image, and reuses its .git
+          clean: false
 
       - name: Setup Node.js
+        if: steps.image-scripts.outcome != 'success'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
+
+      - name: Compare the dependencies with the workspace image
+        id: image-deps
+        if: steps.image.outputs.used == 'true'
+        run: node "$RUNNER_TEMP/workspace-image/image.ts" deps
 
       - name: Setup pnpm
         uses: ./.github/actions/setup-pnpm
@@ -106,13 +160,14 @@ jobs:
 
       - name: Restore node_modules cache
         id: cache-node-modules
+        if: steps.image.outputs.used != 'true'
         uses: ./.github/actions/restore-node-modules
         with:
           key-prefix: node_modules-linux
           key-args: "linux ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
 
       - name: Install build dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        if: steps.cache-node-modules.outputs.cache-hit != 'true' && steps.image-deps.outputs.current != 'true'
         working-directory: build
         run: |
           set -e
@@ -129,7 +184,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        if: steps.cache-node-modules.outputs.cache-hit != 'true' && steps.image-deps.outputs.current != 'true'
         run: |
           set -e
 

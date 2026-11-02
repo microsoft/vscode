@@ -1,5 +1,5 @@
 name: Setup Electron
-description: Restores cached Electron archives, validates and prepares Electron, and optionally saves the cache. Expects pnpm to be set up, except in lookup-only mode.
+description: Restores cached Electron archives, validates and prepares Electron, and optionally saves the cache. Keeps an Electron that was prepared from the same inputs, as in a workspace image. Expects pnpm to be set up, except in lookup-only mode.
 
 inputs:
   arch:
@@ -20,6 +20,20 @@ outputs:
 runs:
   using: composite
   steps:
+    # `pnpm run electron` prepares .build/electron from these inputs, and a workspace image holds the
+    # Electron that it prepared (see .github/workflows/workspace_image/README.md)
+    - name: Check the prepared Electron
+      id: prepared
+      if: inputs.lookup-only != 'true'
+      shell: bash
+      run: |
+        if [ -d .build/electron ] && [ "$(cat .build/electron.stamp 2>/dev/null)" = "$STAMP" ]; then
+          echo "Electron is prepared from the same inputs"
+          echo "current=true" >> "$GITHUB_OUTPUT"
+        fi
+      env:
+        STAMP: ${{ runner.os }}-${{ inputs.arch }}-${{ hashFiles('.npmrc', 'build/checksums/electron.txt', 'product.json', 'build/lib/electron.ts', 'build/lib/electronVersion.ts', 'build/pnpm-lock.yaml', 'resources/darwin/*.icns', 'resources/win32/code.ico') }}
+
     - name: Prepare Electron cache path
       if: runner.os != 'Windows'
       shell: bash
@@ -39,6 +53,7 @@ runs:
 
     - name: Restore Electron cache
       id: restore
+      if: steps.prepared.outputs.current != 'true'
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ env.ELECTRON_CACHE_PATH }}
@@ -46,9 +61,10 @@ runs:
         lookup-only: ${{ inputs.lookup-only }}
 
     - name: Download Electron
-      if: inputs.lookup-only != 'true' && runner.os != 'Windows'
+      if: inputs.lookup-only != 'true' && steps.prepared.outputs.current != 'true' && runner.os != 'Windows'
       shell: bash
       run: |
+        rm -f .build/electron.stamp
         for i in {1..3}; do
           if pnpm run electron "$VSCODE_ARCH"; then
             echo "Download successful on attempt $i"
@@ -67,12 +83,13 @@ runs:
         VSCODE_ARCH: ${{ inputs.arch }}
 
     - name: Download Electron
-      if: inputs.lookup-only != 'true' && runner.os == 'Windows'
+      if: inputs.lookup-only != 'true' && steps.prepared.outputs.current != 'true' && runner.os == 'Windows'
       shell: pwsh
       run: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
 
+        Remove-Item -Force -ErrorAction SilentlyContinue .build/electron.stamp
         for ($i = 1; $i -le 3; $i++) {
           try {
             exec { pnpm run electron $env:VSCODE_ARCH }
@@ -90,8 +107,15 @@ runs:
       env:
         VSCODE_ARCH: ${{ inputs.arch }}
 
+    - name: Stamp the prepared Electron
+      if: inputs.lookup-only != 'true' && steps.prepared.outputs.current != 'true'
+      shell: bash
+      run: echo "$STAMP" > .build/electron.stamp
+      env:
+        STAMP: ${{ runner.os }}-${{ inputs.arch }}-${{ hashFiles('.npmrc', 'build/checksums/electron.txt', 'product.json', 'build/lib/electron.ts', 'build/lib/electronVersion.ts', 'build/pnpm-lock.yaml', 'resources/darwin/*.icns', 'resources/win32/code.ico') }}
+
     - name: Save Electron cache
-      if: inputs.lookup-only != 'true' && inputs.save-cache == 'true' && steps.restore.outputs.cache-hit != 'true'
+      if: inputs.lookup-only != 'true' && inputs.save-cache == 'true' && steps.prepared.outputs.current != 'true' && steps.restore.outputs.cache-hit != 'true'
       uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
       with:
         path: ${{ env.ELECTRON_CACHE_PATH }}

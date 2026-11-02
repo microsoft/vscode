@@ -103,6 +103,7 @@
 			".github/workflows/pr-darwin-test.yml",
 			".github/workflows/pr-win32-test.yml",
 			".github/workflows/node_modules_cache/**",
+			".github/workflows/workspace_image/**",
 			".github/actions/setup-electron/**",
 			".github/actions/setup-pnpm/**",
 			".github/actions/restore-node-modules/**"
