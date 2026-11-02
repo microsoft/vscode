@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
-import { IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
+import { IContentPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatWindow, IChatWindowOpenOptions, IChatWindowProvider } from '../../browser/chatWindow.js';
 import { ChatWindowsRestoration, OPEN_CHAT_WINDOWS_STORAGE_KEY } from '../../browser/chatWindowsRestoration.js';
 
@@ -30,7 +30,7 @@ suite('ChatWindowsRestoration', () => {
 	function createWindow(chat: string): IChatWindow {
 		return new class extends mock<IChatWindow>() {
 			override readonly chat = constObservable(URI.parse(chat));
-			override readonly mainPart = { groups: [] } as unknown as IEditorPart;
+			override readonly mainPart = { groups: [] } as unknown as IContentPart;
 		}();
 	}
 

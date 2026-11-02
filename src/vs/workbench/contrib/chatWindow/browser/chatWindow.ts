@@ -149,7 +149,7 @@ export interface IChatWindow {
 	/** In {@link ChatWindowLayoutMode.Stacked}: whether the chat shows only its input. */
 	readonly inputOnly: IObservable<boolean>;
 	/** The window's main part, where what it opens goes by default. */
-	readonly mainPart: IEditorPart;
+	readonly mainPart: IContentPart;
 	/** The part that shows the chat. */
 	readonly chatPart: IEditorPart;
 	/**

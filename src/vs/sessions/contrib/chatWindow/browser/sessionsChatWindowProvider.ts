@@ -411,6 +411,16 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		const titlebar = store.add(this._titleService.createAuxiliaryTitlebarPart(container, window.mainPart, instantiationService));
 		const size = observableFromEvent(this, titlebar.onDidChange, () => titlebar.height);
 		if (titlebar instanceof TitlebarPart) {
+			// As tall as the row of tabs of the main part, in every layout, as it last showed while the main part is hidden.
+			const rowHeight = observableValue<number>(this, 0);
+			const measure = () => {
+				const height = getMainPartTabRowHeight(window.mainPart.element as HTMLElement);
+				if (height) {
+					rowHeight.set(height, undefined);
+				}
+			};
+			store.add(window.mainPart.onDidLayout(() => measure()));
+			store.add(autorun(reader => titlebar.setHeight(rowHeight.read(reader) || undefined)));
 			store.add(autorun(reader => titlebar.setTitle(content.title.read(reader))));
 			// Above the chat only while the main part is beside it: the window controls then stay at the top right of the window.
 			store.add(autorun(reader => titlebar.element.classList.toggle('header-chat-column', window.layoutMode.read(reader) === ChatWindowLayoutMode.SideBySide)));
@@ -453,4 +463,24 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 			dispose: () => registration.dispose(),
 		};
 	}
+}
+
+/**
+ * The height of the row of tabs of an editor part, from the top of the card it is in, its frame included, to the bottom of
+ * the first row its group at the top shows: the tabs, without the breadcrumbs below them, or the toolbar of an empty group.
+ * 0 while the part does not show.
+ */
+export function getMainPartTabRowHeight(part: HTMLElement): number {
+	const top = (part.closest('.part-grid-card') ?? part).getBoundingClientRect().top;
+	// The groups as they show, rather than as the editor part arranges them: the first one at the top.
+	// eslint-disable-next-line no-restricted-syntax
+	for (const group of part.querySelectorAll<HTMLElement>('.editor-group-container')) {
+		const title = Array.from(group.children).find(child => (child.classList.contains('title') || child.classList.contains('editor-group-container-toolbar')) && child.getBoundingClientRect().height > 0);
+		if (!title) {
+			continue;
+		}
+		const row = title.classList.contains('title') ? Array.from(title.children).find(child => child.getBoundingClientRect().height > 0) ?? title : title;
+		return Math.max(0, Math.round(row.getBoundingClientRect().bottom - top));
+	}
+	return 0;
 }

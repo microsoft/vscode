@@ -49,7 +49,7 @@ suite('Chat window terminal actions', () => {
 			const position = observableValue<ChatWindowTerminalPosition>('position', ChatWindowTerminalPosition.FullWidth);
 			return new class extends mock<IChatWindow>() {
 				override readonly windowId = windowId;
-				override readonly mainPart: IEditorPart = partOf(windowId * 10);
+				override readonly mainPart: IContentPart = partOf(windowId * 10);
 				override readonly chatPart: IEditorPart = partOf(windowId * 10 + 9);
 				override readonly terminalsPart = observableValue<IContentPart | undefined>('terminals', partOf(...terminalGroups));
 				override readonly terminalPosition = position;

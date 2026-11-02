@@ -103,7 +103,7 @@ suite('Chat window terminals', () => {
 		const onWillClose = disposables.add(new Emitter<void>());
 		let focused = 0;
 		const window = new class extends mock<IChatWindow>() {
-			override readonly mainPart: IEditorPart = mainPart;
+			override readonly mainPart: IContentPart = mainPart;
 			override readonly terminalsPart: IObservable<IContentPart | undefined> = terminalsPartObs;
 			override readonly terminalsVisible = derived(reader => !!terminalsPartObs.read(reader) && terminalsGroup.editors.length > 0);
 			override readonly onWillClose = onWillClose.event;
