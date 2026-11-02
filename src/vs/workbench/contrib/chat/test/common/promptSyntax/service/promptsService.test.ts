@@ -64,6 +64,10 @@ import { PluginFormat } from '../../../../../../../platform/agentPlugins/common/
 import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 import { COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { ChatPromptFilesExtensionPointHandler } from '../../../../common/promptSyntax/chatPromptFilesContribution.js';
+import { ChatModeService } from '../../../../common/chatModes.js';
+import { createVSCodeHarnessDescriptor, CustomizationHarnessServiceBase, ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
+import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
+import { IChatAgentService } from '../../../../common/participants/chatAgents.js';
 
 class TestPromptContextKeyService extends MockContextKeyService {
 	private readonly _onDidChangeContextEmitter = new Emitter<IContextKeyChangeEvent>();
@@ -1083,6 +1087,156 @@ suite('PromptsService', () => {
 				agents.map(agent => agent.name).sort(),
 				['agent1', 'agent2'],
 			);
+		});
+
+		test('keeps user and workspace agents across New Chat during delayed discovery', async () => {
+			const workspace = URI.file('/agent-lifecycle-workspace');
+			const profile = toUserDataProfile('agent-lifecycle', 'Agent Lifecycle', URI.file('/agent-lifecycle-profile'), URI.file('/cache'));
+			workspaceContextService.setWorkspace(testWorkspace(workspace));
+			instaService.stub(IUserDataProfileService, {
+				currentProfile: profile,
+				onDidChangeCurrentProfile: Event.None,
+			});
+			instaService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+			service.dispose();
+			service = disposables.add(instaService.createInstance(PromptsService));
+			await mockFiles(fileService, [
+				{ path: URI.joinPath(profile.promptsHome, 'user-agent.agent.md').path, contents: ['---', 'description: User agent', '---'] },
+				{ path: URI.joinPath(profile.promptsHome, 'hidden-agent.agent.md').path, contents: ['---', 'description: Subagent only', 'user-invocable: false', '---'] },
+				{ path: URI.joinPath(workspace, '.github/agents/workspace-agent.agent.md').path, contents: ['---', 'description: Workspace agent', '---'] },
+			]);
+			const harness = disposables.add(new CustomizationHarnessServiceBase([createVSCodeHarnessDescriptor()], 'local', service));
+			instaService.stub(ICustomizationHarnessService, harness);
+			instaService.stub(IChatAgentService, { hasToolsAgent: true, onDidChangeAgents: Event.None });
+			const modeService = disposables.add(instaService.createInstance(ChatModeService));
+			const outgoing = disposables.add(modeService.createModes(LocalChatSessionUri.getNewSessionUri()));
+			await outgoing.waitForPendingUpdates();
+			const initial = outgoing.custom.map(mode => mode.name.get());
+
+			const scanStarted = new DeferredPromise<void>();
+			const releaseScan = new DeferredPromise<void>();
+			const activationStub = sinon.stub(instaService.get(IExtensionService), 'activateByEvent').callsFake(async () => {
+				scanStarted.complete();
+				await releaseScan.p;
+			});
+			disposables.add(toDisposable(() => activationStub.restore()));
+			// Invalidate discovery without changing the profile, workspace, harness, or agent files.
+			fireConfigChange(testConfigService, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG);
+			await scanStarted.p;
+			await timeout(0);
+
+			const incomingStarted = new DeferredPromise<void>();
+			const getAgents = service.getCustomAgents.bind(service);
+			const getAgentsStub = sinon.stub(service, 'getCustomAgents').callsFake(token => {
+				const result = getAgents(token);
+				incomingStarted.complete();
+				return result;
+			});
+			disposables.add(toDisposable(() => getAgentsStub.restore()));
+			const incoming = disposables.add(modeService.createModes(LocalChatSessionUri.getNewSessionUri()));
+			outgoing.dispose();
+			await incomingStarted.p;
+			releaseScan.complete();
+			await incoming.waitForPendingUpdates();
+			const incomingNames = incoming.custom.map(mode => mode.name.get());
+
+			const next = disposables.add(modeService.createModes(LocalChatSessionUri.getNewSessionUri()));
+			incoming.dispose();
+			await next.waitForPendingUpdates();
+			const nextNames = next.custom.map(mode => mode.name.get());
+			service.setDisabledPromptFiles(PromptsType.agent, new ResourceSet([URI.joinPath(profile.promptsHome, 'user-agent.agent.md')]));
+			await next.waitForPendingUpdates();
+			const afterDisable = next.custom.map(mode => mode.name.get());
+			const removed = Event.toPromise(harness.onDidChangeCustomAgents);
+			await fileService.del(URI.joinPath(workspace, '.github/agents/workspace-agent.agent.md'));
+			await removed;
+			await next.waitForPendingUpdates();
+			assert.deepStrictEqual({
+				initial,
+				incoming: incomingNames,
+				next: nextNames,
+				afterDisable,
+				afterRemoval: next.custom.map(mode => mode.name.get()),
+			}, {
+				initial: ['user-agent', 'workspace-agent'],
+				incoming: ['user-agent', 'workspace-agent'],
+				next: ['user-agent', 'workspace-agent'],
+				afterDisable: ['workspace-agent'],
+				afterRemoval: [],
+			});
+		});
+
+		test('late completion of an invalidated file scan does not replace the new inventory', async () => {
+			const root = URI.file('/stale-agent-scan');
+			const agent = URI.joinPath(root, '.github/agents/test.agent.md');
+			workspaceContextService.setWorkspace(testWorkspace(root));
+			await mockFiles(fileService, [{ path: agent.path, contents: ['---', 'description: Test agent', '---'] }]);
+			const scanStarted = new DeferredPromise<void>();
+			const releaseScan = new DeferredPromise<void>();
+			const activationStub = sinon.stub(instaService.get(IExtensionService), 'activateByEvent');
+			activationStub.onFirstCall().callsFake(async () => {
+				scanStarted.complete();
+				await releaseScan.p;
+			});
+			activationStub.resolves();
+			disposables.add(toDisposable(() => activationStub.restore()));
+			const oldScan = service.listPromptFiles(PromptsType.agent, CancellationToken.None);
+			await scanStarted.p;
+			await timeout(0);
+			await fileService.del(agent);
+			fireConfigChange(testConfigService, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG);
+			const current = await service.listPromptFiles(PromptsType.agent, CancellationToken.None);
+			releaseScan.complete();
+			const old = await oldScan;
+			const afterOldScan = await service.listPromptFiles(PromptsType.agent, CancellationToken.None);
+			assert.deepStrictEqual({
+				old: old.map(file => file.uri.toString()),
+				current,
+				afterOldScan,
+			}, { old: [agent.toString()], current: [], afterOldScan: [] });
+		});
+
+		test('reloading discovery for a different profile replaces only user agents', async () => {
+			const workspace = URI.file('/agent-profile-workspace');
+			workspaceContextService.setWorkspace(testWorkspace(workspace));
+			await mockFiles(fileService, [
+				{ path: URI.joinPath(workspace, '.github/agents/workspace.agent.md').path, contents: ['---', 'description: Workspace agent', '---'] },
+				{ path: '/first-profile/prompts/first.agent.md', contents: ['---', 'description: First profile agent', '---'] },
+				{ path: '/second-profile/prompts/second.agent.md', contents: ['---', 'description: Second profile agent', '---'] },
+			]);
+			const results: string[][] = [];
+			for (const name of ['first', 'second']) {
+				service.dispose();
+				instaService.stub(IUserDataProfileService, {
+					currentProfile: toUserDataProfile(name, name, URI.file(`/${name}-profile`), URI.file('/cache')),
+					onDidChangeCurrentProfile: Event.None,
+				});
+				service = disposables.add(instaService.createInstance(PromptsService));
+				results.push((await service.getCustomAgents(CancellationToken.None)).map(agent => agent.name).sort());
+			}
+			assert.deepStrictEqual(results, [['first', 'workspace'], ['second', 'workspace']]);
+		});
+
+		test('cancelling one caller does not cancel another caller of the same file scan', async () => {
+			const agent = URI.file('/shared-scan/.github/agents/test.agent.md');
+			workspaceContextService.setWorkspace(testWorkspace(URI.file('/shared-scan')));
+			await mockFiles(fileService, [{ path: agent.path, contents: ['---', 'description: Test agent', '---'] }]);
+			const scanStarted = new DeferredPromise<void>();
+			const releaseScan = new DeferredPromise<void>();
+			const activationStub = sinon.stub(instaService.get(IExtensionService), 'activateByEvent').callsFake(async () => {
+				scanStarted.complete();
+				await releaseScan.p;
+			});
+			disposables.add(toDisposable(() => activationStub.restore()));
+			const cancelled = disposables.add(new CancellationTokenSource());
+			const first = service.listPromptFiles(PromptsType.agent, cancelled.token);
+			await scanStarted.p;
+			const second = service.listPromptFiles(PromptsType.agent, CancellationToken.None);
+			cancelled.cancel();
+			const firstRejected = assert.rejects(first, CancellationError);
+			releaseScan.complete();
+			await firstRejected;
+			assert.deepStrictEqual((await second).map(file => file.uri.toString()), [agent.toString()]);
 		});
 
 		test('resolves CLAUDE_PLUGIN_ROOT in hooks from Claude plugin agents', async () => {
