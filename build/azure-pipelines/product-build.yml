@@ -1185,6 +1185,8 @@ extends:
                   displayName: Ubuntu 22.04 x64 Native
                   poolName: 1es-ubuntu-22.04-x64
                   os: linux
+                  ${{ if eq(parameters.VSCODE_BUILD_LINUX_SNAP, false) }}:
+                    args: --grep "^(?!desktop-linux-snap-x64$)"
 
             # Ubuntu 22.04
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
