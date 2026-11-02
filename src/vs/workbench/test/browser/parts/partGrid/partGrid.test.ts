@@ -227,6 +227,52 @@ suite('Part Grid', () => {
 		});
 	});
 
+	test('a part that shows while empty shows without editors; other parts hide then', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		grid.addPart('main', createPart(parts), undefined, undefined, { showWhileEmpty: true });
+		grid.addPart('terminals', createPart(parts), { edge: Direction.Down });
+
+		assert.deepStrictEqual({ main: grid.isCellVisible('main'), mainEmpty: grid.isPartEmpty('main'), terminals: grid.isCellVisible('terminals') }, { main: true, mainEmpty: true, terminals: false });
+	});
+
+	test('a card whose content draws its own frame takes the room of that frame from the gap beside it, and tells its content its insets', async () => {
+		const parts = await createParts();
+		const container = createContainer();
+		container.style.setProperty('--part-grid-card-border-width', '1px');
+		const grid = disposables.add(new PartGrid(container));
+		const chat = createPart(parts);
+		const main = createPart(parts);
+		await Promise.all([openEditor(chat, '/chat.txt'), openEditor(main, '/main.txt')]);
+		grid.addPart('chat', chat);
+		grid.addPart('main', main, { reference: 'chat', direction: Direction.Right });
+		container.querySelector<HTMLElement>('[data-part-grid-cell="main"] > .part-grid-card')!.style.setProperty('--part-grid-card-frame-owner', 'content');
+		grid.setGap(4);
+		grid.layout(1000, 800);
+
+		const cardOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"] > .part-grid-card`)!;
+		const read = (id: string) => ({ inset: cardOf(id).style.inset, right: cardOf(id).style.getPropertyValue('--part-grid-card-inset-right'), left: cardOf(id).style.getPropertyValue('--part-grid-card-inset-left') });
+
+		assert.deepStrictEqual({ chat: read('chat'), main: read('main') }, {
+			chat: { inset: '0px 2px 0px 0px', right: '2px', left: '0px' },
+			main: { inset: '0px 0px 0px 1px', right: '0px', left: '1px' },
+		});
+	});
+
+	test('a cell that keeps no gap has no inset, and the cells beside it none towards it', () => {
+		const container = createContainer();
+		const grid = disposables.add(new PartGrid(container));
+		grid.addView('title', createView(), undefined, undefined, { keepsNoGap: true });
+		grid.addView('side', createView(), { edge: Direction.Down });
+		grid.addView('chat', createView(), { reference: 'side', direction: Direction.Right });
+		grid.setGap(4);
+		grid.layout(1000, 800);
+
+		const card = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"] > .part-grid-card`)!.style;
+		const vertical = (id: string) => `${card(id).top} ${card(id).bottom}`;
+		assert.deepStrictEqual({ title: vertical('title'), side: vertical('side'), chat: vertical('chat'), between: `${card('side').right} ${card('chat').left}` }, { title: '0px 0px', side: '0px 0px', chat: '0px 0px', between: '2px 2px' });
+	});
+
 	test('the gripper on a gap sash draws its outer dots the grid gap apart', () => {
 		const container = createContainer();
 		container.style.setProperty('--part-grid-gap', '6px');

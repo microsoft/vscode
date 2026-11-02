@@ -51,7 +51,29 @@ export interface IPartGridState {
  * What {@link PartGrid.restore} needs for a cell: the part, created from its
  * state, or the view.
  */
-export type PartGridCellContent = { readonly part: IContentPart } | { readonly view: IPartGridView };
+export type PartGridCellContent = { readonly part: IContentPart; readonly options?: IPartGridPartOptions } | { readonly view: IPartGridView; readonly options?: IPartGridViewOptions };
+
+/**
+ * How a cell shows its view.
+ */
+export interface IPartGridViewOptions {
+	/**
+	 * Whether the cell keeps no gap to the cells beside it, and they none to
+	 * it, such as a title row of the window above the cards.
+	 */
+	readonly keepsNoGap?: boolean;
+}
+
+/**
+ * How a cell shows its part.
+ */
+export interface IPartGridPartOptions {
+	/**
+	 * Whether the part shows while it has no editors, such as the main part
+	 * of a window. By default it hides then.
+	 */
+	readonly showWhileEmpty?: boolean;
+}
 
 class PartGridCell implements ISerializableView {
 
@@ -66,15 +88,31 @@ class PartGridCell implements ISerializableView {
 	get minimumHeight(): number { return this.view.minimumHeight + this.verticalFrame; }
 	get maximumHeight(): number { return this.view.maximumHeight + this.verticalFrame; }
 
-	private get horizontalFrame(): number { return this.insets.left + this.insets.right + this.border.left + this.border.right; }
-	private get verticalFrame(): number { return this.insets.top + this.insets.bottom + this.border.top + this.border.bottom; }
+	private get horizontalFrame(): number { const insets = this.cardInsets; return insets.left + insets.right + this.border.left + this.border.right; }
+	private get verticalFrame(): number { const insets = this.cardInsets; return insets.top + insets.bottom + this.border.top + this.border.bottom; }
+
+	/**
+	 * The insets of the card. Where its content draws its own frame
+	 * (`--part-grid-card-frame-owner: content`), the border of the card is
+	 * only room for that frame and takes from the gap beside it, so that the
+	 * frames are as far apart as those of cards.
+	 */
+	private get cardInsets(): IGridEdgeInsets {
+		if (!this.contentOwnsFrame) {
+			return this.insets;
+		}
+
+		const inset = (gap: number, frame: number) => gap > 0 ? Math.max(0, gap - frame) : gap;
+		return { top: inset(this.insets.top, this.border.top), right: inset(this.insets.right, this.border.right), bottom: inset(this.insets.bottom, this.border.bottom), left: inset(this.insets.left, this.border.left) };
+	}
 
 	private border: IGridEdgeInsets = NO_GRID_EDGE_INSETS;
+	private contentOwnsFrame = false;
 	private frameChanged = false;
 
 	readonly onDidChange: Event<IViewSize | undefined>;
 
-	constructor(readonly id: string, readonly view: IPartGridView, readonly part: IContentPart | undefined) {
+	constructor(readonly id: string, readonly view: IPartGridView, readonly part: IContentPart | undefined, readonly options: IPartGridPartOptions & IPartGridViewOptions = {}) {
 		this.element = $('.part-grid-cell');
 		this.element.dataset.partGridCell = id;
 		this.card = append(this.element, $('.part-grid-card'));
@@ -88,10 +126,11 @@ class PartGridCell implements ISerializableView {
 	setInsets(insets: IGridEdgeInsets): boolean {
 		const current = this.insets;
 		const currentBorder = this.border;
-		this.border = this.readBorder();
+		const currentOwner = this.contentOwnsFrame;
+		this.readFrame();
 		const frameChanged = this.frameChanged;
 		this.frameChanged = false;
-		if (!frameChanged && sameInsets(current, insets) && sameInsets(currentBorder, this.border)) {
+		if (!frameChanged && sameInsets(current, insets) && sameInsets(currentBorder, this.border) && currentOwner === this.contentOwnsFrame) {
 			return false;
 		}
 
@@ -102,32 +141,38 @@ class PartGridCell implements ISerializableView {
 	}
 
 	/**
-	 * The border of the card, which the owner's look may draw: its content is inside it.
+	 * The border of the card, which the owner's look may draw: its content is
+	 * inside it. And whether the content draws its own frame.
 	 */
-	private readBorder(): IGridEdgeInsets {
+	private readFrame(): void {
 		if (!this.card.isConnected) {
-			return this.border;
+			return;
 		}
 
 		const style = getWindow(this.card).getComputedStyle(this.card);
 		const width = (value: string) => parseFloat(value) || 0;
-		return { top: width(style.borderTopWidth), right: width(style.borderRightWidth), bottom: width(style.borderBottomWidth), left: width(style.borderLeftWidth) };
+		this.border = { top: width(style.borderTopWidth), right: width(style.borderRightWidth), bottom: width(style.borderBottomWidth), left: width(style.borderLeftWidth) };
+		this.contentOwnsFrame = style.getPropertyValue('--part-grid-card-frame-owner').trim() === 'content';
 	}
 
 	layout(width: number, height: number, top: number, left: number): void {
 		this.lastLayout = { width, height, top, left };
-		// The look may draw the border only once the styles of its window have loaded, after the insets were set.
-		const border = this.readBorder();
-		if (!sameInsets(border, this.border)) {
-			this.border = border;
+		// The look may draw the frame only once the styles of its window have loaded, after the insets were set.
+		const border = this.border;
+		const contentOwnsFrame = this.contentOwnsFrame;
+		this.readFrame();
+		if (!sameInsets(border, this.border) || contentOwnsFrame !== this.contentOwnsFrame) {
 			this.frameChanged = true; // the size constraints changed: see `setInsets`
 		}
 		this.layoutCard();
 	}
 
 	private layoutCard(): void {
-		const insets = this.insets;
+		const insets = this.cardInsets;
 		this.card.style.inset = `${insets.top}px ${insets.right}px ${insets.bottom}px ${insets.left}px`;
+		// For the content, such as a row that reaches over the gap beside the card.
+		this.card.style.setProperty('--part-grid-card-inset-right', `${insets.right}px`);
+		this.card.style.setProperty('--part-grid-card-inset-left', `${insets.left}px`);
 
 		const layout = this.lastLayout;
 		if (!layout) {
@@ -158,7 +203,7 @@ function sameInsets(a: IGridEdgeInsets, b: IGridEdgeInsets): boolean {
 
 function createCell(id: string, content: PartGridCellContent): PartGridCell {
 	if (hasKey(content, { view: true })) {
-		return new PartGridCell(id, content.view, undefined);
+		return new PartGridCell(id, content.view, undefined, content.options);
 	}
 
 	const part = content.part;
@@ -171,7 +216,7 @@ function createCell(id: string, content: PartGridCellContent): PartGridCell {
 		onDidChange: part.onDidChange,
 		layout: (width, height, top, left) => part.layout(width, height, top, left),
 		setVisible: visible => part.setVisible(visible)
-	}, part);
+	}, part, content.options);
 }
 
 function hasEditors(part: IContentPart): boolean {
@@ -232,15 +277,15 @@ export class PartGrid extends Disposable {
 	 * Adds an editor part beside another cell or at an edge of the window
 	 * (by default, the right edge). It leaves the grid when it closes.
 	 */
-	addPart(id: string, part: IContentPart, location?: PartGridLocation, size?: number): void {
-		this.addCell(this.register(id, { part }), location ?? { edge: Direction.Right }, size);
+	addPart(id: string, part: IContentPart, location?: PartGridLocation, size?: number, options?: IPartGridPartOptions): void {
+		this.addCell(this.register(id, { part, options }), location ?? { edge: Direction.Right }, size);
 	}
 
 	/**
 	 * Adds a view that is not an editor part, such as a title row.
 	 */
-	addView(id: string, view: IPartGridView, location?: PartGridLocation, size?: number): void {
-		this.addCell(this.register(id, { view }), location ?? { edge: Direction.Right }, size);
+	addView(id: string, view: IPartGridView, location?: PartGridLocation, size?: number, options?: IPartGridViewOptions): void {
+		this.addCell(this.register(id, { view, options }), location ?? { edge: Direction.Right }, size);
 	}
 
 	private register(id: string, content: PartGridCellContent): PartGridCell {
@@ -448,7 +493,8 @@ export class PartGrid extends Disposable {
 	}
 
 	/**
-	 * Shows or hides a cell. A part also hides while it has no editors.
+	 * Shows or hides a cell. A part also hides while it has no editors, unless
+	 * it shows while empty.
 	 */
 	setCellVisible(id: string, visible: boolean): void {
 		this.getCell(id);
@@ -462,10 +508,12 @@ export class PartGrid extends Disposable {
 	}
 
 	/**
-	 * Whether a cell shows: it is not hidden and, for a part, it has editors.
+	 * Whether a cell shows: it is not hidden and, for a part, it has editors
+	 * or shows while it has none.
 	 */
 	isCellVisible(id: string): boolean {
-		return this.cells.has(id) && !this.hidden.has(id) && !this.empty.has(id);
+		const cell = this.cells.get(id);
+		return !!cell && !this.hidden.has(id) && (!this.empty.has(id) || !!cell.options.showWhileEmpty);
 	}
 
 	private updateVisibility(id: string): void {
@@ -580,7 +628,8 @@ export class PartGrid extends Disposable {
 				continue;
 			}
 
-			changed = cell.setInsets(getGridEdgeInsets(grid, cell, this.gap, neighbor => grid.isViewVisible(neighbor))) || changed;
+			const insets = cell.options.keepsNoGap ? NO_GRID_EDGE_INSETS : getGridEdgeInsets(grid, cell, this.gap, neighbor => grid.isViewVisible(neighbor) && !neighbor.options.keepsNoGap);
+			changed = cell.setInsets(insets) || changed;
 		}
 
 		updateGridGapSashes(grid, true);
