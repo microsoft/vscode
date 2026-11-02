@@ -65,7 +65,7 @@ suite('Sessions - Session View', () => {
 			const store = disposables.add(new DisposableStore());
 			const { instantiationService, chatViews } = createSessionViewTestServices(store);
 			const session = hasDraft ? createTestActiveSession('draft', false) : undefined;
-			const view = store.add(instantiationService.createInstance(SessionView));
+			const view = store.add(instantiationService.createInstance(SessionView, undefined));
 			const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
 			append(append(workbench, $('.part.sessionspart')), view.element);
 			store.add(toDisposable(() => workbench.remove()));
@@ -139,7 +139,7 @@ suite('Sessions - Session View', () => {
 					return view;
 				}
 			}());
-			const host = store.add(instantiationService.createInstance(SessionView));
+			const host = store.add(instantiationService.createInstance(SessionView, undefined));
 			host.openSession(createTestActiveSession('draft', false), {});
 			const composer = createdViews[0];
 			composer.element.textContent = 'Keep this prompt';
@@ -176,7 +176,7 @@ suite('Sessions - Session View', () => {
 		const group: ChatGroupView = Object.assign(Object.create(ChatGroupView.prototype), { _currentView: currentView });
 		const groups: ChatGroupsView = Object.assign(Object.create(ChatGroupsView.prototype), { _activeGroup: { view: group } });
 		const standalone = observableValue<AbstractChatView | undefined>('standalone', undefined);
-		const sessionView: SessionView = Object.assign(Object.create(SessionView.prototype), { _standaloneView: standalone, _preparationView: constObservable(undefined), _groupsView: groups });
+		const sessionView: SessionView = Object.assign(Object.create(SessionView.prototype), { _headerHeight: observableValue('headerHeight', 0), _standaloneView: standalone, _preparationView: constObservable(undefined), _groupsView: groups });
 		const results = [sessionView.selectWorkspace(folder, options)];
 		currentView.value = missingPicker;
 		results.push(sessionView.selectWorkspace(folder, options));
@@ -195,6 +195,7 @@ suite('Sessions - Session View', () => {
 		const forwarded: boolean[] = [];
 		// Created from the prototype so the internal visibility helpers are present.
 		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
+			_headerHeight: observableValue('headerHeight', 0),
 			_isPartVisible: true,
 			_isLeafVisible: true,
 			_isVisibleObs: observableValue('visible', true),
@@ -493,6 +494,7 @@ suite('Sessions - Session View', () => {
 		const element = document.createElement('div');
 		element.classList.add('modern-ui-editor-tab-group');
 		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
+			_headerHeight: observableValue('headerHeight', 0),
 			_isActive: true,
 			element,
 			themeService: { getColorTheme: () => ({ getColor: () => undefined }) },
@@ -519,6 +521,7 @@ suite('Sessions - Session View', () => {
 		const centeredContentContainer = document.createElement('div');
 		const groupsLayout: number[] = [];
 		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
+			_headerHeight: observableValue('headerHeight', 0),
 			element,
 			_isPartVisible: true,
 			_isLeafVisible: true,
@@ -548,6 +551,7 @@ suite('Sessions - Session View', () => {
 		const element = document.createElement('div');
 		const centeredContentContainer = document.createElement('div');
 		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
+			_headerHeight: observableValue('headerHeight', 0),
 			element,
 			_isPartVisible: true,
 			_isLeafVisible: true,
@@ -613,6 +617,7 @@ suite('Sessions - Session View', () => {
 		const openSessionDisposables = disposables.add(new DisposableStore());
 		const scopedInstantiationService = new class extends mock<IInstantiationService>() { }();
 		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
+			_headerHeight: observableValue('headerHeight', 0),
 			_hasOpenedSession: false,
 			_currentSession: undefined,
 			_sessionObs: observableValue<IActiveSession | undefined>('session', undefined),
@@ -747,7 +752,7 @@ suite('Sessions - Session View', () => {
 				return createView(isNewChatInSession ? 'newChatInSession' : 'newSession', scopedInstantiationService);
 			}
 		}());
-		const view = store.add(instantiationService.createInstance(SessionView));
+		const view = store.add(instantiationService.createInstance(SessionView, undefined));
 		view.openSession(session, {});
 		session.isCreated.set(false, undefined);
 
@@ -766,7 +771,7 @@ suite('Sessions - Session View', () => {
 
 	test('clearing a draft normally replaces the composer unless it requests in-place reuse', () => {
 		const { instantiationService, chatViews } = createSessionViewTestServices(disposables);
-		const view = disposables.add(instantiationService.createInstance(SessionView));
+		const view = disposables.add(instantiationService.createInstance(SessionView, undefined));
 		const session = createTestActiveSession('draft', false);
 		view.openSession(undefined, {});
 		const original = chatViews[0];
@@ -789,7 +794,7 @@ suite('Sessions - Session View', () => {
 			isNewSessionRequestInProgress: requestInProgress,
 			preparationProgress,
 		});
-		const view = store.add(instantiationService.createInstance(SessionView));
+		const view = store.add(instantiationService.createInstance(SessionView, undefined));
 		const externalControl = document.createElement('button');
 		mainWindow.document.body.append(view.element, externalControl);
 		store.add(toDisposable(() => {
@@ -843,7 +848,7 @@ suite('Sessions - Session View', () => {
 			headerWidth: view.element.querySelector<HTMLElement>('.session-view-centered-content')?.style.width,
 		});
 		const session = createTestActiveSession('draft', false);
-		const view = store.add(instantiationService.createInstance(SessionView));
+		const view = store.add(instantiationService.createInstance(SessionView, undefined));
 		mainWindow.document.body.appendChild(view.element);
 		store.add(toDisposable(() => view.element.remove()));
 		const activityBars = () => ({
@@ -872,7 +877,7 @@ suite('Sessions - Session View', () => {
 		const { instantiationService, configurationService } = createSessionViewTestServices(store);
 		const session = createTestActiveSession('session');
 
-		const view = store.add(instantiationService.createInstance(SessionView));
+		const view = store.add(instantiationService.createInstance(SessionView, undefined));
 		mainWindow.document.body.appendChild(view.element);
 		store.add({ dispose: () => view.element.remove() });
 		view.openSession(session, {});
@@ -922,7 +927,7 @@ suite('Sessions - Session View', () => {
 		const store = disposables.add(new DisposableStore());
 		const { instantiationService } = createSessionViewTestServices(store);
 		const session = createTestActiveSession('split-gap', true, { chatCount: 2 });
-		const view = store.add(instantiationService.createInstance(SessionView));
+		const view = store.add(instantiationService.createInstance(SessionView, undefined));
 		mainWindow.document.body.appendChild(view.element);
 		store.add(toDisposable(() => view.element.remove()));
 		view.openSession(session, {});

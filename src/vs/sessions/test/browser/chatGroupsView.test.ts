@@ -339,7 +339,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 	instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { });
 	instantiationService.stub(ISessionsProvidersService, sessionsProvidersService);
 
-	const view = store.add(instantiationService.createInstance(ChatGroupsView));
+	const view = store.add(instantiationService.createInstance(ChatGroupsView, undefined));
 	view.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
 	mainWindow.document.body.appendChild(view.element);
 	store.add(toDisposable(() => view.element.remove()));
@@ -411,14 +411,14 @@ suite('Sessions - ChatGroupsView', () => {
 	test('clearing a chat group releases its activity action observation', async () => {
 		const { instantiationService, configurationService } = createHarness(disposables, true, true);
 		await configurationService.setUserConfiguration(SESSION_ACTIVITY_BAR_SETTING, true);
-		const group = disposables.add(instantiationService.createInstance(ChatGroupView));
+		const group = disposables.add(instantiationService.createInstance(ChatGroupView, undefined));
 		let observations = 0;
 		const actions = derived<readonly IAction[]>(reader => {
 			observations++;
 			reader.store.add(toDisposable(() => observations--));
 			return [toAction({ id: 'test.chatAction', label: 'Chat Action', run: () => { } })];
 		});
-		group['_sessionActivityBar'].setChatActions(actions);
+		group['_sessionActivityBar']!.setChatActions(actions);
 		const before = observations;
 		group.setContext(undefined);
 		assert.deepStrictEqual({ before, after: observations }, { before: 1, after: 0 });
