@@ -13,7 +13,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { ICreateEditorPartOptions, IContentPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { IEditorGroupView, IEditorPartsView } from './editor.js';
+import { IEditorGroupView, IEditorGroupViewOptions, IEditorPartsView } from './editor.js';
 import { EditorPart, IEditorPartUIState } from './editorPart.js';
 
 /**
@@ -72,6 +72,10 @@ export class ContentPart extends EditorPart implements IContentPart {
 		}
 
 		super.removeGroup(group, preserveFocus);
+	}
+
+	protected override getGroupViewOptions(): IEditorGroupViewOptions | undefined {
+		return this.createOptions.groupViewOptions as IEditorGroupViewOptions | undefined;
 	}
 
 	protected override loadState(): IEditorPartUIState | undefined {

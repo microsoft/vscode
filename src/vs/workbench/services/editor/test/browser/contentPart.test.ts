@@ -285,6 +285,19 @@ suite('Content Part', () => {
 		});
 	});
 
+	test('group view options given at creation apply to the groups of that part only', async () => {
+		const parts = await createServices();
+		const asked: string[] = [];
+		const withOptions = parts.createEditorPart({ container: createContainer(), groupViewOptions: { showHeader: true, reserveHeaderSpace: () => { asked.push('withOptions'); return true; } } });
+		const plain = parts.createEditorPart({ container: createContainer() });
+		disposables.add({ dispose: () => { withOptions.close(); plain.close(); } });
+
+		await withOptions.activeGroup.openEditor(createInput('/content/with-options.txt'));
+		await plain.activeGroup.openEditor(createInput('/content/plain.txt'));
+
+		assert.deepStrictEqual({ askedByPart: asked.length > 0 && asked.every(part => part === 'withOptions') }, { askedByPart: true });
+	});
+
 	test('its groups have the context keys of groups of the main part, so the same menus show', async () => {
 		let contextKeyService!: IContextKeyService;
 		const parts = await createServices({ realContextKeys: true, configure: instantiationService => contextKeyService = instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService)) });

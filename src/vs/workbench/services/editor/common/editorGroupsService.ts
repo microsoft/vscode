@@ -570,6 +570,11 @@ export interface ICreateEditorPartOptions {
 	 * Part options that override the user's settings in this part.
 	 */
 	readonly partOptions?: DeepPartial<IEditorPartOptions>;
+
+	/**
+	 * Options of the groups of the part, such as the menus of their title areas.
+	 */
+	readonly groupViewOptions?: unknown /* IEditorGroupViewOptions */;
 }
 
 /**
