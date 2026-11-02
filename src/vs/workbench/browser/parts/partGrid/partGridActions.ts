@@ -10,7 +10,8 @@ import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2 } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ActiveEditorGroupEmptyContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { getPartName } from '../editor/editorPartActions.js';
 import { PartGrid } from './partGrid.js';
@@ -59,5 +60,53 @@ export class MovePartUpAction extends MovePartAction {
 export class MovePartDownAction extends MovePartAction {
 	constructor() {
 		super('workbench.action.movePartDown', localize2('movePartDown', "Move Part Down"), Direction.Down);
+	}
+}
+
+abstract class MoveEditorIntoNewPartAction extends Action2 {
+
+	constructor(id: string, title: ILocalizedString, private readonly direction: Direction) {
+		super({
+			id,
+			title,
+			category: Categories.View,
+			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ActiveEditorGroupEmptyContext.negate()),
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+
+		const group = editorGroupsService.activeGroup;
+		const editor = group.activeEditor;
+		const found = PartGrid.findPart(editorGroupsService.getPart(group));
+		if (editor && found) {
+			found.grid.moveEditorsIntoNewPart([{ editor, groupId: group.id }], { reference: found.id, direction: this.direction });
+		}
+	}
+}
+
+export class MoveEditorIntoNewPartLeftAction extends MoveEditorIntoNewPartAction {
+	constructor() {
+		super('workbench.action.moveEditorIntoNewPartLeft', localize2('moveEditorIntoNewPartLeft', "Move Editor into New Part Left"), Direction.Left);
+	}
+}
+
+export class MoveEditorIntoNewPartRightAction extends MoveEditorIntoNewPartAction {
+	constructor() {
+		super('workbench.action.moveEditorIntoNewPartRight', localize2('moveEditorIntoNewPartRight', "Move Editor into New Part Right"), Direction.Right);
+	}
+}
+
+export class MoveEditorIntoNewPartAboveAction extends MoveEditorIntoNewPartAction {
+	constructor() {
+		super('workbench.action.moveEditorIntoNewPartAbove', localize2('moveEditorIntoNewPartAbove', "Move Editor into New Part Above"), Direction.Up);
+	}
+}
+
+export class MoveEditorIntoNewPartBelowAction extends MoveEditorIntoNewPartAction {
+	constructor() {
+		super('workbench.action.moveEditorIntoNewPartBelow', localize2('moveEditorIntoNewPartBelow', "Move Editor into New Part Below"), Direction.Down);
 	}
 }

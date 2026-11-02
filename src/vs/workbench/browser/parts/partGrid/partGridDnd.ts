@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, DragAndDropObserver, EventHelper, EventType, getWindow, hide, isAncestor, show } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, DragAndDropObserver, EventHelper, EventType, getWindow, hide, isAncestor, isHTMLElement, show } from '../../../../base/browser/dom.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
+import { IEditorIdentifier } from '../../../common/editor.js';
+import { DraggedEditorIdentifier } from '../../dnd.js';
 import type { PartGridLocation } from './partGrid.js';
 
 /**
@@ -120,14 +123,33 @@ export interface IPartGridDropTargetHost {
 	 * Moves a cell, as dropped.
 	 */
 	moveCell(id: string, location: PartGridLocation): void;
+
+	/**
+	 * Whether editors can go into new parts.
+	 */
+	canCreateParts(): boolean;
+
+	/**
+	 * Moves editors into a new part at an edge of the window, as dropped.
+	 */
+	moveEditorsIntoNewPart(editors: readonly IEditorIdentifier[], edge: Direction): void;
 }
 
 /**
- * Takes the drop of a part dragged within its grid, showing where it goes.
+ * The drop a {@link PartGridDropTarget} takes.
+ */
+type PartGridDragged =
+	{ readonly cellId: string } |
+	{ readonly editors: readonly IEditorIdentifier[] };
+
+/**
+ * Takes the drop of a part dragged within its grid, and of editors dropped on
+ * an edge of the window outside any part, showing where they go.
  */
 export class PartGridDropTarget extends Disposable {
 
 	private readonly partTransfer = LocalSelectionTransfer.getInstance<DraggedPartIdentifier>();
+	private readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 
 	private readonly indicator: HTMLElement;
 
@@ -155,27 +177,50 @@ export class PartGridDropTarget extends Disposable {
 		this._register(addDisposableListener(getWindow(container), EventType.DRAG_END, () => this.hideIndicator()));
 	}
 
-	private getDraggedCellId(): string | undefined {
-		const data = this.partTransfer.getData(DraggedPartIdentifier.prototype);
+	/**
+	 * What is dragged over the grid that the grid takes: a part of the grid
+	 * anywhere, or editors outside of the parts, where no part takes them.
+	 */
+	private getDragged(e: DragEvent): PartGridDragged | undefined {
+		const parts = this.partTransfer.getData(DraggedPartIdentifier.prototype);
+		if (parts?.[0]?.grid === this.host.grid) {
+			return { cellId: parts[0].cellId };
+		}
 
-		return data?.[0]?.grid === this.host.grid ? data[0].cellId : undefined;
+		const editors = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
+		if (editors?.length && this.host.canCreateParts() && !(isHTMLElement(e.target) && e.target.closest('.part-grid-card'))) {
+			return { editors: editors.map(({ identifier }) => identifier) };
+		}
+
+		return undefined;
 	}
 
-	private getDrop(e: DragEvent, draggedCellId: string): IPartGridDrop | undefined {
+	private getDrop(e: DragEvent, dragged: PartGridDragged): IPartGridDrop | undefined {
 		const bounds = this.host.container.getBoundingClientRect();
+		const drop = getPartGridDrop(e.clientX, e.clientY, bounds, this.host.getVisibleCells(), hasKey(dragged, { cellId: true }) ? dragged.cellId : undefined);
 
-		return getPartGridDrop(e.clientX, e.clientY, bounds, this.host.getVisibleCells(), draggedCellId);
+		// Editors go into a new part only at an edge of the window
+		if (hasKey(dragged, { editors: true }) && drop && !hasKey(drop.location, { edge: true })) {
+			return undefined;
+		}
+
+		return drop;
 	}
 
 	private onDragOver(e: DragEvent): void {
-		const draggedCellId = this.getDraggedCellId();
-		if (draggedCellId === undefined) {
+		const dragged = this.getDragged(e);
+		if (!dragged) {
+			this.hideIndicator();
 			return;
 		}
 
-		EventHelper.stop(e, true);
+		const drop = this.getDrop(e, dragged);
+		if (!drop && hasKey(dragged, { editors: true })) {
+			this.hideIndicator();
+			return; // editors elsewhere are not the grid's
+		}
 
-		const drop = this.getDrop(e, draggedCellId);
+		EventHelper.stop(e, true);
 		if (e.dataTransfer) {
 			e.dataTransfer.dropEffect = drop ? 'move' : 'none';
 		}
@@ -194,18 +239,29 @@ export class PartGridDropTarget extends Disposable {
 	}
 
 	private onDrop(e: DragEvent): void {
-		const draggedCellId = this.getDraggedCellId();
-		if (draggedCellId === undefined) {
+		const dragged = this.getDragged(e);
+		if (!dragged) {
 			return;
+		}
+
+		const drop = this.getDrop(e, dragged);
+		if (!drop && hasKey(dragged, { editors: true })) {
+			return; // editors elsewhere are not the grid's
 		}
 
 		EventHelper.stop(e, true);
 		this.hideIndicator();
-		this.partTransfer.clearData(DraggedPartIdentifier.prototype);
 
-		const drop = this.getDrop(e, draggedCellId);
-		if (drop) {
-			this.host.moveCell(draggedCellId, drop.location);
+		if (hasKey(dragged, { cellId: true })) {
+			this.partTransfer.clearData(DraggedPartIdentifier.prototype);
+			if (drop) {
+				this.host.moveCell(dragged.cellId, drop.location);
+			}
+		} else {
+			this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
+			if (drop && hasKey(drop.location, { edge: true })) {
+				this.host.moveEditorsIntoNewPart(dragged.editors, drop.location.edge);
+			}
 		}
 	}
 

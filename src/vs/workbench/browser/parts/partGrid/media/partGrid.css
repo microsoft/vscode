@@ -87,6 +87,7 @@
 	transform: translateX(-50%);
 	cursor: grab;
 	opacity: 0;
+	-webkit-app-region: no-drag; /* the top of a card can be in a title bar that moves the window */
 }
 
 .part-grid-card > .part-grid-drag-handle::after {

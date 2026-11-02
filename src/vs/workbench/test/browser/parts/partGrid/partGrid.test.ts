@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { Direction, Orientation } from '../../../../../base/browser/ui/grid/grid.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -18,8 +19,9 @@ import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IPartGridView, PART_GRID_TOP_EDGE_CLASS, PART_GRID_TOP_EDGE_GROUP_CLASS, PART_GRID_TOP_RIGHT_GROUP_CLASS, PartGrid } from '../../../../browser/parts/partGrid/partGrid.js';
 import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
+import { DraggedEditorIdentifier } from '../../../../browser/dnd.js';
 import { ContentPart } from '../../../../browser/parts/editor/contentPart.js';
-import { MovePartRightAction } from '../../../../browser/parts/partGrid/partGridActions.js';
+import { MoveEditorIntoNewPartBelowAction, MovePartRightAction } from '../../../../browser/parts/partGrid/partGridActions.js';
 import { DraggedPartIdentifier, getPartGridDrop } from '../../../../browser/parts/partGrid/partGridDnd.js';
 import { GRID_GAP_SASH_CLASS } from '../../../../browser/parts/partGrid/partGridGap.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
@@ -74,7 +76,7 @@ suite('Part Grid', () => {
 	}
 
 	function createGrid(): PartGrid {
-		const grid = disposables.add(new PartGrid(createContainer()));
+		const grid = disposables.add(new PartGrid(createContainer(), instantiationService.get(IEditorGroupsService)));
 		grid.layout(1000, 800);
 
 		return grid;
@@ -260,7 +262,7 @@ suite('Part Grid', () => {
 		grid.setCellVisible('bottom', false);
 
 		const state = grid.createState();
-		const restored = disposables.add(PartGrid.restore(createContainer(), state, (id, partState) => ({ part: createPart(parts, partState) })));
+		const restored = disposables.add(PartGrid.restore(createContainer(), state, (id, partState) => ({ part: createPart(parts, partState) }), parts));
 		restored.layout(1000, 800);
 
 		assert.deepStrictEqual({
@@ -274,7 +276,7 @@ suite('Part Grid', () => {
 	test('cards keep their share of the gap to visible cells beside them, none to the window edges, inside the outer insets', async () => {
 		const parts = await createParts();
 		const container = createContainer();
-		const grid = disposables.add(new PartGrid(container));
+		const grid = disposables.add(new PartGrid(container, parts));
 		const side = createPart(parts);
 		const chat = createPart(parts);
 		const bottom = createPart(parts);
@@ -399,7 +401,7 @@ suite('Part Grid', () => {
 	test('the border of a card counts in the size constraints of its cell', () => {
 		const container = createContainer();
 		container.style.setProperty('--part-grid-card-border-width', '1px');
-		const grid = disposables.add(new PartGrid(container));
+		const grid = disposables.add(new PartGrid(container, new class extends mock<IEditorGroupsService>() { }()));
 		const heights: number[] = [];
 		const fixed: IPartGridView = { ...createView(), layout: (width, height) => heights.push(height) };
 		grid.addView('title', fixed);
@@ -478,7 +480,7 @@ suite('Part Grid', () => {
 	test('a part dragged by the grabber on its card drops beside another part or at a window edge, with a drop indicator', async () => {
 		const parts = await createParts();
 		const container = boxAt(0, 0, 1000, 800);
-		const grid = disposables.add(new PartGrid(container));
+		const grid = disposables.add(new PartGrid(container, parts));
 		const side = createPart(parts);
 		const chat = createPart(parts);
 		const bottom = createPart(parts);
@@ -558,6 +560,92 @@ suite('Part Grid', () => {
 			moved: true,
 			after: 'column(title, row(main, chat))',
 			mainHeight: true
+		});
+	});
+
+	test('an editor dropped on an edge of the window outside the parts goes into a new part there, which closes with its last editor', async () => {
+		const parts = await createParts();
+		const container = boxAt(0, 0, 1000, 800);
+		const grid = disposables.add(new PartGrid(container, parts));
+		const side = createPart(parts);
+		const file = await openEditor(side, '/file.txt');
+		await openEditor(side, '/other.txt');
+		grid.addPart('side', side);
+		grid.setOuterInsets({ top: 8, right: 8, bottom: 8, left: 8 });
+		grid.layout(1000, 800);
+
+		const editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
+		const dropFile = (x: number, y: number) => {
+			editorTransfer.setData([new DraggedEditorIdentifier({ editor: file, groupId: side.activeGroup.id })], DraggedEditorIdentifier.prototype);
+			const target = container.querySelector('.part-grid')!;
+			dispatch(target, 'dragover', x, y);
+			const indicatorShown = container.querySelector<HTMLElement>('.part-grid-drop-indicator')!.style.display !== 'none';
+			dispatch(target, 'drop', x, y);
+			editorTransfer.clearData(DraggedEditorIdentifier.prototype);
+			return indicatorShown;
+		};
+
+		// Without a part factory, editors do not go into new parts
+		const withoutFactory = { indicatorShown: dropFile(996, 400), shape: grid.describe() };
+
+		let created = 0;
+		disposables.add(grid.setPartFactory({ createPart: () => ({ id: `new${++created}`, part: createPart(parts) }) }));
+		const atRightEdge = { indicatorShown: dropFile(996, 400), shape: grid.describe() };
+		const newPart = PartGrid.findPart(parts.getPart(parts.groups.find(group => group.contains(file))!))?.id;
+
+		// Closing its last editor closes the new part
+		await parts.getPart(parts.groups.find(group => group.contains(file))!).activeGroup.closeEditor(file);
+		await timeout(0);
+
+		assert.deepStrictEqual({ withoutFactory, atRightEdge, newPart, afterClose: grid.describe() }, {
+			withoutFactory: { indicatorShown: false, shape: 'side' },
+			atRightEdge: { indicatorShown: true, shape: 'row(side, new1)' },
+			newPart: 'new1',
+			afterClose: 'side'
+		});
+	});
+
+	test('Move Editor into New Part moves the active editor into a new part beside its part', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		const side = createPart(parts);
+		const file = await openEditor(side, '/file.txt');
+		await openEditor(side, '/other.txt');
+		await side.activeGroup.openEditor(file);
+		grid.addPart('side', side);
+		disposables.add(grid.setPartFactory({ createPart: () => ({ id: 'new', part: createPart(parts) }) }));
+
+		const focusable = (side.element as HTMLElement).appendChild(mainWindow.document.createElement('div'));
+		focusable.tabIndex = 0;
+		focusable.focus();
+		instantiationService.invokeFunction(accessor => new MoveEditorIntoNewPartBelowAction().run(accessor));
+
+		assert.deepStrictEqual({ shape: grid.describe(), inSide: side.activeGroup.contains(file) }, { shape: 'column(side, new)', inSide: false });
+	});
+
+	test('a part that shows through a view of its owner is a part of the grid: it drags, moves and shows while it has editors', async () => {
+		const parts = await createParts();
+		const container = createContainer();
+		const [a, b] = [createPart(parts), createPart(parts)];
+		await openEditor(a, '/a.txt');
+		const file = await openEditor(b, '/b.txt');
+		const view: IPartGridView = { ...createView(), element: mainWindow.document.createElement('div'), minimumHeight: 0, maximumHeight: Number.POSITIVE_INFINITY, layout: (width, height, top, left) => b.layout(width, height, top, left) };
+		view.element.appendChild(b.element as HTMLElement);
+		const state = { grid: { root: { type: 'branch' as const, data: [{ type: 'leaf' as const, data: { id: 'a' }, size: 500 }, { type: 'leaf' as const, data: { id: 'b' }, size: 500 }], size: 800 }, orientation: Orientation.HORIZONTAL, width: 1000, height: 800 }, hidden: [], parts: {} };
+		const grid = disposables.add(PartGrid.restore(container, state, id => id === 'a' ? { part: a } : { part: b, view }, parts));
+		grid.layout(1000, 800);
+
+		const grabber = !!container.querySelector('[data-part-grid-cell="b"] .part-grid-drag-handle');
+		const movedPast = grid.moveCellInDirection('a', Direction.Right);
+		const shape = grid.describe();
+		await b.activeGroup.closeEditor(file);
+
+		assert.deepStrictEqual({ grabber, movedPast, shape, foundThroughView: PartGrid.findPart(b)?.id, visibleWithoutEditors: grid.isCellVisible('b') }, {
+			grabber: true,
+			movedPast: true,
+			shape: 'row(b, a)',
+			foundThroughView: 'b',
+			visibleWithoutEditors: false
 		});
 	});
 });

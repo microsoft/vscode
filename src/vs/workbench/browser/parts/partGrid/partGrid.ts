@@ -7,12 +7,13 @@ import { $, append, getWindow } from '../../../../base/browser/dom.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Direction, GridNode, isGridBranchNode, ISerializableView, ISerializedGrid, ISerializedNode, IViewSize, Orientation, SerializableGrid, Sizing } from '../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
-import { GroupDirection, IContentPart, IEditorGroup, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
+import { GroupDirection, IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorGroupView } from '../editor/editor.js';
 import { PART_GRID_CLASS } from '../editor/partGridClass.js';
+import { IEditorIdentifier } from '../../../common/editor.js';
 import { getPartName } from '../editor/editorPartActions.js';
 import { PartGridDropTarget, registerPartDragHandle } from './partGridDnd.js';
 import { getGridEdgeInsets, IGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from './partGridGap.js';
@@ -74,13 +75,31 @@ export interface IPartGridState {
 	readonly grid: ISerializedGrid | undefined;
 	readonly hidden: readonly string[];
 	readonly parts: { readonly [id: string]: unknown };
+
+	/**
+	 * The parts the grid created through its {@link IPartGridPartFactory}.
+	 */
+	readonly created?: readonly string[];
+}
+
+/**
+ * Creates the parts that a {@link PartGrid} adds when an editor goes into a
+ * new part, such as one dropped on an edge of the window. The grid closes
+ * such a part once its last editor closes.
+ */
+export interface IPartGridPartFactory {
+	createPart(): { readonly id: string; readonly part: IContentPart };
 }
 
 /**
  * What {@link PartGrid.restore} needs for a cell: the part, created from its
- * state, or the view.
+ * state, the view, or a part that shows through a view of its owner, such as
+ * one that adds a title row above it. A part is a part of the grid either way:
+ * it shows while it has editors, and it drags and moves.
  */
-export type PartGridCellContent = { readonly part: IContentPart; readonly options?: IPartGridPartOptions } | { readonly view: IPartGridView; readonly options?: IPartGridViewOptions };
+export type PartGridCellContent =
+	{ readonly part: IContentPart; readonly view?: IPartGridView; readonly options?: IPartGridPartOptions } |
+	{ readonly view: IPartGridView; readonly options?: IPartGridViewOptions };
 
 /**
  * How a cell shows its view.
@@ -239,11 +258,15 @@ function sameInsets(a: IGridEdgeInsets, b: IGridEdgeInsets): boolean {
 }
 
 function createCell(id: string, content: PartGridCellContent): PartGridCell {
-	if (hasKey(content, { view: true })) {
+	if (!hasKey(content, { part: true })) {
 		return new PartGridCell(id, content.view, undefined, content.options);
 	}
 
 	const part = content.part;
+	if (content.view) {
+		return new PartGridCell(id, content.view, part, content.options);
+	}
+
 	return new PartGridCell(id, {
 		element: part.element as HTMLElement,
 		get minimumWidth() { return part.minimumWidth; },
@@ -323,7 +346,13 @@ export class PartGrid extends Disposable {
 		return undefined;
 	}
 
-	constructor(private readonly container: HTMLElement) {
+	private partFactory: IPartGridPartFactory | undefined;
+	private readonly created = new Set<string>();
+
+	constructor(
+		private readonly container: HTMLElement,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService
+	) {
 		super();
 
 		PartGrid.grids.add(this);
@@ -339,8 +368,51 @@ export class PartGrid extends Disposable {
 				if (part) {
 					status(localize('movedPart', "Moved {0}", getPartName(part)));
 				}
-			}
+			},
+			canCreateParts: () => !!this.partFactory,
+			moveEditorsIntoNewPart: (editors, edge) => this.moveEditorsIntoNewPart(editors, { edge })
 		}));
+	}
+
+	/**
+	 * Sets what creates the parts the grid adds for editors that go into a
+	 * new part. Without it, editors do not go into new parts.
+	 */
+	setPartFactory(factory: IPartGridPartFactory): IDisposable {
+		this.partFactory = factory;
+
+		return toDisposable(() => {
+			if (this.partFactory === factory) {
+				this.partFactory = undefined;
+			}
+		});
+	}
+
+	/**
+	 * Moves editors into a new part at a location, created by the part
+	 * factory. Returns the id of the new part's cell, if it got the editors.
+	 */
+	moveEditorsIntoNewPart(editors: readonly IEditorIdentifier[], location: PartGridLocation): string | undefined {
+		const sourceGroup = editors.length ? this.editorGroupsService.getGroup(editors[0].groupId) : undefined;
+		if (!this.partFactory || !sourceGroup) {
+			return undefined;
+		}
+
+		const { id, part } = this.partFactory.createPart();
+		this.created.add(id);
+		this.addPart(id, part, location);
+
+		const targetGroup = part.activeGroup;
+		sourceGroup.moveEditors(editors.map(({ editor }) => ({ editor, options: { pinned: true } })), targetGroup);
+		if (!hasEditors(part)) {
+			part.close();
+			return undefined;
+		}
+
+		targetGroup.focus();
+		status(localize('movedEditorsIntoNewPart', "Moved {0} into a new part", editors[0].editor.getName()));
+
+		return id;
 	}
 
 	/**
@@ -450,6 +522,16 @@ export class PartGrid extends Disposable {
 		if (empty && this.isEmpty) {
 			this._onDidBecomeEmpty.fire();
 		}
+
+		// A part the grid created goes once its last editor closes, after
+		// the change that closed it, such as a move out of it, is done
+		if (empty && this.created.has(id)) {
+			queueMicrotask(() => {
+				if (this.cells.get(id)?.part === part && this.created.has(id) && !hasEditors(part)) {
+					part.close();
+				}
+			});
+		}
 	}
 
 	/**
@@ -557,6 +639,7 @@ export class PartGrid extends Disposable {
 
 		cell.element.remove();
 		this.cells.delete(id);
+		this.created.delete(id);
 		this.hidden.delete(id);
 		this.empty.delete(id);
 		this.cellDisposables.deleteAndDispose(id);
@@ -813,15 +896,15 @@ export class PartGrid extends Disposable {
 			}
 		}
 
-		return { grid: this.grid?.serialize(), hidden: Array.from(this.hidden), parts };
+		return { grid: this.grid?.serialize(), hidden: Array.from(this.hidden), parts, created: Array.from(this.created) };
 	}
 
 	/**
 	 * Restores a grid from {@link createState}. `createContent` creates the
 	 * part (from its state) or the view of each cell.
 	 */
-	static restore(container: HTMLElement, state: IPartGridState, createContent: (id: string, partState: unknown | undefined) => PartGridCellContent): PartGrid {
-		const partGrid = new PartGrid(container);
+	static restore(container: HTMLElement, state: IPartGridState, createContent: (id: string, partState: unknown | undefined) => PartGridCellContent, editorGroupsService: IEditorGroupsService): PartGrid {
+		const partGrid = new PartGrid(container, editorGroupsService);
 		if (!state.grid) {
 			return partGrid;
 		}
@@ -829,6 +912,12 @@ export class PartGrid extends Disposable {
 		const ids = collectLeaves(state.grid.root).map(leaf => (leaf.data as { id: string }).id);
 		for (const id of ids) {
 			partGrid.register(id, createContent(id, state.parts[id]));
+		}
+
+		for (const id of state.created ?? []) {
+			if (partGrid.cells.has(id)) {
+				partGrid.created.add(id);
+			}
 		}
 
 		for (const id of state.hidden) {
