@@ -72,3 +72,64 @@
 	border: var(--part-grid-card-border-width, 0) solid var(--part-grid-card-border-color, transparent);
 	border-radius: var(--part-grid-card-radius, 0);
 }
+
+/*
+ * A part drags by the grabber on the top edge of its card, which shows while
+ * the card is hovered. Where a dragged part goes shows as a drop indicator.
+ */
+.part-grid-card > .part-grid-drag-handle {
+	position: absolute;
+	top: 0;
+	left: 50%;
+	z-index: 10;
+	width: 32px;
+	height: 8px;
+	transform: translateX(-50%);
+	cursor: grab;
+	opacity: 0;
+}
+
+.part-grid-card > .part-grid-drag-handle::after {
+	content: '';
+	position: absolute;
+	top: var(--vscode-spacing-size20);
+	left: 0;
+	right: 0;
+	height: var(--vscode-spacing-size20);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-modernSash-gripForeground);
+}
+
+.part-grid-card:hover > .part-grid-drag-handle,
+.part-grid-card > .part-grid-drag-handle:focus-visible {
+	opacity: 1;
+}
+
+.monaco-enable-motion .part-grid-card > .part-grid-drag-handle {
+	transition: opacity 0.15s ease-out;
+}
+
+.part-grid-drop-indicator {
+	position: fixed;
+	z-index: 10000;
+	box-sizing: border-box;
+	pointer-events: none;
+	border-radius: var(--part-grid-card-radius, 0);
+	background-color: var(--vscode-editorGroup-dropBackground);
+}
+
+.monaco-enable-motion .part-grid-drop-indicator {
+	transition: left 0.07s ease-out, top 0.07s ease-out, width 0.07s ease-out, height 0.07s ease-out;
+}
+
+@media (forced-colors: active) {
+
+	.part-grid-card > .part-grid-drag-handle::after {
+		background: CanvasText;
+	}
+
+	.part-grid-drop-indicator {
+		outline: 2px dashed Highlight;
+		outline-offset: -2px;
+	}
+}

@@ -76,6 +76,7 @@ import { ICommandAction } from '../../../../platform/action/common/action.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { getFontSnippets } from '../../../../base/browser/fonts.js';
 import { MoveEditorToPartAction } from './editorPartActions.js';
+import { MovePartDownAction, MovePartLeftAction, MovePartRightAction, MovePartUpAction } from '../partGrid/partGridActions.js';
 import { registerEditorFontConfigurations } from '../../../../editor/common/config/editorConfigurationSchema.js';
 
 //#region Editor Registrations
@@ -256,6 +257,10 @@ registerAction2(DuplicateGroupDownAction);
 registerAction2(MoveEditorToPreviousGroupAction);
 registerAction2(MoveEditorToNextGroupAction);
 registerAction2(MoveEditorToPartAction);
+registerAction2(MovePartLeftAction);
+registerAction2(MovePartRightAction);
+registerAction2(MovePartUpAction);
+registerAction2(MovePartDownAction);
 registerAction2(MoveEditorToFirstGroupAction);
 registerAction2(MoveEditorToLastGroupAction);
 registerAction2(MoveEditorToLeftGroupAction);

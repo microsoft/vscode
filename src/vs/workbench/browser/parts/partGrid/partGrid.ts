@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append, getWindow } from '../../../../base/browser/dom.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Direction, GridNode, isGridBranchNode, ISerializableView, ISerializedGrid, ISerializedNode, IViewSize, Orientation, SerializableGrid, Sizing } from '../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../base/common/types.js';
-import { GroupDirection, IContentPart, IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { localize } from '../../../../nls.js';
+import { GroupDirection, IContentPart, IEditorGroup, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorGroupView } from '../editor/editor.js';
 import { PART_GRID_CLASS } from '../editor/partGridClass.js';
+import { getPartName } from '../editor/editorPartActions.js';
+import { PartGridDropTarget, registerPartDragHandle } from './partGridDnd.js';
 import { getGridEdgeInsets, IGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from './partGridGap.js';
 
 /**
@@ -141,11 +145,19 @@ class PartGridCell implements ISerializableView {
 
 	readonly onDidChange: Event<IViewSize | undefined>;
 
+	/**
+	 * For a part, the grabber on the frame of its card that drags it.
+	 */
+	readonly dragHandle: HTMLElement | undefined;
+
 	constructor(readonly id: string, readonly view: IPartGridView, readonly part: IContentPart | undefined, readonly options: IPartGridPartOptions & IPartGridViewOptions = {}) {
 		this.element = $('.part-grid-cell');
 		this.element.dataset.partGridCell = id;
 		this.card = append(this.element, $('.part-grid-card'));
 		this.card.appendChild(view.element);
+		if (part) {
+			this.dragHandle = append(this.card, $('.part-grid-drag-handle', { 'aria-hidden': 'true' }));
+		}
 		this.onDidChange = view.onDidChange;
 	}
 
@@ -294,8 +306,41 @@ export class PartGrid extends Disposable {
 	 */
 	readonly onDidBecomeEmpty = this._onDidBecomeEmpty.event;
 
+	private static readonly grids = new Set<PartGrid>();
+
+	/**
+	 * The grid a part shows in, and the id of its cell.
+	 */
+	static findPart(part: IEditorPart): { readonly grid: PartGrid; readonly id: string } | undefined {
+		for (const grid of PartGrid.grids) {
+			for (const cell of grid.cells.values()) {
+				if (cell.part && (cell.part as IEditorPart) === part) {
+					return { grid, id: cell.id };
+				}
+			}
+		}
+
+		return undefined;
+	}
+
 	constructor(private readonly container: HTMLElement) {
 		super();
+
+		PartGrid.grids.add(this);
+		this._register(toDisposable(() => PartGrid.grids.delete(this)));
+
+		this._register(new PartGridDropTarget({
+			grid: this,
+			container,
+			getVisibleCells: () => Array.from(this.cells.values()).filter(cell => cell.part && this.isCellVisible(cell.id)),
+			moveCell: (id, location) => {
+				this.moveCell(id, location);
+				const part = this.cells.get(id)?.part;
+				if (part) {
+					status(localize('movedPart', "Moved {0}", getPartName(part)));
+				}
+			}
+		}));
 	}
 
 	/**
@@ -325,6 +370,11 @@ export class PartGrid extends Disposable {
 
 		if (cell.part) {
 			this.trackEditors(id, cell.part, disposables);
+		}
+
+		if (cell.part && cell.dragHandle) {
+			const part = cell.part;
+			disposables.add(registerPartDragHandle(cell.dragHandle, this, id, () => getPartName(part)));
 		}
 
 		return cell;
@@ -531,6 +581,29 @@ export class PartGrid extends Disposable {
 		}
 
 		this.updateAllVisibility();
+	}
+
+	/**
+	 * Moves a cell past the part beside it in a direction, or, with no part
+	 * there, to that edge of the window. Views that are not parts, such as a
+	 * title row, are not moved past. Returns whether it moved.
+	 */
+	moveCellInDirection(id: string, direction: Direction): boolean {
+		const cell = this.getCell(id);
+		if (!this.grid || this.cells.size < 2) {
+			return false;
+		}
+
+		const before = this.describe();
+		const neighbor = this.dimension ? this.grid.getNeighborViews(cell, direction).find(candidate => candidate.part && this.isCellVisible(candidate.id)) : undefined;
+		if (neighbor) {
+			this.grid.moveView(cell, Sizing.Distribute, neighbor, direction);
+			this.updateAllVisibility();
+		} else {
+			this.moveCell(id, { edge: direction });
+		}
+
+		return this.describe() !== before;
 	}
 
 	/**

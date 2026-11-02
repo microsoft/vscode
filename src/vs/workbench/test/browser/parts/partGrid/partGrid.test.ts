@@ -12,11 +12,15 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IPartGridView, PART_GRID_TOP_EDGE_CLASS, PART_GRID_TOP_EDGE_GROUP_CLASS, PART_GRID_TOP_RIGHT_GROUP_CLASS, PartGrid } from '../../../../browser/parts/partGrid/partGrid.js';
 import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
 import { ContentPart } from '../../../../browser/parts/editor/contentPart.js';
+import { MovePartRightAction } from '../../../../browser/parts/partGrid/partGridActions.js';
+import { DraggedPartIdentifier, getPartGridDrop } from '../../../../browser/parts/partGrid/partGridDnd.js';
 import { GRID_GAP_SASH_CLASS } from '../../../../browser/parts/partGrid/partGridGap.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
@@ -42,8 +46,10 @@ suite('Part Grid', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	let instantiationService: TestInstantiationService;
+
 	async function createParts(): Promise<TestEditorParts> {
-		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
 		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 		instantiationService.stub(IWorkbenchLayoutService, 'getMaximumEditorDimensions', () => ({ width: Number.POSITIVE_INFINITY, height: Number.POSITIVE_INFINITY }));
 		instantiationService.stub(IAuxiliaryWindowService, new class extends mock<IAuxiliaryWindowService>() { override getWindow() { return undefined; } }());
@@ -434,5 +440,124 @@ suite('Part Grid', () => {
 		grid.updateLook();
 
 		assert.deepStrictEqual({ afterCellLayout, afterUpdateLook: grid.getCellSize('title').height }, { afterCellLayout: 30, afterUpdateLook: 32 });
+	});
+
+	function dispatch(target: Element, type: string, clientX = 0, clientY = 0): void {
+		target.dispatchEvent(new DragEvent(type, { dataTransfer: new DataTransfer(), clientX, clientY, bubbles: true, cancelable: true }));
+	}
+
+	function boxAt(left: number, top: number, width: number, height: number): HTMLElement {
+		const element = createContainer();
+		element.style.cssText = `position: fixed; left: ${left}px; top: ${top}px; width: ${width}px; height: ${height}px;`;
+
+		return element;
+	}
+
+	test('a drop goes to the window edge near it, else beside the cell under it on its nearest side, not onto the dragged cell', () => {
+		const container = { left: 0, top: 0, width: 400, height: 200 };
+		const cells = [{ id: 'a', element: boxAt(0, 0, 200, 200) }, { id: 'b', element: boxAt(200, 0, 200, 200) }];
+		const at = (x: number, y: number, excluded?: string) => getPartGridDrop(x, y, container, cells, excluded)?.location;
+
+		assert.deepStrictEqual({
+			windowLeft: at(5, 100),
+			windowBottom: at(300, 195),
+			aRight: at(180, 100),
+			bTop: at(300, 40),
+			onDragged: at(300, 40, 'b'),
+			outside: at(500, 100)
+		}, {
+			windowLeft: { edge: Direction.Left },
+			windowBottom: { edge: Direction.Down },
+			aRight: { reference: 'a', direction: Direction.Right },
+			bTop: { reference: 'b', direction: Direction.Up },
+			onDragged: undefined,
+			outside: undefined
+		});
+	});
+
+	test('a part dragged by the grabber on its card drops beside another part or at a window edge, with a drop indicator', async () => {
+		const parts = await createParts();
+		const container = boxAt(0, 0, 1000, 800);
+		const grid = disposables.add(new PartGrid(container));
+		const side = createPart(parts);
+		const chat = createPart(parts);
+		const bottom = createPart(parts);
+		await Promise.all([openEditor(side, '/side.txt'), openEditor(chat, '/chat.txt'), openEditor(bottom, '/bottom.txt')]);
+		grid.addPart('side', side);
+		grid.addPart('chat', chat, { reference: 'side', direction: Direction.Right });
+		grid.addPart('bottom', bottom, { edge: Direction.Down });
+		grid.layout(1000, 800);
+
+		const cellOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!;
+		const indicator = container.querySelector<HTMLElement>('.part-grid-drop-indicator')!;
+		const drag = (id: string, x: (rect: DOMRect) => number, y: (rect: DOMRect) => number, over = 'side') => {
+			dispatch(cellOf(id).querySelector('.part-grid-drag-handle')!, 'dragstart');
+			const rect = over === 'window' ? container.getBoundingClientRect() : cellOf(over).getBoundingClientRect();
+			const point = [x(rect), y(rect)] as const;
+			dispatch(cellOf(over === 'window' ? 'side' : over), 'dragover', ...point);
+			const indicatorShown = indicator.style.display !== 'none';
+			const editorOverlay = !!container.querySelector('#monaco-workbench-editor-drop-overlay');
+			dispatch(cellOf(over === 'window' ? 'side' : over), 'drop', ...point);
+			dispatch(cellOf(id).querySelector('.part-grid-drag-handle')!, 'dragend');
+			return { indicatorShown, editorOverlay, shape: grid.describe() };
+		};
+
+		const besideSide = drag('bottom', rect => rect.left + rect.width * 0.2, rect => rect.top + rect.height / 2);
+		const toBottomEdge = drag('bottom', rect => rect.left + rect.width / 2, rect => rect.bottom - 4, 'window');
+		const ontoItself = drag('side', rect => rect.left + rect.width / 2, rect => rect.top + rect.height / 2);
+
+		assert.deepStrictEqual({ besideSide, toBottomEdge, ontoItself, transfer: LocalSelectionTransfer.getInstance<DraggedPartIdentifier>().hasData(DraggedPartIdentifier.prototype), indicatorAfter: indicator.style.display }, {
+			besideSide: { indicatorShown: true, editorOverlay: false, shape: 'row(bottom, side, chat)' },
+			toBottomEdge: { indicatorShown: true, editorOverlay: false, shape: 'column(row(side, chat), bottom)' },
+			ontoItself: { indicatorShown: false, editorOverlay: false, shape: 'column(row(side, chat), bottom)' },
+			transfer: false,
+			indicatorAfter: 'none'
+		});
+	});
+
+	test('Move Part moves the active part past the part beside it, or to that edge of the window', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		const [a, b, c] = [createPart(parts), createPart(parts), createPart(parts)];
+		await Promise.all([openEditor(a, '/a.txt'), openEditor(b, '/b.txt'), openEditor(c, '/c.txt')]);
+		grid.addPart('a', a);
+		grid.addPart('b', b, { edge: Direction.Right });
+		grid.addPart('c', c, { edge: Direction.Right });
+
+		const focusable = (a.element as HTMLElement).appendChild(mainWindow.document.createElement('div'));
+		focusable.tabIndex = 0;
+		focusable.focus();
+		instantiationService.invokeFunction(accessor => new MovePartRightAction().run(accessor));
+		const byCommand = grid.describe();
+
+		const atEdge = grid.moveCellInDirection('c', Direction.Right);
+		const toEdge = grid.moveCellInDirection('a', Direction.Down);
+
+		assert.deepStrictEqual({ byCommand, atEdge, toEdge, shape: grid.describe() }, {
+			byCommand: 'row(b, a, c)',
+			atEdge: false,
+			toEdge: true,
+			shape: 'column(row(b, c), a)'
+		});
+	});
+
+	test('Move Part moves past parts only, not past a view beside it such as a title row', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		const [chat, main] = [createPart(parts), createPart(parts)];
+		await Promise.all([openEditor(chat, '/chat.txt'), openEditor(main, '/main.txt')]);
+		grid.addPart('chat', chat);
+		grid.addView('title', createView(), { reference: 'chat', direction: Direction.Up });
+		grid.addPart('main', main, { edge: Direction.Right });
+		const before = grid.describe();
+
+		const moved = grid.moveCellInDirection('main', Direction.Left);
+
+		assert.deepStrictEqual({ before, moved, after: grid.describe(), mainHeight: grid.getCellSize('main').height > 30 }, {
+			before: 'row(column(title, chat), main)',
+			moved: true,
+			after: 'column(title, row(main, chat))',
+			mainHeight: true
+		});
 	});
 });
