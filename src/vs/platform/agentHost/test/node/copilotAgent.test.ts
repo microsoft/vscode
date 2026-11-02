@@ -7505,6 +7505,47 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		test('launches a concrete model without waiting for the host\'s initial model discovery', async () => {
+			const discovery = new DeferredPromise<void>();
+			const discoveryRequested = new DeferredPromise<TestCopilotClient>();
+			let waitedForDiscovery = false;
+			class WaitRecordingLogService extends NullLogService {
+				override trace(message: string, ..._args: unknown[]): void {
+					if (message.includes('Waiting for model discovery before resolving Auto tiers')) {
+						waitedForDiscovery = true;
+					}
+				}
+			}
+			const { agent, launches } = setup(undefined, [], [], undefined, {
+				logService: new WaitRecordingLogService(),
+				onClientCreated: client => {
+					void discoveryRequested.complete(client);
+					client.modelListGate = discovery.p;
+				},
+			});
+			afterTest(async () => {
+				discovery.complete();
+				await disposeAgent(agent);
+			});
+			const session = AgentSession.uri('copilotcli', 'host-concrete-model-no-wait');
+			const chat = defaultChatUri(session);
+			const directory = URI.file(process.cwd());
+			await agent.authenticate('https://api.github.com', 'host-token');
+			const client = await discoveryRequested.p;
+			await client.waitForCalls(() => client.modelListRequests.length > 0);
+			await provisionSession(agent, { session, model: { id: 'gpt-4o' }, workingDirectories: [directory] });
+			// Discovery is still held, so this send settles only if the launch does not wait for it.
+			await agent.chats.sendMessage(chat, 'first', [directory], undefined, 'first', undefined, exactChatContext(session, chat, session));
+
+			assert.deepStrictEqual({
+				waitedForDiscovery,
+				launches: launches.map(launch => ({ kind: launch.kind, model: launch.config.model })),
+			}, {
+				waitedForDiscovery: false,
+				launches: [{ kind: 'create', model: 'gpt-4o' }],
+			});
+		});
+
 		test('Stop releases a launch waiting for a scoped caller\'s model discovery without cancelling the discovery', async () => {
 			const { agent, launches, discovery, discovered, sent, chat, context } = await setupScopedDiscoveryRace('scoped-tier-discovery-stop');
 			await agent.chats.abort(chat, context);

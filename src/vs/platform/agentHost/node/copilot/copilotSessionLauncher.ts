@@ -1419,9 +1419,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (canvasRuntimeEnabled && !plan.extensionSdkPath) {
 			throw new Error(`Extension SDK path is unavailable for canvas-enabled Copilot session '${plan.sessionId}'`);
 		}
-		// A scoped caller's Auto tiers come from its own model discovery, which may still be running. A cancelled launch
-		// stops waiting without cancelling the shared discovery; the launch then throws.
-		if (plan.whenAutoTierSupportReady) {
+		// Auto's tiers come from model discovery, which may still be running; only an Auto launch resolves a tier, so a
+		// concrete model never waits. A cancelled launch stops waiting without cancelling the shared discovery; the launch then throws.
+		if (plan.whenAutoTierSupportReady && isAutoModel((plan.kind === 'create' ? plan.model : plan.fallback.model)?.id)) {
 			await raceCancellation(plan.whenAutoTierSupportReady(), runtime.cancellationToken ?? CancellationToken.None);
 		}
 		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
