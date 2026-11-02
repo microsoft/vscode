@@ -53,13 +53,36 @@ export function registerInputDropTarget(element: HTMLElement): IDisposable {
  * over the main editor area, does not.
  */
 export function isInputDropTarget(element: HTMLElement, point?: { readonly clientX: number; readonly clientY: number }, scope?: HTMLElement): boolean {
+	return isRegisteredDropTarget(inputDropTargets, element, point, scope);
+}
+
+const contentDropTargets = new Set<HTMLElement>();
+
+/**
+ * Registers the content of an editor, such as a view shown as an editor, that handles the drops in its center: editors
+ * and groups dragged over it still split its group at the edges, and every other drop is the content's.
+ */
+export function registerContentDropTarget(element: HTMLElement): IDisposable {
+	contentDropTargets.add(element);
+	return toDisposable(() => contentDropTargets.delete(element));
+}
+
+/**
+ * Whether `element` is (in) registered content that handles drops, or `point` is over it; see {@link isInputDropTarget}
+ * for `scope`.
+ */
+export function isContentDropTarget(element: HTMLElement, point?: { readonly clientX: number; readonly clientY: number }, scope?: HTMLElement): boolean {
+	return isRegisteredDropTarget(contentDropTargets, element, point, scope);
+}
+
+function isRegisteredDropTarget(targets: ReadonlySet<HTMLElement>, element: HTMLElement, point: { readonly clientX: number; readonly clientY: number } | undefined, scope: HTMLElement | undefined): boolean {
 	for (let target: HTMLElement | null = element; target; target = target.parentElement) {
-		if (inputDropTargets.has(target)) {
+		if (targets.has(target)) {
 			return true;
 		}
 	}
 	if (point) {
-		return [...inputDropTargets].some(target => {
+		return [...targets].some(target => {
 			if (scope && !scope.contains(target)) {
 				return false;
 			}

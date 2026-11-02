@@ -75,6 +75,7 @@ import { ConfigureEditorAction, ConfigureEditorTabsAction, EditorActionsDefaultA
 import { ICommandAction } from '../../../../platform/action/common/action.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { getFontSnippets } from '../../../../base/browser/fonts.js';
+import { MoveEditorToPartAction } from './editorPartActions.js';
 import { registerEditorFontConfigurations } from '../../../../editor/common/config/editorConfigurationSchema.js';
 
 //#region Editor Registrations
@@ -254,6 +255,7 @@ registerAction2(DuplicateGroupDownAction);
 
 registerAction2(MoveEditorToPreviousGroupAction);
 registerAction2(MoveEditorToNextGroupAction);
+registerAction2(MoveEditorToPartAction);
 registerAction2(MoveEditorToFirstGroupAction);
 registerAction2(MoveEditorToLastGroupAction);
 registerAction2(MoveEditorToLeftGroupAction);

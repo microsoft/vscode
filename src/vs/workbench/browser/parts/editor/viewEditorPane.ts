@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, Dimension } from '../../../../base/browser/dom.js';
+import { $, append, Dimension, DragAndDropObserver, isEditableElement, isHTMLElement } from '../../../../base/browser/dom.js';
+import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -18,6 +20,7 @@ import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from './
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { getWindowMainPart, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { DraggedEditorIdentifier, fillEditorsDragData } from '../../dnd.js';
 import { EditorPane } from './editorPane.js';
 import { ViewEditorInput } from './viewEditorInput.js';
 import { IViewEditorRegistry, IViewEditorView, ViewEditorExtensions } from './viewEditorRegistry.js';
@@ -39,6 +42,8 @@ export class ViewEditorPane extends EditorPane {
 	private view: IViewEditorView | undefined;
 	private viewStateSaved = false;
 	private readonly viewDisposables = this._register(new DisposableStore());
+
+	private readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 
 	constructor(
 		group: IEditorGroup,
@@ -105,6 +110,9 @@ export class ViewEditorPane extends EditorPane {
 
 		this.container?.appendChild(view.element);
 		this.viewDisposables.add(view.onDidChange(e => this._onDidChangeSizeConstraints.fire(e)));
+		if (view.dragHandle) {
+			this.viewDisposables.add(this.registerDragHandle(view.dragHandle, input));
+		}
 		this._onDidChangeSizeConstraints.fire(undefined);
 
 		if (this.dimension) {
@@ -130,6 +138,43 @@ export class ViewEditorPane extends EditorPane {
 			this.viewStateSaved = true;
 			this.view.saveViewState?.();
 		}
+	}
+
+	/**
+	 * Drags the editor from the view's drag handle with the same transfer as
+	 * its tab, so that it drops into other groups and parts like a tab.
+	 */
+	private registerDragHandle(handle: HTMLElement, input: ViewEditorInput): IDisposable {
+		const disposables = new DisposableStore();
+
+		handle.draggable = true;
+		disposables.add(toDisposable(() => handle.draggable = false));
+
+		disposables.add(new DragAndDropObserver(handle, {
+			onDragStart: e => {
+
+				// Text fields in the handle, such as a rename, keep the mouse
+				if (isHTMLElement(e.target) && isEditableElement(e.target)) {
+					e.preventDefault();
+					return;
+				}
+
+				// The handle owns the drag: what contains it does not also drag
+				e.stopPropagation();
+
+				const identifier = { editor: input, groupId: this.group.id };
+				this.editorTransfer.setData([new DraggedEditorIdentifier(identifier)], DraggedEditorIdentifier.prototype);
+				if (e.dataTransfer) {
+					e.dataTransfer.effectAllowed = 'copyMove';
+					applyDragImage(e, handle, input.getName());
+				}
+
+				this.instantiationService.invokeFunction(fillEditorsDragData, [identifier], e, { disableStandardTransfer: true });
+			},
+			onDragEnd: () => this.editorTransfer.clearData(DraggedEditorIdentifier.prototype)
+		}));
+
+		return disposables;
 	}
 
 	override clearInput(): void {

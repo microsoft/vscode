@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -12,8 +13,10 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { DraggedEditorIdentifier, registerContentDropTarget } from '../../../../browser/dnd.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/editor.js';
 import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
 import { ViewEditorInput } from '../../../../browser/parts/editor/viewEditorInput.js';
@@ -40,8 +43,13 @@ class TestView implements IViewEditorView {
 	readonly minimumHeight = 40;
 	maximumHeight = 400;
 
+	readonly dragHandle: HTMLElement | undefined;
+
 	constructor(readonly providesTitle: boolean, readonly instantiationService: IInstantiationService, private readonly log: string[], private readonly name: string) {
 		log.push(`create ${name}`);
+		if (providesTitle) {
+			this.dragHandle = this.element.appendChild(mainWindow.document.createElement('div'));
+		}
 	}
 
 	saveViewState(): void {
@@ -53,7 +61,10 @@ class TestView implements IViewEditorView {
 		this._onDidChange.fire(undefined);
 	}
 
-	layout(): void { }
+	layout(width: number, height: number): void {
+		this.element.style.width = `${width}px`;
+		this.element.style.height = `${height}px`;
+	}
 
 	focus(): void { }
 
@@ -70,6 +81,7 @@ suite('View Editors', () => {
 	const disposables = new DisposableStore();
 	const views: TestView[] = [];
 	const log: string[] = [];
+	const editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 
 	setup(() => {
 		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput), new SyncDescriptor(SideBySideEditorInput)], TEST_EDITOR_INPUT_ID));
@@ -275,6 +287,113 @@ suite('View Editors', () => {
 		assert.deepStrictEqual({ onMove, onClear }, {
 			onMove: ['create view1', 'save view1', 'create view2'],
 			onClear: ['save view2']
+		});
+	});
+
+	function createPart(parts: TestEditorParts): IContentPart {
+		const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		const part = parts.createEditorPart({ container });
+		part.layout(800, 600, 0, 0);
+		disposables.add({ dispose: () => { part.close(); container.remove(); } });
+
+		return part;
+	}
+
+	function dispatch(target: Element, type: string, clientX = 0, clientY = 0): void {
+		target.dispatchEvent(new DragEvent(type, { dataTransfer: new DataTransfer(), clientX, clientY, bubbles: true, cancelable: true }));
+	}
+
+	function getOverlay(group: IEditorGroupView): HTMLElement | null {
+		return group.element.querySelector<HTMLElement>('#monaco-workbench-editor-drop-overlay');
+	}
+
+	async function drop(group: IEditorGroupView, clientX: number, clientY: number): Promise<void> {
+		dispatch(group.element, 'dragenter', clientX, clientY);
+		const overlay = getOverlay(group);
+		if (overlay) {
+			dispatch(overlay, 'dragover', clientX, clientY);
+		}
+		dispatch(getOverlay(group) ?? group.element, 'drop', clientX, clientY);
+		await timeout(0);
+	}
+
+	test('the view\'s drag handle drags its editor like a tab, and it moves into another part', async () => {
+		const { parts, part } = await createServices();
+		const other = createPart(parts);
+		const input = createViewInput('test.titled', '/chat/a');
+		await part.activeGroup.openEditor(input);
+
+		const handle = views[0].dragHandle!;
+		const draggable = handle.draggable;
+		dispatch(handle, 'dragstart');
+		const transfer = editorTransfer.getData(DraggedEditorIdentifier.prototype)?.map(({ identifier }) => ({ editor: identifier.editor === input, groupId: identifier.groupId === part.activeGroup.id }));
+
+		const target = groupViewOf(parts, other.activeGroup);
+		const bounds = target.element.getBoundingClientRect();
+		await drop(target, bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+
+		assert.deepStrictEqual({ draggable, transfer, inSource: part.groups.some(group => group.contains(input)), inTarget: other.activeGroup.contains(input), transferAfterDrop: editorTransfer.hasData(DraggedEditorIdentifier.prototype) }, {
+			draggable: true,
+			transfer: [{ editor: true, groupId: true }],
+			inSource: false,
+			inTarget: true,
+			transferAfterDrop: false
+		});
+	});
+
+	test('an editor dropped on the edge of a part holding a view that handles drops splits the part; its center stays the view\'s', async () => {
+		const { parts, part } = await createServices();
+		await part.activeGroup.openEditor(createViewInput('test.titled', '/chat/a'));
+		disposables.add(registerContentDropTarget(views[0].element));
+		const group = groupViewOf(parts, part.activeGroup);
+		const bounds = group.element.getBoundingClientRect();
+
+		const dragFile = async (path: string, clientX: number, clientY: number) => {
+			const file = disposables.add(new TestFileEditorInput(URI.file(path), TEST_EDITOR_INPUT_ID));
+			await parts.mainPart.activeGroup.openEditor(file, { pinned: true });
+			editorTransfer.setData([new DraggedEditorIdentifier({ editor: file, groupId: parts.mainPart.activeGroup.id })], DraggedEditorIdentifier.prototype);
+			await drop(group, clientX, clientY);
+			editorTransfer.clearData(DraggedEditorIdentifier.prototype);
+			return file;
+		};
+
+		const center = await dragFile('/center.txt', bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+		const afterCenter = { groups: part.groups.length, inPart: part.groups.some(group => group.contains(center)) };
+
+		const edge = await dragFile('/edge.txt', bounds.left + bounds.width - 2, bounds.top + bounds.height / 2);
+		const afterEdge = { groups: part.groups.length, inNewGroup: part.groups.some(other => other.id !== group.id && other.contains(edge)), inMain: parts.mainPart.groups.some(group => group.contains(edge)) };
+
+		assert.deepStrictEqual({ afterCenter, afterEdge }, {
+			afterCenter: { groups: 1, inPart: false },
+			afterEdge: { groups: 2, inNewGroup: true, inMain: false }
+		});
+	});
+
+	test('the view\'s drag handle owns its drag, and does not start one from a text field in it', async () => {
+		const { part } = await createServices();
+		await part.activeGroup.openEditor(createViewInput('test.titled', '/chat/a'));
+		const handle = views[0].dragHandle!;
+		const field = handle.appendChild(mainWindow.document.createElement('input'));
+
+		let reachedContainer = 0;
+		const listener = () => reachedContainer++;
+		views[0].element.addEventListener('dragstart', listener);
+
+		const fromField = new DragEvent('dragstart', { dataTransfer: new DataTransfer(), bubbles: true, cancelable: true });
+		field.dispatchEvent(fromField);
+		const transferFromField = editorTransfer.hasData(DraggedEditorIdentifier.prototype);
+
+		dispatch(handle, 'dragstart');
+		const transferFromHandle = editorTransfer.hasData(DraggedEditorIdentifier.prototype);
+		dispatch(handle, 'dragend');
+		views[0].element.removeEventListener('dragstart', listener);
+
+		assert.deepStrictEqual({ fromFieldCancelled: fromField.defaultPrevented, transferFromField, transferFromHandle, reachedContainer, transferAfterEnd: editorTransfer.hasData(DraggedEditorIdentifier.prototype) }, {
+			fromFieldCancelled: true,
+			transferFromField: false,
+			transferFromHandle: true,
+			reachedContainer: 1, // only the cancelled drag from the text field
+			transferAfterEnd: false
 		});
 	});
 });
