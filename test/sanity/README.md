@@ -286,6 +286,8 @@ Debian 13 ARM32 is excluded because its time64 libraries do not satisfy the ARMH
 - [product-sanity-tests.yml](../../build/azure-pipelines/product-sanity-tests.yml) - Main pipeline definition
 - [sanity-tests.yml](../../build/azure-pipelines/common/sanity-tests.yml) - Reusable job template
 
+In the product build pipeline, the native Linux x64 sanity job excludes `desktop-linux-snap-x64` when `VSCODE_BUILD_LINUX_SNAP=false`, because no Snap artifact is built or published for that commit. Other native Linux sanity tests still run. With Snap building enabled, the job retains its full test selection.
+
 ### macOS Diagnostics
 
 macOS jobs log the exact OS version/build, hardware configuration, memory pressure, swap usage,
