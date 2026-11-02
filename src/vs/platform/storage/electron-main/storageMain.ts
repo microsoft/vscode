@@ -158,8 +158,11 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 					// Create storage via subclasses
 					const storage = await this.doCreate();
 					if (this._store.isDisposed) {
-						await storage.close();
-						storage.dispose();
+						try {
+							await storage.close();
+						} finally {
+							storage.dispose();
+						}
 						return;
 					}
 					this._register(storage);
