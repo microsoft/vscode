@@ -47,5 +47,5 @@ if not "%INSTALLED_ELECTRON_VERSION%"=="%EXPECTED_ELECTRON_VERSION%" goto downlo
 exit /b 0
 
 :download_electron
-call npm run electron
+call pnpm run electron
 exit /b %errorlevel%

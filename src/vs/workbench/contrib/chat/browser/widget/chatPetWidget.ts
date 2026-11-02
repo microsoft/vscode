@@ -30,7 +30,7 @@ import { IChatModel } from '../../common/model/chatModel.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, ChatPetAccessoryId, getChatPetAccessory, getChatPetAchievement } from '../chatPetAchievements.js';
 import { CHAT_PET_DEFAULT_SCALE, ChatPetHorizontalAnchor, ChatPetHorizontalPosition, ChatPetVariant, IChatPetService } from '../chatPetService.js';
 import { CHAT_PET_CHANGE_COLOR_COMMAND_ID, ChatPetColor, getChatPetBodyColor, getChatPetColoredSprite, getChatPetColorVariant, getChatPetEyeColor, setChatPetImageSource } from '../chatPetColors.js';
-import { drawChatPetComposite, drawChatPetEyeAccessory, getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions, IChatPetAccessoryImageSource, IChatPetFixedOrientationDecoration } from './chatPetAccessoryRenderer.js';
+import { drawChatPetComposite, drawChatPetEyeAccessory, drawChatPetPropeller, getChatPetAccessoryImageSource, getChatPetPropellerBounds, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions, IChatPetAccessoryImageSource, IChatPetFixedOrientationDecoration } from './chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetReducedMotionRigFrame } from './chatPetAccessoryRig.js';
 import { isImageGenerationToolInProgress } from './chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { ChatPetJumpGame } from './chatPetJumpGame.js';
@@ -127,6 +127,7 @@ const THROW_MAX_VELOCITY = 2_400;
 const THROW_KEYBOARD_HORIZONTAL_VELOCITY = 1_400;
 const THROW_KEYBOARD_UPWARD_VELOCITY = 420;
 const THROW_GRAVITY = 1_800;
+const PROPELLER_FALL_SPEED = 160;
 const THROW_MAX_FRAME_DURATION = 32;
 const THROW_MAX_DURATION = 4_000;
 const THROW_WALL_RESTITUTION = 0.2;
@@ -1009,7 +1010,7 @@ export function getChatPetThrowRotation(rotation: number, horizontalDistance: nu
 		: nextRotation + Math.sign(rotationDelta) * maximumCorrection;
 }
 
-export function advanceChatPetThrow(motion: ChatPetThrowMotion, elapsed: number, bounds: ChatPetThrowBounds): ChatPetThrowStep {
+export function advanceChatPetThrow(motion: ChatPetThrowMotion, elapsed: number, bounds: ChatPetThrowBounds, maximumFallSpeed?: number): ChatPetThrowStep {
 	const duration = Math.max(0, elapsed) / 1_000;
 	const projectedLeft = motion.left + motion.x * duration;
 	const hasHorizontalRange = bounds.maximumLeft > bounds.minimumLeft;
@@ -1027,8 +1028,18 @@ export function advanceChatPetThrow(motion: ChatPetThrowMotion, elapsed: number,
 		left = bounds.maximumLeft;
 	}
 
-	let top = motion.top + motion.y * motionDuration + THROW_GRAVITY * motionDuration * motionDuration / 2;
-	let velocityY = motion.y + THROW_GRAVITY * motionDuration;
+	const accelerationDuration = maximumFallSpeed === undefined
+		? motionDuration
+		: Math.min(motionDuration, Math.max(0, (maximumFallSpeed - motion.y) / THROW_GRAVITY));
+	const steadyDuration = motionDuration - accelerationDuration;
+	let top = motion.top
+		+ motion.y * accelerationDuration
+		+ THROW_GRAVITY * accelerationDuration * accelerationDuration / 2
+		+ (maximumFallSpeed ?? 0) * steadyDuration;
+	let velocityY = motion.y + THROW_GRAVITY * accelerationDuration;
+	if (maximumFallSpeed !== undefined) {
+		velocityY = Math.min(velocityY, maximumFallSpeed);
+	}
 	if (top < bounds.minimumTop) {
 		top = bounds.minimumTop;
 		velocityY = Math.abs(velocityY) * THROW_CEILING_RESTITUTION;
@@ -1076,8 +1087,15 @@ export function getChatPetThrowLanding(previousLeft: number, previousTop: number
 	return landing;
 }
 
-export function getChatPetFallDuration(distance: number): number {
+export function getChatPetFallDuration(distance: number, hasAnimatedPropeller = false): number {
+	if (hasAnimatedPropeller) {
+		return Math.abs(distance) / PROPELLER_FALL_SPEED * 1_000;
+	}
 	return Math.max(180, Math.min(700, Math.sqrt(Math.abs(distance)) * 20));
+}
+
+export function getChatPetThrowMaximumFallSpeed(hasAnimatedPropeller: boolean): number | undefined {
+	return hasAnimatedPropeller ? PROPELLER_FALL_SPEED : undefined;
 }
 
 export function getChatPetVerticalOffset(hostTop: number, inputTop: number): number {
@@ -1281,6 +1299,9 @@ export class ChatPetWidget extends Disposable {
 	private readonly _speechBubble: ChatPetSpriteElement;
 	private _speechBubbleState: 'rendering' | 'achievementUnlocked' | undefined;
 	private readonly _eyes: HTMLElement;
+	private readonly _propellerPoseContainer: HTMLElement;
+	private readonly _propellerContainer: HTMLElement;
+	private readonly _propeller: HTMLCanvasElement;
 	private readonly _eyeAccessoryContainer: HTMLElement;
 	private readonly _eyeAccessory: HTMLCanvasElement;
 	private _eyeAccessoryVisible = false;
@@ -1467,6 +1488,11 @@ export class ChatPetWidget extends Disposable {
 			const eye = dom.append(this._eyes, dom.$(`.chat-pet-eye.${side}`));
 			this._pupils.push(dom.append(eye, dom.$('.chat-pet-pupil')));
 		}
+		this._propellerPoseContainer = dom.append(this._visual, dom.$('.chat-pet-propeller-pose', { 'aria-hidden': 'true' }));
+		this._propellerContainer = dom.append(this._propellerPoseContainer, dom.$('.chat-pet-propeller.hidden'));
+		this._propeller = dom.append(this._propellerContainer, dom.$('canvas.chat-pet-propeller-canvas')) as HTMLCanvasElement;
+		this._propeller.width = CHAT_PET_SOURCE_SIZE;
+		this._propeller.height = CHAT_PET_SOURCE_SIZE;
 		this._blinkController = this._register(new ChatPetBlinkController(blinking => this._eyes.classList.toggle('blink', blinking)));
 		const targetDocument = dom.getWindow(this._button.element).document;
 		this._register(dom.addDisposableListener(targetDocument, 'visibilitychange', () => this._updateAnimationVisibility()));
@@ -1716,6 +1742,7 @@ export class ChatPetWidget extends Disposable {
 			const selectedAccessory = this.chatPetService.selectedAccessory.read(reader);
 			const accessoryChanged = selectedAccessory !== this._selectedAccessory;
 			this._selectedAccessory = selectedAccessory;
+			this._button.element.dataset.propeller = String(this._hasAnimatedPropeller());
 			if (accessoryChanged) {
 				this._switchAccessory(selectedAccessory);
 			}
@@ -2128,7 +2155,7 @@ export class ChatPetWidget extends Disposable {
 		this._respawnEffect.container.classList.add('hidden');
 		this._button.element.classList.remove('hidden');
 		this._hostTransition.set({ ...transition, phase: 'falling' }, undefined);
-		this._button.element.style.transitionDuration = `${getChatPetFallDuration(distance)}ms`;
+		this._button.element.style.transitionDuration = `${getChatPetFallDuration(distance, this._hasAnimatedPropeller())}ms`;
 		this._button.element.getBoundingClientRect();
 		this._button.element.classList.add('falling');
 		this._setHostTransitionPosition(this._button.element, target);
@@ -2386,6 +2413,7 @@ export class ChatPetWidget extends Disposable {
 		this._restingPlatform = undefined;
 		const targetWindow = dom.getWindow(this._button.element);
 		let geometry = this._getThrowGeometry();
+		const maximumFallSpeed = getChatPetThrowMaximumFallSpeed(this._hasAnimatedPropeller());
 		const buttonBounds = this._button.element.getBoundingClientRect();
 		let motion: ChatPetThrowMotion = {
 			left: buttonBounds.left - geometry.overlayLeft,
@@ -2431,7 +2459,7 @@ export class ChatPetWidget extends Disposable {
 		};
 		this._throwBounceHandler = (pointerX, pointerVelocity, requireDescending, exactCollisionMotion) => {
 			const now = targetWindow.performance.now();
-			const collisionMotion = exactCollisionMotion ?? advanceChatPetThrow(motion, Math.min(THROW_MAX_FRAME_DURATION, Math.max(0, now - lastFrameTime)), geometry.bounds);
+			const collisionMotion = exactCollisionMotion ?? advanceChatPetThrow(motion, Math.min(THROW_MAX_FRAME_DURATION, Math.max(0, now - lastFrameTime)), geometry.bounds, maximumFallSpeed);
 			if (!this._button.element.classList.contains('throwing') || wallImpact || bounceImpactEndsAt !== undefined || (requireDescending && !isChatPetMouseBounceEligible(collisionMotion.y))) {
 				return false;
 			}
@@ -2512,7 +2540,7 @@ export class ChatPetWidget extends Disposable {
 			const elapsed = Math.min(THROW_MAX_FRAME_DURATION, Math.max(0, now - lastFrameTime));
 			lastFrameTime = now;
 			const previousMotion = motion;
-			const step = advanceChatPetThrow(previousMotion, elapsed, geometry.bounds);
+			const step = advanceChatPetThrow(previousMotion, elapsed, geometry.bounds, maximumFallSpeed);
 			const landing = getChatPetThrowLanding(
 				previousMotion.left + geometry.overlayLeft,
 				previousMotion.top + geometry.overlayTop,
@@ -2538,7 +2566,7 @@ export class ChatPetWidget extends Disposable {
 				)
 				: undefined;
 			if (cursorPosition && mouseCollisionTime !== undefined && (landingTime === undefined || mouseCollisionTime < landingTime)) {
-				motion = advanceChatPetThrow(previousMotion, elapsed * mouseCollisionTime, geometry.bounds);
+				motion = advanceChatPetThrow(previousMotion, elapsed * mouseCollisionTime, geometry.bounds, maximumFallSpeed);
 				rotation = getChatPetThrowRotation(rotation, motion.left - previousMotion.left, motion.y, elapsed * mouseCollisionTime);
 				this._setThrowPosition(motion.left, motion.top);
 				if (isChatPetMouseBounceEligible(motion.y) && this._bounceAirbornePet(cursorPosition[0], this._getCursorVelocity(now), true, motion)) {
@@ -3139,6 +3167,7 @@ export class ChatPetWidget extends Disposable {
 		setChatPetWideLayerOffset(wideSpriteOffset, [
 			...(this._activeSprite ? [this._activeSprite.container] : []),
 			this._eyes,
+			this._propellerPoseContainer,
 			this._eyeAccessoryContainer,
 		]);
 	}
@@ -3556,6 +3585,10 @@ export class ChatPetWidget extends Disposable {
 		return getChatPetAccessoryImageSource(getChatPetAccessory(this._selectedAccessory));
 	}
 
+	private _hasAnimatedPropeller(): boolean {
+		return this._selectedAccessory !== undefined && getChatPetAccessory(this._selectedAccessory).hasAnimatedPropeller === true;
+	}
+
 	private _onBodyImageLoad(sprite: ChatPetSpriteElement): void {
 		if (sprite !== this._pendingRender?.sprite) {
 			return;
@@ -3656,6 +3689,9 @@ export class ChatPetWidget extends Disposable {
 			state
 		);
 		this._button.element.dataset.state = state;
+		if (state === 'yapping') {
+			this._restartPropellerPoseAnimation();
+		}
 		this._renderedState = state;
 		this._setRenderedFacingState(state, this._isDragging.get());
 		this._updateEyes(state);
@@ -3847,7 +3883,9 @@ export class ChatPetWidget extends Disposable {
 					activeAccessory?.eyeAccessoryMirrorsWithFacing !== false,
 					activeAccessory?.coversAntennae === true,
 					sprite.color,
+					activeAccessory?.hasAnimatedPropeller === true,
 				);
+				this._drawPropeller(sprite.activeAccessory, sprite.activeAccessoryImage, source, state, source.accessoryRigFrame ?? frameIndex);
 				this._drawEyeAccessory(sprite.activeAccessory, sprite.activeAccessoryImage, source, state, source.accessoryRigFrame ?? frameIndex);
 			} else {
 				context.clearRect(0, 0, source.frameWidth, frameHeight);
@@ -3968,6 +4006,43 @@ export class ChatPetWidget extends Disposable {
 			mirrorsWithFacing,
 			mirrorsWithFacing ? undefined : this._eyeAccessoryGazeOffset,
 		);
+	}
+
+	private _drawPropeller(accessoryId: ChatPetAccessoryId | undefined, accessoryImage: HTMLImageElement | undefined, source: ChatPetSpriteSource, state: ChatPetState, rigFrameIndex: number): void {
+		const hasPropeller = accessoryId !== undefined && getChatPetAccessory(accessoryId).hasAnimatedPropeller === true;
+		const frameHeight = source.frameHeight ?? CHAT_PET_SOURCE_SIZE;
+		const bounds = getChatPetPropellerBounds(state, rigFrameIndex);
+		const visible = hasPropeller && accessoryImage !== undefined && bounds !== undefined;
+		this._propellerContainer.classList.toggle('hidden', !visible);
+		if (!visible || !accessoryImage || !bounds) {
+			this._propeller.getContext('2d')?.clearRect(0, 0, this._propeller.width, this._propeller.height);
+			return;
+		}
+
+		const displayScale = CHAT_PET_DISPLAY_SIZE / CHAT_PET_SOURCE_SIZE;
+		const transformOrigin = `${(bounds.x + bounds.width / 2) * displayScale}px ${(bounds.y + bounds.height / 2) * displayScale}px`;
+		if (this._propeller.style.transformOrigin !== transformOrigin) {
+			this._propeller.style.transformOrigin = transformOrigin;
+		}
+		if (this._propeller.width !== source.frameWidth || this._propeller.height !== frameHeight) {
+			this._propeller.width = source.frameWidth;
+			this._propeller.height = frameHeight;
+			this._propellerPoseContainer.style.width = `${source.frameWidth * displayScale}px`;
+			this._propellerPoseContainer.style.height = `${frameHeight * displayScale}px`;
+			this._propeller.style.width = `${source.frameWidth * displayScale}px`;
+			this._propeller.style.height = `${frameHeight * displayScale}px`;
+		}
+		const context = this._propeller.getContext('2d');
+		if (context) {
+			context.imageSmoothingEnabled = false;
+			drawChatPetPropeller(context, accessoryImage, state, rigFrameIndex);
+		}
+	}
+
+	private _restartPropellerPoseAnimation(): void {
+		this._propellerPoseContainer.style.animation = 'none';
+		void this._propellerPoseContainer.offsetWidth;
+		this._propellerPoseContainer.style.animation = '';
 	}
 
 	private _updateSpeechBubble(state: ChatPetState | undefined, restart = false): void {

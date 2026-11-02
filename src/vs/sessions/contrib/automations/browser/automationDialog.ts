@@ -135,6 +135,7 @@ export async function canSelectAutomationWorkspace(
 	return !!await workspaceTrustRequestService.requestResourcesTrust({
 		uri: folderUri,
 		message: localize('automation.form.trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
+		remoteHostLabel: sessionsManagementService.getRemoteHostLabel(resolved.workspace, resolved.providerId),
 	});
 }
 

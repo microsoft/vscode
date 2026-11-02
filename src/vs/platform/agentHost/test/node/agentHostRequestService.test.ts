@@ -11,7 +11,7 @@ import { streamToBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, type DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, type DisposableStore, type IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -24,6 +24,7 @@ import { AgentHostProxyConfigKey } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostProxyResolver, IAgentHostProxyResolver, loadAgentHostCertificates } from '../../node/agentHostProxyResolver.js';
+import { ProxyEnvironmentIsolatedAgentHostProxyResolver } from './agentServiceTestUtils.js';
 import { AgentHostRequestService } from '../../node/agentHostRequestService.js';
 import { NetworkDiagnosticsService } from '../../node/networkDiagnosticsService.js';
 
@@ -43,6 +44,16 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 
 	register(_clientId: string, _connection: IAgentHostClientProxyConnection) {
 		return Disposable.None;
+	}
+
+	registerSharedNetworkClient(): IDisposable {
+		return Disposable.None;
+	}
+
+	notifySharedNetworkClientChanged(): void { }
+
+	async lookupClientKerberosAuthorization(): Promise<string | undefined> {
+		return undefined;
 	}
 
 	getConfigurationValue<T>(_key: string): T | undefined {
@@ -66,9 +77,13 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 
 class TestAgentHostProxyResolver extends AgentHostProxyResolver {
 	kerberosLookup: { url: string; spn: string | undefined } | undefined;
+	nativeKerberosFails = false;
 
 	protected override async _lookupKerberosAuthorization(url: string, spn: string | undefined): Promise<string> {
 		this.kerberosLookup = { url, spn };
+		if (this.nativeKerberosFails) {
+			throw new Error('No Kerberos ticket');
+		}
 		return 'token';
 	}
 }
@@ -89,22 +104,19 @@ suite('AgentHostProxyResolver', () => {
 			loadAdditionalCertificates: () => resolver.loadCertificates(),
 		});
 		resetCaches();
-		try {
-			const native = await getOrLoadAdditionalCertificates(params);
-			disposables.add(resolver.registerCertificateProvider('client', async () => [rootCertificates[0]]));
-			const first = await getOrLoadAdditionalCertificates(params);
-			disposables.add(resolver.registerCertificateProvider('client', async () => [rootCertificates[1]]));
-			const second = await getOrLoadAdditionalCertificates(params);
-			assert.deepStrictEqual({
-				counts: [first.length - native.length, second.length - native.length],
-				clientRoots: [first.at(-1), second.at(-1)],
-			}, {
-				counts: [1, 1],
-				clientRoots: rootCertificates.slice(0, 2).map(certificate => new X509Certificate(certificate).toString()),
-			});
-		} finally {
-			resetCaches();
-		}
+		disposables.add(toDisposable(() => resetCaches()));
+		const native = await getOrLoadAdditionalCertificates(params);
+		disposables.add(resolver.registerCertificateProvider('client', async () => [rootCertificates[0]]));
+		const first = await getOrLoadAdditionalCertificates(params);
+		disposables.add(resolver.registerCertificateProvider('client', async () => [rootCertificates[1]]));
+		const second = await getOrLoadAdditionalCertificates(params);
+		assert.deepStrictEqual({
+			counts: [first.length - native.length, second.length - native.length],
+			clientRoots: [first.at(-1), second.at(-1)],
+		}, {
+			counts: [1, 1],
+			clientRoots: rootCertificates.slice(0, 2).map(certificate => new X509Certificate(certificate).toString()),
+		});
 	});
 
 	test('loads client certificates on demand and coalesces concurrent consumers', async () => {
@@ -406,6 +418,78 @@ suite('AgentHostProxyResolver', () => {
 				url: 'http://proxy.example:8080',
 				spn: 'HTTP/proxy.example',
 			},
+		});
+	});
+
+	test('resolves proxies through a client sharing the network only while it is registered', async () => {
+		const resolver = disposables.add(new ProxyEnvironmentIsolatedAgentHostProxyResolver(createAgentConfigurationService(disposables), new NullLogService()));
+		let registrations = 0;
+		disposables.add(resolver.onDidRegisterConnection(() => registrations++));
+		const resolved: string[] = [];
+		const client = disposables.add(resolver.registerSharedNetworkClient('wsl', {
+			resolveProxy: async url => {
+				resolved.push(url);
+				return 'PROXY proxy.example:8080';
+			},
+			lookupKerberosAuthorization: async () => undefined,
+		}));
+		const shared = await resolver.resolveProxy('https://shared.example/path');
+		client.dispose();
+		const afterDisconnect = await resolver.resolveProxy('https://disconnected.example/path');
+
+		assert.deepStrictEqual({ shared, afterDisconnect, resolved, registrations }, {
+			shared: 'http://proxy.example:8080',
+			afterDisconnect: undefined,
+			resolved: ['https://shared.example/path'],
+			registrations: 1,
+		});
+	});
+
+	test('re-resolves proxies when a client sharing the network reports a change', async () => {
+		const resolver = disposables.add(new ProxyEnvironmentIsolatedAgentHostProxyResolver(createAgentConfigurationService(disposables), new NullLogService()));
+		let changes = 0;
+		disposables.add(resolver.onDidChangeConfiguration(() => changes++));
+		let clientProxy = 'PROXY first.example:8080';
+		disposables.add(resolver.registerSharedNetworkClient('wsl', {
+			resolveProxy: async () => clientProxy,
+			lookupKerberosAuthorization: async () => undefined,
+		}));
+		const before = await resolver.resolveProxy('https://shared.example/path');
+
+		clientProxy = 'DIRECT';
+		resolver.notifySharedNetworkClientChanged('unknown');
+		resolver.notifySharedNetworkClientChanged('wsl');
+		const after = await resolver.resolveProxy('https://shared.example/path');
+
+		assert.deepStrictEqual({ before, after, changes }, { before: 'http://first.example:8080', after: undefined, changes: 1 });
+	});
+
+	test('uses this machine\'s Kerberos tickets before those of clients sharing the network', async () => {
+		const resolver = disposables.add(new TestAgentHostProxyResolver(createAgentConfigurationService(disposables), new NullLogService()));
+		const lookups: string[] = [];
+		disposables.add(resolver.registerSharedNetworkClient('failing', {
+			resolveProxy: async () => undefined,
+			lookupKerberosAuthorization: async () => { throw new Error('disconnected'); },
+		}));
+		disposables.add(resolver.registerSharedNetworkClient('wsl', {
+			resolveProxy: async () => undefined,
+			lookupKerberosAuthorization: async proxyUrl => {
+				lookups.push(proxyUrl);
+				return 'Negotiate client-token';
+			},
+		}));
+		const lookup = (url: string) => (resolver as unknown as {
+			_hostLookupKerberosAuthorization(url: string): Promise<string | undefined>;
+		})._hostLookupKerberosAuthorization(url);
+
+		const native = await lookup('http://proxy.example:8080');
+		resolver.nativeKerberosFails = true;
+		const fallback = await lookup('http://proxy.example:8080');
+
+		assert.deepStrictEqual({ native, fallback, lookups }, {
+			native: 'Negotiate token',
+			fallback: 'Negotiate client-token',
+			lookups: ['http://proxy.example:8080'],
 		});
 	});
 });
@@ -717,23 +801,22 @@ suite('NetworkDiagnosticsService', () => {
 			{ version: 'test' } as IProductService,
 			new NullLogService(),
 		);
-		try {
-			const result = await service.getInfo([]);
-
-			assert.deepStrictEqual({
-				setting: result.proxySettings[AgentHostProxyConfigKey.ProxyKerberosServicePrincipal],
-				environment: result.proxyEnv['COPILOT_PROXY_KERBEROS_SPN'],
-			}, {
-				setting: 'HTTP/configured.proxy',
-				environment: 'HTTP/environment.proxy',
-			});
-		} finally {
+		disposables.add(toDisposable(() => {
 			if (previous === undefined) {
 				delete process.env['COPILOT_PROXY_KERBEROS_SPN'];
 			} else {
 				process.env['COPILOT_PROXY_KERBEROS_SPN'] = previous;
 			}
-		}
+		}));
+		const result = await service.getInfo([]);
+
+		assert.deepStrictEqual({
+			setting: result.proxySettings[AgentHostProxyConfigKey.ProxyKerberosServicePrincipal],
+			environment: result.proxyEnv['COPILOT_PROXY_KERBEROS_SPN'],
+		}, {
+			setting: 'HTTP/configured.proxy',
+			environment: 'HTTP/environment.proxy',
+		});
 	});
 
 	test('includes nested proxy response errors', async () => {

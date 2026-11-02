@@ -112,6 +112,10 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 	 * sessions on this machine, so a remote host must never claim or probe them.
 	 */
 	async resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined> {
+		// An un-adopted row of this list opens as itself: the host adopts it when the open subscribes, with no probe.
+		if (this._reportAdoptableRowOpen(resource, reason, this._telemetryService)) {
+			return undefined;
+		}
 		// Frozen at startup: enabling the setting only takes effect after a restart,
 		// so a live toggle never probes a host whose gate is still off.
 		if (!isLegacyMigrationEnabledAtStartup(this._configurationService)) {

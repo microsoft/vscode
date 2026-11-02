@@ -1,6 +1,6 @@
 ---
 name: smoke-tests
-description: Use when running VS Code smoke tests or working on smoke-test CI steps. Covers npm run smoketest / smoketest-no-compile, grep filtering tests, and a temporary repeat-loop technique for tracking down flaky smoke tests in CI.
+description: Use when running VS Code smoke tests or working on smoke-test CI steps. Covers pnpm run smoketest / smoketest-no-compile, grep filtering tests, and a temporary repeat-loop technique for tracking down flaky smoke tests in CI.
 ---
 
 # Running Smoke Tests
@@ -9,8 +9,8 @@ Smoke tests live in `test/smoke/` and drive a full VS Code instance (Electron, w
 
 ## Scripts
 
-- `npm run smoketest` — compiles the smoke tests first (`test/smoke`), then runs them.
-- `npm run smoketest-no-compile` — runs the already-compiled smoke tests. CI uses this after an explicit compile step.
+- `pnpm run smoketest` — compiles the smoke tests first (`test/smoke`), then runs them.
+- `pnpm run smoketest-no-compile` — runs the already-compiled smoke tests. CI uses this after an explicit compile step.
 
 Both forward extra arguments after `--` to the runner (`test/smoke/test/index.js`).
 
@@ -28,13 +28,13 @@ Both forward extra arguments after `--` to the runner (`test/smoke/test/index.js
 
 ```bash
 # Run everything (Electron, from source)
-npm run smoketest
+pnpm run smoketest
 
 # Run only a subset of suites by name, with tracing (replace <suite name> with your suite, e.g. "Agents Window")
-npm run smoketest -- -g "<suite name>" --tracing
+pnpm run smoketest -g "<suite name>" --tracing
 
 # Run against a packaged build (CI style)
-npm run smoketest-no-compile -- --tracing --build "/path/to/VSCode-darwin-arm64/Code - OSS.app"
+pnpm run smoketest-no-compile --tracing --build "/path/to/VSCode-darwin-arm64/Code - OSS.app"
 ```
 
 The `-g` pattern matches against test/suite titles. For example, `-g "Agents Window"` matches all three Agents Window suites (`Agents Window`, `Agents Window (local AgentHost)`, and `Agents Window (local AgentHost, SDK sandbox)`); use whatever substring identifies the suite(s) you care about.
@@ -94,7 +94,7 @@ Bash (Linux/macOS):
   run: |
     for i in $(seq 1 20); do
       echo "::group::Smoke probe run $i/20"
-      npm run smoketest-no-compile -- --tracing -g "<suite name>" || { echo "::error::Smoke test failed on run $i/20"; exit 1; }
+      pnpm run smoketest-no-compile --tracing -g "<suite name>" || { echo "::error::Smoke test failed on run $i/20"; exit 1; }
       echo "::endgroup::"
     done
 ```
@@ -162,4 +162,4 @@ Under `smoke-tests-<suite>/` (`smoke-tests-electron/`, `smoke-tests-browser/`, o
 
 - **Unit tests** (`.test.ts`) → `scripts/test.sh` / `runTests` tool (see the `unit-tests` skill).
 - **Integration tests** (`.integrationTest.ts` + extension tests) → `scripts/test-integration.sh` (see the `integration-tests` skill).
-- **Smoke tests** (`test/smoke/`) → `npm run smoketest` — full end-to-end UI flows.
+- **Smoke tests** (`test/smoke/`) → `pnpm run smoketest` — full end-to-end UI flows.

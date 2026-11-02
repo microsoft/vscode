@@ -17,7 +17,8 @@ import type { ISessionStateChange, ISessionStateSnapshot } from '../../common/ag
 import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, ChatInteractivity, ChatOriginKind, MessageKind, SessionStatus, withSessionWorkspaceless, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
+import { buildChatUri, buildDefaultChatUri, ChatInteractivity, ChatOriginKind, SessionStatus, withSessionWorkspaceless, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChatMovability, type IChatMovabilitySources } from '../../node/agentHostChatMovability.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY } from '../../node/shared/sessionAdditionalWorktrees.js';
@@ -90,7 +91,7 @@ suite('AgentHostChatMovability', () => {
 	/** Adds a chat that has already sent its first message: an unsent chat is never movable. */
 	function addStartedChat(stateManager: AgentHostStateManager, ...args: Parameters<AgentHostStateManager['addChat']>): void {
 		stateManager.addChat(...args);
-		stateManager.dispatchServerAction(args[1], { type: ActionType.ChatTurnStarted, turnId: 'first-turn', startedAt: new Date(0).toISOString(), message: { text: 'Hello', origin: { kind: MessageKind.User } } });
+		stateManager.dispatchServerAction(args[1], chatTurnStarted('first-turn', 'Hello', new Date(0).toISOString()));
 	}
 
 	/** A source session with a peer, both sessions working in `/repo`, and moving chats enabled. */
@@ -192,7 +193,7 @@ suite('AgentHostChatMovability', () => {
 		const movable = () => stateManager.getSessionState(session)?.chats.filter(chat => chat.resource !== buildDefaultChatUri(session)).map(chat => ({ chat: chat.resource === peer ? 'peer' : 'unsent', movable: chat.movable ?? false }));
 		const before = movable();
 
-		stateManager.dispatchServerAction(unsent, { type: ActionType.ChatTurnStarted, turnId: 'first-turn', startedAt: new Date(0).toISOString(), message: { text: 'Hello', origin: { kind: MessageKind.User } } });
+		stateManager.dispatchServerAction(unsent, chatTurnStarted('first-turn', 'Hello', new Date(0).toISOString()));
 
 		const state = stateManager.getChatState(unsent);
 		assert.deepStrictEqual({ before, after: movable(), firstTurn: { completedTurns: state?.turns.length, running: state?.activeTurn?.id } }, {
@@ -208,7 +209,7 @@ suite('AgentHostChatMovability', () => {
 		stateManager.addChat(session, unsent, creationTimeChatStorageResource(session, unsent, buildDefaultChatUri(session)));
 		await timeout(0);
 		const movable = (chat: string) => stateManager.getSessionState(session)?.chats.find(candidate => candidate.resource === chat)?.movable ?? false;
-		stateManager.dispatchServerAction(peer, { type: ActionType.ChatTurnComplete, turnId: 'first-turn', duration: 10 });
+		stateManager.dispatchServerAction(peer, chatTurnComplete('first-turn', 10));
 		const turns = [...stateManager.getChatState(peer)!.turns];
 
 		const before = movable(peer);

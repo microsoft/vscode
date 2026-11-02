@@ -59,8 +59,9 @@ jobs:
           node << 'EOF'
           const pkg = require("./package.json");
           const EVENT_PREFIX = pkg.publisher + "." + pkg.name;
-          const { version } = require("../../package-lock.json").packages["node_modules/@vscode/telemetry-extractor"];
           const cp = require("child_process");
+          const [root] = JSON.parse(cp.execFileSync("pnpm", ["list", "--lockfile-only", "--json", "--depth", "0", "--filter", ".", "@vscode/telemetry-extractor"], { cwd: "../..", encoding: "utf8" }));
+          const { version } = { ...root.dependencies, ...root.devDependencies }["@vscode/telemetry-extractor"];
           cp.execFileSync("npx", [`--package=@vscode/telemetry-extractor@${version}`, "--yes", "vscode-telemetry-extractor", "--eventPrefix", EVENT_PREFIX, "-s", ".", "-o", ".", "-f", "telemetry"], { stdio: "inherit", shell: true });
           EOF
         workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
@@ -68,7 +69,8 @@ jobs:
 
       - script: |
           set -e
-          if [ ! -f node_modules/jsonc-parser/package.json ]; then
+          # pnpm may hoist jsonc-parser to the root node_modules folder.
+          if ! node -e "require.resolve('jsonc-parser')" 2>/dev/null; then
             npm install --location=global jsonc-parser
             export NODE_PATH=$(npm root --location=global)
           fi
@@ -88,7 +90,7 @@ jobs:
 
       - script: |
           set -e
-          npx vsce package -o copilot-chat.vsix --allow-package-secrets sendgrid
+          pnpm exec vsce package -o copilot-chat.vsix --allow-package-secrets sendgrid
           mkdir -p $(Build.ArtifactStagingDirectory)/copilot-vsix
           cp copilot-chat.vsix $(Build.ArtifactStagingDirectory)/copilot-vsix/
         workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
