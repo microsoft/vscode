@@ -177,7 +177,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			];
 
 			if (options.remoteHostLabel) {
-				const remoteHostLabel = `\`${options.remoteHostLabel.replace(/`/g, '')}\``;
+				const remoteHostLabel = `\`${options.remoteHostLabel.replace(/`/g, '').replace(/\s+/g, ' ').trim()}\``;
 				markdownDetails.push(
 					localize('resourcesTrustRemoteEnvironment', "This folder is hosted on the remote agent environment {0}.", remoteHostLabel),
 					localize('resourcesTrustRemoteScope', "Your decision is saved in {0} on this computer and lets agent sessions read, modify, and run commands in this folder on {1}. It does not change any trust settings on the remote environment.", this.productService.nameLong, remoteHostLabel)

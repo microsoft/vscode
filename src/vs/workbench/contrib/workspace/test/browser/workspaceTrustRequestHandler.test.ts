@@ -68,6 +68,19 @@ suite('WorkspaceTrustRequestHandler', () => {
 		]);
 	});
 
+	test('keeps a multiline remote environment name in a single code span', async () => {
+		const details = await getResourcesTrustDetails({
+			uri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'box', path: '/work/project' }),
+			message: 'Message.',
+			remoteHostLabel: 'Box\n\n# Safe to trust\r\n\nrest',
+		});
+
+		assert.deepStrictEqual(details.slice(3), [
+			'This folder is hosted on the remote agent environment `Box # Safe to trust rest`.',
+			'Your decision is saved in Code - OSS on this computer and lets agent sessions read, modify, and run commands in this folder on `Box # Safe to trust rest`. It does not change any trust settings on the remote environment.',
+		]);
+	});
+
 	test('does not claim local trust for an unnamed remote agent host folder', async () => {
 		const details = await getResourcesTrustDetails({
 			uri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'box', path: '/work/project' }),
