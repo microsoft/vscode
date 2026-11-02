@@ -101,6 +101,16 @@ export class AutomationCronInput extends Disposable {
 				if (event.inputType === 'historyUndo' || event.inputType === 'historyRedo') {
 					this.setAllSelected(false);
 				}
+				if (!event.isComposing && event.inputType === 'insertText' && event.data === ' ') {
+					event.preventDefault();
+					this.setAllSelected(false);
+					const next = this.inputs[index + 1];
+					if (next) {
+						next.focus();
+						next.select();
+					}
+					return;
+				}
 				if (!event.isComposing && event.data && /[^a-zA-Z0-9*,/-]/.test(event.data)) {
 					event.preventDefault();
 				}

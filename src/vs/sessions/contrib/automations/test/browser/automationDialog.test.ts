@@ -1010,6 +1010,35 @@ suite('Automation dialog creation', () => {
 		});
 	});
 
+	test('typing spaces advances between Cron fields', async () => {
+		const dialog = openDialog();
+		const select = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
+		select.selectedIndex = Array.from(select.options).findIndex(option => option.textContent === 'Cron');
+		select.dispatchEvent(new (DOM.getWindow(select).Event)('change'));
+		const inputs = Array.from(dialog.container.querySelectorAll<HTMLInputElement>('.automation-cron-segments input'));
+		inputs[0].focus();
+		const focusedFields: number[] = [];
+		for (const part of ['30', '9', '*', '*', '1-5']) {
+			const input = DOM.getWindow(select).document.activeElement as HTMLInputElement;
+			focusedFields.push(inputs.indexOf(input));
+			input.value = part;
+			input.dispatchEvent(new InputEvent('input'));
+			input.dispatchEvent(new InputEvent('beforeinput', { data: ' ', inputType: 'insertText', bubbles: true, cancelable: true }));
+		}
+		const result = {
+			focusedFields,
+			values: inputs.map(input => input.value),
+			summary: dialog.container.querySelector('.automation-form-schedule-description')?.textContent,
+		};
+		dialog.cancelButton.click();
+		await dialog.result;
+		assert.deepStrictEqual(result, {
+			focusedFields: [0, 1, 2, 3, 4],
+			values: ['30', '9', '*', '*', '1-5'],
+			summary: 'Runs at 9:30 AM on Monday through Friday.',
+		});
+	});
+
 	test('Escape dismisses focused Cron guidance before a separate press cancels the dialog', async () => {
 		const results = [];
 		for (const expression of ['0 9 * * MON-FRI', '0 24 * * MON-FRI']) {
