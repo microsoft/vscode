@@ -1383,6 +1383,18 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 		});
 	}
 
+	registerSharedNetworkClient(): IDisposable {
+		return Disposable.None;
+	}
+
+	notifySharedNetworkClientChanged(): void { }
+
+	readonly clientKerberosLookups: string[] = [];
+	async lookupClientKerberosAuthorization(proxyUrl: string): Promise<string | undefined> {
+		this.clientKerberosLookups.push(proxyUrl);
+		return 'Negotiate client-ticket';
+	}
+
 	getConfigurationValue<T>(_key: string): T | undefined {
 		return undefined;
 	}
@@ -1838,6 +1850,57 @@ suite('CopilotAgent', () => {
 	teardown(() => {
 		clearProxyEnvironment();
 		Object.assign(process.env, savedProxyEnvironment);
+	});
+
+	test('host sandbox certificate management starts the runtime without creating or resuming a chat', async () => {
+		const client = new TestCopilotClient([]);
+		const calls: string[] = [];
+		const params: Parameters<CopilotClient['rpc']['sandbox']['proxyCa']['getStatus']>[0][] = [];
+		const sandbox: CopilotClient['rpc']['sandbox'] = {
+			getHostSupport: async () => { assert.fail('Certificate installation must not enable sandboxing'); },
+			proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() {
+				override checkInstallationSupport = async () => { calls.push('support'); return true; };
+				override getStatus: CopilotClient['rpc']['sandbox']['proxyCa']['getStatus'] = async value => {
+					calls.push('status');
+					params.push(value);
+					return { state: 'notInstalled', canInstall: true };
+				};
+				override create: CopilotClient['rpc']['sandbox']['proxyCa']['create'] = async value => {
+					calls.push('create');
+					params.push(value);
+					return { certificatePath: '/runtime/proxy-ca.pem' };
+				};
+				override trust: CopilotClient['rpc']['sandbox']['proxyCa']['trust'] = async value => {
+					calls.push('trust');
+					params.push(value);
+					return { state: 'installed', canInstall: true };
+				};
+				override rotate: CopilotClient['rpc']['sandbox']['proxyCa']['rotate'] = async value => {
+					calls.push('rotate');
+					params.push(value);
+					return { state: 'installed', canInstall: true };
+				};
+				override remove: CopilotClient['rpc']['sandbox']['proxyCa']['remove'] = async () => {
+					calls.push('remove');
+					return { state: 'notInstalled', canInstall: true };
+				};
+			},
+		};
+		Object.assign(client.rpc, { sandbox });
+		client.createSession = async () => { assert.fail('Must not create a chat'); };
+		client.resumeSession = async () => { assert.fail('Must not resume a chat'); };
+		const agent = disposables.add(createTestAgent(disposables, { copilotClient: client }));
+		try {
+			for (const operation of ['install', 'rotate', 'remove'] as const) {
+				await agent.manageHostSandboxCertificate(operation);
+			}
+			assert.deepStrictEqual({ calls, params }, {
+				calls: ['support', 'status', 'create', 'trust', 'support', 'status', 'rotate', 'remove'],
+				params: [{}, {}, {}, {}, {}],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
 	});
 
 	test('rejected managed OTel paths are cleared in the captured Copilot child options', async () => {
@@ -3052,6 +3115,60 @@ suite('CopilotAgent', () => {
 			assert.strictEqual(client.managedSettingsRequests.at(-1)?.gitHubToken, 'new-token');
 		} finally {
 			gate.complete(client.managedSettingsResolution);
+			await disposeAgent(agent);
+		}
+	});
+
+	test('managed settings retry eager config on the restarted client when a resolved proxy restarts it', async () => {
+		class DisposingConnectionClient extends TestCopilotClient {
+			readonly connection = new DeferredPromise<ManagedSettingsResolveResult>();
+
+			override async stop(): ReturnType<ITestCopilotClient['stop']> {
+				this.connection.error(new Error('Pending response rejected since connection got disposed'));
+				return super.stop();
+			}
+		}
+		const proxy = 'http://client-proxy.example:8080';
+		const proxyResolver = new TestProxyResolver();
+		const proxyResolved = new DeferredPromise<void>();
+		proxyResolver.resolvedProxy = proxy;
+		proxyResolver.resolveProxyGate = proxyResolved.p;
+		const client = new DisposingConnectionClient([]);
+		const firstQueryStarted = new DeferredPromise<void>();
+		const restricted: ManagedSettingsResolveResult = {
+			...client.managedSettingsResolution,
+			resolved: {
+				...client.managedSettingsResolution.resolved,
+				bypassPermissionsDisabled: true,
+				settings: { permissions: { disableBypassPermissionsMode: 'disable', disableAssistedPermissionsMode: true } },
+			},
+		};
+		client.resolveManagedSettings = async () => {
+			if (!firstQueryStarted.isSettled) {
+				firstQueryStarted.complete();
+				return client.connection.p;
+			}
+			return restricted;
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client, proxyResolver });
+		try {
+			const config = agent.resolveChatConfig({});
+			await firstQueryStarted.p;
+			proxyResolved.complete();
+			assert.deepStrictEqual({
+				availableApprovalModes: (await config).values.availableApprovalModes,
+				startCallCount: client.startCallCount,
+				stopCallCount: client.stopCallCount,
+				httpsProxy: getCreatedClientOptions(agent).at(-1)?.env?.['HTTPS_PROXY'],
+			}, {
+				availableApprovalModes: ['default'],
+				startCallCount: 2,
+				stopCallCount: 1,
+				httpsProxy: proxy,
+			});
+		} finally {
+			proxyResolved.complete();
+			client.connection.complete(client.managedSettingsResolution);
 			await disposeAgent(agent);
 		}
 	});
@@ -13851,6 +13968,32 @@ suite('CopilotAgent', () => {
 				noProxy: '127.0.0.1,localhost',
 				lowercaseNoProxy: undefined,
 			});
+		});
+
+		test('registers a runtime-scoped fallback Kerberos callback backed by clients sharing the network', async () => {
+			const proxyResolver = new TestProxyResolver();
+			const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), proxyResolver });
+			try {
+				await agent.listChatsToMigrate();
+				const callback = getCreatedClientOptions(agent).at(-1)?.kerberosAuth;
+				const signal = new AbortController().signal;
+				assert.deepStrictEqual({
+					mode: callback?.mode,
+					scope: callback?.scope,
+					tokens: [
+						await callback?.callback({ spn: 'HTTP/proxy.example@EXAMPLE.COM' }, signal),
+						await callback?.callback({ spn: 'ldap/directory.example' }, signal),
+					],
+					lookups: proxyResolver.clientKerberosLookups,
+				}, {
+					mode: 'fallback',
+					scope: 'runtime',
+					tokens: ['client-ticket', undefined],
+					lookups: ['http://proxy.example'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
 		});
 
 		test('forwards the configured Kerberos proxy SPN to the Copilot runtime', async () => {

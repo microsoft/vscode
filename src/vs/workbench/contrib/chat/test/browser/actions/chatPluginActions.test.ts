@@ -34,7 +34,7 @@ import { isMarketplaceReferenceAllowed, StrictKnownMarketplaces } from '../../..
 suite('InstallFromSourceAction', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createFixture(pluginInstallProvider?: ICustomizationPluginInstallProvider) {
+	function createFixture(pluginInstallProvider?: ICustomizationPluginInstallProvider, localInstallResult: { readonly success: boolean; readonly message?: string } = { success: true }) {
 		const instantiationService = workbenchInstantiationService({}, store);
 		const acceptEmitter = store.add(new Emitter<void>());
 		const hideEmitter = store.add(new Emitter<IQuickInputHideEvent>());
@@ -61,6 +61,7 @@ suite('InstallFromSourceAction', () => {
 		]);
 		const localInstalls: string[] = [];
 		const validations: string[] = [];
+		const notifications: Parameters<INotificationService['error']>[0][] = [];
 		instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
 			override createInputBox() { return inputBox; }
 		}());
@@ -70,6 +71,11 @@ suite('InstallFromSourceAction', () => {
 				return harnesses.get(sessionResource.scheme);
 			}
 		}());
+		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+			override error(error: Parameters<INotificationService['error']>[0]): void {
+				notifications.push(error);
+			}
+		}());
 		instantiationService.stub(IPluginInstallService, new class extends mock<IPluginInstallService>() {
 			override validatePluginSource(source: string) {
 				validations.push(source);
@@ -77,7 +83,7 @@ suite('InstallFromSourceAction', () => {
 			}
 			override async installPluginFromSource(source: string) {
 				localInstalls.push(source);
-				return { success: true };
+				return localInstallResult;
 			}
 		}());
 		instantiationService.stub(IConfigurationService, new class extends mock<IConfigurationService>() {
@@ -86,7 +92,7 @@ suite('InstallFromSourceAction', () => {
 			}
 		}());
 		const result = instantiationService.invokeFunction(accessor => new InstallFromSourceAction().run(accessor, { skipReveal: true }));
-		return { inputBox, acceptEmitter, showEmitter, result, localInstalls, validations, session, activeSessionResource, harnesses };
+		return { inputBox, acceptEmitter, showEmitter, result, localInstalls, validations, notifications, session, activeSessionResource, harnesses };
 	}
 
 	test('uses the harness installer for repository, folder, and marketplace sources without changing VS Code plugin locations', async () => {
@@ -185,16 +191,15 @@ suite('InstallFromSourceAction', () => {
 		});
 	});
 
-	test('shows harness installation errors without falling back to VS Code installation', async () => {
-		const fixture = createFixture({
-			installFromSource: async () => { throw new Error('SDK rejected source'); },
-		});
+	test('keeps cancelled local installation silent', async () => {
+		const fixture = createFixture(undefined, { success: false });
 		const shown = Event.toPromise(fixture.showEmitter.event);
 		fixture.inputBox.value = 'owner/repo';
 		fixture.acceptEmitter.fire();
 		await shown;
 		const state = {
-			message: fixture.inputBox.validationMessage,
+			validationMessage: fixture.inputBox.validationMessage,
+			notifications: fixture.notifications,
 			busy: fixture.inputBox.busy,
 			enabled: fixture.inputBox.enabled,
 			localInstalls: fixture.localInstalls,
@@ -202,7 +207,35 @@ suite('InstallFromSourceAction', () => {
 		fixture.inputBox.hide();
 
 		assert.deepStrictEqual({ ...state, installed: await fixture.result }, {
-			message: 'Failed to install plugin: SDK rejected source',
+			validationMessage: undefined,
+			notifications: [],
+			busy: false,
+			enabled: true,
+			localInstalls: ['owner/repo'],
+			installed: false,
+		});
+	});
+
+	test('shows harness installation errors as notifications without falling back to VS Code installation', async () => {
+		const fixture = createFixture({
+			installFromSource: async () => { throw new Error('The plugin is invalid'); },
+		});
+		const shown = Event.toPromise(fixture.showEmitter.event);
+		fixture.inputBox.value = 'owner/repo';
+		fixture.acceptEmitter.fire();
+		await shown;
+		const state = {
+			validationMessage: fixture.inputBox.validationMessage,
+			notifications: fixture.notifications,
+			busy: fixture.inputBox.busy,
+			enabled: fixture.inputBox.enabled,
+			localInstalls: fixture.localInstalls,
+		};
+		fixture.inputBox.hide();
+
+		assert.deepStrictEqual({ ...state, installed: await fixture.result }, {
+			validationMessage: undefined,
+			notifications: ['Failed to install plugin: The plugin is invalid'],
 			busy: false,
 			enabled: true,
 			localInstalls: [],

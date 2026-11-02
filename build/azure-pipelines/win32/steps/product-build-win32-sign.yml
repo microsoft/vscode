@@ -68,7 +68,8 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { npx zx build/azure-pipelines/win32/codesign.ts }
+      # zx is a dependency of build/; codesign.ts runs from the repository root.
+      exec { build/node_modules/.bin/zx.cmd build/azure-pipelines/win32/codesign.ts }
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       BUILT_CLIENT: "true"

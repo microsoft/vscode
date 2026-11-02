@@ -64,26 +64,31 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
-  # npm ci removes node_modules before installing, so retrying it after a transient registry error
-  # such as ECONNRESET starts from a clean state.
-  - script: npm ci
+  - template: ../common/install-pnpm.yml@self
+
+  # The installs are frozen, so retrying one after a transient registry error such as ECONNRESET
+  # ends in the same state as a first successful attempt.
+  - script: pnpm install --frozen-lockfile
     workingDirectory: build
     displayName: Install build dependencies
     condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
     retryCountOnTaskFailure: 3
 
-  - script: npm ci --ignore-scripts --no-workspaces
+  # Only the dependencies of the root project, without the root install scripts that install every
+  # other install root. extensions/copilot is a separate install root.
+  - script: pnpm install --frozen-lockfile --ignore-scripts --filter .
     workingDirectory: $(Build.SourcesDirectory)
     displayName: Install vscode dependencies
     condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
     retryCountOnTaskFailure: 3
 
-  - script: npm ci
+  - script: pnpm install --frozen-lockfile
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Install copilot dependencies
     condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
     retryCountOnTaskFailure: 3
 
+  # microsoft/vscode-capi is a separate repository that installs with npm.
   - script: npm ci
     workingDirectory: $(Build.SourcesDirectory)/.build/vscode-capi
     displayName: Install vscode-capi dependencies

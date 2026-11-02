@@ -1414,8 +1414,8 @@ export class CopilotAgentSession extends Disposable {
 		return this._sandbox.removeCertificate(scopeId);
 	}
 
-	refreshSandboxCertificate(): Promise<void> {
-		return this._sandbox.refreshCertificateDiagnostics();
+	refreshSandboxCertificate(scopeId?: string): Promise<void> {
+		return this._sandbox.refreshCertificateDiagnostics(scopeId);
 	}
 
 	get usesScopedGitHubCredentials(): boolean { return this._launchPlan.githubCredentials.usesScopedCredential; }
@@ -2189,6 +2189,7 @@ export class CopilotAgentSession extends Disposable {
 			isSessionClosed: session => this._store.isDisposed || (session !== undefined && this._wrapper?.session === session && this._wrapper.lifecycleState !== 'active'),
 			getHostSupport: () => this._launchPlan.client.rpc.sandbox.getHostSupport(),
 			getCertificateStatus: config => options.sandboxCertificate.getStatus(this._launchPlan.client.rpc.sandbox.proxyCa, config),
+			refreshCertificate: (getConfig, scopeId) => options.sandboxCertificate.refresh(this._launchPlan.client.rpc.sandbox.proxyCa, getConfig, scopeId),
 			installCertificate: (getConfig, scopeId) => options.sandboxCertificate.install(this._launchPlan.client.rpc.sandbox.proxyCa, getConfig, scopeId),
 			rotateCertificate: (getConfig, scopeId) => options.sandboxCertificate.rotate(this._launchPlan.client.rpc.sandbox.proxyCa, getConfig, scopeId),
 			removeCertificate: async (scopeId, validate) => { await options.sandboxCertificate.remove(this._launchPlan.client.rpc.sandbox.proxyCa, scopeId, validate); },

@@ -139,6 +139,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
+
       - name: Restore node_modules cache
         id: cache-node-modules
         uses: ./.github/actions/restore-node-modules
@@ -159,21 +162,20 @@ jobs:
 
           for ($i = 1; $i -le 5; $i++) {
             try {
-              exec { npm ci }
+              exec { pnpm install --frozen-lockfile }
               break
             }
             catch {
               if ($i -eq 5) {
-                Write-Error "npm ci failed after 5 attempts"
+                Write-Error "pnpm install failed after 5 attempts"
                 throw
               }
-              Write-Host "npm ci failed attempt $i, retrying..."
+              Write-Host "pnpm install failed attempt $i, retrying..."
               Start-Sleep -Seconds 2
             }
           }
         env:
           npm_config_arch: ${{ env.NPM_ARCH }}
-          npm_config_foreground_scripts: "true"
           VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
@@ -203,7 +205,7 @@ jobs:
 
       - name: Transpile client and extensions
         shell: pwsh
-        run: npm run gulp "transpile-client-esbuild" "transpile-extensions"
+        run: pnpm run gulp "transpile-client-esbuild" "transpile-extensions"
 
       - name: Setup Electron
         if: ${{ env.ELECTRON_TESTS == 'true' || env.REMOTE_TESTS == 'true' }}
@@ -216,7 +218,7 @@ jobs:
       - name: Compile browser integration test runner
         if: ${{ env.BROWSER_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' }}
         working-directory: test/integration/browser
-        run: npm run compile
+        run: pnpm run compile
 
       - name: Install Playwright Chromium
         if: ${{ env.BROWSER_TESTS == 'true' }}
@@ -227,7 +229,7 @@ jobs:
 
           for ($i = 1; $i -le 3; $i++) {
             try {
-              exec { npm exec -- playwright install --only-shell chromium }
+              exec { pnpm exec playwright install --only-shell chromium }
               break
             }
             catch {
@@ -271,7 +273,7 @@ jobs:
         if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
         timeout-minutes: 25
         shell: pwsh
-        run: npm run test-node -- --workers 4 --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
+        run: pnpm run test-node --workers 4 --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
 
       - name: 🧪 Run unit tests (Browser, Chromium)
         if: ${{ env.BROWSER_TESTS == 'true' && env.UNIT_TESTS == 'true' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
@@ -287,7 +289,7 @@ jobs:
         run: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          exec { npm run gulp `
+          exec { pnpm run gulp `
             compile-extension:configuration-editing `
             compile-extension:css-language-features-server `
             compile-extension:emmet `
@@ -381,12 +383,12 @@ jobs:
         if: ${{ env.SMOKE_TESTS == 'true' }}
         working-directory: test/smoke
         shell: pwsh
-        run: npm run compile
+        run: pnpm run compile
 
       - name: Compile Copilot Chat extension for smoke tests
         if: ${{ env.SMOKE_TESTS == 'true' && env.BROWSER_TESTS != 'true' }}
         working-directory: extensions/copilot
-        run: npm run compile
+        run: pnpm run compile
 
       - name: Diagnostics before smoke test run
         if: ${{ env.SMOKE_TESTS == 'true' && always() }}
@@ -398,7 +400,7 @@ jobs:
         if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' }}
         timeout-minutes: 20
         shell: pwsh
-        run: npm run smoketest-no-compile -- --tracing --shard ${{ env.SMOKE_SHARD_INDEX }}/${{ env.SMOKE_SHARD_TOTAL }}
+        run: pnpm run smoketest-no-compile --tracing --shard ${{ env.SMOKE_SHARD_INDEX }}/${{ env.SMOKE_SHARD_TOTAL }}
         env:
           VSCODE_SMOKE_TEST_POLICY: '1'
           # Set in every shard so all shards register the WSL suite and compute the same split
@@ -419,13 +421,13 @@ jobs:
         if: ${{ env.BROWSER_TESTS == 'true' && env.SMOKE_TESTS == 'true' }}
         timeout-minutes: 20
         shell: pwsh
-        run: npm run smoketest-no-compile -- --web --tracing --headless
+        run: pnpm run smoketest-no-compile --web --tracing --headless
 
       - name: 🧪 Run smoke tests (Remote)
         if: ${{ env.REMOTE_TESTS == 'true' && env.SMOKE_TESTS == 'true' }}
         timeout-minutes: 20
         shell: pwsh
-        run: npm run smoketest-no-compile -- --remote --tracing
+        run: pnpm run smoketest-no-compile --remote --tracing
 
       - name: Diagnostics after smoke test run
         if: ${{ env.SMOKE_TESTS == 'true' && always() }}
