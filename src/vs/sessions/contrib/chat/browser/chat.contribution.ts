@@ -489,17 +489,17 @@ class SetChatBackgroundAction extends Action2 {
 			return;
 		}
 		if (backgroundType.kind === 'none') {
-			await backgroundService.clearBackground();
+			await backgroundService.clearBackground('backgroundPicker');
 			status(localize('chat.agentSessions.clearBackground.cleared', "Chat background cleared."));
 			return;
 		}
 		if (backgroundType.kind === 'codicons') {
-			await backgroundService.setBackground(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET);
+			await backgroundService.setBackground(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, 'backgroundPicker');
 			status(localize('chat.agentSessions.setBackground.codicons', "Chat background set to Codicons."));
 			return;
 		}
 		if (backgroundType.kind === 'recentImage') {
-			await backgroundService.setBackground(backgroundType.image);
+			await backgroundService.setBackground(backgroundType.image, 'backgroundPicker');
 			status(localize('chat.agentSessions.setBackground.recentImage', "Chat background image set to {0}.", backgroundType.label));
 			return;
 		}
@@ -532,7 +532,7 @@ class SetChatBackgroundAction extends Action2 {
 			return;
 		}
 
-		await backgroundService.setBackground(image);
+		await backgroundService.setBackground(image, 'backgroundPicker');
 		status(localize('chat.agentSessions.setBackground.image', "Chat background image set."));
 	}
 }
@@ -573,10 +573,10 @@ class ChangeChatBackgroundLayoutAction extends Action2 {
 				title: localize('chat.agentSessions.changeBackgroundLayout.title', "Change Chat Background Layout"),
 				placeHolder: localize('chat.agentSessions.changeBackgroundLayout.placeholder', "Select how the background image is displayed"),
 				activeItem: chatBackgroundImageLayoutItems.find(item => item.layout === currentLayout),
-				onDidFocus: item => void backgroundService.setBackgroundImageLayout(item.layout, false),
+				onDidFocus: item => void backgroundService.setBackgroundImageLayout(item.layout, 'layoutPicker', false),
 			});
 		} finally {
-			await backgroundService.setBackgroundImageLayout(selected?.layout ?? currentLayout, selected !== undefined);
+			await backgroundService.setBackgroundImageLayout(selected?.layout ?? currentLayout, 'layoutPicker', selected !== undefined);
 		}
 		if (selected && selected.layout !== currentLayout) {
 			status(localize('chat.agentSessions.changeBackgroundLayout.changed', "Chat background layout changed to {0}.", selected.label));
@@ -713,7 +713,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('chat.agentSessions.archiveNudge.enabled', "Suggests archiving an inactive session when all GitHub pull requests associated with the session have merged. Dismissing the suggestion hides it for that session until it is archived or deleted."),
+			description: localize('chat.agentSessions.archiveNudge.enabled', "Suggests archiving an inactive session in a chat when all GitHub pull requests associated with that chat have merged. Dismissing the suggestion hides it for that session until it is archived or deleted."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},

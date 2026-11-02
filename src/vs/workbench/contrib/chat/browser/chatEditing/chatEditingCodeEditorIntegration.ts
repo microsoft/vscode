@@ -6,6 +6,7 @@
 import './media/chatEditorController.css';
 
 import { getTotalWidth } from '../../../../../base/browser/dom.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, autorunSelfDisposable, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
@@ -745,6 +746,12 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 
 	private readonly _domNode: HTMLElement;
 	private readonly _store = new DisposableStore();
+	// Match the opacity transition in chatEditorController.css.
+	private readonly _hideToolbarScheduler = this._store.add(new RunOnceScheduler(() => this._hideToolbar(), 200));
+	private readonly _toolbarStore = this._store.add(new DisposableStore());
+	private _toolbar: MenuWorkbenchToolBar | undefined;
+	private _toolbarVisible = false;
+	private _runningActions = 0;
 	private _position: IOverlayWidgetPosition | undefined;
 	private _lastStartLineNumber: number | undefined;
 	private _removed: boolean = false;
@@ -755,12 +762,19 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 		private _change: DetailedLineRangeMapping,
 		private _versionId: number,
 		private _lineDelta: number,
-		@IInstantiationService instaService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'chat-diff-change-content-widget';
+		this._editor.addOverlayWidget(this);
+	}
 
-		const toolbar = instaService.createInstance(MenuWorkbenchToolBar, this._domNode, MenuId.ChatEditingEditorHunk, {
+	private _showToolbar(): void {
+		// Preserve the toolbar when reusing a visible widget to avoid blinking and losing focus.
+		if (this._toolbar) {
+			return;
+		}
+		const toolbar = this._toolbarStore.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._domNode, MenuId.ChatEditingEditorHunk, {
 			telemetrySource: 'chatEditingEditorHunk',
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: { primaryGroup: () => true, },
@@ -785,11 +799,31 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 				}
 				return undefined;
 			}
-		});
+		}));
 
-		this._store.add(toolbar);
-		this._store.add(toolbar.actionRunner.onWillRun(_ => _editor.focus()));
-		this._editor.addOverlayWidget(this);
+		this._toolbar = toolbar;
+		this._toolbarStore.add(toolbar.actionRunner.onWillRun(() => {
+			this._runningActions++;
+			this._editor.focus();
+		}));
+		this._toolbarStore.add(toolbar.actionRunner.onDidRun(() => {
+			// Keep the runner alive until every completion listener has received the result.
+			queueMicrotask(() => {
+				this._runningActions--;
+				if (!this._toolbarVisible) {
+					this._hideToolbar();
+				}
+			});
+		}));
+	}
+
+	private _hideToolbar(): void {
+		// Resolving a hunk can hide its toolbar before the action reports completion.
+		if (this._toolbarVisible || this._runningActions > 0 || this._hideToolbarScheduler.isScheduled()) {
+			return;
+		}
+		this._toolbarStore.clear();
+		this._toolbar = undefined;
 	}
 
 	update(diffInfo: IDocumentDiff2, change: DetailedLineRangeMapping, versionId: number, lineDelta: number): void {
@@ -801,6 +835,7 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 
 	dispose(): void {
 		this._store.dispose();
+		this._toolbar = undefined;
 		this._editor.removeOverlayWidget(this);
 		this._removed = true;
 	}
@@ -833,11 +868,25 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 	}
 
 	remove(): void {
+		this._toolbarVisible = false;
+		this._hideToolbarScheduler.cancel();
+		this._hideToolbar();
 		this._editor.removeOverlayWidget(this);
 		this._removed = true;
 	}
 
 	toggle(show: boolean) {
+		if (this._store.isDisposed || this._removed) {
+			return;
+		}
+		const wasVisible = this._toolbarVisible;
+		this._toolbarVisible = show;
+		if (show) {
+			this._hideToolbarScheduler.cancel();
+			this._showToolbar();
+		} else if (wasVisible) {
+			this._hideToolbarScheduler.schedule();
+		}
 		this._domNode.classList.toggle('hover', show);
 		if (this._lastStartLineNumber) {
 			this.layout(this._lastStartLineNumber);

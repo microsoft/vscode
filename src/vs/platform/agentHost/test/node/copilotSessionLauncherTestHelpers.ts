@@ -54,7 +54,7 @@ export const noopSessionOpenTelemetry: IAgentHostSessionOpenTelemetry = {
 	sdkResumeFallbackCreated: () => { },
 };
 
-export function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Record<string, unknown> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService, telemetryService?: ITelemetryService): CopilotSessionLauncher {
+export function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Record<string, unknown> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService, telemetryService?: ITelemetryService, fileService: IFileService = upcastPartial<IFileService>({})): CopilotSessionLauncher {
 	const configurationService = configuration ?? upcastPartial<IAgentConfigurationService>({
 		getRootValue: stub().callsFake((_schema: unknown, key: string) => rootValues[key]),
 		getRootConfigValues: () => rootValues,
@@ -73,7 +73,7 @@ export function createTestLauncher(managedSettingsPermissions?: IAgentHostManage
 		upcastPartial<IAgentHostManagedSettingsService>({ permissions: managedSettingsPermissions ?? {} }),
 		upcastPartial<IAgentHostTerminalManager>({}),
 		logService,
-		upcastPartial<IFileService>({}),
+		fileService,
 		{ _serviceBrand: undefined, onDidCapTools: Event.None, start: async () => { throw new Error('Unexpected proxy start'); }, dispose: () => { } },
 		new ByokLmBridgeRegistry(),
 		upcastPartial<IAgentHostOTelService>({

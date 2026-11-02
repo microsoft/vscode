@@ -29,6 +29,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { ChatMcpServersStarting, ChatRequestQueueKind, ElicitationState, IChatExternalEdit, IChatGeneratedImageData, IChatQuestion, IChatQuestionAnswers, IChatSearchToolInvocationData, IChatService, IChatSimpleToolInvocationData, IChatSystemNotificationPart, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { IChatSideChatService } from '../../../../contrib/chat/common/chatSideChatService.js';
 import { ChatElicitationRequestPart } from '../../../../contrib/chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatQuestionCarouselData } from '../../../../contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../../../contrib/chat/common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -150,6 +151,8 @@ export interface IChatWidgetFixtureOptions {
 	 * Markdown previews under the response.
 	 */
 	readonly agentHostSession?: boolean;
+	/** Lets the conversation start side chats, e.g. to offer Explain on terminal confirmations. */
+	readonly sideChatSupported?: boolean;
 	readonly linkPresentationService?: ILinkPresentationService;
 	readonly menuItems?: ReadonlyArray<{ readonly menuId: MenuId; readonly item: IMenuItem }>;
 	/** Registers fixture-specific services after the shared chat service graph. */
@@ -342,6 +345,15 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			options.additionalServices?.(reg);
 		},
 	});
+
+	if (options.sideChatSupported) {
+		disposableStore.add(instantiationService.get(IChatSideChatService).registerProvider({
+			canAskInSideChat: () => true,
+			askInSideChat: async () => { },
+			observeSideChatOrigin: () => constObservable(undefined),
+			revealSideChatSource: async () => { },
+		}));
+	}
 
 	if (options.menuItems?.length) {
 		const menuService = instantiationService.get(IMenuService);
@@ -977,6 +989,26 @@ const PENDING_TOOL_APPROVAL: IFixtureMessage[] = [
 				riskAssessment: {
 					risk: ToolRiskLevel.Orange,
 					explanation: 'Initializes a new Git repository in the current directory. Reversible by removing the .git folder.',
+				},
+			},
+		],
+		responseComplete: false,
+	},
+];
+
+const PENDING_TERMINAL_APPROVAL_WITH_INTENTION: IFixtureMessage[] = [
+	{
+		user: 'Find where promptText is produced',
+		assistant: [
+			{
+				kind: 'terminalConfirmation',
+				command: 'grep -rn "promptText" src/vs/sessions src/vs/workbench/contrib/chat/browser --include=*.ts | grep -v test | head -50',
+				// Agent Host shell confirmations name the command's intention in the title and also send it as the message.
+				title: 'Run in terminal: Search for promptText producers and GitHub link pills',
+				message: 'Search for promptText producers and GitHub link pills',
+				riskAssessment: {
+					risk: ToolRiskLevel.Green,
+					explanation: 'Reads workspace files. No changes are made.',
 				},
 			},
 		],
@@ -2716,6 +2748,7 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	ScrollToBottomAction: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: renderScrollToBottomAction }),
 	Streaming: defineComponentFixture({ labels: { kind: 'animated' }, render: ctx => renderChatWidget(ctx, { messages: STREAMING }) }),
 	PendingToolApproval: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
+	PendingTerminalApprovalWithIntention: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TERMINAL_APPROVAL_WITH_INTENTION, sideChatSupported: true }) }),
 	PendingMessages: defineThemedFixtureGroup({
 		Queued: defineComponentFixture({
 			labels: { kind: 'screenshot', blocksCi: true },

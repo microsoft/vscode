@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Mutable } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
 import type { AgentCustomization } from '../../state/protocol/state.js';
 
 /**
@@ -21,6 +22,8 @@ export interface IAgentCustomizationMeta {
 	 * explicit `false` hides the agent from direct user invocation.
 	 */
 	readonly userInvocable?: boolean;
+	/** Client-supplied file URI before host materialization, used only to recover local provenance. */
+	readonly 'vscode.sourceUri'?: string;
 }
 
 /**
@@ -37,6 +40,15 @@ export function readAgentCustomizationMeta(agent: AgentCustomization): IAgentCus
 		result.userInvocable = false;
 	} else if (typeof meta?.userInvocable === 'boolean') {
 		result.userInvocable = meta.userInvocable;
+	}
+	const sourceUri = meta?.['vscode.sourceUri'];
+	if (typeof sourceUri === 'string') {
+		try {
+			URI.parse(sourceUri, true);
+			result['vscode.sourceUri'] = sourceUri;
+		} catch {
+			// Malformed optional provenance does not affect the agent's identity.
+		}
 	}
 	return result;
 }

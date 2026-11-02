@@ -544,6 +544,7 @@ function createConfigurationService(enabled: boolean, disposables: DisposableSto
 		getChatSandboxEnabled: () => undefined,
 		getChatAttachmentScopes: target => [target.session],
 		setChatSandboxEnabled: () => { },
+		reportChatSandboxConflict: () => { },
 		rejectChatSandboxChange: () => { },
 		getRootValue: (schema, key) => schema.validate(key, enabled) ? enabled : undefined,
 		updateRootConfig: () => { },

@@ -2191,6 +2191,7 @@ export class ActionListWidget<T> extends Disposable {
 			this._filterInput.value = '';
 			this._filterText = '';
 			this._applyOrUpdateFilter();
+			this._options?.onDidChangeFilter?.('');
 			return true;
 		}
 		return false;
@@ -2321,8 +2322,9 @@ export class ActionListWidget<T> extends Disposable {
 
 		// Keep the filter above the list. Skipped when the caller mounted the filter
 		// somewhere else entirely (e.g. inside a tab bar), where it has no list to sit above.
+		// Moving it unnecessarily would blur the focused search input.
 		const listParent = this.domNode.parentElement;
-		if (listParent && this._filterContainer?.parentElement === listParent) {
+		if (listParent && this._filterContainer?.parentElement === listParent && this._filterContainer.nextSibling !== this.domNode) {
 			listParent.insertBefore(this._filterContainer, this.domNode);
 		}
 		this._layoutSubmenu?.();

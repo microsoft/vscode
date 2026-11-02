@@ -259,7 +259,7 @@ suite('TabbedModelPicker', () => {
 			getLanguageModelGroups: () => [],
 			getModelsControlManifest: () => options.controlManifest ?? { free: {}, paid: {} },
 		}));
-		const changed = disposables.add(new Emitter<string>());
+		const changed = disposables.add(new Emitter<readonly string[]>());
 		const values = new Map<string, IStringDictionary<unknown>>();
 		const access: IModelConfigurationAccess = options.access ?? {
 			getModelConfiguration: id => values.get(id),
@@ -269,7 +269,7 @@ suite('TabbedModelPicker', () => {
 					await options.beforeSave(next);
 				}
 				values.set(id, { ...values.get(id), ...next });
-				changed.fire(id);
+				changed.fire([id]);
 			},
 			onDidChange: changed.event,
 		};
@@ -1536,7 +1536,7 @@ suite('TabbedModelPicker', () => {
 			name: result.popup.querySelector('.tabbed-action-list-details .chat-model-card-name')?.textContent,
 			description: result.popup.querySelector('.tabbed-action-list-details .chat-model-card > .chat-model-card-description')?.textContent,
 			headings: Array.from(result.popup.querySelectorAll('.tabbed-action-list-details .chat-model-card-section-title'), heading => heading.textContent),
-			options: Array.from(result.popup.querySelectorAll('.tabbed-action-list-details [role="radiogroup"][aria-label="HydraFusion tier"] [role="radio"]'), option => option.textContent),
+			options: Array.from(result.popup.querySelectorAll('.tabbed-action-list-details [role="radiogroup"][aria-label="Copilot Fusion effort level"] [role="radio"]'), option => option.textContent),
 			active: result.popup.querySelector('.tabbed-action-list-details [role="radio"][aria-checked="true"]')?.textContent,
 		});
 		const list = { rows: listRows(result.popup), hydraFusion: hydraFusionRow() };
@@ -2442,7 +2442,7 @@ suite('TabbedModelPicker', () => {
 		{ name: 'Auto with tiers', routing: [createAutoModel()], requested: 'auto', expected: { model: 'Auto', groups: ['Optimize for'] } },
 		{ name: 'Auto without a schema', routing: [model('auto', false)], requested: 'auto', expected: { model: 'auto', groups: [] } },
 		{ name: 'HydraFusion as Fusion\'s tier', routing: [createFusionModel(), createHydraFusionModel()], requested: 'hydrafusion', expected: { model: copilotFusionName, groups: ['Effort Level'] } },
-		{ name: 'HydraFusion with Default and Max', routing: [createAutoModel(), createHydraFusionModel(), createHydraFusionMaxModel()], requested: 'hydrafusion-max', expected: { model: 'HydraFusion', groups: ['HydraFusion tier'] } },
+		{ name: 'HydraFusion with Default and Max', routing: [createAutoModel(), createHydraFusionModel(), createHydraFusionMaxModel()], requested: 'hydrafusion-max', expected: { model: 'HydraFusion', groups: ['Copilot Fusion effort level'] } },
 		{ name: 'HydraFusion without HydraFusion Max', routing: [createAutoModel(), createHydraFusionModel()], requested: 'hydrafusion', expected: undefined },
 		{ name: 'HydraFusion without an Auto to join', routing: [createHydraFusionModel()], requested: 'hydrafusion', expected: undefined },
 	]) {
@@ -2765,7 +2765,7 @@ suite('TabbedModelPicker', () => {
 		const auto = model('auto');
 		const result = createPicker({ models: [auto, ...models], details: auto.identifier });
 		result.values.set(auto.identifier, { effort: 'high' });
-		result.changed.fire(auto.identifier);
+		result.changed.fire([auto.identifier]);
 		const tier = result.popup.querySelector('.tabbed-action-list-details [role="radio"][aria-checked="true"]')?.textContent;
 		goBack(result.popup);
 		assert.deepStrictEqual({
@@ -2783,7 +2783,7 @@ suite('TabbedModelPicker', () => {
 
 		const reopen = (configuration: IStringDictionary<unknown>) => {
 			result.values.set(currentModel.identifier, configuration);
-			result.changed.fire(currentModel.identifier);
+			result.changed.fire([currentModel.identifier]);
 			const row = Array.from(result.popup.querySelectorAll('.chat-model-picker-model')).find(row => row.querySelector('.title')?.textContent === currentModel.metadata.name)!;
 			const summary = row.querySelector('.action-label')?.textContent;
 			openDetails(result.popup, currentModel.metadata.name);
@@ -2812,7 +2812,7 @@ suite('TabbedModelPicker', () => {
 		const currentModel = models[0];
 		const providerSchema = currentModel.metadata.configurationSchema!;
 		let schema = providerSchema;
-		const changed = disposables.add(new Emitter<string>());
+		const changed = disposables.add(new Emitter<readonly string[]>());
 		const result = createPicker({
 			details: currentModel.identifier,
 			access: {
@@ -2830,7 +2830,7 @@ suite('TabbedModelPicker', () => {
 				context: { ...providerSchema.properties!.context, default: 64000 },
 			},
 		};
-		changed.fire(currentModel.identifier);
+		changed.fire([currentModel.identifier]);
 		openDetails(result.popup, currentModel.metadata.name);
 		assert.deepStrictEqual({
 			selected: Array.from(result.popup.querySelectorAll('.chat-model-card [role="radio"][aria-checked="true"]'), option => option.textContent),

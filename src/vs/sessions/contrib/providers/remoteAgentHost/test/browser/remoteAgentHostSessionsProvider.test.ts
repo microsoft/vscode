@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
+import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { withSessionInitiator } from '../../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
@@ -23,9 +25,11 @@ import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../pla
 import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostWorktreeDiskUsageMeta.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
-import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, createAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import type { IAgentHostTcpConnection } from '../../../../../../platform/agentHost/common/agentHostTcpConnection.js';
+import { BrowserRemoteProxyEnabledSettingId } from '../../../../../../workbench/contrib/browserView/common/browserView.js';
 import { IRemoteAgentHostService, NullRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
@@ -35,14 +39,18 @@ import { SessionArtifactType, withSessionArtifacts } from '../../../../../../pla
 import { ResourceType, type ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatOriginKind, ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, SessionOriginKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildDefaultChatUri, createActiveTurn, createChatState, isAhpAutomationCatalogChannel, readSessionWorkspaceless, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionExternal, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { chatTurnComplete } from '../../../../../../platform/agentHost/test/common/chatActionBuilders.js';
+import { buildDefaultChatUri, createActiveTurn, createChatState, isAhpAutomationCatalogChannel, readSessionWorkspaceless, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionEhcliAdoptable, withSessionExternal, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { RootStateSubscription, type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatConfiguration } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { IDialogService, IFileDialogService, type IOpenDialogOptions } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { getTelemetryMigrationSessionId } from '../../../../../../platform/agentHost/common/agentTelemetryCorrelation.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
@@ -90,6 +98,7 @@ import { INewSessionComposerService, NewSessionComposerService } from '../../../
 // ---- Mock connection --------------------------------------------------------
 
 class MockAgentConnection extends mock<IAgentConnection>() {
+	override readonly resourceUris = createAgentHostResourceUriMapper(agentHostAuthority('localhost:4321'));
 	override measureWorktreeDiskUsage?: IAgentConnection['measureWorktreeDiskUsage'];
 	override sessionWorktreeCleanup?: IAgentConnection['sessionWorktreeCleanup'];
 	actionListenerCount = 0;
@@ -118,6 +127,7 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	public disposedSessions: URI[] = [];
 	public dispatchedActions: { channel: string; action: ChatAction | SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
+	/** Simulates a responsive host: session subscriptions receive a snapshot and dispatched actions are echoed. */
 	public echoDispatchedActions = false;
 	public dispatchedActionRejectionReason: string | undefined;
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
@@ -200,12 +210,20 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	 */
 	public readonly failNextSessionSubscribe = new Set<string>();
 
-	override getSubscription<T>(_kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
+	override getSubscription<T>(kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
 		const key = resource.toString();
 		if (isAhpAutomationCatalogChannel(key) && !this._sessionStateValues.has(key)) {
 			this._sessionStateValues.set(key, { entries: [] });
 		}
-		return this._getSubscription<T>(key);
+		const reference = this._getSubscription<T>(key);
+		if (kind === StateComponents.Session && this.echoDispatchedActions && !this._sessionStateValues.has(key)) {
+			const meta = this._sessions.get(AgentSession.id(resource));
+			queueMicrotask(() => this.setChannelState(resource, {
+				provider: AgentSession.provider(resource) ?? 'copilotcli', title: meta?.summary ?? '', status: meta?.status ?? ProtocolSessionStatus.Idle,
+				lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
+			}));
+		}
+		return reference;
 	}
 
 	override getSubscriptionUnmanaged<T extends StateComponents>(_kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined {
@@ -318,7 +336,7 @@ function createSession(id: string, opts?: { session?: URI; provider?: string; su
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { fileDialogService?: IFileDialogService; address?: string; preferenceKey?: string; connectionName?: string | undefined; chatService?: IChatService; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; onDidAcceptRequest?: Event<IChatRequestAcceptedEvent>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; remoteAgentHostService?: IRemoteAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; composerService?: INewSessionComposerService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; logService?: ILogService; defaultDirectory?: string; activeSession?: IObservable<IActiveSession | undefined>; deleteSessionsOnDemand?: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand'] }, configOverrides: Partial<IRemoteAgentHostSessionsProviderConfig> = {}): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { fileDialogService?: IFileDialogService; address?: string; preferenceKey?: string; connectionName?: string | undefined; chatService?: IChatService; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; onDidAcceptRequest?: Event<IChatRequestAcceptedEvent>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; remoteAgentHostService?: IRemoteAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; composerService?: INewSessionComposerService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; logService?: ILogService; defaultDirectory?: string; activeSession?: IObservable<IActiveSession | undefined>; deleteSessionsOnDemand?: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand']; telemetryService?: ITelemetryService }, configOverrides: Partial<IRemoteAgentHostSessionsProviderConfig> = {}): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IRemoteAgentHostAuthenticationService, new RemoteAgentHostAuthenticationService());
@@ -332,6 +350,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		[DevContainerIdleTimeoutSettingId]: 300, [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: true,
 	}));
 	instantiationService.stub(INotificationService, { error: () => { } });
+	instantiationService.stub(ITelemetryService, overrides?.telemetryService ?? NullTelemetryService);
 	instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
 		override isWorkspaceTrusted(): boolean { return overrides?.workspaceTrusted ?? true; }
 		override async getUriTrustInfo(uri: URI) { return { uri, trusted: overrides?.workspaceTrusted ?? true }; }
@@ -513,9 +532,68 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	teardown(() => {
 		disposables.clear();
+		sinon.restore();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('clones a repository through the selected host and returns its ready directory', async () => {
+		const root = disposables.add(new RootStateSubscription('test', () => { }));
+		const repository = URI.parse('https://github.com/microsoft/vscode');
+		const project = { id: 'opaque-project-id', path: '/srv/projects/custom-checkout', git: true, status: 'cloning', remoteUrl: repository.toString() };
+		const update = (projects: readonly object[], sequence: number) => root.handleSnapshot({
+			agents: [],
+			_meta: { 'copilot.projectManagement': { available: true } },
+			config: { schema: { type: 'object', properties: {} }, values: { copilot: { projects } } },
+		}, sequence);
+		update([], 0);
+		const protocol = sinon.createStubInstance(AgentHostProtocolClient);
+		protocol.traceRepositoryPreparation.callsFake((_phase, operation) => operation());
+		protocol.sendHostExtensionRequest.callsFake(async () => {
+			update([project], 1);
+			return { project };
+		});
+		Object.defineProperties(protocol, {
+			rootState: { value: root },
+			onDidClose: { value: Event.None },
+			resourceUris: { value: createAgentHostResourceUriMapper(agentHostAuthority('localhost:4321')) },
+		});
+		const provider = createProvider(disposables, connection, {
+			noConnection: true,
+			ctor: class extends RemoteAgentHostSessionsProvider {
+				protected override get connection(): IAgentConnection { return protocol as IAgentConnection; }
+			},
+		});
+		let resolved = false;
+		const cloning = provider.cloneRepository(repository, CancellationToken.None).then(workspace => {
+			resolved = true;
+			return workspace;
+		});
+		await timeout(0);
+		assert.strictEqual(resolved, false);
+		update([{ ...project, status: 'ready' }], 2);
+		const workspace = await cloning;
+		const reused = await provider.cloneRepository(repository, CancellationToken.None);
+		assert.deepStrictEqual({
+			requests: protocol.sendHostExtensionRequest.args,
+			root: workspace.folders[0].root.toString(),
+			reused: reused.folders[0].root.toString(),
+			claimed: provider.resolveWorkspace(workspace.folders[0].root)?.uri.toString(),
+		}, {
+			requests: [['extensions/cloneProject', { url: repository.toString(), depth: 1 }]],
+			root: toAgentHostUri(URI.file(project.path), agentHostAuthority('localhost:4321')).toString(),
+			reused: workspace.folders[0].root.toString(),
+			claimed: workspace.uri.toString(),
+		});
+	});
+
+	test('rejects cloning on disconnected or unsupported hosts', async () => {
+		const repository = URI.parse('https://github.com/microsoft/vscode');
+		const disconnected = createProvider(disposables, connection, { noConnection: true });
+		await assert.rejects(disconnected.cloneRepository(repository, CancellationToken.None), /Connect to Test Host before cloning/);
+		const unsupported = createProvider(disposables, connection);
+		await assert.rejects(unsupported.cloneRepository(repository, CancellationToken.None), /Repository cloning is not supported/);
+	});
 
 	for (const host of [
 		{ address: 'localhost:4321', preferenceKey: 'ssh:build' },
@@ -1068,6 +1146,52 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(provider.sessionTypes[0].label, 'Copilot');
 	});
 
+	test('offers canvases for Copilot CLI sessions only while the browser proxy is enabled and the host can proxy', async () => {
+		const tcpConnection = disposables.add(new class extends MockAgentConnection {
+			override async openTcpConnection(): Promise<IAgentHostTcpConnection> { throw new Error('unused'); }
+		}());
+		tcpConnection.handshakeState.set({ ...tcpConnection.handshakeState.get(), tcpConnections: {} }, undefined);
+		tcpConnection.setAgents([
+			{ provider: 'copilotcli', displayName: 'Copilot CLI', description: '', models: [] } as AgentInfo,
+			{ provider: 'copilot', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
+		]);
+		const configurationService = new TestConfigurationService();
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const provider = createProvider(disposables, tcpConnection, { configurationService, isWebPlatform: false });
+		fireSessionAdded(tcpConnection, 'canvas-session');
+		fireSessionAdded(tcpConnection, 'other-agent-session', { provider: 'copilot' });
+		const [session, otherAgentSession] = ['canvas-session', 'other-agent-session'].map(id => provider.getSessions().find(s => s.resource.path.endsWith(id))!);
+		// Observed so configuration changes are tracked, as by the canvas service.
+		disposables.add(autorun(reader => {
+			session.capabilities.read(reader);
+			otherAgentSession.capabilities.read(reader);
+		}));
+		const supports = () => session.capabilities.get().supportsCanvases;
+		const set = async (key: string, value: boolean) => {
+			await configurationService.setUserConfiguration(key, value);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER, affectedKeys: new Set([key]),
+				change: { keys: [key], overrides: [] },
+				affectsConfiguration: affected => affected === key,
+			});
+		};
+
+		const proxyDisabled = supports();
+		await set(BrowserRemoteProxyEnabledSettingId, true);
+		const enabled = supports();
+		const otherAgent = otherAgentSession.capabilities.get().supportsCanvases;
+		// The host reconnects as a version that cannot proxy browsers.
+		tcpConnection.handshakeState.set({ ...tcpConnection.handshakeState.get(), tcpConnections: undefined }, undefined);
+		const unsupportedHost = supports();
+		tcpConnection.handshakeState.set({ ...tcpConnection.handshakeState.get(), tcpConnections: {} }, undefined);
+		// Support is unknown while disconnected; canvases are kept so reconnecting keeps their pages.
+		provider.clearConnection();
+
+		assert.deepStrictEqual({ proxyDisabled, enabled, otherAgent, unsupportedHost, disconnected: supports() }, {
+			proxyDisabled: false, enabled: true, otherAgent: false, unsupportedHost: false, disconnected: true,
+		});
+	});
+
 	test('setLabel refreshes provider and workspace labels and notifies picker consumers', () => {
 		const provider = createProvider(disposables, connection, { noConnection: true, isWebPlatform: false });
 		provider.seedSessions([createSession('renamed-host', {
@@ -1551,6 +1675,45 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			resolvedWhileConnected: sessionResource.toString(),
 			connectCallsAfterResolve: 0,
 			connectCalls: 1,
+		});
+	});
+
+	test('reports opening an un-adopted row of its own list once the host adopts it, correlated by the exact backend session', async () => {
+		const events: Record<string, unknown>[] = [];
+		const telemetryService = new class extends NullTelemetryServiceShape {
+			override publicLog2(name?: string, data?: unknown): void {
+				if (name === 'agentHost.legacyCopilotCliMigrationOpen') {
+					events.push(data as Record<string, unknown>);
+				}
+			}
+		};
+		// The host hashes the session URI it uses, which need not be `copilotcli:/<id>`.
+		const backends = [AgentSession.uri('copilotcli', 'remote-adoptable'), URI.parse('ahp-session://tenant/opaque-adoptable')];
+		connection.addSession(createSession('remote-adoptable', { _meta: withSessionEhcliAdoptable(undefined) }));
+		connection.addSession(createSession('opaque-adoptable', { session: backends[1], _meta: withSessionEhcliAdoptable(undefined) }));
+		const provider = createProvider(disposables, connection, { telemetryService });
+		await timeout(0);
+		const resources = provider.getSessions().map(session => session.resource);
+
+		const resolved = await Promise.all(resources.map(resource => provider.resolveSessionResource(resource, 'open')));
+		const beforeAdoption = events.length;
+		for (const backend of backends) {
+			connection.fireNotification({
+				channel: 'ahp-root://',
+				type: NotificationType.SessionSummaryChanged,
+				session: backend.toString(),
+				changes: { _meta: undefined },
+			});
+		}
+
+		assert.deepStrictEqual({
+			resolved: resolved.map(resource => resource?.toString()),
+			beforeAdoption,
+			reported: events.map(event => ({ id: event.migrationSessionId, source: event.source, entry: event.entry, surfaced: event.surfaced })),
+		}, {
+			resolved: resources.map(resource => resource.toString()),
+			beforeAdoption: 0,
+			reported: backends.map(backend => ({ id: getTelemetryMigrationSessionId(backend), source: 'open', entry: 'agentHostRow', surfaced: true })),
 		});
 	});
 
@@ -2975,7 +3138,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 					delegated.push('connect-container');
 					archiveState.provider!.setConnection(archiveConnection);
 				},
-				stop: async () => true,
+				stop: async () => { delegated.push('stop-container'); return true; },
 				remove: async () => { delegated.push('remove-container'); return true; },
 			},
 		});
@@ -2990,7 +3153,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			`delete:${handle}`,
 			`unarchive:${handle}`,
 			'connect-container',
-			'remove-container',
+			'stop-container',
 			`archive:${handle}`,
 		]);
 	});
@@ -3073,23 +3236,23 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			} else {
 				await provider.deleteSession(session.sessionId);
 			}
-			assert.deepStrictEqual({ operationsWhileIdle, operations }, { operationsWhileIdle: [], operations: ['remove'] });
+			assert.deepStrictEqual({ operationsWhileIdle, operations }, { operationsWhileIdle: [], operations: [action === 'archive' ? 'stop' : 'remove'] });
 		}));
 	}
 
 	for (const action of ['archive', 'delete'] as const) {
 		for (const hasInput of [false, true]) {
-			test(`${action} ${hasInput ? 'preserves' : 'removes'} a container when the replacement composer ${hasInput ? 'has input' : 'is empty'}`, async () => {
+			test(`${action} ${hasInput ? 'preserves' : action === 'archive' ? 'stops' : 'removes'} a container when the replacement composer ${hasInput ? 'has input' : 'is empty'}`, async () => {
 				connection.echoDispatchedActions = true;
 				connection.addSession(createSession('finished-session'));
 				const composerService = disposables.add(new NewSessionComposerService());
-				let removals = 0;
+				const teardowns: string[] = [];
 				const provider = createProvider(disposables, connection, {
 					composerService,
 					devContainerLifecycle: {
 						connect: async () => { },
-						stop: async () => true,
-						remove: async () => { removals++; return true; },
+						stop: async () => { teardowns.push('stop'); return true; },
+						remove: async () => { teardowns.push('remove'); return true; },
 					},
 				});
 				await timeout(0);
@@ -3122,7 +3285,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 					}));
 					await provider.deleteSession(session.sessionId);
 				}
-				assert.deepStrictEqual({ replacementCreated: !!replacement, removals }, { replacementCreated: true, removals: hasInput ? 0 : 1 });
+				assert.deepStrictEqual({ replacementCreated: !!replacement, teardowns }, { replacementCreated: true, teardowns: hasInput ? [] : [action === 'archive' ? 'stop' : 'remove'] });
 			});
 		}
 	}
@@ -3330,7 +3493,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			const callsAfterAction = [...lifecycleCalls];
 			await timeout(5 * 60 * 1000);
 
-			const expectedCalls = action === 'archive' || action === 'delete' ? ['remove'] : [];
+			const expectedCalls = action === 'archive' ? ['stop'] : action === 'delete' ? ['remove'] : [];
 			assert.deepStrictEqual({ callsAfterAction, lifecycleCalls }, {
 				callsAfterAction: expectedCalls,
 				lifecycleCalls: expectedCalls,
@@ -3362,8 +3525,43 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		await timeout(1);
 
 		assert.deepStrictEqual({ callsBeforeDeadline, lifecycleCalls }, {
-			callsBeforeDeadline: ['remove', 'connect'],
-			lifecycleCalls: ['remove', 'connect', 'stop'],
+			callsBeforeDeadline: ['stop', 'connect'],
+			lifecycleCalls: ['stop', 'connect', 'stop'],
+		});
+	}));
+
+	test('keeps archived session state by stopping instead of removing the Dev Container', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		connection.echoDispatchedActions = true;
+		connection.addSession(createSession('archived-first', { summary: 'Archived First', status: ProtocolSessionStatus.Idle }));
+		connection.addSession(createSession('archived-second', { summary: 'Archived Second', status: ProtocolSessionStatus.Idle }));
+		const lifecycleCalls: string[] = [];
+		const provider = createProvider(disposables, connection, {
+			configurationService: new TestConfigurationService({ [DevContainerIdleTimeoutSettingId]: 0 }),
+			devContainerLifecycle: {
+				connect: async () => { lifecycleCalls.push('connect'); },
+				stop: async () => { lifecycleCalls.push('stop'); return true; },
+				remove: async () => { lifecycleCalls.push('remove'); return true; },
+			},
+		});
+		fireSessionAdded(connection, 'archived-first', { title: 'Archived First' });
+		fireSessionAdded(connection, 'archived-second', { title: 'Archived Second' });
+		const first = provider.getSessions().find(candidate => candidate.title.get() === 'Archived First');
+		const second = provider.getSessions().find(candidate => candidate.title.get() === 'Archived Second');
+		assert.ok(first && second);
+
+		await provider.archiveSession(first.sessionId);
+		const afterFirstArchive = [...lifecycleCalls];
+		await provider.archiveSession(second.sessionId);
+		const afterLastArchive = [...lifecycleCalls];
+		await provider.deleteSession(first.sessionId);
+		const afterDeletingWhileArchivedRemain = [...lifecycleCalls];
+		await provider.deleteSession(second.sessionId);
+
+		assert.deepStrictEqual({ afterFirstArchive, afterLastArchive, afterDeletingWhileArchivedRemain, lifecycleCalls }, {
+			afterFirstArchive: [],
+			afterLastArchive: ['stop'],
+			afterDeletingWhileArchivedRemain: ['stop', 'stop'],
+			lifecycleCalls: ['stop', 'stop', 'remove'],
 		});
 	}));
 
@@ -3407,7 +3605,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, connection, {
 			devContainerLifecycle: {
 				connect: async () => { },
-				stop: async () => true,
+				stop: async () => { assert.fail('Timed-out archives must not stop the container'); },
 				remove: async () => { assert.fail('Timed-out archives must not remove the container'); },
 			},
 		});
@@ -3422,6 +3620,81 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({ counts, archived: session.isArchived.get() }, { counts: [baseline, baseline], archived: false });
 		provider.clearConnection();
 	}));
+
+	test('waits for a restarted host to load the session before toggling its archived state', async () => {
+		connection.addSession(createSession('cold-archive', { summary: 'Cold Archive' }));
+		const provider = createProvider(disposables, connection, {
+			devContainerLifecycle: { connect: async () => { }, stop: async () => true, remove: async () => true },
+		});
+		fireSessionAdded(connection, 'cold-archive', { title: 'Cold Archive' });
+		const session = provider.getSessions().find(candidate => candidate.title.get() === 'Cold Archive');
+		assert.ok(session);
+
+		const archive = provider.archiveSession(session.sessionId);
+		await timeout(0);
+		const togglesBeforeLoad = connection.dispatchedActions.filter(entry => entry.action.type === ActionType.SessionIsArchivedChanged).length;
+		connection.echoDispatchedActions = true;
+		connection.setSessionState('cold-archive', 'copilotcli', {
+			provider: 'copilotcli', title: 'Cold Archive', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
+		});
+		await archive;
+
+		assert.deepStrictEqual({ togglesBeforeLoad, archived: session.isArchived.get() }, { togglesBeforeLoad: 0, archived: true });
+	});
+
+	test('does not stop an idle Dev Container while a restarted host loads a session to toggle', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		connection.addSession(createSession('slow-archive', { summary: 'Slow Archive', status: ProtocolSessionStatus.Idle }));
+		connection.addSession(createSession('slow-remaining', { summary: 'Slow Remaining', status: ProtocolSessionStatus.Idle }));
+		let stops = 0;
+		const provider = createProvider(disposables, connection, {
+			configurationService: new TestConfigurationService({ [DevContainerIdleTimeoutSettingId]: 15 }),
+			devContainerLifecycle: { connect: async () => { }, stop: async () => { stops++; return true; }, remove: async () => true },
+		});
+		fireSessionAdded(connection, 'slow-archive', { title: 'Slow Archive' });
+		fireSessionAdded(connection, 'slow-remaining', { title: 'Slow Remaining' });
+		const session = provider.getSessions().find(candidate => candidate.title.get() === 'Slow Archive');
+		assert.ok(session);
+
+		const archive = provider.archiveSession(session.sessionId);
+		await timeout(20 * 1000);
+		const stopsWhileLoading = stops;
+		connection.echoDispatchedActions = true;
+		connection.setSessionState('slow-archive', 'copilotcli', {
+			provider: 'copilotcli', title: 'Slow Archive', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
+		});
+		await archive;
+		await timeout(15 * 1000 - 1);
+		const stopsBeforeDeadline = stops;
+		await timeout(1);
+
+		assert.deepStrictEqual({ stopsWhileLoading, stopsBeforeDeadline, stops, archived: session.isArchived.get() }, {
+			stopsWhileLoading: 0, stopsBeforeDeadline: 0, stops: 1, archived: true,
+		});
+	}));
+
+	test('rejects an archive toggle without dispatching when the host cannot load the session', async () => {
+		connection.addSession(createSession('unloadable-archive', { summary: 'Unloadable Archive' }));
+		const operations: string[] = [];
+		const provider = createProvider(disposables, connection, {
+			devContainerLifecycle: {
+				connect: async () => { },
+				stop: async () => { operations.push('stop'); return true; },
+				remove: async () => { operations.push('remove'); return true; },
+			},
+		});
+		fireSessionAdded(connection, 'unloadable-archive', { title: 'Unloadable Archive' });
+		const session = provider.getSessions().find(candidate => candidate.title.get() === 'Unloadable Archive');
+		assert.ok(session);
+		connection.failNextSessionSubscribe.add(AgentSession.uri('copilotcli', 'unloadable-archive').toString());
+
+		await assert.rejects(provider.archiveSession(session.sessionId), /Unable to archive Dev Container session .*not found/);
+
+		assert.deepStrictEqual({
+			operations,
+			toggles: connection.dispatchedActions.filter(entry => entry.action.type === ActionType.SessionIsArchivedChanged).length,
+			archived: session.isArchived.get(),
+		}, { operations: [], toggles: 0, archived: false });
+	});
 
 	test('retries an idle stop after a foreign owner blocks teardown', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		let attempts = 0;
@@ -3501,7 +3774,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			}(),
 			devContainerLifecycle: {
 				connect: async () => { operations.push('connect'); },
-				stop: async () => { operations.push('stop'); return true; },
+				stop: async () => { operations.push('stop'); return false; },
 				remove: async () => { operations.push('remove-container'); return false; },
 			},
 		});
@@ -3515,7 +3788,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			operations,
 			archived: session.isArchived.get(),
 		}, {
-			operations: ['remove-container'],
+			operations: ['stop'],
 			archived: true,
 		});
 	});
@@ -3883,11 +4156,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		// Trigger refresh via turnComplete action (simulates what happens on reload)
 		connection.fireAction({
 			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'persist-sess').toString()),
-			action: {
-				type: ActionType.ChatTurnComplete,
-				turnId: 'turn-1',
-				duration: 1000,
-			},
+			action: chatTurnComplete('turn-1', 1000),
 			serverSeq: 1,
 			origin: undefined,
 		} as ActionEnvelope);
@@ -4374,11 +4643,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		connection.fireAction({
 			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'turn-sess').toString()),
-			action: {
-				type: ActionType.ChatTurnComplete,
-				turnId: 'turn-1',
-				duration: 1000,
-			},
+			action: chatTurnComplete('turn-1', 1000),
 			serverSeq: 1,
 			origin: undefined,
 		} as ActionEnvelope);
@@ -7208,7 +7473,7 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 	async function refreshViaTurnComplete(connection: MockAgentConnection, rawId: string): Promise<void> {
 		connection.fireAction({
 			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', rawId).toString()),
-			action: { type: ActionType.ChatTurnComplete, turnId: 'turn-refresh', duration: 1 },
+			action: chatTurnComplete('turn-refresh', 1),
 			serverSeq: 1,
 			origin: undefined,
 		} as ActionEnvelope);

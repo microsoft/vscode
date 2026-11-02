@@ -35,10 +35,9 @@ steps:
 
   # Check out the private microsoft/vscode-encrypt, microsoft/vsda and
   # microsoft/vscode-regexp-languagedetection repositories using the agent's GitHub
-  # App (Monaco) credentials. The distro's npm dependencies reference vsda and
+  # App (Monaco) credentials. The distro's package dependencies reference vsda and
   # vscode-regexp-languagedetection as git dependencies, and the CLI cargo patches
-  # reference vsda and vscode-encrypt; npm resolves these over ssh while cargo
-  # resolves them over https. We redirect both public GitHub URLs to these local
+  # reference vsda and vscode-encrypt. We redirect their GitHub URLs to these local
   # checkouts via git's insteadOf so no PAT is required to resolve them.
   - checkout: encrypt
     path: s/.build/vscode-encrypt
@@ -59,10 +58,11 @@ steps:
     displayName: Checkout microsoft/vscode-regexp-languagedetection
 
   # Redirect the private git dependencies to the local checkouts above, so no PAT
-  # is required to resolve them. npm resolves these over ssh while cargo resolves
-  # them over https, with and without a trailing `.git`, so we register every
-  # form. This step runs on the agent directly and must work in both bash and
-  # cmd.exe (Windows), so it uses plain `git config` invocations.
+  # is required to resolve them. pnpm and cargo resolve these over https, with and
+  # without a trailing `.git`. npm resolves them over ssh (its package-lock.json
+  # records `git+ssh://`), so keep the ssh forms while any serviced release branch
+  # still installs with npm. This step runs on the agent directly and must work in
+  # both bash and cmd.exe (Windows), so it uses plain `git config` invocations.
   - script: |
       git config --global url."file://$(Build.SourcesDirectory)/.build/vscode-encrypt".insteadOf "https://github.com/microsoft/vscode-encrypt"
       git config --global --add url."file://$(Build.SourcesDirectory)/.build/vscode-encrypt".insteadOf "https://github.com/microsoft/vscode-encrypt.git"
@@ -78,7 +78,7 @@ steps:
       git config --global --add url."file://$(Build.SourcesDirectory)/.build/vscode-regexp-languagedetection".insteadOf "ssh://git@github.com/microsoft/vscode-regexp-languagedetection.git"
     displayName: Redirect private git dependencies to local checkouts
 
-  # The Alpine server build installs the distro's npm dependencies inside a docker
+  # The Alpine server build installs the distro's remote dependencies inside a docker
   # container that mounts the sources at /root/vscode, so the host redirects above
   # (which use agent paths) do not apply there. Emit a container-pathed gitconfig
   # that postinstall.ts bind-mounts as /root/.gitconfig. Only needed (and only

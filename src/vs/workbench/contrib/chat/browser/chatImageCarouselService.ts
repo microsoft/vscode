@@ -29,6 +29,8 @@ export interface IChatImageCarouselOptions {
 	/** Input from a composer that is not registered with the chat widget service. */
 	readonly currentInput?: { readonly text: string; readonly attachments: readonly IChatRequestVariableEntry[] };
 	readonly additionalImages?: readonly { readonly uri: URI; readonly mimeType: string; readonly name?: string }[];
+	/** Include chat history and current input alongside the explicit images. Defaults to true. */
+	readonly includeChatImages?: boolean;
 	/** Identifies the clicked image when its resource does not, like an image that a response shows (see `getChatMarkdownImageId`). */
 	readonly imageId?: string;
 }
@@ -319,13 +321,13 @@ export class ChatImageCarouselService implements IChatImageCarouselService {
 	) { }
 
 	async openCarouselAtResource(resource: URI, data?: Uint8Array, options?: IChatImageCarouselOptions): Promise<void> {
-		const widget = options?.sessionResource ? this.chatWidgetService.getWidgetBySessionResource(options.sessionResource) : options?.currentInput ? undefined : this.chatWidgetService.lastFocusedWidget;
+		const widget = options?.includeChatImages === false ? undefined : options?.sessionResource ? this.chatWidgetService.getWidgetBySessionResource(options.sessionResource) : options?.currentInput ? undefined : this.chatWidgetService.lastFocusedWidget;
 		const items = widget?.viewModel?.getItems().filter(
 			(item): item is IChatRequestViewModel | IChatResponseViewModel => isRequestVM(item) || isResponseVM(item)
 		) ?? [];
 		const readFile = async (uri: URI) => (await this.fileService.readFile(uri)).value.buffer;
 		const sections = await collectCarouselSections(items, readFile, undefined, (sessionResource, href) => this.chatSessionsService.resolveChatResponseUri(sessionResource, href, 'image'));
-		const currentInput = options?.currentInput ?? (widget ? {
+		const currentInput = options?.includeChatImages === false ? undefined : options?.currentInput ?? (widget ? {
 			text: widget.getInput(),
 			attachments: widget.attachmentModel.attachments,
 		} : undefined);

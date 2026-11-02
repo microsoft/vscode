@@ -925,7 +925,7 @@ suite('Sessions list context menus', () => {
 				override async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> { events.push(`dialog: ${confirmation.message}`); return { confirmed: true }; }
 			});
 			instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
-				override warn(message: string) { events.push(`warn: ${message}`); return undefined!; }
+				override error(message: string) { events.push(`error: ${message}`); }
 			});
 			instantiationService.stub(ISessionsManagementService, new class extends TestSessionsManagementService {
 				override canMoveChat(_session: ISession, chat: IChat): boolean { return chat === peer; }
@@ -967,7 +967,7 @@ suite('Sessions list context menus', () => {
 			results: [true, false, false, false],
 			events: [
 				'move Peer -> newSession',
-				'warn: Could not move \'Peer\'. Send a message in this chat before moving it.',
+				'error: Could not move \'Peer\'. Send a message in this chat before moving it.',
 				// The main chat and a disabled setting don't move.
 			],
 		});

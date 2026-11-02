@@ -11,8 +11,9 @@ import { DebugOwner, derivedObservableWithCache, derivedOpts, IObservable, obser
 import { IdleDeadline, runWhenGlobalIdle } from '../../../../base/common/async.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../platform/agentHost/common/agentHostFileSystemService.js';
-import type { AgentHostUriMapper } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { AGENT_HOST_FILE_SCHEME, toAgentHostFileUri } from '../../../../platform/agentHost/common/agentPluginManager.js';
+import type { AgentHostUriMapper, IAgentHostResourceUriMapper } from '../../../../platform/agentHost/common/agentHostUri.js';
 import {
 	CustomizationType,
 	ResponsePartKind,
@@ -21,6 +22,8 @@ import {
 	getInlineToolInput,
 	type ChildCustomization,
 	type Customization,
+	type PluginCustomization,
+	type ClientPluginCustomization,
 	type ToolCallState,
 	type Turn,
 } from '../../../../platform/agentHost/common/state/sessionState.js';
@@ -60,6 +63,34 @@ function sessionChatCustomizationEqual(a: ISessionChatCustomization, b: ISession
 
 export function sessionChatCustomizationsEqual(a: readonly ISessionChatCustomization[], b: readonly ISessionChatCustomization[]): boolean {
 	return a === b || (a.length === b.length && a.every((customization, i) => sessionChatCustomizationEqual(customization, b[i])));
+}
+
+/** Maps a `vscode-agent-host-file:` URI, which names a published same-host plugin resource, back to client space; other URIs are unchanged. */
+export function fromAgentHostFileUri(uri: URI, resourceUris: Pick<IAgentHostResourceUriMapper, 'fromAgentHost'>): URI {
+	return uri.scheme === AGENT_HOST_FILE_SCHEME ? resourceUris.fromAgentHost(uri.with({ scheme: Schemas.file })) : uri;
+}
+
+/** Resolves host-authored resources and this client's plugin sources; foreign client sources are opaque. */
+export function getAgentHostCustomizationUri(uri: URI, connection: { readonly clientId?: string; readonly resourceUris: IAgentHostResourceUriMapper }, container?: Pick<PluginCustomization, 'clientId'>): URI | undefined {
+	if (container?.clientId !== undefined) {
+		if (container.clientId !== connection.clientId) {
+			return undefined;
+		}
+		return fromAgentHostFileUri(uri, connection.resourceUris);
+	}
+	return connection.resourceUris.fromAgentHost(uri);
+}
+
+/** Publishes same-host client plugins in place without changing their client-side identity. */
+export function toAgentHostClientCustomization(customization: ClientPluginCustomization, resourceUris: IAgentHostResourceUriMapper): ClientPluginCustomization {
+	const uri = URI.parse(customization.uri);
+	if (uri.scheme === Schemas.file) {
+		return customization;
+	}
+	const hostUri = resourceUris.toAgentHost(uri);
+	return hostUri.scheme === Schemas.file
+		? { ...customization, uri: toAgentHostFileUri(hostUri).toString() }
+		: customization;
 }
 
 /** Tool names that invoke a skill by name rather than by path. */
@@ -222,13 +253,13 @@ function normalizePath(path: string): string {
 function toFsPath(uri: string): string | undefined {
 	try {
 		const parsed = URI.parse(uri);
-		return parsed.scheme === 'file' ? normalizePath(parsed.path) : undefined;
+		return parsed.scheme === Schemas.file || parsed.scheme === AGENT_HOST_FILE_SCHEME ? normalizePath(parsed.path) : undefined;
 	} catch {
 		return undefined;
 	}
 }
 
-/** Indexes host-side references while optionally mapping host-owned resource URIs for presentation. */
+/** Indexes host-side references while mapping their resources into client space for presentation. */
 export class CustomizationIndex {
 
 	private readonly _byId = new Map<string, ISessionChatCustomization>();
@@ -246,14 +277,15 @@ export class CustomizationIndex {
 		private readonly _workspaceRoots: readonly URI[] = [],
 		mapHostUri?: AgentHostUriMapper,
 		previous?: CustomizationIndex,
+		clientId?: string,
 	) {
 		this._roots = _workspaceRoots.map(root => normalizePath(root.path));
+		const connection = { clientId, resourceUris: { fromAgentHost: mapHostUri ?? (uri => uri), toAgentHost: (uri: URI) => uri } };
 		for (const customization of customizations ?? []) {
 			const container = customization.type === CustomizationType.Plugin || customization.type === CustomizationType.Directory ? customization : undefined;
-			const mapUri = container?.clientId !== undefined ? undefined : mapHostUri;
-			this._add(customization, mapUri);
+			this._add(customization, uri => getAgentHostCustomizationUri(uri, connection, customization.type === CustomizationType.Plugin ? customization : undefined));
 			for (const child of container?.children ?? []) {
-				this._add(child, mapUri);
+				this._add(child, uri => getAgentHostCustomizationUri(uri, connection));
 			}
 		}
 		this._reuseResolvedPaths(previous);
@@ -263,13 +295,13 @@ export class CustomizationIndex {
 		return this._byId.size === 0;
 	}
 
-	private _add(customization: Customization | ChildCustomization, mapHostUri: AgentHostUriMapper | undefined): void {
+	private _add(customization: Customization | ChildCustomization, mapHostUri: ((uri: URI) => URI | undefined) | undefined): void {
 		const kind = kindByType.get(customization.type);
 		if (!kind) {
 			return;
 		}
 		const originalUri = customization.uri ? URI.parse(customization.uri) : undefined;
-		const uri = originalUri && mapHostUri && originalUri.scheme !== SYNCED_CUSTOMIZATION_SCHEME ? mapHostUri(originalUri) : originalUri;
+		const uri = originalUri && mapHostUri ? mapHostUri(originalUri) : originalUri;
 		const entry: ISessionChatCustomization = { id: customization.id, kind, name: customization.name, ...(uri ? { uri } : {}) };
 		this._byId.set(customization.id, entry);
 
@@ -277,7 +309,7 @@ export class CustomizationIndex {
 			this._bySkillName.set(customization.name.toLowerCase(), entry);
 		}
 
-		const path = customization.uri ? toFsPath(customization.uri) : undefined;
+		const path = uri && customization.uri ? toFsPath(customization.uri) : undefined;
 		if (!path) {
 			return;
 		}
@@ -399,6 +431,7 @@ export type CustomizationIndexFactory = (
 	workspaceRoots: readonly URI[],
 	mapHostUri: AgentHostUriMapper | undefined,
 	previous: CustomizationIndex | undefined,
+	clientId?: string,
 ) => CustomizationIndex;
 
 /**
@@ -412,7 +445,7 @@ export function createCustomizationIndexObservable(
 	customizations: IObservable<readonly Customization[] | undefined>,
 	workspaceRoots: IObservable<readonly URI[]>,
 	mapHostUri?: IObservable<AgentHostUriMapper | undefined>,
-	{ createIndex = (items, roots, mapper, previous) => new CustomizationIndex(items, roots, mapper, previous), scope }: { createIndex?: CustomizationIndexFactory; scope?: IObservable<unknown> } = {},
+	{ createIndex = (items, roots, mapper, previous, clientId) => new CustomizationIndex(items, roots, mapper, previous, clientId), scope, clientId }: { createIndex?: CustomizationIndexFactory; scope?: IObservable<unknown>; clientId?: IObservable<string | undefined> } = {},
 ): IObservable<CustomizationIndex> {
 	const stableCustomizations = derivedOpts<readonly Customization[] | undefined>({ owner, equalsFn: structuralEquals }, reader => customizations.read(reader));
 	const stableWorkspaceRoots = derivedOpts<readonly URI[]>({ owner, equalsFn: (a, b) => arrayEquals(a, b, isEqual) }, reader => workspaceRoots.read(reader));
@@ -421,7 +454,7 @@ export function createCustomizationIndexObservable(
 		const currentScope = scope?.read(reader);
 		const sameScope = currentScope === lastScope;
 		lastScope = currentScope;
-		return createIndex(stableCustomizations.read(reader), stableWorkspaceRoots.read(reader), mapHostUri?.read(reader), sameScope ? previous : undefined);
+		return createIndex(stableCustomizations.read(reader), stableWorkspaceRoots.read(reader), mapHostUri?.read(reader), sameScope ? previous : undefined, clientId?.read(reader));
 	});
 }
 

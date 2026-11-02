@@ -647,8 +647,11 @@ export interface IModelConfigurationAccess {
 	/** Applies values in this scope without persisting them or reporting them as a selection. */
 	presentModelConfiguration?(modelId: string, values: IStringDictionary<unknown>): void;
 	getModelConfigurationActions(modelId: string): IAction[];
-	/** Configuration changes within this scope; global access uses `onDidChangeLanguageModels`. */
-	readonly onDidChange?: Event<string>;
+	/**
+	 * Configuration changes within this scope, once per update with the models it changed, so an update covering
+	 * many models (such as a chat's snapshot) notifies once. Global access uses `onDidChangeLanguageModels`.
+	 */
+	readonly onDidChange?: Event<readonly string[]>;
 }
 
 /** Where a pin change was made, for telemetry. */

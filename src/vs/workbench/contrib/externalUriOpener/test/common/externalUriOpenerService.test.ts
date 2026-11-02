@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ExternalUriOpenerPriority } from '../../../../../editor/common/languages.js';
@@ -38,11 +38,10 @@ class MockQuickInputService implements Partial<IQuickInputService> {
 }
 
 suite('ExternalUriOpenerService', () => {
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = disposables.add(new TestInstantiationService());
 
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
@@ -50,12 +49,6 @@ suite('ExternalUriOpenerService', () => {
 			registerExternalOpener: () => { return Disposable.None; }
 		});
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Should not open if there are no openers', async () => {
 		const externalUriOpenerService = disposables.add(instantiationService.createInstance(ExternalUriOpenerService));

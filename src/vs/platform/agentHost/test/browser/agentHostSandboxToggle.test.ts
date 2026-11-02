@@ -175,9 +175,11 @@ suite('AgentHostSandboxToggle', () => {
 		assert.deepStrictEqual({
 			label: toggle.label, checked: toggle.checked, disabled: toggle.disabled,
 			showInfoIcon: toggle.showInfoIcon,
-			explainsIsolation: toggle.title?.includes('relaxes the outer container\'s isolation'),
-			explainsTun: toggle.title?.includes('/dev/net/tun'),
-		}, { label: 'Sandboxing in Dev Container', checked: true, disabled: false, showInfoIcon: true, explainsIsolation: true, explainsTun: true });
+			title: toggle.title,
+		}, {
+			label: 'Sandboxing in Dev Container', checked: true, disabled: false, showInfoIcon: true,
+			title: 'Start the Dev Container with the additional Docker options that terminal sandboxing requires. This relaxes the outer container\'s isolation; terminal commands still run inside their own sandbox.',
+		});
 	});
 
 	test('change callback rechecks policy and forwards only permitted choices', () => {
