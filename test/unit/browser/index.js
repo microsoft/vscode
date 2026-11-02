@@ -325,7 +325,12 @@ async function writeIsolationFindings(page, browserType) {
 	}
 	const findings = await page.evaluate(() => globalThis.__vscodeTestIsolationFindings ?? []);
 	if (findings.length) {
-		await fs.promises.appendFile(reportPath, findings.map(finding => JSON.stringify({ runner: browserType, ...finding }) + '\n').join(''));
+		try {
+			await fs.promises.appendFile(reportPath, findings.map(finding => JSON.stringify({ runner: browserType, ...finding }) + '\n').join(''));
+		} catch (error) {
+			// The report is optional: never fail the run because of it.
+			console.error(`Failed to write isolation findings to ${reportPath}: ${error}`);
+		}
 	}
 }
 /**

@@ -422,7 +422,12 @@ function writeIsolationFindings() {
 	const reportPath = process.env.VSCODE_TEST_ISOLATION_REPORT;
 	const findings = globalThis.__vscodeTestIsolationFindings;
 	if (reportPath && findings?.length) {
-		fs.appendFileSync(reportPath, findings.map(finding => JSON.stringify({ runner: 'electron', ...finding }) + '\n').join(''));
+		try {
+			fs.appendFileSync(reportPath, findings.map(finding => JSON.stringify({ runner: 'electron', ...finding }) + '\n').join(''));
+		} catch (error) {
+			// The report is optional: never keep the run from finishing.
+			console.error(`Failed to write isolation findings to ${reportPath}: ${error}`);
+		}
 	}
 }
 
