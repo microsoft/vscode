@@ -16,11 +16,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatUserInteractionTimingResult } from '../../../../../workbench/contrib/chat/browser/chatUserInteractionTelemetry.js';
 import { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { ChatSendResult, IChatSendRequestData, IChatSendRequestOptions, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatSendResult, IChatSendRequestData, IChatSendRequestOptions } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatServiceImpl.js';
 import { IChatResponseModel, serializeSendOptions } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ToolInvocationPresentation } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { createChatUserInteractionTestHarness } from '../../../../../workbench/contrib/chat/test/browser/chatUserInteractionTestUtils.js';
+import { createChatUserInteractionTestHarness, createChatUserInteractionTool } from '../../../../../workbench/contrib/chat/test/browser/chatUserInteractionTestUtils.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -416,10 +416,10 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 		h.addWidget(response.response);
 		response.progress([
 			{ kind: 'thinking' }, { kind: 'markdownContent', content: new MarkdownString(' \n') },
-			upcastPartial<IChatToolInvocation>({ kind: 'toolInvocation', presentation: ToolInvocationPresentation.Hidden }),
+			createChatUserInteractionTool({ presentation: ToolInvocationPresentation.Hidden }),
 		]);
 		assert.strictEqual(h.frames.size, 0);
-		response.progress([upcastPartial<IChatToolInvocation>({ kind: 'toolInvocation' })]);
+		response.progress([createChatUserInteractionTool()]);
 		h.frame();
 		assert.strictEqual(h.events.length, 0);
 		h.frame();
