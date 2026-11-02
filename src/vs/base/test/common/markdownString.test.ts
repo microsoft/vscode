@@ -66,6 +66,34 @@ suite('MarkdownString', () => {
 		);
 	});
 
+	test('appendLink escapes delimiters after an even number of backslashes', function () {
+		function link(target: string, label: string, title?: string) {
+			return new MarkdownString().appendLink(target, label, title).value;
+		}
+
+		assert.deepStrictEqual([
+			link('a\\\\)b', 'x'),
+			link('a\\\\\\)b', 'x'),
+			link('a\\\\\\\\)b', 'x'),
+			link('a\\', 'x'),
+			link('a\\\\', 'x'),
+			link('a', 'x\\\\]y'),
+			link('a', 'x\\'),
+			link('a', 'x', 't\\\\"u'),
+			link('a', 'x', 't\\'),
+		], [
+			'[x](a\\\\\\)b)',
+			'[x](a\\\\\\)b)',
+			'[x](a\\\\\\\\\\)b)',
+			'[x](a\\\\)',
+			'[x](a\\\\)',
+			'[x\\\\\\]y](a)',
+			'[x\\\\](a)',
+			'[x](a "t\\\\\\"u")',
+			'[x](a "t\\\\")',
+		]);
+	});
+
 	test('lift', () => {
 		const dto: IMarkdownString = {
 			value: 'hello',

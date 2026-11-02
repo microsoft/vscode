@@ -663,6 +663,17 @@ suite('MarkdownRenderer', () => {
 		assert.strictEqual(result.innerHTML, `<p><a href="" title="" draggable="false" data-href="command:doFoo">command1</a> <a href="" data-href="command:doFoo">command2</a></p>`);
 	});
 
+	test('appendLink target cannot inject further links into trusted markdown', () => {
+		const results = ['', '\\', '\\\\', '\\\\\\', '\\\\\\\\'].map(backslashes => {
+			const target = `https://example.com/${backslashes})[injected](command:doFoo#${backslashes})${backslashes}`;
+			const md = new MarkdownString('', true).appendLink(target, 'label').appendMarkdown(' (suffix)');
+			const anchors = store.add(renderMarkdown(md)).element.querySelectorAll('a');
+			// The whole target must stay inside the one https link
+			return [...anchors].map(a => ({ text: a.textContent, isWholeTarget: a.dataset.href!.startsWith('https://example.com/') && a.dataset.href!.includes('command:doFoo') }));
+		});
+		assert.deepStrictEqual(results, Array.from({ length: 5 }, () => [{ text: 'label', isWholeTarget: true }]));
+	});
+
 	test('Should remove relative links if there is no base url', () => {
 		const md = new MarkdownString(`[text](./foo) <a href="./bar">bar</a>`, {
 			isTrusted: true,

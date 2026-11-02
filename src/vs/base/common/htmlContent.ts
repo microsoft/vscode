@@ -102,13 +102,17 @@ export class MarkdownString implements IMarkdownString {
 	}
 
 	private _escape(value: string, ch: string): string {
-		const r = new RegExp(escapeRegExpCharacters(ch), 'g');
-		return value.replace(r, (match, offset) => {
-			if (value.charAt(offset - 1) !== '\\') {
-				return `\\${match}`;
-			} else {
-				return match;
+		// A delimiter is already escaped only if it follows an odd number of backslashes:
+		// in `\\)` the first backslash escapes the second one, which leaves `)` unescaped.
+		// A trailing odd run of backslashes is completed as well, so that it cannot escape
+		// the delimiter that is appended after the value.
+		const r = new RegExp(`(\\\\*)(${escapeRegExpCharacters(ch)}|$)`, 'g');
+		return value.replace(r, (match, backslashes: string, delimiter: string) => {
+			const isEscaped = backslashes.length % 2 === 1;
+			if (delimiter) {
+				return isEscaped ? match : `${backslashes}\\${delimiter}`;
 			}
+			return isEscaped ? `${match}\\` : match;
 		});
 	}
 }
