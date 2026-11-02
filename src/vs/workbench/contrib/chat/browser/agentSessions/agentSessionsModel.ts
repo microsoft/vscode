@@ -624,9 +624,10 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	/**
-	 * Hide the extension-host `copilotcli:` row when its agent-host
-	 * `agent-host-copilotcli:` twin is present, so the list shows a single entry
-	 * per legacy Copilot CLI session — the agent-host one.
+	 * Lists each legacy Copilot CLI session once. The extension-host `copilotcli:`
+	 * row is hidden once its agent-host `agent-host-copilotcli:` twin has been
+	 * adopted; while the twin is still un-opened, the twin is hidden instead (see
+	 * {@link dedupeMigratedCopilotCliSessions}).
 	 *
 	 * A legacy row with no twin yet stays visible: opening it redirects through the
 	 * agent host and adopts it, so it is never a dead end.
@@ -634,7 +635,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	 * Only display is deduped; {@link getSession} and the cache use the full map.
 	 */
 	private _dedupeMigratedCopilotCliSessions(sessions: IAgentSession[]): IAgentSession[] {
-		return dedupeMigratedCopilotCliSessions(sessions, session => session.resource);
+		return dedupeMigratedCopilotCliSessions(sessions, session => session.resource, session => session.metadata?.[SESSION_META_EHCLI_ADOPTABLE_KEY] === true);
 	}
 
 	private _changedSignal: IObservable<void> | undefined;

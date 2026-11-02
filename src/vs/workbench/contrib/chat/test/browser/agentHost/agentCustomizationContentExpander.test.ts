@@ -8,8 +8,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { FileService } from '../../../../../../platform/files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { AgentCustomizationContentExpander } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentCustomizationContentExpander.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
@@ -47,9 +46,7 @@ suite('AgentCustomizationContentExpander', () => {
 	let fileService: IFileService;
 
 	setup(() => {
-		const fs = disposables.add(new FileService(new NullLogService()));
-		const provider = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fs.registerProvider(Schemas.file, provider));
+		const fs = createInMemoryFileService(disposables, Schemas.file);
 		fileService = fs;
 	});
 

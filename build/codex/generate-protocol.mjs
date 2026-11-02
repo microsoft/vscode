@@ -54,7 +54,7 @@ function resolveCodexBinary() {
 	if (which.status === 0) {
 		return which.stdout.trim().split(/\r?\n/)[0];
 	}
-	throw new Error('Cannot locate codex binary. Install via `npm install` (vendors @openai/codex) or set $CODEX_BIN.');
+	throw new Error('Cannot locate codex binary. Install via `pnpm install` (vendors @openai/codex) or set $CODEX_BIN.');
 }
 
 function readBinaryVersion(bin) {

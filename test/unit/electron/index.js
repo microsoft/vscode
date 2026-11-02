@@ -25,7 +25,8 @@ const url = require('url');
 const net = require('net');
 const createStatsCollector = require('mocha/lib/stats-collector');
 const { applyReporter, importMochaReporter } = require('../reporter');
-const { getWorkerCount, removeArgument, runInWorkers, writeWorkerReport } = require('../parallel.ts');
+const { getWorkerCount, getWorkerCountForFiles, removeArgument, runInWorkers, writeWorkerReport } = require('../parallel.ts');
+const { findTestFiles } = require('./testFiles.ts');
 
 const minimist = require('minimist');
 
@@ -114,7 +115,7 @@ Options:
 --timeout <ms>                timeout for tests
 --crash-reporter-directory <path> crash reporter directory
 --rerun-failed-files <count>  rerun failed tests (suites for failed hooks) in a fresh window up to <count> more times; use whole files for many failures
---workers <count>             run all test files in <count> parallel processes, at most one per CPU and per 2 GB of memory; ignored when only some files or tests run; reruns use one window
+--workers <count>             run all test files, or those of --runList, in <count> parallel processes, at most one per CPU and per 2 GB of memory; with --runList, one per 75 test files that run, but at least 2 and at most one per file; ignored with --run, --runGlob, --grep, --testSplit, --dev, --waitServer or coverage; reruns use one window
 --tfs <url>                   TFS server URL
 --help, -h                    show the help`);
 	process.exit(0);
@@ -128,12 +129,12 @@ if (bareFiles.length > 0) {
 	args._ = (args._ || []).filter(a => !bareFiles.includes(a));
 }
 
-// The renderer reads the --runList file (see loadTestModules in renderer.js)
+// The renderer reads the --runList file (see findTestFiles in testFiles.ts)
 if (args.runList) {
 	args.runList = path.resolve(args.runList);
 }
 
-// Only a run of all test files is spread across worker processes, reruns of failed tests run in one window
+// A run of all test files, or of those of --runList, is spread across worker processes, reruns of failed tests run in one window
 let workerCount = 1;
 try {
 	workerCount = getWorkerCount(args.workers);
@@ -141,10 +142,14 @@ try {
 	console.error(/** @type {Error} */ (error).message);
 	app.exit(1);
 }
-const runInParallel = workerCount > 1 && !args.run && !args.runList && !args.runGlob && !args.grep && !args.testSplit && !args.dev && !args.waitServer && !args.coverage && !args['per-test-coverage'];
-if (workerCount > 1 && !runInParallel) {
-	console.log('Running in a single window, because --workers only applies when all test files run without --grep, --dev, --waitServer or coverage');
+const workersApply = workerCount > 1 && !args.run && !args.runGlob && !args.grep && !args.testSplit && !args.dev && !args.waitServer && !args.coverage && !args['per-test-coverage'];
+if (workerCount > 1 && !workersApply) {
+	console.log('Running in a single window, because --workers only applies when all test files or those of --runList run, without --run, --runGlob, --grep, --testSplit, --dev, --waitServer or coverage');
 }
+// The number of workers for --runList depends on the listed files that run, so find them while the app starts
+const listedTestFiles = workersApply && args.runList ? findTestFiles(args, path.join(__dirname, `../../../${args.build ? 'out-build' : 'out'}`)) : undefined;
+// Awaited when the app is ready, and an error is reported there
+listedTestFiles?.catch(() => { });
 
 let crashReporterDirectory = args['crash-reporter-directory'];
 if (crashReporterDirectory) {
@@ -242,15 +247,16 @@ function deserializeError(err) {
  */
 
 /**
- * Runs all test files once in `workerCount` worker processes. Each worker is a separate
+ * Runs the test files once in `count` worker processes. Each worker is a separate
  * instance of this script that runs the test files it claims in its own window, and does not
  * rerun its failures: this process reruns them in one window.
+ * @param {number} count
  * @returns {Promise<IAttemptResult>}
  */
-async function runFirstAttemptInWorkers() {
+async function runFirstAttemptInWorkers(count) {
 	const { failures, unattributedFailures } = await runInWorkers({
 		name: 'Electron unit tests',
-		count: workerCount,
+		count,
 		command: process.execPath,
 		args: [__filename, ...removeArgument(removeArgument(process.argv.slice(2), 'workers'), 'rerun-failed-files')],
 	});
@@ -728,6 +734,26 @@ app.on('ready', async () => {
 		return;
 	}
 
+	// With --runList, only as many workers as the listed test files that run need, see getWorkerCountForFiles
+	let parallelWorkers = workersApply ? workerCount : 1;
+	let firstRunArgs = args;
+	if (listedTestFiles) {
+		try {
+			const { files, listed } = await listedTestFiles;
+			// the renderers do not report them then, see loadTestModules in renderer.js
+			console.log(`Running the ${files.length} test files of the ${listed} files listed in ${args.runList}`);
+			parallelWorkers = getWorkerCountForFiles(workerCount, files.length);
+			if (parallelWorkers === 1) {
+				// the window loads the files found here as if they were passed with --run, instead of finding them again
+				firstRunArgs = { ...args, run: files };
+			}
+		} catch (error) {
+			console.error(error);
+			app.exit(1);
+			return;
+		}
+	}
+
 	// Coverage is collected from the first window only. A worker only runs the first attempt, see runFirstAttemptInWorkers.
 	const maxReruns = args.coverage || args['per-test-coverage'] ? 0 : Math.max(0, Number(args['rerun-failed-files']) || 0);
 
@@ -737,15 +763,15 @@ app.on('ready', async () => {
 	let targets = new Map();
 	/** @type {IRerunPlan | undefined} what the current attempt reruns, unless it is the first */
 	let plan;
-	let runArgs = args;
+	let runArgs = firstRunArgs;
 	let previousWindow;
 	let exitCode = 0;
 
 	for (let attempt = 1; ; attempt++) {
 		/** @type {IAttemptResult} */
 		let runner;
-		if (attempt === 1 && runInParallel) {
-			runner = await runFirstAttemptInWorkers();
+		if (attempt === 1 && parallelWorkers > 1) {
+			runner = await runFirstAttemptInWorkers(parallelWorkers);
 		} else {
 			const { win, done } = runInWindow(runArgs, attempt);
 			previousWindow?.destroy();

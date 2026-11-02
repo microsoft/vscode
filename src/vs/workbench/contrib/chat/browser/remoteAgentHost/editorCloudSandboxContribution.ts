@@ -379,7 +379,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			this._editorChatSessionsService.setOptionGroupsForSessionType(CLOUD_SANDBOX_SESSION_TYPE, 0, this._draftOptionGroups.get());
 			store.add(toDisposable(() => this._editorChatSessionsService.setOptionGroupsForSessionType(CLOUD_SANDBOX_SESSION_TYPE, 0, undefined)));
 		} else {
-			void this._discoverAndSeed();
+			void this._discoverAndSeed({ trigger: 'startup' });
 		}
 	}
 

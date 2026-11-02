@@ -1920,6 +1920,68 @@ suite('AgentSessions', () => {
 				});
 			});
 
+			test('lists one local row through discovery, adoption, refresh and legacy provider removal', async () => {
+				return runWithFakedTimers({}, async () => {
+					const legacyController = new StaticChatSessionItemController([makeItem(legacyUri)]);
+					const hostController = new StaticChatSessionItemController([]);
+					const legacyRegistration = disposables.add(mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_EH_SCHEME, legacyController));
+					disposables.add(mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_LOCAL_AH_SCHEME, hostController));
+					viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+					const rows = () => viewModel.sessions.map(session => session.resource.toString());
+					await viewModel.resolve(undefined);
+					const beforeDiscovery = rows();
+
+					hostController.setItems([{ ...makeItem(twinUri), metadata: { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true } }]);
+					await viewModel.resolve(COPILOT_CLI_LOCAL_AH_SCHEME);
+					const discovered = rows();
+					await viewModel.resolve(COPILOT_CLI_EH_SCHEME);
+					const staleLegacyRefresh = rows();
+
+					hostController.setItems([makeItem(twinUri)]);
+					await viewModel.resolve(COPILOT_CLI_LOCAL_AH_SCHEME);
+					const adopted = rows();
+					legacyRegistration.dispose();
+					await viewModel.resolve(undefined);
+
+					assert.deepStrictEqual({
+						beforeDiscovery, discovered, staleLegacyRefresh, adopted, legacyProviderRemoved: rows(),
+					}, {
+						beforeDiscovery: [legacyUri.toString()],
+						discovered: [legacyUri.toString()],
+						staleLegacyRefresh: [legacyUri.toString()],
+						adopted: [twinUri.toString()],
+						legacyProviderRemoved: [twinUri.toString()],
+					});
+				});
+			});
+
+			test('shows the live, archived legacy row instead of its un-opened twin', async () => {
+				return runWithFakedTimers({}, async () => {
+					/** The real host owns archive state for the twin, which it reads from the legacy marker. */
+					class ArchivingController extends StaticChatSessionItemController {
+						setChatSessionItemArchived(): void { }
+					}
+					const legacyController = new StaticChatSessionItemController([makeItem(legacyUri)]);
+					disposables.add(mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_EH_SCHEME, legacyController));
+					viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+					await viewModel.resolve(undefined);
+					viewModel.sessions[0].setArchived(true);
+
+					// The extension host is still running the conversation when the host discovers the un-opened twin.
+					legacyController.setItems([makeItem(legacyUri, { status: ChatSessionStatus.InProgress })]);
+					disposables.add(mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_LOCAL_AH_SCHEME, new ArchivingController([
+						{ ...makeItem(twinUri), archived: false, metadata: { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true } },
+					])));
+					await viewModel.resolve(undefined);
+
+					assert.deepStrictEqual(viewModel.sessions.map(session => ({
+						resource: session.resource.toString(),
+						status: session.status,
+						archived: session.isArchived(),
+					})), [{ resource: legacyUri.toString(), status: ChatSessionStatus.InProgress, archived: true }]);
+				});
+			});
+
 			test('a peer chat of the twin does not inherit the legacy pin', async () => {
 				return runWithFakedTimers({}, async () => {
 					await pinLegacyThenMigrate();

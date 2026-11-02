@@ -184,22 +184,6 @@ export const AgentHostOverlapProviderPreparationSettingId = 'chat.agentHost.expe
 /** Configuration key controlling whether new Copilot drafts start their runtime and MCP servers before the first message. */
 export const AgentHostPrewarmSessionsSettingId = 'chat.agentHost.experimental.prewarmSessions';
 
-/**
- * Experimentation setting id gating the conditional agent-window auth feature.
- * When `true`, the agent window opens for a signed-out user instead of forcing
- * GitHub sign-in; each session type then gates on its own GitHub requirement, so
- * a type usable without GitHub (e.g. Claude in native mode with an existing local
- * setup) works signed out while types that need GitHub prompt for it on demand.
- *
- * This is the **workbench** VS Code setting id. The workbench registers the
- * configuration schema and forwards the value into the agent-host root config
- * under the short key `AgentHostConfigKey.AllowSignedOutWhenUsable`, which the
- * Claude provider reads node-side via `getRootValue`. Until it is wired and
- * enabled the root key is absent, so it reads `false` and behavior is identical
- * to today.
- */
-export const AgentHostAllowSignedOutWhenUsableSettingId = 'chat.agentHost.allowSignedOutWhenUsable';
-
 // The Copilot-CLI-specific setting IDs (`customTerminalTool`, `opus48Prompt`,
 // `modelCapabilityOverrides`) live with their root-config keys in
 // `copilotCliConfig.ts`.

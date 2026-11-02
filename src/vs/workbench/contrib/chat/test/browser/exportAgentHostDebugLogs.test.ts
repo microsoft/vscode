@@ -34,6 +34,7 @@ import { IFileDialogService, IOpenDialogOptions } from '../../../../../platform/
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { IFileService, IFileStatWithMetadata, IFileStatWithPartialMetadata, IFileStreamContent, IFileWriteOptions } from '../../../../../platform/files/common/files.js';
+import { createInMemoryFileService } from '../../../../../platform/files/test/common/inMemoryFileService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotification, INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -1121,8 +1122,7 @@ suite('collectAgentHostDebugLogs', () => {
 	test('saves client logs and sidecars when a full host-directory artifact disappears', async () => {
 		const ahpFiles = Array.from({ length: 10 }, (_, index) => ahpFile('local-client', index));
 		const { result, warnings, instantiationService } = await collectWithFiles(ahpFiles, 1000, 1, true, 'directory');
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 		for (const file of result.files) {
 			assert.ok(hasKey(file, { resource: true }));
@@ -1157,8 +1157,7 @@ suite('collectAgentHostDebugLogs', () => {
 			test(`preserves Mission Control directory fallback for ${outcome} host copies (sessionScoped=${sessionScoped})`, async () => {
 				const relay = ahpFile(MISSION_CONTROL_AHP_LOG_ID, 1);
 				const { result, warnings, instantiationService } = await collectWithFiles([relay], 1, 1, sessionScoped, 'directory', true);
-				const fileService = disposables.add(new FileService(new NullLogService()));
-				disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+				const fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 				disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 				for (const file of result.files) {
 					assert.ok(hasKey(file, { resource: true }));
@@ -1350,8 +1349,7 @@ suite('collectRotatedLogFiles', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('collects local rotated logs as resources', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const logs = URI.file('/logs');
 		await fileService.createFolder(logs);
 		await Promise.all([
@@ -1376,8 +1374,7 @@ suite('collectRotatedLogFiles', () => {
 	});
 
 	test('keeps every non-local rotated log as a streamable resource', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		const logs = URI.from({ scheme: Schemas.inMemory, path: '/logs' });
 		await fileService.createFolder(logs);
 		await Promise.all([
@@ -1399,8 +1396,7 @@ suite('collectRotatedLogFiles', () => {
 	});
 
 	test('finds all matching output channel backing files', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const windowLogs = URI.file('/logs/window1');
 		const oldOutput = URI.joinPath(windowLogs, 'output_20260825T080000');
 		const newOutput = URI.joinPath(windowLogs, 'output_20260825T090000');
@@ -1420,8 +1416,7 @@ suite('collectRotatedLogFiles', () => {
 	});
 
 	test('selects tunnel reconnect and rotation logs by logical host without address filename matching', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const logsHome = URI.file('/logs');
 		const tunnelAddress = 'tunnel:dev/name';
 		const initial = disposables.add(new AhpJsonlLogger(
@@ -1471,8 +1466,7 @@ suite('collectRotatedLogFiles', () => {
 	});
 
 	test('collects local user data logs as resources', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.vscodeUserData);
 		const logs = URI.from({ scheme: Schemas.vscodeUserData, path: '/logs' });
 		await fileService.createFolder(logs);
 		await fileService.writeFile(URI.joinPath(logs, 'usage.jsonl'), VSBuffer.fromString('usage'));

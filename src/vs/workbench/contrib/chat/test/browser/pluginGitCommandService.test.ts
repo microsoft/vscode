@@ -16,7 +16,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../../../platform/files/test/common/inMemoryFileService.js';
 import { AccountClient } from '../../../../../platform/github/common/account/accountClient.js';
 import { AnonymousClient } from '../../../../../platform/github/common/anonymous/anonymousClient.js';
 import { ApiRequest, ApiResponse, BufferedApiRequestProvider } from '../../../../../platform/github/common/client/request.js';
@@ -41,8 +41,7 @@ suite('BrowserPluginGitCommandService', () => {
 	let service: BrowserPluginGitCommandService;
 
 	setup(() => {
-		fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		github = new StubGitHubService(disposables);
 		authentication = new StubAuthenticationService();
 		storage = disposables.add(new InMemoryStorageService());

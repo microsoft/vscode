@@ -45,7 +45,7 @@ When installing the extension from the Marketplace fails in any UI test, `<test>
 To run CLI tests for all platforms on given commit of Insiders build, from the root directory run:
 
 ```bash
-npm run sanity-test -- --commit 19228f26df517fecbfda96c20956f7c521e072be --quality insider -g "cli*"
+pnpm run sanity-test --commit 19228f26df517fecbfda96c20956f7c521e072be --quality insider -g "cli*"
 ```
 
 ### Testing Unpublished Builds
@@ -56,7 +56,7 @@ passing `--artifacts-dir`, which resolves each target from downloaded build pipe
 as `<artifacts-dir>/<artifact-name>/<file>`:
 
 ```bash
-npm run sanity-test -- --commit <commit> --quality insider --artifacts-dir /tmp/artifacts -g "linux.*x64"
+pnpm run sanity-test --commit <commit> --quality insider --artifacts-dir /tmp/artifacts -g "linux.*x64"
 ```
 
 Every target has a `targetArtifacts` mapping in `src/context.ts`; an unmapped target fails with an
@@ -64,9 +64,13 @@ explicit error rather than falling back to the update service, so runs must be s
 to the artifacts that were actually downloaded. The SHA-256 check is skipped in this mode because
 there is no update service metadata to compare against.
 
+Server-web previews also require the tested commit's webview bootstrap assets on the CDN; downloading the server archive alone is not sufficient. Pipeline artifact-sanity runs selecting server-web targets must use `VSCODE_BUILD_TYPE=Product` and explicitly set `VSCODE_BUILD_WEB=true`. Invalid configurations are rejected during template expansion, and artifact-sanity stages wait for Web to finish. ARM32-only runs, which do not run server-web, do not require Web. **The Web stage uploads to the shared CDN even with `VSCODE_PUBLISH=false`**; that flag controls product publishing, not webview asset preparation. Do not substitute assets from another commit to make a run green.
+
 ### Timeouts
 
 The UI tests open a Markdown preview and wait up to one minute for its webview to render, then up to one minute for its document to finish loading. Resource monitoring remains active through document loading so delayed script failures are also detected. This catches webview resource loading failures (for example 401 responses for remote authorities with uppercase letters such as `wsl+Ubuntu`), and any webview resource response with an error status fails the test. Browsers that refuse to register the webview service worker (such as Chromium on Debian 12) cannot load any webview, so the check is skipped there with a pipeline warning.
+
+HTTP errors and failed requests for CDN webview bootstrap files also interrupt the render/load wait immediately. A `Webview fatal error:` console message interrupts the wait too, including service-worker installation failures that page network listeners do not observe; it does not add a failed resource, preserving the unsupported-browser skip above. Failure messages include status, URL (without credentials/query/fragment), frame URLs, console errors and page errors, rather than reporting only a heading timeout. Newly attached frames without a URL use a fixed placeholder so formatting cannot mask the original failure. A missing bootstrap asset is a failure, not a reason to skip the preview check or increase its timeout.
 
 Synchronous `wsl` commands issued by the tests, and the Ubuntu import, startup, conversion and listing commands in the Windows setup script, have a five-minute timeout. The setup wrapper normalizes nonzero exit codes (including `-1`) to `1` so batch error checks detect them. Setup emits a pipeline warning when Ubuntu cannot run; this does not install a missing WSL2 kernel or re-enable unavailable WSL coverage.
 
@@ -106,7 +110,7 @@ The marker is created only by `scripts/provision-copilot-shim-runner.sh`. It req
 For a prepared workspace, the safe source-only helper check is:
 
 ```bash
-npm run test-copilot-shim-rendering
+pnpm run test-copilot-shim-rendering
 ```
 
 It verifies the checked-in `resources/linux/copilot-link.sh` source has no unresolved rendering markers or RPM macros, has literal Stable/Insiders targets, and defines `vscode_copilot_link`. It does not invoke a package manager or mutate package state.
@@ -114,7 +118,7 @@ It verifies the checked-in `resources/linux/copilot-link.sh` source has no unres
 On Linux, this check runs the same helper with `sh` and `bash` against stub shims and a temporary link path. It covers the `CopilotCliCommand` policy that each shim reports, the DEB `add-copilot-command` debconf answer, and hand-over on removal. It doesn't need root and doesn't touch `/usr/bin/copilot`:
 
 ```bash
-npm run test-copilot-shim-helper
+pnpm run test-copilot-shim-helper
 ```
 
 ### Fixture Manifest and Generation
@@ -139,8 +143,8 @@ Keep every entry in its own parent directory so its prepared payload cannot be c
 From `test/sanity`, after compiling this package and preparing the disposable inputs:
 
 ```bash
-npm run compile
-npm run generate-copilot-shim-fixtures -- \
+pnpm run compile
+pnpm run generate-copilot-shim-fixtures \
 	--plan ./fixtures/copilot-shim-fixture-plan.json \
 	--output ./artifacts/copilot-shim-fixtures
 ```
@@ -152,12 +156,12 @@ This creates `./artifacts/copilot-shim-fixtures/copilot-shim-fixtures.json`. A `
 Use one disposable Debian-family runner and one disposable RPM-family runner. The exact focused commands are:
 
 ```bash
-npm run test-copilot-shim -- \
+pnpm run test-copilot-shim \
 	--fixtures ./artifacts/copilot-shim-fixtures/copilot-shim-fixtures.json \
 	--format deb \
 	--grep 'DEB (K[1-9]|OSS|warns)'
 
-npm run test-copilot-shim -- \
+pnpm run test-copilot-shim \
 	--fixtures ./artifacts/copilot-shim-fixtures/copilot-shim-fixtures.json \
 	--format rpm \
 	--grep 'RPM (K[1-9]|OSS|warns)'
