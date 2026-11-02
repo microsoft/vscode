@@ -159,9 +159,7 @@ export class ViewEditorPane extends EditorPane {
 					return;
 				}
 
-				// The handle owns the drag: what contains it does not also drag
-				e.stopPropagation();
-
+				// What contains the handle, such as a header, may add its own data to the drag
 				const identifier = { editor: input, groupId: this.group.id };
 				this.editorTransfer.setData([new DraggedEditorIdentifier(identifier)], DraggedEditorIdentifier.prototype);
 				if (e.dataTransfer) {

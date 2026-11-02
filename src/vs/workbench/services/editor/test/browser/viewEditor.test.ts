@@ -369,7 +369,7 @@ suite('View Editors', () => {
 		});
 	});
 
-	test('the view\'s drag handle owns its drag, and does not start one from a text field in it', async () => {
+	test('the view\'s drag handle lets what contains it add to its drag, and does not start one from a text field in it', async () => {
 		const { part } = await createServices();
 		await part.activeGroup.openEditor(createViewInput('test.titled', '/chat/a'));
 		const handle = views[0].dragHandle!;
@@ -392,7 +392,7 @@ suite('View Editors', () => {
 			fromFieldCancelled: true,
 			transferFromField: false,
 			transferFromHandle: true,
-			reachedContainer: 1, // only the cancelled drag from the text field
+			reachedContainer: 2, // the cancelled drag from the text field, and the handle's drag
 			transferAfterEnd: false
 		});
 	});

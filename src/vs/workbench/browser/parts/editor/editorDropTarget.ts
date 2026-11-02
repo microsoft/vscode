@@ -179,6 +179,24 @@ function getDropAreaPosition(e: DragEvent, groupView: IEditorGroupView): { x: nu
 	return { x: e.clientX - bounds.left, y: e.clientY - bounds.top - getDropAreaOffsetHeight(groupView) };
 }
 
+/**
+ * The drop overlays that show, so that what takes a drag over them, such as an
+ * edge of the window, can make them go away.
+ */
+const dropOverlays = new Set<DropOverlay>();
+
+/**
+ * Makes the drop overlays that show over the groups inside `container` go away,
+ * such as when what contains them takes the drag.
+ */
+export function disposeEditorDropOverlays(container: HTMLElement): void {
+	for (const overlay of [...dropOverlays]) {
+		if (isAncestor(overlay.groupElement, container)) {
+			overlay.dispose();
+		}
+	}
+}
+
 class DropOverlay extends Themable {
 
 	private static readonly OVERLAY_ID = 'monaco-workbench-editor-drop-overlay';
@@ -218,6 +236,8 @@ class DropOverlay extends Themable {
 		this.enableDropIntoEditor = isDropIntoEditorEnabledGlobally(this.configurationService) && this.isDropIntoActiveEditorEnabled();
 
 		this.create();
+
+		dropOverlays.add(this);
 	}
 
 	private create(): void {
@@ -644,7 +664,13 @@ class DropOverlay extends Themable {
 		return element === this.container || element === this.overlay;
 	}
 
+	get groupElement(): HTMLElement {
+		return this.groupView.element;
+	}
+
 	override dispose(): void {
+		dropOverlays.delete(this);
+
 		super.dispose();
 
 		this._disposed = true;
