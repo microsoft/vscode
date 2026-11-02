@@ -13,8 +13,9 @@
 // It clones the proven copilot VSIX background-download harness: a detached
 // `deemon` poller starts at compile start (maximum overlap) and the package
 // step attaches/blocks on it right before packaging. If the artifact is ready
-// by then the added wall-clock is near-zero; otherwise we block for at most a
-// short budget and then DEGRADE to the legacy mixin notice.
+// by then the added wall-clock is near-zero; otherwise we block until the
+// Quality job has either produced it or finished without it, and only then
+// DEGRADE to the legacy mixin notice.
 //
 // Design notes:
 //   * copy-then-overwrite: mixin-quality.ts is left untouched (shared chokepoint
@@ -22,8 +23,11 @@
 //     our guaranteed fallback, so we never ship with NO notice.
 //   * NON-FATAL: this script always exits 0. A notice problem must never break
 //     packaging during the cutover. Steady-state can flip to fatal later.
-//   * SHORT poll budget (not the copilot 30min): a missing artifact must degrade
-//     to fallback fast, otherwise the non-fatal design is defeated by a 30min hang.
+//   * Wait on the Quality job, not on a clock: every platform must make the
+//     same fresh-vs-fallback decision, or the x64 and arm64 macOS apps carry
+//     different notices and the universal merge fails (build 491732), and Linux
+//     and Windows packages of one build ship different notices (487627, 490339).
+//     A hard cap still bounds the wait if Quality never finishes.
 //   * Three greppable markers so a build log answers "fresh vs stale vs off":
 //       [notice-cutover] RESULT=fresh     overwrote from notice_output (logs producer)
 //       [notice-cutover] RESULT=fallback  artifact missing -> kept legacy notice
@@ -36,6 +40,7 @@ import type { ReadableStream } from 'stream/web';
 import { pipeline } from 'node:stream/promises';
 import yauzl from 'yauzl';
 import { e, requestAZDOAPI } from './publish.ts';
+import { getNoticeGiveUpReason } from './noticeWait.ts';
 import { retry } from './retry.ts';
 
 const ARTIFACT_NAME = 'notice_output';
@@ -44,21 +49,16 @@ const QUALITY_JOB_NAMES = ['Quality Checks', 'Quality'];
 const SHIPPING_NOTICE_NAME = 'ThirdPartyNotices.new.txt';
 const TARGET_NOTICE = path.resolve('ThirdPartyNotices.txt');
 
-// Poll budget: 30 attempts x 30s = 15 minutes. Deliberately far below the
-// copilot 30min so a never-produced artifact degrades to fallback quickly, but
-// with generous margin over the parallel Quality stage (CG + scan + merge).
 // The gate accepts only once ThirdPartyNotices.new.txt has been downloaded,
 // extracted, and validated non-empty (>1KB) -- merely seeing it in the
 // container listing is NOT sufficient, because the listing entry can appear
 // before the file's content has finished committing (see waitForNotice). On
 // such a mid-upload miss we keep polling rather than falling back, so a
 // fast-compiling platform can never ship the legacy notice while its peers
-// ship the CG notice. The Quality-completion backstop ends the wait early only
-// when .new.txt was never produced at all.
+// ship the CG notice.
 // NB: this is the OUTER artifact-availability poll. It is unrelated to the
 // inner retry() wrapper in retry.ts, which independently retries each AZDO API
 // call up to 10 times for transient network errors and emits no attempt log.
-const POLL_ATTEMPTS = 30;
 const POLL_INTERVAL_MS = 30_000;
 
 function log(message: string): void {
@@ -267,30 +267,40 @@ async function tryExtractNotice(artifact: NoticeArtifact, tmpDir: string): Promi
 	return { shippingPath: shipping, metaFile, size };
 }
 
-// Returns the validated, extracted CG NOTICE if it becomes available within the
-// short budget, otherwise undefined (caller keeps the legacy notice).
+// Returns the validated, extracted CG NOTICE once the Quality job has produced
+// it, or undefined if it never will (caller keeps the legacy notice).
 async function waitForNotice(tmpDir: string): Promise<ExtractedNotice | undefined> {
 	const startTime = Date.now();
+	let qualityState: string | undefined;
+	let qualityCompletedAt: number | undefined;
 
-	for (let index = 0; index < POLL_ATTEMPTS; index++) {
-		const elapsed = Math.round((Date.now() - startTime) / 1000);
+	for (let attempt = 1; ; attempt++) {
+		const elapsedMs = Date.now() - startTime;
+		let shippingListed: boolean | undefined;
 
 		try {
-			log(`Waiting for ${ARTIFACT_NAME} artifact (attempt ${index + 1}/${POLL_ATTEMPTS}, ${elapsed}s elapsed)...`);
+			log(`Waiting for ${ARTIFACT_NAME} artifact (attempt ${attempt}, ${Math.round(elapsedMs / 1000)}s elapsed)...`);
 
-			// The Quality job state is only a BACKSTOP (see below): if it has
-			// completed and .new.txt never even appeared in the listing, the file
-			// is never coming and we give up early instead of burning the budget.
+			// Keep the last known state if the timeline can't be read this time.
 			const qualityJob = await getQualityJob().catch(() => undefined);
 			if (qualityJob) {
 				log(`  * Quality job: state=${qualityJob.state}, result=${qualityJob.result ?? 'n/a'}`);
+				qualityState = qualityJob.state;
+				if (qualityState === 'completed') {
+					qualityCompletedAt ??= Date.now();
+				} else {
+					// A retried Quality job runs again.
+					qualityCompletedAt = undefined;
+				}
 			}
 
 			const allArtifacts = await retry(() => getPipelineArtifacts());
 			log(`  * Found ${allArtifacts.length} artifact(s): ${allArtifacts.map(a => a.name).join(', ') || '(none)'}`);
 
 			const artifact = allArtifacts.find(a => a.name === ARTIFACT_NAME);
-			if (artifact) {
+			if (!artifact) {
+				shippingListed = false;
+			} else {
 				// The notice_output container is populated in TWO phases by the
 				// Quality stage (first generated.txt + meta, then seconds-to-minutes
 				// later the shipping .new.txt). We accept ONLY once .new.txt has been
@@ -299,16 +309,16 @@ async function waitForNotice(tmpDir: string): Promise<ExtractedNotice | undefine
 				// hit we attempt a real download+extract and re-poll if it isn't ready.
 				const files = await listArtifactFiles(artifact).catch(() => undefined);
 				if (files === undefined) {
-					// Could not list (transient error or unexpected data shape). Do not
-					// give up; just retry next poll. The budget still bounds the wait.
+					// Could not list (transient error or unexpected data shape). Retry next poll.
 					log('  * could not list notice_output files yet; will recheck next poll');
 				} else {
 					log(`  * notice_output files: ${files.map(f => path.basename(f)).join(', ') || '(empty)'}`);
-					if (files.some(f => path.basename(f) === SHIPPING_NOTICE_NAME)) {
+					shippingListed = files.some(f => path.basename(f) === SHIPPING_NOTICE_NAME);
+					if (shippingListed) {
 						log(`  * ${SHIPPING_NOTICE_NAME} listed; verifying extracted content...`);
 						const extracted = await tryExtractNotice(artifact, tmpDir).catch(err => {
 							// A download/extract failure here (e.g. partial zip mid-upload)
-							// is NOT terminal: keep polling within budget.
+							// is NOT terminal: keep polling.
 							log(`  * download/extract attempt failed (${err}); will recheck next poll.`);
 							return undefined;
 						});
@@ -316,34 +326,27 @@ async function waitForNotice(tmpDir: string): Promise<ExtractedNotice | undefine
 							log(`  * ${SHIPPING_NOTICE_NAME} extracted and validated (${extracted.size} bytes); accepting.`);
 							return extracted;
 						}
-						// Listed but not yet downloadable/valid: fall through to wait + re-poll.
-						// Deliberately NO early give-up here even if the Quality job reports
-						// "completed" -- the artifact upload is async (continueOnError) and may
-						// still be finalizing, so we let the budget bound the wait.
-					} else if (qualityJob && qualityJob.state === 'completed') {
-						// BACKSTOP: .new.txt was never even listed AND Quality finished
-						// => it is never coming. Fall back instead of polling the full budget.
-						log(`  * Quality job completed but ${SHIPPING_NOTICE_NAME} never appeared in artifact; giving up.`);
-						return undefined;
-					} else {
-						log(`  * ${SHIPPING_NOTICE_NAME} not in artifact yet; waiting...`);
 					}
 				}
-			} else if (qualityJob && qualityJob.state === 'completed') {
-				log('  * Quality job completed but no notice_output artifact; giving up.');
-				return undefined;
 			}
-
-			log(`  * Not ready yet, waiting ${POLL_INTERVAL_MS / 1000}s...`);
 		} catch (err) {
 			console.error(`[notice-cutover] WARNING: poll attempt failed: ${err}`);
 		}
 
+		const reason = getNoticeGiveUpReason({
+			elapsedMs: Date.now() - startTime,
+			qualityState,
+			qualityCompletedForMs: qualityCompletedAt === undefined ? undefined : Date.now() - qualityCompletedAt,
+			shippingListed,
+		});
+		if (reason) {
+			log(`Giving up: ${reason}.`);
+			return undefined;
+		}
+
+		log(`  * Not ready yet, waiting ${POLL_INTERVAL_MS / 1000}s...`);
 		await new Promise(c => setTimeout(c, POLL_INTERVAL_MS));
 	}
-
-	log(`Poll budget exhausted (${POLL_ATTEMPTS} attempts) without a valid ${SHIPPING_NOTICE_NAME}.`);
-	return undefined;
 }
 
 async function main(): Promise<void> {
@@ -361,9 +364,9 @@ async function main(): Promise<void> {
 	const tmpDir = path.resolve('.build/tmp-notice');
 	const notice = await waitForNotice(tmpDir);
 	if (!notice) {
-		// Only reached on GENUINE exhaustion or a confirmed never-produced artifact
-		// -- never on a transient mid-upload miss (those re-poll inside waitForNotice).
-		log(`RESULT=fallback ${SHIPPING_NOTICE_NAME} unavailable within budget; keeping legacy notice.`);
+		// Only reached when the Quality job finished without a valid notice or the
+		// hard cap ran out -- never on a transient mid-upload miss (those re-poll).
+		log(`RESULT=fallback ${SHIPPING_NOTICE_NAME} unavailable; keeping legacy notice.`);
 		fs.rmSync(tmpDir, { recursive: true, force: true });
 		return;
 	}
