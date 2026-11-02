@@ -153,15 +153,17 @@ suite('Chat window editor area', () => {
 		});
 	});
 
-	test('Run and Open in VS Code show in the main window and in chat windows with a workspace, as before in editor windows', () => {
+	test('Run and Open in VS Code show in the main window and in every chat window, as the main window\'s rule says, and not in editor windows', () => {
 		const items = MenuRegistry.getMenuItems(Menus.TitleBarCenterRight);
 		const visible = (values: Record<string, ContextKeyValue>) => items.filter(item => evaluate(item.when, { [SessionsWelcomeVisibleContext.key]: false, ...values })).length;
 		const mainWindow = visible({});
+		const chatWindow = { [IsAuxiliaryWindowContext.key]: true, [LayoutModeContext.key]: 'sideBySide' };
 		assert.deepStrictEqual({
 			editorWindow: visible({ [IsAuxiliaryWindowContext.key]: true }),
-			chatWindowWithWorkspace: visible({ [IsAuxiliaryWindowContext.key]: true, [SessionHasWorkspaceContext.key]: true }) === mainWindow,
-			chatWindowQuickChat: visible({ [IsAuxiliaryWindowContext.key]: true, [SessionHasWorkspaceContext.key]: true, [IsQuickChatSessionContext.key]: true }),
+			chatWindowWithWorkspace: visible({ ...chatWindow, [SessionHasWorkspaceContext.key]: true }) === mainWindow,
+			chatWindowQuickChat: visible({ ...chatWindow, [IsQuickChatSessionContext.key]: true }) === mainWindow,
 			mainWindowHasThem: mainWindow > 0,
-		}, { editorWindow: 0, chatWindowWithWorkspace: true, chatWindowQuickChat: 0, mainWindowHasThem: true });
+		}, { editorWindow: 0, chatWindowWithWorkspace: true, chatWindowQuickChat: true, mainWindowHasThem: true });
 	});
+
 });
