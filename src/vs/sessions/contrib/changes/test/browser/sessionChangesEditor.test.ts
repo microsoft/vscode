@@ -22,6 +22,10 @@ import { TestEditorGroupView, workbenchInstantiationService } from '../../../../
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { IDiffEditorOptionsService, SessionsWordWrap } from '../../../editor/common/diffEditorOptionsService.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
+import { MultiDiffEditorWithFileListWidget } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorWithFileListWidget.js';
+import { isMultiDiffEditorFileListHost, multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, toggleMultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ISessionChangesService } from '../../browser/sessionChangesService.js';
 import { IChangesViewService } from '../../common/changesViewService.js';
 import '../../../../../editor/browser/widget/multiDiffEditor/style.css';
@@ -53,12 +57,19 @@ suite('SessionChangesEditor empty state layout', () => {
 			override readonly items = constObservable([]);
 		}();
 		const viewModel = observableValue<MultiDiffEditorViewModel | undefined>('viewModel', model);
-		instantiationService.stubInstance(MultiDiffEditorWidget, {
+		const diffWidget = {
 			viewModel,
 			onDidChangeActiveControl: Event.None,
 			setPaddingBottom() { },
 			setVariant() { },
 			setDiffLayoutOptions() { },
+			layout() { },
+			dispose() { },
+		};
+		instantiationService.stubInstance(MultiDiffEditorWidget, diffWidget);
+		instantiationService.stubInstance(MultiDiffEditorWithFileListWidget, {
+			multiDiffEditorWidget: diffWidget as unknown as MultiDiffEditorWidget,
+			isFileListVisible: observableValue('fileListVisible', false),
 			layout() { },
 			dispose() { },
 		});
@@ -181,5 +192,68 @@ suite('SessionChangesEditor spacing', () => {
 		}
 		assert.deepStrictEqual(results, ['vs', 'vs-dark', 'hc-black', 'hc-light'].flatMap(theme =>
 			[0, 10, 0].map(top => ({ theme, top, sticky: top > 0, headerFlowHeight: 36, bodyOffset: 36 }))));
+	});
+});
+
+suite('SessionChangesEditor changed files list', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shows the changed files list beside the diffs, whether or not the experimental file list of multi diff editors is on, until the user hides it, and focusing the list shows it again', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const contextKeyService = store.add(new MockContextKeyService());
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
+		}());
+		instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
+		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() { }());
+		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
+			override readonly viewMode = constObservable<DiffEditorViewMode>('automatic');
+			override readonly diffEditorWordWrap = constObservable<SessionsWordWrap>('off');
+		}());
+		const diffWidget = {
+			viewModel: observableValue<MultiDiffEditorViewModel | undefined>('viewModel', undefined),
+			onDidChangeActiveControl: Event.None,
+			setPaddingBottom() { },
+			setVariant() { },
+			setDiffLayoutOptions() { },
+			layout() { },
+			dispose() { },
+		};
+		instantiationService.stubInstance(MultiDiffEditorWidget, diffWidget);
+		const calls: string[] = [];
+		instantiationService.stubInstance(MultiDiffEditorWithFileListWidget, {
+			multiDiffEditorWidget: diffWidget as unknown as MultiDiffEditorWidget,
+			isFileListVisible: observableValue('fileListVisible', true),
+			layout(dimension: Dimension) { calls.push(`layout ${dimension.width}x${dimension.height}`); },
+			focusFileList() { calls.push('focus'); },
+			dispose() { },
+		});
+		const parent = append(mainWindow.document.body, $('.editor-instance'));
+		store.add(toDisposable(() => parent.remove()));
+		const editor = store.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
+		editor.create(parent);
+		const read = () => ({
+			available: contextKeyService.getContextKeyValue(MultiDiffEditorFileListAvailableContext.key),
+			shown: contextKeyService.getContextKeyValue(MultiDiffEditorFileListEnabledContext.key),
+		});
+
+		const initially = read();
+		toggleMultiDiffEditorFileList(instantiationService.get(IStorageService));
+		const hidden = read();
+		editor.focusFileList();
+		const focused = read();
+		editor.layout(new Dimension(500, 400));
+
+		assert.deepStrictEqual({ experimentalFileList: instantiationService.get(IConfigurationService).getValue(multiDiffEditorExperimentalFileListSetting) ?? false, initially, hidden, focused, calls, togglesFromTabBar: editor.togglesFileListFromEditorTitle, host: isMultiDiffEditorFileListHost(editor) }, {
+			experimentalFileList: false,
+			initially: { available: true, shown: true },
+			hidden: { available: true, shown: false },
+			focused: { available: true, shown: true },
+			calls: ['focus', 'layout 500x400'],
+			togglesFromTabBar: true,
+			host: true,
+		});
 	});
 });

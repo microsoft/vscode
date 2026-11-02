@@ -61,7 +61,9 @@ import { localize } from '../../../../nls.js';
 import { getChangesEditorFileStats } from './changesEditorLabels.js';
 import { IDiffEditorOptionsService } from '../../editor/common/diffEditorOptionsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { observableWorkbenchMultiDiffEditorVariant } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFileListVisibleContext, observableMultiDiffEditorFileListHidden, observableMultiDiffEditorFileListPosition, observableMultiDiffEditorFileListViewMode, observableWorkbenchMultiDiffEditorVariant, toggleMultiDiffEditorFileList } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { MultiDiffEditorWithFileListWidget } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorWithFileListWidget.js';
+import { IMultiDiffEditorWidgetOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
 import { ChangesEmptyState } from './changesEmptyState.js';
 
 const HEADER_HEIGHT = 35;
@@ -189,6 +191,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	static readonly ID = SessionChangesEditorInput.EDITOR_ID;
 
 	private widget: MultiDiffEditorWidget | undefined;
+	private fileListWidget: MultiDiffEditorWithFileListWidget | undefined;
 	private viewModel: MultiDiffEditorViewModel | undefined;
 	get hasViewModel(): boolean { return this.viewModel !== undefined; }
 	private bodyContainer: HTMLElement | undefined;
@@ -234,7 +237,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
@@ -294,15 +297,16 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		const paneInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, this.contextKeyService])));
 		const variant = observableWorkbenchMultiDiffEditorVariant(this, this.configurationService);
-		this.widget = this._register(paneInstantiationService.createInstance(
-			MultiDiffEditorWidget,
-			this.bodyContainer,
+		// The changed files list shows beside the diffs, unless the user hides it with Toggle Files.
+		this.fileListWidget = this._register(this.createFileListWidget(
+			paneInstantiationService,
 			paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs),
 			{
 				variant: variant.get(),
 				diffEditorOptions: CHANGES_DIFF_EDITOR_OPTIONS,
 			},
 		));
+		this.widget = this.fileListWidget.multiDiffEditorWidget;
 		this._register(autorun(reader => this.widget?.setVariant(variant.read(reader))));
 		this._register(this.widget.onDidChangeActiveControl(() => this._onDidChangeControl.fire()));
 		this.widget.setPaddingBottom(CHANGES_LIST_BOTTOM_PADDING_PX);
@@ -323,6 +327,30 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 				this.diffEditorOptionsService.diffEditorWordWrap.read(reader),
 			);
 		}));
+	}
+
+	private createFileListWidget(instantiationService: IInstantiationService, uiElementFactory: IWorkbenchUIElementFactory, widgetOptions: IMultiDiffEditorWidgetOptions): MultiDiffEditorWithFileListWidget {
+		const fileListVisible = observableMultiDiffEditorFileListHidden(this, this.storageService, this._store).map(this, hidden => !hidden);
+		const fileListViewMode = observableMultiDiffEditorFileListViewMode(this, this.storageService, this._store);
+		const fileListPosition = observableMultiDiffEditorFileListPosition(this, this.storageService, this._store);
+		this._register(bindContextKey(MultiDiffEditorFileListAvailableContext, this.contextKeyService, () => true));
+		this._register(bindContextKey(MultiDiffEditorFileListEnabledContext, this.contextKeyService, reader => fileListVisible.read(reader)));
+		this._register(bindContextKey(MultiDiffEditorFileListViewModeContext, this.contextKeyService, reader => fileListViewMode.read(reader)));
+		this._register(bindContextKey(MultiDiffEditorFileListPositionContext, this.contextKeyService, reader => fileListPosition.read(reader)));
+		const widget = instantiationService.createInstance(MultiDiffEditorWithFileListWidget, this.bodyContainer!, uiElementFactory, widgetOptions, fileListVisible, fileListViewMode, fileListPosition);
+		this._register(bindContextKey(MultiDiffEditorFileListVisibleContext, this.contextKeyService, reader => widget.isFileListVisible.read(reader)));
+		return widget;
+	}
+
+	/** It offers Toggle Files in the More Actions menu of its tab bar. */
+	readonly togglesFileListFromEditorTitle = true;
+
+	/** Moves focus into the changed files list, showing it first when hidden. */
+	focusFileList(): void {
+		if (!MultiDiffEditorFileListEnabledContext.getValue(this.contextKeyService)) {
+			toggleMultiDiffEditorFileList(this.storageService);
+		}
+		this.fileListWidget?.focusFileList();
 	}
 
 	/**
@@ -650,7 +678,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// In desktop the header is external (the editor part reserves a top inset),
 		// so the diff fills the full dimension; otherwise reserve the internal header.
 		const bodyHeight = this._desktop ? dimension.height : Math.max(0, dimension.height - HEADER_HEIGHT);
-		this.widget?.layout(new Dimension(dimension.width, bodyHeight));
+		this.fileListWidget?.layout(new Dimension(dimension.width, bodyHeight));
 		this.emptyState?.layout();
 	}
 }

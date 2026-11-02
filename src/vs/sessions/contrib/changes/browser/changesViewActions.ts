@@ -27,7 +27,7 @@ import { DiffEditorInput } from '../../../../workbench/common/editor/diffEditorI
 import { readTransientState, writeTransientState } from '../../../../workbench/contrib/codeEditor/browser/toggleWordWrap.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
 import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
-import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFilesViewAndPositionMenu } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFilesViewAndPositionMenu, TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -514,6 +514,21 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
 	group: '1_diff',
 	order: 30,
 	when: desktopDiffEditorTitleVisible,
+});
+// The Changes editor shows its changed files list beside the diffs, and hides or shows it with the workbench's Toggle
+// Files in the overflow of its tab row, with its other actions.
+const changesEditorFileList = ContextKeyExpr.and(desktopChangesEditorActive, MultiDiffEditorFileListAvailableContext)!;
+MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
+	command: {
+		id: TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID,
+		title: localize2('changesToggleFiles', "Toggle Files"),
+		icon: Codicon.listFlat,
+		toggled: MultiDiffEditorFileListEnabledContext,
+		precondition: changesEditorFileList,
+	},
+	group: '2_viewMode',
+	order: 5,
+	when: ContextKeyExpr.and(desktopChangesEditorTitleVisible, MultiDiffEditorFileListAvailableContext),
 });
 MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
 	submenu: MultiDiffEditorFilesViewAndPositionMenu,

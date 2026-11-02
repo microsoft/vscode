@@ -21,6 +21,8 @@ import { ActiveEditorContext } from '../../../common/contextkeys.js';
 
 /** The editor pane identifier of the multi diff editor. */
 export const MULTI_DIFF_EDITOR_ID = 'multiDiffEditor';
+/** Shows or hides the changed files list of the multi diff editors. */
+export const TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID = 'multiDiffEditor.toggleFileList';
 
 export const multiDiffEditorExperimentalVariantSetting = 'multiDiffEditor.experimental.variant';
 export const defaultMultiDiffEditorExperimentalVariant = 'noCards';
@@ -67,12 +69,20 @@ export const MultiDiffEditorFilesViewAndPositionMenu = new MenuId('MultiDiffEdit
  */
 export function observableMultiDiffEditorFileListVisible(owner: object, configurationService: IConfigurationService, storageService: IStorageService, store: DisposableStore): IObservable<boolean> {
 	const enabled = observableConfigValue<boolean>(multiDiffEditorExperimentalFileListSetting, false, configurationService);
-	const hidden = observableFromEvent(
+	const hidden = observableMultiDiffEditorFileListHidden(owner, storageService, store);
+	return derived(owner, reader => enabled.read(reader) && !hidden.read(reader));
+}
+
+/**
+ * Observes whether the user has hidden the file list, which all multi diff editors share, also those that show the list
+ * regardless of {@link multiDiffEditorExperimentalFileListSetting}.
+ */
+export function observableMultiDiffEditorFileListHidden(owner: object, storageService: IStorageService, store: DisposableStore): IObservable<boolean> {
+	return observableFromEvent(
 		owner,
 		storageService.onDidChangeValue(StorageScope.PROFILE, multiDiffEditorFileListHiddenStorageKey, store),
 		() => storageService.getBoolean(multiDiffEditorFileListHiddenStorageKey, StorageScope.PROFILE, false),
 	);
-	return derived(owner, reader => enabled.read(reader) && !hidden.read(reader));
 }
 
 /** Shows the file list if the user has hidden it, and hides it otherwise. */
@@ -205,3 +215,17 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		},
 	},
 });
+
+/**
+ * An editor pane that hosts the changed files list of a multi diff editor, such as the workbench's multi diff editor.
+ */
+export interface IMultiDiffEditorFileListHost {
+	/** Moves focus into the changed files list. */
+	focusFileList(): void;
+	/** Whether the host offers Toggle Files in the More Actions menu of its tab bar, which its help then describes instead of the workbench's own actions. */
+	readonly togglesFileListFromEditorTitle?: boolean;
+}
+
+export function isMultiDiffEditorFileListHost(editor: object | undefined): editor is IMultiDiffEditorFileListHost {
+	return !!editor && typeof (editor as Partial<IMultiDiffEditorFileListHost>).focusFileList === 'function';
+}

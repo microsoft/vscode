@@ -33,7 +33,7 @@ import { ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../work
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../../workbench/contrib/files/common/files.js';
 import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
-import { multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFilesViewAndPositionMenu } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFilesViewAndPositionMenu, TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
@@ -570,6 +570,35 @@ suite('Changes View Actions', () => {
 			hasDesktopLayoutGate: true,
 			hasEditorAreaVisibleGate: true,
 		});
+	});
+
+	test('Toggle Files of the changed files list of the Changes editor is in the tab-level editor overflow menu, with the workbench\'s command', () => {
+		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID)!;
+		const visible = (values: Record<string, unknown>) => {
+			const context = new Context(1, null);
+			for (const [key, value] of Object.entries({
+				[IsSessionsWindowContext.key]: true,
+				[ActiveEditorContext.key]: SessionChangesEditor.ID,
+				[DesktopLayoutContext.key]: true,
+				[IsTopRightEditorGroupContext.key]: true,
+				[MainEditorAreaVisibleContext.key]: true,
+				[MultiDiffEditorFileListAvailableContext.key]: true,
+				...values,
+			})) {
+				context.setValue(key, value);
+			}
+			return item.when?.evaluate(context) ?? true;
+		};
+		assert.deepStrictEqual({
+			group: item.group,
+			changesEditor: visible({}),
+			editorAreaHidden: visible({ [MainEditorAreaVisibleContext.key]: false }),
+			withoutFileList: visible({ [MultiDiffEditorFileListAvailableContext.key]: false }),
+			otherEditor: visible({ [ActiveEditorContext.key]: 'workbench.editors.textEditor' }),
+			headerLayoutItems: MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout).length,
+		}, { group: '2_viewMode', changesEditor: true, editorAreaHidden: false, withoutFileList: false, otherEditor: false, headerLayoutItems: 0 });
 	});
 
 	test('expand all diffs is contributed to the tab-level editor overflow menu', () => {
