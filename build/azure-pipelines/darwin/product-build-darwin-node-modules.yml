@@ -17,6 +17,8 @@ jobs:
       - template: ../common/checkout.yml@self
 
       - template: ../common/setup-node.yml@self
+        parameters:
+          os: macOS
 
       - template: ../distro/download-distro.yml@self
 
