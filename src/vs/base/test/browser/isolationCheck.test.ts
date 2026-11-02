@@ -68,4 +68,18 @@ suite('Isolation check', () => {
 			restored: [],
 		});
 	});
+
+	test('reports a fake timer installed over one that an earlier suite left', () => {
+		const realSetTimeout = globalThis.setTimeout;
+		let findings: string[];
+		try {
+			globalThis.setTimeout = (() => 0) as unknown as typeof globalThis.setTimeout;
+			const before = fakeTimersDetector.snapshot();
+			globalThis.setTimeout = (() => 1) as unknown as typeof globalThis.setTimeout;
+			findings = fakeTimersDetector.check(before);
+		} finally {
+			globalThis.setTimeout = realSetTimeout;
+		}
+		assert.deepStrictEqual(findings, ['left fake setTimeout installed']);
+	});
 });
