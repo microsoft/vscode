@@ -206,7 +206,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		disposables.add(toDisposable(() => this.mapPartToInstantiationService.delete(part)));
 
 		// Release the part once its owner closed it
-		disposables.add(Event.once(part.onDidClose)(() => disposables.dispose()));
+		disposables.add(Event.once(part.onDidRelease)(() => disposables.dispose()));
 
 		// Events
 		for (const group of part.getGroups(GroupsOrder.CREATION_TIME)) {

@@ -21,6 +21,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
+import { ContentPart } from '../../../../browser/parts/editor/contentPart.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
 import { createEditorParts, registerTestEditor, TestFileEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -233,6 +234,22 @@ suite('Content Part', () => {
 		const afterWindowMain = { inMain: parts.mainPart.groups.some(group => group.contains(fromWindowMain)) && parts.mainPart.groups.some(group => group.contains(fromOther)) };
 
 		assert.deepStrictEqual({ afterOther, afterWindowMain }, { afterOther: { inWindowMain: true, inMain: false }, afterWindowMain: { inMain: true } });
+	});
+
+	test('every listener of the part closing is notified before the part is released', async () => {
+		const parts = await createServices();
+		const part = parts.createEditorPart({ container: createContainer() }) as ContentPart;
+		const notified: string[] = [];
+		disposables.add(part.onWillClose(() => notified.push('will close')));
+		disposables.add(part.onDidClose(() => notified.push(`did close 1, listed: ${parts.parts.includes(part)}`)));
+		disposables.add(part.onDidClose(() => notified.push(`did close 2, listed: ${parts.parts.includes(part)}`)));
+
+		part.close();
+
+		assert.deepStrictEqual({ notified, listed: parts.parts.includes(part) }, {
+			notified: ['will close', 'did close 1, listed: true', 'did close 2, listed: true'],
+			listed: false
+		});
 	});
 
 	test('its last group stays, also as closing all editors closes empty groups: its owner closes it', async () => {

@@ -34,6 +34,13 @@ export class ContentPart extends EditorPart implements IContentPart {
 	 */
 	readonly onDidClose = this._onDidClose.event;
 
+	private readonly _onDidRelease = this._register(new Emitter<void>());
+	/**
+	 * Fired once all listeners of {@link onDidClose} were notified, for the
+	 * editor parts service to release the part.
+	 */
+	readonly onDidRelease = this._onDidRelease.event;
+
 	constructor(
 		windowId: number,
 		editorPartsView: IEditorPartsView,
@@ -102,6 +109,7 @@ export class ContentPart extends EditorPart implements IContentPart {
 
 		this._onWillClose.fire();
 		this._onDidClose.fire();
+		this._onDidRelease.fire();
 
 		return true;
 	}
