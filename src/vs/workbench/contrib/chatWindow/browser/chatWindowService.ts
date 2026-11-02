@@ -279,16 +279,6 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		// Closes the parts as the window unloads, unless the chat window closed them first.
 		const partsBinding = disposables.add(bindEditorPartsToWindow(auxiliaryWindow, [chatPart, mainPart], this._editorGroupsService));
 
-		const look = provider.look;
-		const partsLayout = disposables.add(new ChatWindowPartsLayout(new Map([
-			[ChatWindowLayoutCell.SidePane, { element: mainPartElement, layout: (width, height, top, left) => mainPart.layout(width, height, top, left) }],
-			[ChatWindowLayoutCell.Chat, { element: chatPartElement, layout: (width, height, top, left) => chatPart.layout(width, height, top, left) }],
-		]), state.layoutMode, look.gap));
-		if (look.paintChatBackground) {
-			disposables.add(look.paintChatBackground(chatPartElement));
-		}
-		disposables.add(auxiliaryWindow.onWillLayout(dimension => partsLayout.layout(dimension.width, dimension.height)));
-
 		const window: ChatWindow = disposables.add(new ChatWindow(windowId, content, state, mainPart, chatPart, {
 			focusWindow: () => {
 				if (!auxiliaryWindow.window.document.hasFocus()) {
@@ -301,6 +291,39 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			},
 			isUnloading: () => unloading,
 		}));
+
+		// The provider's chrome, with the window's services: its title row first in the window, its strip last.
+		const windowInstantiationService = disposables.add(this._instantiationService.createChild(services));
+		const titleRowElement = host.insertBefore($('.chat-window-title-row'), host.firstChild);
+		const stripElement = append(host, $('.chat-window-strip'));
+		const titleRow = provider.chrome?.createTitleRow?.(window, titleRowElement, windowInstantiationService);
+		const strip = provider.chrome?.createStrip?.(window, stripElement, windowInstantiationService);
+		for (const [chrome, element] of [[titleRow, titleRowElement], [strip, stripElement]] as const) {
+			if (chrome) {
+				disposables.add(chrome);
+			} else {
+				element.remove();
+			}
+		}
+
+		const look = provider.look;
+		const partsLayout = disposables.add(new ChatWindowPartsLayout(new Map([
+			[ChatWindowLayoutCell.SidePane, { element: mainPartElement, layout: (width, height, top, left) => mainPart.layout(width, height, top, left) }],
+			[ChatWindowLayoutCell.Chat, {
+				element: chatPartElement,
+				// What the chat shows bounds its part, such as only its input.
+				get maximumHeight() { return chatPart.maximumHeight; },
+				onDidChange: chatPart.onDidChange,
+				layout: (width, height, top, left) => chatPart.layout(width, height, top, left),
+			}],
+		]), state.layoutMode, look.gap, {
+			titleRow: titleRow && { element: titleRowElement, visible: titleRow.visible, size: titleRow.size, layout: (width, height) => titleRow.layout(width, height) },
+			strip: strip && { element: stripElement, visible: strip.visible, size: strip.size, layout: (width, height) => strip.layout(width, height) },
+		}));
+		if (look.paintChatBackground) {
+			disposables.add(look.paintChatBackground(chatPartElement));
+		}
+		disposables.add(auxiliaryWindow.onWillLayout(dimension => partsLayout.layout(dimension.width, dimension.height)));
 
 		disposables.add(autorun(reader => {
 			auxiliaryWindow.window.document.title = content.title.read(reader);

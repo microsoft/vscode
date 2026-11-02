@@ -8,7 +8,7 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { ChatWindowLayoutMode, ChatWindowSplitLayout } from '../common/chatWindowLayout.js';
@@ -59,18 +59,29 @@ export interface IChatWindowContent extends IDisposable {
 
 /** A row or column of chrome that a provider renders into a chat window, beside its parts. */
 export interface IChatWindowChromeElement extends IDisposable {
-	readonly element: HTMLElement;
 	/** Whether it shows; it takes no room while it does not. */
 	readonly visible: IObservable<boolean>;
+	/** The room it takes while it shows: the height of a row, the width of a column. */
+	readonly size: IObservable<number>;
 	layout(width: number, height: number): void;
 }
 
-/** The chrome facet: rows and columns that a provider renders into its chat windows, beside their parts. */
+/**
+ * The chrome facet: rows and columns that a provider renders into its chat windows, beside their parts. Each renders into
+ * `container`, an element of the window that the window places, with `instantiationService`, which has the window's
+ * services: those of its content and the window's context.
+ */
 export interface IChatWindowChrome {
-	/** A row above the chat part, or across the window, such as the session's title row. */
-	createTitleRow?(window: IChatWindow): IChatWindowChromeElement | undefined;
-	/** A column at the edge of the window, such as the session's activity bar. */
-	createStrip?(window: IChatWindow): IChatWindowChromeElement | undefined;
+	/**
+	 * A row above the chat part while the main part is beside the chat (Side by Side), else across the window, such as the
+	 * session's title row.
+	 */
+	createTitleRow?(window: IChatWindow, container: HTMLElement, instantiationService: IInstantiationService): IChatWindowChromeElement | undefined;
+	/**
+	 * A column at the right of the window while the chat is below the main part or hidden (Stacked, Editor Only), such as
+	 * the session's activity bar, which shows beside the chat otherwise.
+	 */
+	createStrip?(window: IChatWindow, container: HTMLElement, instantiationService: IInstantiationService): IChatWindowChromeElement | undefined;
 }
 
 /** The look facet: how a provider's chat windows look. */
