@@ -103,9 +103,6 @@ importers:
       '@vscode/webview-ui-toolkit':
         specifier: ^1.3.1
         version: 1.4.0(react@17.0.2)
-      '@xterm/headless':
-        specifier: ^5.5.0
-        version: 5.5.0
       ajv:
         specifier: ^8.18.0
         version: 8.18.0
@@ -2316,9 +2313,6 @@ packages:
     deprecated: This package has been deprecated, https://github.com/microsoft/vscode-webview-ui-toolkit/issues/561
     peerDependencies:
       react: '>=16.9.0'
-
-  '@xterm/headless@5.5.0':
-    resolution: {integrity: sha512-5xXB7kdQlFBP82ViMJTwwEc3gKCLGKR/eoxQm4zge7GPBl86tCdI0IdPJjoKd8mUSFXz5V7i/25sfsEkP4j46g==}
 
   accepts@1.3.8:
     resolution: {integrity: sha512-PYAthTa2m2VKxuvSD3DPC/Gy+U+sOA1LAuT8mkmRuvw+NACSaeXEQ+NHcVF7rONl6qcaxV3Uuemwawk+7+SJLw==}
@@ -7968,8 +7962,6 @@ snapshots:
       '@microsoft/fast-react-wrapper': 0.3.25(react@17.0.2)
       react: 17.0.2
       tslib: 2.8.1
-
-  '@xterm/headless@5.5.0': {}
 
   accepts@1.3.8:
     dependencies:
