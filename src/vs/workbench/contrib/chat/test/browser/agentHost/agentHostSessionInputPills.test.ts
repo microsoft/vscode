@@ -30,7 +30,7 @@ import { AgentHostArtifactRemovalCapabilityMetaKey } from '../../../../../../pla
 import { AgentHostNativeImplementationMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostSessionUrisMeta.js';
 import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
 import { BackgroundWorkKind, type BackgroundShellWork } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
-import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, ChatSummary, ChildCustomization, ComponentToState, Customization, CustomizationType, FileEditKind, ResponsePartKind, RootState, SessionLifecycle, SessionState, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, Turn, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, ChatSummary, ChildCustomization, ComponentToState, Customization, CustomizationType, FileEditKind, ResponsePartKind, SessionLifecycle, SessionState, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, Turn, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
@@ -87,7 +87,6 @@ class StaticAgentConnection extends mock<IAgentConnection>() {
 	readonly removeSessionArtifactCalls: { readonly session: URI; readonly artifactId: string }[] = [];
 	readonly invokedChangesetOperations: InvokeChangesetOperationParams[] = [];
 	override readonly initializeResult;
-	override readonly rootState = upcastPartial<IAgentSubscription<RootState>>({ value: undefined, verifiedValue: undefined });
 	removeSessionArtifactError: Error | undefined;
 	invokeChangesetOperationError: ((params: InvokeChangesetOperationParams) => Error | undefined) | undefined;
 	private readonly emitters = new Map<StateComponents, Emitter<unknown>>();

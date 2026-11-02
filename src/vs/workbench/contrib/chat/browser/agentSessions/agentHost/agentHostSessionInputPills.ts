@@ -240,17 +240,6 @@ function resolutionEquals(first: IAgentHostSessionResolution | undefined, second
 		&& isEqual(first.backendSession, second.backendSession));
 }
 
-/**
- * Returns the backend session id matching `agentHost.toolInvoked`, which only VS Code agent hosts emit.
- * Other hosts advertise opaque session resources that may contain user content, so it is omitted for them.
- */
-function getTelemetryBackendSessionId(resolution: IAgentHostSessionResolution): string | undefined {
-	const root = resolution.connection.rootState.value;
-	return isNativeAgentHost(resolution.connection.initializeResult.get(), root instanceof Error ? undefined : root)
-		? AgentSession.id(resolution.backendSession)
-		: undefined;
-}
-
 function changesetTargetEquals(
 	first: { readonly changeset: Changeset; readonly resource: URI } | undefined,
 	second: { readonly changeset: Changeset; readonly resource: URI } | undefined,
@@ -1618,7 +1607,9 @@ export class AgentHostSessionInputPills extends Disposable {
 	private _openRecorded(resolution: IAgentHostSessionResolution | undefined, artifact: ISessionArtifact | undefined, open: () => void): void {
 		open();
 		if (resolution && artifact) {
-			reportSessionArtifactOpen(this._telemetryService, { surface: 'editorWindow', backendSessionId: getTelemetryBackendSessionId(resolution), kind: artifact.type, isArtifact: artifact.isArtifact, source: 'recorded' });
+			// Only VS Code agent hosts emit agentHost.toolInvoked; other hosts' session resources are opaque and may contain user content.
+			const backendSessionId = isNativeAgentHost(resolution.connection.initializeResult.get()) ? AgentSession.id(resolution.backendSession) : undefined;
+			reportSessionArtifactOpen(this._telemetryService, { surface: 'editorWindow', backendSessionId, kind: artifact.type, isArtifact: artifact.isArtifact, source: 'recorded' });
 		}
 	}
 

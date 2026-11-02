@@ -18,7 +18,7 @@ export interface ISessionArtifactOpen {
 	readonly surface: SessionArtifactOpenSurface;
 	/** SHA-1 hash of the Agents window session id. */
 	readonly agentSessionId?: string;
-	/** Backend agent host session id, as reported by agentHost.toolInvoked. Only set for VS Code agent hosts. */
+	/** Backend agent host session id, as reported by agentHost.toolInvoked. */
 	readonly backendSessionId?: string;
 	readonly kind: SessionArtifactOpenKind;
 	readonly isArtifact: boolean;
