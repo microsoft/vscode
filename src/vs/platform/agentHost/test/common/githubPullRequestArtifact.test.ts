@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { arePullRequestArtifactChecksReady, getPullRequestArtifactChecks, getPullRequestArtifactCheckState, getPullRequestArtifactThreads, gitHubPullRequestArtifactOptions, isPullRequestArtifactCheckExcluded, isPullRequestArtifactMergeable, isPullRequestArtifactReadyForReview, parseGitHubPullRequestArtifact, readGitHubPullRequestArtifactWorkspaceSettings } from '../../common/githubPullRequestArtifact.js';
+import { arePullRequestArtifactChecksReady, getPullRequestArtifactChecks, getPullRequestArtifactCheckState, getPullRequestArtifactFailedChecks, getPullRequestArtifactThreads, gitHubPullRequestArtifactOptions, isPullRequestArtifactCheckExcluded, isPullRequestArtifactMergeable, isPullRequestArtifactReadyForReview, parseGitHubPullRequestArtifact, readGitHubPullRequestArtifactWorkspaceSettings } from '../../common/githubPullRequestArtifact.js';
 import { createPullRequestArtifactSnapshot } from './githubPullRequestArtifactTestUtils.js';
 
 suite('GitHub pull request artifact rules', () => {
@@ -81,7 +81,7 @@ suite('GitHub pull request artifact rules', () => {
 			...base.checks, value: {
 				...base.checks.value!, checks: [
 					...base.checks.value!.checks,
-					{ id: 'optional', name: 'Optional / Linux', type: 'checkRun' as const, required: false, status: 'COMPLETED', conclusion: 'FAILURE' },
+					{ id: 'required', name: 'Required / Linux', type: 'checkRun' as const, required: true, status: 'COMPLETED', conclusion: 'FAILURE' },
 				]
 			}
 		};
@@ -89,22 +89,45 @@ suite('GitHub pull request artifact rules', () => {
 		const open = createPullRequestArtifactSnapshot({ checks });
 		assert.deepStrictEqual({
 			readyWithoutExclusions: isPullRequestArtifactReadyForReview(draft, []),
-			readyWithExclusions: isPullRequestArtifactReadyForReview(draft, ['Optional *']),
+			readyWithExclusions: isPullRequestArtifactReadyForReview(draft, ['Required *']),
 			autoMerge: isPullRequestArtifactMergeable(open, true),
 			manualMerge: isPullRequestArtifactMergeable(open, false),
 			checks: getPullRequestArtifactChecks(draft).map(check => check.name),
-		}, { readyWithoutExclusions: false, readyWithExclusions: true, autoMerge: false, manualMerge: true, checks: ['Build', 'Optional / Linux'] });
+		}, { readyWithoutExclusions: false, readyWithExclusions: true, autoMerge: false, manualMerge: true, checks: ['Build', 'Required / Linux'] });
+	});
+
+	test('optional checks stay visible but block neither readiness, merging, nor need a repair', () => {
+		const base = createPullRequestArtifactSnapshot();
+		const checks = {
+			...base.checks, value: {
+				...base.checks.value!, checks: [
+					...base.checks.value!.checks,
+					{ id: 'optional', name: 'Optional / Linux', type: 'checkRun' as const, required: false, status: 'COMPLETED', conclusion: 'FAILURE' },
+					{ id: 'running', name: 'Optional / macOS', type: 'checkRun' as const, required: false, status: 'IN_PROGRESS' },
+				]
+			}
+		};
+		const draft = createPullRequestArtifactSnapshot({ core: { ...base.core, value: { ...base.core.value!, draft: true } }, checks });
+		const open = createPullRequestArtifactSnapshot({ checks });
+		assert.deepStrictEqual({
+			ready: isPullRequestArtifactReadyForReview(draft, []),
+			autoMerge: isPullRequestArtifactMergeable(open, true),
+			failed: getPullRequestArtifactFailedChecks(open).map(check => check.name),
+			checks: getPullRequestArtifactChecks(draft).map(check => check.name),
+		}, { ready: true, autoMerge: true, failed: [], checks: ['Build', 'Optional / Linux', 'Optional / macOS'] });
 	});
 
 	test('incomplete, stale, or previous-head data cannot authorize readiness', () => {
 		const base = createPullRequestArtifactSnapshot();
+		// When nothing is required every check counts, so a check suite that has not reported may still add one.
+		const unprotected = { ...base.checks.value!, requiredContexts: [], checks: base.checks.value!.checks.map(check => ({ ...check, required: false })) };
 		const variants = [
 			{ ...base.checks, complete: false },
 			{ ...base.checks, status: 'stale' as const },
 			{ ...base.checks, headSha: 'previous' },
 			{ ...base.checks, value: { ...base.checks.value!, headSha: 'previous' } },
-			{ ...base.checks, value: { ...base.checks.value!, expectedSuitesComplete: false } },
-			{ ...base.checks, value: { ...base.checks.value!, expectedSuites: [{ id: 'suite', name: 'Not reported', status: 'QUEUED', checkRunsReported: false }] } },
+			{ ...base.checks, value: { ...unprotected, expectedSuitesComplete: false } },
+			{ ...base.checks, value: { ...unprotected, expectedSuites: [{ id: 'suite', name: 'Not reported', status: 'QUEUED', checkRunsReported: false }] } },
 		];
 		assert.deepStrictEqual(variants.map(checks => arePullRequestArtifactChecksReady({ ...base, checks })), variants.map(() => false));
 	});

@@ -611,11 +611,6 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 	}
 
 	private onDidChangeViewMode(): void {
-		if (this.widgetContainer && this.widget) {
-			this.widgetContainer.textContent = '';
-			this.widgetDisposables.clear();
-		}
-
 		// Save selection
 		const selection = new Set<Marker>();
 		for (const marker of this.widget.getSelection()) {
@@ -632,6 +627,11 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 			if (marker instanceof Marker || marker instanceof MarkerTableItem) {
 				focus.add(marker);
 			}
+		}
+
+		if (this.widgetContainer && this.widget) {
+			this.widgetContainer.textContent = '';
+			this.widgetDisposables.clear();
 		}
 
 		// Create new widget

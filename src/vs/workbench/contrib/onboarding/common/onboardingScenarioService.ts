@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IReader } from '../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOnboardingScenario, OnboardingOutcome } from './onboardingScenario.js';
@@ -78,6 +78,9 @@ export function getOnboardingDeveloperModeVariation(configurationService: IConfi
  */
 export interface IOnboardingScenarioService {
 	readonly _serviceBrand: undefined;
+
+	/** Whether a scenario is queued or presenting, so other onboarding surfaces can wait for it. */
+	readonly isPresenting: IObservable<boolean>;
 
 	/**
 	 * Begin watching scenario eligibility. Automatic scenarios may start as soon

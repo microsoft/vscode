@@ -9,6 +9,8 @@ import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorResourceAccessor, SideBySideEditor, isDiffEditorInput, isEditorInputWithDiffResources } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
+import { canSwitchUntitledEditor } from '../../../common/contextkeys.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
 import { EditorMatches, IEditorResolverService, isUnconfiguredUniversalOptionalEditorMatch, RegisteredEditorInfo } from '../../../services/editor/common/editorResolverService.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { fillActiveEditorSelection, IEditorGroupView } from './editor.js';
@@ -30,10 +32,14 @@ export interface IAvailableEditorTypes {
 
 /**
  * Determines the editors available for the given active editor's resource. Returns `undefined` when
- * there is nothing meaningful to switch between: no resource, only the default text editor, or an
- * exclusive editor (e.g. the hex editor).
+ * there is nothing meaningful to switch between: no resource, only the default text editor, an
+ * exclusive editor (e.g. the hex editor), or an untitled file whose contents a custom editor took
+ * over (see {@link canSwitchUntitledEditor}).
  */
-export function getAvailableEditorTypes(activeEditor: EditorInput | null | undefined, editorResolverService: IEditorResolverService, hiddenEditorIds?: readonly string[]): IAvailableEditorTypes | undefined {
+export function getAvailableEditorTypes(activeEditor: EditorInput | null | undefined, editorResolverService: IEditorResolverService, modelService: IModelService, hiddenEditorIds?: readonly string[]): IAvailableEditorTypes | undefined {
+	if (activeEditor && !canSwitchUntitledEditor(activeEditor, modelService)) {
+		return undefined;
+	}
 	const standardDiffResources = isDiffEditorInput(activeEditor) ? {
 		original: activeEditor.original.resource,
 		modified: activeEditor.modified.resource,

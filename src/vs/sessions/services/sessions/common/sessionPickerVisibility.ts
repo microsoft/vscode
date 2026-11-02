@@ -23,13 +23,19 @@ export const noSessionPickerVisibility: ISessionPickerVisibility = { workspace: 
 
 export const ISessionInputPickerVisibility = createDecorator<ISessionInputPickerVisibility>('sessionInputPickerVisibility');
 
+/** How a contributed picker opens when the composer focuses it. */
+export interface ISessionPickerFocusOptions {
+	/** The value to focus in the picker instead of the selected one, when the picker offers it. */
+	readonly focusValue?: string;
+}
+
 /** Composer-owned rendering state shared with its contributed pickers, independently of context-key scopes. */
 export interface ISessionInputPickerVisibility {
 	readonly _serviceBrand: undefined;
 	readonly visibility: IObservable<ISessionPickerVisibility>;
 	setVisible(picker: keyof ISessionPickerVisibility, visible: boolean): void;
-	registerPicker(picker: 'branch' | 'worktree' | 'sync', focus: () => void): IDisposable;
-	focusPicker(picker: 'branch' | 'worktree' | 'sync'): void;
+	registerPicker(picker: 'branch' | 'worktree' | 'sync', focus: (options?: ISessionPickerFocusOptions) => void): IDisposable;
+	focusPicker(picker: 'branch' | 'worktree' | 'sync', options?: ISessionPickerFocusOptions): void;
 }
 
 export class SessionInputPickerVisibility extends Disposable implements ISessionInputPickerVisibility {
@@ -37,9 +43,9 @@ export class SessionInputPickerVisibility extends Disposable implements ISession
 
 	private readonly _visibility = observableValue<ISessionPickerVisibility>(this, noSessionPickerVisibility);
 	readonly visibility: IObservable<ISessionPickerVisibility> = this._visibility;
-	private readonly _pickers = new Map<string, () => void>();
+	private readonly _pickers = new Map<string, (options?: ISessionPickerFocusOptions) => void>();
 
-	registerPicker(picker: 'branch' | 'worktree' | 'sync', focus: () => void): IDisposable {
+	registerPicker(picker: 'branch' | 'worktree' | 'sync', focus: (options?: ISessionPickerFocusOptions) => void): IDisposable {
 		this._pickers.set(picker, focus);
 		this.setVisible(picker, true);
 		return toDisposable(() => {
@@ -50,8 +56,8 @@ export class SessionInputPickerVisibility extends Disposable implements ISession
 		});
 	}
 
-	focusPicker(picker: 'branch' | 'worktree' | 'sync'): void {
-		this._pickers.get(picker)?.();
+	focusPicker(picker: 'branch' | 'worktree' | 'sync', options?: ISessionPickerFocusOptions): void {
+		this._pickers.get(picker)?.(options);
 	}
 
 	setVisible(picker: keyof ISessionPickerVisibility, visible: boolean): void {

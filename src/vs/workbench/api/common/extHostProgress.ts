@@ -15,6 +15,7 @@ import { INotificationSource } from '../../../platform/notification/common/notif
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { NotificationTelemetryId } from '../../../platform/notification/common/notificationTelemetry.js';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 export interface IExtHostProgress extends ExtHostProgress { }
 export const IExtHostProgress = createDecorator<IExtHostProgress>('IExtHostProgress');
@@ -33,10 +34,13 @@ export class ExtHostProgress implements ExtHostProgressShape {
 
 	async withProgress<R>(extension: IExtensionDescription, options: ProgressOptions, task: (progress: Progress<IProgressStepDto>, token: CancellationToken) => Thenable<R>): Promise<R> {
 		const handle = this._handles++;
-		const { title, location, cancellable } = options;
+		const { title, location, cancellable, notificationId } = options;
 		const source = { label: extension.displayName || extension.name, id: extension.identifier.value };
+		if (notificationId !== undefined) {
+			checkProposedApiEnabled(extension, 'notificationTelemetry');
+		}
 
-		this._proxy.$startProgress(handle, { location: ProgressLocation.from(location), title, source, cancellable }, !extension.isUnderDevelopment ? extension.identifier.value : undefined).catch(onUnexpectedExternalError);
+		this._proxy.$startProgress(handle, { location: ProgressLocation.from(location), title, source, cancellable, notificationId }, !extension.isUnderDevelopment ? extension.identifier.value : undefined).catch(onUnexpectedExternalError);
 		return this._withProgress(handle, task, !!cancellable);
 	}
 

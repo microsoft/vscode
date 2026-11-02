@@ -14,8 +14,6 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IMenuService, isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -58,7 +56,6 @@ import { Menus } from '../../../../../sessions/browser/menus.js';
 import { EmptyFileEditor } from '../../../../../sessions/contrib/editor/browser/emptyFileEditor.js';
 import '../../../../../sessions/contrib/editor/browser/emptyFileEditor.contribution.js';
 import { EmptyFileEditorInput } from '../../../../../sessions/contrib/editor/browser/emptyFileEditorInput.js';
-import { SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING } from '../../../../../sessions/common/sessionConfig.js';
 import { ChangesEmptyState } from '../../../../../sessions/contrib/changes/browser/changesEmptyState.js';
 import '../../../../../sessions/contrib/editor/electron-browser/browserEmptyState.contribution.js';
 import { FixtureKeybindingService } from '../../../../../sessions/test/browser/addTabFixtureUtils.js';
@@ -159,7 +156,6 @@ async function renderFilesEmptyState(context: ComponentFixtureContext, searchVal
 		colorTheme: theme,
 		additionalServices: registration => {
 			registerWorkbenchServices(registration);
-			registration.defineInstance(IConfigurationService, new TestConfigurationService({ [SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]: true }));
 			registration.define(IContextKeyService, ContextKeyService);
 			registration.define(IMenuService, MenuService);
 			registration.defineInstance(IAccessibleViewService, new class extends mock<IAccessibleViewService>() {

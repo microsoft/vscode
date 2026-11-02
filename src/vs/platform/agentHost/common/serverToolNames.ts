@@ -5,7 +5,7 @@
 
 /**
  * Single source of truth for the names of the session server tools (the tools
- * that let an agent list, create, message, inspect, and delete sessions/chats).
+ * that let an agent list, create, message, inspect, archive, and delete sessions/chats).
  *
  * These names are shared across layers: `common/` code surfaces them (e.g. the
  * open-session link and chat-attachment pointer) but cannot import from `node/`,
@@ -24,6 +24,7 @@ export const enum SessionServerToolName {
 	CreateSession = 'create_session',
 	CreateChat = 'create_chat',
 	RenameChat = 'rename_chat',
+	ArchiveChat = 'archive_chat',
 	SendMessage = 'send_message',
 	GetSessionContext = 'get_session_context',
 	DeleteSession = 'delete_session',

@@ -24,6 +24,7 @@ import { isAgentWorkspaceContinuationMessage } from '../../common/meta/agentWork
 import type { ISessionDatabase } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { sessionReducer } from '../../common/state/protocol/channels-session/reducer.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildChatUri, buildDefaultChatUri, ChatInteractivity, ChatOriginKind, createErrorResponsePart, customizationId, CustomizationLoadStatus, CustomizationType, isHostNoticeTurn, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, MessageKind, readMessageSystemInitiatedLabel, readSessionGitState, readSessionHasWorkspaceTransitions, readSessionWorkspaceless, ResponsePartKind, SessionStatus, TurnState, withSessionGitState, withSessionWorkspaceless, type ErrorInfo, type Message, type SessionState, type Turn } from '../../common/state/sessionState.js';
@@ -309,20 +310,11 @@ suite('SessionWorkspaceConversionService', () => {
 	}
 
 	function startTurn(stateManager: AgentHostStateManager, chat: URI, turnId = 'turn-1'): void {
-		stateManager.dispatchServerAction(chat.toString(), {
-			type: ActionType.ChatTurnStarted,
-			turnId,
-			startedAt: new Date(1).toISOString(),
-			message: { text: 'Implement the feature', origin: { kind: MessageKind.User } },
-		});
+		stateManager.dispatchServerAction(chat.toString(), chatTurnStarted(turnId, 'Implement the feature', new Date(1).toISOString()));
 	}
 
 	function completeTurn(stateManager: AgentHostStateManager, chat: URI, turnId = 'turn-1'): void {
-		stateManager.dispatchServerAction(chat.toString(), {
-			type: ActionType.ChatTurnComplete,
-			turnId,
-			duration: 1,
-		});
+		stateManager.dispatchServerAction(chat.toString(), chatTurnComplete(turnId, 1));
 	}
 
 	function completePriorTurn(stateManager: AgentHostStateManager, chat: URI): void {
@@ -2155,7 +2147,8 @@ suite('SessionWorkspaceConversionService', () => {
 		assert.strictEqual(hydrated, turns);
 	});
 
-	test.skip('restores one durable transition before provider output after service restart', async () => {
+	// Uses a SQLite database on disk, so loaded CI file systems can exceed the default timeout.
+	test('restores one durable transition before provider output after service restart', async () => {
 		const temporaryDirectory = await fs.promises.mkdtemp(join(tmpdir(), `workspace-transition-${generateUuid()}-`));
 		const databasePath = join(temporaryDirectory, 'session.db');
 		let conversionDatabase: SessionDatabase | undefined;
@@ -2245,7 +2238,7 @@ suite('SessionWorkspaceConversionService', () => {
 			await Promise.all([conversionDatabase?.close(), restoredDatabase?.close()]);
 			await fs.promises.rm(temporaryDirectory, { recursive: true, force: true });
 		}
-	});
+	}).timeout(10_000);
 
 	test('restores every persisted workspace conversion at its own turn boundary', async () => {
 		const database = new TestSessionDatabase();

@@ -28,6 +28,15 @@ export interface ICustomViewDescriptor {
 	readonly ctor: SyncDescriptor<AbstractCustomView>;
 
 	readonly actions?: ICustomViewActions;
+
+	/** Handle an unparameterized New Session action without leaving this view. */
+	readonly openNewSession?: () => Promise<void> | undefined;
+
+	/**
+	 * Whether an opening may show `state`, such as an item that still exists. History skips
+	 * openings that the view declines. Views without it accept every state.
+	 */
+	readonly acceptsState?: (state: string) => boolean;
 }
 
 /**

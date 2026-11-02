@@ -185,6 +185,11 @@
 		overflow: hidden;
 	}
 
+	/* Lays out top notices as items of the sessions content, so they can size against it. */
+	.agent-sessions-top-notices {
+		display: contents;
+	}
+
 	.agent-sessions-storage-cleanup-notice {
 		display: none;
 		flex-shrink: 0;

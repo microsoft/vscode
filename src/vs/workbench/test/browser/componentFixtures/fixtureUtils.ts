@@ -1130,6 +1130,26 @@ export async function waitForFixtureCondition(condition: () => boolean, message:
 	throw new Error(message);
 }
 
+/**
+ * Resolves once `condition` holds, re-checking it after each DOM mutation under `root`.
+ * A condition that never holds fails the render at the explorer's fixture timeout.
+ */
+export function waitForFixtureDomCondition(root: Node, condition: () => boolean, store: DisposableStore): Promise<void> {
+	if (condition()) {
+		return Promise.resolve();
+	}
+	return new Promise<void>(resolve => {
+		const observer = new MutationObserver(() => {
+			if (condition()) {
+				observer.disconnect();
+				resolve();
+			}
+		});
+		store.add(toDisposable(() => observer.disconnect()));
+		observer.observe(root, { attributes: true, characterData: true, childList: true, subtree: true });
+	});
+}
+
 const logOutsideTime = false;
 if (logOutsideTime) {
 	const loggingTimeApi = createLoggingTimeApi(realTimeApi, (name, stack, handler) => {

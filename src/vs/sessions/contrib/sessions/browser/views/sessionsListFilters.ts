@@ -9,7 +9,7 @@ import { IReader } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { getSessionApplication } from '../../../../common/sessionApplication.js';
+import { getSessionApplication, UNKNOWN_SESSION_APPLICATION_ID } from '../../../../common/sessionApplication.js';
 import { ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
 
 export type SessionFilter =
@@ -55,7 +55,11 @@ export function getSessionEnvironments(environments: readonly ISessionEnvironmen
 	return [...byId.values()].sort(compareSessionEnvironments);
 }
 
-export function getSessionFilterOptions(sessions: readonly ISession[], environments: readonly ISessionEnvironment[], reader?: IReader): ISessionFilterOption[] {
+/**
+ * The filter options for the given sessions. Only sessions the list includes, as
+ * decided by `isSessionListed`, contribute their creating applications.
+ */
+export function getSessionFilterOptions(sessions: readonly ISession[], environments: readonly ISessionEnvironment[], isSessionListed: (session: ISession, reader: IReader | undefined) => boolean, reader?: IReader): ISessionFilterOption[] {
 	const options: ISessionFilterOption[] = [
 		{ filter: { kind: 'harness', id: 'copilot' }, label: localize('harness.copilot', "Copilot"), group: '1_harnesses' },
 		{ filter: { kind: 'harness', id: 'claude' }, label: localize('harness.claude', "Claude"), group: '1_harnesses' },
@@ -71,9 +75,11 @@ export function getSessionFilterOptions(sessions: readonly ISession[], environme
 	for (const [index, environment] of ordered.entries()) {
 		const applications = new Map<string, string>();
 		for (const session of sessions) {
-			if (session.environment === environment.id && !session.isAutomation?.read(reader)) {
+			if (session.environment === environment.id && isSessionListed(session, reader)) {
 				const application = session.application.read(reader);
-				applications.set(application.id, application.label);
+				if (application.id !== UNKNOWN_SESSION_APPLICATION_ID) {
+					applications.set(application.id, application.label);
+				}
 			}
 		}
 		if (applications.size > 0 || environment.isConnected?.read(reader) !== false) {
@@ -131,9 +137,11 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 	}
 
 	matches(session: Pick<ISession, 'harness' | 'environment' | 'application'>): boolean {
+		const application = session.application.get();
 		return !this.isExcluded({ kind: 'harness', id: session.harness })
 			&& !this.isExcluded({ kind: 'environment', id: session.environment })
-			&& !this.isExcluded({ kind: 'application', environment: session.environment, id: session.application.get().id });
+			&& (application.id === UNKNOWN_SESSION_APPLICATION_ID
+				|| !this.isExcluded({ kind: 'application', environment: session.environment, id: application.id }));
 	}
 
 	capture(): () => void {

@@ -480,6 +480,11 @@ export interface IEditorGroupsContainer {
 export interface IEditorPart extends IEditorGroupsContainer {
 
 	/**
+	 * An event for when the editor part receives focus.
+	 */
+	readonly onDidFocus: Event<void>;
+
+	/**
 	 * An event for when the editor part is layed out.
 	 */
 	readonly onDidLayout: Event<IDimension>;

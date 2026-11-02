@@ -14,22 +14,11 @@
 }
 
 .empty-file-editor-content {
-	position: absolute;
-	top: 40%;
-	transform: translateY(-50%);
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	text-align: center;
 	gap: var(--vscode-spacing-size160);
-	padding: var(--vscode-spacing-size200);
-	width: min(440px, calc(100% - var(--vscode-spacing-size400)));
-}
-
-.empty-file-editor-content.has-actions {
-	position: static;
-	transform: none;
-	padding: 0;
 	width: min(320px, calc(100% - 2 * var(--vscode-spacing-size240)));
 }
 

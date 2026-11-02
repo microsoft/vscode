@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { AgentHostConfigurationSyncScope, ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
@@ -15,6 +16,9 @@ import { AgentHostArtifactIntegrationsConfigKey, AgentHostByokModelsEnabledConfi
 import { artifactToolsConfigurationProperties } from '../../common/artifactToolsConfiguration.js';
 import { ArtifactIntegrationsSettingId } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { AgentMergeConfigKey, AgentMergeSettingId } from '../../common/agentMerge.js';
+import { ChatMoveConfigKey, ChatMoveSettingId } from '../../common/agentHostChatMove.js';
+import { chatMoveConfigurationProperties } from '../../common/chatMoveConfiguration.js';
+import product from '../../../product/common/product.js';
 import { gitHubPullRequestMarkReadyIgnoredChecksSetting } from '../../common/githubPullRequestArtifact.js';
 
 const ALL_HOSTS_SETTING = 'test.agentHostSync.allHosts';
@@ -40,7 +44,7 @@ function createConfigurationService(values: Record<string, IConfigurationValue<u
 
 suite('AgentHostConfigurationSync', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	const node = {
@@ -48,6 +52,7 @@ suite('AgentHostConfigurationSync', () => {
 		type: 'object' as const,
 		properties: {
 			...artifactToolsConfigurationProperties,
+			...chatMoveConfigurationProperties,
 			[AgentMergeSettingId.Enabled]: { type: 'boolean' as const, default: false, agentHost: { key: AgentMergeConfigKey.Enabled } },
 			[ALL_HOSTS_SETTING]: {
 				type: 'boolean' as const,
@@ -245,6 +250,21 @@ suite('AgentHostConfigurationSync', () => {
 		});
 	});
 
+	test('mirrors the quality-based Move Chats default to every host while preserving explicit opt-out', () => {
+		const defaults = createConfigurationService({});
+		const disabled = createConfigurationService({ [ChatMoveSettingId.Enabled]: { userValue: false } });
+
+		assert.deepStrictEqual({
+			local: resolveAgentHostConfigurationSyncPatch(defaults, AgentHostConfigurationSyncTarget.Local)[ChatMoveConfigKey.Enabled],
+			remote: resolveAgentHostConfigurationSyncPatch(defaults, AgentHostConfigurationSyncTarget.Remote)[ChatMoveConfigKey.Enabled],
+			explicitlyDisabled: resolveAgentHostConfigurationSyncPatch(disabled, AgentHostConfigurationSyncTarget.Local)[ChatMoveConfigKey.Enabled],
+		}, {
+			local: product.quality !== 'stable',
+			remote: product.quality !== 'stable',
+			explicitlyDisabled: false,
+		});
+	});
+
 	test('applies local and ambient scopes to the corresponding host targets', () => {
 		const configurationService = createConfigurationService({
 			[ALL_HOSTS_SETTING]: { defaultValue: true },
@@ -392,19 +412,16 @@ suite('AgentHostConfigurationSync', () => {
 		const configurationService = createConfigurationService({});
 		const first = { overrides: { [HIDDEN_SETTING]: true }, source: 'first' };
 		const second = { overrides: { [HIDDEN_SETTING]: false }, source: 'second' };
-		try {
-			registry.registerDefaultConfigurations([first]);
-			const values = [getGlobalConfigurationValue(configurationService, HIDDEN_SETTING)];
-			registry.registerDefaultConfigurations([second]);
-			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
-			registry.deregisterDefaultConfigurations([second]);
-			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
-			registry.deregisterDefaultConfigurations([first]);
-			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
-			assert.deepStrictEqual(values, [false, false, false, false]);
-		} finally {
-			registry.deregisterDefaultConfigurations([first, second]);
-		}
+		store.add(toDisposable(() => registry.deregisterDefaultConfigurations([first, second])));
+		registry.registerDefaultConfigurations([first]);
+		const values = [getGlobalConfigurationValue(configurationService, HIDDEN_SETTING)];
+		registry.registerDefaultConfigurations([second]);
+		values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+		registry.deregisterDefaultConfigurations([second]);
+		values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+		registry.deregisterDefaultConfigurations([first]);
+		values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+		assert.deepStrictEqual(values, [false, false, false, false]);
 	});
 
 	test('deregistering drops mirroring entries, including for hidden settings', () => {

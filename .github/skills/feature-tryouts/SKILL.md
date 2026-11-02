@@ -207,9 +207,9 @@ Run:
 
 1. Focused unit tests.
 2. Scoped ESLint.
-3. `npm run valid-layers-check` when imports or ownership change.
-4. `npm run typecheck-client` when TypeScript scope warrants it.
-5. `npm run build-fast` whenever possible.
+3. `pnpm run valid-layers-check` when imports or ownership change.
+4. `pnpm run typecheck-client` when TypeScript scope warrants it.
+5. `pnpm run build-fast` whenever possible.
 6. A real UI flow for cross-window, scoped-target, or native-browser behavior.
 
 Clean temporary profiles, samples, logs, and processes.

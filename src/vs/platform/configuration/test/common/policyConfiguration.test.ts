@@ -10,8 +10,7 @@ import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DefaultConfiguration, PolicyConfiguration } from '../../common/configurations.js';
 import { IFileService } from '../../../files/common/files.js';
-import { FileService } from '../../../files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
@@ -147,9 +146,7 @@ suite('PolicyConfiguration', () => {
 	setup(async () => {
 		defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
 		await defaultConfiguration.initialize();
-		fileService = disposables.add(new FileService(new NullLogService()));
-		const diskFileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider(policyFile.scheme, diskFileSystemProvider));
+		fileService = createInMemoryFileService(disposables, policyFile.scheme);
 		policyService = disposables.add(new FilePolicyService(policyFile, fileService, new NullLogService()));
 		testObject = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService, new NullLogService()));
 	});
@@ -370,17 +367,14 @@ suite('PolicyConfiguration', () => {
 		};
 		const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 		registry.registerConfiguration(reference);
-		try {
-			await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ PolicyShared: false })));
-			await testObject.initialize();
-			assert.deepStrictEqual({
-				defaultValue: defaultConfiguration.configurationModel.getValue('policy.nullableReference'),
-				policyValue: testObject.configurationModel.getValue('policy.nullableReference'),
-				policyType: policyService.policyDefinitions.PolicyShared.type,
-			}, { defaultValue: null, policyValue: false, policyType: 'boolean' });
-		} finally {
-			registry.deregisterConfigurations([reference]);
-		}
+		disposables.add(toDisposable(() => registry.deregisterConfigurations([reference])));
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ PolicyShared: false })));
+		await testObject.initialize();
+		assert.deepStrictEqual({
+			defaultValue: defaultConfiguration.configurationModel.getValue('policy.nullableReference'),
+			policyValue: testObject.configurationModel.getValue('policy.nullableReference'),
+			policyType: policyService.policyDefinitions.PolicyShared.type,
+		}, { defaultValue: null, policyValue: false, policyType: 'boolean' });
 	});
 
 	test('initialize: the owner definition is authoritative; a reference only contributes the policy name', async () => {
@@ -423,19 +417,16 @@ suite('PolicyConfiguration', () => {
 			}
 		};
 
-		try {
-			const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-			Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration(ownerNode);
-			await promise;
+		disposables.add(toDisposable(() => Registry.as<IConfigurationRegistry>(Extensions.Configuration).deregisterConfigurations([ownerNode])));
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration(ownerNode);
+		await promise;
 
-			// The owner's definition (with restrictedValue) must now supersede the reference's, and
-			// both settings remain gated by the same policy value.
-			assert.strictEqual(policyService.policyDefinitions['PolicyOrphanReference']?.restrictedValue, true);
-			assert.strictEqual(testObject.configurationModel.getValue('policy.lateOwner'), false);
-			assert.strictEqual(testObject.configurationModel.getValue('policy.orphanReferenceSetting'), false);
-		} finally {
-			Registry.as<IConfigurationRegistry>(Extensions.Configuration).deregisterConfigurations([ownerNode]);
-		}
+		// The owner's definition (with restrictedValue) must now supersede the reference's, and
+		// both settings remain gated by the same policy value.
+		assert.strictEqual(policyService.policyDefinitions['PolicyOrphanReference']?.restrictedValue, true);
+		assert.strictEqual(testObject.configurationModel.getValue('policy.lateOwner'), false);
+		assert.strictEqual(testObject.configurationModel.getValue('policy.orphanReferenceSetting'), false);
 	});
 
 	test('change: deregistering the owner falls back to a surviving reference definition', async () => {

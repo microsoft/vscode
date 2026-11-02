@@ -32,6 +32,13 @@ export type ChatViewKind = 'newSession' | 'newChatInSession' | 'chat';
 export interface IChatViewOptions {
 	/** Visibility of the owning session slot, preserved across composer/preparation/transcript handoffs. */
 	readonly hostVisible?: IObservable<boolean>;
+	/** Keep the custom view hosting this composer visible while preparing its draft. */
+	readonly preserveCustomView?: boolean;
+	/** Send new-session requests without navigating away from the hosting view. */
+	readonly backgroundSend?: boolean;
+	readonly renderChatPet?: boolean;
+	/** Host only the composer, without transcript content, input interactions, or transcript view-state persistence. */
+	readonly inputOnly?: boolean;
 }
 
 export interface ISelectWorkspaceOptions {
@@ -62,8 +69,6 @@ export type WorkspaceSelectionResult = 'applied' | 'notReady' | 'preserved';
 export abstract class AbstractChatView extends Disposable implements ISerializableView {
 
 	readonly element: HTMLElement = $('.chat-view');
-	/** Content-only inset kept on each side; scrollable viewports retain the leaf's full width. */
-	protected contentInset = 0;
 
 	readonly minimumWidth = 200;
 	readonly maximumWidth = Number.POSITIVE_INFINITY;
@@ -72,6 +77,9 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 
 	private readonly _onDidChange = this._register(new Emitter<IViewSize | undefined>());
 	readonly onDidChange: Event<IViewSize | undefined> = this._onDidChange.event;
+
+	/** A user request accepted for sending or queuing from this view, identified by its originating chat. */
+	readonly onDidSubmitRequest: Event<URI> = Event.None;
 
 	/**
 	 * Lazily-created progress indicator scoped to this leaf. Mirrors how each
@@ -90,10 +98,6 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 
 	get activityBarActions(): IObservable<readonly IAction[]> {
 		return constObservable([]);
-	}
-
-	get scrollDownButtonDomNode(): HTMLElement | undefined {
-		return undefined;
 	}
 
 	/** Retain the composer while it clears a draft as part of an in-place selection change. */
@@ -126,6 +130,14 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	}
 
 	openModelComparison(): void { }
+
+	/**
+	 * Intrinsic composer content for input-only hosts to measure and observe.
+	 * Includes new-session pickers where present; ownership stays with the view.
+	 */
+	get inputContentElement(): HTMLElement | undefined {
+		return undefined;
+	}
 
 	/**
 	 * Whether the view has a visible transcript turn to retain when a remote
@@ -260,11 +272,8 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 * to the allocated dimensions and then delegates to {@link doLayout} so
 	 * subclasses can forward sizing to their hosted widget.
 	 */
-	layout(width: number, height: number, top: number, left: number, contentInset = 0): void {
+	layout(width: number, height: number, top: number, left: number): void {
 		size(this.element, width, height);
-		this.contentInset = contentInset;
-		this.element.classList.toggle('has-session-activity-bar', contentInset > 0);
-		this.element.style.setProperty('--session-activity-bar-reserved-width', `${contentInset}px`);
 		this.doLayout(width, height, top, left);
 	}
 

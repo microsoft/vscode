@@ -3,26 +3,126 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { raceCancellationError } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { disposableTimeout, raceCancellationError } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
+import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { CLOUD_SANDBOX_AGENT_PROVIDER } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { createContextSizeConfigSchemaPropertyFromLimits } from '../../../../../platform/agentHost/common/agentModelConfiguration.js';
+import { ICAPIModelBilling } from '../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { filterSessionConfigValues, isSessionConfigWritable, validateSessionConfigWrite } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { ConfigPropertySchema, SessionModelInfo } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { isAutoApprovePolicyRestricted } from '../../common/agentHostConfigPolicy.js';
+import { getChatDefaultConfiguration, isAutoApprovePolicyRestricted } from '../../common/agentHostConfigPolicy.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../common/chatSessionsService.js';
-import { ChatConfiguration, ChatDefaultPermissionLevel, IChatDefaultConfiguration } from '../../common/constants.js';
+import { ChatDefaultPermissionLevel } from '../../common/constants.js';
+import { filterConfigurationToSchema } from '../widget/input/chatModelConfigurationLogic.js';
+
+/** Maps the Cloud catalogue's named context tiers to the model configuration the host accepts. */
+export function createCloudSandboxContextTierSchema(billing: ICAPIModelBilling | undefined): ConfigPropertySchema | undefined {
+	const standard = billing?.tokenPrices?.contextMax;
+	const extended = billing?.tokenPrices?.longContext?.contextMax;
+	if (standard === undefined || extended === undefined || standard <= 0 || !Number.isFinite(standard) || !Number.isFinite(extended)) {
+		return undefined;
+	}
+	const sizes = createContextSizeConfigSchemaPropertyFromLimits(standard, extended);
+	return sizes ? { ...sizes, type: 'string', enum: ['default', 'long_context'], default: 'default' } : undefined;
+}
+
+/** Adds only the draft compatibility vocabulary; connected host schemas must never use this fallback. */
+export function withCloudSandboxDraftModelConfig(model: SessionModelInfo): SessionModelInfo {
+	if (model.provider !== CLOUD_SANDBOX_AGENT_PROVIDER || model.configSchema?.properties.contextTier || model.configSchema?.properties.contextSize) {
+		return model;
+	}
+	// TODO: Remove this draft-only fallback once the pre-session catalogue supplies host-owned model configuration.
+	return {
+		...model,
+		configSchema: {
+			type: 'object',
+			...model.configSchema,
+			properties: {
+				...model.configSchema?.properties,
+				contextTier: {
+					type: 'string',
+					title: localize('cloudSandbox.contextTier', "Context Size"),
+					enum: ['default', 'long_context'],
+					enumLabels: [localize('cloudSandbox.defaultContext', "Default"), localize('cloudSandbox.longContext', "Long context")],
+					enumDescriptions: [
+						localize('cloudSandbox.defaultContextDescription', "Use the model's standard context window. The token limit is not reported."),
+						localize('cloudSandbox.longContextDescription', "Request the larger context window. The token limit is not reported; the host must accept this choice before sending."),
+					],
+					default: 'default',
+				},
+			},
+		},
+	};
+}
+
+/** Validates draft model choices against the real host catalogue, never the client's supplemental models. */
+export async function validateCloudSandboxModelConfig(connection: IAgentConnection, modelId: string, values: Readonly<Record<string, unknown>>, token: CancellationToken): Promise<void> {
+	if (!Object.keys(values).length) {
+		return;
+	}
+	const store = new DisposableStore();
+	const cancellation = store.add(new CancellationTokenSource(token));
+	let timedOut = false;
+	store.add(disposableTimeout(() => {
+		timedOut = true;
+		cancellation.cancel();
+	}, 30_000));
+	try {
+		while (true) {
+			if (cancellation.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			const root = connection.rootState.value;
+			if (root instanceof Error) {
+				throw root;
+			}
+			const models = root?.agents.find(agent => agent.provider === CLOUD_SANDBOX_AGENT_PROVIDER)?.models;
+			if (models?.length) {
+				const model = models.find(model => model.id === modelId && model.provider === CLOUD_SANDBOX_AGENT_PROVIDER);
+				if (!model || model.policyState === 'disabled') {
+					throw new Error(localize('cloudSandbox.modelUnavailable', "The sandbox does not offer the selected model {0}. Your prompt was not sent.", modelId));
+				}
+				const schema = { properties: model.configSchema?.properties };
+				const accepted = filterConfigurationToSchema(values, schema);
+				for (const [key, value] of Object.entries(values)) {
+					if (model.configSchema?.properties[key]?.readOnly || !Object.hasOwn(accepted, key) || accepted[key] !== value) {
+						throw new Error(localize('cloudSandbox.modelOptionUnavailable', "The sandbox cannot apply the selected {0} for {1}. Your prompt was not sent.", key, model.name));
+					}
+				}
+				return;
+			}
+			const changed = Event.toPromise(connection.rootState.onDidChange);
+			try {
+				await raceCancellationError(changed, cancellation.token);
+			} finally {
+				changed.cancel();
+			}
+		}
+	} catch (error) {
+		if (timedOut) {
+			throw new Error(localize('cloudSandbox.modelConfigTimeout', "Timed out waiting for the sandbox's model configuration. Your prompt was not sent."));
+		}
+		throw error;
+	} finally {
+		store.dispose();
+	}
+}
 
 /** Cloud draft vocabulary until the provisioned host supplies its authoritative schema. */
 export function createCloudSandboxSessionConfig(configurationService: IConfigurationService): ResolveSessionConfigResult {
 	const restricted = isAutoApprovePolicyRestricted(configurationService);
 	const modes = ['interactive', 'plan', 'autopilot'];
 	const approvals = restricted ? ['manual'] : ['manual', 'assisted', 'allow-all'];
-	const defaults = configurationService.getValue<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
+	const defaults = getChatDefaultConfiguration(configurationService);
 	const approval = defaults?.approvals === ChatDefaultPermissionLevel.AllowAll ? 'allow-all' : defaults?.approvals;
 	return {
 		schema: {
@@ -44,6 +144,20 @@ export function createCloudSandboxSessionConfig(configurationService: IConfigura
 					type: 'string',
 					title: localize('cloudSandbox.approvals', "Approvals"),
 					enum: approvals,
+					enumLabels: [
+						localize('cloudSandbox.manualPermissions', "Manual permissions"),
+						...restricted ? [] : [
+							localize('cloudSandbox.assistedPermissions', "Assisted permissions"),
+							localize('cloudSandbox.allowAll', "Allow all"),
+						],
+					],
+					enumDescriptions: [
+						localize('cloudSandbox.manualPermissionsDescription', "Asks when approval settings don't apply"),
+						...restricted ? [] : [
+							localize('cloudSandbox.assistedPermissionsDescription', "Evaluates risk before running tools"),
+							localize('cloudSandbox.allowAllDescription', "Runs tool calls without asking"),
+						],
+					],
 					default: restricted ? 'manual' : 'assisted',
 				},
 			},
@@ -90,8 +204,7 @@ function cloudSandboxConfigIcon(key: string, value: string): ThemeIcon {
 }
 
 /**
- * Presents the draft vocabulary as chat session option groups, for surfaces that render
- * generic option pickers rather than Agent Host configuration chips.
+ * Stores draft selections as session options while the shared Agent Host pickers render them.
  */
 export function createCloudSandboxDraftOptionGroups(config: ResolveSessionConfigResult): IChatSessionProviderOptionGroup[] {
 	const groups: IChatSessionProviderOptionGroup[] = [];
@@ -111,6 +224,7 @@ export function createCloudSandboxDraftOptionGroups(config: ResolveSessionConfig
 		groups.push({
 			id: key,
 			name: property.title ?? key,
+			when: 'false',
 			description: property.description,
 			icon: items.find(item => item.default)?.icon,
 			items,
@@ -119,9 +233,9 @@ export function createCloudSandboxDraftOptionGroups(config: ResolveSessionConfig
 	return groups;
 }
 
-/** The draft's picks for the vocabulary in `config`, ignoring stale or foreign values. */
+/** Resolves draft picks against current defaults, ignoring stale or foreign values. */
 export function readCloudSandboxDraftConfig(options: ReadonlyMap<string, string | IChatSessionProviderOptionItem> | undefined, config: ResolveSessionConfigResult): Record<string, unknown> {
-	const values: Record<string, unknown> = {};
+	const values: Record<string, unknown> = { ...config.values };
 	for (const [key, property] of Object.entries(config.schema.properties)) {
 		const selected = options?.get(key);
 		const value = typeof selected === 'string' ? selected : selected?.id;

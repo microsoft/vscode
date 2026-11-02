@@ -841,6 +841,9 @@ class ManageHooksAction extends Action2 {
 /**
  * Helper to register the `Manage Hooks` action.
  */
-export function registerHookActions(): void {
-	registerAction2(ManageHooksAction);
+export function registerHookActions(): DisposableStore {
+	const store = new DisposableStore();
+	store.add(registerAction2(ManageHooksAction));
+
+	return store;
 }

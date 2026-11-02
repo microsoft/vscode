@@ -9,16 +9,18 @@ import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/a
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { CustomizationType, type SkillCustomization } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, type SkillCustomization } from '../../common/state/sessionState.js';
+import { McpServerStatus } from '../../common/state/protocol/state.js';
+import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
+import { hasReadableCustomizationContent } from '../../common/agentHostCustomizationUri.js';
 import { readSkillArgumentHint } from '../../common/meta/skillCustomizationMeta.js';
 import { SessionCustomizationDiscovery } from '../../node/copilot/sessionCustomizationDiscovery.js';
 
@@ -26,16 +28,14 @@ type AgentsDiscoverRequest = Parameters<CopilotClient['rpc']['agents']['discover
 
 suite('SessionCustomizationDiscovery', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: FileService;
 	let instantiationService: TestInstantiationService;
 	let workspace: URI;
 	let userHome: URI;
 
 	setup(() => {
-		fileService = disposables.add(new FileService(new NullLogService()));
-		const memFs = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider(Schemas.inMemory, memFs));
+		fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, fileService);
@@ -45,10 +45,6 @@ suite('SessionCustomizationDiscovery', () => {
 		userHome = URI.from({ scheme: Schemas.inMemory, path: '/home' });
 	});
 
-	teardown(() => {
-		disposables.clear();
-	});
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function seed(path: string, content = ''): Promise<URI> {
 		const uri = URI.from({ scheme: Schemas.inMemory, path });
@@ -61,10 +57,24 @@ suite('SessionCustomizationDiscovery', () => {
 	// on Windows too, where `URI.fsPath` yields backslashes.
 	const inMemoryPathToUri = (path: string) => URI.from({ scheme: Schemas.inMemory, path: path.replace(/\\/g, '/') });
 
+	function hookDiscoveryClient(discover: CopilotClient['rpc']['hooks']['discover']): CopilotClient {
+		return {
+			rpc: {
+				hooks: { discover },
+				mcp: { discover: async () => ({ servers: [] }) },
+				agents: { getDiscoveryPaths: async () => ({ paths: [] }), discover: async () => ({ agents: [] }) },
+				instructions: { getDiscoveryPaths: async () => ({ paths: [] }), discover: async () => ({ sources: [] }) },
+				skills: { getDiscoveryPaths: async () => ({ paths: [] }), discover: async () => ({ skills: [] }) },
+			},
+		} as unknown as CopilotClient;
+	}
+
 	test('groups discovered customizations by parent folder', async () => {
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
 		const client = {
 			rpc: {
+				hooks: { discover: async () => ({ hooks: [], warnings: [], errors: [] }) },
+				mcp: { discover: async () => ({ servers: [] }) },
 				agents: {
 					discover: async () => ({
 						agents: [
@@ -108,7 +118,8 @@ suite('SessionCustomizationDiscovery', () => {
 
 		const pluginRoot = '/home/.copilot/installed-plugins/example';
 		await seed(`${pluginRoot}/.github/plugin/plugin.json`, JSON.stringify({ name: 'example-plugin', version: '1.2.3' }));
-		const pluginAgent = await seed(`${pluginRoot}/agents/reviewer.agent.md`, '---\nname: reviewer\ndescription: Reviews changes\n---\n');
+		const pluginAgent = await seed(`${pluginRoot}/agents/reviewer.agent.md`, '---\nname: reviewer\ndescription: Reviews changes\nuser-invocable: false\ndisable-model-invocation: true\nmodel: test-model\ntools: [read, search]\n---\n');
+		await seed(`${pluginRoot}/agents/not-discovered.agent.md`, '---\nname: not-discovered\n---\n');
 		const pluginSkill = await seed(`${pluginRoot}/skills/example/SKILL.md`, '---\nname: example\ndescription: Example skill\n---\n');
 		const pluginRule = await seed(`${pluginRoot}/rules/example.instructions.md`, '---\nname: Example instruction\n---\n');
 		const builtinSkill = await seed('/runtime/skills/builtin/SKILL.md', '---\nname: builtin\n---\n');
@@ -116,10 +127,12 @@ suite('SessionCustomizationDiscovery', () => {
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
 		const client = {
 			rpc: {
+				hooks: { discover: async () => ({ hooks: [], warnings: [], errors: [] }) },
+				mcp: { discover: async () => ({ servers: [] }) },
 				agents: {
 					getDiscoveryPaths: async () => ({ paths: [] }),
 					discover: async () => ({
-						agents: [{ id: 'reviewer', name: 'reviewer', description: 'Reviews changes', path: pluginAgent.path, source: 'plugin', userInvocable: true }],
+						agents: [{ id: 'example-plugin@marketplace:reviewer', name: 'example-plugin:reviewer', description: 'Reviews changes', path: pluginAgent.path, source: 'plugin', userInvocable: false }],
 					}),
 				},
 				instructions: {
@@ -145,6 +158,13 @@ suite('SessionCustomizationDiscovery', () => {
 
 		assert.deepStrictEqual({
 			errors,
+			nativeAgents: customizations.flatMap(customization => customization.type === CustomizationType.Plugin
+				? customization.children?.filter(child => child.type === CustomizationType.Agent).map(child => ({
+					id: child.id, name: child.name, meta: child._meta,
+					disableUserInvocation: child.disableUserInvocation, disableModelInvocation: child.disableModelInvocation,
+					model: child.model, tools: child.tools,
+				})) ?? []
+				: []),
 			skillDirectories: customizations
 				.filter(customization => customization.type === CustomizationType.Directory && customization.contents === 'skill')
 				.map(customization => ({
@@ -161,6 +181,10 @@ suite('SessionCustomizationDiscovery', () => {
 				})),
 		}, {
 			errors: [],
+			nativeAgents: [{
+				id: 'example-plugin@marketplace:reviewer', name: 'reviewer', meta: { userInvocable: false },
+				disableUserInvocation: true, disableModelInvocation: true, model: 'test-model', tools: ['read', 'search'],
+			}],
 			skillDirectories: [{
 				uri: URI.from({ scheme: Schemas.inMemory, path: '/workspace/.github/skills' }).toString(),
 				children: [projectSkill.toString()],
@@ -178,6 +202,45 @@ suite('SessionCustomizationDiscovery', () => {
 		});
 	});
 
+	test('does not re-register native agents as loose files when their plugin manifest is missing', async () => {
+		const warnings: string[] = [];
+		instantiationService.stub(ILogService, new class extends NullLogService {
+			override warn(message: string): void {
+				warnings.push(message);
+			}
+		}());
+		const pluginAgent = await seed('/workspace/.github/agents/native.agent.md', '---\nname: native\n---\n');
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const client = {
+			rpc: {
+				hooks: { discover: async () => ({ hooks: [], warnings: [], errors: [] }) },
+				mcp: { discover: async () => ({ servers: [] }) },
+				agents: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({
+						agents: [{ id: 'plugin:native', name: 'native', path: pluginAgent.path, source: 'plugin' }],
+					}),
+				},
+				instructions: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({ sources: [] }),
+				},
+				skills: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({ skills: [] }),
+				},
+			},
+		} as unknown as CopilotClient;
+		const customizations = await discovery.discover(client, CancellationToken.None);
+		assert.deepStrictEqual({
+			agents: customizations.flatMap(customization => customization.children?.filter(child => child.type === CustomizationType.Agent) ?? []),
+			warned: warnings.some(message => message.includes('Could not find a plugin manifest')),
+		}, {
+			agents: [],
+			warned: true,
+		});
+	});
+
 	test('keeps plugin, workspace, and user agents in their source containers', async () => {
 		const pluginRoot = '/home/.copilot/installed-plugins/multi-agent';
 		await seed(`${pluginRoot}/.github/plugin/plugin.json`, JSON.stringify({ name: 'multi-agent-plugin', version: '1.0.0' }));
@@ -188,6 +251,8 @@ suite('SessionCustomizationDiscovery', () => {
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
 		const client = {
 			rpc: {
+				hooks: { discover: async () => ({ hooks: [], warnings: [], errors: [] }) },
+				mcp: { discover: async () => ({ servers: [] }) },
 				agents: {
 					getDiscoveryPaths: async () => ({ paths: [] }),
 					discover: async () => ({
@@ -251,13 +316,15 @@ suite('SessionCustomizationDiscovery', () => {
 		});
 	});
 
-	test('discover includes hooks from recursive and fixed hook locations', async () => {
+	test('discover does not publish hook files absent from SDK discovery', async () => {
 		await seed('/workspace/.github/hooks/pre-tool.json', '{"PreToolUse": []}');
 		await seed('/workspace/.github/copilot/settings.json', '{"hooks": {"PreToolUse": []}}');
 
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
 		const client = {
 			rpc: {
+				hooks: { discover: async () => ({ hooks: [], warnings: [], errors: [] }) },
+				mcp: { discover: async () => ({ servers: [] }) },
 				agents: {
 					getDiscoveryPaths: async () => ({ paths: [] }),
 					discover: async () => ({ agents: [] }),
@@ -284,9 +351,199 @@ suite('SessionCustomizationDiscovery', () => {
 
 		assert.deepStrictEqual(hookDirectories, [
 			{ uri: '/home/.copilot/hooks', children: [] },
-			{ uri: '/workspace/.github/copilot', children: ['/workspace/.github/copilot/settings.json'] },
-			{ uri: '/workspace/.github/hooks', children: ['/workspace/.github/hooks/pre-tool.json'] },
+			{ uri: '/workspace/.github/hooks', children: [] },
 		]);
+	});
+
+	for (const nativeRepositoryHook of [false, true]) {
+		test(`workspace hook fallback preserves SDK identities and disabled state (native repository hook: ${nativeRepositoryHook})`, async () => {
+			await seed('/workspace/.github/hooks/test.json', 'must be parsed by the SDK, not the host');
+			await seed('/workspace2/.github/hooks/secondary.json');
+			const secondWorkspace = inMemoryPathToUri('/workspace2');
+			const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace, secondWorkspace], userHome, inMemoryPathToUri));
+			const requests: Parameters<CopilotClient['rpc']['hooks']['discover']>[0][] = [];
+			const client = hookDiscoveryClient(async request => {
+				requests.push(request);
+				const hooks: Awaited<ReturnType<CopilotClient['rpc']['hooks']['discover']>>['hooks'] = [
+					{ id: 'opaque-plugin', hookType: 'sessionStart', origin: 'plugin', enabled: false },
+					{ id: 'opaque-user', hookType: 'sessionStart', origin: 'user', enabled: false },
+				];
+				if (nativeRepositoryHook || request.hookDirectories) {
+					hooks.push({ id: 'opaque-workspace', hookType: 'preToolUse', origin: nativeRepositoryHook ? 'repository' : 'user', enabled: false });
+				}
+				if (request.hookDirectories) {
+					hooks.push({ id: 'opaque-workspace', hookType: 'preToolUse', origin: 'user', enabled: true });
+				}
+				return { hooks, warnings: ['SDK warning'], errors: ['SDK partial error'] };
+			});
+			const result = await discovery.discover(client, CancellationToken.None);
+			const hooks = result.find(item => item.contents === CustomizationType.Hook && item.children?.length);
+			assert.deepStrictEqual({
+				hooks: hooks?.children?.map(hook => ({
+					id: hook.id, source: readCustomizationDiscoveryMeta(hook)?.source,
+					enabled: hook.type === CustomizationType.Hook ? hook.enabled : undefined,
+					readable: hasReadableCustomizationContent(URI.parse(hook.uri)),
+				})),
+				load: hooks?.type === CustomizationType.Directory ? hooks.load : undefined,
+				requests,
+			}, {
+				hooks: [
+					{ id: 'opaque-plugin', source: 'plugin', enabled: false, readable: false },
+					{ id: 'opaque-user', source: 'user', enabled: false, readable: false },
+					{ id: 'opaque-workspace', source: 'repository', enabled: false, readable: false },
+				],
+				load: { kind: CustomizationLoadStatus.Degraded, message: 'SDK partial error\nSDK warning' },
+				requests: [
+					{ projectPaths: [workspace.fsPath] },
+					...nativeRepositoryHook ? [] : [{ projectPaths: [workspace.fsPath], hookDirectories: [inMemoryPathToUri('/workspace/.github/hooks').fsPath] }],
+				],
+			});
+		});
+	}
+
+	test('workspace hook fallback failure preserves successful native discovery', async () => {
+		await seed('/workspace/.github/hooks/test.json');
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const client = hookDiscoveryClient(async request => {
+			if (request.hookDirectories) {
+				throw new Error('SDK fallback unavailable');
+			}
+			return { hooks: [{ id: 'native', hookType: 'sessionStart', origin: 'plugin', enabled: true }], errors: [], warnings: [] };
+		});
+		const result = await discovery.discover(client, CancellationToken.None);
+		const hooks = result.find(item => item.contents === CustomizationType.Hook && item.children?.length);
+		assert.deepStrictEqual({
+			ids: hooks?.children?.map(hook => hook.id),
+			load: hooks?.type === CustomizationType.Directory ? hooks.load : undefined,
+		}, {
+			ids: ['native'],
+			load: { kind: CustomizationLoadStatus.Degraded, message: 'Workspace hook discovery failed: SDK fallback unavailable' },
+		});
+	});
+
+	test('workspace hook fallback propagates cancellation', async () => {
+		await seed('/workspace/.github/hooks/test.json');
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const cancellation = disposables.add(new CancellationTokenSource());
+		const enteredFallback = new DeferredPromise<void>();
+		const pendingFallback = new DeferredPromise<Awaited<ReturnType<CopilotClient['rpc']['hooks']['discover']>>>();
+		const client = hookDiscoveryClient(async request => {
+			if (request.hookDirectories) {
+				await enteredFallback.complete();
+				return pendingFallback.p;
+			}
+			return { hooks: [], errors: [], warnings: [] };
+		});
+		const result = discovery.discover(client, cancellation.token);
+		await enteredFallback.p;
+		cancellation.cancel();
+		try {
+			await assert.rejects(result, CancellationError);
+		} finally {
+			await pendingFallback.complete({ hooks: [], errors: [], warnings: [] });
+		}
+	});
+
+	test('publishes hooks-only and MCP-only native contributions with SDK provenance and partial diagnostics', async () => {
+		const messages: string[] = [];
+		instantiationService.stub(ILogService, new class extends NullLogService {
+			override warn(message: string): void { messages.push(message); }
+			override error(message: string | Error): void { messages.push(String(message)); }
+		}());
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const mcpRequests: Parameters<CopilotClient['rpc']['mcp']['discover']>[0][] = [];
+		const client = {
+			rpc: {
+				agents: { getDiscoveryPaths: async () => ({ paths: [] }), discover: async () => ({ agents: [] }) },
+				instructions: { getDiscoveryPaths: async () => ({ paths: [] }), discover: async () => ({ sources: [] }) },
+				skills: { getDiscoveryPaths: async () => ({ paths: [] }), discover: async () => ({ skills: [] }) },
+				hooks: {
+					discover: async () => ({
+						hooks: [
+							{ id: 'opaque:one', hookType: 'sessionStart', origin: 'plugin', source: 'hooks-only', enabled: true },
+							{ id: 'opaque:two', hookType: 'sessionStart', origin: 'plugin', source: 'hooks-only', enabled: false },
+						],
+						warnings: ['Recovered source'], errors: ['Another source failed'],
+					})
+				},
+				mcp: {
+					discover: async (request: Parameters<CopilotClient['rpc']['mcp']['discover']>[0]) => {
+						mcpRequests.push(request);
+						return {
+							servers: [{
+								name: 'native', source: 'plugin', enabled: false,
+								effectiveSource: { kind: 'plugin', id: 'do-not-parse', editability: 'read-only', plugin: { id: 'opaque-plugin', name: 'mcp-only' }, file: { uri: 'file:///host/plugins/mcp.json' } },
+							}]
+						};
+					}
+				},
+			},
+		} as unknown as CopilotClient;
+		const customizations = await discovery.discover(client, CancellationToken.None);
+		const hooks = customizations.find(customization => customization.contents === CustomizationType.Hook && customization.children?.length);
+		const mcp = customizations.find(customization => customization.type === CustomizationType.McpServer);
+		assert.deepStrictEqual({
+			hooks: hooks?.children?.map(hook => ({ id: hook.id, name: hook.name, enabled: hook.type === CustomizationType.Hook ? hook.enabled : undefined, readable: hasReadableCustomizationContent(URI.parse(hook.uri)), provenance: readCustomizationDiscoveryMeta(hook) })),
+			load: hooks?.type === CustomizationType.Directory ? hooks.load : undefined,
+			mcp: mcp?.type === CustomizationType.McpServer ? { name: mcp.name, uri: mcp.uri, state: mcp.state, provenance: readCustomizationDiscoveryMeta(mcp) } : undefined,
+			requests: mcpRequests,
+			diagnostics: messages.filter(message => message.includes('Hook discovery:')),
+		}, {
+			hooks: [true, false].map((enabled, index) => ({
+				id: index === 0 ? 'opaque:one' : 'opaque:two', name: 'sessionStart', enabled, readable: false,
+				provenance: { source: 'plugin', sourceLabel: 'hooks-only', hookType: 'sessionStart', defaultEnabled: undefined, sourceId: undefined, pluginId: undefined },
+			})),
+			load: { kind: CustomizationLoadStatus.Degraded, message: 'Another source failed\nRecovered source' },
+			mcp: { name: 'native', uri: inMemoryPathToUri('/host/plugins/mcp.json').toString(), state: { kind: McpServerStatus.Stopped }, provenance: { source: 'plugin', sourceLabel: undefined, hookType: undefined, defaultEnabled: false, sourceId: 'do-not-parse', pluginId: 'opaque-plugin' } },
+			requests: [{ workingDirectory: workspace.fsPath, includeEffectiveSource: true }],
+			diagnostics: ['[SessionCustomizationDiscovery] Hook discovery: Recovered source', '[SessionCustomizationDiscovery] Hook discovery: Another source failed'],
+		});
+		client.rpc.hooks.discover = async () => ({ hooks: [], errors: [], warnings: [] });
+		client.rpc.mcp.discover = async () => ({ servers: [] });
+		const refreshed = await discovery.discover(client, CancellationToken.None);
+		assert.deepStrictEqual(refreshed.flatMap(customization => customization.type === CustomizationType.McpServer ? [customization.name] : customization.children?.map(child => child.name) ?? []), []);
+
+		for (const name of ['mcp-only', 'mixed']) {
+			await seed(`/host/plugins/${name}/.plugin/plugin.json`, JSON.stringify({ name }));
+			await seed(`/host/plugins/${name}/.mcp.json`, JSON.stringify({ mcpServers: { [name]: { command: 'node' } } }));
+		}
+		await seed('/host/plugins/mixed/agents/review.agent.md', '---\nname: review\n---\nReview');
+		await seed('/host/plugins/mixed/hooks/hooks.json', '{"hooks":{"sessionStart":[{"type":"command","bash":"echo hook"}]}}');
+		client.rpc.agents.discover = async () => ({ agents: [{ id: 'native-review', name: 'review', displayName: 'review', description: '', path: '/host/plugins/mixed/agents/review.agent.md', source: 'plugin' }] });
+		client.rpc.hooks.discover = async () => ({
+			hooks: [{ id: 'mixed-hook', hookType: 'sessionStart', origin: 'plugin', enabled: true, source: 'mixed' }], errors: [], warnings: [],
+		});
+		client.rpc.mcp.discover = async () => ({
+			servers: ['mcp-only', 'mixed'].map(name => ({
+				name, type: 'stdio', source: 'plugin', enabled: false,
+				effectiveSource: { kind: 'plugin', id: `opaque:${name}`, editability: 'read-only', plugin: { id: name }, file: { uri: URI.file(`/host/plugins/${name}/.mcp.json`).toString() } },
+			}))
+		});
+		const native = await discovery.discover(client, CancellationToken.None);
+		assert.deepStrictEqual(native.flatMap(item => {
+			if (item.type === CustomizationType.Plugin) {
+				return [{ name: item.name, children: item.children?.map(child => ({ name: child.name, type: child.type })) }];
+			}
+			if (item.type === CustomizationType.McpServer || item.children?.length) {
+				return [{ name: item.name, children: item.children?.map(child => ({ name: child.name, type: child.type })) }];
+			}
+			return [];
+		}), [
+			{ name: 'Copilot hooks', children: [{ name: 'sessionStart', type: CustomizationType.Hook }] },
+			{ name: 'mcp-only', children: [{ name: 'mcp-only', type: CustomizationType.McpServer }] },
+			{ name: 'mixed', children: [{ name: 'review', type: CustomizationType.Agent }, { name: 'mixed', type: CustomizationType.McpServer }] },
+		]);
+
+		client.rpc.hooks.discover = async () => { throw new Error('hooks unavailable'); };
+		client.rpc.mcp.discover = async () => { throw new Error('MCP unavailable'); };
+		const partial = await discovery.discover(client, CancellationToken.None);
+		assert.deepStrictEqual({
+			failures: partial.filter(item => item.type === CustomizationType.Directory && item.load?.kind === CustomizationLoadStatus.Error).map(item => item.type === CustomizationType.Directory && item.load),
+			agents: partial.flatMap(item => item.children?.filter(child => child.type === CustomizationType.Agent).map(child => child.id) ?? []),
+		}, {
+			failures: [{ kind: CustomizationLoadStatus.Error, message: 'hooks unavailable' }, { kind: CustomizationLoadStatus.Error, message: 'MCP unavailable' }],
+			agents: ['native-review'],
+		});
 	});
 
 	test('marks agent instruction rule sources as always apply', async () => {
@@ -296,6 +553,8 @@ suite('SessionCustomizationDiscovery', () => {
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
 		const client = {
 			rpc: {
+				hooks: { discover: async () => ({ hooks: [], warnings: [], errors: [] }) },
+				mcp: { discover: async () => ({ servers: [] }) },
 				agents: {
 					getDiscoveryPaths: async () => ({ paths: [] }),
 					discover: async () => ({ agents: [] }),
@@ -343,6 +602,8 @@ suite('SessionCustomizationDiscovery', () => {
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
 		const client = {
 			rpc: {
+				hooks: { discover: async () => ({ hooks: [], warnings: [], errors: [] }) },
+				mcp: { discover: async () => ({ servers: [] }) },
 				agents: {
 					getDiscoveryPaths: async () => ({ paths: [] }),
 					discover: async () => ({ agents: [] }),
@@ -395,6 +656,8 @@ suite('SessionCustomizationDiscovery', () => {
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
 		const client = {
 			rpc: {
+				hooks: { discover: async () => ({ hooks: [], warnings: [], errors: [] }) },
+				mcp: { discover: async () => ({ servers: [] }) },
 				agents: {
 					getDiscoveryPaths: async () => ({ paths: [{ path: '/workspace/.github/agents' }] }),
 					discover: async () => ({
@@ -444,8 +707,7 @@ suite('SessionCustomizationDiscovery', () => {
 			{ contents: 'hook', uri: '/home/.copilot/hooks', writable: true, children: [] },
 			{ contents: 'rule', uri: '/workspace', writable: false, children: ['/workspace/.github/copilot-instructions.md', '/workspace/AGENTS.md'] },
 			{ contents: 'agent', uri: '/workspace/.github/agents', writable: true, children: ['/workspace/.github/agents/foo.agent.md'] },
-			{ contents: 'hook', uri: '/workspace/.github/copilot', writable: true, children: ['/workspace/.github/copilot/settings.json'] },
-			{ contents: 'hook', uri: '/workspace/.github/hooks', writable: true, children: ['/workspace/.github/hooks/pre-tool.json'] },
+			{ contents: 'hook', uri: '/workspace/.github/hooks', writable: true, children: [] },
 			{ contents: 'rule', uri: '/workspace/.github/instructions', writable: true, children: ['/workspace/.github/instructions/baz.instructions.md'] },
 			{ contents: 'skill', uri: '/workspace/.github/skills', writable: true, children: ['/workspace/.github/skills/bar/SKILL.md'] },
 		]);
@@ -459,6 +721,8 @@ suite('SessionCustomizationDiscovery', () => {
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
 		const client = {
 			rpc: {
+				hooks: { discover: async () => ({ hooks: [], warnings: [], errors: [] }) },
+				mcp: { discover: async () => ({ servers: [] }) },
 				agents: {
 					getDiscoveryPaths: async () => ({ paths: [] }),
 					discover: async () => ({ agents: [] }),
@@ -535,6 +799,8 @@ suite('SessionCustomizationDiscovery', () => {
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
 		const client = {
 			rpc: {
+				hooks: { discover: async () => ({ hooks: [], warnings: [], errors: [] }) },
+				mcp: { discover: async () => ({ servers: [] }) },
 				agents: {
 					getDiscoveryPaths: async () => ({ paths: [] }),
 					discover: async () => ({ agents: [] }),
@@ -578,6 +844,8 @@ suite('SessionCustomizationDiscovery', () => {
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], caseVariantUserHome, inMemoryPathToUri));
 		const client = {
 			rpc: {
+				hooks: { discover: async () => ({ hooks: [], warnings: [], errors: [] }) },
+				mcp: { discover: async () => ({ servers: [] }) },
 				agents: {
 					getDiscoveryPaths: async () => ({ paths: [] }),
 					discover: async () => ({ agents: [] }),
@@ -620,6 +888,8 @@ suite('SessionCustomizationDiscovery', () => {
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
 		const client = {
 			rpc: {
+				hooks: { discover: async () => ({ hooks: [], warnings: [], errors: [] }) },
+				mcp: { discover: async () => ({ servers: [] }) },
 				agents: {
 					getDiscoveryPaths: async () => ({ paths: [] }),
 					discover: async () => ({ agents: [] }),
@@ -660,6 +930,8 @@ suite('SessionCustomizationDiscovery', () => {
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
 		const client = {
 			rpc: {
+				hooks: { discover: async () => ({ hooks: [], warnings: [], errors: [] }) },
+				mcp: { discover: async () => ({ servers: [] }) },
 				agents: {
 					getDiscoveryPaths: async () => ({ paths: [] }),
 					discover: async () => ({ agents: [] }),
@@ -725,6 +997,8 @@ suite('SessionCustomizationDiscovery', () => {
 		const agentDiscovery = new DeferredPromise<{ agents: [] }>();
 		const client = {
 			rpc: {
+				hooks: { discover: async () => ({ hooks: [], warnings: [], errors: [] }) },
+				mcp: { discover: async () => ({ servers: [] }) },
 				agents: {
 					getDiscoveryPaths: async () => ({ paths: [] }),
 					discover: () => {
@@ -766,19 +1040,24 @@ suite('SessionCustomizationDiscovery', () => {
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace, secondWorkspace], userHome, inMemoryPathToUri));
 		const client = {
 			rpc: {
+				hooks: { discover: async () => ({ hooks: [], warnings: [], errors: [] }) },
+				mcp: { discover: async () => ({ servers: [] }) },
 				agents: { getDiscoveryPaths: async () => ({ paths: [] }), discover: async () => ({ agents: [] }) },
 				instructions: { getDiscoveryPaths: async () => ({ paths: [] }), discover: async () => ({ sources: [] }) },
 				skills: { getDiscoveryPaths: async () => ({ paths: [] }), discover: async () => ({ skills: [] }) },
 			},
 		} as unknown as CopilotClient;
 
-		const hookChildren = (await discovery.discover(client, CancellationToken.None))
-			.filter(customization => customization.contents === 'hook')
-			.flatMap(customization => (customization.children ?? []).map(child => URI.parse(child.uri).path))
-			.sort();
-
-		// Hooks come only from the primary root (`/workspace`), never `/workspace2`.
-		assert.deepStrictEqual(hookChildren, ['/workspace/.github/hooks/pre-tool.json']);
+		const requests: Parameters<CopilotClient['rpc']['hooks']['discover']>[0][] = [];
+		client.rpc.hooks.discover = async request => {
+			requests.push(request);
+			return { hooks: [], warnings: [], errors: [] };
+		};
+		await discovery.discover(client, CancellationToken.None);
+		assert.deepStrictEqual(requests, [
+			{ projectPaths: [workspace.fsPath] },
+			{ projectPaths: [workspace.fsPath], hookDirectories: [inMemoryPathToUri('/workspace/.github/hooks').fsPath] },
+		]);
 	});
 
 	test('discover resolves relative instructions against their attributed project root and groups per root', async () => {
@@ -790,6 +1069,8 @@ suite('SessionCustomizationDiscovery', () => {
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace, secondWorkspace], userHome, inMemoryPathToUri));
 		const client = {
 			rpc: {
+				hooks: { discover: async () => ({ hooks: [], warnings: [], errors: [] }) },
+				mcp: { discover: async () => ({ servers: [] }) },
 				agents: { getDiscoveryPaths: async () => ({ paths: [] }), discover: async () => ({ agents: [] }) },
 				instructions: {
 					getDiscoveryPaths: async () => ({
@@ -837,6 +1118,8 @@ suite('SessionCustomizationDiscovery', () => {
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace, secondWorkspace], userHome, inMemoryPathToUri));
 		const client = {
 			rpc: {
+				hooks: { discover: async () => ({ hooks: [], warnings: [], errors: [] }) },
+				mcp: { discover: async () => ({ servers: [] }) },
 				agents: {
 					getDiscoveryPaths: async () => ({ paths: [] }),
 					discover: async (request: AgentsDiscoverRequest) => {

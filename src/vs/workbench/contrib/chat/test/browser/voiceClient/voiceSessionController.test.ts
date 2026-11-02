@@ -10,9 +10,10 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derived, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastDeepPartial, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
@@ -26,6 +27,7 @@ import { INotification, INotificationHandle, INotificationService, IPromptChoice
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestTelemetryService } from '../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -43,7 +45,7 @@ import { IVoiceToolDispatchDelegate, IVoiceToolDispatchService } from '../../../
 import { ChatRequestQueueKind, ChatSendResult, ConfirmedReason, ElicitationState, IChatConfirmation, IChatModelReference, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { derivePendingId, isPendingIdResolved, IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceDispatchResult, IVoiceFatalDisconnect, IVoiceNarrationAck, IVoiceNarrationSignal, IVoicePttStartOptions, IVoiceSessionContext, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, markPendingIdResolved, peekPendingId, VoiceConfirmationType, VoiceNarrationKind, VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
-import { IChatModel, IChatProgressResponseContent, IChatResponseModel } from '../../../common/model/chatModel.js';
+import { IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
@@ -134,6 +136,7 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	private resuming = false;
 	private reconnecting = false;
 	gptLiveByok = false;
+	override isSessionAwarenessEnabled = false;
 	gptLiveAvailability: Promise<boolean> | undefined;
 	availabilityChecks = 0;
 	connectCalls = 0;
@@ -852,16 +855,6 @@ class NoVisibleSessionCommandService extends TestCommandService {
 	}
 }
 
-class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { name: string; data: unknown }[] = [];
-
-	override publicLog2(eventName?: string, data?: unknown): void {
-		if (eventName) {
-			this.events.push({ name: eventName, data });
-		}
-	}
-}
-
 suite('VoiceSessionController', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let clock: sinon.SinonFakeTimers;
@@ -1229,19 +1222,16 @@ suite('VoiceSessionController', () => {
 
 	test('bounds a stalled availability check with the connect watchdog', async () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			const availability = new DeferredPromise<boolean>();
-			const voiceClientService = new TestVoiceClientService();
-			voiceClientService.gptLiveAvailability = availability.p;
-			const controller = createController(voiceClientService);
-			const connection = controller.connect(mainWindow);
-			await clock.tickAsync(60_000);
-			availability.complete(true);
-			await connection;
-			assert.deepStrictEqual({ connecting: controller.isConnecting.get(), connectCalls: voiceClientService.connectCalls }, { connecting: false, connectCalls: 0 });
-		} finally {
-			clock.restore();
-		}
+		store.add(toDisposable(() => clock.restore()));
+		const availability = new DeferredPromise<boolean>();
+		const voiceClientService = new TestVoiceClientService();
+		voiceClientService.gptLiveAvailability = availability.p;
+		const controller = createController(voiceClientService);
+		const connection = controller.connect(mainWindow);
+		await clock.tickAsync(60_000);
+		availability.complete(true);
+		await connection;
+		assert.deepStrictEqual({ connecting: controller.isConnecting.get(), connectCalls: voiceClientService.connectCalls }, { connecting: false, connectCalls: 0 });
 	});
 
 	test('keeps a BYOK session on a free plan when the Copilot entitlement refreshes', async () => {
@@ -2367,6 +2357,60 @@ suite('VoiceSessionController', () => {
 			},
 			containsHiddenMetadata: false,
 		});
+	});
+
+	test('includes active recent conversation and accurate background waiting state only for aware GPT Live', () => {
+		const results = [];
+		for (const [gptLive, awareness] of [[true, true], [true, false], [false, true]]) {
+			const chatService = new ControllableChatService();
+			const voiceClientService = new TestVoiceClientService();
+			voiceClientService.isSessionAwarenessEnabled = gptLive && awareness;
+			const controller = createController(voiceClientService, undefined, undefined, undefined, undefined,
+				new TestConfigurationService({ [AgentsVoiceSettingId.SessionAwareness]: awareness }), chatService);
+			const resource = URI.parse('chat-session:/recent-context');
+			const request = upcastDeepPartial<IChatRequestModel>({
+				id: 'request-context',
+				message: { text: 'Where were we?' },
+				response: {
+					isComplete: true,
+					isPendingConfirmation: observableValue('pending', undefined),
+					isIncomplete: observableValue('incomplete', false),
+					response: {
+						value: [{ kind: 'markdownContent', content: new MarkdownString('Added a briefing.') }],
+						getMarkdown: () => 'Added a briefing.',
+						getFinalResponse: () => 'Added a briefing.',
+					},
+				},
+			});
+			const model = new class extends mock<IChatModel>() {
+				override readonly sessionResource = resource;
+				override readonly title = 'Context';
+				override readonly lastMessageDate = Date.now();
+				override readonly lastRequestObs = observableValue('lastRequest', request);
+				override getRequests(): IChatRequestModel[] { return [request]; }
+			}();
+			controller.setActiveSessionShown(resource);
+			chatService.setModels([model]);
+			Reflect.set(controller, '_usingGptLiveByok', gptLive);
+			const buildContext = Reflect.get(controller, '_buildSessionContext') as () => IVoiceSessionContext;
+			const reportState = Reflect.get(controller, '_reportedAgentState') as (state: string, active: boolean) => { state: string; hideConfirmationDetail: boolean };
+			results.push({
+				gptLive, awareness,
+				turns: buildContext.call(controller).sessions[0].recent_turns,
+				background: reportState.call(controller, 'waiting_for_confirmation', false),
+			});
+		}
+		assert.deepStrictEqual(results, [{
+			gptLive: true, awareness: true,
+			turns: [{ user: 'Where were we?', assistant: 'Added a briefing.' }],
+			background: { state: 'waiting_for_confirmation', hideConfirmationDetail: false },
+		}, {
+			gptLive: true, awareness: false, turns: undefined,
+			background: { state: 'thinking', hideConfirmationDetail: true },
+		}, {
+			gptLive: false, awareness: true, turns: undefined,
+			background: { state: 'thinking', hideConfirmationDetail: true },
+		}]);
 	});
 
 	test('carries questionnaire type in session context and clears it when resolved', () => {

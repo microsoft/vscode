@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
@@ -25,6 +24,9 @@ import { GitHubIssueModelReferenceCollection, MIN_REFRESH_INTERVAL_MS } from '..
 import { GitHubApiClient } from '../../browser/githubApiClient.js';
 import { GitHubPRFetcher } from '../../browser/fetchers/githubPRFetcher.js';
 import { GitHubPRCIFetcher } from '../../browser/fetchers/githubPRCIFetcher.js';
+import { IPullRequestChecksSource } from '../../browser/fetchers/githubPRChecksSource.js';
+import { PullRequestCheck, PullRequestChecks } from '../../../../../platform/github/common/githubPullRequestService.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { computePullRequestIcon, GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubIssueState, GitHubPullRequestState, IGitHubCICheck, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequest, IGitHubPullRequestReviewThread } from '../../common/types.js';
 import { getHighestPriorityPullRequestIcon } from '../../../../services/sessions/common/session.js';
 import { PullRequestIconCache } from '../../browser/pullRequestIconCache.js';
@@ -139,7 +141,7 @@ suite('Pull Request Icons', () => {
 
 suite('GitHubPullRequestModel', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let mockFetcher: MockPRFetcher;
 	const logService = new NullLogService();
 	let iconCache: PullRequestIconCache;
@@ -148,10 +150,6 @@ suite('GitHubPullRequestModel', () => {
 		mockFetcher = new MockPRFetcher();
 		iconCache = new PullRequestIconCache(store.add(new TestStorageService()));
 	});
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('foreground refresh upgrades background work without publishing an older response', async () => {
 		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher, logService, iconCache));
@@ -365,17 +363,13 @@ suite('GitHubPullRequestModel', () => {
 
 suite('GitHubPullRequestReviewThreadsModel', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let mockFetcher: MockPRFetcher;
 	const logService = new NullLogService();
 
 	setup(() => {
 		mockFetcher = new MockPRFetcher();
 	});
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('foreground thread refresh upgrades a poll and ignores its late response', async () => {
 		const model = store.add(new GitHubPullRequestReviewThreadsModel('owner', 'repo', 1, mockFetcher, logService));
@@ -594,7 +588,7 @@ suite('GitHubPullRequestReviewThreadsModel', () => {
 
 suite('GitHubPullRequestCIModel', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let mockFetcher: MockCIFetcher;
 	let collection: TestCIReferenceCollection;
 	let storageService: TestStorageService;
@@ -611,10 +605,6 @@ suite('GitHubPullRequestCIModel', () => {
 		storageService = store.add(new TestStorageService());
 		collection = new TestCIReferenceCollection(mockFetcher as unknown as GitHubPRCIFetcher, logService, storageService);
 	});
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('foreground CI refresh upgrades a poll and ignores its late response', async () => {
 		const model = acquireModel();
@@ -645,10 +635,9 @@ suite('GitHubPullRequestCIModel', () => {
 		assert.deepStrictEqual(mockFetcher.priorities, ['visible', 'background']);
 	}));
 
-	test('initial state is empty', () => {
+	test('initial state is loading', () => {
 		const model = acquireModel();
-		assert.deepStrictEqual(model.checks.get(), []);
-		assert.strictEqual(model.overallStatus.get(), GitHubCIOverallStatus.Neutral);
+		assert.deepStrictEqual({ checks: model.checks.get(), status: model.overallStatus.get() }, { checks: [], status: GitHubCIOverallStatus.Loading });
 	});
 
 	test('acquiring with the same key returns the same model', () => {
@@ -667,15 +656,15 @@ suite('GitHubPullRequestCIModel', () => {
 		// A brand-new model instance for the same PR head commit reloads the
 		// remembered fix from storage (construct directly to bypass the
 		// reference collection's instance cache).
-		const reloadedSameCommit = store.add(new GitHubPullRequestCIModel('owner', 'repo', 1, 'sha-1', mockFetcher as unknown as GitHubPRCIFetcher, logService, storageService));
+		const reloadedSameCommit = store.add(new GitHubPullRequestCIModel('owner', 'repo', 1, 'sha-1', mockFetcher as unknown as GitHubPRCIFetcher, logService, storageService, checksSource()));
 		assert.strictEqual(reloadedSameCommit.fixRequested.get(), true);
 
 		// A new commit on the same PR: the fix should no longer be remembered.
-		const newCommit = store.add(new GitHubPullRequestCIModel('owner', 'repo', 1, 'sha-2', mockFetcher as unknown as GitHubPRCIFetcher, logService, storageService));
+		const newCommit = store.add(new GitHubPullRequestCIModel('owner', 'repo', 1, 'sha-2', mockFetcher as unknown as GitHubPRCIFetcher, logService, storageService, checksSource()));
 		assert.strictEqual(newCommit.fixRequested.get(), false);
 	});
 
-	test('refresh populates checks and computes overall status', async () => {
+	test('refresh populates the check runs, whose state stays loading until it is known which of them count', async () => {
 		const model = acquireModel();
 		mockFetcher.nextChecks = [
 			{ id: 1, name: 'build', status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Success, startedAt: undefined, completedAt: undefined, detailsUrl: undefined },
@@ -683,8 +672,107 @@ suite('GitHubPullRequestCIModel', () => {
 		];
 
 		await model.refresh();
-		assert.strictEqual(model.checks.get().length, 2);
-		assert.strictEqual(model.overallStatus.get(), GitHubCIOverallStatus.Failure);
+		assert.deepStrictEqual({ checks: model.checks.get().length, status: model.overallStatus.get() }, { checks: 2, status: GitHubCIOverallStatus.Loading });
+	});
+
+	test('counts only required checks and the checks an unreported required check waits for, once they are known', async () => {
+		const pullRequestChecks = observableValue<PullRequestChecks | undefined>('pullRequestChecks', undefined);
+		const requiredRefreshes: boolean[] = [];
+		const model = store.add(new GitHubPullRequestCIModel('owner', 'repo', 1, 'abc', mockFetcher as unknown as GitHubPRCIFetcher, logService, storageService, checksSource(pullRequestChecks, requiredRefreshes)));
+		const ciCheck = (id: number, name: string, conclusion: GitHubCheckConclusion): IGitHubCICheck => ({ id, name, status: GitHubCheckStatus.Completed, conclusion, startedAt: undefined, completedAt: undefined, detailsUrl: undefined });
+		mockFetcher.nextChecks = [ciCheck(1, 'Compile', GitHubCheckConclusion.Failure), ciCheck(2, 'Optional', GitHubCheckConclusion.Failure), ciCheck(3, 'license/cla', GitHubCheckConclusion.Success)];
+		await model.refresh();
+		await timeout(0);
+		const summarize = () => {
+			const required = model.requiredChecks.get();
+			return { status: model.overallStatus.get(), failed: required?.failed.map(check => check.name), counted: required?.checks.map(check => check.name) };
+		};
+		const loading = summarize();
+		const checks = (headSha: string, gate: PullRequestCheck[]): PullRequestChecks => ({
+			headSha, requirednessComplete: true, requiredContexts: ['PR Gate', 'license/cla'], expectedSuites: [], expectedSuitesComplete: true,
+			checks: [
+				{ id: '1', type: 'checkRun', name: 'Compile', status: 'COMPLETED', conclusion: 'FAILURE', required: false, ...(gate.length ? {} : { requiredBy: ['PR Gate'] }) },
+				{ id: '2', type: 'checkRun', name: 'Optional', status: 'COMPLETED', conclusion: 'FAILURE', required: false },
+				{ id: '3', type: 'checkRun', name: 'license/cla', status: 'COMPLETED', conclusion: 'SUCCESS', required: true },
+				...gate,
+			],
+		});
+		pullRequestChecks.set(checks('abc', []), undefined);
+		const gateNotReported = summarize();
+		pullRequestChecks.set(checks('abc', [{ id: '4', type: 'checkRun', name: 'PR Gate', status: 'COMPLETED', conclusion: 'SUCCESS', required: true }]), undefined);
+		const gatePassed = summarize();
+		pullRequestChecks.set(checks('newer-head', []), undefined);
+		const otherHead = summarize();
+		await model.refresh(true);
+
+		assert.deepStrictEqual({ loading, gateNotReported, gatePassed, otherHead, requiredRefreshes }, {
+			// The failed check runs alone tell nothing until it is known which checks count.
+			loading: { status: GitHubCIOverallStatus.Loading, failed: undefined, counted: undefined },
+			gateNotReported: { status: GitHubCIOverallStatus.Failure, failed: ['Compile'], counted: ['Compile', 'license/cla'] },
+			gatePassed: { status: GitHubCIOverallStatus.Success, failed: [], counted: ['license/cla', 'PR Gate'] },
+			otherHead: { status: GitHubCIOverallStatus.Loading, failed: undefined, counted: undefined },
+			requiredRefreshes: [false, true],
+		});
+	});
+
+	test('fails on a cancelled check run or a failed commit status, which Fix Checks then repairs', async () => {
+		const model = store.add(new GitHubPullRequestCIModel('owner', 'repo', 1, 'abc', mockFetcher as unknown as GitHubPRCIFetcher, logService, storageService, checksSource(constObservable<PullRequestChecks>({
+			headSha: 'abc', requirednessComplete: true, requiredContexts: ['Build', 'license/cla'], expectedSuites: [], expectedSuitesComplete: true,
+			checks: [
+				{ id: '1', type: 'checkRun', name: 'Build', status: 'COMPLETED', conclusion: 'CANCELLED', required: true },
+				{ id: 'SC_1', type: 'statusContext', name: 'license/cla', status: 'FAILURE', required: true },
+			],
+		}))));
+		await model.refresh();
+		await timeout(0);
+
+		assert.deepStrictEqual({ status: model.overallStatus.get(), failed: model.requiredChecks.get()?.failed.map(check => check.name) }, {
+			status: GitHubCIOverallStatus.Failure,
+			failed: ['Build', 'license/cla'],
+		});
+	});
+
+	test('rereads which checks count when the reported checks change', async () => {
+		const requiredRefreshes: boolean[] = [];
+		const model = store.add(new GitHubPullRequestCIModel('owner', 'repo', 1, 'abc', mockFetcher as unknown as GitHubPRCIFetcher, logService, storageService, checksSource(undefined, requiredRefreshes)));
+		const ciCheck = (id: number, status: GitHubCheckStatus, conclusion: GitHubCheckConclusion | undefined): IGitHubCICheck => ({ id, name: 'Compile', status, conclusion, startedAt: undefined, completedAt: undefined, detailsUrl: undefined });
+		mockFetcher.nextChecks = [ciCheck(1, GitHubCheckStatus.Completed, GitHubCheckConclusion.Failure)];
+		await model.refresh();
+		await timeout(0);
+		await model.refresh(false, { priority: 'background' });
+		const unchanged = [...requiredRefreshes];
+		mockFetcher.nextChecks = [ciCheck(2, GitHubCheckStatus.InProgress, undefined)];
+		await model.refresh(false, { priority: 'background' });
+
+		assert.deepStrictEqual({ unchanged, rerun: requiredRefreshes }, { unchanged: [false], rerun: [false, false] });
+	});
+
+	test('subscribes again on the next refresh when reading which checks count failed', async () => {
+		const pullRequestChecks: PullRequestChecks = {
+			headSha: 'abc', requirednessComplete: true, requiredContexts: ['Build'], expectedSuites: [], expectedSuitesComplete: true,
+			checks: [{ id: '1', type: 'checkRun', name: 'Build', status: 'COMPLETED', conclusion: 'FAILURE', required: true }],
+		};
+		let subscriptions = 0;
+		const source: IPullRequestChecksSource = {
+			subscribe: async () => {
+				if (subscriptions++ === 0) {
+					throw new Error('offline');
+				}
+				return { checks: constObservable(pullRequestChecks), refresh: async () => { }, dispose: () => { } };
+			},
+		};
+		const model = store.add(new GitHubPullRequestCIModel('owner', 'repo', 1, 'abc', mockFetcher as unknown as GitHubPRCIFetcher, logService, storageService, source));
+		await model.refresh();
+		await timeout(0);
+		const afterFailure = model.overallStatus.get();
+		await model.refresh(false, { priority: 'background' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ afterFailure, afterRetry: model.overallStatus.get(), subscriptions }, {
+			afterFailure: GitHubCIOverallStatus.Loading,
+			afterRetry: GitHubCIOverallStatus.Failure,
+			subscriptions: 2,
+		});
 	});
 
 	test('refresh shares an in-progress request', async () => {
@@ -794,7 +882,7 @@ suite('GitHubPullRequestCIModel', () => {
 
 suite('GitHubIssueModel', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const logService = new NullLogService();
 
 	class MockGitHubApiClient extends mock<GitHubApiClient>() {
@@ -839,10 +927,6 @@ suite('GitHubIssueModel', () => {
 	function createCollection(client: MockGitHubApiClient) {
 		return store.add(new GitHubIssueModelReferenceCollection(client, logService));
 	}
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('foreground issue refresh upgrades background work without publishing its late response', async () => {
 		const client = new MockGitHubApiClient();
@@ -982,12 +1066,19 @@ class TestCIReferenceCollection extends GitHubPullRequestCIModelReferenceCollect
 		// The base constructor instantiates a fetcher from the apiClient; pass a
 		// dummy because we override createReferencedObject below to inject the
 		// test fetcher instead.
-		super(undefined as never, logService, _testStorageService);
+		super(undefined as never, checksSource(), logService, _testStorageService);
 	}
 
 	protected override createReferencedObject(_key: string, owner: string, repo: string, prNumber: number, headSha: string): GitHubPullRequestCIModel {
-		return new GitHubPullRequestCIModel(owner, repo, prNumber, headSha, this._testFetcher, new NullLogService(), this._testStorageService);
+		return new GitHubPullRequestCIModel(owner, repo, prNumber, headSha, this._testFetcher, new NullLogService(), this._testStorageService, checksSource());
 	}
+}
+
+/** A source of the shared checks of a pull request, which reads none unless given some, recording each refresh. */
+function checksSource(checks: IObservable<PullRequestChecks | undefined> = constObservable(undefined), refreshes: boolean[] = []): IPullRequestChecksSource {
+	return {
+		subscribe: async () => ({ checks, refresh: async authoritative => { refreshes.push(authoritative); }, dispose: () => { } }),
+	};
 }
 
 function makePR(): IGitHubPullRequest {

@@ -92,9 +92,22 @@ export class Chat {
 			.waitFor({ state: 'visible' });
 	}
 
+	/**
+	 * Focuses a chat input by clicking near its bottom-right corner, past the end of its content.
+	 * Attachments can show as inline pills in the input, and clicking a pill opens its attachment
+	 * in an editor, so a click at the center could replace the active editor instead.
+	 */
+	private async clickInputPastContent(inputSelector: string): Promise<void> {
+		await this.code.waitForElement(inputSelector);
+		const box = await this.code.driver.currentPage.locator(inputSelector).first().boundingBox();
+		if (!box) {
+			throw new Error(`Chat input is not visible: ${inputSelector}`);
+		}
+		await this.code.waitAndClick(inputSelector, Math.max(box.width - 30, 1), Math.max(box.height - 5, 1));
+	}
+
 	async sendMessage(message: string): Promise<void> {
-		// Click on the chat input to focus it
-		await this.code.waitAndClick(CHAT_INPUT_EDITOR);
+		await this.clickInputPastContent(CHAT_INPUT_EDITOR);
 
 		// Wait for the editor to be focused
 		await this.waitForInputFocus();
@@ -115,7 +128,7 @@ export class Chat {
 	}
 
 	async sendEditorMessage(message: string): Promise<void> {
-		await this.code.waitAndClick(CHAT_EDITOR_INPUT_EDITOR);
+		await this.clickInputPastContent(CHAT_EDITOR_INPUT_EDITOR);
 		await this.code.waitForElement(CHAT_EDITOR_INPUT_EDITOR_FOCUSED);
 
 		// Insert via Monaco's executeEdits rather than character-by-character

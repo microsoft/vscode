@@ -101,9 +101,9 @@ class FoldingRangeAccessor implements LanguageFeatureAccessor {
 
 class DiagnosticDecorationAccessor implements LanguageFeatureAccessor {
 	readonly id = 'diagnosticsLimitInfo';
-	readonly name = nls.localize('diagnosticHighlightsStatusItem.name', "Diagnostic Highlight Status");
-	readonly label = nls.localize('status.limitedDiagnosticHighlights.short', "Diagnostic highlights");
-	readonly source = nls.localize('diagnosticHighlightsStatusItem.source', "Diagnostics");
+	readonly name = nls.localize('diagnosticHighlightsStatusItem.name', "Problems Status");
+	readonly label = nls.localize('status.limitedDiagnosticHighlights.short', "Problems");
+	readonly source = nls.localize('diagnosticHighlightsStatusItem.source', "Problems");
 
 	getLimitReporter(editor: ICodeEditor): LimitInfo | undefined {
 		return DiagnosticDecorationLimitReporter.get(editor) ?? undefined;
@@ -168,13 +168,13 @@ export class DiagnosticDecorationLimitReporter extends Disposable implements IEd
 
 	private _getLimitedMessage(limited: number | false, isMarkersSourceTruncated: boolean): string | false {
 		if (isMarkersSourceTruncated && limited !== false) {
-			return nls.localize('status.limitedDiagnosticsAndHighlights.details', "Some diagnostics are not shown, and only {0} diagnostics are highlighted in the editor for performance reasons.", limited);
+			return nls.localize('status.limitedDiagnosticsAndHighlights.details', "Some problems are not shown in the problems view, and only {0} problems are rendered in the editor for performance reasons.", limited);
 		}
 		if (isMarkersSourceTruncated) {
-			return nls.localize('status.limitedDiagnostics.details', "Some diagnostics are not shown for performance reasons.");
+			return nls.localize('status.limitedDiagnostics.details', "Some problems are not shown in the problems view for performance reasons.");
 		}
 		if (limited !== false) {
-			return nls.localize('status.limitedDiagnosticHighlights.details', "Only {0} diagnostics are highlighted in the editor for performance reasons.", limited);
+			return nls.localize('status.limitedDiagnosticHighlights.details', "Only {0} problems are rendered in the editor for performance reasons.", limited);
 		}
 		return false;
 	}

@@ -5,16 +5,21 @@
 
 import { IntervalTimer } from '../../../../../base/common/async.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { isUUID } from '../../../../../base/common/uuid.js';
-import { CloudSandboxRequestError, type CloudSandboxTaskCreationPath, type ICloudSandboxConnectOptions, type ICloudSandboxCreatedSession, type ICloudSandboxCreateSessionRequest } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { type ConnectionDiagnosticRequestKind, IConnectionDiagnosticEvent } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
+import { LRUCache } from '../../../../../base/common/map.js';
+import { generateUuid, isUUID } from '../../../../../base/common/uuid.js';
+import { CloudSandboxRequestError, cloudSandboxDiscoveryTriggers, cloudSandboxTaskCreationPaths, type CloudSandboxDiscoveryTrigger, type CloudSandboxTaskCreationPath, type ICloudSandboxConnectOptions, type ICloudSandboxCreatedSession, type ICloudSandboxCreateSessionRequest, type ICloudSandboxDiscoveryResult } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { type ConnectionDiagnosticRequestKind, IConnectionDiagnosticEvent, type IConnectionDiagnosticState } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { getConnectionTelemetryError, type ConnectionTelemetryErrorClassification, type IConnectionTelemetryError } from '../../../../../platform/agentHost/common/connectionTelemetry.js';
 import { RemoteAgentHostConnectionObserver } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { ActionType, type ActionEnvelope } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { CloudSandboxLifecycleTelemetry, type CloudSandboxLifecycleOperation, type CloudSandboxRefreshStopReason, type ICloudSandboxLifecycleContext } from './cloudSandboxLifecycleTelemetry.js';
+
+export type { CloudSandboxRefreshStopReason } from './cloudSandboxLifecycleTelemetry.js';
 
 /** The Mission Control call being reported. A closed set, so it is safe to send verbatim. */
-export type CloudSandboxRequestAction = 'connect' | 'reconnect' | 'connectSessionFeed' | 'getEnvironment' | 'listEnvironments' | 'listTasks' | 'getTask' | 'createTask' | 'reserveTask' | 'deleteTask' | 'renameTask' | 'archiveTask' | 'unarchiveTask' | 'getTaskEvents' | 'getRepository' | 'listModels' | 'mintIdentityToken' | 'sealToken';
+export type CloudSandboxRequestAction = 'connect' | 'reconnect' | 'connectSessionFeed' | 'getEnvironment' | 'listEnvironments' | 'deleteEnvironment' | 'listTasks' | 'getTask' | 'createTask' | 'reserveTask' | 'deleteTask' | 'renameTask' | 'archiveTask' | 'unarchiveTask' | 'getTaskEvents' | 'getRepository' | 'listModels' | 'mintIdentityToken' | 'sealToken';
 
 /**
  * How a Mission Control request ended, bucketed so a count is meaningful without carrying the
@@ -25,16 +30,22 @@ export type CloudSandboxRequestAction = 'connect' | 'reconnect' | 'connectSessio
  */
 export type CloudSandboxRequestOutcome = 'succeeded' | 'waking' | 'clientError' | 'serverError' | 'networkError' | 'unexpectedStatus';
 
-/** Why on-demand credential acquisition stopped. A closed set of client-side decisions. */
-export type CloudSandboxRefreshStopReason =
-	/** Mission Control rejected the request in a way that repeating cannot fix (e.g. 404). */
-	| 'permanentError'
-	/** Too many consecutive failed refreshes. */
-	| 'consecutiveFailures'
-	/** `/reconnect` kept answering "waking" during credential acquisition. */
-	| 'environmentWaking'
-	/** Refreshed tokens kept arriving already expired, or without a usable `expires_at`. */
-	| 'unusableToken';
+/**
+ * What a session feed attempt or established socket did. A closed set, so it is safe to send
+ * verbatim. `unavailable` is the server declining the feed for this account; `negotiationFailed`
+ * and `socketFailed` are retried attempts that leave the window on discovery polling meanwhile.
+ */
+export type CloudSandboxSessionFeedOutcome = 'connected' | 'unavailable' | 'negotiationFailed' | 'socketFailed' | 'disconnected' | 'invalidMessage';
+
+export interface ICloudSandboxSessionFeedTelemetryData {
+	readonly outcome: CloudSandboxSessionFeedOutcome;
+	/** Dropped sockets and failed attempts since the last healthy connection, including this failure. */
+	readonly consecutiveFailures: number;
+	/** Delay before the next automatic attempt; absent when the feed connected or stopped retrying. */
+	readonly retryDelayMs?: number;
+	/** HTTP status of a rejected negotiation request, when that caused the failure. */
+	readonly statusCode?: number;
+}
 
 export type CloudSandboxConnectionStage = 'credentials' | 'connection' | 'relay' | 'protocol' | 'authentication' | 'restoration';
 export type CloudSandboxConnectionOutcome = 'success' | 'failure' | 'cancelled';
@@ -49,7 +60,7 @@ type CloudSandboxTaskCreationClassification = {
 };
 type CloudSandboxConnectionPhase = Exclude<CloudSandboxConnectionStage, 'connection'>;
 type CloudSandboxEnvironmentOperation = 'provision' | 'resume' | 'recover' | 'attach';
-type CloudSandboxConnectionContext = Pick<ICloudSandboxConnectOptions, 'provisioningStartedAt' | 'environmentKind' | 'taskCreationPath' | 'reservationWaitMs'>;
+type CloudSandboxConnectionContext = Pick<ICloudSandboxConnectOptions, 'provisioningStartedAt' | 'environmentKind' | 'taskCreationPath' | 'reservationWaitMs'> & Partial<Pick<ICloudSandboxConnectOptions, 'environmentId' | 'sessionId'>>;
 
 export function getCloudSandboxConnectionSurface(isSessionsWindow: boolean, isWeb: boolean): CloudSandboxConnectionSurface {
 	return isSessionsWindow ? (isWeb ? 'agentsWeb' : 'agentsDesktop') : (isWeb ? 'editorWeb' : 'editorDesktop');
@@ -63,16 +74,7 @@ export function getCloudSandboxTaskCreationPath(request: ICloudSandboxCreateSess
 }
 
 function normalizeTaskCreationPath(value: CloudSandboxTaskCreationPath | undefined): CloudSandboxTaskCreationPath {
-	switch (value) {
-		case 'newEnvironment':
-		case 'existingEnvironment':
-		case 'reservationClaimed':
-		case 'reservationFallback':
-		case 'reservationUnconfirmed':
-			return value;
-		default:
-			return 'unknown';
-	}
+	return cloudSandboxTaskCreationPaths.find(path => path === value) ?? 'unknown';
 }
 
 export interface ICloudSandboxConnectionTelemetry extends IDisposable {
@@ -82,6 +84,8 @@ export interface ICloudSandboxConnectionTelemetry extends IDisposable {
 	recordReceivedFrame(): void;
 	createRequestObserver(): (event: 'issued' | 'waking') => void;
 	recordConnectionDiagnostic(event: IConnectionDiagnosticEvent): void;
+	setConnectionId(connectionId: string): void;
+	recordSessionAction(envelope: ActionEnvelope, state?: IConnectionDiagnosticState): void;
 }
 
 export const ICloudSandboxTelemetryService = createDecorator<ICloudSandboxTelemetryService>('cloudSandboxTelemetryService');
@@ -95,6 +99,7 @@ export const ICloudSandboxTelemetryService = createDecorator<ICloudSandboxTeleme
  */
 export interface ICloudSandboxTelemetryService {
 	readonly _serviceBrand: undefined;
+	readonly lifecycle: CloudSandboxLifecycleTelemetry;
 
 	/**
 	 * Record how a Mission Control request ended.
@@ -105,13 +110,19 @@ export interface ICloudSandboxTelemetryService {
 	 */
 	reportRequest(action: CloudSandboxRequestAction, outcome: CloudSandboxRequestOutcome): void;
 
+	/** Reports one completed discovery attempt, including partial, failed and cancelled scans. */
+	reportDiscovery(data: ICloudSandboxDiscoveryTelemetryData): void;
+
 	/** Report client-observed task/VM provisioning separately from connecting to the returned environment. */
 	reportProvisioningOutcome(outcome: CloudSandboxConnectionOutcome, durationMs: number, taskCreationPath?: CloudSandboxTaskCreationPath): void;
 
 	/** Report a permanent rejection or exhausted credential retry budget; token expiry does not close an established socket. */
 	reportCredentialRefreshStopped(reason: CloudSandboxRefreshStopReason, consecutiveFailures: number, error?: unknown): void;
 
-	/** Track one logical connection, including retries and subsequent outages. No identity is recorded. */
+	/** Report a session feed transition: connections after a gap, failed attempts with their retry delay, and give-ups that leave the window on discovery polling. */
+	reportSessionFeed(data: ICloudSandboxSessionFeedTelemetryData): void;
+
+	/** Track a logical connection; aggregate metrics stay separate from ID-correlated lifecycle observations. */
 	trackConnection(stage: CloudSandboxConnectionStage, surface?: CloudSandboxConnectionSurface, source?: CloudSandboxConnectionSource, context?: CloudSandboxConnectionContext): ICloudSandboxConnectionTelemetry;
 }
 
@@ -127,6 +138,8 @@ const nullConnectionTelemetry: ICloudSandboxConnectionTelemetry = {
 	recordReceivedFrame() { },
 	createRequestObserver: () => () => { },
 	recordConnectionDiagnostic() { },
+	setConnectionId() { },
+	recordSessionAction() { },
 	dispose() { },
 };
 
@@ -164,6 +177,7 @@ function emptyCounts(): RequestCounts {
 
 export class CloudSandboxTelemetryService extends Disposable implements ICloudSandboxTelemetryService {
 	declare readonly _serviceBrand: undefined;
+	readonly lifecycle: CloudSandboxLifecycleTelemetry;
 
 	private readonly _counts = new Map<CloudSandboxRequestAction, RequestCounts>();
 	private readonly _reportTimer = this._register(new IntervalTimer());
@@ -176,6 +190,7 @@ export class CloudSandboxTelemetryService extends Disposable implements ICloudSa
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
+		this.lifecycle = new CloudSandboxLifecycleTelemetry(_telemetryService);
 		// Report whatever has accumulated rather than losing the last window on shutdown.
 		this._register({ dispose: () => this.flushRequestCounts() });
 		this._register({
@@ -213,7 +228,16 @@ export class CloudSandboxTelemetryService extends Disposable implements ICloudSa
 				this._connectionReportTimer.cancel();
 			}
 			this._reportConnectionHealth(counts);
+		}, context?.environmentId && context.environmentKind !== 'user-local' ? this.lifecycle : undefined, {
+			environmentId: context?.environmentId,
+			taskCreationPath: normalizeTaskCreationPath(context?.taskCreationPath),
 		});
+		if (context?.environmentId && context.sessionId && context.environmentKind !== 'user-local') {
+			this.lifecycle.record({
+				phase: 'binding', outcome: 'observed', operationId: generateUuid(),
+				environmentId: context.environmentId, agentSessionId: context.sessionId,
+			});
+		}
 		this._connections.add(connection);
 		if (this._connections.size === 1) {
 			this._connectionReportTimer.cancelAndSet(() => this.flushConnectionHealth(), CONNECTION_REPORT_INTERVAL_MS);
@@ -266,6 +290,24 @@ export class CloudSandboxTelemetryService extends Disposable implements ICloudSa
 		counts[outcome]++;
 	}
 
+	reportDiscovery(data: ICloudSandboxDiscoveryTelemetryData): void {
+		const modes = ['full', 'incremental', 'targeted'] as const;
+		const outcomes = ['complete', 'incremental', 'partial', 'failed', 'cancelled'] as const;
+		this._telemetryService.publicLog2<CloudSandboxDiscoveryEvent, CloudSandboxDiscoveryClassification>('cloudSandboxDiscovery', {
+			trigger: cloudSandboxDiscoveryTriggers.find(trigger => trigger === data.trigger) ?? 'unknown',
+			requestedMode: modes.find(mode => mode === data.requestedMode) ?? 'unknown',
+			mode: modes.find(mode => mode === data.mode) ?? 'unknown',
+			outcome: outcomes.find(outcome => outcome === data.outcome) ?? 'unknown',
+			durationMs: data.durationMs,
+			pageCount: data.pageCount,
+			listRequestCount: data.listRequestCount,
+			taskCount: data.taskCount,
+			sandboxTaskCount: data.sandboxTaskCount,
+			changedSandboxTaskCount: data.changedSandboxTaskCount,
+			checkpointAdvanced: data.checkpointAdvanced,
+		});
+	}
+
 	reportProvisioningOutcome(outcome: CloudSandboxConnectionOutcome, durationMs: number, taskCreationPath: CloudSandboxTaskCreationPath = 'unknown'): void {
 		this._telemetryService.publicLog2<CloudSandboxProvisioningOutcomeEvent, CloudSandboxProvisioningOutcomeClassification>(
 			'cloudSandboxProvisioningOutcome', { outcome, durationMs, taskCreationPath: normalizeTaskCreationPath(taskCreationPath) },
@@ -279,6 +321,18 @@ export class CloudSandboxTelemetryService extends Disposable implements ICloudSa
 				reason,
 				consecutiveFailures,
 				statusCode: error instanceof CloudSandboxRequestError ? error.statusCode : undefined,
+			},
+		);
+	}
+
+	reportSessionFeed(data: ICloudSandboxSessionFeedTelemetryData): void {
+		this._telemetryService.publicLog2<CloudSandboxSessionFeedEvent, CloudSandboxSessionFeedClassification>(
+			'cloudSandboxSessionFeed',
+			{
+				outcome: data.outcome,
+				consecutiveFailures: data.consecutiveFailures,
+				retryDelayMs: data.retryDelayMs,
+				statusCode: data.statusCode,
 			},
 		);
 	}
@@ -328,6 +382,9 @@ interface IConnectionOperation {
 }
 
 class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandboxConnectionTelemetry {
+	private _lifecycleOperation: CloudSandboxLifecycleOperation | undefined;
+	private readonly _chatSessions = new LRUCache<string, string>(1024);
+	private readonly _lifecycleActions = new LRUCache<string, boolean>(1024);
 	private _operation: IConnectionOperation | undefined;
 	private readonly _requests = new Map<'protocol.firstSessionRequest' | 'protocol.sessionOpen', {
 		readonly id: string;
@@ -354,9 +411,12 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 		private readonly _reportFirstRequest: (event: CloudSandboxFirstSessionRequestEvent) => void,
 		private readonly _reportSessionOpen: (event: CloudSandboxFirstSessionRequestEvent) => void,
 		private readonly _onDispose: () => void,
+		private readonly _lifecycle?: CloudSandboxLifecycleTelemetry,
+		private _lifecycleContext: ICloudSandboxLifecycleContext = {},
 	) {
 		super();
 		this._operation = this._newOperation('connect', stage, provisioningStartedAt, reservationWaitMs);
+		this._lifecycleOperation = this._lifecycle?.start('connection.connect', this._lifecycleContext);
 		if (stage === 'credentials') {
 			this._operation.phases.set('credentials', { id: 'initial', startedAt: this._operation.startedAt });
 		}
@@ -429,7 +489,9 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 				if (this._connectedSince !== undefined) {
 					this._pauseConnectedTime();
 					this._counts.unexpectedDisconnects++;
+					this._lifecycle?.record({ ...this._lifecycleContext, phase: 'connection.closed', operationId: generateUuid(), outcome: 'observed' });
 					this._operation = this._newOperation('recover', 'connection');
+					this._lifecycleOperation = this._lifecycle?.start('connection.recover', this._lifecycleContext);
 				}
 				break;
 			case 'failed':
@@ -470,6 +532,13 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 		if (this._store.isDisposed) {
 			return;
 		}
+		if (event.phase === 'chat.binding' && event.sessionResource && event.chatResource) {
+			this._chatSessions.set(event.chatResource, event.sessionResource);
+		}
+		this._lifecycle?.recordDiagnostic({
+			...event,
+			sessionResource: event.sessionResource ?? (event.chatResource ? this._chatSessions.get(event.chatResource) : undefined),
+		}, { ...this._lifecycleContext, parentOperationId: this._lifecycleOperation?.id });
 		if (event.phase === 'protocol.firstSessionRequest' || event.phase === 'protocol.sessionOpen') {
 			if (event.phase === 'protocol.sessionOpen' && this._environmentKind !== 'user-local') {
 				return;
@@ -520,6 +589,55 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 				operation.stage = enclosingPhase;
 			}
 		}
+	}
+
+	setConnectionId(connectionId: string): void {
+		this._lifecycleContext = { ...this._lifecycleContext, connectionId };
+	}
+
+	recordSessionAction(envelope: ActionEnvelope, state?: IConnectionDiagnosticState): void {
+		if (!this._lifecycle || this._store.isDisposed) {
+			return;
+		}
+		const action = envelope.action;
+		if (action.type === ActionType.SessionChatAdded && !envelope.rejectionReason) {
+			this._chatSessions.set(action.summary.resource, envelope.channel);
+			this._lifecycle.record({
+				...this._lifecycleContext, ...state, phase: 'chat.binding', outcome: 'observed', operationId: generateUuid(),
+				agentSessionId: envelope.channel, chatId: action.summary.resource,
+			});
+			return;
+		}
+		if (action.type === ActionType.SessionChatRemoved && !envelope.rejectionReason) {
+			this._chatSessions.delete(action.chat);
+			return;
+		}
+		if (action.type !== ActionType.SessionReady && action.type !== ActionType.SessionCreationFailed
+			&& action.type !== ActionType.ChatTurnStarted && action.type !== ActionType.ChatTurnComplete
+			&& action.type !== ActionType.ChatTurnCancelled && action.type !== ActionType.ChatError) {
+			return;
+		}
+		const sessionAction = action.type === ActionType.SessionReady || action.type === ActionType.SessionCreationFailed;
+		const turnId = sessionAction ? undefined : action.turnId;
+		const key = `${envelope.serverSeq}:${envelope.channel}:${action.type}:${turnId ?? ''}`;
+		if (this._lifecycleActions.has(key)) {
+			return;
+		}
+		this._lifecycleActions.set(key, true);
+		this._lifecycle.record({
+			...this._lifecycleContext, ...state, operationId: generateUuid(),
+			phase: sessionAction ? 'session.ready' : action.type === ActionType.ChatTurnStarted ? 'turn.accepted' : 'turn.complete',
+			outcome: envelope.rejectionReason ? 'rejected'
+				: action.type === ActionType.SessionCreationFailed || action.type === ActionType.ChatError ? 'failed'
+					: action.type === ActionType.ChatTurnCancelled ? 'cancelled' : 'observed',
+			agentSessionId: sessionAction ? envelope.channel : this._chatSessions.get(envelope.channel),
+			chatId: sessionAction ? undefined : envelope.channel,
+			requestId: turnId,
+			failurePoint: envelope.rejectionReason ? sessionAction ? 'session.rejected' : 'turn.rejected' : action.type === ActionType.SessionCreationFailed ? 'session.hostError' : action.type === ActionType.ChatError ? 'turn.hostError' : undefined,
+			hostErrorType: action.type === ActionType.SessionCreationFailed ? action.error.errorType : action.type === ActionType.ChatError ? action.part.error.errorType : undefined,
+			hostCanResume: action.type === ActionType.ChatError ? action.part.resumable : undefined,
+			error: action.type === ActionType.SessionCreationFailed ? action.error : action.type === ActionType.ChatError ? action.part.error : undefined,
+		});
 	}
 
 	private _diagnosticPhase(phase: string): CloudSandboxConnectionPhase | undefined {
@@ -601,6 +719,8 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 			return;
 		}
 		this._operation = undefined;
+		this._lifecycleOperation?.complete(outcome === 'success' ? 'succeeded' : outcome === 'failure' ? 'failed' : 'cancelled', this._lifecycleContext);
+		this._lifecycleOperation = undefined;
 		for (const phase of operation.phases.keys()) {
 			this._finishPhase(operation, phase);
 		}
@@ -634,6 +754,9 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 		this._pauseConnectedTime();
 		this._complete('cancelled');
 		this._completeRequests('cancelled');
+		this._lifecycle?.record({ ...this._lifecycleContext, phase: 'connection.disposed', operationId: generateUuid(), outcome: 'observed' });
+		this._chatSessions.clear();
+		this._lifecycleActions.clear();
 		super.dispose();
 		this._onDispose();
 	}
@@ -763,6 +886,42 @@ export type CloudSandboxConnectionHealthClassification = CloudSandboxEnvironment
 	comment: 'Delta cloud sandbox or user-local relay connection exposure, unexpected losses and receive load, aggregated every five minutes with a final teardown flush.';
 };
 
+export interface ICloudSandboxDiscoveryTelemetryData {
+	trigger: CloudSandboxDiscoveryTrigger | 'unknown';
+	requestedMode: 'full' | 'incremental' | 'targeted';
+	mode: 'full' | 'incremental' | 'targeted';
+	outcome: ICloudSandboxDiscoveryResult['kind'] | 'cancelled';
+	durationMs: number;
+	pageCount: number;
+	listRequestCount: number;
+	taskCount: number;
+	sandboxTaskCount: number;
+	changedSandboxTaskCount: number;
+	checkpointAdvanced: boolean;
+}
+
+type CloudSandboxDiscoveryEvent = Omit<ICloudSandboxDiscoveryTelemetryData, 'requestedMode' | 'mode' | 'outcome'> & {
+	requestedMode: ICloudSandboxDiscoveryTelemetryData['requestedMode'] | 'unknown';
+	mode: ICloudSandboxDiscoveryTelemetryData['mode'] | 'unknown';
+	outcome: ICloudSandboxDiscoveryTelemetryData['outcome'] | 'unknown';
+};
+
+export type CloudSandboxDiscoveryClassification = {
+	owner: 'osortega';
+	comment: 'Measures the cause, cost and outcome of one cloud sandbox discovery attempt without task content or identifiers.';
+	trigger: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded reason that initiated the discovery attempt.' };
+	requestedMode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Mode requested at the discovery API boundary, before falling back when no incremental checkpoint exists.' };
+	mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Actual full, incremental or targeted API read.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Discovery result, including partial results and cancellation; HTTP success alone is not discovery success.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Elapsed client time for this discovery attempt.' };
+	pageCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Task-list responses parsed with a tasks array, including empty arrays; not a count of unique backend pages.' };
+	listRequestCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Task-list HTTP attempts issued, including retries and subsequently cancelled requests.' };
+	taskCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Unique task IDs returned by list pages or targeted reads, excluding cached tasks revisited locally.' };
+	sandboxTaskCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Unique returned tasks identified as sandbox tasks.' };
+	changedSandboxTaskCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Returned sandbox task summaries absent from or different from the client cache at scan start; not an authoritative server change count.' };
+	checkpointAdvanced: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether this attempt initialized or advanced the committed incremental checkpoint.' };
+};
+
 type CloudSandboxRequestsEvent = {
 	action: string;
 	windowMs: number;
@@ -776,7 +935,7 @@ type CloudSandboxRequestsEvent = {
 };
 
 type CloudSandboxRequestsClassification = {
-	action: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Which Mission Control operation was counted, including identity-token acquisition and sealing, model discovery, task operations, and environment connections.' };
+	action: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Which Mission Control operation was counted, including identity-token acquisition and sealing, model discovery, task operations, and environment connections and deletion.' };
 	windowMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds covered by these counts.' };
 	total: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Requests issued for this action during the window.' };
 	succeeded: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Requests that returned a success status.' };
@@ -801,4 +960,20 @@ type CloudSandboxRefreshStoppedClassification = {
 	statusCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'HTTP status that caused a permanent stop, when the stop was caused by a rejected request.' };
 	owner: 'osortega';
 	comment: 'Reports that credential refresh for a cloud sandbox connection stopped, so unrecoverable sandbox sessions can be distinguished from transient failures.';
+};
+
+type CloudSandboxSessionFeedEvent = {
+	outcome: string;
+	consecutiveFailures: number;
+	retryDelayMs: number | undefined;
+	statusCode: number | undefined;
+};
+
+type CloudSandboxSessionFeedClassification = {
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'What happened: connected after a gap, unavailable for the account, a failed negotiation or socket handshake, a dropped socket, or an invalid feed message.' };
+	consecutiveFailures: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Dropped sockets and failed attempts since the last healthy connection, including this failure; for a connection, the failures the retries recovered from.' };
+	retryDelayMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds until the next automatic attempt; absent when the feed connected or stopped retrying.' };
+	statusCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'HTTP status of a rejected negotiation request, when that caused the failure.' };
+	owner: 'osortega';
+	comment: 'Reports cloud sandbox session feed connections, failures and retries, so windows left on discovery polling can be told apart from windows receiving push updates.';
 };

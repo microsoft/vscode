@@ -83,7 +83,7 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 			return;
 		}
 		const additionalAction = this._getVisibleAdditionalAction();
-		if (this._folderSessionTypes.length <= 1 && this._pickServedByFolder(this._picked) && !additionalAction) {
+		if (this._isHiddenPeerChatPicker() || (this._folderSessionTypes.length <= 1 && this._pickServedByFolder(this._picked) && !additionalAction)) {
 			return;
 		}
 
@@ -144,7 +144,7 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		try {
 			const id = await showMobilePickerSheet(
 				this.layoutService.mainContainer,
-				localize('mobileSessionTypePicker.title', "Session Type"),
+				this._options?.peerChat ? localize('mobileSessionTypePicker.peerChatTitle', "Harness for New Chat") : localize('mobileSessionTypePicker.title', "Session Type"),
 				sheetItems,
 			);
 			trigger.setAttribute('aria-expanded', 'false');

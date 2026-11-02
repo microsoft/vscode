@@ -57,6 +57,12 @@ export const Menus = {
 
 	/** Header actions of the Automations custom view. */
 	CustomViewAutomations: new MenuId('SessionsCustomViewAutomations'),
+	/** Header actions of the pinned canvas page. */
+	CustomViewCanvas: new MenuId('SessionsCustomViewCanvas'),
+	/** Context menu of a pinned canvas row in the sidebar. */
+	SidebarCanvasContext: new MenuId('SessionsSidebarCanvasContext'),
+	/** Hover toolbar of a pinned canvas row in the sidebar. */
+	SidebarCanvasToolbar: new MenuId('SessionsSidebarCanvasToolbar'),
 	/** Context menu for the Automations sidebar shortcut. */
 	AutomationsContext: new MenuId('SessionsAutomationsContext'),
 	/** Context menu actions for an Automation definition card. */
@@ -87,6 +93,10 @@ export const Menus = {
 	SessionChatBackgroundContext: new MenuId('SessionsSessionChatBackgroundContext'),
 	SessionItemToolbar: new MenuId('SessionItemToolbar'),
 	SessionItemSettings: new MenuId('SessionsSessionItemSettings'),
+	/** Context menu of a section header in the Sessions list. The list merges its own section actions into these groups. */
+	SessionSectionContext: new MenuId('SessionsSessionSectionContext'),
+	/** Context menu of a custom or comparison group header in the Sessions list. The list merges its own group actions into these groups. */
+	SessionGroupContext: new MenuId('SessionsSessionGroupContext'),
 	SessionsEditorHeaderPrimary: new MenuId('SessionsEditorHeaderPrimary'),
 	SessionsEditorHeaderLayout: new MenuId('SessionsEditorHeaderLayout'),
 	SessionsEditorTitle: new MenuId('SessionsEditorTitle'),

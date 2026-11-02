@@ -4,14 +4,126 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { Separator } from '../../../../../../../base/common/actions.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
+import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { URI } from '../../../../../../../base/common/uri.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { IMarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
-import { ChatCustomConfirmationWidget, type IChatConfirmationButton } from '../../../../browser/widget/chatContentParts/chatConfirmationWidget.js';
+import { ChatCustomConfirmationWidget, ChatQueryTitlePart, type IChatConfirmationButton } from '../../../../browser/widget/chatContentParts/chatConfirmationWidget.js';
 import type { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
+import { ChatTerminalToolExplanation } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolExplanation.js';
+import { IChatSideChatService } from '../../../../common/chatSideChatService.js';
+
+suite('ChatTerminalToolExplanation', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the current command and originating turn, disabling repeated requests while pending', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const pending = new DeferredPromise<void>();
+		const ask = sinon.spy(() => pending.p);
+		instantiationService.stub(IChatSideChatService, { canAskInSideChat: () => true, askInSideChat: ask });
+		let command = 'original';
+		const resource = URI.parse('test:///secondary');
+		const explanation = store.add(instantiationService.createInstance(ChatTerminalToolExplanation, resource, 'turn', () => command));
+		const disabled: boolean[] = [];
+		store.add(explanation.button!.onDidChangeDisablement!(value => disabled.push(value)));
+		command = '  edited command  ';
+		const first = explanation.explain();
+		await explanation.explain();
+		const disabledWhilePending = explanation.button!.disabled;
+		await pending.complete();
+		await first;
+		assert.deepStrictEqual({
+			calls: ask.getCalls().map(call => call.args),
+			disabled, disabledWhilePending, disabledAfter: explanation.button!.disabled,
+		}, {
+			calls: [[resource, 'Explain what this terminal command will do.', { text: 'edited command' }, { sourceTurnId: 'turn' }]],
+			disabled: [true, false], disabledWhilePending: true, disabledAfter: false,
+		});
+	});
+
+	test('omits unsupported explanations and reports failures without leaving the action disabled', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		let supported = false;
+		instantiationService.stub(IChatSideChatService, { canAskInSideChat: () => supported, askInSideChat: async () => { throw new Error('Unavailable'); } });
+		const error = sinon.spy();
+		instantiationService.stub(INotificationService, 'error', error);
+		const explanation = store.add(instantiationService.createInstance(ChatTerminalToolExplanation, URI.parse('test:///chat'), undefined, () => 'command'));
+		const unsupported = explanation.button;
+		supported = true;
+		await explanation.explain();
+		assert.deepStrictEqual({ unsupported, disabled: explanation.button!.disabled, errors: error.getCalls().map(call => call.args[0]) }, {
+			unsupported: undefined, disabled: false, errors: ['The side chat could not be started: Unavailable'],
+		});
+	});
+});
+
+suite('ChatQueryTitlePart', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
+
+	test('renders plain tool titles without the markdown pipeline', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const render = sinon.spy(instantiationService.get(IMarkdownRendererService), 'render');
+		const titles: string[] = [];
+		for (let i = 0; i < 200; i++) {
+			const container = document.createElement('div');
+			const title = `<tool-${i}> **literal** [details] $(check)`;
+			store.add(instantiationService.createInstance(ChatQueryTitlePart, container, title, undefined, undefined));
+			titles.push(container.textContent?.replace(/\u00a0/g, ' ') ?? '');
+			assert.strictEqual(container.querySelector('a, img, strong, .codicon'), null);
+		}
+		assert.deepStrictEqual({ markdownRenders: render.callCount, first: titles[0], last: titles[199] }, {
+			markdownRenders: 0,
+			first: '<tool-0> **literal** [details] $(check)',
+			last: '<tool-199> **literal** [details] $(check)',
+		});
+	});
+
+	test('keeps markdown titles on the sanitized rendering path', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const render = sinon.spy(instantiationService.get(IMarkdownRendererService), 'render');
+		const container = document.createElement('div');
+		const title = new MarkdownString('Read **file** [details](https://example.com)<script>alert(1)</script>');
+		const part = store.add(instantiationService.createInstance(ChatQueryTitlePart, container, title, undefined, undefined));
+		const formatted = !!container.querySelector('strong');
+		const unsafe = !!container.querySelector('script');
+		part.title = 'Done';
+		assert.deepStrictEqual({ formatted, unsafe, text: container.textContent, markdownRenders: render.callCount }, {
+			formatted: true, unsafe: false, text: 'Done', markdownRenders: 1,
+		});
+	});
+
+	test('preserves the markup of escaped plain text, links, and multiline titles', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const renderer = instantiationService.get(IMarkdownRendererService);
+		for (const text of ['', 'Read file.ts', '  spaced\ttext  ', '<img src=x onerror=alert(1)> **literal** $(check)', '&copy; &amp;', 'Visit https://example.com', 'Contact test@example.com', 'First line\nSecond line', 'x'.repeat(100_001)]) {
+			const expected = store.add(renderer.render(new MarkdownString('', { supportThemeIcons: true }).appendText(text)));
+			const container = document.createElement('div');
+			store.add(instantiationService.createInstance(ChatQueryTitlePart, container, text, undefined, undefined));
+			assert.strictEqual(container.firstElementChild?.outerHTML, expected.element.outerHTML, text.slice(0, 100));
+		}
+	});
+
+	test('applies initial markdown options without rendering the title twice', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const render = sinon.spy(instantiationService.get(IMarkdownRendererService), 'render');
+		const container = document.createElement('div');
+		store.add(instantiationService.createInstance(ChatQueryTitlePart, container, new MarkdownString('Visit https://example.com'), undefined, {
+			markdownRenderOptions: { markedOptions: { gfm: false } },
+		}));
+		assert.deepStrictEqual({ markdownRenders: render.callCount, hasLink: !!container.querySelector('a') }, {
+			markdownRenders: 1, hasLink: false,
+		});
+	});
+});
 
 suite('ChatCustomConfirmationWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

@@ -21,7 +21,7 @@ The generated protocol includes the Changesets model:
 ## Updating generated protocol types
 
 1. Update the source files in the sibling `agent-host-protocol` repo.
-2. Run `npx tsx scripts/sync-agent-host-protocol.ts` from the VS Code repo.
+2. Run `pnpm dlx tsx scripts/sync-agent-host-protocol.ts` from the VS Code repo.
 3. If VS Code consumers need short aliases or type guards, update the wrapper files in this directory after the sync.
 4. Compile. The generated registry catches missing action/notification version map entries.
 

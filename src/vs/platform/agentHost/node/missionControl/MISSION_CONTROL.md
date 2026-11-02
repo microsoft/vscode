@@ -28,6 +28,16 @@ Backend tests supply `IMissionControlOptions` directly to `MissionControlEnviron
 
 The backend setting's experimental feature tag does not restrict availability to development builds.
 
+### Disable mirrored repository metadata
+
+Set the unregistered, default-off `chat.agentHost.experimentalMissionControl.disableRepositoryMetadata` setting to `true` in the host owner's local User settings to skip repository resolution and omit the `project` field from newly registered mirrored sessions. Application user settings also apply; workspace, workspace-folder, remote-user, and default values cannot enable it. Session actions and SDK metadata continue to be mirrored, and local AHP project identity and the environment's project catalogue are unchanged.
+
+```json
+"chat.agentHost.experimentalMissionControl.disableRepositoryMetadata": true
+```
+
+Changes apply to subsequent mirror registrations without disconnecting clients. A mirrored session's project identity is immutable, including for backfill; changing the setting does not rewrite sessions already registered in the running host or remove metadata already published to Mission Control. Restart the Agent Host and use a new session when comparing the two behaviors.
+
 ## Environment identity, name and ownership
 
 The registered name is `VS Code`, `VS Code Insiders`, or `VS Code OSS`; other product variants use their product short name. The same host-owned name is sent on registration and every heartbeat. This display label is not identity.
@@ -75,6 +85,8 @@ Live relay identity expires at the deadline returned by GitHub in `GitHub-Authen
 Remote owner access includes native sessions, tools, and granted workspace resources. Credentials are sealed before WPS publication using either NaCl sealed boxes or HPKE (X25519 / HKDF-SHA256 / AES-256-GCM). The host advertises independent keys for each algorithm and for each of the `auth-token` and `mcp-auth-token` purposes, allowing clients such as iOS to use HPKE while sealed-box clients remain compatible. Recipient keys come from authenticated MC HTTPS rather than being trusted solely because they appeared in the relay. Private sealing keys stay host-local. Sealing alone does not establish per-client/session credential sponsorship, OS confinement, or conversation end-to-end encryption.
 
 Clients must authenticate the relay identity after each handshake before requesting session content or mutations, independently of agent-provider authentication. Unauthenticated protected requests return `AuthRequired` with standard `data.resources` identifying the configured GitHub identity authority, including hosts without a Copilot provider. Owner-validated identity authentication can establish lane identity even without provider acceptance. Scoped protected execution additionally requires a credential-capable provider and its required resource credentials; provider/MCP resource authentication is not implied by owner identity.
+
+VS Code renews an expired user-local relay identity through the connection's account-bound identity-token service, without requiring provider-discovery metadata in the expiry notification. Other protected resources retain their normal authentication-provider recovery. After identity renewal, the client restores open state subscriptions and filesystem watches on the existing transport. Filesystem authentication failures remain unavailable errors rather than being reported as missing files.
 
 Same-owner credential renewal before the current GitHub-reported deadline preserves in-flight requests and subscriptions. Expiry or a new handshake invalidates previously admitted work, even after successful reauthentication. Renewal checks the previous deadline before replacing it, so delayed expiry timers cannot hide a lapse.
 
@@ -218,7 +230,7 @@ At most one new `userLocalRelaySessionOpen` outcome is emitted per ready user-lo
 
 Source files live alongside these documents. [MissionControlHost](./missionControlHost.ts) is an entry-owned DI adapter for native services, handler lifetime and authoritative mirror wiring. [MissionControlEnvironment](./missionControlEnvironment.ts) owns registration/recovery through a named host-options contract; it has no second runtime service graph.
 
-Registration and heartbeat request construction are separate methods. Local management IPC is distinct from AHP; host-management extension methods remain unavailable to relay clients. The same `ProtocolServerHandler` owns session operations on both local and relay transports.
+Registration and heartbeat request construction are separate methods. Local management IPC is distinct from AHP; host-management extension methods remain unavailable to relay clients. Each relay gets its own `ProtocolServerHandler` instance with Mission Control projections, separate from local handlers but sharing the state manager.
 
 ## Validation boundaries
 

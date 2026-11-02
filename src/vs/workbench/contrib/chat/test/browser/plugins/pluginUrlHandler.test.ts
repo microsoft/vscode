@@ -78,6 +78,7 @@ suite('PluginUrlHandler', () => {
 
 		const managementProvider: ICustomizationMarketplaceManagementProvider = {
 			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => {
 				fail('list');
 				return options.existingMarketplaceSource ? [{

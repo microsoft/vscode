@@ -1322,6 +1322,7 @@ suite('mapSessionEvents — history replay', () => {
 	for (const scheme of ['copilot', 'ahp-session']) {
 		test(`restores MCP app data for completed tool calls on ${scheme} resources`, async () => {
 			const structuredContent = { titleId: 'example-title', branding: null };
+			const mcpResultMeta = { ui: { private: [null, false, 0] }, toolKind: 'server-owned' };
 			const events: ISessionEvent[] = [
 				{ type: 'user.message', data: { interactionId: 'm1', content: 'call an MCP app tool' } },
 				{
@@ -1361,7 +1362,7 @@ suite('mapSessionEvents — history replay', () => {
 					data: {
 						toolCallId: 'tc-1',
 						success: true,
-						result: { content: 'Opened the accent-color editor.', structuredContent },
+						result: { content: 'Opened the accent-color editor.', structuredContent, mcpResultMeta },
 					},
 				},
 			];
@@ -1378,6 +1379,7 @@ suite('mapSessionEvents — history replay', () => {
 				contributor: part.toolCall.contributor,
 				meta: readToolCallMeta(part.toolCall),
 				structuredContent: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.structuredContent : undefined,
+				resultMetadata: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.resultMetadata : undefined,
 			}, {
 				contributor: {
 					kind: ToolCallContributorKind.MCP,
@@ -1392,6 +1394,7 @@ suite('mapSessionEvents — history replay', () => {
 					},
 				},
 				structuredContent,
+				resultMetadata: mcpResultMeta,
 			});
 		});
 	}

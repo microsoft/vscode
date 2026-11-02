@@ -17,6 +17,8 @@ import { NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
 
 export class ChangesEmptyState extends Disposable {
+	private readonly emptyStateLayout: SessionsEmptyStateLayout;
+
 	constructor(
 		container: HTMLElement,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -29,7 +31,11 @@ export class ChangesEmptyState extends Disposable {
 			ariaLabel: localize('changes.emptyActions', "Changes actions"),
 			telemetrySource: 'changes.emptyState',
 		}));
-		this._register(new SessionsEmptyStateLayout(container, [content], actions));
+		this.emptyStateLayout = this._register(new SessionsEmptyStateLayout(container, [content], actions));
+	}
+
+	layout(): void {
+		this.emptyStateLayout.layout();
 	}
 }
 

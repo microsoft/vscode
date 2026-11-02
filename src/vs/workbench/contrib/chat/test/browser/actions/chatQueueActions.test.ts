@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { getActiveDocument } from '../../../../../../base/browser/dom.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { OS } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -36,7 +36,7 @@ registerChatQueueActions();
 
 suite('Queue/Steer keybinding resolution', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function buildResolverForCommands(commandIds: string[]): KeybindingResolver {
 		const items: ResolvedKeybindingItem[] = [];
@@ -72,20 +72,14 @@ suite('Queue/Steer keybinding resolution', () => {
 
 	test('with default=steer, Enter steers and Alt+Enter queues', () => {
 		const { result, dispose } = lookupForConfig('steer');
-		try {
-			assert.deepStrictEqual(result, { queue: 'alt+Enter', steer: 'Enter' });
-		} finally {
-			dispose();
-		}
+		disposables.add(toDisposable(() => dispose()));
+		assert.deepStrictEqual(result, { queue: 'alt+Enter', steer: 'Enter' });
 	});
 
 	test('with default=queue, Enter queues and Alt+Enter steers', () => {
 		const { result, dispose } = lookupForConfig('queue');
-		try {
-			assert.deepStrictEqual(result, { queue: 'Enter', steer: 'alt+Enter' });
-		} finally {
-			dispose();
-		}
+		disposables.add(toDisposable(() => dispose()));
+		assert.deepStrictEqual(result, { queue: 'Enter', steer: 'alt+Enter' });
 	});
 
 	test('preparation disables Enter and Alt+Enter queueing for either default', () => {

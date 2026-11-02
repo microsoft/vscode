@@ -1272,10 +1272,7 @@ Mapping that to the IAgent lifecycle:
 | Forked session (`forkSession` already wrote the file) | Yes | `resume: <forkedSessionId>` — SDK resumes the on-disk transcript |
 | Restored / imported session (already on disk from a prior process) | Yes | `resume: <sessionId>` |
 
-The agent must track "is this session id backed by an on-disk file
-yet?" across its provisional/materialize lifecycle so it picks the
-correct field. The fork path flips the bit at `forkSession` return
-time; the fresh path flips it at `query({ sessionId })` return time.
+Rebuilds preserve fresh mode until the pipeline receives `system/init`; starting a warm subprocess alone does not establish a resumable conversation. Forked and restored chats retain resume mode even when rebuilt before their first send in the current process. Configuration changes during startup must therefore select resume mode using both the materialization context and the pipeline's initialization state.
 
 #### Fork sub-flow
 

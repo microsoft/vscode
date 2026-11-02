@@ -19,20 +19,11 @@ import { IHoverService } from '../../../hover/browser/hover.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { TestTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { WorkbenchButtonBar, type IButtonConfigProvider } from '../../browser/buttonbar.js';
 
 const SPINNER_SELECTOR = '.monaco-pixel-spinner';
-
-class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data: unknown }[] = [];
-
-	override publicLog2(eventName?: string, data?: unknown): void {
-		if (eventName) {
-			this.events.push({ name: eventName, data });
-		}
-	}
-}
 
 suite('WorkbenchButtonBar', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

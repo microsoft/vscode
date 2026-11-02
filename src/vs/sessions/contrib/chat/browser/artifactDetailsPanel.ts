@@ -82,6 +82,7 @@ export class ArtifactDetailsPanel extends Disposable {
 	}
 
 	private update(data: IArtifactDetailsViewData): void {
+		this.element.setAttribute('aria-busy', String(data.loading));
 		this.titleLabel.textContent = data.title;
 		this.titleLink.link = { label: this.titleLabel, href: data.resource };
 		this.title.setAttribute('aria-description', data.titleDescription);

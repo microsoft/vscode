@@ -15,6 +15,8 @@ import { ChatSessionArchiveActionWording } from '../../../../../platform/chat/co
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -62,6 +64,7 @@ suite('Sessions - Bulk archive undo', () => {
 			override async confirm() { return { confirmed: state.confirmed }; }
 		});
 		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		const managementService = new class extends mock<ISessionsManagementService>() {
 			override readonly onDidChangeSessions = sessionsChanged.event;
 			override readonly onDidArchiveSession = sessionArchived.event;
@@ -316,6 +319,7 @@ suite('Sessions - Bulk archive undo', () => {
 
 					const harness = createListHarness(store, test.managementService.getSessions(), instantiationService => {
 						instantiationService.stub(IStorageService, test.storageService);
+						instantiationService.stub(IConfigurationService, new TestConfigurationService());
 						instantiationService.stub(ISessionsManagementService, test.managementService);
 						instantiationService.stub(ISessionGroupsService, test.groupsService);
 						instantiationService.stub(ISessionsListModelService, test.listModel);
@@ -439,6 +443,7 @@ suite('Sessions - Delete group undo', () => {
 		const storageService = store.add(new InMemoryStorageService());
 		const sessions = ['ship', 'fix', 'other'].map(id => createTestSession(id).session);
 		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override readonly onDidChangeSessions = Event.None;
 			override readonly onDidArchiveSession = Event.None;
