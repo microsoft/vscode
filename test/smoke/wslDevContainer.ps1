@@ -251,27 +251,30 @@ if ($wslPath.ExitCode -ne 0 -or $linuxArchive -notmatch '^/mnt/[a-z]/[a-zA-Z0-9/
 }
 # From the Azure-hosted agents, archive.ubuntu.com and security.ubuntu.com are at times so slow that apt runs past this
 # command's timeout, so apt uses the Azure Ubuntu mirror, and retries downloads that fail.
-# The Azure mirror is usually fast (the package download takes 2-17 seconds), but a connection to it can fail or crawl
-# for minutes. apt has no minimum transfer speed and ignores index files it could not fetch, so the index update and
-# the package download are each bounded and retried on fresh connections. A retried download resumes partial files.
+# The Azure mirror usually serves the 80 MB of packages in 2-17 seconds, but its package files can come at only about
+# 250 KB/s for minutes (its index files stay fast), and the mirror is at times unreachable. apt has no minimum transfer
+# speed and only warns about index files it could not fetch, so the index update fails on any fetch error, and each
+# step is bounded and retried. A retried download keeps the packages it completed and resumes the partial one, so a
+# slow mirror still makes progress across attempts.
 $aptPackages = 'ca-certificates curl git iproute2 procps docker.io libatomic1 libkrb5-3'
 Invoke-Wsl @"
 export DEBIAN_FRONTEND=noninteractive
 sed -i -e 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' -e 's|http://security.ubuntu.com|http://azure.archive.ubuntu.com|g' /etc/apt/sources.list
 echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries
 apt_bounded() {
-	seconds=`$1
-	shift
-	for attempt in 1 2 3; do
+	attempts=`$1
+	seconds=`$2
+	shift 2
+	for attempt in `$(seq 1 "`$attempts"); do
 		if timeout --kill-after=10 "`$seconds" "`$@"; then
 			return 0
 		fi
-		echo "Attempt `$attempt of 3 failed or ran past `$seconds seconds: `$*" >&2
+		echo "Attempt `$attempt of `$attempts failed or ran past `$seconds seconds: `$*" >&2
 	done
 	return 1
 }
-apt_bounded 60 apt-get update --error-on=any
-apt_bounded 100 apt-get install -y --download-only --no-install-recommends $aptPackages
+apt_bounded 3 45 apt-get update --error-on=any
+apt_bounded 5 90 apt-get install -y --download-only --no-install-recommends $aptPackages
 apt-get install -y --no-install-recommends $aptPackages
 mkdir -p /opt/vscode-smoke-server
 tar -xzf '$linuxArchive' --strip-components=1 -C /opt/vscode-smoke-server
@@ -280,7 +283,7 @@ test -f /opt/vscode-smoke-server/out/bootstrap-fork.js
 useradd --create-home --shell /bin/bash vscode-smoke
 usermod -aG docker vscode-smoke
 printf '[user]\ndefault=vscode-smoke\n' > /etc/wsl.conf
-"@ 600
+"@ 720
 if ((Invoke-WslExe -ArgumentList '--terminate', $Distribution).ExitCode -ne 0) {
 	throw 'Failed to restart the owned distribution to apply its non-root default user.'
 }
