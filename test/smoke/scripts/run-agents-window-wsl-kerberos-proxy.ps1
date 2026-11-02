@@ -690,11 +690,13 @@ chown "`$WSL_USER" "`$WSL_ROOT" "`$WSL_ROOT"/*.* "`$WSL_ROOT/hosts" "`$WSL_ROOT/
 
 	$smokeArguments = @('run', 'smoketest-no-compile', '--tracing', '-g', $SmokeTestGrep, '--fail-zero') + $SmokeTestArguments
 	$netOnlyScript = Join-Path $TempRoot 'netonly.ps1'
+	# A JDK on the PATH, as on CI agents, has its own klist.
+	$klist = Join-Path $env:SystemRoot 'System32\klist.exe'
 	[IO.File]::WriteAllText($netOnlyScript, @"
 `$ErrorActionPreference = 'Continue'
 Set-Location $(ConvertTo-PowerShellLiteral $RepositoryRoot)
 Write-Output 'Kerberos ticket for $ServicePrincipal from the $Realm KDC:'
-klist get $ServicePrincipal
+& $(ConvertTo-PowerShellLiteral $klist) get $ServicePrincipal
 if (`$LASTEXITCODE -ne 0) {
 	Write-Output 'Windows could not obtain a Kerberos ticket for $ServicePrincipal with the $Realm credentials.'
 	exit 1
