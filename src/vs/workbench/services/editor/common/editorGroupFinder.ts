@@ -8,7 +8,7 @@ import { EditorActivation } from '../../../../platform/editor/common/editor.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { EditorInputWithOptions, isEditorInputWithOptions, IUntypedEditorInput, isEditorInput, EditorInputCapabilities } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { IEditorGroup, GroupsOrder, preferredSideBySideGroupDirection, IEditorGroupsService, IModalEditorPart } from './editorGroupsService.js';
+import { IEditorGroup, GroupsOrder, preferredSideBySideGroupDirection, IEditorGroupsService, IModalEditorPart, IEditorGroupsContainer } from './editorGroupsService.js';
 import { AUX_WINDOW_GROUP, AUX_WINDOW_GROUP_TYPE, MODAL_GROUP, MODAL_GROUP_TYPE, PreferredGroup, SIDE_GROUP, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from './editorService.js';
 
 type FindGroupResult = Promise<[IEditorGroup, EditorActivation | undefined]> | [IEditorGroup, EditorActivation | undefined];
@@ -24,12 +24,17 @@ export function findGroup(accessor: ServicesAccessor, editor: EditorInputWithOpt
 export function findGroup(accessor: ServicesAccessor, editor: IUntypedEditorInput, preferredGroup: AUX_WINDOW_GROUP_TYPE | MODAL_GROUP_TYPE): Promise<[IEditorGroup, EditorActivation | undefined]>;
 export function findGroup(accessor: ServicesAccessor, editor: EditorInputWithOptions, preferredGroup: AUX_WINDOW_GROUP_TYPE | MODAL_GROUP_TYPE): Promise<[IEditorGroup, EditorActivation | undefined]>;
 export function findGroup(accessor: ServicesAccessor, editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: AUX_WINDOW_GROUP_TYPE | MODAL_GROUP_TYPE): Promise<[IEditorGroup, EditorActivation | undefined]>;
-export function findGroup(accessor: ServicesAccessor, editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): FindGroupResult;
-export function findGroup(accessor: ServicesAccessor, editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): FindGroupResult {
+export function findGroup(accessor: ServicesAccessor, editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined, groupsContainer?: IEditorGroupsContainer): FindGroupResult;
+/**
+ * @param groupsContainer the groups that an open without a specific group
+ * (the active group or to the side) resolves against, such as the groups of
+ * one editor part. Defaults to all groups.
+ */
+export function findGroup(accessor: ServicesAccessor, editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined, groupsContainer?: IEditorGroupsContainer): FindGroupResult {
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const configurationService = accessor.get(IConfigurationService);
 
-	const group = doFindGroup(editor, preferredGroup, editorGroupService, configurationService);
+	const group = doFindGroup(editor, preferredGroup, editorGroupService, groupsContainer ?? editorGroupService, configurationService);
 	if (group instanceof Promise) {
 		return group.then(group => handleGroupResult(group, editor, preferredGroup, editorGroupService, configurationService));
 	}
@@ -98,7 +103,7 @@ function handleGroupActivation(group: IEditorGroup, editor: EditorInputWithOptio
 	return [group, activation];
 }
 
-function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined, editorGroupService: IEditorGroupsService, configurationService: IConfigurationService): Promise<IEditorGroup> | IEditorGroup {
+function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined, editorGroupService: IEditorGroupsService, groupsContainer: IEditorGroupsContainer, configurationService: IConfigurationService): Promise<IEditorGroup> | IEditorGroup {
 	let group: Promise<IEditorGroup> | IEditorGroup | undefined;
 	const editor = isEditorInputWithOptions(input) ? input.editor : input;
 	const options = input.options;
@@ -124,11 +129,11 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 	else if (preferredGroup === SIDE_GROUP) {
 		const direction = preferredSideBySideGroupDirection(configurationService);
 
-		let candidateGroup = editorGroupService.findGroup({ direction });
+		let candidateGroup = groupsContainer.findGroup({ direction });
 		if (!candidateGroup || isGroupLockedForEditor(candidateGroup, editor)) {
 			// Create new group either when the candidate group
 			// is locked or was not found in the direction
-			candidateGroup = editorGroupService.addGroup(editorGroupService.activeGroup, direction);
+			candidateGroup = groupsContainer.addGroup(groupsContainer.activeGroup, direction);
 		}
 
 		group = candidateGroup;
@@ -200,13 +205,13 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 	// Fallback to active group if target not valid but avoid
 	// locked editor groups unless editor is already opened there
 	if (!group) {
-		let candidateGroup = editorGroupService.activeGroup;
+		let candidateGroup = groupsContainer.activeGroup;
 
 		// Locked group: find the next non-locked group
 		// going up the neigbours of the group or create
 		// a new group otherwise
 		if (isGroupLockedForEditor(candidateGroup, editor)) {
-			for (const group of editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+			for (const group of groupsContainer.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
 				if (isGroupLockedForEditor(group, editor)) {
 					continue;
 				}
@@ -218,7 +223,7 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 			if (isGroupLockedForEditor(candidateGroup, editor)) {
 				// Group is still locked, so we have to create a new
 				// group to the side of the candidate group
-				group = editorGroupService.addGroup(candidateGroup, preferredSideBySideGroupDirection(configurationService));
+				group = groupsContainer.addGroup(candidateGroup, preferredSideBySideGroupDirection(configurationService));
 			} else {
 				group = candidateGroup;
 			}
