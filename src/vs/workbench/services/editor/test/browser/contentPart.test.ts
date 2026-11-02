@@ -173,7 +173,7 @@ suite('Content Part', () => {
 		part.close();
 	});
 
-	test('the first part of a window is its main part: the active part when focus is in no part', async () => {
+	test('the first part created in a window is its main part', async () => {
 		const parts = await createServices();
 		const iframe = mainWindow.document.body.appendChild(mainWindow.document.createElement('iframe'));
 		disposables.add({ dispose: () => iframe.remove() });
@@ -185,10 +185,11 @@ suite('Content Part', () => {
 		const first = parts.createEditorPart({ container: containerIn(otherWindow) });
 		const second = parts.createEditorPart({ container: containerIn(otherWindow) });
 		disposables.add({ dispose: () => { second.close(); first.close(); } });
-		second.activeGroup.focus();
 
-		assert.ok(sameAs(parts.getPart(containerIn(otherWindow)), first));
+		assert.deepStrictEqual({ otherWindow: sameAs(parts.getWindowMainPart(4343), first), mainWindow: parts.getWindowMainPart(mainWindow.vscodeWindowId) === parts.mainPart }, { otherWindow: true, mainWindow: true });
 	});
+
+
 
 	test('close merges editors into the main part and releases the part, after notifying its owner', async () => {
 		const parts = await createServices();
@@ -250,6 +251,22 @@ suite('Content Part', () => {
 			notified: ['will close', 'did close 1, listed: true', 'did close 2, listed: true'],
 			listed: false
 		});
+	});
+
+	test('closing a focused empty part in the main window announces the next active group', async () => {
+		const parts = await createServices();
+		const mainContainer = mainWindow.document.body.appendChild(parts.testMainPart.getContainer()!);
+		disposables.add({ dispose: () => mainContainer.remove() });
+		const part = parts.createEditorPart({ container: createContainer() });
+		const focusable = elementOf(part).appendChild(mainWindow.document.createElement('div'));
+		focusable.tabIndex = 0;
+		focusable.focus();
+
+		const announced: boolean[] = [];
+		disposables.add(parts.onDidChangeActiveGroup(group => announced.push(group === parts.mainPart.activeGroup)));
+		part.close();
+
+		assert.deepStrictEqual({ announced: announced.length > 0 && announced.every(isMain => isMain), active: parts.activeGroup === parts.mainPart.activeGroup }, { announced: true, active: true });
 	});
 
 	test('its last group stays, also as closing all editors closes empty groups: its owner closes it', async () => {

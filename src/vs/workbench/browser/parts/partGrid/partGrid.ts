@@ -9,6 +9,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { IContentPart, IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { PART_GRID_CLASS } from '../editor/partGridClass.js';
 import { getGridEdgeInsets, IGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from './partGridGap.js';
 
 /**
@@ -377,7 +378,7 @@ export class PartGrid extends Disposable {
 		this.gridDisposables.value = disposables;
 		this.grid = grid;
 
-		grid.element.classList.add('part-grid');
+		grid.element.classList.add(PART_GRID_CLASS);
 		this.container.appendChild(grid.element);
 
 		this.layoutGrid();

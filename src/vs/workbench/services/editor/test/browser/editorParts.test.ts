@@ -17,12 +17,13 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
 import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
+import { PART_GRID_CLASS } from '../../../../browser/parts/editor/partGridClass.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { createEditorParts, TestEditorParts, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IAuxiliaryWindowService } from '../../../auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IHostService } from '../../../host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../layout/browser/layoutService.js';
-import { IEditorGroupsService, IEditorPart } from '../../common/editorGroupsService.js';
+import { GroupsOrder, IEditorGroupsService, IEditorPart } from '../../common/editorGroupsService.js';
 
 /**
  * An editor part that is created by someone else than the editor parts
@@ -92,11 +93,25 @@ suite('Editor Parts', () => {
 		return part;
 	}
 
+	function groupElementOf(part: EditorPart): HTMLElement {
+		return part.getGroups(GroupsOrder.CREATION_TIME)[0].element;
+	}
+
+	function createPartGridArea(): HTMLElement {
+		const grid = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		grid.classList.add(PART_GRID_CLASS);
+		disposables.add({ dispose: () => grid.remove() });
+
+		return grid.appendChild(mainWindow.document.createElement('div'));
+	}
+
 	function focusIn(element: HTMLElement): HTMLElement {
 		const focusable = element.appendChild(mainWindow.document.createElement('div'));
 		focusable.tabIndex = 0;
 		focusable.focus();
-		focusable.dispatchEvent(new FocusEvent('focusin', { bubbles: true })); // the test window may not have focus
+		// the test window may not have focus, which leaves out focus events
+		focusable.dispatchEvent(new FocusEvent('focus'));
+		focusable.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
 
 		return focusable;
 	}
@@ -119,13 +134,13 @@ suite('Editor Parts', () => {
 		}, { main: true, a: true, b: true, rootOfA: true, groupOfB: true });
 	});
 
-	test('the active part of a window is the part with focus, else the main part of the window', async () => {
+	test('the active part of a window is the part with focus; with focus in the grid of its parts but in no part, its main part; elsewhere, the part active last', async () => {
 		const { instantiationService, parts } = await createServices();
 		const partA = createOwnedPart(instantiationService, parts);
 		const partB = createOwnedPart(instantiationService, parts);
-
-		const outside = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
-		disposables.add({ dispose: () => outside.remove() });
+		const titleRow = createPartGridArea();
+		const quickInput = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		disposables.add({ dispose: () => quickInput.remove() });
 
 		const nameOf = (part: EditorPart) => part === parts.mainPart ? 'main' : part === partA ? 'a' : part === partB ? 'b' : 'other';
 		const activePartWithFocusIn = (element: HTMLElement) => {
@@ -133,12 +148,13 @@ suite('Editor Parts', () => {
 			return nameOf(parts.activePart);
 		};
 
-		const focusInA = activePartWithFocusIn(partA.getContainer()!);
-		const focusInB = activePartWithFocusIn(partB.getContainer()!);
-		const focusInNoPart = activePartWithFocusIn(outside); // even after B was the active part last
+		const focusInA = activePartWithFocusIn(groupElementOf(partA));
+		const focusInB = activePartWithFocusIn(groupElementOf(partB));
+		const focusInQuickInput = activePartWithFocusIn(quickInput); // B stays active, as it was active last
+		const focusInTitleRow = activePartWithFocusIn(titleRow);
 		const focusInMain = activePartWithFocusIn(parts.testMainPart.getContainer()!);
 
-		assert.deepStrictEqual({ focusInA, focusInB, focusInNoPart, focusInMain }, { focusInA: 'a', focusInB: 'b', focusInNoPart: 'main', focusInMain: 'main' });
+		assert.deepStrictEqual({ focusInA, focusInB, focusInQuickInput, focusInTitleRow, focusInMain }, { focusInA: 'a', focusInB: 'b', focusInQuickInput: 'b', focusInTitleRow: 'main', focusInMain: 'main' });
 	});
 
 	test('a part inside another part is the active part with focus in it', async () => {
@@ -154,20 +170,23 @@ suite('Editor Parts', () => {
 		assert.deepStrictEqual({ inner: parts.activePart === inner, element: parts.getPart(mainWindow.document.activeElement as HTMLElement) === inner }, { inner: true, element: true });
 	});
 
-	test('focus leaving a part for elsewhere in a window with several parts announces the active group of the window', async () => {
+	test('focus leaving a part for elsewhere in the grid of the parts of a window announces the active group of the window; an overlay keeps the active group', async () => {
 		const { instantiationService, parts } = await createServices();
 		const partA = createOwnedPart(instantiationService, parts);
-		const outside = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
-		disposables.add({ dispose: () => outside.remove() });
+		const titleRow = createPartGridArea();
+		const quickInput = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		disposables.add({ dispose: () => quickInput.remove() });
 
-		focusIn(partA.getContainer()!);
+		focusIn(groupElementOf(partA));
 		const announced: string[] = [];
 		disposables.add(parts.onDidChangeActiveGroup(group => announced.push(group === parts.mainPart.activeGroup ? 'main' : group === partA.activeGroup ? 'a' : 'other')));
 
-		focusIn(outside);
-		focusIn(outside); // no change, no event
+		focusIn(quickInput);
+		const activeWithQuickInput = parts.activeGroup === partA.activeGroup;
+		focusIn(titleRow);
+		focusIn(titleRow); // no change, no event
 
-		assert.deepStrictEqual({ announced, active: parts.activeGroup === parts.mainPart.activeGroup }, { announced: ['main'], active: true });
+		assert.deepStrictEqual({ activeWithQuickInput, announced, active: parts.activeGroup === parts.mainPart.activeGroup }, { activeWithQuickInput: true, announced: ['main'], active: true });
 	});
 
 	test('a window with a single part gets no extra active group events from focus leaving it', async () => {
@@ -206,6 +225,33 @@ suite('Editor Parts', () => {
 		await modalPart.close();
 
 		assert.deepStrictEqual({ modalIsActive, mainIsActiveAfterClose: parts.activePart === parts.mainPart }, { modalIsActive: true, mainIsActiveAfterClose: true });
+	});
+
+	test('applying a working set focuses the part active last among those of working sets, not a part owned by someone else', async () => {
+		const { instantiationService, parts } = await createServices();
+		const owned = createOwnedPart(instantiationService, parts);
+		parts.testMainPart.activeGroup.focus();
+		focusIn(groupElementOf(owned)); // the owned part is the most recently active one
+
+		const workingSet = parts.saveWorkingSet('test');
+		await parts.applyWorkingSet(workingSet);
+		parts.deleteWorkingSet(workingSet);
+
+		assert.strictEqual(parts.getPart(mainWindow.document.activeElement as HTMLElement), parts.mainPart);
+	});
+
+	test('restoring state keeps parts owned by someone else in their place among the most recently active parts', async () => {
+		const { instantiationService, parts } = await createServices();
+		const owned = createOwnedPart(instantiationService, parts);
+		focusIn(groupElementOf(owned));
+		focusIn(groupElementOf(parts.testMainPart)); // main is the most recent, then the owned part
+
+		// Only a state with auxiliary parts rebuilds the list of the most recently active parts
+		parts.createAuxiliaryEditorPart = () => Promise.reject(new Error('not created'));
+		await (parts as unknown as { restoreState(state: { auxiliary: unknown[]; mru: number[] }): Promise<void> }).restoreState({ auxiliary: [{}], mru: [0] });
+
+		const order = parts.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(group => group === parts.mainPart.activeGroup ? 'main' : group === owned.activeGroup ? 'owned' : 'other');
+		assert.deepStrictEqual(order, ['main', 'owned']);
 	});
 
 	test('owned parts are not part of the persisted state, labels or working sets', async () => {
