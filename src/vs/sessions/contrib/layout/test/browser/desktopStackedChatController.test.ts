@@ -21,7 +21,7 @@ import { SessionLayoutMode } from '../../../../common/sessionLayoutMode.js';
 import { LayoutModeOwnerKind } from '../../../../services/layoutMode/common/sessionLayoutModeService.js';
 import { DesktopLayoutController } from '../../browser/desktopLayoutController.js';
 import { DesktopStackedChatController } from '../../browser/desktop/desktopStackedChatController.js';
-import { createTestHarness, ITestLayoutHarness, makeSession } from './layoutControllerTestUtils.js';
+import { createTestHarness, TestStubEditorInput, ITestLayoutHarness, makeSession } from './layoutControllerTestUtils.js';
 
 suite('Sessions - DesktopStackedChatController', () => {
 
@@ -97,6 +97,10 @@ suite('Sessions - DesktopStackedChatController', () => {
 		harness.sessionsPartChromeHeight = 10;
 		harness.partSizes.set(Parts.SESSIONS_PART, { width: 800, height: 400 });
 		harness.partSizes.set(Parts.EDITOR_PART, { width: 800, height: 400 });
+		// Every chat has a file open: a chat layout without one hides its side pane.
+		const openFile = () => { harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/editor.txt')))]; };
+		openFile();
+		harness.onApplyWorkingSet = openFile;
 		harness.activeSessionObs.set(session, undefined);
 		const controller = store.add(harness.instaService.createInstance(TestDesktopController));
 		await controller.whenRestored();
@@ -173,6 +177,8 @@ suite('Sessions - DesktopStackedChatController', () => {
 
 	test('shows only the input of each chat as it was last left, in the chat view reused for the next chat', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { controller, chatView, sessionView } = await createController();
+		// The side pane and the chat share a column of a fixed height, as in the workbench grid.
+		store.add(harness.onDidLayoutSessionsPart.event(size => harness.partSizes.set(Parts.EDITOR_PART, { width: 800, height: 800 - size.height })));
 		harness.layoutService.setSidePaneArrangement(SessionLayoutMode.Stacked);
 		await timeout(0);
 		controller.stackedChat.toggleConversation();
@@ -191,7 +197,7 @@ suite('Sessions - DesktopStackedChatController', () => {
 		const back = await focus(session);
 
 		assert.deepStrictEqual({ other, back, rememberedOther: harness.layoutModeService.getMainWindowMode(otherOwner, LayoutModeOwnerKind.Existing)?.inputOnly }, {
-			other: { inputOnly: false, headerHidden: false, height: Math.round((collapsed + 400) / 2) },
+			other: { inputOnly: false, headerHidden: false, height: 400 },
 			back: { inputOnly: true, headerHidden: true, height: collapsed },
 			rememberedOther: false,
 		});
@@ -301,8 +307,8 @@ suite('Sessions - DesktopStackedChatController', () => {
 		assert.deepStrictEqual({ conversation, inputOnly, switched, sideBySide: harness.sessionsPartHeightConstraints }, {
 			conversation: { minimum: collapsed, maximum: Number.POSITIVE_INFINITY, keepHeight: false },
 			inputOnly: { minimum: collapsed, maximum: Number.POSITIVE_INFINITY, keepHeight: true },
-			// Never cleared in between.
-			switched: [{ minimum: collapsed, maximum: Number.POSITIVE_INFINITY, keepHeight: true }],
+			// Cleared once while the side pane is closed for the chat that has no file editor yet, which the working set then opens.
+			switched: [undefined, { minimum: collapsed, maximum: Number.POSITIVE_INFINITY, keepHeight: true }],
 			sideBySide: undefined,
 		});
 	}));
