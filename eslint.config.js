@@ -2260,7 +2260,7 @@ export default defineConfig(
 				{
 					// The phone entry is an allow-list: it composes the shared core and
 					// individual contributions, never the desktop entry points.
-					'target': 'src/vs/sessions/sessions.web.mobile.main.ts',
+					'target': 'src/vs/sessions/agents.web.mobile.main.ts',
 					'layer': 'browser',
 					'restrictions': [
 						'vs/base/~',
@@ -2300,7 +2300,7 @@ export default defineConfig(
 					]
 				},
 				{
-					'target': 'src/vs/sessions/sessions.web.mobile.main.internal.ts',
+					'target': 'src/vs/sessions/agents.web.mobile.main.internal.ts',
 					'layer': 'browser',
 					'restrictions': [
 						'vs/base/~',
@@ -2313,7 +2313,7 @@ export default defineConfig(
 						'vs/workbench/browser/**',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
-						'vs/sessions/sessions.web.mobile.main.js'
+						'vs/sessions/agents.web.mobile.main.js'
 					]
 				},
 				{
@@ -2349,7 +2349,7 @@ export default defineConfig(
 						'vs/workbench/browser/**',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
-						'vs/sessions/sessions.web.mobile.main.js'
+						'vs/sessions/agents.web.mobile.main.js'
 					]
 				},
 				{

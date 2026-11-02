@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Test entry point for the mobile Sessions workbench with mock services.
-// Mirrors sessions.web.mobile.main.internal.ts but uses TestSessionsBrowserMain.
+// Mirrors agents.web.mobile.main.internal.ts but uses TestSessionsBrowserMain.
 
-import '../sessions.web.mobile.main.js';
+import '../agents.web.mobile.main.js';
 import { create as createTestSessionsWorkbench } from './web.test.factory.js';
 import { createMobileSessionsWorkbench } from '../browser/mobile/mobileWorkbench.js';
 import { IWorkbenchConstructionOptions } from '../../workbench/browser/web.api.js';
