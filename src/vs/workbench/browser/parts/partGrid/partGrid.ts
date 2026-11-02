@@ -113,6 +113,8 @@ class PartGridCell implements ISerializableView {
 
 	layout(width: number, height: number, top: number, left: number): void {
 		this.lastLayout = { width, height, top, left };
+		// The look may draw the border only once the styles of its window have loaded, after the insets were set.
+		this.border = this.readBorder();
 		this.layoutCard();
 	}
 
