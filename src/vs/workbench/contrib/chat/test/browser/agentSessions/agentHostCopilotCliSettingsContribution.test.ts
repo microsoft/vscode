@@ -14,7 +14,7 @@ import { IAgentHostEnablementService } from '../../../../../../platform/agentHos
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, URL_AUTO_APPROVE_SETTING_ID } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ClientAnnotationsAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ConfigPropertySchema, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -125,7 +125,6 @@ const fullSchema: Record<string, ConfigPropertySchema> = {
 	[CopilotCliConfigKey.LocalIndexEnabled]: { type: 'boolean', title: 'Local Session Index' },
 	[CopilotCliConfigKey.ToolSearchEnabled]: { type: 'boolean', title: 'Agent Host Tool Search' },
 	[CopilotCliConfigKey.ToolSearchDeferThreshold]: { type: 'number', title: 'Tool Search Defer Threshold' },
-	[CopilotCliConfigKey.Memory]: { type: 'boolean', title: 'Copilot Memory' },
 	[CopilotCliConfigKey.LocalMemory]: { type: 'boolean', title: 'Local Copilot Memory' },
 	[CopilotCliConfigKey.AutoModeTierOverride]: { type: 'string', title: 'Auto Optimize for Override' },
 	[CopilotCliConfigKey.ModelCapabilityOverrides]: { type: 'object', title: 'Model Capability Overrides' },
@@ -414,7 +413,6 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[AgentHostToolSearchEnabledSettingId]: true,
 			[AgentHostToolSearchDeferThresholdSettingId]: 5.9,
 			[AgentHostCopilotModelCapabilityOverridesSettingId]: capabilityOverrides,
-			[AgentHostCopilotMemoryEnabledSettingId]: true,
 			[AgentHostCopilotLocalMemoryEnabledSettingId]: true,
 			'github.copilot.chat.autoModeTierOverride': 'intelligence',
 			[AgentHostShellToolInitScriptEnabledSettingId]: true,
@@ -424,7 +422,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 
 		// The shared forwarder dispatches one RootConfigChanged per key; merge them
 		// and assert the full forwarded set (order-independent).
-		assert.strictEqual(agentHostService.dispatchedActions.length, 19);
+		assert.strictEqual(agentHostService.dispatchedActions.length, 18);
 		const merged = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
 		assert.deepStrictEqual(merged, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
@@ -441,7 +439,6 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.LocalIndexEnabled]: false,
 			[CopilotCliConfigKey.ToolSearchEnabled]: true,
 			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 5,
-			[CopilotCliConfigKey.Memory]: true,
 			[CopilotCliConfigKey.LocalMemory]: true,
 			[CopilotCliConfigKey.AutoModeTierOverride]: 'intelligence',
 			[CopilotCliConfigKey.ModelCapabilityOverrides]: capabilityOverrides,
@@ -638,19 +635,16 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		]);
 	});
 
-	test('forwards Copilot Memory regardless of preview policy, and local memory only when preview features are allowed', async () => {
+	test('forwards local memory only when preview features are allowed', async () => {
 		const memorySchema = {
-			[CopilotCliConfigKey.Memory]: fullSchema[CopilotCliConfigKey.Memory],
 			[CopilotCliConfigKey.LocalMemory]: fullSchema[CopilotCliConfigKey.LocalMemory],
 		};
 		const mergedConfig = (service: MockAgentHostService) => Object.assign({}, ...service.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
 		const { agentHostService: defaultHost } = setup(disposables, {});
 		defaultHost.setRootState(makeRootStateWithSchema(memorySchema, {
-			[CopilotCliConfigKey.Memory]: true,
 			[CopilotCliConfigKey.LocalMemory]: true,
 		}));
 		const { agentHostService, defaultAccountService } = setup(disposables, {
-			[AgentHostCopilotMemoryEnabledSettingId]: true,
 			[AgentHostCopilotLocalMemoryEnabledSettingId]: true,
 		}, { chat_preview_features_enabled: false });
 		agentHostService.setRootState(makeRootStateWithSchema(memorySchema));
@@ -666,8 +660,8 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			policyDisabled,
 			policyEnabled: mergedConfig(agentHostService),
 		}, {
-			defaultOff: { [CopilotCliConfigKey.Memory]: false, [CopilotCliConfigKey.LocalMemory]: false },
-			policyDisabled: { [CopilotCliConfigKey.Memory]: true, [CopilotCliConfigKey.LocalMemory]: false },
+			defaultOff: { [CopilotCliConfigKey.LocalMemory]: false },
+			policyDisabled: { [CopilotCliConfigKey.LocalMemory]: false },
 			policyEnabled: { [CopilotCliConfigKey.LocalMemory]: true },
 		});
 	});
@@ -759,7 +753,6 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.LocalIndexEnabled]: true,
 			[CopilotCliConfigKey.ToolSearchEnabled]: false,
 			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 1,
-			[CopilotCliConfigKey.Memory]: false,
 			[CopilotCliConfigKey.LocalMemory]: false,
 			[CopilotCliConfigKey.AutoModeTierOverride]: '',
 			[CopilotCliConfigKey.ModelCapabilityOverrides]: { 'preview-model-x': { family: 'claude-opus-4-8' } },

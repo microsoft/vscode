@@ -1607,8 +1607,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _isLocalMemoryEnabled(): boolean {
-		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Memory) === true
-			&& this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalMemory) === true;
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalMemory) === true;
 	}
 
 	private _getSkillCharBudget(): number {
