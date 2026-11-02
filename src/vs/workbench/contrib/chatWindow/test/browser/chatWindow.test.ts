@@ -35,6 +35,7 @@ suite('Chat window', () => {
 		override readonly onDidCloseEditor = this.onCloseEditor.event;
 		testEditors: EditorInput[] = [];
 		override get isEmpty() { return this.testEditors.length === 0; }
+		override contains(editor: EditorInput) { return this.testEditors.includes(editor); }
 		constructor(private readonly _events: string[], private readonly _name: string) { super(); }
 		override focus() { this._events.push(`focus ${this._name}`); }
 		open(editor: EditorInput) {
@@ -50,11 +51,12 @@ suite('Chat window', () => {
 	function createPart(events: string[], name: string, options?: { veto?: boolean }) {
 		const group = new TestGroup(events, name);
 		const onWillClose = disposables.add(new Emitter<void>());
+		const onDidAddGroup = disposables.add(new Emitter<IEditorGroup>());
 		const part = new class extends mock<IContentPart>() {
 			override readonly onWillClose = onWillClose.event;
-			override readonly groups = [group];
+			override readonly groups: IEditorGroup[] = [group];
 			override readonly activeGroup = group;
-			override readonly onDidAddGroup = Event.None;
+			override readonly onDidAddGroup = onDidAddGroup.event;
 			override readonly onDidRemoveGroup = Event.None;
 			override close() {
 				events.push(`close ${name}`);
@@ -68,7 +70,13 @@ suite('Chat window', () => {
 				return true;
 			}
 		}();
-		return { part, group };
+		const addGroup = () => {
+			const added = new TestGroup(events, `${name} 2`);
+			part.groups.push(added);
+			onDidAddGroup.fire(added);
+			return added;
+		};
+		return { part, group, addGroup };
 	}
 
 	function createWindow(options?: { vetoMain?: boolean; unloading?: { value: boolean } }) {
@@ -93,6 +101,7 @@ suite('Chat window', () => {
 				return createPart(events, 'terminals').part;
 			},
 			terminalsVisible: constObservable(false),
+			didMoveChatOut: () => events.push('moved out'),
 		}));
 		disposables.add(window.onWillClose(() => events.push('will close')));
 		disposables.add(window.onDidClose(() => events.push('closed')));
@@ -191,5 +200,24 @@ suite('Chat window', () => {
 		window.focus();
 
 		assert.deepStrictEqual(events, ['focus window', 'focus chat', 'focus window', 'focus main']);
+	});
+
+	test('the chat\'s editor moves between the groups of its part, such as when the part splits, and still closes the window when it closes there', () => {
+		const { chat, chatInput, events } = createWindow();
+		const split = chat.addGroup();
+		split.testEditors.push(chatInput);
+		chat.group.fireCloseEditor(chatInput, EditorCloseContext.MOVE);
+		const afterMove = [...events];
+		split.fireCloseEditor(chatInput);
+
+		assert.deepStrictEqual({ afterMove, events }, { afterMove: [], events: ['close chat', 'close main', 'will close', 'close window', 'closed'] });
+	});
+
+	test('the chat\'s editor moving out of the window, such as into the main window or an editor window, takes the chat out of the window rather than closing it', () => {
+		const { chat, chatInput, events } = createWindow();
+
+		chat.group.fireCloseEditor(chatInput, EditorCloseContext.MOVE);
+
+		assert.deepStrictEqual(events, ['moved out']);
 	});
 });

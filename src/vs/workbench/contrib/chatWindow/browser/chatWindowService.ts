@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append, getActiveWindow } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -18,7 +19,7 @@ import { IsAuxiliaryWindowContext } from '../../../common/contextkeys.js';
 import { EditorCloseContext } from '../../../common/editor.js';
 import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { bindEditorPartsToWindow } from '../../../services/editor/browser/editorPartWindowBinding.js';
-import { IContentPart, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IContentPart, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
 import { ChatWindowChatLayouts, ChatWindowChatSizes, ChatWindowDefaults, ChatWindowState } from '../common/chatWindowState.js';
@@ -45,6 +46,8 @@ export interface IChatWindowHost {
 	createTerminalsPart(): IContentPart;
 	/** Whether the part that holds the window's terminals shows in the window's grid. */
 	readonly terminalsVisible: IObservable<boolean>;
+	/** The chat's editor moved out of the window, such as into the main window or into an editor window. */
+	didMoveChatOut(): void;
 }
 
 /**
@@ -87,12 +90,22 @@ export class ChatWindow extends Disposable implements IChatWindow {
 			isClosing: () => this._closing || this._host.isUnloading(),
 		}));
 
-		// The chat's editor is the chat window: closing it closes the window.
-		this._register(Event.any(...chatPart.groups.map(group => Event.filter(group.onDidCloseEditor, e => e.editor === content.input && e.context !== EditorCloseContext.MOVE)))(() => {
-			if (!this._closing && !this._host.isUnloading()) {
+		// The chat's editor is the chat window: closing it closes the window, and moving it out of the window takes the
+		// chat out of it. It may move between the groups of the chat part, such as when the chat part splits.
+		const chatGroupListeners = this._register(new DisposableMap<IEditorGroup>());
+		const trackChatGroup = (group: IEditorGroup) => chatGroupListeners.set(group, group.onDidCloseEditor(e => {
+			if (e.editor !== content.input || this._closing || this._host.isUnloading()) {
+				return;
+			}
+			if (e.context !== EditorCloseContext.MOVE) {
 				this.close();
+			} else if (!this.chatPart.groups.some(candidate => candidate.contains(content.input)) && !this.mainPart.groups.some(candidate => candidate.contains(content.input))) {
+				this._host.didMoveChatOut();
 			}
 		}));
+		chatPart.groups.forEach(trackChatGroup);
+		this._register(chatPart.onDidAddGroup(trackChatGroup));
+		this._register(chatPart.onDidRemoveGroup(group => chatGroupListeners.deleteAndDispose(group)));
 
 		this._register(content.onDidEnd(() => this.close()));
 	}
@@ -351,6 +364,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 				auxiliaryWindow.window.close();
 			},
 			isUnloading: () => unloading,
+			didMoveChatOut: () => void this._didMoveChatOut(window),
 			createTerminalsPart: () => {
 				const part = this._editorGroupsService.createEditorPart({ container: append(host, $('.chat-window-terminals-part')), label: localize('chatWindow.terminalsPart', "Terminals"), services });
 				const store = new DisposableStore();
@@ -448,6 +462,25 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		const windows = this._windows.get();
 		if (windows.includes(window)) {
 			this._windows.set(windows.filter(candidate => candidate !== window), undefined);
+		}
+	}
+
+	/**
+	 * The chat's editor of `window` moved out of it: into the main window, the chat moves to the main window, as Move to
+	 * Main Window does; into another window, such as an editor window, the chat shows in a chat window of its own again.
+	 * Either way the editor that moved, a view of the chat, closes where it moved to.
+	 */
+	private async _didMoveChatOut(window: ChatWindow): Promise<void> {
+		const input = window.content.input;
+		const chat = window.chat.get();
+		const group = this._editorGroupsService.parts.flatMap(part => part.groups).find(candidate => candidate.contains(input));
+		if (group) {
+			await group.closeEditor(input);
+		}
+		if (group?.windowId === mainWindow.vscodeWindowId) {
+			await this.moveToMainWindow(window);
+		} else if (window.close()) {
+			await this.open(chat);
 		}
 	}
 
