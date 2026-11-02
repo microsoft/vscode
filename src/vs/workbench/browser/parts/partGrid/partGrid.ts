@@ -70,6 +70,7 @@ class PartGridCell implements ISerializableView {
 	private get verticalFrame(): number { return this.insets.top + this.insets.bottom + this.border.top + this.border.bottom; }
 
 	private border: IGridEdgeInsets = NO_GRID_EDGE_INSETS;
+	private frameChanged = false;
 
 	readonly onDidChange: Event<IViewSize | undefined>;
 
@@ -88,7 +89,9 @@ class PartGridCell implements ISerializableView {
 		const current = this.insets;
 		const currentBorder = this.border;
 		this.border = this.readBorder();
-		if (current.top === insets.top && current.right === insets.right && current.bottom === insets.bottom && current.left === insets.left && sameInsets(currentBorder, this.border)) {
+		const frameChanged = this.frameChanged;
+		this.frameChanged = false;
+		if (!frameChanged && sameInsets(current, insets) && sameInsets(currentBorder, this.border)) {
 			return false;
 		}
 
@@ -114,7 +117,11 @@ class PartGridCell implements ISerializableView {
 	layout(width: number, height: number, top: number, left: number): void {
 		this.lastLayout = { width, height, top, left };
 		// The look may draw the border only once the styles of its window have loaded, after the insets were set.
-		this.border = this.readBorder();
+		const border = this.readBorder();
+		if (!sameInsets(border, this.border)) {
+			this.border = border;
+			this.frameChanged = true; // the size constraints changed: see `setInsets`
+		}
 		this.layoutCard();
 	}
 

@@ -270,4 +270,22 @@ suite('Part Grid', () => {
 
 		assert.deepStrictEqual({ cellHeight: grid.getCellSize('title').height, contentHeight: heights[heights.length - 1] }, { cellHeight: 32, contentHeight: 30 });
 	});
+
+	test('a card whose frame is drawn only after it was laid out, as styles load later in an auxiliary window, keeps its content inside the frame', () => {
+		const container = createContainer();
+		const grid = disposables.add(new PartGrid(container));
+		const heights: number[] = [];
+		grid.addView('title', { ...createView(), layout: (width, height) => heights.push(height) });
+		grid.addView('other', createView(), { edge: Direction.Down });
+		grid.layout(1000, 800);
+		const before = { cellHeight: grid.getCellSize('title').height, contentHeight: heights[heights.length - 1] };
+
+		container.style.setProperty('--part-grid-card-border-width', '1px');
+		grid.layout(1000, 800);
+
+		assert.deepStrictEqual({ before, after: { cellHeight: grid.getCellSize('title').height, contentHeight: heights[heights.length - 1] } }, {
+			before: { cellHeight: 30, contentHeight: 30 },
+			after: { cellHeight: 32, contentHeight: 30 }
+		});
+	});
 });
