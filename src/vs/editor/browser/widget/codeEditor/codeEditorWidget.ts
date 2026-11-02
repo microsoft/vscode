@@ -295,7 +295,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._overflowWidgetsDomNode = options.overflowWidgetsDomNode;
 		if (this._overflowWidgetsDomNode) {
 			// Overflow widgets need an editor-specific focus and context scope when the host is shared.
-			const overflowWidgetsDomNode = this._overflowWidgetsDomNode.ownerDocument.createElement('div');
+			const overflowWidgetsDomNode = dom.$('div');
 			this._scopedOverflowWidgetsDomNode = this._overflowWidgetsDomNode.appendChild(overflowWidgetsDomNode);
 			this._register(toDisposable(() => overflowWidgetsDomNode.remove()));
 		} else {

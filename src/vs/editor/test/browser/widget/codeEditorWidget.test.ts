@@ -378,4 +378,28 @@ suite('CodeEditorWidget', () => {
 		}
 	});
 
+	test('overflow widget host in an auxiliary document does not create elements there', () => {
+		const disposables = new DisposableStore();
+		try {
+			const editorContainer = document.createElement('div');
+			document.body.appendChild(editorContainer);
+			disposables.add(toDisposable(() => editorContainer.remove()));
+
+			const auxiliaryDocument = document.implementation.createHTMLDocument();
+			const overflowWidgetsDomNode = auxiliaryDocument.body.appendChild(document.createElement('div'));
+			Object.defineProperty(auxiliaryDocument, 'createElement', {
+				value: () => { throw new Error('Auxiliary documents cannot create elements'); }
+			});
+
+			const instantiationService = createCodeEditorServices(disposables);
+			const editor = disposables.add(instantiationService.createInstance(CodeEditorWidget, editorContainer, { overflowWidgetsDomNode }, { contributions: [] }));
+			assert.deepStrictEqual({
+				sharedHost: editor.getOverflowWidgetsDomNode() === overflowWidgetsDomNode,
+				wrapperCount: overflowWidgetsDomNode.children.length,
+			}, { sharedHost: true, wrapperCount: 1 });
+		} finally {
+			disposables.dispose();
+		}
+	});
+
 });
