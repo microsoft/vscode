@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { $, getWindow, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -364,7 +365,7 @@ suite('CanvasEditor', () => {
 		assert.strictEqual(harness.created, 0);
 	});
 
-	test('routes external link requests through the workbench opener', async () => {
+	test('routes external link requests through the workbench opener, from the window of the canvas', async () => {
 		const harness = createHarness();
 		await harness.open();
 		await harness.modelAttached.p;
@@ -376,6 +377,7 @@ suite('CanvasEditor', () => {
 				openExternal: true,
 				fromUserGesture: true,
 				allowContributedOpeners: true,
+				sourceWindowId: mainWindow.vscodeWindowId,
 			},
 		}]);
 	});

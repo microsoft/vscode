@@ -393,6 +393,8 @@ export class CanvasView extends Disposable {
 				openExternal: true,
 				fromUserGesture: true,
 				allowContributedOpeners: true,
+				// In the window of the canvas: focus is in its page, outside the workbench, so it cannot tell the window.
+				sourceWindowId: this.targetWindow.vscodeWindowId,
 			});
 			if (!opened) {
 				this.logService.warn(`${this.options.logPrefix} External canvas link was not opened`);

@@ -15,6 +15,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, PreferredGroup, SIDE_GROUP, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../services/editor/common/editorService.js';
+import { getWindowById } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -347,7 +348,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return result;
 	}
 
-	async getPreferredGroup(preferredGroup?: PreferredGroup): Promise<PreferredGroup | undefined> {
+	async getPreferredGroup(preferredGroup?: PreferredGroup, sourceWindowId?: number): Promise<PreferredGroup | undefined> {
 		// "Open to side" requests are routed into the dedicated side group.
 		if (preferredGroup === SIDE_GROUP) {
 			return this._getOrCreateDedicatedGroup('sideGroup');
@@ -371,7 +372,14 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			return this.editorGroupsService.mainPart.activeGroup;
 		}
 
-		return preferredGroup;
+		// The active group of the window the open was requested from, rather than of the window that appears to have focus.
+		return this._getActiveGroupOfWindow(sourceWindowId) ?? preferredGroup;
+	}
+
+	/** The active group of the window `windowId`, among the editor parts of that window. */
+	private _getActiveGroupOfWindow(windowId: number | undefined): IEditorGroup | undefined {
+		const window = windowId === undefined ? undefined : getWindowById(windowId)?.window;
+		return window ? this.editorGroupsService.getPart(window.document.body).activeGroup : undefined;
 	}
 
 	/**
