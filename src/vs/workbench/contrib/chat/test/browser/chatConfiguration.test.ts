@@ -14,8 +14,9 @@ import { CustomizationMarketplaceConfiguration } from '../../../../../platform/c
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { chatProgressConfigurationProperties, legacyChatThinkingConfigurationProperties } from '../../browser/chatProgressConfiguration.js';
 import { customizationMarketplaceConfigurationProperties, isAgentFinderPublicFeedAvailable, isCustomizationMarketplaceValueFromDefault } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
-import { CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotPolicyHelperSettingId, CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
 import '../../browser/agentSessionsConfiguration.js';
+import '../../browser/chat.shared.contribution.js';
 import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
@@ -47,6 +48,23 @@ suite('Chat configuration', () => {
 
 	test('registers Agents Window settings in the shared workbench contribution', () => {
 		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true]);
+	});
+
+	test('registers Policy Helper as advanced and experimental without suggesting it in settings JSON', () => {
+		const setting = configurationProperties[AgentHostCopilotPolicyHelperSettingId];
+		assert.deepStrictEqual({
+			registered: setting !== undefined,
+			scope: setting?.scope,
+			ignoreSync: setting?.ignoreSync,
+			tags: setting?.tags,
+			doNotSuggest: setting?.doNotSuggest,
+		}, {
+			registered: true,
+			scope: ConfigurationScope.APPLICATION,
+			ignoreSync: true,
+			tags: ['experimental', 'advanced'],
+			doNotSuggest: true,
+		});
 	});
 
 	test('registers the existing Agent picker setting for both editor and Agents windows', () => {

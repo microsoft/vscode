@@ -28,7 +28,7 @@ import { AgentHostAutoReplyEnabledConfigKey, AgentHostByokUtilityModelDefaultCon
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotIncludeCoAuthoredBySettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotIncludeCoAuthoredBySettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotPolicyHelperSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeCopilotPolicyHelperConfig, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { dynamicAutoTiersConfigurationProperties } from '../../../../platform/agentHost/common/dynamicAutoTiersConfiguration.js';
 import { imageGenerationConfigurationProperties } from '../../../../platform/agentHost/common/imageGenerationConfiguration.js';
 import { getLocalModelSafetyDisclosure, LOCAL_MODEL_MIN_GPU_MEMORY_GB_PLACEHOLDER, LocalModelEnabledSettingId, LocalModelLlamaServerPathSettingId, LocalModelUseInAutoSettingId } from '../../../../platform/agentHost/common/localModel.js';
@@ -1667,6 +1667,26 @@ configurationRegistry.registerConfiguration({
 			included: false,
 			agentHost: {
 				key: CopilotCliConfigKey.RuntimePath,
+				scope: AgentHostConfigurationSyncScope.Local,
+			},
+		},
+		[AgentHostCopilotPolicyHelperSettingId]: {
+			type: ['object', 'null'],
+			markdownDescription: nls.localize('chat.agentHost.copilot.policyHelper', "Policy helper executable for the Copilot runtime, as an object with an absolute `path` and optional `args`. Device and server policies take precedence. This setting is hidden in the Settings editor by default. Search for its full ID or show advanced settings to find it. Settings JSON suggestions omit it, but you can still enter it manually. Changes apply only after you quit VS Code fully and relaunch it. **Developer: Reload Window** does not restart the Agent Host process."),
+			properties: {
+				path: { type: 'string' },
+				args: { type: 'array', items: { type: 'string' } },
+			},
+			required: ['path'],
+			additionalProperties: false,
+			default: null,
+			scope: ConfigurationScope.APPLICATION,
+			ignoreSync: true,
+			tags: ['experimental', 'advanced'],
+			doNotSuggest: true,
+			agentHost: {
+				key: CopilotCliConfigKey.PolicyHelper,
+				transform: normalizeCopilotPolicyHelperConfig,
 				scope: AgentHostConfigurationSyncScope.Local,
 			},
 		},
