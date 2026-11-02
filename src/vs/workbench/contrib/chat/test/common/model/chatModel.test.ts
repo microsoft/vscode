@@ -1402,6 +1402,28 @@ suite('Response', () => {
 		});
 	}
 
+	for (const isStandalone of [false, true]) {
+		test(`subagent file metadata preserves its Markdown boundary (standalone=${isStandalone})`, () => {
+			const response = store.add(new Response([]));
+			response.updateContent({ kind: 'markdownContent', content: new MarkdownString('```ts\nconst value = ') });
+			response.updateContent({ kind: 'codeblockUri', uri: URI.file('/workspace/child.ts'), isEdit: true, subAgentInvocationId: 'agent', isStandalone });
+			response.updateContent({ kind: 'markdownContent', content: new MarkdownString('42;\n```') });
+			assert.deepStrictEqual(response.value.map(part => part.kind === 'markdownContent' ? part.content.value : part.kind), isStandalone
+				? ['```ts\nconst value = 42;\n```', 'codeblockUri']
+				: ['```ts\nconst value = ', 'codeblockUri', '42;\n```']);
+			assert.strictEqual(response.toString(), '```ts\nconst value = 42;\n```\n\nfile:///workspace/child.ts');
+		});
+	}
+
+	test('legacy empty scaffolding leaves no whitespace-only copy blocks', () => {
+		const response = store.add(new Response([
+			{ kind: 'markdownContent', content: new MarkdownString('```\n') },
+			{ kind: 'codeblockUri', uri: URI.file('/workspace/child.ts'), isEdit: true, subAgentInvocationId: 'agent' },
+			{ kind: 'markdownContent', content: new MarkdownString('\n```\n\n') },
+		]));
+		assert.strictEqual(response.toString(), 'file:///workspace/child.ts');
+	});
+
 	test('mergeable thinking across nested subagent progress', () => {
 		const clock = sinon.useFakeTimers({ now: 1000 });
 		store.add(toDisposable(() => clock.restore()));
@@ -2565,6 +2587,21 @@ suite('ChatResponseModel', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IChatService, new MockChatService());
 	});
+
+	for (const isStandalone of [false, true]) {
+		test(`undoing a subagent edit retains preceding real Markdown (standalone=${isStandalone})`, () => {
+			const session = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const response = testDisposables.add(new ChatResponseModel({ session, requestId: 'request', responseContent: [], codeBlockInfos: undefined }));
+			response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Parent explanation that must stay visible.', { supportThemeIcons: true }) });
+			if (!isStandalone) {
+				response.updateContent({ kind: 'markdownContent', content: new MarkdownString('```\n') });
+			}
+			response.addUndoStop({ kind: 'undoStop', id: 'edit' });
+			response.updateContent({ kind: 'codeblockUri', uri: URI.file('/workspace/child.ts'), isEdit: true, subAgentInvocationId: 'agent', isStandalone });
+			response.shouldBeRemovedOnSend = { requestId: 'request', afterUndoStop: 'edit' };
+			assert.strictEqual(response.response.toString(), 'Parent explanation that must stay visible.');
+		});
+	}
 
 	suite('pending confirmations', () => {
 		teardown(() => sinon.restore());

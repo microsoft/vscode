@@ -39,7 +39,7 @@ if [[ "$1" == "" ]]; then
 	AUTHORITY=vscode-remote://test+test
 	EXT_PATH=$ROOT/extensions
 	# Load remote node
-	npm run gulp node
+	pnpm run gulp node
 else
 	AUTHORITY=$1
 	EXT_PATH=$2
@@ -127,8 +127,27 @@ kill_app
 
 # Cleanup
 
+# The app can still write to its user data folder for a moment after the last
+# suite returns, and a removal that races with it fails with "Directory not empty".
+# Cleanup must not fail a run whose suites passed: retry, then warn and continue.
+remove_folder() {
+	local attempt
+	for attempt in 1 2 3 4 5; do
+		if rm -rf -- "$1"; then
+			return 0
+		fi
+		sleep 1
+	done
+	echo "Warning: could not remove '$1' after $attempt attempts, continuing." >&2
+	if [[ "$GITHUB_ACTIONS" == "true" ]]; then
+		echo "::warning title=Integration test cleanup::Could not remove '$1'"
+	elif [[ "$TF_BUILD" == "True" ]]; then
+		echo "##vso[task.logissue type=warning]Integration test cleanup could not remove '$1'"
+	fi
+}
+
 if [[ "$3" == "" ]]; then
-	rm -rf $VSCODEUSERDATADIR
+	remove_folder "$VSCODEUSERDATADIR"
 fi
 
-rm -rf $TESTRESOLVER_DATA_FOLDER
+remove_folder "$TESTRESOLVER_DATA_FOLDER"

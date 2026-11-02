@@ -617,7 +617,7 @@ suite('CopilotCustomizationInstallations', () => {
 				`skills.list:${hidden}`,
 				`mcp.list:${hidden}`,
 			],
-			uninstall: 'The SDK no longer owns this customization installation.',
+			uninstall: 'This customization installation is no longer available.',
 		});
 	});
 
@@ -1958,7 +1958,7 @@ suite('CopilotCustomizationInstallations', () => {
 				fileCount: 1,
 				totalBytes: 12,
 			},
-			versionMismatch: 'The SDK catalog version changed after discovery. Refresh Browse and try again.',
+			versionMismatch: 'The catalog version changed after discovery. Refresh Browse and try again.',
 			prematureDecision: 'cancel',
 			decisions: ['confirm'],
 		});
@@ -2007,7 +2007,7 @@ suite('CopilotCustomizationInstallations', () => {
 			const error = await service.list().then(() => undefined, error => error instanceof Error ? error.message : String(error));
 
 			assert.deepStrictEqual({ error, calls: calls.sort() }, {
-				error: 'The SDK could not list installed MCP servers. (refused: lifecycle-unavailable)',
+				error: 'Could not list installed MCP servers. (refused: lifecycle-unavailable)',
 				calls: ['mcp.list', 'skills.list'],
 			});
 		});
@@ -2048,7 +2048,7 @@ suite('CopilotCustomizationInstallations', () => {
 			const error = await service.list().then(() => undefined, error => error instanceof Error ? error.message : String(error));
 
 			assert.deepStrictEqual({ error, calls: calls.sort() }, {
-				error: 'The SDK could not list installed MCP servers. (recovery-required)',
+				error: 'Could not list installed MCP servers. (recovery-required)',
 				calls: ['mcp.list', 'mcp.recover', 'skills.list'],
 			});
 		});

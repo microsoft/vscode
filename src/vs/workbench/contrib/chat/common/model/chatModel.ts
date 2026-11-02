@@ -14,6 +14,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
+import { marked } from '../../../../../base/common/marked/marked.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { IObservable, IReader, autorun, constObservable, derived, derivedOpts, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable, transaction } from '../../../../../base/common/observable.js';
@@ -706,19 +707,25 @@ class AbstractResponse implements IResponse {
 	private partsToRepr(parts: readonly IChatProgressResponseContent[]): string {
 		const blocks: string[] = [];
 		let currentBlockSegments: string[] = [];
+		const standaloneBlocks: string[] = [];
 		let hasEditGroupsAfterLastClear = false;
+		const legacySubagentMarkdown = getLegacySubagentMarkdown(parts);
 
-		for (const part of parts) {
+		for (const [index, part] of parts.entries()) {
+			const normalizedMarkdown = legacySubagentMarkdown.get(index);
+			if (normalizedMarkdown !== undefined && !normalizedMarkdown.trim()) {
+				continue;
+			}
 			let segment: { text: string; isBlock?: boolean } | undefined;
 			switch (part.kind) {
 				case 'clearToPreviousToolInvocation':
 					currentBlockSegments = [];
 					blocks.length = 0;
+					standaloneBlocks.length = 0;
 					hasEditGroupsAfterLastClear = false; // Reset edit groups flag when clearing
 					continue;
 				case 'treeData':
 				case 'progressMessage':
-				case 'codeblockUri':
 				case 'extensions':
 				case 'pullRequest':
 				case 'undoStop':
@@ -742,10 +749,20 @@ class AbstractResponse implements IResponse {
 				case 'systemNotification':
 					segment = { text: part.content.value, isBlock: true };
 					break;
+				case 'codeblockUri':
+					if (!part.subAgentInvocationId && !part.isStandalone) {
+						continue;
+					}
+					standaloneBlocks.push(part.uri.toString());
+					continue;
 				case 'toolInvocation':
 				case 'toolInvocationSerialized':
 					// Include tool invocations in the copy text
 					segment = this.getToolInvocationText(part);
+					if (part.subAgentInvocationId) {
+						standaloneBlocks.push(segment.text);
+						continue;
+					}
 					break;
 				case 'inlineReference':
 					segment = { text: this.inlineRefToRepr(part) };
@@ -772,7 +789,7 @@ class AbstractResponse implements IResponse {
 				case 'progressTaskSerialized':
 				case 'warning':
 				case 'info':
-					segment = { text: part.content.value };
+					segment = { text: legacySubagentMarkdown.get(index) ?? part.content.value };
 					break;
 				default:
 					// Ignore any unknown/obsolete parts, but assert that all are handled:
@@ -794,6 +811,7 @@ class AbstractResponse implements IResponse {
 		if (currentBlockSegments.length) {
 			blocks.push(currentBlockSegments.join(''));
 		}
+		blocks.push(...standaloneBlocks);
 
 		// Add consolidated edit summary at the end if there were any edit groups after the last clear
 		if (hasEditGroupsAfterLastClear) {
@@ -903,7 +921,8 @@ class ResponseView extends AbstractResponse {
 		// Undo stops are inserted before `codeblockUri`'s, which are preceeded by a
 		// markdownContent containing the opening code fence. Adjust the index
 		// backwards to avoid a buggy response if it looked like this happened.
-		if (_response.value[idx + 1]?.kind === 'codeblockUri' && _response.value[idx - 1]?.kind === 'markdownContent') {
+		const nextPart = _response.value[idx + 1];
+		if (nextPart?.kind === 'codeblockUri' && !nextPart.isStandalone && _response.value[idx - 1]?.kind === 'markdownContent') {
 			idx--;
 		}
 
@@ -1035,7 +1054,7 @@ export class Response extends AbstractResponse implements IDisposable {
 
 			// Nested subagent parts render inside their parent card and must not split parent markdown.
 			const lastResponsePart = this._responseParts
-				.filter(p => p.kind !== 'textEditGroup' && !isNestedSubagentResponsePart(p))
+				.filter(p => p.kind !== 'textEditGroup' && ((p.kind === 'codeblockUri' && !p.isStandalone) || !isNestedSubagentResponsePart(p)))
 				.at(-1);
 
 			if (!lastResponsePart || lastResponsePart.kind !== 'markdownContent' || !canMergeMarkdownStrings(lastResponsePart.content, progress.content)) {
@@ -3944,8 +3963,100 @@ export function canMergeMarkdownStrings(md1: IMarkdownString, md2: IMarkdownStri
 		md1.supportThemeIcons === md2.supportThemeIcons;
 }
 
-function isNestedSubagentResponsePart(part: object): boolean {
+export function isNestedSubagentResponsePart(part: object): boolean {
 	return 'subAgentInvocationId' in part && !!part.subAgentInvocationId;
+}
+
+/** Removes only metadata-only legacy subagent fences, preserving delimiters belonging to real code. */
+export function getLegacySubagentMarkdown(parts: readonly IChatProgressResponseContent[]): ReadonlyMap<number, string> {
+	const result = new Map<number, string>();
+	if (!parts.some(part => part.kind === 'codeblockUri' && part.subAgentInvocationId && !part.isStandalone)) {
+		return result;
+	}
+	let prefix = 'vscode_subagent_scaffold_';
+	while (parts.some(part => part.kind === 'markdownContent' && part.content.value.includes(prefix))) {
+		prefix += '_';
+	}
+	const marker = new RegExp(`${prefix}(?<index>\\d+)`, 'g');
+	const spans: { index: number; start: number; end: number; value: string }[] = [];
+	const segments: { start: number; end: number }[] = [];
+	let text = '';
+	let segmentStart = 0;
+	let previousMarkdown: IMarkdownString | undefined;
+	const finishSegment = () => {
+		if (text.length > segmentStart) {
+			segments.push({ start: segmentStart, end: text.length });
+		}
+		segmentStart = text.length;
+		previousMarkdown = undefined;
+	};
+	for (const [index, part] of parts.entries()) {
+		if (part.kind === 'markdownContent') {
+			if (previousMarkdown && !canMergeMarkdownStrings(previousMarkdown, part.content)) {
+				finishSegment();
+			}
+			const value = part.content.value.replace(/\r\n?/g, '\n');
+			spans.push({ index, start: text.length, end: text.length + value.length, value });
+			text += value;
+			previousMarkdown = part.content;
+		} else if (part.kind === 'codeblockUri') {
+			text += `\n${prefix}${index}\n`;
+		} else if (part.kind === 'markdownVuln' || part.kind === 'inlineReference') {
+			text += `${prefix}content`;
+		} else if (part.kind !== 'textEditGroup' && part.kind !== 'notebookEditGroup' && part.kind !== 'undoStop' && part.kind !== 'voiceProgress' && !isNestedSubagentResponsePart(part)) {
+			finishSegment();
+		}
+	}
+	finishSegment();
+	const removals: { start: number; end: number }[] = [];
+	let fences: { start: number; end: number }[] = [];
+	let hasMetadata = false;
+	const flush = () => {
+		if (hasMetadata) {
+			removals.push(...fences);
+		}
+		fences = [];
+		hasMetadata = false;
+	};
+	for (const segment of segments) {
+		let offset = segment.start;
+		for (const token of marked.lexer(text.slice(segment.start, segment.end))) {
+			const start = text.indexOf(token.raw, offset);
+			if (start < 0 || start >= segment.end) {
+				// A lexer-normalized raw token cannot be mapped safely back to the source.
+				return result;
+			}
+			offset = start + token.raw.length;
+			const value: string = token.type === 'code' ? token.text : token.raw;
+			const references = Array.from(value.matchAll(marker), match => parts[Number(match.groups?.index)]);
+			const onlySubagentMetadata = !value.replace(marker, '').trim()
+				&& references.every(part => part?.kind === 'codeblockUri' && part.subAgentInvocationId && !part.isStandalone);
+			const isFence = token.type === 'code' && !token.lang && /^ {0,3}```(?:\s*\n|$)/.test(token.raw);
+			if (onlySubagentMetadata && (isFence || token.type === 'paragraph' || token.type === 'space')) {
+				hasMetadata ||= references.length > 0;
+				if (isFence) {
+					fences.push({ start, end: offset });
+				}
+			} else {
+				flush();
+			}
+		}
+		flush();
+	}
+	for (const span of spans) {
+		const cuts = removals.filter(removal => removal.start < span.end && removal.end > span.start);
+		if (!cuts.length) {
+			continue;
+		}
+		let value = '';
+		let cursor = 0;
+		for (const cut of cuts) {
+			value += span.value.slice(cursor, Math.max(0, cut.start - span.start));
+			cursor = Math.min(span.value.length, cut.end - span.start);
+		}
+		result.set(span.index, value + span.value.slice(cursor));
+	}
+	return result;
 }
 
 export function appendMarkdownString(md1: IMarkdownString, md2: IMarkdownString | string): IMarkdownString {

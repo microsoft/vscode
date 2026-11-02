@@ -32,6 +32,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
+
       - name: Restore node_modules cache
         id: cache-node-modules
         uses: ./.github/actions/restore-node-modules
@@ -39,9 +42,11 @@ jobs:
           key-prefix: node_modules-css-order-scan
           key-args: "compile $(node -p process.arch)"
 
+      # Only the dependencies of the root project, without the root install scripts that install
+      # every other install root.
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --ignore-scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
@@ -49,12 +54,12 @@ jobs:
 
       - name: Install build dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci
+        run: pnpm install --frozen-lockfile
         working-directory: build
 
       - name: Install rspack dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci
+        run: pnpm install --frozen-lockfile
         working-directory: build/rspack
 
       - name: Save node_modules cache
@@ -65,10 +70,10 @@ jobs:
         run: cp node_modules/@vscode/codicons/dist/codicon.ttf src/vs/base/browser/ui/codicons/codicon/codicon.ttf
 
       - name: Transpile source
-        run: npm run transpile-client
+        run: pnpm run transpile-client
 
       - name: Install Playwright Chromium
-        run: npx playwright install chromium
+        run: pnpm exec playwright install chromium
 
       - name: Start serve-out
         # The scan attaches to an already-running serve (component-explorer-attach.json).
@@ -77,7 +82,7 @@ jobs:
         # block-buffered when redirected to a file, so the "Loopback" line can take
         # minutes to land in the log even though the server is already listening.
         run: |
-          npm run serve-out-rspack > /tmp/serve-out.log 2>&1 &
+          pnpm run serve-out-rspack > /tmp/serve-out.log 2>&1 &
           echo "SERVE_PID=$!" >> "$GITHUB_ENV"
           for i in $(seq 1 120); do
             if curl -s -o /dev/null "http://localhost:5123/"; then

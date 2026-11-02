@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { existsSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import esbuild from 'esbuild';
@@ -14,6 +15,22 @@ export interface RunConfig {
 	readonly additionalOptions?: Partial<esbuild.BuildOptions>;
 	readonly additionalWatchPaths?: readonly string[];
 	readonly beforeBuild?: () => Promise<unknown> | unknown;
+}
+
+/**
+ * Returns the folder of an installed package, found like Node.js does from `fromDir`. pnpm can
+ * hoist an extension's dependency to a parent folder's `node_modules`.
+ */
+export function resolvePackageDirectory(fromDir: string, packageName: string): string {
+	for (let dir = path.resolve(fromDir); ; dir = path.dirname(dir)) {
+		const candidate = path.join(dir, 'node_modules', packageName);
+		if (existsSync(path.join(candidate, 'package.json'))) {
+			return candidate;
+		}
+		if (path.dirname(dir) === dir) {
+			throw new Error(`Cannot find package ${packageName} from ${fromDir}`);
+		}
+	}
 }
 
 // `esbuild.stop()` shuts down the single esbuild service shared by all concurrent builds, so we

@@ -585,6 +585,16 @@ suite('AhpJsonlLogger', () => {
 	});
 
 	suite('stringifyAhpLogEntry', () => {
+		test('redacts proxy authorization results without changing the live value', () => {
+			const result = { jsonrpc: '2.0', id: 1, result: { authorization: 'Negotiate private-ticket' } };
+			assert.deepStrictEqual({
+				logged: JSON.parse(stringifyAhpLogEntry(result)),
+				live: result.result.authorization,
+			}, {
+				logged: { jsonrpc: '2.0', id: 1, result: { authorization: '<redacted>' } },
+				live: 'Negotiate private-ticket',
+			});
+		});
 
 		test('serialises a top-level URI as its string form', () => {
 			const uri = URI.parse('file:///tmp/example.txt');
