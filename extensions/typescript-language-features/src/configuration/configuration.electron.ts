@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import * as child_process from 'child_process';
 import * as fs from 'fs';
 import { BaseServiceConfigurationProvider } from './configuration';
+import { findExecutableOnPath } from '../utils/findExecutable.electron';
 import { RelativeWorkspacePathResolver } from '../utils/relativePathResolver';
 import { getSafeNotificationMessage } from '../utils/notification';
 
@@ -93,18 +94,25 @@ export class ElectronServiceConfigurationProvider extends BaseServiceConfigurati
 	}
 
 	private findNodePath(): string | null {
-		try {
-			const out = child_process.execFileSync('node', ['-e', 'console.log(process.execPath)'], {
-				windowsHide: true,
-				timeout: 2000,
-				cwd: vscode.workspace.workspaceFolders?.[0].uri.fsPath,
-				encoding: 'utf-8',
-			});
-			return out.trim();
-		} catch (error) {
-			vscode.window.showWarningMessage(vscode.l10n.t("Could not detect a Node installation to run TS Server."));
-			return null;
+		// Never spawn the bare name `node`: Windows searches the current working directory
+		// (the workspace) before PATH, which would run a `node.exe` planted in the workspace.
+		const nodeOnPath = findExecutableOnPath('node');
+		if (nodeOnPath) {
+			try {
+				const out = child_process.execFileSync(nodeOnPath, ['-e', 'console.log(process.execPath)'], {
+					windowsHide: true,
+					timeout: 2000,
+					// Lets version manager shims pick the workspace's Node version.
+					cwd: vscode.workspace.isTrusted ? vscode.workspace.workspaceFolders?.[0].uri.fsPath : undefined,
+					encoding: 'utf-8',
+				});
+				return out.trim();
+			} catch {
+				// Fall through to the warning below.
+			}
 		}
+		vscode.window.showWarningMessage(vscode.l10n.t("Could not detect a Node installation to run TS Server."));
+		return null;
 	}
 
 	private validatePath(nodePath: string | null): string | null {
