@@ -49,7 +49,8 @@ suite('Agent Host file edit identity', () => {
 
 	async function createHarness(caseSensitiveProvider = false) {
 		const directory = await fs.mkdtemp(join(tmpdir(), 'agent-host-file-identity-'));
-		const root = join(directory, 'repo');
+		// The in-memory provider has a virtual root, not native Windows drive roots.
+		const root = caseSensitiveProvider ? URI.file('/repo').fsPath : join(directory, 'repo');
 		const store = disposables.add(new DisposableStore());
 		const log = new NullLogService();
 		const fileService = store.add(new FileService(log));
