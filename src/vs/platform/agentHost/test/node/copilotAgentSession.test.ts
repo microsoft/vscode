@@ -27317,6 +27317,35 @@ Use the attached image as context.
 			});
 		});
 
+		test('MCP routing stops the search loop when a connected server\'s tools never become available', async () => {
+			const routeThreeTimes = async (reconnectBeforeThirdCall: boolean) => {
+				const { session, runtime, mockSession } = await createMcpRoutingSession(true);
+				mockSession.mcpListToolsResult = { tools: [{ name: 'current_search' }] };
+				const [, proxy] = runtime.createClientSdkTools(true);
+				session.resetTurnState('turn-repeat-mcp-route');
+				const results = [await invokeClientToolHandler(proxy, 'first-route'), await invokeClientToolHandler(proxy, 'second-route')];
+				if (reconnectBeforeThirdCall) {
+					mockSession.fire('session.mcp_server_status_changed', { serverName: 'docs', status: 'pending' });
+					mockSession.fire('session.mcp_server_status_changed', { serverName: 'docs', status: 'connected' });
+				}
+				results.push(await invokeClientToolHandler(proxy, 'third-route'));
+				return results.map(result => ({
+					resultType: result.resultType,
+					stopsSearching: result.textResultForLlm.includes('searching again will not find them'),
+				}));
+			};
+			const searchAgain = { resultType: 'success', stopsSearching: false };
+
+			assert.deepStrictEqual({
+				sameConnection: await routeThreeTimes(false),
+				// A reconnect starts a new connection, whose tools may now be available.
+				reconnected: await routeThreeTimes(true),
+			}, {
+				sameConnection: [searchAgain, searchAgain, { resultType: 'failure', stopsSearching: true }],
+				reconnected: [searchAgain, searchAgain, searchAgain],
+			});
+		});
+
 		test('MCP routing shares activation between concurrent tool calls', async () => {
 			const { session, runtime, mockSession } = await createMcpRoutingSession();
 			const [, proxy] = runtime.createClientSdkTools(true);
