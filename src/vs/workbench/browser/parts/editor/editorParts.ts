@@ -23,7 +23,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { getActiveElement, getWindow, IDimension, isAncestor, isHTMLElement } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, getActiveElement, getWindow, getWindowById, IDimension, isAncestor, isHTMLElement } from '../../../../base/browser/dom.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { DeepPartial } from '../../../../base/common/types.js';
@@ -81,6 +81,8 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super('workbench.editorParts', themeService, storageService);
+
+		this._register(this.onDidChangeActiveGroup(group => this.lastActiveGroup = group));
 		this.modalEditorVisibleContext = EditorPartModalVisibleContext.bindTo(this.contextKeyService);
 
 		this.editorWorkingSets = (() => {
@@ -356,6 +358,15 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		}));
 
 		disposables.add(part.onDidChangeActiveGroup(group => this._onDidActiveGroupChange.fire(group)));
+
+		// Focus moving out of a part to elsewhere in a window with several
+		// parts, such as its title row, changes the active group of the
+		// window to its main part: announce it as for focus moving into a part
+		const targetWindow = getWindowById(part.windowId)?.window;
+		if (targetWindow) {
+			disposables.add(addDisposableListener(targetWindow.document, EventType.FOCUS_IN, e => this.onDidFocusInWindow(targetWindow.document, e)));
+		}
+
 		disposables.add(part.onDidAddGroup(group => this._onDidAddGroup.fire(group)));
 		disposables.add(part.onDidRemoveGroup(group => this._onDidRemoveGroup.fire(group)));
 		disposables.add(part.onDidMoveGroup(group => this._onDidMoveGroup.fire(group)));
@@ -376,6 +387,25 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 
 		disposables.add(part.onDidChangeGroupIndex(group => this._onDidChangeGroupIndex.fire(group)));
 		disposables.add(part.onDidChangeGroupLocked(group => this._onDidChangeGroupLocked.fire(group)));
+	}
+
+	private lastActiveGroup: IEditorGroupView | undefined;
+
+	private onDidFocusInWindow(document: Document, e: FocusEvent): void {
+		const documentParts = this.parts.filter(part => part.element?.ownerDocument === document && (part as IEditorPart) !== this.modalEditorPart);
+		if (documentParts.length < 2 || !isHTMLElement(e.target)) {
+			return; // only windows with several parts
+		}
+
+		const target = e.target;
+		if (documentParts.some(part => { const container = part.getContainer(); return !!container && isAncestor(target, container); })) {
+			return; // focus moving into a part is announced by the part
+		}
+
+		const activeGroup = this.activeGroup;
+		if (activeGroup !== this.lastActiveGroup) {
+			this._onDidActiveGroupChange.fire(activeGroup);
+		}
 	}
 
 	private doUpdateMostRecentActive(part: EditorPart, makeMostRecentlyActive?: boolean): void {

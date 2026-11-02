@@ -96,6 +96,7 @@ suite('Editor Parts', () => {
 		const focusable = element.appendChild(mainWindow.document.createElement('div'));
 		focusable.tabIndex = 0;
 		focusable.focus();
+		focusable.dispatchEvent(new FocusEvent('focusin', { bubbles: true })); // the test window may not have focus
 
 		return focusable;
 	}
@@ -151,6 +152,42 @@ suite('Editor Parts', () => {
 		focusIn(inner.getContainer()!);
 
 		assert.deepStrictEqual({ inner: parts.activePart === inner, element: parts.getPart(mainWindow.document.activeElement as HTMLElement) === inner }, { inner: true, element: true });
+	});
+
+	test('focus leaving a part for elsewhere in a window with several parts announces the active group of the window', async () => {
+		const { instantiationService, parts } = await createServices();
+		const partA = createOwnedPart(instantiationService, parts);
+		const outside = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		disposables.add({ dispose: () => outside.remove() });
+
+		focusIn(partA.getContainer()!);
+		const announced: string[] = [];
+		disposables.add(parts.onDidChangeActiveGroup(group => announced.push(group === parts.mainPart.activeGroup ? 'main' : group === partA.activeGroup ? 'a' : 'other')));
+
+		focusIn(outside);
+		focusIn(outside); // no change, no event
+
+		assert.deepStrictEqual({ announced, active: parts.activeGroup === parts.mainPart.activeGroup }, { announced: ['main'], active: true });
+	});
+
+	test('a window with a single part gets no extra active group events from focus leaving it', async () => {
+		const { parts } = await createServices();
+		const outside = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		disposables.add({ dispose: () => outside.remove() });
+
+		let events = 0;
+		disposables.add(parts.onDidChangeActiveGroup(() => events++));
+		const eventsOf = (fn: () => void) => { const before = events; fn(); return events - before; };
+
+		focusIn(parts.testMainPart.getContainer()!);
+		const leavingMain = eventsOf(() => focusIn(outside));
+
+		const modalPart = await parts.createModalEditorPart();
+		modalPart.activeGroup.focus();
+		const leavingModal = eventsOf(() => focusIn(outside));
+		await modalPart.close();
+
+		assert.deepStrictEqual({ leavingMain, leavingModal }, { leavingMain: 0, leavingModal: 0 });
 	});
 
 	test('a modal part stays the active part while it was the last active part, also with focus in no part', async () => {
