@@ -256,6 +256,10 @@ class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements IAuxilia
 		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, productService, nativeHostService, environmentService);
 	}
 
+	protected override get showsWindowLayoutActions(): boolean {
+		return true;
+	}
+
 	override get preventZoom(): boolean {
 		return getZoomFactor(getWindow(this.element)) < 1 || !this.mainTitlebar.hasZoomableElements;
 	}
