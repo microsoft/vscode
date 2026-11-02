@@ -33,6 +33,9 @@ import { ITitlebarPart, ITitleProperties, ITitleVariable, IAuxiliaryTitlebarPart
 import { WindowTitle } from '../../../workbench/browser/parts/titlebar/windowTitle.js';
 import { Menus } from '../menus.js';
 import { IsNewChatSessionContext } from '../../common/contextkeys.js';
+import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
+import { ContentPart } from '../../../workbench/browser/parts/editor/contentPart.js';
+import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
 const commandCenterContextKeys = new Set([IsNewChatSessionContext.key]);
@@ -74,6 +77,9 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 
 	get minimumHeight(): number {
+		if (this.fixedHeight !== undefined) {
+			return this.fixedHeight;
+		}
 		const wcoEnabled = isWeb && isWCOEnabled();
 		let value = this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) === ModernUIDensity.Compact
 			? DEFAULT_CUSTOM_TITLEBAR_HEIGHT
@@ -105,6 +111,9 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private leftContent!: HTMLElement;
 	private leftToolbarContainer!: HTMLElement;
 	private centerContent!: HTMLElement;
+	private windowTitleLabel: HTMLElement | undefined;
+	private fixedTitle: string | undefined;
+	private sessionHeaderHost: HTMLElement | undefined;
 	private rightContent!: HTMLElement;
 	private readonly overflowManagedToolBarElements: HTMLElement[] = [];
 	private titleBarToolBarOverflowScheduler!: AnimationFrameScheduler;
@@ -114,6 +123,10 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	get rightWindowControlsContainer(): HTMLElement | undefined { return this.windowControlsContainer; }
 
 	private leftSpacerWidth: number = 0;
+
+	private centerActionsContainer!: HTMLElement;
+	private sessionActionsContainer!: HTMLElement;
+	private sessionHeaderActionsHost: HTMLElement | undefined;
 
 	private readonly titleBarStyle: TitlebarStyle;
 	private isInactive: boolean = false;
@@ -159,6 +172,82 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 	updateProperties(_properties: ITitleProperties): void {
 		// No window title to update in simplified titlebar
+	}
+
+	/**
+	 * Shows a fixed title in the center of the title bar, in place of the command center, and uses it as the window
+	 * title. Meant for auxiliary windows that show one thing, such as a chat; `undefined` removes it.
+	 */
+	setTitle(title: string | undefined): void {
+		this.fixedTitle = title;
+		this.renderFixedTitle();
+		if (title) {
+			getWindow(this.element).document.title = title;
+		}
+	}
+
+	/**
+	 * The element that shows a session header in place of the title, after the window controls; see
+	 * {@link setHostsSessionHeader}. Created when first asked for, so a title bar that never hosts one is as it was.
+	 */
+	getSessionHeaderHost(): HTMLElement {
+		if (!this.sessionHeaderHost) {
+			this.sessionHeaderHost = append(this.leftContent, $('.session-header-host'));
+		}
+		return this.sessionHeaderHost;
+	}
+
+	/**
+	 * The element that shows the actions of a hosted session header, such as its More Actions, last of the actions of the
+	 * title bar. Asking for it makes the actions one group at the right of the title bar, as a window of its own for a
+	 * session, such as a chat window, shows them: the actions that otherwise show beside the title, such as Run and Open in
+	 * VS Code, then show before those at the right, such as Create Pull Request and the layout actions, and the header's
+	 * after all of them, before only the window controls.
+	 */
+	getSessionHeaderActionsHost(): HTMLElement {
+		if (!this.sessionHeaderActionsHost) {
+			this.sessionHeaderActionsHost = $('.session-header-actions-host');
+			this.sessionActionsContainer.before(this.centerActionsContainer);
+			const windowControls = [...this.rightContent.children].find(child => child.classList.contains('window-controls-container'));
+			this.rightContent.insertBefore(this.sessionHeaderActionsHost, windowControls ?? null);
+			this.titleBarToolBarOverflowScheduler.schedule();
+		}
+		return this.sessionHeaderActionsHost;
+	}
+
+	private fixedHeight: number | undefined;
+
+	/**
+	 * Whether the title bar shows the layout actions of its window ({@link Menus.TitleBarWindowLayout}), which apply to
+	 * windows with layout modes, such as chat windows: the title bars of other windows than the main window.
+	 */
+	protected get showsWindowLayoutActions(): boolean {
+		return false;
+	}
+
+	/**
+	 * Makes the title bar `height` tall, in place of the height of the density, such as to line up with the row of tabs
+	 * beside it in a chat window; its drag region and window controls follow. `undefined` brings back the density's.
+	 */
+	setHeight(height: number | undefined): void {
+		if (this.fixedHeight === height) {
+			return;
+		}
+		this.fixedHeight = height;
+		this._onDidChange.fire(undefined);
+	}
+
+	/** Shows the {@link getSessionHeaderHost} in place of the title. The window title stays. */
+	setHostsSessionHeader(hosts: boolean): void {
+		this.element.classList.toggle('hosts-session-header', hosts);
+	}
+
+	private renderFixedTitle(): void {
+		if (!this.windowTitleLabel) {
+			return;
+		}
+		this.windowTitleLabel.textContent = this.fixedTitle ?? '';
+		this.windowTitleLabel.parentElement?.classList.toggle('has-fixed-title', !!this.fixedTitle);
 	}
 
 	registerVariables(_variables: ITitleVariable[]): void {
@@ -265,6 +354,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		// Center toolbar - command center (renders session picker via IActionViewItemService)
 		// Uses .window-title > .command-center nesting to match default workbench CSS selectors
 		const windowTitle = append(this.centerContent, $('div.window-title'));
+		this.windowTitleLabel = append(windowTitle, $('span.window-title-text'));
+		this.renderFixedTitle();
 		const centerToolbarContainer = append(windowTitle, $('div.command-center'));
 		const centerToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerToolbarContainer, Menus.CommandCenter, {
 			hoverDelegate,
@@ -280,7 +371,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		}));
 
 		// Actions toolbar (Open in VS Code), rendered right of the command center.
-		const centerActionsContainer = append(this.centerContent, $('div.titlebar-actions-container.titlebar-center-actions-container'));
+		const centerActionsContainer = this.centerActionsContainer = append(this.centerContent, $('div.titlebar-actions-container.titlebar-center-actions-container'));
 		const centerActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerActionsContainer, Menus.TitleBarCenterRight, {
 			hoverDelegate,
 			contextMenu: Menus.TitleBarContext,
@@ -299,8 +390,19 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
+		// The layout actions of a window with layout modes (before right toolbar), such as a chat window: its Layout menu and
+		// the buttons of its actions, which the user shows and hides from the context menu of the toolbar.
+		const windowLayoutContainer = this.showsWindowLayoutActions ? prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-window-layout-container')) : undefined;
+		const windowLayoutToolBar = windowLayoutContainer && this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, windowLayoutContainer, Menus.TitleBarWindowLayout, {
+			hoverDelegate,
+			contextMenu: Menus.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			telemetrySource: 'titlePart.windowLayout',
+			toolbarOptions: { primaryGroup: () => true },
+		}));
+
 		// Session title actions toolbar (before right toolbar)
-		const sessionActionsContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-session-actions-container'));
+		const sessionActionsContainer = this.sessionActionsContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-session-actions-container'));
 		const sessionActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, sessionActionsContainer, Menus.TitleBarSessionMenu, {
 			hoverDelegate,
 			contextMenu: Menus.TitleBarContext,
@@ -327,6 +429,9 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		this.registerOverflowManagedToolBar(centerNavContainer, centerNavToolBar);
 		this.registerOverflowManagedToolBar(rightToolbarContainer, rightToolBar);
 		this.registerOverflowManagedToolBar(sessionActionsContainer, sessionActionsToolBar);
+		if (windowLayoutContainer && windowLayoutToolBar) {
+			this.registerOverflowManagedToolBar(windowLayoutContainer, windowLayoutToolBar);
+		}
 
 		// Context menu on the titlebar
 		this._register(addDisposableListener(this.rootContainer, EventType.CONTEXT_MENU, e => {
@@ -480,6 +585,10 @@ export class AuxiliaryTitlebarPart extends TitlebarPart implements IAuxiliaryTit
 		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService);
 	}
 
+	protected override get showsWindowLayoutActions(): boolean {
+		return true;
+	}
+
 	override get preventZoom(): boolean {
 		// Prevent zooming behavior if any of the following conditions are met:
 		// 1. Shrinking below the window control size (zoom < 1)
@@ -523,6 +632,14 @@ export class TitleService extends MultiWindowParts<TitlebarPart> implements ITit
 		container.insertBefore(titlebarPartContainer, container.firstChild);
 
 		const disposables = new DisposableStore();
+
+		// An editor window shows no session, so its title bar reads no session's keys rather than those of the main
+		// window's session; a window that shows a session, such as a chat window, binds those of its own.
+		if (!(editorGroupsContainer instanceof ContentPart)) {
+			const contextKeyService = disposables.add(instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService)).createScoped(titlebarPartContainer));
+			setActiveSessionContextKeys(undefined, contextKeyService, undefined);
+			instantiationService = disposables.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+		}
 
 		const titlebarPart = this.doCreateAuxiliaryTitlebarPart(titlebarPartContainer, editorGroupsContainer, instantiationService);
 		disposables.add(this.registerPart(titlebarPart));
