@@ -705,6 +705,29 @@ suite('Chat Pet Colors', () => {
 		});
 	});
 
+	test('keeps an edited draft through an Apply to round trip even when it matches the other window color', () => {
+		const { service, input, apply, setInput, getTargetOptions } = createColorWidget(true);
+		service.setColor('#a277e6', 'editor');
+		service.setColor('#e6536f', 'agents');
+		const [, editorOption, agentsOption] = getTargetOptions();
+		editorOption.click();
+		setInput('#e6536f');
+		agentsOption.click();
+		const onAgents = { input: input.value, applyDisabled: apply.getAttribute('aria-disabled') };
+		editorOption.click();
+		const backOnEditor = { input: input.value, applyDisabled: apply.getAttribute('aria-disabled') };
+		apply.click();
+		const applied = { editorWindow: service.getWindowColor('editor').get(), agentsWindow: service.getWindowColor('agents').get() };
+		service.setColor('#55b85a', 'agents');
+		agentsOption.click();
+		assert.deepStrictEqual({ onAgents, backOnEditor, applied, afterApplyOnAgents: input.value }, {
+			onAgents: { input: '#e6536f', applyDisabled: 'true' },
+			backOnEditor: { input: '#e6536f', applyDisabled: 'false' },
+			applied: { editorWindow: '#e6536f', agentsWindow: '#e6536f' },
+			afterApplyOnAgents: '#55b85a',
+		});
+	});
+
 	test('recolors every animated and reduced-motion source without changing alpha, eyes, or props', async () => {
 		const urls = new Set(Object.values(getChatPetSpriteSources('stable')).flatMap(sources => [sources.animated.url, sources.reducedMotion.url]));
 		for (const effect of ['speech', 'respawn']) {

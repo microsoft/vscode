@@ -37,6 +37,8 @@ export class ChatPetColorsWidget extends Disposable {
 	private readonly customPreview: HTMLCanvasElement;
 	private readonly previewDisposable = this._register(new MutableDisposable<IDisposable>());
 	private customizationUnlocked = false;
+	/** Whether the user edited the custom color since it last showed the target's color. */
+	private draftEdited = false;
 	private target: ChatPetAppearanceTarget | undefined;
 	private targetColor: ChatPetColor | undefined;
 	private draftColor: ChatPetColor | undefined;
@@ -129,7 +131,12 @@ export class ChatPetColorsWidget extends Disposable {
 		this.hexInput.inputElement.setAttribute('aria-describedby', this.validationMessage.id);
 
 		this._register(DOM.addDisposableListener(this.colorInput, DOM.EventType.INPUT, () => {
+			this.draftEdited = true;
 			this.hexInput.value = this.colorInput.value;
+		}));
+		// Unlike onDidChange, the input event only reports edits from the user.
+		this._register(DOM.addDisposableListener(this.hexInput.inputElement, DOM.EventType.INPUT, () => {
+			this.draftEdited = true;
 		}));
 		this._register(this.hexInput.onDidChange(() => this.updateDraft()));
 		this._register(this.applyButton.onDidClick(() => this.applyCustomColor()));
@@ -157,15 +164,20 @@ export class ChatPetColorsWidget extends Disposable {
 			unlockHint.hidden = this.customizationUnlocked;
 			this.colorInput.disabled = !this.customizationUnlocked;
 			this.hexInput.setEnabled(this.customizationUnlocked);
-			// Keep an edited draft when only the target changes, so it can be applied to other windows.
-			const draftEdited = this.targetColor !== undefined && parseChatPetColor(this.hexInput.value) !== getChatPetBodyColor(this.targetColor);
-			if (wasUnlocked !== this.customizationUnlocked || (targetColor !== this.targetColor && (target === this.target || !draftEdited))) {
-				this.hexInput.value = getChatPetBodyColor(targetColor);
+			// Changing only the target keeps an edited draft, so it can be applied to other windows.
+			const keepDraft = this.draftEdited && target !== this.target;
+			if (wasUnlocked !== this.customizationUnlocked || (targetColor !== this.targetColor && !keepDraft)) {
+				this.resetDraft(targetColor);
 			}
 			this.target = target;
 			this.targetColor = targetColor;
 			this.updateDraft();
 		}));
+	}
+
+	private resetDraft(color: ChatPetColor): void {
+		this.hexInput.value = getChatPetBodyColor(color);
+		this.draftEdited = false;
 	}
 
 	private updateDraft(): void {
@@ -201,6 +213,7 @@ export class ChatPetColorsWidget extends Disposable {
 
 	private selectColor(color: ChatPetColor): void {
 		this.chatPetService.setColor(color, this.appearanceTarget.get());
+		this.resetDraft(color);
 		if (!isDefaultChatPetColor(color)) {
 			this.chatPetService.markAchievementSeen(ChatPetAchievementIds.Blobby);
 		}
