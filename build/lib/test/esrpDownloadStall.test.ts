@@ -142,4 +142,18 @@ suite('ESRP macOS download stall guard', () => {
 		assert.equal(result.sessions, MAX_ESRP_DOWNLOAD_STALL_RESUBMISSIONS + 1);
 		assert.equal(result.exitCode, 0);
 	});
+
+	test('does not submit a file again after a failure that is not a stall', async () => {
+		const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'esrp-resubmit-'));
+		try {
+			let sessions = 0;
+			const stalls: number[] = [];
+			const exitCode = await runWithEsrpDownloadResubmission(process.execPath, () => (sessions++, ['-e', 'process.exit(3)']), folder, 'VSCode-darwin-arm64.zip', options, (_stall, attempt) => stalls.push(attempt), 50);
+			assert.equal(exitCode, 3);
+			assert.equal(sessions, 1);
+			assert.deepEqual(stalls, []);
+		} finally {
+			fs.rmSync(folder, { recursive: true, force: true });
+		}
+	});
 });
