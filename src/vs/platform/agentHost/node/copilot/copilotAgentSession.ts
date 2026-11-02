@@ -2019,6 +2019,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _configuredMcpRoutingServers = new Map<string, ICopilotMcpRoutingServer>();
 	private readonly _mcpRoutingProxies = new Map<string, IMcpRoutingProxy>();
 	private readonly _mcpRoutingActivations = new Map<string, { readonly promise: Promise<void>; readonly cancellation: CancellationTokenSource }>();
+	/** Servers whose routing proxy already reported the current connection's tools to the model. */
+	private readonly _mcpRoutingReportedServers = new Set<string>();
 
 	/**
 	 * Fans MCP server notifications (today: `notifications/tools/list_changed`)
@@ -4236,9 +4238,17 @@ export class CopilotAgentSession extends Disposable {
 					try {
 						await this._activateMcpRoutingServer(server.serverName);
 						const liveTools = await this._refreshMcpToolRoutingCache(server.serverName);
+						const liveToolNames = JSON.stringify(liveTools.map(tool => tool.name));
+						// A repeat call on the same connection means the previous "search again" found nothing:
+						// the session's tools, which tool search reads, still lack this server.
+						if (this._mcpRoutingReportedServers.has(server.serverName) && !(await this._hasCurrentMcpServerTools(server.serverName))) {
+							this._logService.warn(`[Copilot:${this.sessionId}] MCP server '${server.serverName}' is connected and lists ${liveTools.length} tools, but none are available to the session; its configured tool filter may exclude them`);
+							return this._toolSearchFailure(`The ${displayName} MCP server is connected and lists these tools: ${liveToolNames}. None of them are available in this session, so searching again will not find them. The server's configuration may restrict which tools are exposed, for example a "tools" allowlist naming tools the server no longer offers. Do not search for or call this server's tools again; tell the user to check its MCP configuration.`);
+						}
+						this._mcpRoutingReportedServers.add(server.serverName);
 						return {
 							resultType: 'success',
-							textResultForLlm: `The ${displayName} MCP server is connected. Search tools again to use one of its current tools: ${JSON.stringify(liveTools.map(tool => tool.name))}`,
+							textResultForLlm: `The ${displayName} MCP server is connected. Search tools again to use one of its current tools: ${liveToolNames}`,
 						};
 					} catch (error) {
 						const message = getErrorMessage(error);
@@ -4480,6 +4490,18 @@ export class CopilotAgentSession extends Disposable {
 			this._mcpToolRoutingCache.store(server, tools);
 		}
 		return tools;
+	}
+
+	/** Reads the same tool snapshot tool search receives, so the answer matches what a search can find. */
+	private async _hasCurrentMcpServerTools(serverName: string): Promise<boolean> {
+		try {
+			const { tools } = await this._wrapper.session.rpc.tools.getCurrentMetadata();
+			// Uninitialized metadata proves nothing, so it does not count as missing tools.
+			return tools?.some(tool => tool.mcpServerName === serverName) ?? true;
+		} catch (error) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to read current tool metadata for MCP server '${serverName}'`, error);
+			return true;
+		}
 	}
 
 	private _mcpRoutingServer(serverName: string): ICopilotMcpRoutingServer | undefined {
@@ -11116,6 +11138,7 @@ export class CopilotAgentSession extends Disposable {
 	private _noteMcpSdkStatus(serverName: string, status: SdkMcpServerStatus): void {
 		if (this._mcpSdkStatus.get(serverName) === 'connected' && status !== 'connected') {
 			this._mcpToolsLoaded.delete(serverName);
+			this._mcpRoutingReportedServers.delete(serverName);
 		}
 		this._mcpSdkStatus.set(serverName, status);
 	}

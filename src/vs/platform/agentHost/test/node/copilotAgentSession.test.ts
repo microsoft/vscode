@@ -282,6 +282,7 @@ class MockCopilotSession {
 	readonly mcpAuthenticationStateChangedCalls: Array<{ serverName?: string; refreshSessionToken?: boolean }> = [];
 	readonly mcpListToolsCalls: Array<{ serverName: string }> = [];
 	mcpListToolsResult: Awaited<ReturnType<CopilotSession['rpc']['mcp']['listTools']>> = { tools: [] };
+	currentToolMetadata: CurrentToolMetadata[] | null = null;
 	mcpListToolsError: unknown = undefined;
 	connectorCapabilities: Awaited<ReturnType<CopilotSession['rpc']['connectors']['getCapabilities']>> = {
 		apiVersion: 1, availability: 'enabled', consentContinuation: true, opaqueAccountSelection: true,
@@ -509,6 +510,9 @@ class MockCopilotSession {
 	currentModelGate: Promise<void> | undefined;
 
 	readonly rpc = {
+		tools: {
+			getCurrentMetadata: async () => ({ tools: this.currentToolMetadata }),
+		},
 		model: {
 			list: async () => ({ list: [] }),
 			getCurrent: async () => {
@@ -27314,6 +27318,36 @@ Use the attached image as context.
 			}, {
 				starts: [],
 				resultType: 'success',
+			});
+		});
+
+		test('MCP routing stops the search loop when a ready server\'s tools never reach the session', async () => {
+			const routeTwice = async (currentToolMetadata: CurrentToolMetadata[]) => {
+				const { session, runtime, mockSession } = await createMcpRoutingSession(true);
+				mockSession.mcpListToolsResult = { tools: [{ name: 'current_search' }] };
+				mockSession.currentToolMetadata = currentToolMetadata;
+				const [, proxy] = runtime.createClientSdkTools(true);
+				session.resetTurnState('turn-repeat-mcp-route');
+				const first = await invokeClientToolHandler(proxy, 'first-route');
+				const second = await invokeClientToolHandler(proxy, 'second-route');
+				return [first, second].map(result => ({
+					resultType: result.resultType,
+					stopsSearching: result.textResultForLlm.includes('searching again will not find them'),
+				}));
+			};
+
+			assert.deepStrictEqual({
+				filteredOut: await routeTwice([{ name: 'other-tool', description: '', mcpServerName: 'other', deferLoading: true }]),
+				available: await routeTwice([{ name: 'docs-current_search', description: '', mcpServerName: 'docs', mcpToolName: 'current_search', deferLoading: true }]),
+			}, {
+				filteredOut: [
+					{ resultType: 'success', stopsSearching: false },
+					{ resultType: 'failure', stopsSearching: true },
+				],
+				available: [
+					{ resultType: 'success', stopsSearching: false },
+					{ resultType: 'success', stopsSearching: false },
+				],
 			});
 		});
 
