@@ -88,7 +88,7 @@ suite('Chat window', () => {
 		return { part, group, addGroup };
 	}
 
-	function createWindow(options?: { vetoMain?: boolean; unloading?: { value: boolean } }) {
+	function createWindow(options?: { vetoMain?: boolean; unloading?: { value: boolean }; otherPart?: boolean }) {
 		const events: string[] = [];
 		const chatInput = disposables.add(new TestInput());
 		const onDidEnd = disposables.add(new Emitter<void>());
@@ -101,6 +101,8 @@ suite('Chat window', () => {
 		const main = createPart(events, 'main', { veto: options?.vetoMain });
 		const chat = createPart(events, 'chat');
 		chat.group.testEditors.push(chatInput);
+		// Another part of the window, such as one created for an editor dropped on its edge
+		const other = createPart(events, 'other');
 		const window = disposables.add(new ChatWindow(1, content, state, main.part, chat.part, {
 			focusWindow: () => events.push('focus window'),
 			closeWindow: () => events.push('close window'),
@@ -112,10 +114,15 @@ suite('Chat window', () => {
 			terminalsVisible: constObservable(false),
 			didMoveChatOut: () => events.push('moved out'),
 			resetLayout: () => events.push('reset layout'),
+			windowGroups: options?.otherPart ? {
+				get groups() { return [...chat.part.groups, ...main.part.groups, ...other.part.groups]; },
+				onDidAddGroup: Event.None,
+				onDidRemoveGroup: Event.None,
+			} : undefined,
 		}));
 		disposables.add(window.onWillClose(() => events.push('will close')));
 		disposables.add(window.onDidClose(() => events.push('closed')));
-		return { window, state, main, chat, chatInput, onDidEnd, events };
+		return { window, state, main, chat, other, chatInput, onDidEnd, events };
 	}
 
 	const editor = () => disposables.add(new TestInput());
@@ -330,5 +337,28 @@ suite('Chat window', () => {
 		chat.group.fireCloseEditor(chatInput, EditorCloseContext.MOVE);
 
 		assert.deepStrictEqual(events, ['moved out']);
+	});
+
+	test('the chat\'s editor moved into another part of the window stays in the window: closing it there closes the window, and the main part closing its last editor keeps the layout', async () => {
+		const { window, state, main, chat, other, chatInput, events } = createWindow({ otherPart: true });
+		state.setLayoutMode(ChatWindowLayoutMode.SideBySide);
+
+		other.group.testEditors.push(chatInput);
+		chat.group.fireCloseEditor(chatInput, EditorCloseContext.MOVE);
+		const afterMove = [...events];
+
+		const file = editor();
+		main.group.open(file);
+		main.group.fireCloseEditor(file);
+		const modeAfterLastMainEditor = window.layoutMode.get();
+
+		other.group.fireCloseEditor(chatInput);
+		await timeout(0);
+
+		assert.deepStrictEqual({ afterMove, modeAfterLastMainEditor, closed: events.includes('closed') }, {
+			afterMove: [],
+			modeAfterLastMainEditor: ChatWindowLayoutMode.SideBySide,
+			closed: true
+		});
 	});
 });
