@@ -160,14 +160,19 @@
 	margin-left: var(--agents-floating-panel-gap);
 }
 
-/* Floating content card. Shared by every full-surface content part (the
-	sessions grid and the custom view grid) so they are visually identical. */
-.agent-sessions-workbench .agents-part-card {
-	margin: 0 var(--agents-floating-panel-gap) 0 0;
+/* Floating content card surface: its background, frame and corners. Shared by every
+	full-surface content part (the sessions grid and the custom view grid) and by any other
+	card that must look the same, so they are visually identical. */
+.agent-sessions-workbench .agents-card-surface {
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: var(--agents-part-corner-radius);
 	box-sizing: border-box;
+}
+
+/* Where a content part's card sits in the main window's layout. */
+.agent-sessions-workbench .agents-part-card {
+	margin: 0 var(--agents-floating-panel-gap) 0 0;
 }
 
 .agent-sessions-workbench.nosidebar:not(.phone-layout) .agents-part-card {
@@ -226,13 +231,13 @@
 }
 
 /* Compact surfaces share a single separator without reserving space for card frames. */
-.monaco-workbench.agent-sessions-workbench.modern-ui-compact .agents-part-card,
+.monaco-workbench.agent-sessions-workbench.modern-ui-compact .agents-card-surface,
 .monaco-workbench.agent-sessions-workbench.modern-ui-compact .part:is(.panel, .auxiliarybar),
 .monaco-workbench.agent-sessions-workbench.modern-ui-compact .monaco-grid-view .part.editor:not(.modal-editor-part) {
 	border-width: 0;
 }
 
-.monaco-workbench.agent-sessions-workbench.modern-ui-compact .agents-part-card::after,
+.monaco-workbench.agent-sessions-workbench.modern-ui-compact .agents-card-surface::after,
 .monaco-workbench.agent-sessions-workbench.modern-ui-compact .part:is(.panel, .auxiliarybar)::after,
 .monaco-workbench.agent-sessions-workbench.modern-ui-compact .monaco-grid-view .part.editor:not(.modal-editor-part)::after {
 	content: '';
@@ -254,7 +259,7 @@
 	border-top-width: 0;
 }
 
-.monaco-workbench.vs.agent-sessions-workbench .agents-part-card {
+.monaco-workbench.vs.agent-sessions-workbench .agents-card-surface {
 	border-color: var(--vscode-agentsCard-border, var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent)));
 }
 

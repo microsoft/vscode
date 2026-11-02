@@ -48,7 +48,7 @@ suite('Sessions - Agents Part Card', () => {
 		container.classList.toggle('phone-layout', phone);
 		container.classList.toggle('modern-ui-compact', compact && !phone);
 
-		const card = append(container, $('.agents-part-card'));
+		const card = append(container, $('.agents-part-card.agents-card-surface'));
 		card.style.transition = 'none';
 
 		return { container, card };

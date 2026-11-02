@@ -71,7 +71,7 @@ import { IContextKey, IContextKeyService } from '../../platform/contextkey/commo
 import { CustomViewVisibleContext, EditorMaximizedContext, IsPhoneLayoutContext, DesktopLayoutContext } from '../common/contextkeys.js';
 import { SessionsLayoutPolicy, ViewportClass } from './layoutPolicy.js';
 import { ChatLayoutPresentation } from '../common/chatLayout.js';
-import { AGENTS_PART_CARD_CLASS } from './parts/agentsPartCard.js';
+import { AGENTS_CARD_SURFACE_CLASS, AGENTS_PART_CARD_CLASS } from './parts/agentsPartCard.js';
 import { MobileNavigationStack } from './mobileNavigationStack.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
 import { getMobileViewportDimension, IMobileVisualViewport } from './parts/mobile/mobileVisualViewport.js';
@@ -1146,7 +1146,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	private createSessionsPart(): void {
 		const sessionsPartContainer = document.createElement('div');
-		sessionsPartContainer.classList.add('part', 'sessionspart', 'basepanel', 'right', AGENTS_PART_CARD_CLASS);
+		sessionsPartContainer.classList.add('part', 'sessionspart', 'basepanel', 'right', AGENTS_PART_CARD_CLASS, AGENTS_CARD_SURFACE_CLASS);
 		sessionsPartContainer.id = Parts.SESSIONS_PART;
 		sessionsPartContainer.setAttribute('role', 'main');
 		this._register(addDisposableListener(sessionsPartContainer, EventType.FOCUS_IN, () => this._restoreSessionsPartOnActivation()));
@@ -1194,7 +1194,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	private createCustomViewGridPart(): void {
 		const customViewGridPartContainer = document.createElement('div');
-		customViewGridPartContainer.classList.add('part', 'customviewgridpart', 'basepanel', 'right', AGENTS_PART_CARD_CLASS);
+		customViewGridPartContainer.classList.add('part', 'customviewgridpart', 'basepanel', 'right', AGENTS_PART_CARD_CLASS, AGENTS_CARD_SURFACE_CLASS);
 		customViewGridPartContainer.id = Parts.CUSTOM_VIEW_GRID_PART;
 		customViewGridPartContainer.setAttribute('role', 'main');
 

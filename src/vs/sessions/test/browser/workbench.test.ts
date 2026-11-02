@@ -622,14 +622,14 @@ suite('Sessions - Workbench', () => {
 			grid.appendChild(part);
 			return part;
 		};
-		const sessions = createPart('sessionspart agents-part-card');
+		const sessions = createPart('sessionspart agents-part-card agents-card-surface');
 		const sessionView = document.createElement('div');
 		sessionView.className = 'session-view session-grid-bottom-left session-grid-bottom-right';
 		sessions.appendChild(sessionView);
 		const internalSessionView = document.createElement('div');
 		internalSessionView.className = 'session-view';
 		sessions.appendChild(internalSessionView);
-		const customView = createPart('customviewgrid agents-part-card');
+		const customView = createPart('customviewgrid agents-part-card agents-card-surface');
 		const editor = createPart('editor');
 		const auxiliaryBar = createPart('auxiliarybar');
 		const panel = createPart('panel');
@@ -705,7 +705,7 @@ suite('Sessions - Workbench', () => {
 		const root = document.createElement('div');
 		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-strokeThickness: 1px;';
 		const card = document.createElement('div');
-		card.className = 'part sessionspart agents-part-card';
+		card.className = 'part sessionspart agents-part-card agents-card-surface';
 		const sessionView = document.createElement('div');
 		sessionView.className = 'session-view session-grid-bottom-left session-grid-bottom-right';
 		card.appendChild(sessionView);
