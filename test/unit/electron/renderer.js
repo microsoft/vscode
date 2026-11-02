@@ -278,6 +278,8 @@ async function loadTests(opts) {
 	const { assertCleanState } = await loadFn('vs/workbench/test/common/utils');
 	const { installRegistryLeakCheck } = await loadFn('vs/platform/actions/test/common/registryLeakCheck');
 	installRegistryLeakCheck(mocha.suite);
+	const { installIsolationCheck } = await loadFn('vs/base/test/browser/isolationCheck');
+	installIsolationCheck(mocha.suite);
 
 	suite('Tests are using suiteSetup and setup correctly', () => {
 		test('assertCleanState - check that registries are clean at the start of test running', () => {
@@ -409,6 +411,18 @@ function isObject(obj) {
 		&& !(obj instanceof Date);
 }
 
+/**
+ * Appends what the isolation checks found (see isolationCheck.ts) to the JSON lines file in
+ * VSCODE_TEST_ISOLATION_REPORT, one line per finding, so the findings of several windows end up in one file.
+ */
+function writeIsolationFindings() {
+	const reportPath = process.env.VSCODE_TEST_ISOLATION_REPORT;
+	const findings = globalThis.__vscodeTestIsolationFindings;
+	if (reportPath && findings?.length) {
+		fs.appendFileSync(reportPath, findings.map(finding => JSON.stringify({ runner: 'electron', ...finding }) + '\n').join(''));
+	}
+}
+
 class IPCReporter {
 
 	constructor(runner) {
@@ -493,6 +507,7 @@ async function runTests(opts) {
 
 	const runner = mocha.run(async () => {
 		await createCoverageReport(opts);
+		writeIsolationFindings();
 		ipcRenderer.send('all done');
 	});
 
