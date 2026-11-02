@@ -70,6 +70,46 @@ suite('typescript.previewer', () => {
 			'*@param* `a` — x [abc xyz](http://www.example.com/foo) y [b a z](http://www.example.com/bar) z');
 	});
 
+	test('Should render @link in template tag', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'template',
+					text: [
+						{ text: 'T', kind: 'typeParameterName' },
+						{ text: ' ', kind: 'space' },
+						{ text: 'Item type (see ', kind: 'text' },
+						{ text: '{@link ', kind: 'link' },
+						{ text: 'Foo.bar', kind: 'linkName' },
+						{ text: '}', kind: 'link' },
+						{ text: ').', kind: 'text' }
+					]
+				}
+			], noopToResource),
+			'*@template* `T` — Item type (see Foo.bar).');
+	});
+
+	test('Should render @link in template tag with several type parameters', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'template',
+					text: [
+						{ text: 'K', kind: 'typeParameterName' },
+						{ text: ',', kind: 'punctuation' },
+						{ text: ' ', kind: 'space' },
+						{ text: 'V', kind: 'typeParameterName' },
+						{ text: ' ', kind: 'space' },
+						{ text: '- keys and values, see ', kind: 'text' },
+						{ text: '{@link ', kind: 'link' },
+						{ text: 'Foo', kind: 'linkName' },
+						{ text: '}', kind: 'link' }
+					]
+				}
+			], noopToResource),
+			'*@template* `K, V` — keys and values, see Foo');
+	});
+
 	test('Should support non-ascii characters in parameter name (#90108)', () => {
 		assert.strictEqual(
 			tagsToMarkdown([
