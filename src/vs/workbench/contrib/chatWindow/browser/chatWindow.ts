@@ -157,6 +157,9 @@ export interface IChatWindowService {
 	/** The chat window that shows in the window `windowId`. */
 	getWindow(windowId: number): IChatWindow | undefined;
 
+	/** The chat window whose window has focus, which commands act on; undefined while another window has focus. */
+	readonly activeWindow: IChatWindow | undefined;
+
 	/** Closes `window`, and shows its chat in the main window again, with the editors of its main part. */
 	moveToMainWindow(window: IChatWindow): Promise<void>;
 }
