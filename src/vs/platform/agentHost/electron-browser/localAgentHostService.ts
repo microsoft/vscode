@@ -98,6 +98,7 @@ import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomati
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../common/state/sessionProtocol.js';
 import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomationAction, ClientAutomationRunAction, ClientChangesetAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
 import type { ComponentToState, RootState, StateComponents } from '../common/state/sessionState.js';
+import type { IAgentHostResourceReadRange } from '../common/meta/agentHostResourceReadRangeMeta.js';
 
 const LOG_PREFIX = '[AgentHost:renderer]';
 
@@ -764,8 +765,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().resourceList(uri);
 	}
 
-	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult> {
-		return this._requireClient().resourceRead(uri, encoding);
+	resourceRead(uri: URI, encoding?: ContentEncoding, range?: IAgentHostResourceReadRange): Promise<ResourceReadResult> {
+		return this._requireClient().resourceRead(uri, encoding, range);
 	}
 
 	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult> {

@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI, type UriComponents } from '../../../base/common/uri.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { AhpErrorCodes, ProtocolError, type ContentEncoding, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult } from '../common/state/sessionProtocol.js';
+import type { IAgentHostResourceReadRange } from '../common/meta/agentHostResourceReadRangeMeta.js';
+import { AhpErrorCodes, ContentEncoding, ProtocolError, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult } from '../common/state/sessionProtocol.js';
 import { FileSystemResources } from './resourceProviders/fileSystemResources.js';
 
 export const IAgentHostResourceProviders = createDecorator<IAgentHostResourceProviders>('agentHostResourceProviders');
@@ -14,6 +16,8 @@ export const IAgentHostResourceProviders = createDecorator<IAgentHostResourcePro
 /** Implements supported resource operations for one URI scheme. */
 export interface IAgentHostResourceProvider {
 	read?(uri: URI, encoding: ContentEncoding): Promise<ResourceReadResult>;
+	/** Reads only the bytes in {@link range}, as `base64`. Without it, ranged reads read the whole resource and slice it. */
+	readRange?(uri: URI, range: IAgentHostResourceReadRange): Promise<ResourceReadResult>;
 	list?(uri: URI): Promise<ResourceListResult>;
 	write?(params: ResourceWriteParams): Promise<ResourceWriteResult>;
 	copy?(params: ResourceCopyParams): Promise<ResourceCopyResult>;
@@ -24,8 +28,11 @@ export interface IAgentHostResourceProvider {
 }
 
 /** Routes resource operations to scheme providers, with the filesystem as the fallback. */
-export interface IAgentHostResourceProviders extends Required<IAgentHostResourceProvider> {
+export interface IAgentHostResourceProviders extends Required<Omit<IAgentHostResourceProvider, 'read' | 'readRange'>> {
 	readonly _serviceBrand: undefined;
+
+	/** Reads a resource, or only the bytes in {@link range} (then always as `base64`). */
+	read(uri: URI, encoding: ContentEncoding, range?: IAgentHostResourceReadRange): Promise<ResourceReadResult>;
 
 	/** Registers a provider, rejecting schemes that already have one. Disposal unregisters it. */
 	registerProvider(scheme: string, provider: IAgentHostResourceProvider): IDisposable;
@@ -53,8 +60,20 @@ export class AgentHostResourceProviders extends Disposable implements IAgentHost
 		return toDisposable(() => this._providers.delete(scheme));
 	}
 
-	async read(uri: URI, encoding: ContentEncoding): Promise<ResourceReadResult> {
-		return this._getProvider(uri, 'read').read(uri, encoding);
+	async read(uri: URI, encoding: ContentEncoding, range?: IAgentHostResourceReadRange): Promise<ResourceReadResult> {
+		if (!range) {
+			return this._getProvider(uri, 'read').read(uri, encoding);
+		}
+		const provider = this._providers.get(uri.scheme) ?? this._fileSystem;
+		if (provider.readRange) {
+			return provider.readRange(uri, range);
+		}
+		// The provider only reads whole resources: send just the requested bytes.
+		const result = await this._getProvider(uri, 'read').read(uri, ContentEncoding.Base64);
+		const content = result.encoding === ContentEncoding.Base64 ? decodeBase64(result.data) : VSBuffer.fromString(result.data);
+		const start = Math.min(range.position, content.byteLength);
+		const end = range.length === undefined ? content.byteLength : Math.min(start + range.length, content.byteLength);
+		return { ...result, data: encodeBase64(content.slice(start, end)), encoding: ContentEncoding.Base64 };
 	}
 
 	async list(uri: URI): Promise<ResourceListResult> {

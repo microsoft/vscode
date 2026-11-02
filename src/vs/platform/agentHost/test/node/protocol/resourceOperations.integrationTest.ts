@@ -9,7 +9,8 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { isLinux, isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ContentEncoding, ResourceType, ResourceWriteMode, type ResourceListResult, type ResourceReadResult, type ResourceResolveResult } from '../../../common/state/protocol/common/commands.js';
+import { supportsAgentHostResourceReadRanges, withAgentHostResourceReadRange } from '../../../common/meta/agentHostResourceReadRangeMeta.js';
+import { ContentEncoding, ResourceType, ResourceWriteMode, type InitializeResult, type ResourceListResult, type ResourceReadResult, type ResourceResolveResult } from '../../../common/state/protocol/common/commands.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { ROOT_STATE_URI } from '../../../common/state/sessionState.js';
 import { getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, type IServerHandle, startServer, stopServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
@@ -21,6 +22,7 @@ suite('Protocol WebSocket - Resource Operations', function () {
 	const secondaryClients: TestProtocolClient[] = [];
 	let testDirectory: string;
 	let clientCounter = 0;
+	let initializeResult: InitializeResult;
 
 	suiteSetup(async function () {
 		this.timeout(getAgentHostE2ETestTimeout(35_000, 60_000));
@@ -37,7 +39,7 @@ suite('Protocol WebSocket - Resource Operations', function () {
 		testDirectory = mkdtempSync(join(tmpdir(), 'agent-host-resource-'));
 		client = new TestProtocolClient(server.port);
 		await client.connect();
-		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: `resource-client-${++clientCounter}` });
+		initializeResult = await client.call<InitializeResult>('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: `resource-client-${++clientCounter}` });
 	});
 
 	teardown(function () {
@@ -108,6 +110,29 @@ suite('Protocol WebSocket - Resource Operations', function () {
 		const file = resource('base64.txt');
 		await write(file, Buffer.from('base64 content').toString('base64'), { encoding: ContentEncoding.Base64 });
 		assert.strictEqual(await read(file), 'base64 content');
+	});
+
+	test('resourceRead returns only a requested byte range, as base64', async function () {
+		const file = resource('ranged.bin');
+		await write(file, Buffer.from('0123456789abcdef').toString('base64'), { encoding: ContentEncoding.Base64 });
+		const readRange = async (range: { position: number; length?: number }) => {
+			const result = await client.call<ResourceReadResult>('resourceRead', { channel: ROOT_STATE_URI, uri: file, encoding: ContentEncoding.Utf8, _meta: withAgentHostResourceReadRange(undefined, range) });
+			return { data: Buffer.from(result.data, 'base64').toString(), encoding: result.encoding };
+		};
+
+		assert.deepStrictEqual({
+			advertised: supportsAgentHostResourceReadRanges(initializeResult),
+			first: await readRange({ position: 0, length: 4 }),
+			rest: await readRange({ position: 4 }),
+			pastEnd: await readRange({ position: 100, length: 4 }),
+			whole: await read(file),
+		}, {
+			advertised: true,
+			first: { data: '0123', encoding: ContentEncoding.Base64 },
+			rest: { data: '456789abcdef', encoding: ContentEncoding.Base64 },
+			pastEnd: { data: '', encoding: ContentEncoding.Base64 },
+			whole: '0123456789abcdef',
+		});
 	});
 
 	test('resourceWrite append adds data at EOF', async function () {

@@ -38,6 +38,7 @@ import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomati
 import type { ActionEnvelope, ClientAutomationAction, ClientAutomationRunAction, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
 import type { ContentEncoding, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, StateComponents, type RootState } from './state/sessionState.js';
+import type { IAgentHostResourceReadRange } from './meta/agentHostResourceReadRangeMeta.js';
 import { type AgentCanvasDefinitionSnapshot, type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationApplyResult, type IAgentCustomizationInstallationRequest, type IAgentCustomizationInstallationReview, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentExtensionInventory, type IAgentHostManagedSettingsSnapshot, type IAgentHostNetworkEndpoint, type IAgentManagedPluginRetryEntry, type IAgentModelInfo, type IAgentPluginInstallation, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IMcpNotification } from './agent.js';
 
 // ---- Provider-model re-exports (compatibility) ------------------------------
@@ -1272,9 +1273,10 @@ export interface IAgentService {
 
 	/**
 	 * Read stored content by URI from the agent host (e.g. file edit snapshots,
-	 * or reading files from the remote filesystem).
+	 * or reading files from the remote filesystem). With {@link range}, only those
+	 * bytes are read and returned as `base64`.
 	 */
-	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult>;
+	resourceRead(uri: URI, encoding?: ContentEncoding, range?: IAgentHostResourceReadRange): Promise<ResourceReadResult>;
 
 	/**
 	 * Write content to a file on the agent host's filesystem.
@@ -1554,7 +1556,7 @@ export interface IAgentConnection {
 	listManagedWorktrees?(repositories: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;
 	cleanupManagedWorktree?(repository: URI, worktree: URI, branch: string, force?: boolean): Promise<void>;
 	resourceList(uri: URI): Promise<ResourceListResult>;
-	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult>;
+	resourceRead(uri: URI, encoding?: ContentEncoding, range?: IAgentHostResourceReadRange): Promise<ResourceReadResult>;
 	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult>;
 	resourceCopy(params: ResourceCopyParams): Promise<ResourceCopyResult>;
 	resourceDelete(params: ResourceDeleteParams): Promise<ResourceDeleteResult>;
