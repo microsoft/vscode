@@ -156,6 +156,11 @@ export interface IChatWindow {
 	/** The part that shows the chat. */
 	readonly chatPart: IEditorPart;
 	/**
+	 * Whether the chat leads the window: it shows in the chat part, with no part before it, to its left or above it. The
+	 * chat can move into another part of the window, and parts can move, such as when dragged.
+	 */
+	readonly chatLeads: IObservable<boolean>;
+	/**
 	 * The part that holds its terminals, once created (see {@link getOrCreateTerminalsPart}), until the window closes. It is
 	 * a part like the others: what it shows is what the feature that shows terminals opens in it.
 	 */

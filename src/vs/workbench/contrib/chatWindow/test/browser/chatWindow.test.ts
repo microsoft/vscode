@@ -112,6 +112,7 @@ suite('Chat window', () => {
 				return createPart(events, 'terminals').part;
 			},
 			terminalsVisible: constObservable(false),
+			chatPartLeads: constObservable(true),
 			didMoveChatOut: () => events.push('moved out'),
 			resetLayout: () => events.push('reset layout'),
 			windowGroups: options?.otherPart ? {
@@ -339,13 +340,15 @@ suite('Chat window', () => {
 		assert.deepStrictEqual(events, ['moved out']);
 	});
 
-	test('the chat\'s editor moved into another part of the window stays in the window: closing it there closes the window, and the main part closing its last editor keeps the layout', async () => {
+	test('the chat\'s editor moved into another part of the window stays in the window, no longer leading it: closing it there closes the window, and the main part closing its last editor keeps the layout', async () => {
 		const { window, state, main, chat, other, chatInput, events } = createWindow({ otherPart: true });
 		state.setLayoutMode(ChatWindowLayoutMode.SideBySide);
+		const leadsBefore = window.chatLeads.get();
 
 		other.group.testEditors.push(chatInput);
 		chat.group.fireCloseEditor(chatInput, EditorCloseContext.MOVE);
 		const afterMove = [...events];
+		const leadsAfterMove = window.chatLeads.get();
 
 		const file = editor();
 		main.group.open(file);
@@ -355,8 +358,10 @@ suite('Chat window', () => {
 		other.group.fireCloseEditor(chatInput);
 		await timeout(0);
 
-		assert.deepStrictEqual({ afterMove, modeAfterLastMainEditor, closed: events.includes('closed') }, {
+		assert.deepStrictEqual({ leadsBefore, afterMove, leadsAfterMove, modeAfterLastMainEditor, closed: events.includes('closed') }, {
+			leadsBefore: true,
 			afterMove: [],
+			leadsAfterMove: false,
 			modeAfterLastMainEditor: ChatWindowLayoutMode.SideBySide,
 			closed: true
 		});

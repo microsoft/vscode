@@ -8,8 +8,8 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, derived, IObservable, observableSignal, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -54,6 +54,8 @@ export interface IChatWindowHost {
 	createTerminalsPart(): IContentPart;
 	/** Whether the part that holds the window's terminals shows in the window's grid. */
 	readonly terminalsVisible: IObservable<boolean>;
+	/** Whether the chat part leads the window's grid: it shows, with no part before it, to its left or above it. */
+	readonly chatPartLeads: IObservable<boolean>;
 	/** The chat's editor moved out of the window, such as into the main window or into an editor window. */
 	didMoveChatOut(): void;
 	/** Forgets the layout and sizes remembered for the window's chat, and arranges its parts again as in a new window. */
@@ -104,6 +106,8 @@ export class ChatWindow extends Disposable implements IChatWindow {
 	private readonly _terminalsPart = observableValue<IContentPart | undefined>(this, undefined);
 	readonly terminalsPart: IObservable<IContentPart | undefined> = this._terminalsPart;
 
+	readonly chatLeads: IObservable<boolean>;
+
 	private _willClose = false;
 
 	private _closed = false;
@@ -143,7 +147,19 @@ export class ChatWindow extends Disposable implements IChatWindow {
 			onDidRemoveGroup: Event.any(chatPart.onDidRemoveGroup, mainPart.onDidRemoveGroup),
 		};
 		const chatGroupListeners = this._register(new DisposableMap<IEditorGroup>());
-		const trackChatGroup = (group: IEditorGroup) => chatGroupListeners.set(group, group.onDidCloseEditor(e => {
+		const chatMoved = observableSignal(this);
+		this.chatLeads = derived(this, reader => {
+			chatMoved.read(reader);
+			return _host.chatPartLeads.read(reader) && isChatIn(chatPart.groups);
+		});
+		const trackChatGroup = (group: IEditorGroup) => chatGroupListeners.set(group, combinedDisposable(group.onDidModelChange(e => {
+			if (e.editor === content.input) {
+				chatMoved.trigger(undefined);
+			}
+		}), group.onDidCloseEditor(e => {
+			if (e.editor === content.input) {
+				chatMoved.trigger(undefined);
+			}
 			if (e.editor !== content.input || this._closing || this._host.isUnloading()) {
 				return;
 			}
@@ -153,7 +169,7 @@ export class ChatWindow extends Disposable implements IChatWindow {
 			} else if (!this._findChatGroup()) {
 				this._host.didMoveChatOut();
 			}
-		}));
+		})));
 		windowGroups.groups.forEach(trackChatGroup);
 		this._register(windowGroups.onDidAddGroup(trackChatGroup));
 		this._register(windowGroups.onDidRemoveGroup(group => chatGroupListeners.deleteAndDispose(group)));
@@ -478,6 +494,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 				return part;
 			},
 			terminalsVisible: derived(this, reader => gridRef.read(reader)?.terminalsVisible.read(reader) ?? false),
+			chatPartLeads: derived(this, reader => gridRef.read(reader)?.chatLeads.read(reader) ?? false),
 		}));
 		disposables.add(bindWindowTerminalsContext(windowContextKeyService, { terminalsVisible: window.terminalsVisible, terminalPosition: state.terminalPosition }));
 

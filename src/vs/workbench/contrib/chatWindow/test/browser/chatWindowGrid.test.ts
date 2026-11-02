@@ -695,6 +695,21 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual(height(), 225);
 	});
 
+	test('the chat leads the window while it shows with no part before it: not after it moved after the main part or below it, nor while hidden', () => {
+		const { mode, grid } = setup();
+		const leads: Record<string, boolean> = { sideBySide: grid.chatLeads.get() };
+		grid.partGrid!.moveCellInDirection(ChatWindowGridCell.Chat, Direction.Right);
+		leads.movedRight = grid.chatLeads.get();
+		grid.partGrid!.moveCellInDirection(ChatWindowGridCell.Chat, Direction.Left);
+		leads.movedBack = grid.chatLeads.get();
+		mode.set(ChatWindowLayoutMode.Stacked, undefined);
+		leads.stacked = grid.chatLeads.get();
+		mode.set(ChatWindowLayoutMode.EditorOnly, undefined);
+		leads.editorOnly = grid.chatLeads.get();
+
+		assert.deepStrictEqual(leads, { sideBySide: true, movedRight: false, movedBack: true, stacked: false, editorOnly: false });
+	});
+
 	test('a part created for an editor dropped on an edge of the window stays when the layout mode changes, until it closes', () => {
 		const onWillClose = new Emitter<void>();
 		const created = new class extends mock<IContentPart>() {

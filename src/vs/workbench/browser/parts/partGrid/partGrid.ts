@@ -329,6 +329,12 @@ export class PartGrid extends Disposable {
 	 */
 	readonly onDidBecomeEmpty = this._onDidBecomeEmpty.event;
 
+	private readonly _onDidChangeArrangement = this._register(new Emitter<void>());
+	/**
+	 * Fires when cells are added, moved, removed, shown or hidden.
+	 */
+	readonly onDidChangeArrangement = this._onDidChangeArrangement.event;
+
 	private static readonly grids = new Set<PartGrid>();
 
 	/**
@@ -615,8 +621,8 @@ export class PartGrid extends Disposable {
 
 		// Along the edge's orientation, the cell goes past the parts but not past the views at that edge
 		let index = atEnd ? node.data.length : 0;
-		if (nodeOrientation === orientation) {
-			while (atEnd ? index > 0 && isView(node.data[index - 1]) : index < node.data.length && isView(node.data[index])) {
+		if (nodeOrientation === orientation && node.data.some(child => !isView(child))) {
+			while (atEnd ? isView(node.data[index - 1]) : isView(node.data[index])) {
 				index += atEnd ? -1 : 1;
 			}
 		}
@@ -808,6 +814,30 @@ export class PartGrid extends Disposable {
 		}
 
 		this.applyLook();
+		this._onDidChangeArrangement.fire();
+	}
+
+	/**
+	 * Whether a part leads the window: it shows, and no other part shows
+	 * before it, to its left or above it. Views that are not parts, such as
+	 * a title row, do not count.
+	 */
+	leadsWindow(id: string): boolean {
+		if (!this.grid || !this.isCellVisible(id)) {
+			return false;
+		}
+
+		const showsPart = (node: GridNode<PartGridCell>): boolean => this.getCellsInGrid(node).some(cell => !!cell.part && this.isCellVisible(cell.id));
+		let node: GridNode<PartGridCell> = this.grid.getViews();
+		while (isGridBranchNode(node)) {
+			const first: GridNode<PartGridCell> | undefined = node.children.find(showsPart);
+			if (!first) {
+				return false;
+			}
+			node = first;
+		}
+
+		return node.view.id === id;
 	}
 
 	getCellSize(id: string): IViewSize {
