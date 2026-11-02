@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Direction, Orientation } from '../../../../../base/browser/ui/grid/grid.js';
@@ -543,6 +544,24 @@ suite('Part Grid', () => {
 		});
 	});
 
+	test('Move Part and Move Editor into New Part say so where the parts of the window do not move', async () => {
+		const parts = await createParts();
+		await parts.mainPart.activeGroup.openEditor(disposables.add(new TestFileEditorInput(URI.file('/main.txt'), TEST_EDITOR_INPUT_ID)), { pinned: true });
+		const ariaParent = createContainer();
+		setARIAContainer(ariaParent);
+		const announced = () => [...ariaParent.querySelectorAll('.monaco-status')].map(element => element.textContent).join('');
+
+		const focusable = parts.testMainPart.getContainer()!.appendChild(mainWindow.document.createElement('div'));
+		focusable.tabIndex = 0;
+		focusable.focus();
+		instantiationService.invokeFunction(accessor => new MovePartRightAction().run(accessor));
+		const movePart = announced();
+		instantiationService.invokeFunction(accessor => new MoveEditorIntoNewPartBelowAction().run(accessor));
+		const newPart = announced();
+
+		assert.deepStrictEqual({ movePart, newPart }, { movePart: 'The parts of this window do not move', newPart: 'Editors do not go into new parts in this window' });
+	});
+
 	test('Move Part moves past parts only, not past a view beside it such as a title row', async () => {
 		const parts = await createParts();
 		const grid = createGrid();
@@ -626,6 +645,34 @@ suite('Part Grid', () => {
 			atRightEdge: { indicatorShown: true, shape: 'row(side, new1)' },
 			newPart: 'new1',
 			afterClose: 'side'
+		});
+	});
+
+	test('without outer insets, an editor dragged over a part near an edge of the window goes into a new part there, and the part\'s own drop overlay goes away', async () => {
+		const parts = await createParts();
+		const container = boxAt(0, 0, 1000, 800);
+		const grid = disposables.add(new PartGrid(container, parts));
+		const side = createPart(parts);
+		const file = await openEditor(side, '/file.txt');
+		await openEditor(side, '/other.txt');
+		grid.addPart('side', side);
+		grid.layout(1000, 800);
+		disposables.add(grid.setPartFactory({ createPart: () => ({ id: 'new', part: createPart(parts) }) }));
+
+		const editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
+		editorTransfer.setData([new DraggedEditorIdentifier({ editor: file, groupId: side.activeGroup.id })], DraggedEditorIdentifier.prototype);
+		const groupElement = container.querySelector<HTMLElement>('.editor-group-container')!;
+		dispatch(groupElement, 'dragenter', 500, 300);
+		const partOverlay = !!container.querySelector('#monaco-workbench-editor-drop-overlay');
+		dispatch(mainWindow.document.elementFromPoint(500, 4)!, 'dragover', 500, 4);
+		const atTopEdge = { indicatorShown: container.querySelector<HTMLElement>('.part-grid-drop-indicator')!.style.display !== 'none', partOverlay: !!container.querySelector('#monaco-workbench-editor-drop-overlay') };
+		dispatch(mainWindow.document.elementFromPoint(500, 4)!, 'drop', 500, 4);
+		editorTransfer.clearData(DraggedEditorIdentifier.prototype);
+
+		assert.deepStrictEqual({ partOverlay, atTopEdge, shape: grid.describe() }, {
+			partOverlay: true,
+			atTopEdge: { indicatorShown: true, partOverlay: false },
+			shape: 'column(new, side)'
 		});
 	});
 

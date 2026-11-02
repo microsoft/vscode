@@ -33,8 +33,12 @@ abstract class MovePartAction extends Action2 {
 
 		const part = editorGroupsService.getPart(editorGroupsService.activeGroup);
 		const found = PartGrid.findPart(part);
-		if (found?.grid.moveCellInDirection(found.id, this.direction)) {
+		if (!found) {
+			status(localize('partCannotMove', "The parts of this window do not move"));
+		} else if (found.grid.moveCellInDirection(found.id, this.direction)) {
 			status(localize('movedPart', "Moved {0}", getPartName(part)));
+		} else {
+			status(localize('partDidNotMove', "{0} is already there", getPartName(part)));
 		}
 	}
 }
@@ -81,8 +85,13 @@ abstract class MoveEditorIntoNewPartAction extends Action2 {
 		const group = editorGroupsService.activeGroup;
 		const editor = group.activeEditor;
 		const found = PartGrid.findPart(editorGroupsService.getPart(group));
-		if (editor && found) {
-			found.grid.moveEditorsIntoNewPart([{ editor, groupId: group.id }], { reference: found.id, direction: this.direction });
+		if (!editor) {
+			return;
+		}
+
+		const moved = found ? found.grid.moveEditorsIntoNewPart([{ editor, groupId: group.id }], { reference: found.id, direction: this.direction }) : undefined;
+		if (!moved) {
+			status(localize('noNewPart', "Editors do not go into new parts in this window"));
 		}
 	}
 }

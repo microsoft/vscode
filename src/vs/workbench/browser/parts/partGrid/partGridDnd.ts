@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, DragAndDropObserver, EventHelper, EventType, getWindow, hide, isAncestor, isHTMLElement, show } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, DragAndDropObserver, EventHelper, EventType, getWindow, hide, isAncestor, show } from '../../../../base/browser/dom.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -11,6 +11,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
 import { IEditorIdentifier } from '../../../common/editor.js';
 import { DraggedEditorIdentifier } from '../../dnd.js';
+import { disposeEditorDropOverlays } from '../editor/editorDropTarget.js';
 import type { PartGridLocation } from './partGrid.js';
 
 /**
@@ -178,8 +179,9 @@ export class PartGridDropTarget extends Disposable {
 	}
 
 	/**
-	 * What is dragged over the grid that the grid takes: a part of the grid
-	 * anywhere, or editors outside of the parts, where no part takes them.
+	 * What is dragged over the grid that the grid may take: a part of the
+	 * grid, or editors, which the grid takes only near an edge of the window
+	 * (see {@link getDrop}), also over a part there.
 	 */
 	private getDragged(e: DragEvent): PartGridDragged | undefined {
 		const parts = this.partTransfer.getData(DraggedPartIdentifier.prototype);
@@ -188,7 +190,7 @@ export class PartGridDropTarget extends Disposable {
 		}
 
 		const editors = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
-		if (editors?.length && this.host.canCreateParts() && !(isHTMLElement(e.target) && e.target.closest('.part-grid-card'))) {
+		if (editors?.length && this.host.canCreateParts()) {
 			return { editors: editors.map(({ identifier }) => identifier) };
 		}
 
@@ -223,6 +225,12 @@ export class PartGridDropTarget extends Disposable {
 		EventHelper.stop(e, true);
 		if (e.dataTransfer) {
 			e.dataTransfer.dropEffect = drop ? 'move' : 'none';
+		}
+
+		// Editors at an edge of the window are the grid's, also over a part,
+		// whose own drop overlay, if it showed, goes away
+		if (drop && hasKey(dragged, { editors: true })) {
+			disposeEditorDropOverlays(this.host.container);
 		}
 
 		if (!drop) {
@@ -264,6 +272,7 @@ export class PartGridDropTarget extends Disposable {
 			}
 		}
 	}
+
 
 	private hideIndicator(): void {
 		hide(this.indicator);
