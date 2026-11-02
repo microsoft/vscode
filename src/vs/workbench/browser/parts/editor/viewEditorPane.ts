@@ -37,6 +37,7 @@ export class ViewEditorPane extends EditorPane {
 	private dimension: Dimension | undefined;
 
 	private view: IViewEditorView | undefined;
+	private viewStateSaved = false;
 	private readonly viewDisposables = this._register(new DisposableStore());
 
 	constructor(
@@ -48,6 +49,13 @@ export class ViewEditorPane extends EditorPane {
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService
 	) {
 		super(ViewEditorPane.ID, group, telemetryService, themeService, storageService);
+
+		// The pane of the target group creates its view before this one is disposed
+		this._register(group.onWillMoveEditor(e => {
+			if (e.editor === this.input) {
+				this.saveViewState();
+			}
+		}));
 	}
 
 	override get minimumWidth() { return this.view?.minimumWidth ?? DEFAULT_EDITOR_MIN_DIMENSIONS.width; }
@@ -72,6 +80,7 @@ export class ViewEditorPane extends EditorPane {
 			return;
 		}
 
+		this.saveViewState();
 		this.viewDisposables.clear();
 		this.view = undefined;
 
@@ -86,6 +95,7 @@ export class ViewEditorPane extends EditorPane {
 
 		const view = this.viewDisposables.add(descriptor.createView(viewInstantiationService, input));
 		this.view = view;
+		this.viewStateSaved = false;
 		this.viewDisposables.add(toDisposable(() => {
 			view.element.remove();
 			if (this.view === view) {
@@ -112,7 +122,18 @@ export class ViewEditorPane extends EditorPane {
 		return this.editorGroupsService.getScopedInstantiationService(mainPart).invokeFunction(accessor => accessor.get(IEditorService));
 	}
 
+	/**
+	 * Saves the state of the view once before its editor leaves the pane.
+	 */
+	private saveViewState(): void {
+		if (this.view && !this.viewStateSaved) {
+			this.viewStateSaved = true;
+			this.view.saveViewState?.();
+		}
+	}
+
 	override clearInput(): void {
+		this.saveViewState();
 		this.viewDisposables.clear();
 
 		super.clearInput();

@@ -38,6 +38,14 @@ export interface IViewEditorView extends IDisposable {
 	layout(width: number, height: number, top: number, left: number): void;
 
 	focus(): void;
+
+	/**
+	 * Saves the state of the view, such as its scroll position, when its
+	 * editor is about to leave the pane: before it moves to another group,
+	 * where the view is created again before this one is disposed, and
+	 * before the pane clears its input.
+	 */
+	saveViewState?(): void;
 }
 
 /**

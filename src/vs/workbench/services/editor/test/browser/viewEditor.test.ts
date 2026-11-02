@@ -40,7 +40,13 @@ class TestView implements IViewEditorView {
 	readonly minimumHeight = 40;
 	maximumHeight = 400;
 
-	constructor(readonly providesTitle: boolean, readonly instantiationService: IInstantiationService) { }
+	constructor(readonly providesTitle: boolean, readonly instantiationService: IInstantiationService, private readonly log: string[], private readonly name: string) {
+		log.push(`create ${name}`);
+	}
+
+	saveViewState(): void {
+		this.log.push(`save ${this.name}`);
+	}
 
 	setMaximumHeight(height: number): void {
 		this.maximumHeight = height;
@@ -63,6 +69,7 @@ suite('View Editors', () => {
 
 	const disposables = new DisposableStore();
 	const views: TestView[] = [];
+	const log: string[] = [];
 
 	setup(() => {
 		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput), new SyncDescriptor(SideBySideEditorInput)], TEST_EDITOR_INPUT_ID));
@@ -72,7 +79,7 @@ suite('View Editors', () => {
 				viewType: providesTitle ? 'test.titled' : 'test.untitled',
 				name: providesTitle ? 'Titled View' : 'Untitled View',
 				createView: instantiationService => {
-					const view = new TestView(providesTitle, instantiationService);
+					const view = new TestView(providesTitle, instantiationService, log, `view${views.length + 1}`);
 					views.push(view);
 					return view;
 				}
@@ -82,6 +89,7 @@ suite('View Editors', () => {
 
 	teardown(() => {
 		views.length = 0;
+		log.length = 0;
 		disposables.clear();
 	});
 
@@ -246,6 +254,27 @@ suite('View Editors', () => {
 			withSecondEditor: 'part',
 			onlyUntitledView: 'part',
 			mainWindow: 'main'
+		});
+	});
+
+	test('a view saves its state before its editor moves to another group, where it is created again, and before its pane clears its input', async () => {
+		const { parts, part } = await createServices();
+		const view = createViewInput('test.titled', '/chat/a');
+		await part.activeGroup.openEditor(view, { pinned: true });
+
+		await parts.mainPart.activeGroup.openEditor(disposables.add(new TestFileEditorInput(URI.file('/main.txt'), TEST_EDITOR_INPUT_ID)), { pinned: true });
+		part.activeGroup.moveEditor(view, parts.mainPart.activeGroup);
+		await parts.mainPart.activeGroup.openEditor(view);
+		const onMove = [...log];
+
+		log.length = 0;
+		await parts.mainPart.activeGroup.openEditor(disposables.add(new TestFileEditorInput(URI.file('/other.txt'), TEST_EDITOR_INPUT_ID)), { pinned: true });
+		await parts.mainPart.activeGroup.closeEditor(view);
+		const onClear = [...log];
+
+		assert.deepStrictEqual({ onMove, onClear }, {
+			onMove: ['create view1', 'save view1', 'create view2'],
+			onClear: ['save view2']
 		});
 	});
 });
