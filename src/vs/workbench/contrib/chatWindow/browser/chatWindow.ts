@@ -8,6 +8,7 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { IRectangle } from '../../../../platform/window/common/window.js';
 import { IGridEdgeInsets } from '../../../browser/parts/partGrid/partGridGap.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { DeepPartial } from '../../../../base/common/types.js';
@@ -40,6 +41,8 @@ export interface IChatWindowOpenOptions {
 	 * that shows terminals fills (see {@link IChatWindow.getOrCreateTerminalsPart}). It hides while it has none.
 	 */
 	readonly showTerminals?: boolean;
+	/** Where on the screen a new window opens, such as where a chat was dragged to; a window that shows already stays. */
+	readonly bounds?: Partial<IRectangle>;
 }
 
 /**

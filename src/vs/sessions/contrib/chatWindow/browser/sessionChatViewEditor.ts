@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { registerContentDropTarget } from '../../../../workbench/browser/dnd.js';
 import { $ } from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -175,6 +176,9 @@ export class SessionChatViewEditorView extends Disposable implements IViewEditor
 	readonly sessionView: SessionView;
 	readonly providesTitle = true;
 
+	/** The title of the session header drags the chat, also while the header shows in the title row of its window. */
+	get dragHandle(): HTMLElement { return this.sessionView.headerTitleElement; }
+
 	private readonly _onDidChange = this._register(new Emitter<{ width: number; height: number } | undefined>());
 	readonly onDidChange: Event<{ width: number; height: number } | undefined> = this._onDidChange.event;
 
@@ -203,6 +207,8 @@ export class SessionChatViewEditorView extends Disposable implements IViewEditor
 
 		// Styled as the session views of the Agents window are, which show in its sessions part or in a window of their own.
 		this.element = $('.session-chat-view-editor.sessions-window-host');
+		// The chat takes what is dropped on it, such as files to attach; editors dropped on the edges of its part split it.
+		this._register(registerContentDropTarget(this.element));
 		// The active editor, for what the chat shows, such as the checked entries of its Session Activity Bar, is the one of
 		// its window's main part, as the main window's chat reads the one of its editor area.
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));

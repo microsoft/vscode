@@ -25,6 +25,7 @@ export class SessionHeader extends Disposable {
 	private readonly _toolbarShowsSessionKey: IContextKey<boolean>;
 
 	get element(): HTMLElement { return this._bar.element; }
+	get titleElement(): HTMLElement { return this._bar.titleElement; }
 	get visible(): boolean { return this._bar.visible; }
 	get height(): number { return this._bar.height; }
 	get onDidChangeVisibility(): Event<boolean> { return this._bar.onDidChangeVisibility; }

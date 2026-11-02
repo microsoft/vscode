@@ -375,7 +375,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			set: layout => this._chatLayouts.set(content.chat.get(), layout),
 		});
 
-		const auxiliaryWindow = disposables.add(await this._auxiliaryWindowService.open({ bounds: CHAT_WINDOW_SIZE }));
+		const auxiliaryWindow = disposables.add(await this._auxiliaryWindowService.open({ bounds: { ...CHAT_WINDOW_SIZE, ...options?.bounds } }));
 		setClose(() => {
 			auxiliaryWindow.window.close();
 			return true;
