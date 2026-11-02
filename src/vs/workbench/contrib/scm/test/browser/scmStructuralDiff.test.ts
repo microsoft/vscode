@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, getWindow } from '../../../../../base/browser/dom.js';
+import { $, append, getWindow } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { ITreeNode } from '../../../../../base/browser/ui/tree/tree.js';
 import { AsyncDataTree } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
 import { IDelayedHoverAtMouseOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceTree } from '../../../../../base/common/resourceTree.js';
@@ -34,9 +35,13 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../browser/labels.js';
 import { DEFAULT_EDITOR_ASSOCIATION, ITextDiffEditorPane, IUntypedEditorInput } from '../../../../common/editor.js';
+import { DecorationsService } from '../../../../services/decorations/browser/decorationsService.js';
+import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { IEditorService, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { SCMAccessibilityHelp } from '../../browser/scmAccessibilityHelp.js';
 import { ContextKeys, SCMAccessibilityProvider, SCMTreeDataSource, SCMTreeKeyboardNavigationLabelProvider, SCMTreeSorter, SCMViewPane, isSCMTreeElementCollapsedByDefault } from '../../browser/scmViewPane.js';
 import { SCMStructuralDiffRenderer, openSCMStructuralDiff } from '../../browser/scmStructuralDiffRenderer.js';
@@ -519,6 +524,87 @@ suite('SCM structural diff tree', () => {
 			annotationsNotClipped: true, markersNotClipped: true, longNameTruncated: true, metadataHiddenFromScreenReaders: true,
 		});
 	});
+
+	for (const width of [220, 420]) {
+		test(`aligns file and structural status text at ${width}px, including diagnostic counts`, () => {
+			const container = $('.monaco-workbench.scm-view.monaco-list');
+			container.style.width = `${width}px`;
+			container.style.setProperty('--vscode-spacing-size40', '4px');
+			container.style.setProperty('--vscode-spacing-size160', '16px');
+			container.style.setProperty('--vscode-fontSize-label2', '11px');
+			container.style.setProperty('--vscode-fontWeight-semiBold', '600');
+			mainWindow.document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			const decorations = store.add(instantiationService.createInstance(DecorationsService));
+			instantiationService.stub(IDecorationsService, decorations);
+			const labels = store.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+			const renderer = new SCMStructuralDiffRenderer(NullHoverService);
+			const cases = ['M', 'D', 'A', 'R'].flatMap(letter => [undefined, '5', '123'].map(count => ({
+				letter, count, uri: URI.file(`/repo/${letter}-${count ?? 'none'}.ts`),
+			})));
+			store.add(decorations.registerDecorationsProvider({
+				label: 'SCM status',
+				onDidChange: Event.None,
+				provideDecorations: uri => ({ letter: cases.find(candidate => candidate.uri.toString() === uri.toString())?.letter, weight: 1 }),
+			}));
+			store.add(decorations.registerDecorationsProvider({
+				label: 'Problems',
+				onDidChange: Event.None,
+				provideDecorations: uri => {
+					const count = cases.find(candidate => candidate.uri.toString() === uri.toString())?.count;
+					return count ? { letter: count, weight: 10 } : undefined;
+				},
+			}));
+			const createRow = (indent: number) => {
+				const row = append(container, $('.monaco-list-row'));
+				row.style.position = 'relative';
+				row.style.height = '22px';
+				const contents = append(row, $('.monaco-tl-contents'));
+				contents.style.paddingLeft = `${indent}px`;
+				return contents;
+			};
+			const expectedRight = container.getBoundingClientRect().right - 16;
+			const results = cases.map(({ letter, count, uri }) => {
+				const fileRow = append(createRow(0), $('.resource'));
+				const fileLabel = labels.create(append(fileRow, $('.name')));
+				fileLabel.setFile(uri, { hidePath: true, fileDecorations: { colors: false, badges: true } });
+				const template = store.add(renderer.renderTemplate(createRow(32)));
+				const name = 'aVeryLongMethodNameThatMustLeaveRoomForTheStatus';
+				const element = {
+					...child,
+					node: {
+						...child.node,
+						original: letter === 'A' ? undefined : { ...child.node.original!, name: letter === 'R' ? 'previousName' : name },
+						modified: letter === 'D' ? undefined : { ...child.node.modified!, name },
+						modifiedChanges: [{ textChangeIndex: 0, range: new Range(3, 2, 3, 5), classification: StructuralDiffClassification.Implementation }],
+					},
+				};
+				renderer.renderElement(new class extends mock<ITreeNode<SCMStructuralDiffElement, FuzzyScore>>() {
+					override readonly element = element;
+					override readonly filterData = FuzzyScore.Default;
+				}, 0, template);
+				const fileStyle = getWindow(container).getComputedStyle(fileLabel.element, '::after');
+				const structuralStyle = getWindow(container).getComputedStyle(template.status);
+				const textRange = mainWindow.document.createRange();
+				textRange.selectNodeContents(template.status);
+				const fileRight = fileLabel.element.getBoundingClientRect().right - parseFloat(fileStyle.marginRight);
+				return {
+					fileText: fileStyle.content,
+					structuralText: template.status.textContent,
+					aligned: Math.abs(fileRight - textRange.getBoundingClientRect().right) < 1 && Math.abs(fileRight - expectedRight) < 1,
+					fileTextAlignment: fileStyle.justifyContent,
+					sameTypography: fileStyle.fontSize === structuralStyle.fontSize && fileStyle.fontWeight === structuralStyle.fontWeight,
+					badgeFits: template.status.scrollWidth <= template.status.clientWidth,
+				};
+			});
+			assert.deepStrictEqual(results, cases.map(({ letter, count }) => ({
+				fileText: JSON.stringify(count ? `${count}, ${letter}` : letter),
+				structuralText: letter,
+				aligned: true, fileTextAlignment: 'flex-end', sameTypography: true, badgeFits: true,
+			})));
+		});
+	}
 
 	for (const [side, staged] of [['original', false], ['modified', false], ['original', true], ['modified', true]] as const) {
 		for (const preserveFocus of [false, true]) {
