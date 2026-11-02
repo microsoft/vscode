@@ -17,7 +17,7 @@ import { IFileEditorInput, EditorResourceAccessor, IEditorPane, SideBySideEditor
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { Disposable, MutableDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IEditorAction } from '../../../../editor/common/editorCommon.js';
-import { EndOfLineSequence } from '../../../../editor/common/model.js';
+import { DetectTextDirection, EndOfLineSequence } from '../../../../editor/common/model.js';
 import { TrimTrailingWhitespaceAction } from '../../../../editor/contrib/linesOperations/browser/linesOperations.js';
 import { IndentUsingSpaces, IndentUsingTabs, ChangeTabDisplaySize, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from '../../../../editor/contrib/indentation/browser/indentation.js';
 import { BaseBinaryResourceEditor } from './binaryEditor.js';
@@ -154,6 +154,7 @@ class StateChange {
 	inputMode: boolean = false;
 	columnSelectionMode: boolean = false;
 	metadata: boolean = false;
+	textDirection: boolean = false;
 
 	combine(other: StateChange) {
 		this.indentation = this.indentation || other.indentation;
@@ -166,6 +167,7 @@ class StateChange {
 		this.inputMode = this.inputMode || other.inputMode;
 		this.columnSelectionMode = this.columnSelectionMode || other.columnSelectionMode;
 		this.metadata = this.metadata || other.metadata;
+		this.textDirection = this.textDirection || other.textDirection;
 	}
 
 	hasChanges(): boolean {
@@ -192,6 +194,7 @@ type StateDelta = (
 	| { type: 'columnSelectionMode'; columnSelectionMode: boolean }
 	| { type: 'metadata'; metadata: string | undefined }
 	| { type: 'inputMode'; inputMode: 'overtype' | 'insert' }
+	| { type: 'textDirection'; textDirection: DetectTextDirection }
 );
 
 class State {
@@ -222,6 +225,9 @@ class State {
 
 	private _metadata: string | undefined;
 	get metadata(): string | undefined { return this._metadata; }
+
+	private _textDirection: DetectTextDirection | undefined;
+	get textDirection(): DetectTextDirection | undefined { return this._textDirection; }
 
 	update(update: StateDelta): StateChange {
 		const change = new StateChange();
@@ -289,6 +295,13 @@ class State {
 					change.metadata = true;
 				}
 				break;
+
+			case 'textDirection':
+				if (this._textDirection !== update.textDirection) {
+					this._textDirection = update.textDirection;
+					change.textDirection = true;
+				}
+				break;
 		}
 
 		return change;
@@ -341,6 +354,10 @@ const nlsMultiSelectionRange = localize('multiSelectionRange', "{0} selections (
 const nlsMultiSelection = localize('multiSelection', "{0} selections");
 const nlsEOLLF = localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = localize('endOfLineCarriageReturnLineFeed', "CRLF");
+const nlsTextDirectionLTR = localize('textDirectionLeftToRight', "LTR");
+const nlsTextDirectionRTL = localize('textDirectionRightToLeft', "RTL");
+const nlsTextDirectionDetectFile = localize('textDirectionDetectFile', "Detect for file");
+const nlsTextDirectionDetectLine = localize('textDirectionDetectLine', "Detect for each line");
 
 class EditorStatus extends Disposable {
 
@@ -353,6 +370,7 @@ class EditorStatus extends Disposable {
 	private readonly eolElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly languageElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly metadataElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly textDirectionElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 
 	private readonly currentMarkerStatus: ShowCurrentMarkerInStatusbarContribution;
 	private readonly tabFocusMode: TabFocusMode;
@@ -607,6 +625,19 @@ class EditorStatus extends Disposable {
 		this.updateElement(this.metadataElement, props, 'status.editor.info', StatusbarAlignment.RIGHT, 100);
 	}
 
+	private updateTextDirectionElement(text: DetectTextDirection = DetectTextDirection.LTR): void {
+		const props: IStatusbarEntry = {
+			name: localize('status.editor.textDirection', "Editor Text Direction"),
+			// XXX
+			text: 'Text direction',
+			ariaLabel: 'Text direction',
+			tooltip: localize('textDirection', "Select Text Direction"),
+			command: 'workbench.action.editor.changeTextDirection'
+		};
+
+		this.updateElement(this.textDirectionElement, props, 'status.editor.textDirection', StatusbarAlignment.RIGHT, 99.9);
+	}
+
 	private updateElement(element: MutableDisposable<IStatusbarEntryAccessor>, props: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority: number) {
 		if (!element.value) {
 			element.value = this.statusbarService.addEntry(props, id, alignment, priority);
@@ -648,6 +679,7 @@ class EditorStatus extends Disposable {
 		this.updateEOLElement(this.state.EOL ? this.state.EOL === '\r\n' ? nlsEOLCRLF : nlsEOLLF : undefined);
 		this.updateLanguageIdElement(this.state.languageId);
 		this.updateMetadataElement(this.state.metadata);
+		this.updateTextDirectionElement(this.state.textDirection);
 	}
 
 	private getSelectionLabel(info: IEditorSelectionStatus): string | undefined {
@@ -687,6 +719,7 @@ class EditorStatus extends Disposable {
 		this.onEncodingChange(activeEditorPane, activeCodeEditor);
 		this.onIndentationChange(activeCodeEditor);
 		this.onMetadataChange(activeEditorPane);
+		this.onTextDirectionChange(activeCodeEditor);
 		this.currentMarkerStatus.update(activeCodeEditor);
 
 		// Dispose old active editor listeners
@@ -817,6 +850,12 @@ class EditorStatus extends Disposable {
 		if (editor instanceof BaseBinaryResourceEditor || editor instanceof BinaryResourceDiffEditor) {
 			update.metadata = editor.getMetadata();
 		}
+
+		this.updateState(update);
+	}
+
+	private onTextDirectionChange(editor: ICodeEditor | undefined): void {
+		const update: StateDelta = { type: 'textDirection', textDirection: DetectTextDirection.LTR };
 
 		this.updateState(update);
 	}
@@ -1422,6 +1461,60 @@ export class ChangeEOLAction extends Action2 {
 				textModel.pushStackElement();
 			}
 		}
+
+		activeTextEditorControl.focus();
+	}
+}
+
+interface IChangeTextDirectionEntry extends IQuickPickItem {
+	detectTextDirection: DetectTextDirection;
+}
+
+export class ChangeTextDirectionAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.editor.changeTextDirection',
+			title: localize2('changeTextDirection', 'Change File Text direction'),
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const quickInputService = accessor.get(IQuickInputService);
+
+		const activeTextEditorControl = getCodeEditor(editorService.activeTextEditorControl);
+		if (!activeTextEditorControl) {
+			await quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }]);
+			return;
+		}
+
+		if (editorService.activeEditor?.isReadonly()) {
+			await quickInputService.pick([{ label: localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
+			return;
+		}
+
+		const textModel = activeTextEditorControl.getModel();
+
+		if (!textModel) {
+			return;
+		}
+
+		const textDirectionOptions: IChangeTextDirectionEntry[] = [
+			{ label: nlsTextDirectionLTR, detectTextDirection: DetectTextDirection.LTR },
+			{ label: nlsTextDirectionRTL, detectTextDirection: DetectTextDirection.RTL },
+			{ label: nlsTextDirectionDetectFile, detectTextDirection: DetectTextDirection.DETECT_FILE },
+			{ label: nlsTextDirectionDetectLine, detectTextDirection: DetectTextDirection.DETECT_LINE },
+		];
+
+		const result = await quickInputService.pick(textDirectionOptions, { placeHolder: localize('pickTextDirection', "Select Text Direction detection"), activeItem: textDirectionOptions[0] });
+
+		if (!result) {
+			return;
+		}
+
+		textModel.setDetectTextDirection(result?.detectTextDirection);
 
 		activeTextEditorControl.focus();
 	}
