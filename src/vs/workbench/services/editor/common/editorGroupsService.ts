@@ -665,7 +665,8 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	readonly mainPart: IEditorPart;
 
 	/**
-	 * Provides access to all editor parts.
+	 * Provides access to all editor parts, in the order they were created.
+	 * The first part created in a window is the main part of that window.
 	 */
 	readonly parts: ReadonlyArray<IEditorPart>;
 
