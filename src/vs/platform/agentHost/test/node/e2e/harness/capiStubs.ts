@@ -150,8 +150,17 @@ export function getAncillaryStub(method: string, path: string, body?: string): I
 			? { status: 200, headers: JSON_HEADERS, body: utilityChatCompletionStubBody() }
 			: { status: 403, headers: JSON_HEADERS, body: 'Forbidden' };
 	}
-	if (path === '/models' && method === 'GET') {
-		return { status: 200, headers: JSON_HEADERS, body: JSON.stringify({ data: STUB_MODELS.map(expandModel), object: 'list' }) };
+	if ((path === '/models' || path === '/meta') && method === 'GET') {
+		const models = { data: STUB_MODELS.map(expandModel), object: 'list' };
+		const auto = {
+			default_tier: 'balance',
+			tiers: [
+				{ id: 'balance', tier_level: 'standard', display_name: 'Standard' },
+				{ id: 'intelligence', tier_level: 'high', display_name: 'High' },
+				{ id: 'efficiency', display_name: 'Efficiency' },
+			].map(tier => ({ ...tier, description: '', type: 'auto', status: { enabled: true } })),
+		};
+		return { status: 200, headers: JSON_HEADERS, body: JSON.stringify(path === '/meta' ? { models, auto } : models) };
 	}
 	// The SDK probes websocket support before falling back to POST /responses.
 	if (path === '/responses' && method === 'GET') {
