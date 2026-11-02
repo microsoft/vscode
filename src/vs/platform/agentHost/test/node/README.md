@@ -12,6 +12,18 @@ Tests that launch a real provider process isolate its home, configuration, logs,
 
 The protocol and E2E folders contain their own running and authoring instructions.
 
+## Copilot runtime recovery
+
+Established-client connection loss is recovered once per SDK client instance. Recovery fails affected parent, subagent, and Fusion phase turns before disposing their live projections, even when child progress is waiting on tool-result persistence. It stops polling and preserves persisted chat backing, detached shell metadata, and other credential-scoped runtimes. Cancellation and deliberate shutdown remain distinct from failure. A five-second, non-overlapping SDK ping checks otherwise idle clients because the SDK does not expose a public client-disconnect event. Background task connection failures also notify the owning client directly.
+
+Recovery invalidates the dead client before waiting for teardown. Graceful stop has a five-second budget, followed by at most five seconds for force stop; hidden policy-session cleanup is bounded separately. Cleanup errors remain logged and reported. Recovery does not proactively start another runtime. A later request can acquire one without restarting VS Code; only read-only operations may retry once automatically. Interrupted sends, model/agent changes and plugin mutations are not replayed because their outcome may be unknown.
+
+`copilotAgent.test.ts`, `copilotAgentSession.test.ts`, and `copilotFailureTelemetry.test.ts` cover disconnect variants, single-flight recovery, cancellation, stale failures, cold and queued operation ownership, scoped isolation, shutdown during bounded teardown, buffered child settlement, detached shells, explicit retries, and stopping background polling. Refresh compiled output, then run:
+
+```bash
+./scripts/test.sh --run src/vs/platform/agentHost/test/node/copilotAgent.test.ts --run src/vs/platform/agentHost/test/node/copilotAgentSession.test.ts --run src/vs/platform/agentHost/test/node/copilotFailureTelemetry.test.ts --reporter dot
+```
+
 ## Reasoning timing
 
 AHP reasoning parts carry optional producer-owned `startedAt` and `duration` fields for one contiguous run of thinking output. A run starts at its first nonempty reasoning text and ends at the next markdown or tool-call part, or at turn termination. SDK reasoning IDs, reasoning-complete events, full-message boundaries, and sideband notifications do not split a run. Timing-only `chat/reasoning` updates finish the run before publishing the following content or terminal action.
