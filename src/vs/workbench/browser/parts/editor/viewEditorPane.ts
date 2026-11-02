@@ -16,7 +16,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from './editor.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
-import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { getWindowMainPart, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorPane } from './editorPane.js';
 import { ViewEditorInput } from './viewEditorInput.js';
@@ -107,7 +107,7 @@ export class ViewEditorPane extends EditorPane {
 	 * created in it.
 	 */
 	private getMainPartEditorService(): IEditorService {
-		const mainPart = this.editorGroupsService.parts.find(part => part.windowId === this.group.windowId) ?? this.editorGroupsService.mainPart;
+		const mainPart = getWindowMainPart(this.editorGroupsService, this.group.windowId);
 
 		return this.editorGroupsService.getScopedInstantiationService(mainPart).invokeFunction(accessor => accessor.get(IEditorService));
 	}

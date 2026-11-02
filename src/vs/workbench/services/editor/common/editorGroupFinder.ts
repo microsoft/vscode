@@ -8,7 +8,7 @@ import { EditorActivation } from '../../../../platform/editor/common/editor.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { EditorInputWithOptions, isEditorInputWithOptions, IUntypedEditorInput, isEditorInput, EditorInputCapabilities } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { IEditorGroup, GroupsOrder, preferredSideBySideGroupDirection, IEditorGroupsService, IModalEditorPart, IEditorGroupsContainer } from './editorGroupsService.js';
+import { IEditorGroup, GroupsOrder, preferredSideBySideGroupDirection, IEditorGroupsService, IModalEditorPart, IEditorGroupsContainer, getWindowMainPart } from './editorGroupsService.js';
 import { AUX_WINDOW_GROUP, AUX_WINDOW_GROUP_TYPE, MODAL_GROUP, MODAL_GROUP_TYPE, PreferredGroup, SIDE_GROUP, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from './editorService.js';
 
 type FindGroupResult = Promise<[IEditorGroup, EditorActivation | undefined]> | [IEditorGroup, EditorActivation | undefined];
@@ -205,7 +205,7 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 	// Fallback to active group if target not valid but avoid
 	// locked editor groups unless editor is already opened there
 	if (!group) {
-		let candidateGroup = groupsContainer.activeGroup;
+		let candidateGroup = handOffFromSelfTitledEditor(groupsContainer.activeGroup, editorGroupService);
 
 		// Locked group: find the next non-locked group
 		// going up the neigbours of the group or create
@@ -236,6 +236,25 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 	}
 
 	return group;
+}
+
+/**
+ * A group that shows only an editor that renders its own title, such as a
+ * view shown as an editor, does not take other editors beside it: they go to
+ * the active group of the main part of its window (the first part created in
+ * it), as editors opened from a view go to the editor area.
+ */
+function handOffFromSelfTitledEditor(group: IEditorGroup, editorGroupService: IEditorGroupsService): IEditorGroup {
+	if (group.count !== 1 || !group.activeEditorPane?.providesTitle) {
+		return group;
+	}
+
+	const windowMainPart = getWindowMainPart(editorGroupService, group.windowId);
+	if (windowMainPart.groups.some(candidate => candidate.id === group.id)) {
+		return group;
+	}
+
+	return windowMainPart.activeGroup;
 }
 
 function isGroupLockedForEditor(group: IEditorGroup, editor: EditorInput | IUntypedEditorInput): boolean {

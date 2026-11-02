@@ -737,6 +737,14 @@ export interface IEditorGroupContextKeyProvider<T extends ContextKeyValue> {
 /**
  * The main service to interact with editor groups across all opened editor parts.
  */
+/**
+ * The main part of a window: the first part created in it, or the main
+ * part when the window has none.
+ */
+export function getWindowMainPart(editorGroupsService: Pick<IEditorGroupsService, 'parts' | 'mainPart'>, windowId: number): IEditorPart {
+	return editorGroupsService.parts.find(part => part.windowId === windowId) ?? editorGroupsService.mainPart;
+}
+
 export interface IEditorGroupsService extends IEditorGroupsContainer {
 
 	readonly _serviceBrand: undefined;

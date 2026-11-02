@@ -26,7 +26,7 @@ import { IAuxiliaryWindowService } from '../../../auxiliaryWindow/browser/auxili
 import { IStatusbarService } from '../../../statusbar/browser/statusbar.js';
 import { EditorService } from '../../browser/editorService.js';
 import { IContentPart, IEditorGroup, IEditorGroupsService } from '../../common/editorGroupsService.js';
-import { IEditorService } from '../../common/editorService.js';
+import { ACTIVE_GROUP, IEditorService } from '../../common/editorService.js';
 
 class TestView implements IViewEditorView {
 
@@ -205,5 +205,47 @@ suite('View Editors', () => {
 		await views[0].instantiationService.invokeFunction(accessor => accessor.get(IEditorService)).openEditor(file);
 
 		assert.deepStrictEqual({ main: parts.mainPart.groups.some(group => group.contains(file)), part: (part as IContentPart).groups.some(group => group.contains(file)) }, { main: true, part: false });
+	});
+
+	test('opens to the active group of a group that shows only a view with its own title go to the main part of its window', async () => {
+		const { parts, editorService, part } = await createServices();
+		const focusIn = (element: HTMLElement) => {
+			const focusable = element.appendChild(mainWindow.document.createElement('div'));
+			focusable.tabIndex = 0;
+			focusable.focus();
+		};
+		const where = (input: TestFileEditorInput) => parts.mainPart.groups.some(group => group.contains(input)) ? 'main' : (part as IContentPart).groups.some(group => group.contains(input)) ? 'part' : 'none';
+		const open = async (path: string, group?: typeof ACTIVE_GROUP) => {
+			const input = disposables.add(new TestFileEditorInput(URI.file(path), TEST_EDITOR_INPUT_ID));
+			focusIn(part.element as HTMLElement);
+			await editorService.openEditor(input, { pinned: true }, group);
+			return where(input);
+		};
+
+		const titled = createViewInput('test.titled', '/chat/a');
+		await part.activeGroup.openEditor(titled, { pinned: true });
+		const onlyTitledView = await open('/only-titled.txt');
+		const onlyTitledViewActiveGroup = await open('/only-titled-active.txt', ACTIVE_GROUP);
+
+		await part.activeGroup.openEditor(disposables.add(new TestFileEditorInput(URI.file('/second.txt'), TEST_EDITOR_INPUT_ID)), { pinned: true });
+		const withSecondEditor = await open('/with-second.txt');
+
+		await part.activeGroup.closeAllEditors();
+		await part.activeGroup.openEditor(createViewInput('test.untitled', '/chat/b'), { pinned: true });
+		const onlyUntitledView = await open('/only-untitled.txt');
+
+		const mainContainer = mainWindow.document.body.appendChild(parts.testMainPart.getContainer()!);
+		disposables.add({ dispose: () => mainContainer.remove() });
+		focusIn(mainContainer);
+		const fromMain = disposables.add(new TestFileEditorInput(URI.file('/from-main.txt'), TEST_EDITOR_INPUT_ID));
+		await editorService.openEditor(fromMain, { pinned: true });
+
+		assert.deepStrictEqual({ onlyTitledView, onlyTitledViewActiveGroup, withSecondEditor, onlyUntitledView, mainWindow: where(fromMain) }, {
+			onlyTitledView: 'main',
+			onlyTitledViewActiveGroup: 'main',
+			withSecondEditor: 'part',
+			onlyUntitledView: 'part',
+			mainWindow: 'main'
+		});
 	});
 });
