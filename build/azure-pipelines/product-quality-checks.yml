@@ -155,23 +155,6 @@ jobs:
         continueOnError: true
         condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
 
-      # Transition-time check (remove together with the one in .github/workflows/pr.yml): the distro
-      # keeps its npm lockfiles next to the pnpm ones until every release branch uses pnpm, and the
-      # pull request check cannot see the distro. vscode's npm lockfiles are read from the parent of
-      # the commit that deleted package-lock.json, which the shallow checkout lacks, so fetch the last
-      # commits first. No --strict; reports differences without failing the build.
-      - script: |
-          set -e
-          git fetch --no-tags --deepen=50 origin "$(Build.SourceVersion)" || echo "##vso[task.logissue type=warning]Could not fetch the history of $(Build.SourceVersion)."
-          DELETION=$(git log -1 --format=%H --diff-filter=D HEAD -- package-lock.json)
-          if [ -z "$DELETION" ]; then
-            echo "##vso[task.logissue type=warning]No commit in the fetched history deleted package-lock.json; skipping the pnpm lockfile verification."
-            exit 0
-          fi
-          node build/npm/pnpm/verify-locks.ts --npm-ref "$DELETION^" --distro .build/distro --report .build/verify-locks-report.json
-        displayName: Verify pnpm lockfiles (including the distro)
-        continueOnError: true
-
       - template: ./common/mixin-vscode-capi.yml@self
 
       # Generate and publish the NOTICE before compiling: every platform compile job
