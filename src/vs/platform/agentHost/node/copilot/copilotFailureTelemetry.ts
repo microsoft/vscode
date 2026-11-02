@@ -14,7 +14,7 @@ import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTel
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { toInitiatorTelemetry, type IAgentHostCopilotSkuClassification, type IAgentHostCopilotSkuTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry } from '../agentHostTelemetryReporter.js';
 
-export type CopilotClientOperation = 'abort' | 'addPluginMarketplace' | 'browsePluginMarketplace' | 'changeAgent' | 'changeModel' | 'getSessionMetadata' | 'installPlugin' | 'listExtensions' | 'listPluginInstallations' | 'listPluginMarketplaces' | 'listSessions' | 'modelRefresh' | 'refreshPluginMarketplaces' | 'removePluginMarketplace' | 'resumeTurn' | 'sendMessage' | 'setExtensionEnabled' | 'setPluginEnabled' | 'uninstallPlugin';
+export type CopilotClientOperation = 'abort' | 'addPluginMarketplace' | 'browsePluginMarketplace' | 'changeAgent' | 'changeModel' | 'getSessionMetadata' | 'healthCheck' | 'installPlugin' | 'listExtensions' | 'listPluginInstallations' | 'listPluginMarketplaces' | 'listSessions' | 'modelRefresh' | 'prepareTurn' | 'refreshPluginMarketplaces' | 'removePluginMarketplace' | 'resumeTurn' | 'sendMessage' | 'setExtensionEnabled' | 'setPluginEnabled' | 'uninstallPlugin';
 export type CopilotClientOperationFailureKind = 'clientNotConnected' | 'connectionClosed' | 'connectionDisposed' | 'runtimeConnectionClosed';
 type CopilotClientStartupOutcome = 'success' | 'failure' | 'cancelled';
 type CopilotStartupFailureCause = 'nativeModuleProcedureNotFound' | 'nativeModuleInitializationFailed' | 'nativeModuleNotFound' | 'permissionDenied' | 'timeout' | 'spawnFailed' | 'processExitedUnexpectedly' | 'processExited' | 'configurationChanged' | 'other';
@@ -89,10 +89,12 @@ export function classifyCopilotClientOperationFailure(error: unknown): CopilotCl
 	}
 	switch (error.message) {
 		case 'Client not connected':
+		case 'Client is not connected. Call start() first.':
 			return 'clientNotConnected';
 		case 'Connection is closed.':
 			return 'connectionClosed';
 		case 'Connection is disposed.':
+		case 'Pending response rejected since connection got disposed':
 			return 'connectionDisposed';
 		case 'The in-process runtime connection is closed.':
 			return 'runtimeConnectionClosed';

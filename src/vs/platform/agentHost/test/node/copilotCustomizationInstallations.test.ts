@@ -6,6 +6,7 @@
 import type { CopilotClient, InstallationConfirmationRequest, McpInstallationReview } from '@github/copilot-sdk';
 import assert from 'assert';
 import { createHash } from 'crypto';
+import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { stableStringify } from '../../../../base/common/objects.js';
@@ -551,6 +552,106 @@ suite('CopilotCustomizationInstallations', () => {
 			hasIds: true,
 			reusedFirst: true,
 			replacedAfterRelease: true,
+		});
+	});
+
+	suite('policy session recovery', () => {
+		function createClient(): CustomizationClient {
+			return {
+				rpc: {
+					catalog: new class extends mock<CopilotClient['rpc']['catalog']>() {
+						override readonly search: CopilotClient['rpc']['catalog']['search'] = async () => ({
+							kind: 'succeeded', searchId: 'search', candidates: [], truncated: false,
+							negotiated: { runtimeProtocolVersion: 3, grantedCapabilities: [] },
+						});
+					}(),
+					skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+					mcp: new class extends mock<CopilotClient['rpc']['mcp']>() { }(),
+				},
+			};
+		}
+
+		for (const lateOutcome of ['resolve', 'reject'] as const) {
+			test(`releases a pending policy session without blocking its replacement when creation can ${lateOutcome}`, async () => {
+				const failedClient = createClient();
+				const replacementClient = createClient();
+				let client = failedClient;
+				const creationStarted = new DeferredPromise<string>();
+				const creationGate = new DeferredPromise<void>();
+				const policySessions = new TestPolicySessions();
+				const service = store.add(new CopilotCustomizationInstallations(async () => client, async (requestedClient, sessionId) => {
+					if (requestedClient === failedClient) {
+						creationStarted.complete(sessionId);
+						await creationGate.p;
+					}
+					return policySessions.create(requestedClient, sessionId);
+				}));
+				const failedSearch = assert.rejects(service.search({ query: 'first', limit: 10 }), /runtime restarted|creation failed/);
+				const failedSessionId = await creationStarted.p;
+				const release = service.releasePolicySession(failedClient);
+				client = replacementClient;
+				const replacementSearch = service.search({ query: 'replacement', limit: 10 }).then(result => ({ kind: 'succeeded' as const, result }), error => ({ kind: 'failed' as const, error }));
+				try {
+					const beforeOldCreationSettles = await raceTimeout(replacementSearch, 1000);
+					if (lateOutcome === 'resolve') {
+						creationGate.complete();
+					} else {
+						creationGate.error(new Error('creation failed'));
+					}
+					await Promise.all([failedSearch, release, replacementSearch]);
+					await service.search({ query: 'reuse replacement', limit: 10 });
+					assert.deepStrictEqual({
+						replacementCompletedBeforeOldCreation: beforeOldCreationSettles?.kind === 'succeeded',
+						created: policySessions.created.length,
+						disposed: [...policySessions.disposed],
+						failedSessionRetained: service.isPolicySessionId(failedSessionId),
+					}, {
+						replacementCompletedBeforeOldCreation: true,
+						created: lateOutcome === 'resolve' ? 2 : 1,
+						disposed: lateOutcome === 'resolve' ? [failedSessionId] : [],
+						failedSessionRetained: false,
+					});
+				} finally {
+					if (!creationGate.isSettled) {
+						creationGate.complete();
+					}
+					await Promise.all([failedSearch, release, replacementSearch]);
+					await service.releasePolicySession();
+				}
+			});
+		}
+
+		test('releasing an unrelated client does not invalidate a pending policy session', async () => {
+			const client = createClient();
+			const unrelatedClient = createClient();
+			const creationStarted = new DeferredPromise<void>();
+			const creationGate = new DeferredPromise<void>();
+			const policySessions = new TestPolicySessions();
+			const service = store.add(new CopilotCustomizationInstallations(async () => client, async (requestedClient, sessionId) => {
+				creationStarted.complete();
+				await creationGate.p;
+				return policySessions.create(requestedClient, sessionId);
+			}));
+			const search = service.search({ query: 'first', limit: 10 }).then(result => ({ kind: 'succeeded' as const, result }), error => ({ kind: 'failed' as const, error }));
+			await creationStarted.p;
+			const release = service.releasePolicySession(unrelatedClient);
+			try {
+				creationGate.complete();
+				const result = await search;
+				await release;
+				assert.deepStrictEqual({
+					releaseWasUnneeded: release === undefined,
+					searchSucceeded: result.kind === 'succeeded',
+					created: policySessions.created.length,
+					disposed: [...policySessions.disposed],
+				}, { releaseWasUnneeded: true, searchSucceeded: true, created: 1, disposed: [] });
+			} finally {
+				if (!creationGate.isSettled) {
+					creationGate.complete();
+				}
+				await Promise.all([search, release]);
+				await service.releasePolicySession();
+			}
 		});
 	});
 

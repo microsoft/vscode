@@ -2514,6 +2514,26 @@ suite('CopilotAgentSession', () => {
 			]);
 		});
 
+		test('runtime recovery preserves detached shell metadata for the replacement session', async () => {
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			mockSession.backgroundTasks = [shell('attached'), { ...shell('detached'), attachmentMode: 'detached' }];
+			mockSession.fire('session.background_tasks_changed', {});
+			await waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatBackgroundWorkSet && signal.action.work.id === 'shell:detached');
+			const detached = workActions(signals).flatMap(action => action.type === ActionType.ChatBackgroundWorkSet && action.work.id === 'shell:detached' ? [action.work] : []);
+			session.failActiveTurn({ errorType: 'providerConnectionClosed', message: 'Runtime exited' });
+			session.dispose();
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				configureMockSession: mock => { mock.backgroundTasks = [{ ...shell('detached'), attachmentMode: 'detached', description: '', command: '' }]; },
+			});
+			disposables.add(replacement.session.observeBackgroundWork(detached));
+			await replacement.waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
+			assert.deepStrictEqual({
+				removed: workActions(signals).flatMap(action => action.type === ActionType.ChatBackgroundWorkRemoved ? [action.id] : []),
+				restored: workActions(replacement.signals).flatMap(action => action.type === ActionType.ChatBackgroundWorkSet && action.work.kind === BackgroundWorkKind.Shell ? [{ label: action.work.label, command: action.work.command }] : []),
+			}, { removed: ['shell:attached'], restored: [{ label: 'Run detached', command: 'npm test' }] });
+		});
+
 		test('does not publish a stale snapshot after a newer change', async () => {
 			const { mockSession, signals, waitForSignal } = await createAgentSession(disposables);
 			const gate = new DeferredPromise<void>();
@@ -9647,6 +9667,53 @@ suite('CopilotAgentSession', () => {
 
 		assert.deepStrictEqual({ beforeQuietPeriod, afterQuietPeriod: completed() }, { beforeQuietPeriod: [], afterQuietPeriod: ['tc-search'] });
 	}));
+
+	test('stops subagent confirmation and background polling after connection loss', () => runWithFakedTimers({}, async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
+		session.resetTurnState('turn-parent');
+		const identity = { toolCallId: 'tc-search', agentName: 'search_code_subagent', agentDisplayName: 'Search code' };
+		mockSession.fire('subagent.started', { ...identity, agentDescription: 'Search the codebase' }, { agentId: 'search-agent' });
+		mockSession.backgroundTaskListError = new Error('Connection is disposed.');
+		mockSession.fire('subagent.completed', identity, { agentId: 'search-agent' });
+		await timeout(100);
+		const readsAfterFailure = mockSession.backgroundTaskListCalls;
+		mockSession.fire('session.background_tasks_changed', {});
+		await timeout(20000);
+		assert.deepStrictEqual({
+			readsAfterFailure,
+			readsLater: mockSession.backgroundTaskListCalls,
+			completions: signals.filter(signal => signal.kind === 'subagent_completed').length,
+		}, { readsAfterFailure: 1, readsLater: 1, completions: 0 });
+	}));
+
+	test('connection recovery fails active subagents once even after the parent turn was cancelled', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-search', agentName: 'search_code_subagent', agentDisplayName: 'Search code', agentDescription: 'Search the codebase',
+		}, { agentId: 'search-agent' });
+		session.discardActiveTurn();
+		const error = { errorType: 'providerConnectionClosed', message: 'Copilot stopped unexpectedly. Retry your request.' };
+		const first = session.failActiveTurn(error);
+		const second = session.failActiveTurn(error);
+		assert.deepStrictEqual({
+			first, second,
+			active: session.hasActiveSubagents,
+			errors: signals.filter(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatError).length,
+			completions: signals.filter(signal => signal.kind === 'subagent_completed').length,
+		}, { first: undefined, second: undefined, active: false, errors: 1, completions: 1 });
+	});
+
+	test('runtime recovery does not fail child turns already cancelled by an explicit abort', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('parent');
+		mockSession.fire('subagent.started', { toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore' }, { agentId: 'worker' });
+		await session.abort();
+		session.discardActiveTurn();
+		const start = signals.length;
+		session.failActiveTurn({ errorType: 'providerConnectionClosed', message: 'Runtime exited' });
+		assert.deepStrictEqual(signals.slice(start).filter(signal => signal.kind === 'subagent_completed' || signal.kind === 'action' && signal.parentToolCallId), []);
+	});
 
 	test('keeps a task-backed subagent active when its lifecycle completion races a running task', () => runWithFakedTimers({}, async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
@@ -20139,6 +20206,38 @@ Use the attached image as context.
 				});
 			}
 
+			for (const internallyCompleted of [false, true]) {
+				test(`runtime recovery settles published children before disposal despite pending persistence (internallyCompleted=${internallyCompleted})`, async () => {
+					const { session, mockSession, signals, release, child, start } = await startChildResourceCompletion('shell');
+					if (internallyCompleted) {
+						mockSession.backgroundTasks = [{
+							type: 'agent', id: 'worker', toolCallId: 'task', description: 'Explore tests', status: 'idle',
+							agentType: 'explore', prompt: 'Explore', startedAt: new Date(0).toISOString(), idleSince: new Date(1).toISOString(),
+						}];
+						mockSession.fire('session.background_tasks_changed', {});
+						await timeout(0);
+					} else {
+						mockSession.fire('assistant.message', { messageId: 'buffered', content: 'Discarded response' }, child);
+						mockSession.fire('tool.execution_start', { toolCallId: 'nested-task', toolName: 'task', arguments: { prompt: 'Nested work' } }, child);
+						mockSession.fire('subagent.started', { toolCallId: 'nested-task', agentName: 'explore', agentDisplayName: 'Nested', agentDescription: 'Nested' }, { agentId: 'nested' });
+					}
+					const error = { errorType: 'providerConnectionClosed', message: 'Copilot stopped unexpectedly. Retry your request.' };
+					session.failActiveTurn(error);
+					session.failActiveTurn(error);
+					const beforeDispose = signals.slice(start);
+					session.dispose();
+					release.complete();
+					await session.destroySession();
+					assert.deepStrictEqual({
+						active: session.hasActiveSubagents,
+						childSignals: beforeDispose.flatMap(signal => signal.kind === 'action' && signal.parentToolCallId
+							? [`${signal.parentToolCallId}:${signal.action.type}`]
+							: signal.kind === 'subagent_completed' ? [`${signal.toolCallId}:completed`] : []),
+						lateSignals: signals.slice(start + beforeDispose.length),
+					}, { active: false, childSignals: ['task:chat/error', 'task:completed'], lateSignals: [] });
+				});
+			}
+
 			test('nested subagent progress waits for its buffered spawn', async () => {
 				const { mockSession, signals, waitForSignal, release, child, start } = await startChildResourceCompletion('mcp');
 				mockSession.fire('user.message', { content: 'Delegate the follow-up', source: 'agent-parent' }, child);
@@ -22323,6 +22422,37 @@ Use the attached image as context.
 				after: ['complete:fusion:fusion-1:phase-1', 'closed'],
 			});
 		});
+
+		for (const pendingClose of [false, true]) {
+			test(`runtime recovery fails a Fusion phase chat before disposal (pendingClose=${pendingClose})`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				const sessionInternals = session as unknown as ISessionInternalsForTest;
+				const edit = new DeferredPromise<undefined>();
+				sessionInternals._editTracker.takeCompletedEdit = () => edit.p;
+				session.resetTurnState('fusion-turn');
+				const fusion = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'critique', commitId: 'commit-1' };
+				mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+				mockSession.fire('assistant.fusion_phase_completed', fusionTestData.phaseCompleted);
+				mockSession.fire('tool.execution_start', { toolCallId: 'tc-create', toolName: 'create', arguments: { path: '/workspace/a.ts', file_text: 'x' }, fusion });
+				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-create', success: true, result: { content: 'created' }, fusion });
+				if (pendingClose) {
+					mockSession.fire('session.fusion_completed', fusionTestData.completed);
+					mockSession.fire('session.idle', {});
+				}
+				const error = { errorType: 'providerConnectionClosed', message: 'Copilot stopped unexpectedly. Retry your request.' };
+				session.failActiveTurn(error);
+				session.failActiveTurn(error);
+				const beforeDispose = signals.length;
+				session.dispose();
+				edit.complete(undefined);
+				await session.destroySession();
+				assert.deepStrictEqual({
+					phase: signals.flatMap<string>(signal => signal.kind === 'subagent_started' || signal.kind === 'subagent_completed' ? [signal.kind]
+						: signal.kind === 'action' && signal.parentToolCallId && signal.action.type === ActionType.ChatError ? [signal.action.type] : []),
+					lateSignals: signals.slice(beforeDispose),
+				}, { phase: ['subagent_started', 'chat/error', 'subagent_completed'], lateSignals: [] });
+			});
+		}
 
 		test('an aborted Fusion phase chat is left for cancellation instead of completed', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);

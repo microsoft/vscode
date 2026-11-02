@@ -192,9 +192,10 @@ export class CopilotCustomizationInstallations extends Disposable {
 	private readonly catalogCursors = this._register(new DisposableMap<string, RetainedCatalogCursor>());
 	private readonly policySessionIdle = this._register(new MutableDisposable<IDisposable>());
 	private policySession: ICopilotCustomizationPolicySession | undefined;
-	private policySessionCreation: Promise<ICopilotCustomizationPolicySession> | undefined;
+	private policySessionCreation: { readonly client: ICopilotCustomizationInstallationClient; readonly promise: Promise<ICopilotCustomizationPolicySession> } | undefined;
 	private policySessionGeneration = 0;
 	private readonly policySessionIds = new Set<string>();
+	private readonly invalidatedClients = new WeakSet<ICopilotCustomizationInstallationClient>();
 
 	readonly confirmationHandler: InstallationConfirmationHandler = (request, token) => {
 		if (token.isCancellationRequested) {
@@ -1105,6 +1106,9 @@ export class CopilotCustomizationInstallations extends Disposable {
 	}
 
 	private async getOrCreatePolicySessionId(client: ICopilotCustomizationInstallationClient): Promise<string> {
+		if (this.invalidatedClients.has(client)) {
+			throw new Error(localize('copilot.customizationInstallation.runtimeChanged', "The customization runtime restarted. Start the operation again."));
+		}
 		let current = this.policySession;
 		if (current?.client === client) {
 			this.touchPolicySession(current);
@@ -1118,7 +1122,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			const generation = ++this.policySessionGeneration;
 			const sessionId = generateUuid();
 			this.policySessionIds.add(sessionId);
-			creating = this.createPolicySession(client, sessionId).then(async created => {
+			const promise = this.createPolicySession(client, sessionId).then(async created => {
 				if (created.sessionId !== sessionId || generation !== this.policySessionGeneration) {
 					try {
 						await created.dispose();
@@ -1133,15 +1137,16 @@ export class CopilotCustomizationInstallations extends Disposable {
 				this.policySessionIds.delete(sessionId);
 				throw error;
 			});
+			creating = { client, promise };
 			this.policySessionCreation = creating;
 			const clearCreation = () => {
 				if (this.policySessionCreation === creating) {
 					this.policySessionCreation = undefined;
 				}
 			};
-			void creating.then(clearCreation, clearCreation);
+			void promise.then(clearCreation, clearCreation);
 		}
-		current = await creating;
+		current = await creating.promise;
 		if (current.client !== client) {
 			await this.releasePolicySession();
 			throw new Error(localize('copilot.customizationInstallation.runtimeChanged', "The customization runtime restarted. Start the operation again."));
@@ -1154,38 +1159,40 @@ export class CopilotCustomizationInstallations extends Disposable {
 		this.policySessionIdle.value = disposableTimeout(() => void this.releasePolicySession(session.client), policySessionIdleTimeoutMs);
 	}
 
-	releasePolicySession(client?: ICopilotCustomizationInstallationClient): Promise<void> | undefined {
-		const current = this.policySession;
-		if ((!current || (client && current.client !== client)) && !this.policySessionCreation) {
-			return undefined;
-		}
-		return this.releasePolicySessionWork(client);
+	/** Prevents callers that already acquired a stopped client from creating a policy session afterward. */
+	invalidateClient(client: ICopilotCustomizationInstallationClient): Promise<void> | undefined {
+		this.invalidatedClients.add(client);
+		return this.releasePolicySession(client);
 	}
 
-	private async releasePolicySessionWork(client?: ICopilotCustomizationInstallationClient): Promise<void> {
-		const generation = ++this.policySessionGeneration;
+	releasePolicySession(client?: ICopilotCustomizationInstallationClient): Promise<void> | undefined {
+		const current = !client || this.policySession?.client === client ? this.policySession : undefined;
+		const creating = !client || this.policySessionCreation?.client === client ? this.policySessionCreation : undefined;
+		if (!current && !creating) {
+			return undefined;
+		}
+		this.policySessionGeneration++;
 		this.policySessionIdle.clear();
-		const current = this.policySession;
-		if (current && (!client || current.client === client)) {
+		if (current) {
 			this.policySession = undefined;
+		}
+		if (creating) {
+			this.policySessionCreation = undefined;
+		}
+		return this.releasePolicySessionWork(current, creating?.promise);
+	}
+
+	private async releasePolicySessionWork(current: ICopilotCustomizationPolicySession | undefined, creating: Promise<ICopilotCustomizationPolicySession> | undefined): Promise<void> {
+		if (current) {
 			try {
 				await current.dispose();
 			} finally {
 				this.policySessionIds.delete(current.sessionId);
 			}
 		}
-		const creating = this.policySessionCreation;
 		if (creating) {
 			try {
-				const created = await creating;
-				if (generation === this.policySessionGeneration && (!client || created.client === client)) {
-					this.policySession = undefined;
-					try {
-						await created.dispose();
-					} finally {
-						this.policySessionIds.delete(created.sessionId);
-					}
-				}
+				await creating;
 			} catch {
 				// Creation owns and reports its failure.
 			}

@@ -144,7 +144,7 @@ import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDire
 import { renderCopilotSlashCommandOutput, type RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
 import { CopilotSandboxPolicyDisplay } from './copilotSandboxPolicyDisplay.js';
 import { toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandOutputMeta.js';
-import { createCopilotFailureCorrelation, reportCopilotModelCallFailure, reportCopilotSdkSessionError } from './copilotFailureTelemetry.js';
+import { classifyCopilotClientOperationFailure, createCopilotFailureCorrelation, reportCopilotModelCallFailure, reportCopilotSdkSessionError } from './copilotFailureTelemetry.js';
 import { reportCopilotFusionPhase, type CopilotFusionPhaseEvent } from './copilotFusionPhaseTelemetry.js';
 import { reportCopilotTodoStoreOperation } from './copilotTodoStoreTelemetry.js';
 import { ModelCallTurnCorrelation } from './modelCallTurnCorrelation.js';
@@ -713,6 +713,7 @@ export interface ICopilotAgentSessionOptions {
 	 * could dispose this session off the current stack.
 	 */
 	readonly onTurnEnded?: () => void;
+	readonly onClientOperationFailure?: (error: unknown) => Promise<void>;
 	/** Invoked after a root SDK message or turn-start event establishes steering readiness. */
 	readonly onSteeringReady?: (session: CopilotAgentSession) => void;
 	/**
@@ -1246,6 +1247,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _streamingToolDisplaySchedulers = this._register(new DisposableMap<string, RunOnceScheduler>());
 	private readonly _subagents = this._register(new CopilotSubagentTracking());
 	private _subagentProgressSequencer = new SequencerByKey<string>();
+	private readonly _publishedSubagentTurns = new Set<string>();
+	private _clientRecoverySettled = false;
 	private readonly _pendingSubagentToolCompletions = new Map<string, DeferredPromise<AgentSignal | undefined>>();
 	private readonly _subagentResponsePartState: ICopilotResponsePartState = {
 		markdownPartIds: new Map<string, string>(),
@@ -1274,6 +1277,8 @@ export class CopilotAgentSession extends Disposable {
 	private _republishBackgroundWork = false;
 	private _refreshDetachedBackgroundShells = false;
 	private readonly _backgroundShellRefresh = this._register(new RunOnceScheduler(() => this._refreshBackgroundTasks(true), 5000));
+	private _backgroundTaskConnectionLost = false;
+	private readonly _onClientOperationFailure: ICopilotAgentSessionOptions['onClientOperationFailure'];
 	private readonly _unroutableSubagentToolCallIds = new Set<string>();
 	/** Correlates tool execution with the SDK permission lifecycle for `chat.toolApproval` telemetry. */
 	private readonly _toolApprovalRecords = new Map<string, {
@@ -1437,6 +1442,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	get isDisposed(): boolean { return this._store.isDisposed; }
+	get sdkClient(): CopilotSessionLaunchPlan['client'] { return this._launchPlan.client; }
 
 	/** Waits for idle, or returns false if the runtime is disposed first. */
 	async waitForIdle(token: CancellationToken = CancellationToken.None): Promise<boolean> {
@@ -2155,6 +2161,7 @@ export class CopilotAgentSession extends Disposable {
 		this._connectorRefreshTimeoutMs = options.connectorRefreshTimeoutMs ?? CONNECTOR_REFRESH_TIMEOUT_MS;
 		this._connectorOwnershipLookupTimeoutMs = options.connectorOwnershipLookupTimeoutMs ?? CONNECTOR_OWNERSHIP_LOOKUP_TIMEOUT_MS;
 		this._onConnectorRefreshRetryable = options.onConnectorRefreshRetryable ?? (() => { });
+		this._onClientOperationFailure = options.onClientOperationFailure;
 		this.resourceUri = options.resource ?? this.launchOwner;
 		this._chatChannelUri = options.chatChannelUri;
 		this._storageUri = this.resourceUri;
@@ -2419,6 +2426,9 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Keeps child progress ordered while tool results are being persisted, without delaying SDK bookkeeping. */
 	private _emitProgress(signal: AgentSignal): void {
+		if (this._clientRecoverySettled) {
+			return;
+		}
 		if (signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete) {
 			const pending = this._pendingSubagentToolCompletions.get(signal.action.toolCallId);
 			if (pending) {
@@ -2446,16 +2456,27 @@ export class CopilotAgentSession extends Disposable {
 		if (parentToolCallId && this._subagentProgressSequencer.peek(parentToolCallId)) {
 			const token = this._abortToken;
 			const publication = this._subagentProgressSequencer.queue(parentToolCallId, async () => {
-				if (!this._store.isDisposed && !token.isCancellationRequested) {
-					this._onDidSessionProgress.fire(signal);
+				if (!this._store.isDisposed && !token.isCancellationRequested && !this._clientRecoverySettled) {
+					this._publishProgress(signal);
 				}
 			}).catch(error => this._logService.error(`[Copilot:${this.sessionId}] Failed to publish subagent progress`, error));
 			if (signal.kind === 'subagent_started' && parentToolCallId !== signal.toolCallId) {
 				void this._subagentProgressSequencer.queue(signal.toolCallId, () => publication);
 			}
 		} else {
-			this._onDidSessionProgress.fire(signal);
+			this._publishProgress(signal);
 		}
+	}
+
+	private _publishProgress(signal: AgentSignal): void {
+		if (signal.kind === 'subagent_started' || signal.kind === 'subagent_resumed') {
+			this._publishedSubagentTurns.add(signal.toolCallId);
+		} else if (signal.kind === 'subagent_completed') {
+			this._publishedSubagentTurns.delete(signal.toolCallId);
+		} else if (signal.kind === 'action' && signal.parentToolCallId && (signal.action.type === ActionType.ChatError || signal.action.type === ActionType.ChatTurnCancelled)) {
+			this._publishedSubagentTurns.delete(signal.parentToolCallId);
+		}
+		this._onDidSessionProgress.fire(signal);
 	}
 
 	// #region On-device model attribution and usage accounting
@@ -2913,12 +2934,12 @@ export class CopilotAgentSession extends Disposable {
 				// Confirm against the task list so a child that resumed meanwhile stays active. A superseded
 				// or failed confirmation re-arms itself until the child is completed or running again.
 				this._reconcileBackgroundTasks().then(settled => {
-					if (!settled && this._subagentTaskCompletionSchedulers.get(agentId) === confirmation) {
+					if (!settled && !this._backgroundTaskConnectionLost && this._subagentTaskCompletionSchedulers.get(agentId) === confirmation) {
 						confirmation.schedule();
 					}
 				}, err => {
 					this._logService.warn(`[Copilot:${this.sessionId}] Failed to confirm subagent completion: ${getErrorMessage(err)}`);
-					if (this._subagentTaskCompletionSchedulers.get(agentId) === confirmation) {
+					if (!this._backgroundTaskConnectionLost && this._subagentTaskCompletionSchedulers.get(agentId) === confirmation) {
 						confirmation.schedule();
 					}
 				});
@@ -3045,6 +3066,9 @@ export class CopilotAgentSession extends Disposable {
 	private _reconcileBackgroundTasks(): Promise<boolean> {
 		const revision = ++this._backgroundTaskStatusRevision;
 		return this._backgroundTaskStatusRefreshThrottler.queue(async () => {
+			if (this._store.isDisposed || this._backgroundTaskConnectionLost) {
+				return false;
+			}
 			const activityRevisions = new Map(this._subagentActivityRevisions);
 			if (this._refreshDetachedBackgroundShells) {
 				this._refreshDetachedBackgroundShells = false;
@@ -3101,6 +3125,14 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 			return true;
+		}).catch(async error => {
+			if (classifyCopilotClientOperationFailure(error)) {
+				this._backgroundTaskConnectionLost = true;
+				this._subagentTaskCompletionSchedulers.clearAndDisposeAll();
+				this._backgroundShellRefresh.cancel();
+				await this._onClientOperationFailure?.(error);
+			}
+			throw error;
 		});
 	}
 
@@ -3108,7 +3140,7 @@ export class CopilotAgentSession extends Disposable {
 		this._refreshDetachedBackgroundShells ||= refreshDetached;
 		void this._reconcileBackgroundTasks().catch(err => {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to reconcile background task status: ${getErrorMessage(err)}`);
-			if (!this._store.isDisposed && this._backgroundWorkObservers > 0) {
+			if (!this._store.isDisposed && !this._backgroundTaskConnectionLost && this._backgroundWorkObservers > 0) {
 				this._backgroundShellRefresh.schedule();
 			}
 		});
@@ -3629,19 +3661,39 @@ export class CopilotAgentSession extends Disposable {
 
 	failActiveTurn(error: ErrorInfo): string | undefined {
 		const turn = this._currentTurn.value;
-		if (!turn) {
-			return undefined;
+		if (turn) {
+			this._reportToolCallDetails(turn, 'failed');
+			this._attributeLocalModelTurn(turn.id);
+			this._emitAction({
+				type: ActionType.ChatError,
+				turnId: turn.id,
+				duration: turn.duration,
+				part: createErrorResponsePart(error, true),
+			});
+			this._clearActiveTurn();
 		}
-		this._reportToolCallDetails(turn, 'failed');
-		this._attributeLocalModelTurn(turn.id);
-		this._emitAction({
-			type: ActionType.ChatError,
-			turnId: turn.id,
-			duration: turn.duration,
-			part: createErrorResponsePart(error, true),
-		});
-		this._clearActiveTurn();
-		return turn.id;
+		if (error.errorType === 'providerConnectionClosed' && !this._clientRecoverySettled) {
+			// Terminate published child turns before disposal, without waiting for tool-result persistence.
+			this._subagentProgressSequencer = new SequencerByKey<string>();
+			for (const toolCallId of [...this._publishedSubagentTurns]) {
+				this._emitSubagentOutcome(toolCallId, { kind: 'failed', message: error.message, durationMs: undefined });
+				this._emitProgress({ kind: 'subagent_completed', chat: this._chatChannelUri, toolCallId });
+			}
+			this._backgroundTaskConnectionLost = true;
+			this._backgroundShellRefresh.cancel();
+			for (const [id, work] of this._backgroundWork) {
+				if (work.kind !== BackgroundWorkKind.Shell || readCopilotShellAttachment(work) !== 'detached') {
+					this._emitAction({ type: ActionType.ChatBackgroundWorkRemoved, id });
+					this._backgroundWork.delete(id);
+				}
+			}
+			this._clientRecoverySettled = true;
+			for (const agentId of [...this._subagents.activeAgentIds]) {
+				this._completeSubagentTurn(agentId);
+			}
+			this._forgetFusionPhaseChats();
+		}
+		return turn?.id;
 	}
 
 	discardActiveTurn(): void {
@@ -4332,6 +4384,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _beginAbort(): void {
+		this._publishedSubagentTurns.clear();
 		if (this._abortToken.isCancellationRequested) {
 			return;
 		}
@@ -9965,7 +10018,7 @@ export class CopilotAgentSession extends Disposable {
 				this._pendingSubagentToolCompletions.set(e.data.toolCallId, deferred);
 				publication = this._subagentProgressSequencer.queue(parentToolCallId, async () => {
 					const signal = await raceCancellation(deferred.p, abortToken);
-					if (!signal || this._store.isDisposed || abortToken.isCancellationRequested) {
+					if (!signal || this._store.isDisposed || abortToken.isCancellationRequested || this._clientRecoverySettled) {
 						return false;
 					}
 					this._onDidSessionProgress.fire(signal);
@@ -11844,6 +11897,9 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Cancellation closes these chats as cancelled, so an abort only drops local routing. */
 	private _forgetFusionPhaseChats(): void {
+		for (const toolCallId of [...this._fusionPhaseChats, ...this._pendingFusionPhaseChatCloses.keys()]) {
+			this._publishedSubagentTurns.delete(toolCallId);
+		}
 		this._fusionPhases.clear();
 		this._fusionPhaseChats.clear();
 		this._pendingFusionPhaseChatCloses.clear();

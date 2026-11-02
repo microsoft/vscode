@@ -11,7 +11,7 @@ import assert from 'assert';
 import { X509Certificate } from 'crypto';
 import { rootCertificates } from 'tls';
 import { agentEntitlementHintMeta } from '../../common/meta/agentEntitlementHintMeta.js';
-import { spy, stub, useFakeTimers } from 'sinon';
+import { SinonFakeTimersConfig, spy, stub, useFakeTimers } from 'sinon';
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { constants as fsConstants } from 'fs';
@@ -700,7 +700,7 @@ interface ITestCopilotModelInfo {
 	readonly supportedReasoningEfforts?: CopilotModelInfo['supportedReasoningEfforts'];
 }
 
-interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'listSessions' | 'createSession' | 'resumeSession' | 'getSessionMetadata' | 'deleteSession'> {
+interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'forceStop' | 'ping' | 'listSessions' | 'createSession' | 'resumeSession' | 'getSessionMetadata' | 'deleteSession'> {
 	readonly rpc: {
 		readonly agents: CopilotAgentDiscovery;
 		readonly instructions: CopilotInstructionDiscovery;
@@ -762,6 +762,8 @@ function toSdkModelInfo(model: ITestCopilotModelInfo): CopilotModelInfo {
 type ManagedSettingsResolveResult = Awaited<ReturnType<CopilotClient['rpc']['managedSettings']['resolve']>>;
 
 class TestCopilotClient implements ITestCopilotClient {
+	async ping(): ReturnType<CopilotClient['ping']> { return { message: '', timestamp: '' }; }
+	async forceStop(): Promise<void> { }
 	mcpConfigListResult: Awaited<ReturnType<CopilotClient['rpc']['mcp']['config']['list']>> = { servers: {} };
 	managedSettingsResolution: ManagedSettingsResolveResult = {
 		resolved: { source: 'none', serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] },
@@ -3238,7 +3240,7 @@ suite('CopilotAgent', () => {
 		});
 	}
 
-	test('changeModel recovers a connection closed during managed settings resolution', async () => {
+	test('changeModel recovers a closed connection but waits for an explicit retry', async () => {
 		const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/copilot-policy-recovery-`);
 		const sessionId = 'policy-recovery';
 		const session = AgentSession.uri('copilotcli', sessionId);
@@ -3271,11 +3273,13 @@ suite('CopilotAgent', () => {
 			}
 			return client.managedSettingsResolution;
 		};
+		await assert.rejects(agent.chats.changeModel(chat, { id: 'model-x' }, context), /Connection is closed/);
+		const startsBeforeRetry = client.startCallCount - starts;
 		await agent.chats.changeModel(chat, { id: 'model-x' }, context);
 		assert.deepStrictEqual({
-			failed, restarted: client.startCallCount - starts, stopped: client.stopCallCount,
+			failed, startsBeforeRetry, restarted: client.startCallCount - starts, stopped: client.stopCallCount,
 			models: runtimes.map(runtime => runtime.setModelCalls.map(([model]) => model)),
-		}, { failed: true, restarted: 1, stopped: 1, models: [[], ['model-x']] });
+		}, { failed: true, startsBeforeRetry: 0, restarted: 1, stopped: 1, models: [[], ['model-x']] });
 	});
 
 	test('sandbox override survives config resolution but is not inherited by forks', async () => {
@@ -7182,6 +7186,532 @@ suite('CopilotAgent', () => {
 			return { agent, clients, options, launches, configurationService };
 		}
 
+		for (const stopFailure of ['reject', 'errors', 'hang', 'bothHang'] as const) {
+			test(`shutdown finishes all client cleanup during recovery when stop can ${stopFailure}`, async () => {
+				const { agent, clients, options } = setup();
+				afterTest(() => disposeAgent(agent));
+				await agent.listChatsToMigrate();
+				const session = AgentSession.uri('copilotcli', 'shutdown-during-recovery');
+				const chat = defaultChatUri(session);
+				const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'scoped', expiresAt: undefined, revision: 1 }) };
+				const context = { ...exactChatContext(session, chat, session), credentials };
+				const directories = [URI.file(process.cwd())];
+				await provisionSession(agent, { session, credentials, workingDirectories: directories });
+				await agent.chats.prepareTurn!(chat, 'turn', directories, context);
+				const shared = clients[options.findIndex(option => option.gitHubToken === undefined)];
+				const scoped = clients[options.findIndex(option => option.gitHubToken === 'scoped')];
+				const stopping = new DeferredPromise<void>();
+				const stopGate = new DeferredPromise<Error[]>();
+				const forceGate = new DeferredPromise<void>();
+				const stop = stub(shared, 'stop').callsFake(() => { stopping.complete(); return stopGate.p; });
+				const force = stub(shared, 'forceStop').callsFake(() => stopFailure === 'bothHang' ? forceGate.p : Promise.resolve());
+				const clockOptions: Partial<SinonFakeTimersConfig> & { shouldClearNativeTimers: boolean } = {
+					toFake: ['setTimeout', 'clearTimeout'],
+					shouldClearNativeTimers: true,
+				};
+				const clock = useFakeTimers(clockOptions);
+				try {
+					const recovery = agent['_handleClientOperationFailure'](new Error('Connection is disposed.'), 'healthCheck', undefined, shared as unknown as CopilotClient);
+					await stopping.p;
+					const shutdown = agent.shutdown();
+					if (stopFailure === 'reject') {
+						stopGate.error(new Error('stop failed'));
+					} else if (stopFailure === 'errors') {
+						stopGate.complete([new Error('cleanup failed')]);
+					}
+					await clock.tickAsync(10000);
+					await shutdown;
+					await agent.shutdown();
+					assert.deepStrictEqual({
+						stopSucceeded: (await recovery)?.stopSucceeded,
+						forced: force.callCount,
+						scopedStops: scoped.stopCallCount,
+						scopedClients: agent['_scopedClients'].size,
+						credentialSources: agent['_credentialSources'].size,
+						lifetimes: agent['_sessionLifetimes'].size,
+					}, { stopSucceeded: false, forced: 1, scopedStops: 1, scopedClients: 0, credentialSources: 0, lifetimes: 0 });
+				} finally {
+					if (!stopGate.isSettled) {
+						stopGate.complete([]);
+					}
+					forceGate.complete();
+					stop.restore();
+					force.restore();
+					clock.restore();
+				}
+			});
+		}
+
+		for (const forceOutcome of ['resolve', 'reject', 'hang'] as const) {
+			test(`shutdown awaits detached scoped recovery when force stop can ${forceOutcome}`, async () => {
+				const { agent, clients, options } = setup();
+				afterTest(() => disposeAgent(agent));
+				await agent.listChatsToMigrate();
+				const session = AgentSession.uri('copilotcli', 'scoped-shutdown-during-recovery');
+				const chat = defaultChatUri(session);
+				const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'scoped', expiresAt: undefined, revision: 1 }) };
+				const context = { ...exactChatContext(session, chat, session), credentials };
+				const directories = [URI.file(process.cwd())];
+				await provisionSession(agent, { session, credentials, workingDirectories: directories });
+				await agent.chats.prepareTurn!(chat, 'turn', directories, context);
+				const shared = clients[options.findIndex(option => option.gitHubToken === undefined)];
+				const scoped = clients[options.findIndex(option => option.gitHubToken === 'scoped')];
+				const stopStarted = new DeferredPromise<void>();
+				const stopGate = new DeferredPromise<Error[]>();
+				const forceGate = new DeferredPromise<void>();
+				const stop = stub(scoped, 'stop').callsFake(() => { stopStarted.complete(); return stopGate.p; });
+				const force = stub(scoped, 'forceStop').returns(forceGate.p);
+				const clockOptions: Partial<SinonFakeTimersConfig> & { shouldClearNativeTimers: boolean } = {
+					toFake: ['setTimeout', 'clearTimeout'],
+					shouldClearNativeTimers: true,
+				};
+				const clock = useFakeTimers(clockOptions);
+				try {
+					const recovery = agent['_handleClientOperationFailure'](new Error('Connection is disposed.'), 'healthCheck', undefined, scoped as unknown as CopilotClient);
+					await stopStarted.p;
+					let shutdownFinished = false;
+					const shutdown = agent.shutdown().then(() => { shutdownFinished = true; });
+					await clock.tickAsync(4999);
+					const beforeGracefulDeadline = { shutdownFinished, forced: force.callCount, scopedClients: agent['_scopedClients'].size };
+					await clock.tickAsync(5000);
+					const beforeForcedDeadline = { shutdownFinished, forced: force.callCount };
+					if (forceOutcome === 'resolve') {
+						forceGate.complete();
+					} else if (forceOutcome === 'reject') {
+						forceGate.error(new Error('forced stop failed'));
+					}
+					await clock.tickAsync(1);
+					await shutdown;
+					assert.deepStrictEqual({
+						beforeGracefulDeadline,
+						beforeForcedDeadline,
+						shutdownFinished,
+						stopSucceeded: (await recovery)?.stopSucceeded,
+						scopedStops: stop.callCount,
+						sharedStops: shared.stopCallCount,
+					}, {
+						beforeGracefulDeadline: { shutdownFinished: false, forced: 0, scopedClients: 0 },
+						beforeForcedDeadline: { shutdownFinished: false, forced: 1 },
+						shutdownFinished: true,
+						stopSucceeded: false,
+						scopedStops: 1,
+						sharedStops: 1,
+					});
+				} finally {
+					stopGate.complete([]);
+					if (!forceGate.isSettled) {
+						forceGate.complete();
+					}
+					stop.restore();
+					force.restore();
+					clock.restore();
+				}
+			});
+		}
+
+		for (const scoped of [false, true]) {
+			for (const concurrentRecovery of [false, true]) {
+				for (const operation of ['sendMessage', 'resumeTurn', 'changeModel', 'changeAgent', 'prepareTurn'] as const) {
+					test(`${operation} recovers the client acquired during a cold launch (scoped=${scoped}, concurrentRecovery=${concurrentRecovery})`, async () => {
+						let failResume = false;
+						const { agent, clients, options } = setup(undefined, [], [], undefined, {
+							onClientCreated: client => {
+								if (failResume) {
+									client.resumeSession = async () => {
+										if (concurrentRecovery) {
+											await agent['_handleClientOperationFailure'](new Error('Connection is disposed.'), 'healthCheck', undefined, client as unknown as CopilotClient);
+										}
+										throw new Error('Pending response rejected since connection got disposed');
+									};
+								}
+							},
+						});
+						afterTest(() => disposeAgent(agent));
+						const session = AgentSession.uri('copilotcli', `cold-recovery-${operation}`);
+						const chat = defaultChatUri(session);
+						const credentials = scoped ? { getCredential: () => ({ resource: 'https://api.github.com', token: 'scoped', expiresAt: undefined, revision: 1 }) } : undefined;
+						const context = { ...exactChatContext(session, chat, session), credentials };
+						const directories = [URI.file(process.cwd())];
+						await provisionSession(agent, { session, credentials, workingDirectories: directories });
+						await agent.chats.prepareTurn!(chat, 'initial', directories, context);
+						await agent['_handleClientOperationFailure'](new Error('Connection is disposed.'), 'healthCheck', undefined, clients[0] as unknown as CopilotClient);
+						failResume = true;
+						const invoke = () => {
+							switch (operation) {
+								case 'sendMessage': return agent.chats.sendMessage(chat, 'retry', directories, undefined, 'retry', undefined, undefined, context);
+								case 'resumeTurn': return agent.chats.resumeTurn!(chat, 'retry', context);
+								case 'changeModel': return agent.chats.changeModel(chat, { id: 'gpt-4o' }, context);
+								case 'changeAgent': return agent.chats.changeAgent(chat, undefined, context);
+								case 'prepareTurn': return agent.chats.prepareTurn!(chat, 'retry', directories, context);
+							}
+						};
+						await assert.rejects(invoke(), /connection got disposed/);
+						assert.deepStrictEqual({
+							stops: clients.filter((_, index) => options[index].gitHubToken === (scoped ? 'scoped' : undefined)).map(client => client.stopCallCount),
+							unrelatedStops: clients.filter((_, index) => options[index].gitHubToken !== (scoped ? 'scoped' : undefined)).map(client => client.stopCallCount),
+							live: hasLiveChat(agent, chat),
+						}, { stops: [1, 1], unrelatedStops: scoped ? [0] : [], live: false });
+					});
+				}
+			}
+		}
+
+		for (const operation of ['sendMessage', 'resumeTurn'] as const) {
+			test(`${operation} reports recovery during the final cold-session preparation wait`, async () => {
+				const { agent, clients, launches } = setup();
+				afterTest(() => disposeAgent(agent));
+				const session = AgentSession.uri('copilotcli', `cold-preparation-${operation}`);
+				const chat = defaultChatUri(session);
+				const context = exactChatContext(session, chat, session);
+				const directories = [URI.file(process.cwd())];
+				await provisionSession(agent, { session, workingDirectories: directories });
+				const started = new DeferredPromise<void>();
+				const release = new DeferredPromise<void>();
+				const directoryCheck = stub(agent as unknown as { _assertTurnWorkingDirectory(): Promise<void> }, '_assertTurnWorkingDirectory').callsFake(async () => {
+					started.complete();
+					await release.p;
+				});
+				const request = operation === 'sendMessage'
+					? agent.chats.sendMessage(chat, 'hello', directories, undefined, 'turn', undefined, undefined, context)
+					: agent.chats.resumeTurn!(chat, 'turn', context);
+				const failed = assert.rejects(request, /Copilot stopped unexpectedly/);
+				try {
+					await started.p;
+					await agent['_handleClientOperationFailure'](new Error('Connection is disposed.'), 'healthCheck', undefined, clients[0] as unknown as CopilotClient);
+					release.complete();
+					await failed;
+					assert.deepStrictEqual({ starts: clients.length, sends: launches.map(launch => launch.runtime.sendCalls) }, { starts: 1, sends: [0] });
+				} finally {
+					if (!release.isSettled) {
+						release.complete();
+					}
+					directoryCheck.restore();
+					await request.catch(() => undefined);
+				}
+			});
+		}
+
+		for (const cancelled of [false, true]) {
+			test(`a late initialization reports runtime failure without overriding cancellation (cancelled=${cancelled})`, async () => {
+				const started = new DeferredPromise<TestCopilotClient>();
+				const release = new DeferredPromise<void>();
+				const { agent, clients } = setup(undefined, [], [], undefined, {
+					onClientCreated: client => {
+						client.createSession = async config => {
+							const session = new MockCopilotSession(config.sessionId);
+							started.complete(client);
+							await release.p;
+							return session as unknown as CopilotSession;
+						};
+					},
+				});
+				afterTest(() => disposeAgent(agent));
+				const session = AgentSession.uri('copilotcli', 'late-initialization-recovery');
+				const chat = defaultChatUri(session);
+				const context = exactChatContext(session, chat, session);
+				const directories = [URI.file(process.cwd())];
+				await provisionSession(agent, { session, workingDirectories: directories });
+				const send = agent.chats.sendMessage(chat, 'hello', directories, undefined, 'turn', undefined, undefined, context);
+				const result = cancelled ? send : assert.rejects(send, /Copilot stopped unexpectedly/);
+				try {
+					const client = await started.p;
+					if (cancelled) {
+						await agent.chats.abort(chat, context);
+					}
+					await agent['_handleClientOperationFailure'](new Error('Connection is disposed.'), 'healthCheck', undefined, client as unknown as CopilotClient);
+					release.complete();
+					await result;
+					assert.deepStrictEqual({ starts: clients.length, live: hasLiveChat(agent, chat) }, { starts: 1, live: false });
+				} finally {
+					if (!release.isSettled) {
+						release.complete();
+					}
+					await send.catch(() => undefined);
+				}
+			});
+		}
+
+		test('session configuration refresh does not relaunch after concurrent runtime recovery', async () => {
+			const { agent, clients, launches } = setup();
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'configuration-refresh-recovery');
+			const chat = defaultChatUri(session);
+			const context = exactChatContext(session, chat, session);
+			const directories = [URI.file(process.cwd())];
+			await provisionSession(agent, { session, workingDirectories: directories });
+			await agent.chats.prepareTurn!(chat, 'initial', directories, context);
+			const live = agent['_findChatByUri'](chat)!;
+			live.markTelemetryRevocationRequiresRestart();
+			const started = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const destroy = stub(live, 'destroySession').callsFake(async () => {
+				started.complete();
+				await release.p;
+			});
+			const send = agent.chats.sendMessage(chat, 'hello', directories, undefined, 'turn', undefined, undefined, context);
+			const failed = assert.rejects(send, /Copilot stopped unexpectedly/);
+			try {
+				await started.p;
+				await agent['_handleClientOperationFailure'](new Error('Connection is disposed.'), 'healthCheck', undefined, clients[0] as unknown as CopilotClient);
+				release.complete();
+				await failed;
+				assert.deepStrictEqual({ starts: clients.length, sends: launches.map(launch => launch.runtime.sendCalls) }, { starts: 1, sends: [0] });
+			} finally {
+				if (!release.isSettled) {
+					release.complete();
+				}
+				destroy.restore();
+				await send.catch(() => undefined);
+			}
+		});
+
+		test('disconnected abort keeps a deferred restart behind bounded recovery', async () => {
+			const { agent, clients } = setup();
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'abort-deferred-restart');
+			const chat = defaultChatUri(session);
+			const context = exactChatContext(session, chat, session);
+			const directories = [URI.file(process.cwd())];
+			await provisionSession(agent, { session, workingDirectories: directories });
+			await agent.chats.prepareTurn!(chat, 'turn', directories, context);
+			const live = agent['_findChatByUri'](chat)!;
+			live.resetTurnState('turn');
+			await agent['_requestClientRestart']('test pending restart');
+			const abortSession = stub(live, 'abort').rejects(new Error('Connection is disposed.'));
+			const stopGate = new DeferredPromise<Error[]>();
+			const stopStarted = new DeferredPromise<void>();
+			const stop = stub(clients[0], 'stop').callsFake(() => { stopStarted.complete(); return stopGate.p; });
+			const force = stub(clients[0], 'forceStop').resolves();
+			const clockOptions: Partial<SinonFakeTimersConfig> & { shouldClearNativeTimers: boolean } = {
+				toFake: ['setTimeout', 'clearTimeout'],
+				shouldClearNativeTimers: true,
+			};
+			const clock = useFakeTimers(clockOptions);
+			const abort = agent.chats.abort(chat, context);
+			try {
+				await stopStarted.p;
+				await clock.tickAsync(10000);
+				await abort;
+				assert.deepStrictEqual({
+					forced: force.callCount,
+					starts: clients.length,
+					stopping: agent['_clientStopping'] !== undefined,
+					pendingRestarts: agent['_pendingClientRestartReasons'].size,
+				}, { forced: 1, starts: 1, stopping: false, pendingRestarts: 0 });
+			} finally {
+				stopGate.complete([]);
+				await abort;
+				abortSession.restore();
+				stop.restore();
+				force.restore();
+				clock.restore();
+			}
+		});
+
+		test('recovery rejects a policy-session acquisition that returns a stopped client late', async () => {
+			const { agent, clients } = setup();
+			afterTest(() => disposeAgent(agent));
+			await agent.listChatsToMigrate();
+			const failedClient = clients[0];
+			const acquisition = new DeferredPromise<CopilotClient>();
+			const creationGate = new DeferredPromise<void>();
+			const ensureClient = stub(agent as unknown as { _ensureClient(): Promise<CopilotClient> }, '_ensureClient').returns(acquisition.p);
+			const createdClients: CopilotClient[] = [];
+			const policySession = stub(agent['_sessionLauncher'], 'createCustomizationPolicySession').callsFake(async (client, sessionId) => {
+				createdClients.push(client);
+				if (client === failedClient as unknown as CopilotClient) {
+					await creationGate.p;
+				}
+				return new MockCopilotSession(sessionId) as unknown as CopilotSession;
+			});
+			const catalog = new class extends mock<CopilotClient['rpc']['catalog']>() {
+				override readonly search: CopilotClient['rpc']['catalog']['search'] = async () => ({
+					kind: 'succeeded', searchId: 'search', candidates: [], truncated: false,
+					negotiated: { runtimeProtocolVersion: 3, grantedCapabilities: [] },
+				});
+			}();
+			const service = agent['_customizationInstallations'];
+			const first = service.search({ query: 'first', limit: 1 }).then(() => 'succeeded', error => error instanceof Error ? error.message : String(error));
+			try {
+				await agent['_handleClientOperationFailure'](new Error('Connection is disposed.'), 'healthCheck', undefined, failedClient as unknown as CopilotClient);
+				acquisition.complete(failedClient as unknown as CopilotClient);
+				await timeout(0);
+				ensureClient.restore();
+				const replacement = await agent['_ensureClient']();
+				Object.assign(replacement.rpc, { catalog });
+				Object.assign(failedClient.rpc, { catalog });
+				const second = service.search({ query: 'replacement', limit: 1 }).then(() => 'succeeded', error => error instanceof Error ? error.message : String(error));
+				const beforeOldCreationSettles = await raceTimeout(second, 1000);
+				creationGate.complete();
+				const [firstResult, secondResult] = await Promise.all([first, second]);
+				assert.deepStrictEqual({
+					firstResult,
+					beforeOldCreationSettles,
+					secondResult,
+					createdForFailedClient: createdClients.includes(failedClient as unknown as CopilotClient),
+				}, {
+					firstResult: 'The customization runtime restarted. Start the operation again.',
+					beforeOldCreationSettles: 'succeeded',
+					secondResult: 'succeeded',
+					createdForFailedClient: false,
+				});
+			} finally {
+				if (!acquisition.isSettled) {
+					acquisition.complete(failedClient as unknown as CopilotClient);
+				}
+				if (!creationGate.isSettled) {
+					creationGate.complete();
+				}
+				ensureClient.restore();
+				policySession.restore();
+				await first;
+			}
+		});
+
+		test('a queued changeAgent failure recovers the replacement client, not the client present at enqueue', async () => {
+			let failResume = false;
+			const { agent, clients } = setup(undefined, [], [], undefined, {
+				onClientCreated: client => {
+					if (failResume) {
+						client.resumeSession = async () => { throw new Error('Connection is disposed.'); };
+					}
+				},
+			});
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'queued-client-recovery');
+			const chat = defaultChatUri(session);
+			const context = exactChatContext(session, chat, session);
+			const directories = [URI.file(process.cwd())];
+			await provisionSession(agent, { session, workingDirectories: directories });
+			await agent.chats.prepareTurn!(chat, 'initial', directories, context);
+			const started = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const blocker = agent['_queueChatTurn'](agent['_resolveChatContext'](chat, context), 'changeAgent', undefined, async () => {
+				started.complete();
+				await release.p;
+			});
+			await started.p;
+			const failed = assert.rejects(agent.chats.changeAgent(chat, undefined, context), /Connection is disposed/);
+			try {
+				await agent['_handleClientOperationFailure'](new Error('Connection is disposed.'), 'healthCheck', undefined, clients[0] as unknown as CopilotClient);
+				failResume = true;
+				await agent['_ensureClientForChat'](chat);
+			} finally {
+				release.complete();
+			}
+			await Promise.all([blocker, failed]);
+			assert.deepStrictEqual(clients.map(client => client.stopCallCount), [1, 1]);
+		});
+
+		for (const duringPolicy of [false, true]) {
+			test(`a stale model selection cannot recover a healthy replacement (duringPolicy=${duringPolicy})`, async () => {
+				const { agent, clients } = setup();
+				afterTest(() => disposeAgent(agent));
+				const session = AgentSession.uri('copilotcli', 'stale-model-recovery');
+				const chat = defaultChatUri(session);
+				const context = exactChatContext(session, chat, session);
+				const directories = [URI.file(process.cwd())];
+				await provisionSession(agent, { session, workingDirectories: directories });
+				await agent.chats.prepareTurn!(chat, 'initial', directories, context);
+				const current = agent['_resolveChatContext'](chat, context);
+				const entry = current.target!;
+				const operationClient = { client: entry.sdkClient };
+				const resolver = agent['_managedSettingsResolver'];
+				const policy = await resolver.resolve(clients[0].rpc.managedSettings, undefined, process.cwd());
+				const started = new DeferredPromise<void>();
+				const release = new DeferredPromise<void>();
+				const resolve = stub(resolver, 'resolve').callsFake(async () => { started.complete(); await release.p; return policy; });
+				const setModel = spy(entry, 'setModel');
+				const select = async () => {
+					try {
+						await agent['_applyModelSelection'](current, entry, { id: 'gpt-4o' }, CancellationToken.None, operationClient);
+					} catch (error) {
+						await agent['_handleChatOperationFailure'](error, 'changeModel', chat, operationClient.client, undefined, context);
+						throw error;
+					}
+				};
+				const selection = duringPolicy ? assert.rejects(select(), /Copilot stopped unexpectedly\. Retry your request\./) : undefined;
+				try {
+					if (duringPolicy) {
+						await started.p;
+					}
+					await agent['_handleClientOperationFailure'](new Error('Connection is disposed.'), 'healthCheck', undefined, clients[0] as unknown as CopilotClient);
+					await agent['_ensureClientForChat'](chat);
+					release.complete();
+					await (selection ?? assert.rejects(select(), /Copilot stopped unexpectedly\. Retry your request\./));
+					assert.throws(() => agent['_throwIfSessionDisposed'](entry, CancellationToken.Cancelled), isCancellationError);
+					assert.deepStrictEqual({ stops: clients.map(client => client.stopCallCount), staleMutations: setModel.callCount }, { stops: [1, 0], staleMutations: 0 });
+				} finally {
+					if (!release.isSettled) {
+						release.complete();
+					}
+					resolve.restore();
+					setModel.restore();
+				}
+			});
+		}
+
+		test('recovery does not schedule connector refreshes on condemned sessions', async () => {
+			const { agent, clients } = setup();
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'connector-client-recovery');
+			const chat = defaultChatUri(session);
+			const context = exactChatContext(session, chat, session);
+			const directories = [URI.file(process.cwd())];
+			await provisionSession(agent, { session, workingDirectories: directories });
+			await agent.chats.prepareTurn!(chat, 'initial', directories, context);
+			const live = agent['_findChatByUri'](chat)!;
+			live.resetTurnState('initial');
+			live.markConnectorConfigurationChanged();
+			const refresh = spy(live, 'refreshConnectors');
+			try {
+				await agent['_handleClientOperationFailure'](new Error('Connection is disposed.'), 'healthCheck', undefined, clients[0] as unknown as CopilotClient);
+				await timeout(0);
+				assert.deepStrictEqual({ refreshes: refresh.callCount, scheduled: agent['_connectorRefreshTasks'].has(live) }, { refreshes: 0, scheduled: false });
+			} finally {
+				refresh.restore();
+			}
+		});
+
+		for (const failingScope of ['legacy', 'scoped']) {
+			test(`runtime recovery isolates ${failingScope} clients from unrelated credentials`, async () => {
+				const { agent, clients, options } = setup();
+				afterTest(() => disposeAgent(agent));
+				const directory = URI.file(process.cwd());
+				const chats = [];
+				for (const name of ['legacy', 'scoped', 'other']) {
+					const session = AgentSession.uri('copilotcli', `runtime-recovery-${name}`);
+					const chat = defaultChatUri(session);
+					const credentials = name === 'legacy' ? undefined : { getCredential: () => ({ resource: 'https://api.github.com', token: name, expiresAt: undefined, revision: 1 }) };
+					const context = { ...exactChatContext(session, chat, session), credentials };
+					await provisionSession(agent, { session, credentials, workingDirectories: [directory] });
+					await agent.chats.prepareTurn!(chat, 'turn', [directory], context);
+					const live = agent['_findChatByUri'](chat)!;
+					live.resetTurnState(`turn-${name}`);
+					chats.push({ name, chat, context, live });
+				}
+				const client = clients[options.findIndex(option => option.gitHubToken === (failingScope === 'legacy' ? undefined : failingScope))];
+				const first = agent['_handleClientOperationFailure'](new Error('Client not connected'), 'healthCheck', undefined, client as unknown as CopilotClient);
+				const second = agent['_handleClientOperationFailure'](new Error('Connection is disposed.'), 'healthCheck', undefined, client as unknown as CopilotClient);
+				await Promise.all([first, second]);
+				const afterRecovery = chats.map(({ name, chat, live }) => ({ name, live: hasLiveChat(agent, chat), active: live.hasActiveTurn }));
+				const recovered = chats.find(chat => chat.name === failingScope)!;
+				await agent.chats.prepareTurn!(recovered.chat, 'retry', [directory], recovered.context);
+				await agent['_handleClientOperationFailure'](new Error('Connection is disposed.'), 'healthCheck', undefined, client as unknown as CopilotClient);
+				assert.deepStrictEqual({
+					afterRecovery,
+					replacementLive: hasLiveChat(agent, recovered.chat),
+					stops: clients.map(client => client.stopCallCount),
+					failedTurns: [...(await first)!.failedTurnIds],
+				}, {
+					afterRecovery: chats.map(({ name }) => ({ name, live: name !== failingScope, active: name !== failingScope })),
+					replacementLive: true,
+					stops: clients.map(candidate => candidate === client ? 1 : 0),
+					failedTurns: [`turn-${failingScope}`],
+				});
+			});
+		}
+
 		test('discovers and caches models without a host token using only the caller credential', async () => {
 			const { agent, clients, options } = setup();
 			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'caller-token', expiresAt: undefined, revision: 1 }) };
@@ -9517,152 +10047,312 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('coalesces closed connection recovery and preserves an already-cancelled turn', async () => {
-		type RecoveryInternals = {
-			_handleClientOperationFailure(error: unknown, operation: 'modelRefresh'): Promise<{ failedTurnIds: ReadonlySet<string> } | undefined>;
-		};
-		class GatedStopClient extends TestCopilotClient {
-			readonly stopGate = new DeferredPromise<void>();
-
-			override async stop(): ReturnType<ITestCopilotClient['stop']> {
-				await this.stopGate.p;
-				return super.stop();
-			}
-		}
-		const client = new GatedStopClient([]);
+	test('health checks recover an idle failed runtime once without restarting it until an explicit request', () => runWithFakedTimers({}, async () => {
+		const client = new TestCopilotClient([]);
+		const replacement = new TestCopilotClient([]);
 		const telemetryService = new RecordingTelemetryService();
 		const agent = createTestAgent(disposables, { copilotClient: client, telemetryService });
-		const cancelledChat = defaultChatUri(AgentSession.uri('copilotcli', 'cancelled'));
-		const failedChat = defaultChatUri(AgentSession.uri('copilotcli', 'failed'));
-		const calls = {
-			cancelled: { discard: 0, fail: 0, dispose: 0 },
-			failed: { discard: 0, fail: 0, dispose: 0 },
-		};
-		let cancelledActive = true;
-		let failedActive = true;
-		const cancelledDiscarded = new DeferredPromise<void>();
-		setDefaultSessionStub(agent, 'cancelled', {
-			sessionId: 'cancelled',
-			sessionUri: AgentSession.uri('copilotcli', 'cancelled'),
-			chatUri: cancelledChat,
-			get hasActiveTurn() { return cancelledActive; },
-			abort: async () => { throw new Error('Connection is closed.'); },
-			cancelConnectorRefresh: () => { },
-			discardActiveTurn: () => { calls.cancelled.discard++; cancelledActive = false; cancelledDiscarded.complete(); },
-			failActiveTurn: () => {
-				if (!cancelledActive) {
-					return undefined;
-				}
-				calls.cancelled.fail++;
-				cancelledActive = false;
-				return 'cancelled-turn';
-			},
-			dispose: () => calls.cancelled.dispose++,
-		});
-		setDefaultSessionStub(agent, 'failed', {
-			sessionId: 'failed',
-			sessionUri: AgentSession.uri('copilotcli', 'failed'),
-			chatUri: failedChat,
-			get hasActiveTurn() { return failedActive; },
-			discardActiveTurn: () => { calls.failed.discard++; failedActive = false; },
-			failActiveTurn: () => {
-				if (!failedActive) {
-					return undefined;
-				}
-				calls.failed.fail++;
-				failedActive = false;
-				return 'failed-turn';
-			},
-			dispose: () => calls.failed.dispose++,
-		});
 		afterTest(() => disposeAgent(agent));
 		await agent.listChatsToMigrate();
-		const abort = agent.chats.abort(cancelledChat, exactChatContext(AgentSession.uri('copilotcli', 'cancelled'), cancelledChat));
-		await cancelledDiscarded.p;
-		const internals = agent as unknown as RecoveryInternals;
-		const second = internals._handleClientOperationFailure(new Error('Connection is closed.'), 'modelRefresh');
-		client.stopGate.complete();
-		const [, secondResult] = await Promise.all([abort, second]);
-		const failures = telemetryService.errorEvents
-			.filter(event => event.eventName === 'agentHost.copilotClientFailure')
-			.map(event => event.data as Record<string, unknown>);
-		const recoveryTurns = telemetryService.errorEvents
-			.filter(event => event.eventName === 'agentHost.copilotClientRecoveryTurnFailed')
-			.map(event => event.data as Record<string, unknown>);
-		const recovery = telemetryService.events.find(event => event.eventName === 'agentHost.copilotClientRecovery')?.data as Record<string, unknown>;
-
-		assert.deepStrictEqual({
-			calls,
-			secondFailedTurnIds: [...(secondResult?.failedTurnIds ?? [])],
-			stopCount: client.stopCallCount,
-			remainingSessions: chatEntriesBySdkId(agent).size,
-			failures: failures.map(failure => ({
-				...failure,
-				clientFailureId: typeof failure.clientFailureId,
-				callstack: typeof failure.callstack,
-			})),
-			recoveryTurns: recoveryTurns.map(recoveryTurn => ({
-				...recoveryTurn,
-				clientFailureIdMatches: recoveryTurn.clientFailureId === recovery.clientFailureId,
-				clientFailureId: typeof recoveryTurn.clientFailureId,
-			})),
-			recovery: {
-				...recovery,
-				clientFailureIdMatches: failures.every(failure => failure.clientFailureId === recovery.clientFailureId),
-				clientFailureId: typeof recovery.clientFailureId,
-				durationMs: typeof recovery.durationMs,
-			},
-		}, {
-			calls: {
-				cancelled: { discard: 1, fail: 0, dispose: 1 },
-				failed: { discard: 0, fail: 1, dispose: 1 },
-			},
-			secondFailedTurnIds: ['failed-turn'],
-			stopCount: 1,
-			remainingSessions: 0,
-			failures: [{
-				clientFailureId: 'string',
-				failureKind: 'connectionClosed',
-				operation: 'abort',
-				agentSessionId: 'cancelled',
-				chatSessionId: getTelemetryChatSessionId(cancelledChat),
-				turnId: undefined,
-				sdkSessionId: 'cancelled',
-				activeTurnCount: 1,
-				recoveryStarted: true,
-				errorName: 'Error',
-				errorCode: undefined,
-				msg: 'Connection is closed.',
-				callstack: 'string',
-			}, {
-				clientFailureId: 'string',
-				failureKind: 'connectionClosed',
-				operation: 'modelRefresh',
-				activeTurnCount: 0,
-				recoveryStarted: false,
-				errorName: 'Error',
-				errorCode: undefined,
-				msg: 'Connection is closed.',
-				callstack: 'string',
-			}],
-			recoveryTurns: [{
-				clientFailureId: 'string',
-				agentSessionId: 'failed',
-				chatSessionId: getTelemetryChatSessionId(failedChat),
-				turnId: 'failed-turn',
-				sdkSessionId: 'failed',
-				clientFailureIdMatches: true,
-			}],
-			recovery: {
-				clientFailureId: 'string',
-				failureKind: 'connectionClosed',
-				durationMs: 'number',
-				failedTurnCount: 1,
-				stopSucceeded: true,
-				clientFailureIdMatches: true,
-			},
+		let active = true;
+		let failures = 0;
+		setDefaultSessionStub(agent, 'health-failure', {
+			chatUri: defaultChatUri(AgentSession.uri('copilotcli', 'health-failure')),
+			get hasActiveTurn() { return active; },
+			failActiveTurn: () => { if (!active) { return undefined; } active = false; failures++; return 'turn-1'; },
+			dispose: () => { },
 		});
+		const ping = stub(client, 'ping').rejects(new Error('Client is not connected. Call start() first.'));
+		const factory = stub(agent as unknown as { _createCopilotClient(options: CopilotClientOptions): CopilotClient }, '_createCopilotClient').returns(replacement as unknown as CopilotClient);
+		try {
+			await timeout(20000);
+			const beforeRetry = { failures, pings: ping.callCount, stops: client.stopCallCount, starts: factory.callCount };
+			await agent.listChatsToMigrate();
+			await agent['_handleClientOperationFailure'](new Error('Connection is disposed.'), 'modelRefresh', undefined, client as unknown as CopilotClient);
+			assert.deepStrictEqual({
+				beforeRetry,
+				replacementStarts: replacement.startCallCount,
+				replacementStops: replacement.stopCallCount,
+				recoveries: telemetryService.events.filter(event => event.eventName === 'agentHost.copilotClientRecovery').length,
+			}, { beforeRetry: { failures: 1, pings: 1, stops: 1, starts: 0 }, replacementStarts: 1, replacementStops: 0, recoveries: 1 });
+		} finally {
+			ping.restore();
+			factory.restore();
+		}
+	}));
+
+	for (const stopFailure of ['reject', 'errors', 'hang'] as const) {
+		test(`bounds failed-runtime teardown when stop can ${stopFailure}`, () => runWithFakedTimers({}, async () => {
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			afterTest(() => disposeAgent(agent));
+			await agent.listChatsToMigrate();
+			const stopGate = new DeferredPromise<Error[]>();
+			const stop = stub(client, 'stop');
+			if (stopFailure === 'reject') {
+				stop.rejects(new Error('stop failed'));
+			} else if (stopFailure === 'errors') {
+				stop.resolves([new Error('cleanup failed')]);
+			} else {
+				stop.returns(stopGate.p);
+			}
+			const force = stub(client, 'forceStop').resolves();
+			const started = Date.now();
+			try {
+				const result = await agent['_handleClientOperationFailure'](new Error('Connection is disposed.'), 'modelRefresh');
+				assert.deepStrictEqual({
+					duration: Date.now() - started,
+					stopSucceeded: result?.stopSucceeded,
+					stops: stop.callCount,
+					forced: force.callCount,
+					cachedClient: agent['_client'],
+					stopping: agent['_clientStopping'],
+				}, { duration: stopFailure === 'hang' ? 5000 : 0, stopSucceeded: false, stops: 1, forced: 1, cachedClient: undefined, stopping: undefined });
+			} finally {
+				stopGate.complete([]);
+				stop.restore();
+				force.restore();
+			}
+		}));
+	}
+
+	test('a failed mutation is never automatically replayed on the replacement runtime', async () => {
+		const client = new TestCopilotClient([]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		afterTest(() => disposeAgent(agent));
+		let calls = 0;
+		await assert.rejects(agent['_retryAfterClosedConnection']('installPlugin', async () => {
+			calls++;
+			throw new Error('Pending response rejected since connection got disposed');
+		}), /connection got disposed/);
+		assert.deepStrictEqual({ calls, starts: client.startCallCount, stops: client.stopCallCount }, { calls: 1, starts: 1, stops: 1 });
 	});
+
+	test('bounds recovery when graceful and forced stops both hang', () => runWithFakedTimers({}, async () => {
+		const client = new TestCopilotClient([]);
+		const replacement = new TestCopilotClient([]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		afterTest(() => disposeAgent(agent));
+		await agent.listChatsToMigrate();
+		const stopGate = new DeferredPromise<Error[]>();
+		const forceGate = new DeferredPromise<void>();
+		const stop = stub(client, 'stop').returns(stopGate.p);
+		const force = stub(client, 'forceStop').returns(forceGate.p);
+		const factory = stub(agent as unknown as { _createCopilotClient(options: CopilotClientOptions): CopilotClient }, '_createCopilotClient').returns(replacement as unknown as CopilotClient);
+		const started = Date.now();
+		try {
+			const result = await agent['_handleClientOperationFailure'](new Error('Connection is disposed.'), 'modelRefresh');
+			const duration = Date.now() - started;
+			await agent.listChatsToMigrate();
+			assert.deepStrictEqual({ duration, stopped: result?.stopSucceeded, starts: replacement.startCallCount }, { duration: 10000, stopped: false, starts: 1 });
+		} finally {
+			stopGate.complete([]);
+			forceGate.complete();
+			stop.restore();
+			force.restore();
+			factory.restore();
+		}
+	}));
+
+	test('acquisition waiting for recovery cannot start a runtime after shutdown begins', async () => {
+		const client = new TestCopilotClient([]);
+		const replacement = new TestCopilotClient([]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		afterTest(() => disposeAgent(agent));
+		await agent.listChatsToMigrate();
+		const stopStarted = new DeferredPromise<void>();
+		const stopGate = new DeferredPromise<Error[]>();
+		const stop = stub(client, 'stop').callsFake(() => { stopStarted.complete(); return stopGate.p; });
+		const factory = stub(agent as unknown as { _createCopilotClient(options: CopilotClientOptions): CopilotClient }, '_createCopilotClient').returns(replacement as unknown as CopilotClient);
+		try {
+			const recovery = agent['_handleClientOperationFailure'](new Error('Connection is disposed.'), 'healthCheck');
+			await stopStarted.p;
+			const acquisition = assert.rejects(agent['_ensureClient'](), isCancellationError);
+			const shutdown = agent.shutdown();
+			stopGate.complete([]);
+			await Promise.all([recovery, acquisition, shutdown]);
+			assert.deepStrictEqual({
+				created: factory.callCount,
+				started: replacement.startCallCount,
+				stopped: replacement.stopCallCount,
+			}, { created: 0, started: 0, stopped: 0 });
+		} finally {
+			if (!stopGate.isSettled) {
+				stopGate.complete([]);
+			}
+			stop.restore();
+			factory.restore();
+		}
+	});
+
+	test('deliberate shutdown does not start runtime recovery', async () => {
+		const client = new TestCopilotClient([]);
+		const telemetryService = new RecordingTelemetryService();
+		const agent = createTestAgent(disposables, { copilotClient: client, telemetryService });
+		await agent.listChatsToMigrate();
+		await disposeAgent(agent);
+		await agent['_handleClientOperationFailure'](new Error('Connection is disposed.'), 'healthCheck', undefined, client as unknown as CopilotClient);
+		assert.deepStrictEqual({
+			stops: client.stopCallCount,
+			recoveries: telemetryService.events.filter(event => event.eventName === 'agentHost.copilotClientRecovery').length,
+		}, { stops: 1, recoveries: 0 });
+	});
+
+	for (const [message, failureKind] of [
+		['Connection is closed.', 'connectionClosed'],
+		['Connection is disposed.', 'connectionDisposed'],
+		['Client not connected', 'clientNotConnected'],
+		['Client is not connected. Call start() first.', 'clientNotConnected'],
+		['Pending response rejected since connection got disposed', 'connectionDisposed'],
+		['The in-process runtime connection is closed.', 'runtimeConnectionClosed'],
+	]) {
+		test(`coalesces runtime loss recovery and preserves an already-cancelled turn: ${message}`, async () => {
+			type RecoveryInternals = {
+				_handleClientOperationFailure(error: unknown, operation: 'modelRefresh'): Promise<{ failedTurnIds: ReadonlySet<string> } | undefined>;
+			};
+			class GatedStopClient extends TestCopilotClient {
+				readonly stopGate = new DeferredPromise<void>();
+
+				override async stop(): ReturnType<ITestCopilotClient['stop']> {
+					await this.stopGate.p;
+					return super.stop();
+				}
+			}
+			const client = new GatedStopClient([]);
+			const telemetryService = new RecordingTelemetryService();
+			const agent = createTestAgent(disposables, { copilotClient: client, telemetryService });
+			const cancelledChat = defaultChatUri(AgentSession.uri('copilotcli', 'cancelled'));
+			const failedChat = defaultChatUri(AgentSession.uri('copilotcli', 'failed'));
+			const calls = {
+				cancelled: { discard: 0, fail: 0, dispose: 0 },
+				failed: { discard: 0, fail: 0, dispose: 0 },
+			};
+			let cancelledActive = true;
+			let failedActive = true;
+			const cancelledDiscarded = new DeferredPromise<void>();
+			setDefaultSessionStub(agent, 'cancelled', {
+				sessionId: 'cancelled',
+				sessionUri: AgentSession.uri('copilotcli', 'cancelled'),
+				chatUri: cancelledChat,
+				get hasActiveTurn() { return cancelledActive; },
+				abort: async () => { throw new Error(message); },
+				cancelConnectorRefresh: () => { },
+				discardActiveTurn: () => { calls.cancelled.discard++; cancelledActive = false; cancelledDiscarded.complete(); },
+				failActiveTurn: () => {
+					if (!cancelledActive) {
+						return undefined;
+					}
+					calls.cancelled.fail++;
+					cancelledActive = false;
+					return 'cancelled-turn';
+				},
+				dispose: () => calls.cancelled.dispose++,
+			});
+			setDefaultSessionStub(agent, 'failed', {
+				sessionId: 'failed',
+				sessionUri: AgentSession.uri('copilotcli', 'failed'),
+				chatUri: failedChat,
+				get hasActiveTurn() { return failedActive; },
+				discardActiveTurn: () => { calls.failed.discard++; failedActive = false; },
+				failActiveTurn: () => {
+					if (!failedActive) {
+						return undefined;
+					}
+					calls.failed.fail++;
+					failedActive = false;
+					return 'failed-turn';
+				},
+				dispose: () => calls.failed.dispose++,
+			});
+			afterTest(() => disposeAgent(agent));
+			await agent.listChatsToMigrate();
+			const abort = agent.chats.abort(cancelledChat, exactChatContext(AgentSession.uri('copilotcli', 'cancelled'), cancelledChat));
+			await cancelledDiscarded.p;
+			const internals = agent as unknown as RecoveryInternals;
+			const second = internals._handleClientOperationFailure(new Error(message), 'modelRefresh');
+			client.stopGate.complete();
+			const [, secondResult] = await Promise.all([abort, second]);
+			const failures = telemetryService.errorEvents
+				.filter(event => event.eventName === 'agentHost.copilotClientFailure')
+				.map(event => event.data as Record<string, unknown>);
+			const recoveryTurns = telemetryService.errorEvents
+				.filter(event => event.eventName === 'agentHost.copilotClientRecoveryTurnFailed')
+				.map(event => event.data as Record<string, unknown>);
+			const recovery = telemetryService.events.find(event => event.eventName === 'agentHost.copilotClientRecovery')?.data as Record<string, unknown>;
+
+			assert.deepStrictEqual({
+				calls,
+				secondFailedTurnIds: [...(secondResult?.failedTurnIds ?? [])],
+				stopCount: client.stopCallCount,
+				remainingSessions: chatEntriesBySdkId(agent).size,
+				failures: failures.map(failure => ({
+					...failure,
+					clientFailureId: typeof failure.clientFailureId,
+					callstack: typeof failure.callstack,
+				})),
+				recoveryTurns: recoveryTurns.map(recoveryTurn => ({
+					...recoveryTurn,
+					clientFailureIdMatches: recoveryTurn.clientFailureId === recovery.clientFailureId,
+					clientFailureId: typeof recoveryTurn.clientFailureId,
+				})),
+				recovery: {
+					...recovery,
+					clientFailureIdMatches: failures.every(failure => failure.clientFailureId === recovery.clientFailureId),
+					clientFailureId: typeof recovery.clientFailureId,
+					durationMs: typeof recovery.durationMs,
+				},
+			}, {
+				calls: {
+					cancelled: { discard: 1, fail: 0, dispose: 1 },
+					failed: { discard: 0, fail: 1, dispose: 1 },
+				},
+				secondFailedTurnIds: ['failed-turn'],
+				stopCount: 1,
+				remainingSessions: 0,
+				failures: [{
+					clientFailureId: 'string',
+					failureKind,
+					operation: 'abort',
+					agentSessionId: 'cancelled',
+					chatSessionId: getTelemetryChatSessionId(cancelledChat),
+					turnId: undefined,
+					sdkSessionId: 'cancelled',
+					activeTurnCount: 1,
+					recoveryStarted: true,
+					errorName: 'Error',
+					errorCode: undefined,
+					msg: message,
+					callstack: 'string',
+				}, {
+					clientFailureId: 'string',
+					failureKind,
+					operation: 'modelRefresh',
+					activeTurnCount: 1,
+					recoveryStarted: false,
+					errorName: 'Error',
+					errorCode: undefined,
+					msg: message,
+					callstack: 'string',
+				}],
+				recoveryTurns: [{
+					clientFailureId: 'string',
+					agentSessionId: 'failed',
+					chatSessionId: getTelemetryChatSessionId(failedChat),
+					turnId: 'failed-turn',
+					sdkSessionId: 'failed',
+					clientFailureIdMatches: true,
+				}],
+				recovery: {
+					clientFailureId: 'string',
+					failureKind,
+					durationMs: 'number',
+					failedTurnCount: 1,
+					stopSucceeded: true,
+					clientFailureIdMatches: true,
+				},
+			});
+		});
+	}
 
 	test('recovers a closed connection while resuming without duplicating the turn failure', async () => {
 		const client = new TestCopilotClient([]);
@@ -9716,21 +10406,24 @@ suite('CopilotAgent', () => {
 		});
 	});
 
-	test('reports but does not recover or discard for another classified abort failure', async () => {
+	test('recovers disconnected aborts without failing the cancelled turn', async () => {
 		const telemetryService = new RecordingTelemetryService();
 		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), telemetryService });
 		const chat = defaultChatUri(AgentSession.uri('copilotcli', 'abort-failure'));
 		let discardCount = 0;
+		let active = true;
 		setDefaultSessionStub(agent, 'abort-failure', {
 			chatUri: chat,
-			hasActiveTurn: true,
+			get hasActiveTurn() { return active; },
 			abort: async () => { throw new Error('Client not connected'); },
 			cancelConnectorRefresh: () => { },
-			discardActiveTurn: () => discardCount++,
+			discardActiveTurn: () => { discardCount++; active = false; },
+			failActiveTurn: () => undefined,
 			dispose: () => { },
 		});
 		afterTest(() => disposeAgent(agent));
-		await assert.rejects(agent.chats.abort(chat, {
+		await agent.listChatsToMigrate();
+		await agent.chats.abort(chat, {
 			...exactChatContext(AgentSession.uri('copilotcli', 'abort-failure'), chat),
 			clientTelemetryContext: {
 				clientType: AgentHostClientType.EditorWindow,
@@ -9740,7 +10433,7 @@ suite('CopilotAgent', () => {
 				machineId: 'client-machine-id',
 				devDeviceId: 'client-dev-device-id',
 			},
-		}), /Client not connected/);
+		});
 		const failure = telemetryService.errorEvents[0].data as Record<string, unknown>;
 		assert.deepStrictEqual({
 			discardCount,
@@ -9751,8 +10444,8 @@ suite('CopilotAgent', () => {
 				callstack: typeof failure.callstack,
 			},
 		}, {
-			discardCount: 0,
-			remainingSessions: 1,
+			discardCount: 1,
+			remainingSessions: 0,
 			failure: {
 				clientFailureId: 'string',
 				failureKind: 'clientNotConnected',
@@ -9767,8 +10460,8 @@ suite('CopilotAgent', () => {
 				chatSessionId: getTelemetryChatSessionId(chat),
 				turnId: undefined,
 				sdkSessionId: 'abort-failure',
-				activeTurnCount: 1,
-				recoveryStarted: false,
+				activeTurnCount: 0,
+				recoveryStarted: true,
 				errorName: 'Error',
 				errorCode: undefined,
 				msg: 'Client not connected',
@@ -9952,7 +10645,11 @@ suite('CopilotAgent', () => {
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
 			await agent.refreshModels();
-			clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+			const clockOptions: Partial<SinonFakeTimersConfig> & { shouldClearNativeTimers: boolean } = {
+				toFake: ['setTimeout', 'clearTimeout'],
+				shouldClearNativeTimers: true,
+			};
+			clock = useFakeTimers(clockOptions);
 			client.modelListResponses.push([]);
 			await agent.refreshModels();
 
@@ -9978,8 +10675,8 @@ suite('CopilotAgent', () => {
 				requestsAfterSignIn: 3,
 			});
 		} finally {
-			clock?.restore();
 			await disposeAgent(agent);
+			clock?.restore();
 		}
 	});
 

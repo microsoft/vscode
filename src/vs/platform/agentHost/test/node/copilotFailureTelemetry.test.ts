@@ -48,6 +48,8 @@ suite('CopilotFailureTelemetry', () => {
 			new Error('Connection is disposed.'),
 			new Error('Client not connected'),
 			new Error('The in-process runtime connection is closed.'),
+			new Error('Client is not connected. Call start() first.'),
+			new Error('Pending response rejected since connection got disposed'),
 			new Error('Failed to start CLI server: spawn failed'),
 			new Error('CLI server exited with code 1'),
 			new Error('CLI server exited unexpectedly with code 1'),
@@ -64,6 +66,8 @@ suite('CopilotFailureTelemetry', () => {
 				'connectionDisposed',
 				'clientNotConnected',
 				'runtimeConnectionClosed',
+				'clientNotConnected',
+				'connectionDisposed',
 				undefined,
 				undefined,
 				undefined,
@@ -71,7 +75,7 @@ suite('CopilotFailureTelemetry', () => {
 				undefined,
 				undefined,
 			],
-			startupFailures: [false, false, false, false, true, true, true, true, true, false],
+			startupFailures: [false, false, false, false, false, false, true, true, true, true, true, false],
 		});
 	});
 
