@@ -492,6 +492,11 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.graph.copyBranchName",
+        "title": "%command.artifactCopyBranchName%",
+        "category": "Git"
+      },
+      {
         "command": "git.checkoutDetached",
         "title": "%command.checkoutDetached%",
         "category": "Git",
@@ -2749,6 +2754,11 @@
           "command": "git.graph.deleteTag",
           "when": "scmProvider == git && scmHistoryItemRef =~ /^refs\\/tags\\//",
           "group": "3_tag@2"
+        },
+        {
+          "command": "git.graph.copyBranchName",
+          "when": "scmProvider == git && scmHistoryItemRef =~ /^refs\\/heads\\/|^refs\\/remotes\\//",
+          "group": "9_copy@1"
         }
       ],
       "editor/title": [
@@ -3129,6 +3139,10 @@
         {
           "command": "git.publish",
           "group": "4_publish@1"
+        },
+        {
+          "command": "git.graph.copyBranchName",
+          "group": "5_copy@1"
         }
       ],
       "git.remotes": [
