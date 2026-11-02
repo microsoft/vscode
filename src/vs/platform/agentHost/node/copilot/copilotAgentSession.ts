@@ -323,6 +323,8 @@ const DEBUG_LOG_COLLECTION_RETRY_ATTEMPTS = 50;
 const DEBUG_LOG_COLLECTION_RETRY_DELAY_MS = 20;
 const EMPTY_TOOL_RESULT_TEXT = '<empty />';
 const MCP_ROUTING_PROXY_DESCRIPTION_MAX_LENGTH = 12_000;
+/** "Search again" replies a routing proxy gives per connection before reporting the server's tools as unavailable. */
+const MCP_ROUTING_MAX_CALLS_PER_CONNECTION = 2;
 const USER_DENIED_PERMISSION_RESULT = { kind: 'reject', feedback: 'The user denied permission.' } satisfies PermissionRequestResult;
 const ALLOW_SAMPLING_ALWAYS_OPTION_ID = 'allow-sampling-always';
 
@@ -2019,10 +2021,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _configuredMcpRoutingServers = new Map<string, ICopilotMcpRoutingServer>();
 	private readonly _mcpRoutingProxies = new Map<string, IMcpRoutingProxy>();
 	private readonly _mcpRoutingActivations = new Map<string, { readonly promise: Promise<void>; readonly cancellation: CancellationTokenSource }>();
-	/** For each server, the root model round in which its routing proxy reported the current connection's tools. */
-	private readonly _mcpRoutingReportedRounds = new Map<string, number>();
-	/** Counts root `assistant.turn_start` events; the runtime refreshes its tool snapshot before each model request. */
-	private _rootModelRound = 0;
+	/** Routing proxy calls per server on its current connection. */
+	private readonly _mcpRoutingConnectionCalls = new Map<string, number>();
 
 	/**
 	 * Fans MCP server notifications (today: `notifications/tools/list_changed`)
@@ -4241,20 +4241,13 @@ export class CopilotAgentSession extends Disposable {
 						await this._activateMcpRoutingServer(server.serverName);
 						const liveTools = await this._refreshMcpToolRoutingCache(server.serverName);
 						const liveToolNames = JSON.stringify(liveTools.map(tool => tool.name));
-						// Subagents search their own tool set, so only root calls are checked against the root session's snapshot.
-						const rootCall = !invocation.agentId;
-						const reportedRound = this._mcpRoutingReportedRounds.get(server.serverName);
-						// A call from a later model response on the same connection means the previous "search again"
-						// found nothing: the snapshot tool search reads, refreshed since, still lacks this server.
-						// The mark is rechecked after the read, since a reconnect meanwhile clears it.
-						if (rootCall && reportedRound !== undefined && reportedRound < this._rootModelRound
-							&& !(await this._hasCurrentMcpServerTools(server.serverName))
-							&& this._mcpRoutingReportedRounds.get(server.serverName) === reportedRound) {
-							this._logService.warn(`[Copilot:${this.sessionId}] MCP server '${server.serverName}' is connected and lists ${liveTools.length} tools, but none are available to the session; its configured tool filter may exclude them`);
-							return this._toolSearchFailure(`The ${displayName} MCP server is connected and lists these tools: ${liveToolNames}. None of them are available in this session, so searching again will not find them. The server's configuration may restrict which tools are exposed, for example a "tools" allowlist naming tools the server no longer offers. Do not search for or call this server's tools again; tell the user to check its MCP configuration.`);
-						}
-						if (rootCall && !this._mcpRoutingReportedRounds.has(server.serverName)) {
-							this._mcpRoutingReportedRounds.set(server.serverName, this._rootModelRound);
+						// Once a server's tools are searchable, tool search stops offering this proxy, so repeated calls on
+						// one connection mean the tools never reached the session, e.g. a configured tool filter excludes them.
+						const calls = (this._mcpRoutingConnectionCalls.get(server.serverName) ?? 0) + 1;
+						this._mcpRoutingConnectionCalls.set(server.serverName, calls);
+						if (calls > MCP_ROUTING_MAX_CALLS_PER_CONNECTION) {
+							this._logService.warn(`[Copilot:${this.sessionId}] MCP routing proxy for '${server.serverName}' was called ${calls} times on one connection; its tools never became available, so its configured tool filter may exclude them`);
+							return this._toolSearchFailure(`The ${displayName} MCP server is connected and lists these tools: ${liveToolNames}, but they are still not available in this session, so searching again will not find them. The server's configuration likely restricts which tools are exposed, for example a "tools" allowlist naming tools the server no longer offers. Do not search for or call this server's tools again; tell the user to check its MCP configuration.`);
 						}
 						return {
 							resultType: 'success',
@@ -4500,18 +4493,6 @@ export class CopilotAgentSession extends Disposable {
 			this._mcpToolRoutingCache.store(server, tools);
 		}
 		return tools;
-	}
-
-	/** Reads the same tool snapshot tool search receives, so the answer matches what a search can find. */
-	private async _hasCurrentMcpServerTools(serverName: string): Promise<boolean> {
-		try {
-			const { tools } = await this._wrapper.session.rpc.tools.getCurrentMetadata();
-			// Uninitialized metadata proves nothing, so it does not count as missing tools.
-			return tools?.some(tool => tool.mcpServerName === serverName) ?? true;
-		} catch (error) {
-			this._logService.warn(`[Copilot:${this.sessionId}] Failed to read current tool metadata for MCP server '${serverName}'`, error);
-			return true;
-		}
 	}
 
 	private _mcpRoutingServer(serverName: string): ICopilotMcpRoutingServer | undefined {
@@ -11003,11 +10984,6 @@ export class CopilotAgentSession extends Disposable {
 		store.add(wrapper.onMcpOAuthCompleted(e => {
 			this._handleMcpOAuthCompleted(e.data.requestId, e.data.outcome);
 		}));
-		store.add(wrapper.onTurnStart(e => {
-			if (!e.agentId) {
-				this._rootModelRound++;
-			}
-		}));
 
 		store.add(wrapper.onToolsUpdated(() => {
 			this._slashCommandProvider.clearCache();
@@ -11153,7 +11129,7 @@ export class CopilotAgentSession extends Disposable {
 	private _noteMcpSdkStatus(serverName: string, status: SdkMcpServerStatus): void {
 		if (this._mcpSdkStatus.get(serverName) === 'connected' && status !== 'connected') {
 			this._mcpToolsLoaded.delete(serverName);
-			this._mcpRoutingReportedRounds.delete(serverName);
+			this._mcpRoutingConnectionCalls.delete(serverName);
 		}
 		this._mcpSdkStatus.set(serverName, status);
 	}

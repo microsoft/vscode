@@ -282,8 +282,6 @@ class MockCopilotSession {
 	readonly mcpAuthenticationStateChangedCalls: Array<{ serverName?: string; refreshSessionToken?: boolean }> = [];
 	readonly mcpListToolsCalls: Array<{ serverName: string }> = [];
 	mcpListToolsResult: Awaited<ReturnType<CopilotSession['rpc']['mcp']['listTools']>> = { tools: [] };
-	currentToolMetadata: CurrentToolMetadata[] | null = null;
-	onGetCurrentMetadata: (() => void) | undefined;
 	mcpListToolsError: unknown = undefined;
 	connectorCapabilities: Awaited<ReturnType<CopilotSession['rpc']['connectors']['getCapabilities']>> = {
 		apiVersion: 1, availability: 'enabled', consentContinuation: true, opaqueAccountSelection: true,
@@ -511,12 +509,6 @@ class MockCopilotSession {
 	currentModelGate: Promise<void> | undefined;
 
 	readonly rpc = {
-		tools: {
-			getCurrentMetadata: async () => {
-				this.onGetCurrentMetadata?.();
-				return { tools: this.currentToolMetadata };
-			},
-		},
 		model: {
 			list: async () => ({ list: [] }),
 			getCurrent: async () => {
@@ -27325,64 +27317,37 @@ Use the attached image as context.
 			});
 		});
 
-		test('MCP routing stops the search loop when a ready server\'s tools never reach the session', async () => {
-			const routeTwice = async (currentToolMetadata: CurrentToolMetadata[], laterResponse: boolean, reconnectDuringRead = false) => {
+		test('MCP routing stops the search loop when a connected server\'s tools never become available', async () => {
+			const routeThreeTimes = async (reconnectBeforeThirdCall: boolean) => {
 				const { session, runtime, mockSession } = await createMcpRoutingSession(true);
 				mockSession.mcpListToolsResult = { tools: [{ name: 'current_search' }] };
-				mockSession.currentToolMetadata = currentToolMetadata;
 				const [, proxy] = runtime.createClientSdkTools(true);
 				session.resetTurnState('turn-repeat-mcp-route');
-				mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-first-route' } as SessionEventPayload<'assistant.turn_start'>['data']);
-				const first = await invokeClientToolHandler(proxy, 'first-route');
-				if (laterResponse) {
-					mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-second-route' } as SessionEventPayload<'assistant.turn_start'>['data']);
+				const results = [await invokeClientToolHandler(proxy, 'first-route'), await invokeClientToolHandler(proxy, 'second-route')];
+				if (reconnectBeforeThirdCall) {
+					mockSession.fire('session.mcp_server_status_changed', { serverName: 'docs', status: 'pending' });
+					mockSession.fire('session.mcp_server_status_changed', { serverName: 'docs', status: 'connected' });
 				}
-				if (reconnectDuringRead) {
-					mockSession.onGetCurrentMetadata = () => {
-						mockSession.fire('session.mcp_server_status_changed', { serverName: 'docs', status: 'pending' });
-						mockSession.fire('session.mcp_server_status_changed', { serverName: 'docs', status: 'connected' });
-					};
-				}
-				const second = await invokeClientToolHandler(proxy, 'second-route');
-				return [first, second].map(result => ({
+				results.push(await invokeClientToolHandler(proxy, 'third-route'));
+				return results.map(result => ({
 					resultType: result.resultType,
 					stopsSearching: result.textResultForLlm.includes('searching again will not find them'),
 				}));
 			};
-			const filteredOut: CurrentToolMetadata[] = [{ name: 'other-tool', description: '', mcpServerName: 'other', deferLoading: true }];
-			const available: CurrentToolMetadata[] = [{ name: 'docs-current_search', description: '', mcpServerName: 'docs', mcpToolName: 'current_search', deferLoading: true }];
+			const searchAgain = { resultType: 'success', stopsSearching: false };
 
 			assert.deepStrictEqual({
-				filteredOutLaterResponse: await routeTwice(filteredOut, true),
-				// The snapshot refreshes only between model requests, so a repeat within one response proves nothing.
-				filteredOutSameResponse: await routeTwice(filteredOut, false),
-				// A reconnect while the snapshot is read starts a new connection, which has not been reported yet.
-				filteredOutReconnectDuringRead: await routeTwice(filteredOut, true, true),
-				availableLaterResponse: await routeTwice(available, true),
+				sameConnection: await routeThreeTimes(false),
+				// A reconnect starts a new connection, whose tools may now be available.
+				reconnected: await routeThreeTimes(true),
 			}, {
-				filteredOutLaterResponse: [
-					{ resultType: 'success', stopsSearching: false },
-					{ resultType: 'failure', stopsSearching: true },
-				],
-				filteredOutSameResponse: [
-					{ resultType: 'success', stopsSearching: false },
-					{ resultType: 'success', stopsSearching: false },
-				],
-				filteredOutReconnectDuringRead: [
-					{ resultType: 'success', stopsSearching: false },
-					{ resultType: 'success', stopsSearching: false },
-				],
-				availableLaterResponse: [
-					{ resultType: 'success', stopsSearching: false },
-					{ resultType: 'success', stopsSearching: false },
-				],
+				sameConnection: [searchAgain, searchAgain, { resultType: 'failure', stopsSearching: true }],
+				reconnected: [searchAgain, searchAgain, searchAgain],
 			});
 		});
 
 		test('MCP routing shares activation between concurrent tool calls', async () => {
 			const { session, runtime, mockSession } = await createMcpRoutingSession();
-			// An initialized snapshot without the server's tools, as during a turn that activates it.
-			mockSession.currentToolMetadata = [];
 			const [, proxy] = runtime.createClientSdkTools(true);
 			session.resetTurnState('turn-concurrent-mcp-route');
 			const first = invokeClientToolHandler(proxy, 'first-route');
