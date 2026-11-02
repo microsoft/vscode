@@ -2,12 +2,14 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 
 param(
-	[ValidateSet('Setup', 'Cleanup')]
+	[ValidateSet('Setup', 'Cleanup', 'AddServer')]
 	[string] $Operation = 'Setup',
 	[ValidateSet('GitHub', 'AzureDevOps')]
 	[string] $CI = 'GitHub',
 	[string] $Distribution,
-	[string] $Root
+	[string] $Root,
+	# AddServer: a compilation artifact's builds.tar.gz with the Linux server to add to the distribution.
+	[string] $Archive
 )
 
 $ErrorActionPreference = 'Stop'
@@ -27,6 +29,7 @@ function Write-SmokeOutput([string] $Name, [string] $Value) {
 			'root' { 'WSL_SMOKE_ROOT' }
 			'distro' { 'WSL_SMOKE_DISTRO' }
 			'serverPath' { 'WSL_SMOKE_SERVER_PATH' }
+			'buildServerPath' { 'WSL_SMOKE_BUILD_SERVER_PATH' }
 			default { throw "Unknown WSL smoke output: $Name" }
 		}
 		$escaped = $Value.Replace('%', '%AZP25').Replace("`r", '%0D').Replace("`n", '%0A')
@@ -182,6 +185,26 @@ if ($Operation -eq 'Cleanup') {
 	exit 0
 }
 
+if ($Operation -eq 'AddServer') {
+	if ($Distribution -notmatch '^vscode-wsl-smoke-\d+-\d+-[0-9a-f]{32}$') {
+		throw 'Refusing to change an unexpected WSL distribution.'
+	}
+	$wslPath = Invoke-WslExe -ArgumentList '--distribution', $Distribution, '--exec', 'wslpath', '-u', ([IO.Path]::GetFullPath($Archive))
+	$linuxArchive = $wslPath.Output.Trim()
+	if ($wslPath.ExitCode -ne 0 -or $linuxArchive -notmatch '^/mnt/[a-z]/[a-zA-Z0-9/_.-]+$') {
+		throw 'Cannot safely resolve the compilation archive path.'
+	}
+	# The server of the same build accepts the packaged client, unlike the pinned server.
+	Invoke-Wsl @"
+mkdir /opt/vscode-smoke-build-server
+tar -xzf '$linuxArchive' --strip-components=1 -C /opt/vscode-smoke-build-server vscode-server-linux-x64
+/opt/vscode-smoke-build-server/node --version
+test -f /opt/vscode-smoke-build-server/out/server-main.js
+"@ 600
+	Write-SmokeOutput 'buildServerPath' '/opt/vscode-smoke-build-server'
+	exit 0
+}
+
 if (-not (Test-Path -LiteralPath $wsl)) {
 	throw 'WSL is unavailable. This job requires WSL and VirtualMachinePlatform enabled without a pending reboot.'
 }
@@ -233,8 +256,9 @@ for ($importAttempt = 1; ; $importAttempt++) {
 Write-Host $import.Output
 Invoke-Wsl 'uname -a; cat /etc/os-release' 120
 
-# The frontend is built from this PR; the unchanged backend uses a pinned published server.
-$serverCommit = '046944034292b5479b4e9a50ad1a508033ffb64f'
+# The frontend is built from this PR; the unchanged backend uses a pinned published server. The WSL Kerberos proxy smoke
+# tests need a server with the agent host's client proxy, Kerberos and certificate support.
+$serverCommit = '67710841ad061a9e253214f87bf5415a185ab2ff'
 $metadata = Invoke-RestMethod "https://update.code.visualstudio.com/api/versions/commit:$serverCommit/server-linux-x64/insider"
 if (-not $metadata.url -or $metadata.sha256hash -notmatch '^[0-9a-fA-F]{64}$') {
 	throw 'The pinned Linux server download metadata is incomplete.'
@@ -255,8 +279,9 @@ if ($wslPath.ExitCode -ne 0 -or $linuxArchive -notmatch '^/mnt/[a-z]/[a-zA-Z0-9/
 # 250 KB/s for minutes on every connection (its index files stay fast), and the mirror is at times unreachable. A slow
 # but progressing download therefore gets the whole budget of this command rather than a per-attempt wall clock, while
 # a connection that stops sending data fails after 30 seconds and apt retries it. apt only warns about index files it
-# could not fetch, so the index update fails on any fetch error and is retried.
-$aptPackages = 'ca-certificates curl git iproute2 procps docker.io libatomic1 libkrb5-3'
+# could not fetch, so the index update fails on any fetch error and is retried. The WSL Kerberos proxy smoke tests run
+# their own KDC and Squid, so policy-rc.d keeps the packages from starting theirs.
+$aptPackages = 'ca-certificates curl git iproute2 procps docker.io libatomic1 libkrb5-3 krb5-kdc krb5-admin-server squid-openssl openssl'
 Invoke-Wsl @"
 export DEBIAN_FRONTEND=noninteractive
 sed -i -e 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' -e 's|http://security.ubuntu.com|http://azure.archive.ubuntu.com|g' /etc/apt/sources.list
@@ -272,7 +297,10 @@ retry() {
 }
 retry timeout --kill-after=10 45 apt-get update --error-on=any
 retry apt-get install -y --download-only --no-install-recommends $aptPackages
+printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
+chmod +x /usr/sbin/policy-rc.d
 apt-get install -y --no-install-recommends $aptPackages
+rm /usr/sbin/policy-rc.d
 mkdir -p /opt/vscode-smoke-server
 tar -xzf '$linuxArchive' --strip-components=1 -C /opt/vscode-smoke-server
 /opt/vscode-smoke-server/node --version
