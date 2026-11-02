@@ -409,7 +409,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		const grid = disposables.add(new ChatWindowGrid(host, {
 			main: mainPart,
 			chat: chatPart,
-			titleRow: titleRow && { element: titleRowElement, visible: titleRow.visible, size: titleRow.size, layout: (width, height) => titleRow.layout(width, height) },
+			titleRow: titleRow && { element: titleRowElement, visible: titleRow.visible, size: titleRow.size, headsChat: titleRow.headsChat, layout: (width, height) => titleRow.layout(width, height) },
 			strip: strip && { element: stripElement, visible: strip.visible, size: strip.size, layout: (width, height) => strip.layout(width, height) },
 			terminals: window.terminalsPart,
 		}, state.layoutMode, look.gap, this._chatSizes.get(chat), state.terminalPosition));

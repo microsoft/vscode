@@ -89,6 +89,26 @@ suite('Chat window grid', () => {
 		});
 	});
 
+	test('with the chats of the session as tabs, the title row is across the window, as the main window\'s title bar, and heads the chat\'s card again with a single chat', () => {
+		const headsChat = observableValue('headsChat', true);
+		const container = $('div');
+		const titleRow = { ...createChrome(30), headsChat };
+		const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat: createPart('chat'), titleRow, strip: createChrome(34) }, constObservable(ChatWindowLayoutMode.SideBySide), constObservable(0), undefined));
+		grid.layout(1000, 800);
+		const read = () => ({ topology: grid.topology, inChatCell: grid.chatElement.contains(titleRow.element), titleVisible: grid.partGrid!.isCellVisible(ChatWindowGridCell.TitleRow), chatHeight: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).height });
+		const oneChat = read();
+		headsChat.set(false, undefined);
+		const twoChats = read();
+		headsChat.set(true, undefined);
+		const oneChatAgain = read();
+
+		assert.deepStrictEqual({ oneChat, twoChats, oneChatAgain }, {
+			oneChat: { topology: 'row(chat,main)', inChatCell: true, titleVisible: false, chatHeight: 800 },
+			twoChats: { topology: 'column(titleRow,row(chat,main))', inChatCell: false, titleVisible: true, chatHeight: 770 },
+			oneChatAgain: { topology: 'row(chat,main)', inChatCell: true, titleVisible: false, chatHeight: 800 },
+		});
+	});
+
 	test('opens with the main part wider and taller than the chat, and the title row and strip as large as they say', () => {
 		const { mode, grid } = setup();
 		const sideBySide = { chat: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width, main: grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width, chatHeight: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).height };

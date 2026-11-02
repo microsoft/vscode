@@ -147,6 +147,8 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 	readonly window = observableValue<IChatWindow | undefined>(this, undefined);
 	readonly header = observableValue<ISessionChatViewHeaderHost | undefined>(this, undefined);
 	private readonly _view = observableValue<SessionView | undefined>(this, undefined);
+	/** Whether the session header shows: not while the chats of the session show as tabs, which replace it. */
+	readonly headerShown: IObservable<boolean> = derived(this, reader => this._view.read(reader)?.headerShown.read(reader) ?? true);
 	private readonly _heldChat: ChatModelHold;
 
 	constructor(
@@ -423,7 +425,7 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 			store.add(autorun(reader => titlebar.setHeight(rowHeight.read(reader) || undefined)));
 			store.add(autorun(reader => titlebar.setTitle(content.title.read(reader))));
 			// Above the chat only while the main part is beside it: the window controls then stay at the top right of the window.
-			store.add(autorun(reader => titlebar.element.classList.toggle('header-chat-column', window.layoutMode.read(reader) === ChatWindowLayoutMode.SideBySide)));
+			store.add(autorun(reader => titlebar.element.classList.toggle('header-chat-column', window.layoutMode.read(reader) === ChatWindowLayoutMode.SideBySide && content.headerShown.read(reader))));
 			content.header.set({
 				element: titlebar.getSessionHeaderHost(),
 				actionsElement: titlebar.getSessionHeaderActionsHost(),
@@ -434,6 +436,8 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		return {
 			visible: constObservable(true),
 			size,
+			// With the chats of the session as tabs, the title row is across the window, as the main window's title bar is.
+			headsChat: content.headerShown,
 			layout: (width, height) => {
 				if (titlebar instanceof TitlebarPart) {
 					alignChatWindowHeaderActions(titlebar.element, titlebar.getSessionHeaderActionsHost());

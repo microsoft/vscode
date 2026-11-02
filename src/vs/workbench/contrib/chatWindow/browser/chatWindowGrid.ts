@@ -36,6 +36,8 @@ export interface IChatWindowGridChrome {
 	readonly visible: IObservable<boolean>;
 	/** The height of a row, the width of a column. */
 	readonly size: IObservable<number>;
+	/** For the title row: whether it may be the header of the chat's card; see {@link IChatWindowChromeElement.headsChat}. */
+	readonly headsChat?: IObservable<boolean>;
 	layout(width: number, height: number): void;
 }
 
@@ -76,22 +78,22 @@ function getEffectiveTerminalPosition(mode: ChatWindowLayoutMode, position: Chat
  *   past them while stacked, and stopping above them in editor only.
  * The cells a mode hides, the chat or the main part, stay in the grid, so that showing them is not a move.
  */
-export function getChatWindowTopology(mode: ChatWindowLayoutMode, cells: { readonly titleRow: boolean; readonly strip: boolean; readonly terminals?: ChatWindowTerminalPosition }): TopologyNode {
+export function getChatWindowTopology(mode: ChatWindowLayoutMode, cells: { readonly titleRow: boolean; readonly titleAcross?: boolean; readonly strip: boolean; readonly terminals?: ChatWindowTerminalPosition }): TopologyNode {
 	const titleRow: TopologyNode[] = cells.titleRow ? [{ cell: ChatWindowGridCell.TitleRow }] : [];
 	const strip: TopologyNode[] = cells.strip ? [{ cell: ChatWindowGridCell.Strip }] : [];
 	const terminals: TopologyNode[] = cells.terminals !== undefined ? [{ cell: ChatWindowGridCell.Terminals }] : [];
 	const chat: TopologyNode = { cell: ChatWindowGridCell.Chat };
 	const main: TopologyNode = { cell: ChatWindowGridCell.Main };
 	if (mode === ChatWindowLayoutMode.SideBySide || mode === ChatWindowLayoutMode.ChatOnly) {
-		// The title row is the header of the chat's card, in the chat's cell: see TitledChatView.
-		const left = chat;
+		// The title row is the header of the chat's card, in the chat's cell (see ChatCellView), unless it is across the window.
+		const across: TopologyNode[] = cells.titleAcross ? titleRow : [];
 		if (cells.terminals === undefined) {
-			return branch(Orientation.HORIZONTAL, left, main);
+			return branch(Orientation.VERTICAL, ...across, branch(Orientation.HORIZONTAL, chat, main));
 		}
 		switch (getEffectiveTerminalPosition(mode, cells.terminals)) {
-			case ChatWindowTerminalPosition.UnderChat: return branch(Orientation.HORIZONTAL, branch(Orientation.VERTICAL, left, ...terminals), main);
-			case ChatWindowTerminalPosition.UnderEditor: return branch(Orientation.HORIZONTAL, left, branch(Orientation.VERTICAL, main, ...terminals));
-			default: return branch(Orientation.VERTICAL, branch(Orientation.HORIZONTAL, left, main), ...terminals);
+			case ChatWindowTerminalPosition.UnderChat: return branch(Orientation.VERTICAL, ...across, branch(Orientation.HORIZONTAL, branch(Orientation.VERTICAL, chat, ...terminals), main));
+			case ChatWindowTerminalPosition.UnderEditor: return branch(Orientation.VERTICAL, ...across, branch(Orientation.HORIZONTAL, chat, branch(Orientation.VERTICAL, main, ...terminals)));
+			default: return branch(Orientation.VERTICAL, ...across, branch(Orientation.HORIZONTAL, chat, main), ...terminals);
 		}
 	}
 	const parts = branch(Orientation.VERTICAL, main, chat, ...(mode === ChatWindowLayoutMode.Stacked ? terminals : []));
@@ -256,6 +258,7 @@ export class ChatWindowGrid extends Disposable {
 			this._layoutMode.read(reader);
 			_cells.strip?.visible.read(reader);
 			_cells.titleRow?.visible.read(reader);
+			_cells.titleRow?.headsChat?.read(reader);
 			_cells.terminals?.read(reader);
 			this._terminalPosition.read(reader);
 			this._update();
@@ -348,7 +351,8 @@ export class ChatWindowGrid extends Disposable {
 	private _arrange(mode: ChatWindowLayoutMode, dimension: IViewSize): void {
 		const terminals = this._cells.terminals?.get();
 		const position = this._terminalPosition.get();
-		const chrome = { titleRow: !!this._titleRow, strip: !!this._strip };
+		const titleAcross = !!this._titleRow && this._cells.titleRow?.headsChat?.get() === false;
+		const chrome = { titleRow: !!this._titleRow, titleAcross, strip: !!this._strip };
 		const topology = getChatWindowTopology(mode, { ...chrome, terminals: terminals ? position : undefined });
 		const key = describeTopology(topology);
 		if (key === this._topologyKey) {
@@ -391,7 +395,7 @@ export class ChatWindowGrid extends Disposable {
 		const serializedRoot: ISerializedNode = { type: 'branch', data: root.type === 'branch' ? root.data : [root], size: orientation === Orientation.HORIZONTAL ? height : width };
 		const serializedGrid: ISerializedGrid = { root: serializedRoot, orientation, width, height };
 		const state = { grid: serializedGrid, hidden: [], parts: {} };
-		this._titleInChat = !!this._titleRow && (mode === ChatWindowLayoutMode.SideBySide || mode === ChatWindowLayoutMode.ChatOnly);
+		this._titleInChat = !!this._titleRow && !titleAcross && (mode === ChatWindowLayoutMode.SideBySide || mode === ChatWindowLayoutMode.ChatOnly);
 		this._container.classList.toggle('chat-window-title-over-chat', this._titleInChat);
 		this._chatCell.setTitleShown(this._titleInChat);
 		const partGrid = this._grid.value = PartGrid.restore(this._container, state, id => this._contentOf(id));
