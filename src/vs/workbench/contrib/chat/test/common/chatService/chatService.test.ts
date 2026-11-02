@@ -2602,6 +2602,72 @@ suite('ChatService', () => {
 		});
 	}
 
+	test('stopping a request in a streamed session keeps the user\'s steering message queued while dropping a system notification', async () => {
+		// A streamed contributed session sends queued steering right away when no real request is running.
+		// Dropping the notification on stop must not count as such a change and send the user's message.
+		const sessionType = 'remote-streamed-stop';
+		const sessionResource = URI.from({ scheme: sessionType, path: '/streamed-session' });
+		const mockSessionsService = new MockChatSessionsService();
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: (resource: URI): Promise<IChatSession> => Promise.resolve({
+				sessionResource: resource,
+				history: [
+					{ type: 'request', prompt: 'initial task', participant: sessionType },
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Done') }], participant: sessionType },
+				],
+				progressObs: constObservable<IChatProgress[]>([]),
+				isCompleteObs: constObservable(true),
+				interruptActiveResponseCallback: async () => true,
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+		const firstStarted = new DeferredPromise<void>();
+		const invokedMessages: string[] = [];
+		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, {
+			async invoke(request, _progress, _history, token) {
+				invokedMessages.push(request.message);
+				if (invokedMessages.length === 1) {
+					firstStarted.complete();
+					await new Promise<void>(resolve => {
+						const listener = token.onCancellationRequested(() => { listener.dispose(); resolve(); });
+					});
+				}
+				return {};
+			},
+		}));
+
+		const testService = createChatService();
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(ref);
+		testDisposables.add(ref);
+		const model = testService.getSession(sessionResource) as ChatModel;
+
+		const first = await testService.sendRequest(sessionResource, 'first request', { agentIdSilent: sessionType });
+		ChatSendResult.assertSent(first);
+		await firstStarted.p;
+		const steering = await testService.sendRequest(sessionResource, 'steering message', { agentIdSilent: sessionType, queue: ChatRequestQueueKind.Steering });
+		const notification = await testService.sendRequest(sessionResource, '[Terminal terminal-1 notification: command completed.]', { agentIdSilent: sessionType, queue: ChatRequestQueueKind.Steering, isSystemInitiated: true });
+		assert.ok(ChatSendResult.isQueued(steering) && ChatSendResult.isQueued(notification));
+
+		await testService.cancelCurrentRequestForSession(sessionResource, 'cancelAction');
+		await first.data.responseCompletePromise;
+		await timeout(0);
+
+		const pending = model.getPendingRequests().map(request => request.request.message.text);
+		for (const pendingRequest of [...model.getPendingRequests()]) {
+			testService.removePendingRequest(sessionResource, pendingRequest.request.id);
+		}
+		assert.deepStrictEqual({ invokedMessages, pending, notification: await notification.deferred }, {
+			invokedMessages: ['first request'],
+			pending: ['steering message'],
+			notification: { kind: 'rejected', reason: 'Request was removed from queue' },
+		});
+	});
+
 	test('does not locally dequeue pending requests for remote agent host sessions', async () => {
 		const sessionType = 'remote-neat-cat-copilotcli';
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session-server-managed-queue' });

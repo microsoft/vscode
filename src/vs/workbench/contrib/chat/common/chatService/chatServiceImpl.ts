@@ -2674,15 +2674,19 @@ export class ChatService extends Disposable implements IChatService {
 		const requestId = pendingRequest.requestId ?? (activeRequest?.response?.isInProgress ? activeRequest.id : undefined);
 		const sessionTelemetry = getChatSessionTelemetryIds(sessionResource, this.agentHostConnectionsService);
 		pendingRequest.cancel();
-		this._pendingRequests.deleteAndDispose(sessionResource);
-		this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: source ?? 'cancelRequest', requestId, ...sessionTelemetry });
 
+		// Drop the queued system notifications while the stopped request is still the session's in-flight
+		// request: a streamed session sends queued steering as soon as its queue changes with no request in
+		// flight, which would send the user's remaining steering message right after the stop.
 		const sessionModel = this._sessionModels.get(sessionResource);
 		if (dropQueuedSystemNotifications && sessionModel && !this._isServerManagedQueue(sessionResource)) {
 			for (const pending of sessionModel.getPendingRequests().filter(p => p.request.isSystemInitiated)) {
 				this.removePendingRequest(sessionResource, pending.request.id);
 			}
 		}
+
+		this._pendingRequests.deleteAndDispose(sessionResource);
+		this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: source ?? 'cancelRequest', requestId, ...sessionTelemetry });
 
 		if (responseCompletePromise) {
 			await raceTimeout(responseCompletePromise, 1000);
