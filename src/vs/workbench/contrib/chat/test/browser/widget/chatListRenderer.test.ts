@@ -14251,7 +14251,7 @@ suite('ChatListRenderer', () => {
 					title: button?.textContent,
 					first: text?.includes('First'),
 					second: text?.includes('Second'),
-				}, { title: 'Thought for 1s', first: true, second: true });
+				}, { title: 'Thought for 2s', first: true, second: true });
 			});
 		}
 
@@ -14268,7 +14268,7 @@ suite('ChatListRenderer', () => {
 				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Done') });
 				request.response!.complete();
 				renderer.renderElement(node, 0, template);
-				assert.strictEqual(template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button')?.textContent, 'Thought for 2s');
+				assert.strictEqual(template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button')?.textContent, 'Thought for 3s');
 			} finally {
 				disposables.dispose();
 			}
