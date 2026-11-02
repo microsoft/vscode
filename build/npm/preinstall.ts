@@ -8,6 +8,7 @@ import * as child_process from 'child_process';
 import * as os from 'os';
 import { isUpToDate, forceInstallMessage } from './installStateHash.ts';
 import { isCloudSandbox } from './cloudSandbox.ts';
+import { checkPackageManager, getPinnedPnpmVersion, getPnpmCommand } from '../lib/pnpm.ts';
 import { installNodeGypHeaders } from './nodeGypHeaders.ts';
 
 if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
@@ -39,23 +40,14 @@ if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	}
 }
 
-if (process.env.npm_execpath?.includes('yarn')) {
-	console.error('\x1b[1;31m*** Seems like you are using `yarn` which is not supported in this repo any more, please use `npm i` instead. ***\x1b[0;0m');
+const packageManagerError = checkPackageManager(process.env.npm_config_user_agent, getPinnedPnpmVersion(path.join(import.meta.dirname, '..', '..')));
+if (packageManagerError) {
+	console.error(`\x1b[1;31m*** ${packageManagerError} ***\x1b[0;0m`);
 	throw new Error();
 }
 
-const npmUserAgent = process.env.npm_config_user_agent;
-const npmVersionMatch = npmUserAgent?.match(/npm\/(\d+)\.(\d+)\.(\d+)/);
-if (npmVersionMatch) {
-	const npmMajor = parseInt(npmVersionMatch[1]);
-	if (npmMajor >= 13) {
-		console.error(`\x1b[1;31m*** Please use npm version < 13.0.0. Currently using v${npmUserAgent}.\x1b[0;0m`);
-		throw new Error();
-	}
-}
-
 // Fast path: if nothing changed since last successful install, skip everything.
-// This makes `npm i` near-instant when dependencies haven't changed.
+// This makes `pnpm install` near-instant when dependencies haven't changed.
 if (!process.env['VSCODE_FORCE_INSTALL'] && isUpToDate()) {
 	console.log(`\x1b[32mAll dependencies up to date.\x1b[0m ${forceInstallMessage}`);
 	process.exit(0);
@@ -122,16 +114,19 @@ function hasSupportedVisualStudioVersion() {
 }
 
 async function installHeaders() {
-	const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-	child_process.execSync(`${npm} ${process.env.npm_command || 'ci'}`, {
+	// build/npm/gyp is a separate pnpm install root with the pinned node-gyp, which installs the
+	// headers. Install scripts build with the node-gyp bundled with pnpm.
+	const pnpm = getPnpmCommand();
+	child_process.execFileSync(pnpm.command, [...pnpm.args, 'install', '--frozen-lockfile'], {
 		env: process.env,
 		cwd: path.join(import.meta.dirname, 'gyp'),
-		stdio: 'inherit'
+		stdio: 'inherit',
+		shell: pnpm.shell
 	});
 
-	// The node gyp package got installed using the above npm command using the gyp/package.json
-	// file checked into our repository. So from that point it is safe to construct the path
-	// to its entry point
+	// The node gyp package got installed using the above pnpm command using the gyp/package.json
+	// and gyp/pnpm-lock.yaml files checked into our repository. So from that point it is safe to
+	// construct the path to its entry point
 	const nodeGypScript = path.join(import.meta.dirname, 'gyp', 'node_modules', 'node-gyp', 'bin', 'node-gyp.js');
 
 	const local = getHeaderInfo(path.join(import.meta.dirname, '..', '..', '.npmrc'));

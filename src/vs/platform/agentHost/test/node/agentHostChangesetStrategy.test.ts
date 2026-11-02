@@ -28,6 +28,7 @@ import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirecto
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { buildChatUri, buildDefaultChatUri, ChangesetStatus, FileEditKind, MessageKind, SessionStatus, withSessionGitState, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
@@ -85,13 +86,8 @@ suite('AgentHostChangesetStrategy', () => {
 	}
 
 	function addTurn(state: AgentHostStateManager, id: string, chat = buildDefaultChatUri(session)): void {
-		state.dispatchServerAction(chat, {
-			type: ActionType.ChatTurnStarted,
-			turnId: id,
-			startedAt: '2026-09-01T00:00:00.000Z',
-			message: { text: 'Edit files', origin: { kind: MessageKind.User } },
-		});
-		state.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: id, duration: 1 });
+		state.dispatchServerAction(chat, chatTurnStarted(id, 'Edit files', '2026-09-01T00:00:00.000Z'));
+		state.dispatchServerAction(chat, chatTurnComplete(id, 1));
 	}
 
 	function createFixture(options: {
@@ -348,12 +344,7 @@ suite('AgentHostChangesetStrategy', () => {
 				await refresh(fixture);
 				const chat = owner === 'default' ? buildDefaultChatUri(session) : peer;
 				const activeTurnId = 'active-turn';
-				fixture.state.dispatchServerAction(chat, {
-					type: ActionType.ChatTurnStarted,
-					turnId: activeTurnId,
-					startedAt: '2026-09-01T00:00:01.000Z',
-					message: { text: 'Edit another file', origin: { kind: MessageKind.User } },
-				});
+				fixture.state.dispatchServerAction(chat, chatTurnStarted(activeTurnId, 'Edit another file', '2026-09-01T00:00:01.000Z'));
 				addEdit(owner === 'default' ? fixture.db : peerDb, '/repo/active.txt', activeTurnId, 'active-edit');
 				const published = nextPublication(fixture.state, sessionChangeset);
 				fixture.service.onToolCallEditsApplied(chat, activeTurnId);
@@ -372,7 +363,7 @@ suite('AgentHostChangesetStrategy', () => {
 					completed: fixture.state.getChatState(chat)?.turns.map(turn => turn.id),
 				};
 
-				fixture.state.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: activeTurnId, duration: 1 });
+				fixture.state.dispatchServerAction(chat, chatTurnComplete(activeTurnId, 1));
 				fixture.results.git = [gitOnlyDiff];
 				await refresh(fixture);
 				const expectedActive = ready([trackedDiff('/repo/active.txt', owner === 'default' ? session : peer, 'active-edit')]);
@@ -465,12 +456,7 @@ suite('AgentHostChangesetStrategy', () => {
 		fixture.service.refreshSessionChangeset(session, 'git');
 		await started.p;
 		fixture.service.refreshSessionChangeset(session);
-		fixture.state.dispatchServerAction(buildDefaultChatUri(session), {
-			type: ActionType.ChatTurnStarted,
-			turnId: 'active-turn',
-			startedAt: '2026-09-01T00:00:01.000Z',
-			message: { text: 'Edit another file', origin: { kind: MessageKind.User } },
-		});
+		fixture.state.dispatchServerAction(buildDefaultChatUri(session), chatTurnStarted('active-turn', 'Edit another file', '2026-09-01T00:00:01.000Z'));
 		addEdit(fixture.db, '/repo/active.txt', 'active-turn', 'active-edit');
 		await release.complete();
 		await done;

@@ -36,3 +36,18 @@
 .session-canvas-editor .session-canvas-message:empty {
 	display: none;
 }
+
+/* The last frame of the previous canvas, held while the next one loads so a switch does not flash. */
+.session-canvas-editor .session-canvas-held-frame {
+	position: absolute;
+	inset: 0;
+	display: none;
+	background-color: var(--vscode-editor-background);
+	background-size: contain;
+	background-repeat: no-repeat;
+	pointer-events: none;
+
+	&.held {
+		display: block;
+	}
+}

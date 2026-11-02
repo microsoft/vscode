@@ -35,28 +35,13 @@ async function main() {
 	const HOST = args['host'] ?? 'localhost';
 	const PORT = parseInt(args['port'] ?? '8081', 10);
 
-	// Collect CSS module paths from the compiled output (same as @vscode/test-web does).
-	// These are turned into an import map so the browser can load `import './foo.css'`
-	// statements as JavaScript shims that inject the CSS via `_VSCODE_CSS_LOAD`.
-	// Scanned on every page load so a stylesheet added while the server runs is
-	// picked up on reload; a missing entry makes the browser load raw CSS as a
-	// module and the workbench fails to boot with a MIME type error.
-	async function collectCssModules() {
-		try {
-			const { glob } = require('tinyglobby');
-			return await glob('**/*.css', { cwd: path.join(APP_ROOT, 'out') });
-		} catch {
-			// tinyglobby may not be installed; fall back to a recursive fs walk
-			return collectCssFiles(path.join(APP_ROOT, 'out'), '');
-		}
-	}
-
-	const server = http.createServer(async (req, res) => {
+	const server = http.createServer((req, res) => {
 		const url = new URL(req.url, `http://${HOST}:${PORT}`);
 
 		// Serve the sessions workbench HTML at the root
 		if (url.pathname === '/' || url.pathname === '/index.html') {
-			const cssModules = await collectCssModules();
+			// Refresh the import map on each page load to include newly compiled stylesheets.
+			const cssModules = collectCssFiles(path.join(APP_ROOT, 'out'), '');
 			res.writeHead(200, { 'Content-Type': 'text/html' });
 			res.end(getSessionsHTML(HOST, PORT, cssModules, args['mock'], args['mobile']));
 			return;

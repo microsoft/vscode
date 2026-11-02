@@ -39,10 +39,10 @@ import { ILogService, LogLevel } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
-import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
 import { logSettingExperimentTrigger } from '../../../telemetry/common/experimentTrigger.js';
 import { withCustomizationEnablement } from '../../common/customizationEnablement.js';
-import { isAutoModeRoutingTier, isSupportedAutoModeTier } from '../../common/autoModeTiers.js';
+import { isAutoModeRoutingTier, isSupportedAutoModeTier, type IAutoModeTierSupport } from '../../common/autoModeTiers.js';
 import { getPlanActionDescription, type ChatInputRequestWithPlanReview, type IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
@@ -184,9 +184,9 @@ function readSubagentTaskModelSource(data: object): AgentSubagentTaskModelSource
 	}
 }
 
-/** The runtime-reported Auto tier, only while the model is Auto; never inferred or defaulted. */
-function getCommittedAutoTier(model: string | undefined, autoTier: unknown): string | undefined {
-	return isAutoModel(model) && (isAutoModeRoutingTier(autoTier) || isSupportedAutoModeTier(autoTier)) ? autoTier : undefined;
+/** The runtime-reported Auto tier, only while the model is Auto; never inferred or defaulted. `support` is the chat's catalog's tiers. */
+function getCommittedAutoTier(model: string | undefined, autoTier: unknown, support: IAutoModeTierSupport | undefined): string | undefined {
+	return isAutoModel(model) && (isAutoModeRoutingTier(autoTier) || isSupportedAutoModeTier(autoTier, support)) ? autoTier : undefined;
 }
 
 /** How the runtime settled an Auto resolution, for the info log: identifiers, flags and numbers only; `''` when none were reported. */
@@ -1414,8 +1414,8 @@ export class CopilotAgentSession extends Disposable {
 		return this._sandbox.removeCertificate(scopeId);
 	}
 
-	refreshSandboxCertificate(): Promise<void> {
-		return this._sandbox.refreshCertificateDiagnostics();
+	refreshSandboxCertificate(scopeId?: string): Promise<void> {
+		return this._sandbox.refreshCertificateDiagnostics(scopeId);
 	}
 
 	get usesScopedGitHubCredentials(): boolean { return this._launchPlan.githubCredentials.usesScopedCredential; }
@@ -2189,6 +2189,7 @@ export class CopilotAgentSession extends Disposable {
 			isSessionClosed: session => this._store.isDisposed || (session !== undefined && this._wrapper?.session === session && this._wrapper.lifecycleState !== 'active'),
 			getHostSupport: () => this._launchPlan.client.rpc.sandbox.getHostSupport(),
 			getCertificateStatus: config => options.sandboxCertificate.getStatus(this._launchPlan.client.rpc.sandbox.proxyCa, config),
+			refreshCertificate: (getConfig, scopeId) => options.sandboxCertificate.refresh(this._launchPlan.client.rpc.sandbox.proxyCa, getConfig, scopeId),
 			installCertificate: (getConfig, scopeId) => options.sandboxCertificate.install(this._launchPlan.client.rpc.sandbox.proxyCa, getConfig, scopeId),
 			rotateCertificate: (getConfig, scopeId) => options.sandboxCertificate.rotate(this._launchPlan.client.rpc.sandbox.proxyCa, getConfig, scopeId),
 			removeCertificate: async (scopeId, validate) => { await options.sandboxCertificate.remove(this._launchPlan.client.rpc.sandbox.proxyCa, scopeId, validate); },
@@ -8152,11 +8153,6 @@ export class CopilotAgentSession extends Disposable {
 		return this._configurationService.getChatEffectiveValue(this._configTarget(), platformSessionSchema, SessionConfigKey.Mode) ?? 'interactive';
 	}
 
-	private _isHydraFusionEnabled(): boolean {
-		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.DynamicAutoTiers) === true
-			|| this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
-	}
-
 	/**
 	 * Holds setting exposure until the workbench forwards its assignment context, because
 	 * agent host telemetry cannot be attributed to an experiment before then.
@@ -8315,7 +8311,8 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const { mode, configuredLevel } = this._approvalPolicy.resolveSelection(this._getApprovalInputs());
 			this._logService.info(`[Copilot:${this.sessionId}] Syncing permission mode: source=${source}, agentMode=${this._getConfiguredAgentMode()}, configuredLevel=${configuredLevel}, sdkMode=${mode}, previousSdkMode=${this._lastAppliedPermissionMode ?? 'unknown'}, globalAutoApprove=${this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true}`);
-			const experimentalModeEnabled = mode === 'assisted' || this._isHydraFusionEnabled();
+			// Auto's service-provided tiers can route to HydraFusion, which needs SDK experimental mode.
+			const experimentalModeEnabled = true;
 			if (this._experimentalModeEnabled !== experimentalModeEnabled) {
 				const experimentalResult = await measureAgentProviderOperation(recorder, 'permissionOptions', () => this._wrapper.session.rpc.options.update({ isExperimentalMode: experimentalModeEnabled }));
 				if (!experimentalResult.success) {
@@ -11984,9 +11981,6 @@ export class CopilotAgentSession extends Disposable {
 		if (this._shouldDropLateRootTurnEvent(event.type, true)) {
 			return;
 		}
-		if (event.type === 'session.fusion_route_started') {
-			this._reportSettingExperimentTrigger(AgentHostHydraFusionEnabledSettingId);
-		}
 		const update = this._fusionProgress.accept(event);
 		if (update) {
 			this._emitFusionProgress(update);
@@ -12082,7 +12076,7 @@ export class CopilotAgentSession extends Disposable {
 			let tier: string | undefined;
 			try {
 				const current = await raceTimeout(wrapper.session.rpc.model.getCurrent(), AUTO_TIER_READ_TIMEOUT);
-				tier = current && this._committedAutoTier === read && this._wrapper === wrapper ? getCommittedAutoTier(current.modelId, current.autoTier) : undefined;
+				tier = current && this._committedAutoTier === read && this._wrapper === wrapper ? getCommittedAutoTier(current.modelId, current.autoTier, this._launchPlan.autoTierSupport?.()) : undefined;
 			} catch (error) {
 				this._logService.trace(`[Copilot:${this.sessionId}] Failed to read the committed Auto tier: ${getErrorMessage(error)}`);
 			}
@@ -12233,7 +12227,7 @@ export class CopilotAgentSession extends Disposable {
 
 		store.add(wrapper.onSessionModelChange(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Model changed: ${e.data.previousModel ?? '(none)'} -> ${e.data.newModel}`);
-			const committedAutoTier = getCommittedAutoTier(e.data.newModel, e.data.autoTier);
+			const committedAutoTier = getCommittedAutoTier(e.data.newModel, e.data.autoTier, this._launchPlan.autoTierSupport?.());
 			// The runtime omits `autoTier` on Auto-to-Auto changes that keep its committed preference.
 			const keepsAutoTier = e.data.autoTier === undefined && isAutoModel(e.data.previousModel) && isAutoModel(e.data.newModel);
 			if (e.agentId) {

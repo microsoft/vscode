@@ -156,7 +156,7 @@ Domain outcomes describe transport completion, not subsequent schema validation 
 Reuse current compiled output. If it is stale, refresh the client output from the repository root before running focused tests:
 
 ```powershell
-npm run build-fast -- --client-only
+pnpm run build-fast --client-only
 .\scripts\test.bat --run src\vs\platform\github\test\common\githubChannel.test.ts
 ```
 
