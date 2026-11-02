@@ -41,13 +41,12 @@ import { AGENTS_FLOATING_PANEL_GAP } from '../../../common/layoutConstants.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
 import { SessionsChatSurface } from '../../../services/chatBackground/browser/sessionsChatSurface.js';
 import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
-import { bindHasWorktreeAndRepositoryContextKey, bindIsAgentHostSessionContextKey } from '../../../services/sessions/browser/sessionScopedContextKeys.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
-import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { bindSessionScopeContextKeys } from '../../changes/browser/sessionActionsHost.js';
+import { IChangesViewService } from '../../changes/common/changesViewService.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../common/chatWindows.js';
 import { ChatModelHold, chatWindowTitle, closeChatWindowsOfGoneChats, followReplacedWindowSessions, IGoneChatWindow, IReplaceableChatWindow, isChatWindowChatGone } from './chatWindowOpening.js';
@@ -155,7 +154,7 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 		chatResource: URI,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionsPartService private readonly _sessionsPartService: ISessionsPartService,
-		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
+		@IChangesViewService private readonly _changesViewService: IChangesViewService,
 		@IHostService private readonly _hostService: IHostService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatService chatService: IChatService,
@@ -189,9 +188,8 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 		// The keys of the session it shows on the window's context, as the main window binds those of its own session.
 		const contextKeyService = instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
 		CustomViewVisibleContext.bindTo(contextKeyService).set(false);
-		store.add(autorun(reader => setActiveSessionContextKeys(this._session.read(reader), contextKeyService, reader)));
-		store.add(bindHasWorktreeAndRepositoryContextKey(contextKeyService, this._session));
-		store.add(bindIsAgentHostSessionContextKey(contextKeyService, this._session, this._sessionsProvidersService));
+		// Those of its changes too, such as the changeset operations its Changes editor shows.
+		store.add(bindSessionScopeContextKeys(this._instantiationService, { session: this._session, changes: this._changesViewService.getSessionChanges(this._session) }, contextKeyService));
 
 		// Its empty groups offer the same Add Tab entries as the main window's.
 		const addTabs = store.add(new DisposableMap<IEditorGroupView>());

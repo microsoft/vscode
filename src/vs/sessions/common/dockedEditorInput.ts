@@ -5,6 +5,8 @@
 
 import { EditorInput } from '../../workbench/common/editor/editorInput.js';
 import { EditorInputCapabilities } from '../../workbench/common/editor.js';
+import { MainEditorAreaVisibleContext } from '../../workbench/common/contextkeys.js';
+import { IEditorGroupsService } from '../../workbench/services/editor/common/editorGroupsService.js';
 
 /**
  * Base class for Agents window editors whose content is surfaced in the docked
@@ -18,4 +20,22 @@ export abstract class DockedEditorInput extends EditorInput {
 	override get capabilities(): EditorInputCapabilities {
 		return EditorInputCapabilities.ExcludeFromEditorLimit;
 	}
+}
+
+/**
+ * Whether the editor part that shows `editor` is visible. Each part binds {@link MainEditorAreaVisibleContext} for its
+ * own groups, such as the main part of another window for that window; `isMainPartVisible` answers for the main part of
+ * the main window, and for an editor that no other part shows.
+ */
+export function isEditorPartOfEditorVisible(editorGroupsService: IEditorGroupsService, editor: EditorInput, isMainPartVisible: () => boolean): boolean {
+	for (const part of editorGroupsService.parts) {
+		if (part === editorGroupsService.mainPart) {
+			continue;
+		}
+		const group = part.groups.find(candidate => candidate.contains(editor, { strictEquals: true }));
+		if (group) {
+			return group.scopedContextKeyService.getContextKeyValue<boolean>(MainEditorAreaVisibleContext.key) !== false;
+		}
+	}
+	return isMainPartVisible();
 }

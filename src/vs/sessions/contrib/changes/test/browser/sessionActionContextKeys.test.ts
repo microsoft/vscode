@@ -28,7 +28,7 @@ suite('Session Action Context Keys', () => {
 
 	function createSource(overrides: { prOperation?: string; hasOpenPullRequest?: boolean; failedCheck?: boolean; failedCheckCounts?: boolean; reviewed?: boolean }): ISessionActionContextKeysSource {
 		const changeset = upcastPartial<ISessionChangeset>({
-			operations: constObservable(overrides.prOperation ? [upcastPartial<ISessionChangesetOperation>({ id: overrides.prOperation })] : []),
+			operations: constObservable(overrides.prOperation ? [upcastPartial<ISessionChangesetOperation>({ id: overrides.prOperation, scopes: [] })] : []),
 		});
 		const checks: IGitHubCICheck[] = overrides.failedCheck
 			? [{ id: 1, name: 'build', status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Failure, startedAt: undefined, completedAt: undefined, detailsUrl: undefined }]
@@ -43,6 +43,7 @@ suite('Session Action Context Keys', () => {
 				changesetsLoadingObs: constObservable(false),
 				loadingObs: constObservable(false),
 				changesetObs: constObservable(changeset),
+				changesetOperationsObs: constObservable([]),
 				stateObs: constObservable(upcastPartial<ActiveSessionState>({ hasOpenPullRequest: overrides.hasOpenPullRequest })),
 			},
 			pullRequest: {

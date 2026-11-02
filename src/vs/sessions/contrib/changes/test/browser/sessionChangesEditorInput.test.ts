@@ -25,10 +25,12 @@ import { MenuService } from '../../../../../platform/actions/common/menuService.
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { EditorInputCapabilities } from '../../../../../workbench/common/editor.js';
+import { IEditorGroup, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestEditorGroupsService, TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionFileChange } from '../../../../services/sessions/common/session.js';
 import { IDiffEditorOptionsService, SessionsWordWrap } from '../../../editor/common/diffEditorOptionsService.js';
@@ -333,6 +335,7 @@ suite('SessionChangesEditorInput', () => {
 			instantiationService,
 			emptySessionChangesService,
 			layoutService,
+			new TestEditorGroupsService(),
 		));
 		let capabilitiesChanges = 0;
 		disposables.add(input.onDidChangeCapabilities(() => capabilitiesChanges++));
@@ -357,6 +360,57 @@ suite('SessionChangesEditorInput', () => {
 		});
 	});
 
+	test('is closable while the part that shows it is visible: the main window\'s editor area for the main part, the part\'s own visibility for the part of another window', () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		let mainEditorAreaVisible = false;
+		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
+			override readonly onDidChangePartVisibility = Event.None;
+			override isVisible(part: Parts): boolean {
+				return part === Parts.EDITOR_PART && mainEditorAreaVisible;
+			}
+		};
+		const otherPartContextKeyService = disposables.add(new MockContextKeyService());
+		const otherPartVisible = MainEditorAreaVisibleContext.bindTo(otherPartContextKeyService);
+		let inOtherPart = false;
+		const otherPart = new class extends mock<IEditorPart>() {
+			override readonly groups = [new class extends mock<IEditorGroup>() {
+				override readonly scopedContextKeyService = otherPartContextKeyService;
+				override contains(): boolean { return inOtherPart; }
+			}()];
+		}();
+		const editorGroupsService = new class extends TestEditorGroupsService {
+			override readonly parts = [this, otherPart];
+		}();
+		const input = disposables.add(new SessionChangesEditorInput(
+			URI.parse('test-changes:session'),
+			instantiationService,
+			emptySessionChangesService,
+			layoutService,
+			editorGroupsService,
+		));
+		const closable = () => (input.capabilities & EditorInputCapabilities.CannotClose) === 0;
+
+		const results: Record<string, boolean> = {};
+		for (const [name, main, other, inOther] of [
+			['main part, editor area hidden', false, true, false],
+			['main part, editor area visible', true, false, false],
+			['other part visible, main editor area hidden', false, true, true],
+			['other part hidden, main editor area visible', true, false, true],
+		] as const) {
+			mainEditorAreaVisible = main;
+			otherPartVisible.set(other);
+			inOtherPart = inOther;
+			results[name] = closable();
+		}
+
+		assert.deepStrictEqual(results, {
+			'main part, editor area hidden': false,
+			'main part, editor area visible': true,
+			'other part visible, main editor area hidden': true,
+			'other part hidden, main editor area visible': false,
+		});
+	});
+
 	test('updates the tab badge class and accessible label with the changed file count', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const changes = observableValue<readonly ISessionFileChange[]>('changes', []);
@@ -375,6 +429,7 @@ suite('SessionChangesEditorInput', () => {
 			instantiationService,
 			sessionChangesService,
 			layoutService,
+			new TestEditorGroupsService(),
 		));
 		let labelChanges = 0;
 		disposables.add(input.onDidChangeLabel(() => labelChanges++));

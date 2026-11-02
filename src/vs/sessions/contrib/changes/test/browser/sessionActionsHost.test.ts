@@ -33,13 +33,14 @@ suite('Session Actions Host', () => {
 			}),
 		}));
 		const changeset = upcastPartial<ISessionChangeset>({
-			operations: constObservable([upcastPartial<ISessionChangesetOperation>({ id: AgentHostPullRequestOperationId.Merge })]),
+			operations: constObservable([upcastPartial<ISessionChangesetOperation>({ id: AgentHostPullRequestOperationId.Merge, scopes: [] })]),
 		});
 		const scope = upcastPartial<IChangesSessionScope>({
 			session: constObservable(undefined),
 			changes: upcastPartial<IChangesSessionObservables>({
 				changesObs: constObservable([]),
 				changesetsLoadingObs: constObservable(false),
+				changesetOperationsObs: constObservable([]),
 				loadingObs: constObservable(false),
 				changesetObs: constObservable(changeset),
 				stateObs: constObservable(upcastPartial<ActiveSessionState>({ hasOpenPullRequest: true })),
@@ -70,6 +71,7 @@ suite('Session Actions Host', () => {
 			changes: upcastPartial<IChangesSessionObservables>({
 				changesObs: constObservable([]),
 				changesetsLoadingObs: constObservable(false),
+				changesetOperationsObs: constObservable([]),
 				loadingObs: constObservable(false),
 				changesetObs: constObservable(undefined),
 				stateObs: constObservable(upcastPartial<ActiveSessionState>({})),

@@ -10,13 +10,14 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatWindow } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
@@ -28,9 +29,13 @@ import { ISessionScope } from '../../../../services/sessions/browser/sessionScop
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService, IShowSessionInWindowOptions } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../common/chatWindows.js';
+import { SessionChangesetOperationsContext } from '../../../changes/browser/changesActions.js';
+import { ActiveSessionState, IChangesSessionObservables, IChangesViewService } from '../../../changes/common/changesViewService.js';
+import { IGitHubService } from '../../../github/browser/githubService.js';
+import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../../browser/parts/sessionActivityBar.js';
 import { alignChatWindowHeaderActions, focusChatWindowUnlessFocused, getChatWindowMainPartOptions, isChatWindowStripInColumn, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';
 
@@ -118,6 +123,24 @@ suite('Sessions chat window provider', () => {
 		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 			override acquireExistingSession() { return undefined; }
 		}());
+		// The changes of the session a window shows: a changeset with an operation on its files.
+		const operations = [upcastPartial<ISessionChangesetOperation>({ id: 'discard', label: 'Discard Changes', scopes: [SessionChangesetOperationScope.Resource] })];
+		instantiationService.stub(IChangesViewService, upcastPartial<IChangesViewService>({
+			getSessionChanges: () => upcastPartial<IChangesSessionObservables>({
+				changesetObs: constObservable(upcastPartial<ISessionChangeset>({ id: 'uncommitted', operations: constObservable(operations) })),
+				changesetOperationsObs: constObservable(operations),
+				changesObs: constObservable([]),
+				changesetsLoadingObs: constObservable(false),
+				loadingObs: constObservable(false),
+				stateObs: constObservable(upcastPartial<ActiveSessionState>({})),
+			}),
+		}));
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+			getSessionPullRequest: () => upcastPartial<ReturnType<IGitHubService['getSessionPullRequest']>>({
+				pullRequestCIObs: constObservable(upcastPartial<GitHubPullRequestCIModel>({ checks: constObservable([]), requiredChecks: constObservable(undefined), fixRequested: observableValue('fixRequested', false) })),
+			}),
+		}));
 		const provider = store.add(instantiationService.createInstance(SessionsChatWindowProvider));
 		const window = new class extends mock<IChatWindow>() {
 			override readonly mainPart = new class extends mock<IContentPart>() {
@@ -132,7 +155,7 @@ suite('Sessions chat window provider', () => {
 		return { provider, events, window, windowInstantiationService, onDidChangeSessions, sentiment, configuration };
 	}
 
-	test('a chat window shows a chat, or the main chat of a session, as a session of its own window once its window exists, acts on that session, and stops showing it as it closes', async () => {
+	test('a chat window shows a chat, or the main chat of a session, as a session of its own window once its window exists, acts on that session, binds its keys and those of its changes on the window, and stops showing it as it closes', async () => {
 		const store = disposables.add(new DisposableStore());
 		const session = createSession('session', [createChat('main'), createChat('second')]);
 		const { provider, events, window, windowInstantiationService } = createProvider(store, [session]);
@@ -145,7 +168,7 @@ suite('Sessions chat window provider', () => {
 		const scope = content.services!.get(ISessionScope) as ISessionScope;
 		content.didShow!(window, true);
 		const contextKeyService = windowInstantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
-		const bound = { scope: scope.session.get()?.sessionId, hasWorkspace: contextKeyService.getContextKeyValue(SessionHasWorkspaceContext.key) };
+		const bound = { scope: scope.session.get()?.sessionId, hasWorkspace: contextKeyService.getContextKeyValue(SessionHasWorkspaceContext.key), changesetOperations: contextKeyService.getContextKeyValue(SessionChangesetOperationsContext.key) };
 		ofSession?.dispose();
 		content.dispose();
 
@@ -153,7 +176,7 @@ suite('Sessions chat window provider', () => {
 			unknown: undefined,
 			ofSession: '/main',
 			beforeBind: { chat: '/second', title: 'second', events: [] },
-			bound: { scope: 'session', hasWorkspace: false },
+			bound: { scope: 'session', hasWorkspace: false, changesetOperations: ['resource:discard'] },
 			events: ['show session /second', 'active session', 'close session'],
 		});
 	});

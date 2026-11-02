@@ -17,7 +17,8 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { DockedEditorInput } from '../../../common/dockedEditorInput.js';
+import { DockedEditorInput, isEditorPartOfEditorVisible } from '../../../common/dockedEditorInput.js';
+import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { getSessionChangesFileCountLabel } from '../common/changes.js';
 import { ISessionChangesService } from '../common/sessionChangesService.js';
 
@@ -39,6 +40,7 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 	) {
 		super();
 		this._register(layoutService.onDidChangePartVisibility(event => {
@@ -65,7 +67,8 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 
 	override get capabilities(): EditorInputCapabilities {
 		const capabilities = super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.Readonly;
-		return this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow) ? capabilities : capabilities | EditorInputCapabilities.CannotClose;
+		// Closable while the part that shows it is visible, in whichever window.
+		return isEditorPartOfEditorVisible(this.editorGroupsService, this, () => this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) ? capabilities : capabilities | EditorInputCapabilities.CannotClose;
 	}
 
 	override getName(): string {

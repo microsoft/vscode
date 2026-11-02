@@ -21,7 +21,7 @@ import { bindContextKey } from '../../../../platform/observable/common/platformO
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DIFF_VIEW_MODE_INLINE_TEMPORARY, SET_DIFF_VIEW_MODE_AUTOMATIC, SET_DIFF_VIEW_MODE_INLINE, SET_DIFF_VIEW_MODE_SIDE_BY_SIDE, TOGGLE_DIFF_SIDE_BY_SIDE } from '../../../../workbench/browser/parts/editor/diffEditorCommands.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../workbench/common/contextkeys.js';
 import { IEditorCommandsContext, isEditorCommandsContext } from '../../../../workbench/common/editor.js';
 import { DiffEditorInput } from '../../../../workbench/common/editor/diffEditorInput.js';
 import { readTransientState, writeTransientState } from '../../../../workbench/contrib/codeEditor/browser/toggleWordWrap.js';
@@ -183,43 +183,42 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	when: desktopChangesEditorActive
 });
 
+// The title actions below show in the menus of the Agents window's editor areas, which only they show: those of the main
+// window and of chat windows, never of its editor windows. Each editor area binds whether it is visible in its own context.
+const editorAreaVisible = MainEditorAreaVisibleContext;
+
 // Title-bar (tab-row) gate that does NOT require the editor content area to be
 // visible, so session-level title actions (e.g. Create Pull Request) stay available
 // when the editor area is closed but the docked tab bar is still shown.
 const desktopChangesEditorTitle = ContextKeyExpr.and(
 	desktopChangesEditorActive,
-	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext
 );
 
 const desktopChangesEditorTitleVisible = ContextKeyExpr.and(
 	desktopChangesEditorTitle,
-	MainEditorAreaVisibleContext
+	editorAreaVisible
 );
 
 const desktopDiffEditorTitle = ContextKeyExpr.and(
 	ContextKeyExpr.or(desktopChangesEditorActive, desktopFileDiffEditorActive),
-	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext
 );
 
 const desktopTextDiffEditorTitle = ContextKeyExpr.and(
 	desktopTextDiffEditorActive,
-	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext
 );
 
 const desktopMultiDiffEditorTitle = ContextKeyExpr.and(
 	agentsMultiDiffEditorActive,
 	DesktopLayoutContext,
-	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext
 );
 
 const desktopTextEditorTitle = ContextKeyExpr.and(
 	agentsTextEditorActive,
 	DesktopLayoutContext,
-	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext
 );
 
@@ -229,7 +228,7 @@ const desktopDiffEditorTitleVisible = ContextKeyExpr.and(
 		desktopTextDiffEditorTitle,
 		desktopMultiDiffEditorTitle
 	),
-	MainEditorAreaVisibleContext
+	editorAreaVisible
 );
 
 // The Changes editor shows its diff actions in the header row above its diffs instead of in its tab row: Run Code Review
@@ -238,7 +237,7 @@ const notChangesEditor = ActiveEditorContext.notEqualsTo(SessionChangesEditor.ID
 
 const desktopTextEditorTitleVisible = ContextKeyExpr.and(
 	desktopTextEditorTitle,
-	MainEditorAreaVisibleContext
+	editorAreaVisible
 );
 
 function wordWrapToggled(settingId: string) {
@@ -313,6 +312,12 @@ class ToggleSessionsDiffEditorWordWrapAction extends Action2 {
 	}
 }
 
+/** The editor of the group whose title an action is invoked from (editor title menus pass the editor context), else the active editor. */
+function getInvokingEditorPane(accessor: ServicesAccessor, args: unknown[]) {
+	const context = args.find(isEditorCommandsContext);
+	return context ? accessor.get(IEditorGroupsService).getGroup(context.groupId)?.activeEditorPane : accessor.get(IEditorService).activeEditorPane;
+}
+
 async function toggleSessionsWordWrap(accessor: ServicesAccessor, target: 'editor' | 'diffEditor', context?: IEditorCommandsContext): Promise<void> {
 	const codeEditorService = accessor.get(ICodeEditorService);
 	const optionsService = accessor.get(IDiffEditorOptionsService);
@@ -367,9 +372,9 @@ class ChangesHeaderActionsAction extends Action2 {
 				id: Menus.TitleBarSessionMenu,
 				group: 'navigation',
 				order: 5,
+				// Read in each window's own context: for the session it shows, which an editor window's title bar has none of.
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
-					IsAuxiliaryWindowContext.toNegated(),
 					CustomViewVisibleContext.negate(),
 					DesktopLayoutContext,
 					SessionIsCreatedContext
@@ -469,8 +474,9 @@ class CollapseAllSessionChangesDiffsAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		// The Changes editor of the title it is invoked from, such as in a chat window, else the active one.
+		const activeEditorPane = getInvokingEditorPane(accessor, args);
 		if (activeEditorPane instanceof SessionChangesEditor) {
 			activeEditorPane.collapseAllDiffs();
 		}
@@ -494,16 +500,16 @@ class ExpandAllSessionChangesDiffsAction extends Action2 {
 				order: 10,
 				when: ContextKeyExpr.and(
 					desktopChangesEditorActive,
-					IsAuxiliaryWindowContext.toNegated(),
 					IsTopRightEditorGroupContext,
-					MainEditorAreaVisibleContext,
+					editorAreaVisible,
 					ContextKeyExpr.has('multiDiffEditorAllCollapsed'))
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		// The Changes editor of the title it is invoked from, such as in a chat window, else the active one.
+		const activeEditorPane = getInvokingEditorPane(accessor, args);
 		if (activeEditorPane instanceof SessionChangesEditor) {
 			activeEditorPane.expandAllDiffs();
 		}
@@ -550,7 +556,7 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
 	title: localize('filesViewAndPosition', "Files View & Position"),
 	group: '2_viewMode',
 	order: 10,
-	when: ContextKeyExpr.and(desktopMultiDiffEditorTitle, MainEditorAreaVisibleContext, ActiveMultiDiffEditorHasFileListContext),
+	when: ContextKeyExpr.and(desktopMultiDiffEditorTitle, editorAreaVisible, ActiveMultiDiffEditorHasFileListContext),
 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	submenu: Menus.SessionsDiffEditorView,
