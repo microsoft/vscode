@@ -515,6 +515,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			isSessionClosed: () => sessionClosed,
 			getHostSupport: async () => ({ supported: true, capabilities: [] }),
 			getCertificateStatus: async () => undefined,
+			refreshCertificate: async () => { },
 			installCertificate: async () => { },
 			rotateCertificate: async () => { },
 			removeCertificate: async () => { },
