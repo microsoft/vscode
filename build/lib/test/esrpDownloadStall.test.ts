@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { suite, test } from 'node:test';
-import { EsrpDownloadMonitor, getEsrpDownloadStallOptions, getEsrpDownloadTempFiles, runWithEsrpDownloadStallGuard } from '../../azure-pipelines/common/sign.ts';
+import { EsrpDownloadMonitor, getEsrpDownloadStallOptions, getEsrpDownloadTempFiles, MAX_ESRP_DOWNLOAD_STALL_RESUBMISSIONS, runWithEsrpDownloadResubmission, runWithEsrpDownloadStallGuard } from '../../azure-pipelines/common/sign.ts';
 
 const MB = 1024 * 1024;
 const options = { windowMs: 60_000, minBytesPerSecond: 1 * MB };
@@ -85,5 +85,61 @@ suite('ESRP macOS download stall guard', () => {
 		assert.equal(result.stalled?.file, 'a.zip.tmp');
 		assert.notEqual(result.exitCode, 0);
 		assert.ok(Date.now() - started < 10_000, 'the stalled session was not stopped promptly');
+	});
+
+	// Like esrpcli: reads and deletes its key file, downloads to <file>.tmp and
+	// moves it into place. Sessions listed in `stallingSessions` never finish their download.
+	const fakeEsrpcli = `
+		const fs = require('fs'), path = require('path');
+		const [keyFile, folder, counterFile, stallingSessions] = process.argv.slice(1);
+		if (!fs.existsSync(keyFile)) { console.log('Missing the encryption key data...'); process.exit(1); }
+		fs.rmSync(keyFile);
+		const session = fs.existsSync(counterFile) ? Number(fs.readFileSync(counterFile, 'utf8')) + 1 : 1;
+		fs.writeFileSync(counterFile, String(session));
+		const tmp = path.join(folder, 'VSCode-darwin-arm64.zip.tmp');
+		fs.appendFileSync(tmp, 'x');
+		if (stallingSessions.split(',').includes(String(session))) {
+			setInterval(() => fs.appendFileSync(tmp, 'x'), 20);
+		} else {
+			fs.renameSync(tmp, path.join(folder, 'VSCode-darwin-arm64.zip'));
+			process.exit(0);
+		}
+	`;
+
+	async function runFakeSessions(stallingSessions: string) {
+		const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'esrp-resubmit-'));
+		const counterFile = path.join(folder, 'sessions');
+		const stalls: number[] = [];
+		try {
+			fs.writeFileSync(path.join(folder, 'VSCode-darwin-arm64.zip'), 'unsigned');
+			// A leftover .tmp from an earlier, killed run
+			fs.writeFileSync(path.join(folder, 'VSCode-darwin-arm64.zip.tmp'), 'leftover');
+			const createArgs = () => {
+				const keyFile = path.join(folder, `key-${Math.random()}`);
+				fs.writeFileSync(keyFile, 'key');
+				return ['-e', fakeEsrpcli, keyFile, folder, counterFile, stallingSessions];
+			};
+			const exitCode = await runWithEsrpDownloadResubmission(process.execPath, createArgs, folder, 'VSCode-darwin-arm64.zip', { windowMs: 150, minBytesPerSecond: MB }, (_stall, attempt) => stalls.push(attempt), 50);
+			return { exitCode, stalls, sessions: Number(fs.readFileSync(counterFile, 'utf8')), signed: fs.readFileSync(path.join(folder, 'VSCode-darwin-arm64.zip'), 'utf8'), leftover: fs.existsSync(path.join(folder, 'VSCode-darwin-arm64.zip.tmp')) };
+		} finally {
+			fs.rmSync(folder, { recursive: true, force: true });
+		}
+	}
+
+	test('submits the file again with a new key after a killed session stalls', async () => {
+		const result = await runFakeSessions('1');
+		assert.deepEqual(result.stalls, [1]);
+		assert.equal(result.sessions, 2);
+		assert.equal(result.exitCode, 0);
+		assert.equal(result.signed, 'x', 'the second session replaced the file from a fresh .tmp');
+		assert.equal(result.leftover, false);
+	});
+
+	test('lets the last session finish however slow its download is', async () => {
+		const stallingSessions = Array.from({ length: MAX_ESRP_DOWNLOAD_STALL_RESUBMISSIONS }, (_, i) => i + 1).join(',');
+		const result = await runFakeSessions(stallingSessions);
+		assert.deepEqual(result.stalls, Array.from({ length: MAX_ESRP_DOWNLOAD_STALL_RESUBMISSIONS }, (_, i) => i + 1));
+		assert.equal(result.sessions, MAX_ESRP_DOWNLOAD_STALL_RESUBMISSIONS + 1);
+		assert.equal(result.exitCode, 0);
 	});
 });
