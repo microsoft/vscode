@@ -220,9 +220,9 @@ jobs:
       - ${{ if eq(parameters.VSCODE_BUILD_WEB_MOBILE, true) }}:
         - script: |
             set -e
-            npm run test-mobile-preview
+            pnpm run test-mobile-preview
             node --test build/lib/test/mobileWebPublication.test.ts
-            npm run bundle-mobile-preview
+            pnpm run bundle-mobile-preview
             mkdir -p "$(Build.ArtifactStagingDirectory)/out/web"
             tar --owner=0 --group=0 --transform='s,^out-mobile-preview,vscode-web-mobile,' \
               -czf "$(Build.ArtifactStagingDirectory)/out/web/vscode-web-mobile.tar.gz" \
