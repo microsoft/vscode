@@ -20,6 +20,7 @@ import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChan
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../common/meta/agentWorkspaceContinuationMeta.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { ChangesetStatus, ChatOriginKind, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
 import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
@@ -1725,17 +1726,8 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		}
 		if (options.peer) {
 			stateManager.addChat(resource, options.peer.resource, options.peer.storage ?? creationTimeChatStorageResource(resource, options.peer.resource, buildDefaultChatUri(resource)), { workingDirectories: options.peer.workingDirectories });
-			stateManager.dispatchServerAction(options.peer.resource, {
-				type: ActionType.ChatTurnStarted,
-				turnId: options.peer.turnId,
-				startedAt: new Date(0).toISOString(),
-				message: { text: 'peer', origin: { kind: MessageKind.User } },
-			});
-			stateManager.dispatchServerAction(options.peer.resource, {
-				type: ActionType.ChatTurnComplete,
-				turnId: options.peer.turnId,
-				duration: 1,
-			});
+			stateManager.dispatchServerAction(options.peer.resource, chatTurnStarted(options.peer.turnId, 'peer', new Date(0).toISOString()));
+			stateManager.dispatchServerAction(options.peer.resource, chatTurnComplete(options.peer.turnId, 1));
 		}
 		return { svc, stateManager, log };
 	}
@@ -2930,7 +2922,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			},
 		]) {
 			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: turn.id, startedAt: new Date(0).toISOString(), message: turn.message });
-			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: turn.id, duration: 1 });
+			stateManager.dispatchServerAction(chat, chatTurnComplete(turn.id, 1));
 		}
 
 		svc.refreshSessionChangeset(sessionStr, 'auto');
@@ -2983,8 +2975,8 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				[mainChat, 'main-edit', '2026-09-05T10:00:00.000Z'],
 				[peerChat, 'peer-edit', '2026-09-05T10:01:00.000Z'],
 			]) {
-				stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId, startedAt, message: { text: 'Edit a file', origin: { kind: MessageKind.User } } });
-				stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId, duration: 1000 });
+				stateManager.dispatchServerAction(chat, chatTurnStarted(turnId, 'Edit a file', startedAt));
+				stateManager.dispatchServerAction(chat, chatTurnComplete(turnId, 1000));
 			}
 
 			const changesetUri = buildSessionChangesetUri(sessionStr);
@@ -3000,7 +2992,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					origin: { kind: MessageKind.SystemNotification },
 				}, hidden),
 			});
-			stateManager.dispatchServerAction(mainChat, { type: ActionType.ChatTurnComplete, turnId: hidden ? 'notice' : 'repair', duration: 1000 });
+			stateManager.dispatchServerAction(mainChat, chatTurnComplete(hidden ? 'notice' : 'repair', 1000));
 			svc.refreshSessionChangeset(sessionStr, 'auto');
 			await waitForChangesetReady(stateManager, changesetUri);
 
@@ -3029,11 +3021,8 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 
 		function completeTurn(stateManager: AgentHostStateManager): void {
 			const chat = buildDefaultChatUri(sessionStr);
-			stateManager.dispatchServerAction(chat, {
-				type: ActionType.ChatTurnStarted, turnId: 'turn-summary', startedAt: new Date(0).toISOString(),
-				message: { text: 'edit', origin: { kind: MessageKind.User } },
-			});
-			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'turn-summary', duration: 1 });
+			stateManager.dispatchServerAction(chat, chatTurnStarted('turn-summary', 'edit', new Date(0).toISOString()));
+			stateManager.dispatchServerAction(chat, chatTurnComplete('turn-summary', 1));
 		}
 
 		function summaryCheckpoint(): IAgentHostCheckpointService {
@@ -3823,20 +3812,10 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				peer: { resource: peer, db: new TestSessionDatabase(), turnId: 'stale-peer-turn' },
 			});
 			const defaultChat = buildDefaultChatUri(sessionStr);
-			stateManager.dispatchServerAction(defaultChat, {
-				type: ActionType.ChatTurnStarted,
-				turnId: 'turn-a',
-				startedAt: new Date(0).toISOString(),
-				message: { text: 'terminal A', origin: { kind: MessageKind.User } },
-			});
-			stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatTurnComplete, turnId: 'turn-a', duration: 1 });
-			stateManager.dispatchServerAction(peer, {
-				type: ActionType.ChatTurnStarted,
-				turnId: 'turn-b',
-				startedAt: new Date(1).toISOString(),
-				message: { text: 'terminal B', origin: { kind: MessageKind.User } },
-			});
-			stateManager.dispatchServerAction(peer, { type: ActionType.ChatTurnComplete, turnId: 'turn-b', duration: 1 });
+			stateManager.dispatchServerAction(defaultChat, chatTurnStarted('turn-a', 'terminal A', new Date(0).toISOString()));
+			stateManager.dispatchServerAction(defaultChat, chatTurnComplete('turn-a', 1));
+			stateManager.dispatchServerAction(peer, chatTurnStarted('turn-b', 'terminal B', new Date(1).toISOString()));
+			stateManager.dispatchServerAction(peer, chatTurnComplete('turn-b', 1));
 
 			svc.refreshSessionChangeset(sessionStr, 'auto');
 			await waitForChangesetReady(stateManager, sessionChangeset);

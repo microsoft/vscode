@@ -22,6 +22,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { buildChatUri, buildDefaultChatUri, ChatOriginKind, MessageAttachmentKind, MessageKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, type SessionSummary } from '../../common/state/sessionState.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../../common/state/protocol/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { chatToolCallStart, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { SessionPermissionManager, type IToolApprovalEvent } from '../../node/sessionPermissions.js';
@@ -95,8 +96,8 @@ suite('SessionPermissionManager', () => {
 
 	function startConfirmation(signal: IAgentToolPendingConfirmationSignal, pathOptions: readonly ConfirmationOption[] = []): void {
 		const chat = signal.chat.toString();
-		manager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'turn-scoped', startedAt: new Date().toISOString(), message: { text: 'go', origin: { kind: MessageKind.User } } });
-		manager.dispatchServerAction(chat, { type: ActionType.ChatToolCallStart, turnId: 'turn-scoped', toolCallId: signal.state.toolCallId, toolName: signal.state.toolName, displayName: signal.state.displayName });
+		manager.dispatchServerAction(chat, chatTurnStarted('turn-scoped', 'go'));
+		manager.dispatchServerAction(chat, chatToolCallStart('turn-scoped', signal.state.toolCallId, signal.state.toolName, signal.state.displayName));
 		manager.dispatchServerAction(chat, permissions.createToolReadyAction(signal, chat, 'turn-scoped', pathOptions));
 	}
 
@@ -409,16 +410,50 @@ suite('SessionPermissionManager', () => {
 		})));
 	});
 
-	test('URL confirmations offer session and always grants for the exact hostname', () => {
-		const actions = ['https://api.example.com/path', 'https://example.co.uk', 'https://127.0.0.1:8080', 'https://[::1]:8080', 'not a URL'].map(permissionUrl => permissions.createToolReadyAction(confirmationSignal({ permissionKind: AgentPermissionKind.Url, permissionUrl }), sessionUri, 'turn'));
+	test('URL confirmations offer session and always grants for the exact hostname and scheme', () => {
+		const actions = ['https://api.example.com/path', 'https://example.co.uk', 'https://127.0.0.1:8080', 'https://[::1]:8080', 'http://api.example.com/path', 'http://127.0.0.1', 'http://[::1]', 'not a URL'].map(permissionUrl => permissions.createToolReadyAction(confirmationSignal({ permissionKind: AgentPermissionKind.Url, permissionUrl }), sessionUri, 'turn'));
 		assert.deepStrictEqual(actions.map(action => action.options?.map(option => [option.id, option.label])), [
 			[['allow-once', 'Allow Once'], ['allow-session-rules:["WebFetch(api.example.com)"]', 'Allow Fetching api.example.com in this Session'], ['allow-always-rules:["WebFetch(api.example.com)"]', 'Always Allow Fetching api.example.com'], ['skip', 'Skip']],
 			[['allow-once', 'Allow Once'], ['allow-session-rules:["WebFetch(example.co.uk)"]', 'Allow Fetching example.co.uk in this Session'], ['allow-always-rules:["WebFetch(example.co.uk)"]', 'Always Allow Fetching example.co.uk'], ['skip', 'Skip']],
 			[['allow-once', 'Allow Once'], ['allow-session-rules:["WebFetch(127.0.0.1)"]', 'Allow Fetching 127.0.0.1 in this Session'], ['allow-always-rules:["WebFetch(127.0.0.1)"]', 'Always Allow Fetching 127.0.0.1'], ['skip', 'Skip']],
 			[['allow-once', 'Allow Once'], ['allow-session-rules:["WebFetch([::1])"]', 'Allow Fetching [::1] in this Session'], ['allow-always-rules:["WebFetch([::1])"]', 'Always Allow Fetching [::1]'], ['skip', 'Skip']],
+			[['allow-once', 'Allow Once'], ['allow-session-rules:["WebFetch(http://api.example.com)"]', 'Allow Fetching http://api.example.com in this Session'], ['allow-always-rules:["WebFetch(http://api.example.com)"]', 'Always Allow Fetching http://api.example.com'], ['skip', 'Skip']],
+			[['allow-once', 'Allow Once'], ['allow-session-rules:["WebFetch(http://127.0.0.1)"]', 'Allow Fetching http://127.0.0.1 in this Session'], ['allow-always-rules:["WebFetch(http://127.0.0.1)"]', 'Always Allow Fetching http://127.0.0.1'], ['skip', 'Skip']],
+			[['allow-once', 'Allow Once'], ['allow-session-rules:["WebFetch(http://[::1])"]', 'Allow Fetching http://[::1] in this Session'], ['allow-always-rules:["WebFetch(http://[::1])"]', 'Always Allow Fetching http://[::1]'], ['skip', 'Skip']],
 			[['allow-once', 'Allow Once'], ['skip', 'Skip']],
 		]);
 	});
+
+	for (const scope of ['session', 'always']) {
+		test(`HTTP ${scope} fetch grants persist and auto-approve only the approved scheme and hostname`, async () => {
+			setPermissionRules([]);
+			const signal = confirmationSignal({ permissionKind: AgentPermissionKind.Url, permissionUrl: 'http://api.example.com/path' });
+			const chat = signal.chat.toString();
+			const event: IToolApprovalEvent = { toolCallId: signal.state.toolCallId, session: signal.chat, permissionKind: AgentPermissionKind.Url, permissionUrl: signal.permissionUrl };
+			const before = await permissions.getAutoApproval(event, chat);
+			const option = permissions.createToolReadyAction(signal, chat, 'turn-scoped').options?.find(option => option.id.startsWith(`allow-${scope}-rules:`));
+			assert.ok(option);
+			startConfirmation(signal);
+			confirmToolCall(chat, signal.state.toolCallId, option.id);
+			assert.deepStrictEqual({
+				before,
+				root: configService.getRootValue(platformRootSchema, SessionConfigKey.Permissions),
+				session: manager.getSessionState(sessionUri)?.config?.values[SessionConfigKey.Permissions],
+				after: await permissions.getAutoApproval({ ...event, permissionUrl: 'http://api.example.com/again' }, chat),
+				https: await permissions.getAutoApproval({ ...event, permissionUrl: 'https://api.example.com/again' }, chat),
+				subdomain: await permissions.getAutoApproval({ ...event, permissionUrl: 'http://sub.api.example.com/again' }, chat),
+				otherHost: await permissions.getAutoApproval({ ...event, permissionUrl: 'http://api.example.com.evil.test/again' }, chat),
+			}, {
+				before: undefined,
+				root: { allow: scope === 'always' ? ['WebFetch(http://api.example.com)'] : [], deny: [] },
+				session: { allow: scope === 'session' ? ['WebFetch(http://api.example.com)'] : [], deny: [] },
+				after: ToolCallConfirmationReason.Setting,
+				https: undefined,
+				subdomain: undefined,
+				otherHost: undefined,
+			});
+		});
+	}
 
 	test('Always Allow Fetching deduplicates root allow rules, preserves deny rules and auto-approves the host', async () => {
 		configService.updateRootConfig({ [SessionConfigKey.Permissions]: { allow: ['WebFetch(existing.test)'], deny: ['WebFetch(blocked.test)'] } });
@@ -726,6 +761,8 @@ suite('SessionPermissionManager', () => {
 			const files = [
 				join('.GITHUB', 'agents', 'dev-helper.md'),
 				join('.GITHUB', 'hooks', 'say-hi.json'),
+				join('.GITHUB', 'copilot', 'settings.json'),
+				join('.github', 'COPILOT', 'SETTINGS.LOCAL.JSON'),
 				join('.CLAUDE', 'agents', 'dev-helper.md'),
 				join('.CLAUDE', 'settings.json'),
 				join('.CLAUDE', 'settings.local.json'),
@@ -810,6 +847,8 @@ suite('SessionPermissionManager', () => {
 		const files = [
 			join('.github', 'agents', 'dev-helper.md'),
 			join('.github', 'hooks', 'say-hi.json'),
+			join('.github', 'copilot', 'settings.json'),
+			join('.github', 'copilot', 'settings.local.json'),
 			join('.claude', 'agents', 'dev-helper.md'),
 			join('.claude', 'settings.json'),
 			join('.claude', 'settings.local.json'),
@@ -822,6 +861,32 @@ suite('SessionPermissionManager', () => {
 			results.push(await permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri));
 		}
 		assert.deepStrictEqual(results, files.map(() => undefined));
+	});
+
+	test('requires confirmation for Copilot hook settings and MCP files despite explicit edit approval', async () => {
+		configService.updateRootConfig({
+			[AgentHostEditAutoApprovePatternsConfigKey]: {
+				'**/*': true,
+				'**/.github/copilot/settings.json': true,
+				'**/.github/copilot/settings.local.json': true,
+				'**/.mcp.json': true,
+			},
+		});
+		const files = [
+			join('.github', 'copilot', 'settings.json'),
+			join('.github', 'copilot', 'settings.local.json'),
+			'.mcp.json',
+		];
+		const results = await Promise.all(['', 'nested'].flatMap(directory =>
+			files.map(file => permissions.getAutoApproval(writeEvent(join(workDir, directory, file)), sessionUri))));
+
+		assert.deepStrictEqual({
+			protectedFiles: results,
+			ordinaryFile: await permissions.getAutoApproval(writeEvent(join(workDir, '.github', 'copilot', 'notes.md')), sessionUri),
+		}, {
+			protectedFiles: [...files, ...files].map(() => undefined),
+			ordinaryFile: ToolCallConfirmationReason.NotNeeded,
+		});
 	});
 
 	test('requires confirmation for configured custom hook file location', async () => {
@@ -1294,8 +1359,8 @@ suite('SessionPermissionManager', () => {
 		manager.addChat(sessionUri, peer, storage(peer));
 		manager.addChat(sessionUri, peerSubagent, storage(peer), { origin: { kind: ChatOriginKind.Tool, chat: peer, toolCallId: 'spawn-2' } });
 		const startToolCall = (chat: string, toolCallId: string, toolName: string) => {
-			manager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: `turn-${toolCallId}`, startedAt: new Date().toISOString(), message: { text: 'go', origin: { kind: MessageKind.User } } });
-			manager.dispatchServerAction(chat, { type: ActionType.ChatToolCallStart, turnId: `turn-${toolCallId}`, toolCallId, toolName, displayName: toolName });
+			manager.dispatchServerAction(chat, chatTurnStarted(`turn-${toolCallId}`, 'go'));
+			manager.dispatchServerAction(chat, chatToolCallStart(`turn-${toolCallId}`, toolCallId, toolName, toolName));
 			manager.dispatchServerAction(chat, permissions.createToolReadyAction(confirmationSignal({ chat: URI.parse(chat), state: { status: ToolCallStatus.PendingConfirmation, toolCallId, toolName, displayName: toolName, invocationMessage: 'Run tool', confirmationTitle: 'Run tool?' } }), chat, `turn-${toolCallId}`));
 		};
 		const outsideWrite = writeEvent(join(outsideDir, 'outside.txt'));

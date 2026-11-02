@@ -9,22 +9,8 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { URI } from '../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { SESSION_OPEN_TIMEOUT_MS, SessionOpenTelemetryService } from '../../browser/sessionOpenTelemetryService.js';
-
-function isTelemetryData(data: unknown): data is Record<string, unknown> {
-	return typeof data === 'object' && data !== null;
-}
-
-class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
-
-	override publicLog2(eventName?: string, data?: unknown): void {
-		if (eventName && isTelemetryData(data)) {
-			this.events.push({ name: eventName, data });
-		}
-	}
-}
+import { TestDataTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 
 suite('SessionOpenTelemetryService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -33,7 +19,7 @@ suite('SessionOpenTelemetryService', () => {
 
 	test('emits ordered success milestones after model binding and session loading', async () => {
 		await runWithFakedTimers({ useFakeTimers: true, startTime: 1_000 }, async () => {
-			const telemetryService = new TestTelemetryService();
+			const telemetryService = new TestDataTelemetryService();
 			const service = disposables.add(new SessionOpenTelemetryService(telemetryService));
 			await service.withOpenRequest('sessionsList', CancellationToken.None, async attempt => {
 				await timeout(10);
@@ -64,7 +50,7 @@ suite('SessionOpenTelemetryService', () => {
 	});
 
 	test('completes repeated opens when the model is already bound', async () => {
-		const telemetryService = new TestTelemetryService();
+		const telemetryService = new TestDataTelemetryService();
 		const service = disposables.add(new SessionOpenTelemetryService(telemetryService));
 		service.modelBound(sessionResource, chatResource);
 		await service.withOpenRequest('navigation', CancellationToken.None, async attempt => {
@@ -93,7 +79,7 @@ suite('SessionOpenTelemetryService', () => {
 	});
 
 	test('emits cancellation for superseded attempts exactly once', async () => {
-		const telemetryService = new TestTelemetryService();
+		const telemetryService = new TestDataTelemetryService();
 		const service = disposables.add(new SessionOpenTelemetryService(telemetryService));
 		const firstToken = disposables.add(new CancellationTokenSource());
 		const releaseFirst = new DeferredPromise<void>();
@@ -124,7 +110,7 @@ suite('SessionOpenTelemetryService', () => {
 	});
 
 	test('preserves a model bind failure reported before chat activation', async () => {
-		const telemetryService = new TestTelemetryService();
+		const telemetryService = new TestDataTelemetryService();
 		const service = disposables.add(new SessionOpenTelemetryService(telemetryService));
 
 		await service.withOpenRequest('sessionsList', CancellationToken.None, async attempt => {
@@ -147,7 +133,7 @@ suite('SessionOpenTelemetryService', () => {
 
 	test('emits bounded timeout without content-bearing fields', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const telemetryService = new TestTelemetryService();
+			const telemetryService = new TestDataTelemetryService();
 			const service = disposables.add(new SessionOpenTelemetryService(telemetryService));
 			const release = new DeferredPromise<void>();
 			const request = service.withOpenRequest('unknown', CancellationToken.None, async () => release.p);

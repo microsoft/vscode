@@ -40,7 +40,7 @@ import { getCustomizationGroupAriaLabel } from '../../../browser/aiCustomization
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 
 suite('aiCustomizationListWidget', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('uses tree presentations for the redesigned customization sections', () => {
 		assert.deepStrictEqual({
@@ -223,7 +223,7 @@ suite('aiCustomizationListWidget', () => {
 	});
 
 	test('collapsible sections are expanded by default and only the disclosure toggles them', () => {
-		const disposables = new DisposableStore();
+		const disposables = store.add(new DisposableStore());
 		const heading = document.createElement('div');
 		const content = document.createElement('div');
 		const headerAction = document.createElement('button');
@@ -231,65 +231,61 @@ suite('aiCustomizationListWidget', () => {
 		const changes: boolean[] = [];
 		const toggle = setupCollapsibleSection(heading, content, 'Workspace', disposables, false, collapsed => changes.push(collapsed));
 
-		try {
-			headerAction.click();
-			const initiallyExpanded = {
-				expanded: toggle.getAttribute('aria-expanded'),
-				controlsContent: toggle.getAttribute('aria-controls') === content.id,
-				hidden: content.hidden,
-				display: content.style.display,
-				changes: [...changes],
-			};
-			toggle.click();
-			const collapsed = {
+		headerAction.click();
+		const initiallyExpanded = {
+			expanded: toggle.getAttribute('aria-expanded'),
+			controlsContent: toggle.getAttribute('aria-controls') === content.id,
+			hidden: content.hidden,
+			display: content.style.display,
+			changes: [...changes],
+		};
+		toggle.click();
+		const collapsed = {
+			expanded: toggle.getAttribute('aria-expanded'),
+			label: toggle.getAttribute('aria-label'),
+			hidden: content.hidden,
+			display: content.style.display,
+			changes: [...changes],
+		};
+		toggle.click();
+
+		assert.deepStrictEqual({
+			initiallyExpanded,
+			collapsed,
+			expandedAgain: {
 				expanded: toggle.getAttribute('aria-expanded'),
 				label: toggle.getAttribute('aria-label'),
 				hidden: content.hidden,
 				display: content.style.display,
-				changes: [...changes],
-			};
-			toggle.click();
-
-			assert.deepStrictEqual({
-				initiallyExpanded,
-				collapsed,
-				expandedAgain: {
-					expanded: toggle.getAttribute('aria-expanded'),
-					label: toggle.getAttribute('aria-label'),
-					hidden: content.hidden,
-					display: content.style.display,
-					changes,
-				},
-			}, {
-				initiallyExpanded: {
-					expanded: 'true',
-					controlsContent: true,
-					hidden: false,
-					display: '',
-					changes: [],
-				},
-				collapsed: {
-					expanded: 'false',
-					label: 'Expand Workspace',
-					hidden: true,
-					display: 'none',
-					changes: [true],
-				},
-				expandedAgain: {
-					expanded: 'true',
-					label: 'Collapse Workspace',
-					hidden: false,
-					display: '',
-					changes: [true, false],
-				},
-			});
-		} finally {
-			disposables.dispose();
-		}
+				changes,
+			},
+		}, {
+			initiallyExpanded: {
+				expanded: 'true',
+				controlsContent: true,
+				hidden: false,
+				display: '',
+				changes: [],
+			},
+			collapsed: {
+				expanded: 'false',
+				label: 'Expand Workspace',
+				hidden: true,
+				display: 'none',
+				changes: [true],
+			},
+			expandedAgain: {
+				expanded: 'true',
+				label: 'Collapse Workspace',
+				hidden: false,
+				display: '',
+				changes: [true, false],
+			},
+		});
 	});
 
 	test('collapsible sections create disclosures outside auxiliary document realms', () => {
-		const disposables = new DisposableStore();
+		const disposables = store.add(new DisposableStore());
 		const auxiliaryDocument = document.implementation.createHTMLDocument();
 		const heading = auxiliaryDocument.createElement('div');
 		const content = auxiliaryDocument.createElement('div');
@@ -300,20 +296,16 @@ suite('aiCustomizationListWidget', () => {
 			},
 		});
 
-		try {
-			const toggle = setupCollapsibleSection(heading, content, 'Workspace', disposables, false, () => { });
-			assert.deepStrictEqual({
-				ownerDocument: toggle.ownerDocument === auxiliaryDocument,
-				parent: toggle.parentElement === heading,
-				expanded: toggle.getAttribute('aria-expanded'),
-			}, {
-				ownerDocument: true,
-				parent: true,
-				expanded: 'true',
-			});
-		} finally {
-			disposables.dispose();
-		}
+		const toggle = setupCollapsibleSection(heading, content, 'Workspace', disposables, false, () => { });
+		assert.deepStrictEqual({
+			ownerDocument: toggle.ownerDocument === auxiliaryDocument,
+			parent: toggle.parentElement === heading,
+			expanded: toggle.getAttribute('aria-expanded'),
+		}, {
+			ownerDocument: true,
+			parent: true,
+			expanded: 'true',
+		});
 	});
 
 	test('collapsed groups are scoped to their customization page', () => {
@@ -379,16 +371,13 @@ suite('aiCustomizationListWidget', () => {
 		const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
 		const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
 
-		try {
-			action.dispatchEvent(enterEvent);
-			action.dispatchEvent(escapeEvent);
-			assert.deepStrictEqual(
-				{ bubbledKeys, enterDefaultPrevented: enterEvent.defaultPrevented, escapeDefaultPrevented: escapeEvent.defaultPrevented },
-				{ bubbledKeys: ['Escape'], enterDefaultPrevented: false, escapeDefaultPrevented: false },
-			);
-		} finally {
-			disposable.dispose();
-		}
+		store.add(toDisposable(() => disposable.dispose()));
+		action.dispatchEvent(enterEvent);
+		action.dispatchEvent(escapeEvent);
+		assert.deepStrictEqual(
+			{ bubbledKeys, enterDefaultPrevented: enterEvent.defaultPrevented, escapeDefaultPrevented: escapeEvent.defaultPrevented },
+			{ bubbledKeys: ['Escape'], enterDefaultPrevented: false, escapeDefaultPrevented: false },
+		);
 	});
 
 	test('virtualized section height is redistributed when a sibling collapses', () => {
@@ -534,7 +523,7 @@ suite('aiCustomizationListWidget', () => {
 	});
 
 	test('card lists use roving focus and expose focused-row actions', async () => {
-		const disposables = new DisposableStore();
+		const disposables = store.add(new DisposableStore());
 		const list = document.createElement('div');
 		document.body.appendChild(list);
 		const controller = disposables.add(new CustomizationCardListController(list, 'Customizations'));
@@ -564,47 +553,43 @@ suite('aiCustomizationListWidget', () => {
 		controller.addItem({ row: remoteRow, primaryAction: remoteRow, label: 'Remote', actions: [remoteAction], contextMenuAction: remoteAction });
 		controller.finalize();
 
-		try {
-			alpha.primaryAction.focus();
-			alpha.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-			beta.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
-			beta.action.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
-			const spaceKeyEvent = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true });
-			beta.primaryAction.dispatchEvent(spaceKeyEvent);
-			disabledActionPrimary.focus();
-			disabledActionPrimary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
-			const disabledActionTabTarget = document.activeElement;
-			beta.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
-			enabledAction.tabIndex = 0;
-			await new Promise(resolve => setTimeout(resolve, 0));
+		store.add(toDisposable(() => list.remove()));
+		alpha.primaryAction.focus();
+		alpha.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+		beta.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+		beta.action.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
+		const spaceKeyEvent = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true });
+		beta.primaryAction.dispatchEvent(spaceKeyEvent);
+		disabledActionPrimary.focus();
+		disabledActionPrimary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+		const disabledActionTabTarget = document.activeElement;
+		beta.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+		enabledAction.tabIndex = 0;
+		await new Promise(resolve => setTimeout(resolve, 0));
 
-			assert.deepStrictEqual({
-				listRole: list.getAttribute('role'),
-				rowRoles: [alpha.row.getAttribute('role'), beta.row.getAttribute('role'), disabledActionRow.getAttribute('role'), remoteRow.getAttribute('role')],
-				positions: [alpha.row.getAttribute('aria-posinset'), beta.row.getAttribute('aria-posinset')],
-				remotePosition: remoteRow.getAttribute('aria-posinset'),
-				setSizes: [alpha.row.getAttribute('aria-setsize'), beta.row.getAttribute('aria-setsize'), disabledActionRow.getAttribute('aria-setsize'), remoteRow.getAttribute('aria-setsize')],
-				tabIndexes: [alpha.primaryAction.tabIndex, beta.primaryAction.tabIndex, remoteRow.tabIndex, alpha.action.tabIndex, beta.action.tabIndex, remoteAction.tabIndex],
-				spaceDefaultPrevented: spaceKeyEvent.defaultPrevented,
-				disabledActionTabIndexes: [disabledAction.tabIndex, enabledAction.tabIndex],
-				disabledActionTabTarget,
-				activeElement: document.activeElement,
-			}, {
-				listRole: 'list',
-				rowRoles: ['listitem', 'listitem', 'listitem', 'listitem'],
-				positions: ['1', '2'],
-				remotePosition: '4',
-				setSizes: ['4', '4', '4', '4'],
-				tabIndexes: [0, -1, -1, -1, -1, -1],
-				spaceDefaultPrevented: false,
-				disabledActionTabIndexes: [-1, -1],
-				disabledActionTabTarget: enabledAction,
-				activeElement: alpha.primaryAction,
-			});
-		} finally {
-			disposables.dispose();
-			list.remove();
-		}
+		assert.deepStrictEqual({
+			listRole: list.getAttribute('role'),
+			rowRoles: [alpha.row.getAttribute('role'), beta.row.getAttribute('role'), disabledActionRow.getAttribute('role'), remoteRow.getAttribute('role')],
+			positions: [alpha.row.getAttribute('aria-posinset'), beta.row.getAttribute('aria-posinset')],
+			remotePosition: remoteRow.getAttribute('aria-posinset'),
+			setSizes: [alpha.row.getAttribute('aria-setsize'), beta.row.getAttribute('aria-setsize'), disabledActionRow.getAttribute('aria-setsize'), remoteRow.getAttribute('aria-setsize')],
+			tabIndexes: [alpha.primaryAction.tabIndex, beta.primaryAction.tabIndex, remoteRow.tabIndex, alpha.action.tabIndex, beta.action.tabIndex, remoteAction.tabIndex],
+			spaceDefaultPrevented: spaceKeyEvent.defaultPrevented,
+			disabledActionTabIndexes: [disabledAction.tabIndex, enabledAction.tabIndex],
+			disabledActionTabTarget,
+			activeElement: document.activeElement,
+		}, {
+			listRole: 'list',
+			rowRoles: ['listitem', 'listitem', 'listitem', 'listitem'],
+			positions: ['1', '2'],
+			remotePosition: '4',
+			setSizes: ['4', '4', '4', '4'],
+			tabIndexes: [0, -1, -1, -1, -1, -1],
+			spaceDefaultPrevented: false,
+			disabledActionTabIndexes: [-1, -1],
+			disabledActionTabTarget: enabledAction,
+			activeElement: alpha.primaryAction,
+		});
 	});
 
 	suite('truncateToFirstLine', () => {

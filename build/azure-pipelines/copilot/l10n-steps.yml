@@ -26,7 +26,9 @@ steps:
 
       L10N_ROOT=$(node -e "const p=require('./package.json'); console.log(p.l10n || '.')")
 
-      npx @vscode/l10n-dev import-xlf -o "$L10N_ROOT" "$TRANSLATED_DIR"/*/*.xlf
+      # @vscode/l10n-dev is a dependency of the root, not of extensions/copilot, which is a separate
+      # install root, so `pnpm exec` here can't find it.
+      "$(Build.SourcesDirectory)/node_modules/.bin/vscode-l10n-dev" import-xlf -o "$L10N_ROOT" "$TRANSLATED_DIR"/*/*.xlf
 
       # Move package.nls.*.json files from l10n root to extension root if needed
       if [ "$L10N_ROOT" != "." ]; then

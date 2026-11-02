@@ -13,7 +13,7 @@ import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../.
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mapsStrictEqualIgnoreOrder, ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { deepClone, equals } from '../../../../../base/common/objects.js';
-import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, mapObservableArrayCached, observableFromEvent, observableSignal, observableSignalFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, mapObservableArrayCached, observableFromEvent, observableSignal, observableSignalFromEvent, observableValueOpts, recomputeInitiallyAndOnChange, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { basename, dirname, extUriIgnorePathCase, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { themeColorFromId, ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -113,7 +113,9 @@ import { IArtifactModel } from '../../../../../platform/artifactIntegrations/com
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import type { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, ISessionChatMoveDestination, SessionMoveRefusedError, IDeleteChatOptions, type INestedChatFolderInfo, type INestedChatWorkspace, type INestedChatWorkspaceSupport, NestedChatWorkspaceError, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, ICreateNewChatOptions, IHarnessPresentation } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, ISessionChatMoveDestination, SessionMoveRefusedError, IDeleteChatOptions, type INestedChatFolderInfo, type INestedChatWorkspace, type INestedChatWorkspaceSupport, NestedChatWorkspaceError, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, ICreateNewChatOptions, IHarnessPresentation, type SessionResourceResolveReason } from '../../../../services/sessions/common/sessionsProvider.js';
+import type { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { LEGACY_MIGRATION_OPEN_TIMEOUT_MS, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, reportLegacyMigrationOpen } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
 import { AgentHostChatMoveTracker } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatMoveTracker.js';
 import type { AgentChatMoveDestination } from '../../../../../platform/agentHost/common/agentHostChatMove.js';
 import { toChatMoveError } from './agentHostChatMoveErrors.js';
@@ -3245,6 +3247,52 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		};
 	}
 
+	/**
+	 * Observes the canvases of one chat of this session without the active-session gate, so
+	 * a pinned canvas can find its live canvas again without showing its chat. The host counts
+	 * the chat subscription as a subscriber of this session, so holding the reference keeps it resident.
+	 */
+	observeChatCanvases(backendChat: URI): IReference<IObservable<readonly ISessionCanvas[] | undefined>> {
+		const { canvases, observeCanvases } = this._createChatCanvases(backendChat);
+		const observing = observeCanvases();
+		const keepAlive = recomputeInitiallyAndOnChange(canvases);
+		return {
+			object: canvases,
+			dispose: () => {
+				keepAlive.dispose();
+				observing.dispose();
+			},
+		};
+	}
+
+	/**
+	 * Observes one canvas of this session without the active-session gate. The host
+	 * counts the canvas subscription as a subscriber of its owning session, so holding
+	 * the reference keeps that session resident.
+	 */
+	observeCanvas(canvasResource: URI): IReference<IObservable<ISessionCanvas | undefined>> {
+		const subscription = derived(reader => {
+			const connection = this._options.getConnection(reader);
+			if (!connection) {
+				return undefined;
+			}
+			const reference = reader.store.add(connection.getSubscription(StateComponents.Canvas, canvasResource, 'AgentHostObservedCanvas'));
+			return observableFromEvent(Event.any(reference.object.onDidChange, reference.object.onDidError ?? Event.None),
+				() => reference.object.value as CanvasState | Error | undefined);
+		});
+		const canvas = derived<ISessionCanvas | undefined>(reader => {
+			const state = subscription.read(reader);
+			if (!state) {
+				return undefined;
+			}
+			const value = state.read(reader);
+			// A pending subscription yields a canvas without an instance ID or source.
+			return value instanceof Error ? undefined : this._options.instantiationService.createInstance(AgentHostCanvas, canvasResource, value);
+		});
+		const keepAlive = recomputeInitiallyAndOnChange(canvas);
+		return { object: canvas, dispose: () => keepAlive.dispose() };
+	}
+
 }
 
 /**
@@ -4542,6 +4590,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * reconstruct every `IAgentSessionMetadata` field from observables.
 	 */
 	private readonly _metadataBySession = new Map<string, IAgentSessionMetadata>();
+	/** Un-adopted legacy Copilot CLI rows opened from this list, watched until the host adopts them. */
+	private readonly _adoptableRowOpens = this._register(new DisposableMap<string, DisposableStore>());
 
 	/**
 	 * Set when {@link _sessionCache} has changed since the last persist. The
@@ -5537,6 +5587,50 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			sessions.set(pendingSession.resource.toString(), pendingSession);
 		}
 		return [...sessions.values()];
+	}
+
+	/**
+	 * Reports `agentHost.legacyCopilotCliMigrationOpen` when `resource` is an
+	 * un-adopted legacy Copilot CLI row of this list being opened, and returns
+	 * whether it is one. Opening such a row subscribes to the session, which the
+	 * host adopts without the client probe; without delaying the open, this
+	 * waits for the adopted summary that clears the row's adoptable marker.
+	 */
+	protected _reportAdoptableRowOpen(resource: URI, reason: SessionResourceResolveReason | undefined, telemetryService: ITelemetryService): boolean {
+		this._ensureSessionCache();
+		let rawId: string | undefined;
+		let backendSession: URI | undefined;
+		for (const [key, cached] of this._sessionCache) {
+			if (isEqual(cached.resource, resource)) {
+				rawId = key;
+				backendSession = cached.backendUri;
+				break;
+			}
+		}
+		if (rawId === undefined || backendSession === undefined || !readSessionEhcliAdoptable(this._metadataBySession.get(rawId)?._meta)) {
+			return false;
+		}
+		if (this._adoptableRowOpens.has(rawId)) {
+			// The open that started the watch reports it.
+			return true;
+		}
+		const key = rawId;
+		const source = reason ?? 'open';
+		const row = { entry: 'agentHostRow', backendSession } as const;
+		const store = new DisposableStore();
+		this._adoptableRowOpens.set(key, store);
+		const settle = (adopted: boolean) => {
+			this._adoptableRowOpens.deleteAndDispose(key);
+			reportLegacyMigrationOpen(telemetryService, source, resource, adopted, undefined, row);
+		};
+		store.add(disposableTimeout(() => settle(false), source === 'restore' ? LEGACY_MIGRATION_RESTORE_TIMEOUT_MS : LEGACY_MIGRATION_OPEN_TIMEOUT_MS));
+		store.add(this._onDidChangeSessionsImmediately(() => {
+			// A row the host replaces while adopting it is briefly absent; only the time limit decides it was not adopted.
+			if (this._sessionCache.has(key) && !readSessionEhcliAdoptable(this._metadataBySession.get(key)?._meta)) {
+				settle(true);
+			}
+		}));
+		return true;
 	}
 
 	getSessionByResource(resource: URI): ISession | undefined {
@@ -7573,6 +7667,22 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(localize('closeCanvasUnavailable', "Closing canvases is unavailable for this session."));
 		}
 		await connection.closeSessionCanvas(target.session, { resource: canvas.resource }, target.chat);
+	}
+
+	observeCanvas(sessionId: string, chatResource: URI, canvasResource: URI): IReference<IObservable<ISessionCanvas | undefined>> {
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!cached || !this.getBackendChatResource(chatResource)) {
+			return { object: constObservable(undefined), dispose: () => { } };
+		}
+		return cached.observeCanvas(canvasResource);
+	}
+
+	observeChatCanvases(sessionId: string, chatResource: URI): IReference<IObservable<readonly ISessionCanvas[] | undefined>> | undefined {
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const backendChat = this.getBackendChatResource(chatResource);
+		return cached && backendChat ? cached.observeChatCanvases(backendChat) : undefined;
 	}
 
 	/** Resolves the host-supplied backend session and chat that a canvas operation addresses. */
