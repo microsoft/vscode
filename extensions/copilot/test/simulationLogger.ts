@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { styleText } from 'util';
+import * as chalk from 'chalk';
 import { LogLevel } from '../src/platform/log/common/logService';
 
 
@@ -60,14 +60,14 @@ class SimulationLogger {
 
 	private formatMessage(level: LogLevel, ...args: any[]): string {
 		const levelColors: Record<LogLevel, string> = {
-			[LogLevel.Off]: styleText('white', 'off'),
-			[LogLevel.Trace]: styleText('gray', 'trace'),
-			[LogLevel.Debug]: styleText('blue', 'debug'),
-			[LogLevel.Info]: styleText('green', 'info '),
-			[LogLevel.Warning]: styleText('yellow', 'yellow'),
-			[LogLevel.Error]: styleText('red', 'error')
+			[LogLevel.Off]: chalk.white('off'),
+			[LogLevel.Trace]: chalk.gray('trace'),
+			[LogLevel.Debug]: chalk.blue('debug'),
+			[LogLevel.Info]: chalk.green('info '),
+			[LogLevel.Warning]: chalk.yellow('yellow'),
+			[LogLevel.Error]: chalk.red('error')
 		};
-		return `${styleText('bold', levelColors[level])} ${this.tagPrefix}${args.join(' ')}`;
+		return `${chalk.bold(levelColors[level])} ${this.tagPrefix}${args.join(' ')}`;
 	}
 }
 
