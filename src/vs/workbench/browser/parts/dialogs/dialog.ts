@@ -67,7 +67,7 @@ export function createBrowserAboutDialogDetails(productService: IProductService)
 	const detailsToCopy = detailString(false);
 
 	return {
-		title: productService.nameLong,
+		title: localize('aboutTitle', "Built on VS Code"),
 		details: details,
 		detailsToCopy: detailsToCopy
 	};
