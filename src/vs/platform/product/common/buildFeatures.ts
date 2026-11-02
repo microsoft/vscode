@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 interface IBuildFeatures {
+	readonly coordinationUI: boolean;
 	readonly copilotChat: boolean;
 	readonly chatPanel: boolean;
 	readonly git: boolean;
@@ -25,6 +26,7 @@ interface IBuildFeatures {
 }
 
 declare global {
+	const __VSCODE_BUILD_FEATURE_TRINORIS_COORDINATION_UI__: boolean;
 	const __VSCODE_BUILD_FEATURE_COPILOT_CHAT__: boolean;
 	const __VSCODE_BUILD_FEATURE_CHAT_PANEL__: boolean;
 	const __VSCODE_BUILD_FEATURE_GIT__: boolean;
@@ -48,6 +50,7 @@ declare global {
 
 const developmentBuildFeatures: Record<'default' | 'minimal', IBuildFeatures> = {
 	default: {
+		coordinationUI: false,
 		copilotChat: true,
 		chatPanel: true,
 		git: true,
@@ -68,6 +71,7 @@ const developmentBuildFeatures: Record<'default' | 'minimal', IBuildFeatures> = 
 		agents: { codex: true, claude: true },
 	},
 	minimal: {
+		coordinationUI: true,
 		copilotChat: false,
 		chatPanel: false,
 		git: false,
@@ -104,6 +108,7 @@ const developmentFeatures = typeof __VSCODE_BUILD_FEATURE_COPILOT_CHAT__ === 'un
 // Export primitive flags as well as the object below. Bundlers can fold direct
 // boolean imports and remove disabled feature branches from packaged bundles.
 export const buildFeatureCopilotChat = typeof __VSCODE_BUILD_FEATURE_COPILOT_CHAT__ === 'undefined' ? developmentFeatures!.copilotChat : __VSCODE_BUILD_FEATURE_COPILOT_CHAT__;
+export const buildFeatureCoordinationUI = typeof __VSCODE_BUILD_FEATURE_TRINORIS_COORDINATION_UI__ === 'undefined' ? developmentFeatures!.coordinationUI : __VSCODE_BUILD_FEATURE_TRINORIS_COORDINATION_UI__;
 export const buildFeatureChatPanel = typeof __VSCODE_BUILD_FEATURE_CHAT_PANEL__ === 'undefined' ? developmentFeatures!.chatPanel : __VSCODE_BUILD_FEATURE_CHAT_PANEL__;
 export const buildFeatureGit = typeof __VSCODE_BUILD_FEATURE_GIT__ === 'undefined' ? developmentFeatures!.git : __VSCODE_BUILD_FEATURE_GIT__;
 export const buildFeatureSourceControlUI = typeof __VSCODE_BUILD_FEATURE_SOURCE_CONTROL_UI__ === 'undefined' ? developmentFeatures!.sourceControlUI : __VSCODE_BUILD_FEATURE_SOURCE_CONTROL_UI__;
@@ -123,6 +128,7 @@ export const buildFeatureCodex = typeof __VSCODE_BUILD_FEATURE_CODEX__ === 'unde
 export const buildFeatureClaude = typeof __VSCODE_BUILD_FEATURE_CLAUDE__ === 'undefined' ? developmentFeatures!.agents.claude : __VSCODE_BUILD_FEATURE_CLAUDE__;
 
 export const buildFeatures: IBuildFeatures = {
+	coordinationUI: buildFeatureCoordinationUI,
 	copilotChat: buildFeatureCopilotChat,
 	chatPanel: buildFeatureChatPanel,
 	git: buildFeatureGit,

@@ -5,7 +5,7 @@
 
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../common/contributions.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { buildFeatureNotebooks, buildFeatureRemote, buildFeatureReview, buildFeatureTesting } from '../../../platform/product/common/buildFeatures.js';
+import { buildFeatureDebugService, buildFeatureNotebooks, buildFeatureRemote, buildFeatureReview, buildFeatureTesting } from '../../../platform/product/common/buildFeatures.js';
 
 // --- other interested parties
 import { JSONValidationExtensionPoint } from '../common/jsonValidationExtensionPoint.js';
@@ -32,7 +32,13 @@ import './mainThreadClipboard.js';
 import './mainThreadCommands.js';
 import './mainThreadConfiguration.js';
 import './mainThreadConsole.js';
-import './mainThreadDebugService.js';
+if (buildFeatureDebugService) {
+	await import('./mainThreadDebugService.js');
+} else {
+	// The extension host eagerly initializes its public Debug API in every
+	// profile and expects this RPC channel even when the Debug service is off.
+	await import('./mainThreadDebugServiceDisabled.js');
+}
 import './mainThreadDecorations.js';
 import './mainThreadDiagnostics.js';
 import './mainThreadDialogs.js';
@@ -52,6 +58,12 @@ import './mainThreadLogService.js';
 import './mainThreadMessageService.js';
 if (buildFeatureRemote) {
 	await import('./mainThreadManagedSockets.js');
+	await import('./mainThreadTunnelService.js');
+	await import('./mainThreadRemoteConnectionData.js');
+} else {
+	// Extension hosts construct these public API proxies in every profile.
+	// Register inert bridges when local-only builds omit remote services.
+	await import('./mainThreadRemoteFeaturesDisabled.js');
 }
 import './mainThreadBrowserTunnelProxy.js';
 import './mainThreadOutputService.js';
@@ -59,9 +71,6 @@ import './mainThreadProgress.js';
 import './mainThreadQuickDiff.js';
 import './mainThreadDocumentDiff.js';
 import './mainThreadQuickOpen.js';
-if (buildFeatureRemote) {
-	await import('./mainThreadRemoteConnectionData.js');
-}
 import './mainThreadSaveParticipant.js';
 import './mainThreadSpeech.js';
 import './mainThreadEditSessionIdentityParticipant.js';
@@ -84,6 +93,11 @@ import './mainThreadWebviewManager.js';
 import './mainThreadWorkspace.js';
 if (buildFeatureReview) {
 	await import('./mainThreadComments.js');
+} else {
+	// ExtHostComments is part of the public extension API bootstrap in every
+	// profile and eagerly requests this RPC proxy. Keep the channel registered
+	// when review UI and its comment service are omitted from minimal builds.
+	await import('./mainThreadCommentsDisabled.js');
 }
 if (buildFeatureNotebooks) {
 	await import('./mainThreadNotebook.js');
@@ -92,16 +106,20 @@ if (buildFeatureNotebooks) {
 	await import('./mainThreadNotebookRenderers.js');
 	await import('./mainThreadNotebookSaveParticipant.js');
 	await import('./mainThreadInteractive.js');
+} else {
+	// Extension hosts eagerly initialize these public API proxies even when
+	// notebook editors and execution are omitted from the workbench.
+	await import('./mainThreadNotebooksDisabled.js');
 }
 import './mainThreadTask.js';
 import './mainThreadLabelService.js';
-if (buildFeatureRemote) {
-	await import('./mainThreadTunnelService.js');
-}
 import './mainThreadAuthentication.js';
 import './mainThreadTimeline.js';
 if (buildFeatureTesting) {
 	await import('./mainThreadTesting.js');
+} else {
+	// The extension host initializes its Testing API proxy in every profile.
+	await import('./mainThreadTestingDisabled.js');
 }
 import './mainThreadSecretState.js';
 import './mainThreadShare.js';

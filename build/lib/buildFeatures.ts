@@ -9,6 +9,7 @@ import path from 'path';
 export type BuildFeatureProfile = 'default' | 'minimal';
 
 export interface IBuildFeatures {
+	readonly coordinationUI: boolean;
 	readonly copilotChat: boolean;
 	readonly chatPanel: boolean;
 	readonly git: boolean;
@@ -38,7 +39,7 @@ const buildFeatureConfiguration = JSON.parse(fs.readFileSync(path.join(import.me
 let loggedProfile: BuildFeatureProfile | undefined;
 
 const booleanFeatureKeys: readonly (keyof Omit<IBuildFeatures, 'terminal' | 'agents'>)[] = [
-	'copilotChat', 'chatPanel', 'git', 'sourceControlUI', 'scmService', 'debugUI', 'debugService', 'tasks', 'notebooks', 'testing',
+	'coordinationUI', 'copilotChat', 'chatPanel', 'git', 'sourceControlUI', 'scmService', 'debugUI', 'debugService', 'tasks', 'notebooks', 'testing',
 	'remote', 'extensionsUI', 'welcome', 'review', 'sync', 'productServices'
 ];
 
@@ -106,6 +107,7 @@ export function getBuildFeatures(): IBuildFeatures {
 export function getBuildFeatureDefines(): Record<string, string> {
 	const features = getBuildFeatures();
 	const names: Record<string, string> = {
+		coordinationUI: 'TRINORIS_COORDINATION_UI',
 		copilotChat: 'COPILOT_CHAT',
 		chatPanel: 'CHAT_PANEL',
 		git: 'GIT',
@@ -176,9 +178,26 @@ export function isBuildFeatureStylesheetIncluded(filePath: string, features = ge
 	return !excludedRoots.some(([excluded, roots]) => excluded && roots.some(root => normalizedPath.includes(root)));
 }
 
-/** Returns false for source trees that are loaded only by disabled, standalone contributions. */
+/**
+ * Returns false for source trees loaded only by disabled contributions, while
+ * retaining small shared contracts imported by core Chat and accessibility code.
+ */
 export function isBuildFeatureSourceIncluded(filePath: string, features = getBuildFeatures()): boolean {
 	const normalizedPath = filePath.replaceAll('\\', '/');
+	const isSharedSupportFile = (paths: readonly string[]) => paths.some(path => normalizedPath.endsWith(path));
+	const sharedCopilotSupportFiles = [
+		'/src/vs/workbench/contrib/agentsVoice/common/agentsVoice.ts',
+		'/src/vs/workbench/contrib/agentsVoice/common/agentsVoiceColors.ts',
+		'/src/vs/workbench/contrib/agentsVoice/common/voiceTranscriptStore.ts',
+		'/src/vs/workbench/contrib/agentsVoice/browser/voiceModeOnboardingService.ts',
+	];
+	const sharedReviewSupportFiles = [
+		'/src/vs/workbench/contrib/comments/browser/commentsAccessibilityNLS.ts',
+		'/src/vs/workbench/contrib/comments/common/commentCommandIds.ts',
+		'/src/vs/workbench/contrib/comments/common/commentContextKeys.ts',
+	];
+	const isRequiredSharedSupport = (!features.copilotChat && isSharedSupportFile(sharedCopilotSupportFiles))
+		|| (!features.review && isSharedSupportFile(sharedReviewSupportFiles));
 	const excludedRoots: [boolean, string[]][] = [
 		[!features.copilotChat, ['/src/vs/workbench/contrib/agentsVoice/']],
 		[!features.welcome, [
@@ -189,16 +208,18 @@ export function isBuildFeatureSourceIncluded(filePath: string, features = getBui
 		]],
 		[!features.review, ['/src/vs/workbench/contrib/comments/']],
 	];
-	return !excludedRoots.some(([excluded, roots]) => excluded && roots.some(root => normalizedPath.includes(root)));
+	return isRequiredSharedSupport || !excludedRoots.some(([excluded, roots]) => excluded && roots.some(root => normalizedPath.includes(root)));
 }
 
 function isExtensionBundledForFeatures(extensionId: string, features: IBuildFeatures): boolean {
 	const extensions = features.bundledExtensions;
-	return extensions === '*' || extensions.includes(extensionId.toLowerCase());
+	return isBuildFeatureEnabledForExtension(extensionId, features) && (extensions === '*' || extensions.includes(extensionId.toLowerCase()));
 }
 
 function isBuildFeatureEnabledForExtension(name: string, features: IBuildFeatures): boolean {
 	switch (name.toLowerCase()) {
+		case 'trinoris.coordination': return features.coordinationUI;
+		case 'vscode.git': return features.git;
 		case 'github.copilot-chat': return features.copilotChat;
 		case 'ms-vscode.js-debug':
 		case 'ms-vscode.js-debug-companion': return features.debugUI;

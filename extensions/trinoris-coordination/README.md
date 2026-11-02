@@ -1,0 +1,9 @@
+# Trinoris Coordination
+
+This built-in extension reads coordination information through a separately installed `trinoris-agent` executable. It never bundles or upgrades the CLI, and never installs it automatically. The user can start a global npm install through an explicit, confirmed terminal action. Mutations are not included in the initial read-only panel.
+
+The extension is bundled only when the `coordinationUI` build feature is enabled and `trinoris.coordination` is included in the selected profile's built-in extension allowlist.
+
+For diagnostics, press **Ctrl+K Ctrl+H**, run **Trinoris Coordination: Show Trinoris Coordination Logs** from the Command Palette, or open **View → Output** and select **Trinoris Coordination**. The channel records CLI command names, durations, versions, and failures by default. Run **Trinoris Coordination: Toggle Trinoris CLI Verbose Logging** to include full CLI stdout/stderr; verbose output can contain handoff and task content. The same setting is available as `trinoris.agentCli.verboseLogging`.
+
+The **Recent activity** section reads journey entries from `trinoris-agent log --json`. It shows the CLI's returned operation, agent, timestamp, scopes, and outcome; when there are no records, it says so instead of inventing sample activity. The runtime diagnostic is opt-in: choose **Run CLI Diagnostics** in the panel to run the read-only `doctor --runtime --json` check and display the Node.js runtime status, supported minimum, and advisory catalog date. If the CLI is missing, choose **Install Trinoris Agent CLI with npm** in the panel. After confirmation, VS Code opens an integrated terminal that runs `npm i -g @trinoris/agent-cli` and then `trinoris-agent doctor --runtime --json`. Refresh the panel after the terminal command completes to load the report.

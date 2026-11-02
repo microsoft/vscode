@@ -13,7 +13,7 @@
 //#region --- workbench common
 
 import './workbench.common.main.js';
-import { buildFeatureCopilotChat, buildFeatureDebugService, buildFeatureExtensionsUI, buildFeatureProductServices, buildFeatureRemote, buildFeatureSync, buildFeatureTasks } from '../platform/product/common/buildFeatures.js';
+import { buildFeatureCopilotChat, buildFeatureDebugService, buildFeatureExtensionsUI, buildFeatureProductServices, buildFeatureRemote, buildFeatureSync, buildFeatureTasks, buildFeatureTesting } from '../platform/product/common/buildFeatures.js';
 
 //#endregion
 
@@ -164,7 +164,9 @@ if (buildFeatureRemote) {
 import './contrib/terminal/electron-browser/terminal.contribution.js';
 
 // Themes
-import './contrib/themes/browser/themes.test.contribution.js';
+if (buildFeatureTesting) {
+	await import('./contrib/themes/browser/themes.test.contribution.js');
+}
 import './services/themes/electron-browser/themes.contribution.js';
 // User Data Sync
 if (buildFeatureSync) {

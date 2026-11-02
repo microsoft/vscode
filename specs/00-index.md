@@ -14,6 +14,7 @@ These specifications describe the focused Code OSS build profile and its Trinori
 | 06 | [Trinoris platform device login](06-trinoris-platform-device-login.md) | Specifies a Trinoris authentication provider and device flow for product-owned sign-in surfaces while preserving unrelated VS Code providers. |
 | 07 | [Trinoris Code OSS branding](07-trinoris-branding.md) | Records the source artwork, replaced app/title-bar asset paths, and maintenance requirements. |
 | 08 | [Trinoris voice control](08-trinoris-voice-control.md) | Specifies safe, push-to-talk voice commands for the coordination panel, reusing generic speech/UI components without enabling Copilot Voice. |
+| 09 | [Trinoris CLI panel contract](09-trinoris-cli-panel-contract.md) | Defines CLI discovery, capability negotiation, missing-data behavior, and the JSON APIs needed by the coordination panel. |
 
 The original broad analysis remains in [minimal-build-features.md](minimal-build-features.md) as background. The numbered specs are the maintained, reviewable design set.
 

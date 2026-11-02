@@ -1,0 +1,126 @@
+{
+	"name": "coordination",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "0.1.0",
+	"publisher": "trinoris",
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.90.0"
+	},
+	"extensionKind": ["workspace"],
+	"capabilities": {
+		"virtualWorkspaces": false,
+		"untrustedWorkspaces": {
+			"supported": true
+		}
+	},
+	"activationEvents": ["onStartupFinished"],
+	"main": "./out/extension",
+	"contributes": {
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "trinoris-coordination",
+					"title": "%container.title%",
+					"icon": "$(organization)"
+				}
+			]
+		},
+		"views": {
+			"trinoris-coordination": [
+				{
+					"id": "trinoris-coordination.overview",
+					"name": "%view.title%",
+					"visibility": "visible"
+				}
+			]
+		},
+		"commands": [
+			{
+				"command": "trinoris-coordination.refresh",
+				"title": "%command.refresh%",
+				"icon": "$(refresh)"
+			},
+			{
+				"command": "trinoris-coordination.selectWorkspace",
+				"title": "%command.selectWorkspace%"
+			},
+			{
+				"command": "trinoris-coordination.openCliSettings",
+				"title": "%command.openCliSettings%"
+			},
+			{
+				"command": "trinoris-coordination.openAgentIdentitySettings",
+				"title": "%command.openAgentIdentitySettings%"
+			},
+			{
+				"command": "trinoris-coordination.showOutput",
+				"title": "%command.showOutput%"
+			},
+			{
+				"command": "trinoris-coordination.installCli",
+				"title": "%command.installCli%"
+			},
+			{
+				"command": "trinoris-coordination.toggleVerboseLogging",
+				"title": "%command.toggleVerboseLogging%"
+			}
+		],
+		"keybindings": [
+			{
+				"command": "trinoris-coordination.showOutput",
+				"key": "ctrl+k ctrl+h",
+				"when": "!terminalFocus"
+			}
+		],
+		"menus": {
+			"view/title": [
+				{
+					"command": "trinoris-coordination.refresh",
+					"when": "view == trinoris-coordination.overview",
+					"group": "navigation"
+				},
+				{
+					"command": "trinoris-coordination.selectWorkspace",
+					"when": "view == trinoris-coordination.overview",
+					"group": "navigation"
+				}
+			]
+		},
+		"configuration": {
+			"title": "%configuration.title%",
+			"properties": {
+				"trinoris.agentCli.path": {
+					"type": "string",
+					"default": "",
+					"scope": "machine",
+					"description": "%configuration.cliPath%"
+				},
+				"trinoris.agentCli.verboseLogging": {
+					"type": "boolean",
+					"default": false,
+					"scope": "machine",
+					"description": "%configuration.verboseLogging%"
+				},
+				"trinoris.agentClass": {
+					"type": "string",
+					"default": "",
+					"scope": "resource",
+					"description": "%configuration.agentClass%"
+				},
+				"trinoris.agentInstance": {
+					"type": "string",
+					"default": "",
+					"scope": "resource",
+					"description": "%configuration.agentInstance%"
+				}
+			}
+		}
+	},
+	"scripts": {
+		"compile": "npx gulp compile-extension:trinoris-coordination",
+		"watch": "npx gulp watch-extension:trinoris-coordination",
+		"test": "node test/run-tests.cjs"
+	}
+}

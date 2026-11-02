@@ -1,0 +1,18 @@
+{
+	"displayName": "Trinoris Coordination",
+	"description": "Inspect local Trinoris multi-agent coordination state.",
+	"container.title": "Trinoris Coordination",
+	"view.title": "Overview",
+	"command.refresh": "Refresh Coordination",
+	"command.selectWorkspace": "Select Coordination Workspace",
+	"command.openCliSettings": "Configure Trinoris Agent CLI",
+	"command.openAgentIdentitySettings": "Configure Trinoris Agent Identity",
+	"command.showOutput": "Show Trinoris Coordination Logs",
+	"command.installCli": "Install Trinoris Agent CLI",
+	"command.toggleVerboseLogging": "Toggle Trinoris CLI Verbose Logging",
+	"configuration.title": "Trinoris Coordination",
+	"configuration.cliPath": "Absolute path to the separately installed trinoris-agent executable. Empty uses the user PATH.",
+	"configuration.verboseLogging": "Write full Trinoris Agent CLI stdout and stderr to the local Output channel. May include handoff and task content.",
+	"configuration.agentClass": "Explicit Trinoris agent class used to list its inbox.",
+	"configuration.agentInstance": "Explicit Trinoris agent instance used to list its active handoffs."
+}

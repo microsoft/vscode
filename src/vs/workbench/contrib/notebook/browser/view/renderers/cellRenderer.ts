@@ -26,7 +26,6 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { ICellViewModel, INotebookEditorDelegate } from '../../notebookBrowser.js';
 import { CellPartsCollection } from '../cellPart.js';
 import { CellChatPart } from '../cellParts/chat/cellChatPart.js';
-import { CellComments } from '../cellParts/cellComments.js';
 import { CellContextKeyPart } from '../cellParts/cellContextKeys.js';
 import { CellDecorations } from '../cellParts/cellDecorations.js';
 import { CellDragAndDropController, CellDragAndDropPart } from '../cellParts/cellDnd.js';
@@ -52,8 +51,15 @@ import { CellViewModel } from '../../viewModel/notebookViewModelImpl.js';
 import { CellKind } from '../../../common/notebookCommon.js';
 import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
 import { NotebookCellEditorPool } from '../notebookCellEditorPool.js';
+import { buildFeatureReview } from '../../../../../../platform/product/common/buildFeatures.js';
+import type { CellComments as CellCommentsType } from '../cellParts/cellComments.js';
 
 const $ = DOM.$;
+
+let CellComments: typeof CellCommentsType | undefined;
+if (buildFeatureReview) {
+	({ CellComments } = await import('../cellParts/cellComments.js'));
+}
 
 export class NotebookCellListDelegate extends Disposable implements IListVirtualDelegate<CellViewModel> {
 	private readonly lineHeight: number;
@@ -179,7 +185,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			templateDisposables.add(new CellFocusIndicator(this.notebookEditor, titleToolbar, focusIndicatorTop, focusIndicatorLeft, focusIndicatorRight, focusIndicatorBottom)),
 			templateDisposables.add(new FoldedCellHint(this.notebookEditor, DOM.append(container, $('.notebook-folded-hint')), this._notebookExecutionStateService)),
 			templateDisposables.add(new CellDecorations(this.notebookEditor, rootContainer, decorationContainer)),
-			templateDisposables.add(scopedInstaService.createInstance(CellComments, this.notebookEditor, cellCommentPartContainer)),
+			...(CellComments ? [templateDisposables.add(scopedInstaService.createInstance(CellComments, this.notebookEditor, cellCommentPartContainer))] : []),
 			templateDisposables.add(new CollapsedCellInput(this.notebookEditor, cellInputCollapsedContainer)),
 			templateDisposables.add(new CellFocusPart(container, undefined, this.notebookEditor)),
 			templateDisposables.add(new CellDragAndDropPart(container)),
@@ -335,7 +341,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateDisposables.add(scopedInstaService.createInstance(CellEditorStatusBar, this.notebookEditor, container, editorPart, editor)),
 			templateDisposables.add(scopedInstaService.createInstance(CellProgressBar, editorPart, cellInputCollapsedContainer)),
 			templateDisposables.add(new CellDecorations(this.notebookEditor, rootContainer, decorationContainer)),
-			templateDisposables.add(scopedInstaService.createInstance(CellComments, this.notebookEditor, cellCommentPartContainer)),
+			...(CellComments ? [templateDisposables.add(scopedInstaService.createInstance(CellComments, this.notebookEditor, cellCommentPartContainer))] : []),
 			templateDisposables.add(scopedInstaService.createInstance(CellExecutionPart, this.notebookEditor, executionOrderLabel)),
 			templateDisposables.add(scopedInstaService.createInstance(CollapsedCellOutput, this.notebookEditor, cellOutputCollapsedContainer)),
 			templateDisposables.add(new CollapsedCellInput(this.notebookEditor, cellInputCollapsedContainer)),

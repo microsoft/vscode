@@ -14,7 +14,7 @@ The feature graph is not flat. Chat uses shared services for agent host, authent
 
 ## Candidate build groups
 
-The build schema includes **16 optional feature controls**, plus a separate `bundledExtensions` package allowlist, the always-on editor core, mandatory terminal, and separately selected Codex/Claude providers. The controls are not independent: dependencies below constrain combinations. The shared agent session UI remains available for selected providers.
+The build schema includes **17 optional feature controls**, plus a separate `bundledExtensions` package allowlist, the always-on editor core, mandatory terminal, and separately selected Codex/Claude providers. The controls are not independent: dependencies below constrain combinations. The shared agent session UI remains available for selected providers. `coordinationUI` is enabled in `minimal`, and `trinoris.coordination` is explicitly listed in that profile’s extension package allowlist.
 
 | Build flag | Main areas | Initial recommendation | Constraints |
 | --- | --- | --- | --- |
@@ -25,9 +25,9 @@ The build schema includes **16 optional feature controls**, plus a separate `bun
 | `debugUI` | Debug views, editor controls, and built-in debugger extensions | Off in minimal profile | Keep language diagnostics and markers. The `IDebugService` bridge remains for workbench and extension API consumers. |
 | `debugService` | Core debug service and extension API bridge | On in minimal profile | Required by the extension host debug API and remaining workbench consumers; revisit if those consumers are also removed. |
 | `tasks` | Task execution, commands, views, and task agent tools | Off in minimal profile | A disabled task service contract remains for Debug, terminal monitoring, and extension API consumers. Terminal and agent shell tools stay available. |
-| `notebooks` | Notebook editor/renderers, Interactive and REPL, notebook extension bridges | Off in minimal profile | A disabled service contract remains for Chat, Search, and other shared consumers. |
-| `testing` | Testing UI and MainThreadTesting provider bridge | Off in minimal profile | Test controllers cannot register in minimal builds. Internal extension-host testing code remains for Debug service dependencies. |
-| `remote` | Remote workbench contributions and extension-host connection/socket/tunnel bridges | Off in minimal profile | Shared service contracts remain for local extension-management and browser entry consumers; remote extension/server targets still need separate packaging treatment. |
+| `notebooks` | Notebook editor/renderers, Interactive and REPL, notebook extension bridges | Off in minimal profile | Disabled notebook RPC proxies satisfy extension-host bootstrap; a disabled notebook service contract remains for shared consumers. |
+| `testing` | Testing UI and MainThreadTesting provider bridge | Off in minimal profile | Test controllers cannot register in minimal builds. Null test services satisfy remaining Debug service dependencies. |
+| `remote` | Remote workbench contributions and extension-host connection/socket/tunnel bridges | Off in minimal profile | Disabled tunnel and managed-socket RPC proxies satisfy extension-host bootstrap; shared service contracts remain for local extension-management and browser consumers. |
 | `sync` | Settings Sync and Edit Sessions contributions | Off in minimal profile | Shared services remain for Settings and extension management; web auto-sync is not started eagerly. |
 | `extensionsUI` | Extensions view and marketplace | On for explicit user installs | Minimal packages only the declared `bundledExtensions` list; marketplace installs remain a deliberate user action. |
 | `welcome` | Getting Started, walkthroughs, welcome/onboarding surfaces | Off in minimal profile | Generic Chat/Agents session UI remains available; welcome contributions are not required for it. |
@@ -61,7 +61,7 @@ Alignment is judged against the stated purpose: a focused coding IDE with code e
 | Remote development and tunnels | Out of scope for initial profile | Off | Low | Crosses workbench, server, remote extensions and packaging. |
 | Extension marketplace UI | Conditional | On if extensions are user-installable | Low | Disabling this can break language and agent extension installation; decide whether the product is closed/minimal or extensible. |
 | Welcome, walkthrough and onboarding UI | Low alignment | Off | High | Includes the Codex continuation guide and diff editor tryout; generic Chat/Agents remains available. |
-| Comments and PR review | Out of scope | Off | Medium | Review contributions and MainThreadComments are omitted; agent-editor comments are a separate retained feature. |
+| Comments and PR review | Out of scope | Off | Medium | Review contributions and the full MainThreadComments implementation are omitted; a dependency-free disabled RPC proxy satisfies extension-host bootstrap. Agent-editor comments remain separate. |
 | Profiles and Settings Sync | Low alignment | Off | Low | Broad account, authentication and persistence dependencies. |
 | Updates and feedback surfaces | Low alignment | Off or product-specific | Low | Distribution and product policy need review before exclusion. |
 

@@ -79,7 +79,7 @@ import { inheritAutoTierConfiguration } from '../../../../../../platform/agentHo
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { bindContextKey, observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
-import { IVoiceModeOnboardingService } from '../../../../agentsVoice/browser/voiceModeOnboarding.js';
+import { IVoiceModeOnboardingService } from '../../../../agentsVoice/browser/voiceModeOnboardingService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';

@@ -15,7 +15,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { AccessibilityHelpAction } from './accessibleViewActions.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { HasSpeechProvider } from '../../speech/common/speechService.js';
-import { CommentAccessibilityHelpNLS } from '../../comments/browser/commentsAccessibility.js';
+import { CommentAccessibilityHelpNLS } from '../../comments/browser/commentsAccessibilityNLS.js';
 import { CommentContextKeys } from '../../comments/common/commentContextKeys.js';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../files/browser/fileConstants.js';
 import { IAccessibleViewService, IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';

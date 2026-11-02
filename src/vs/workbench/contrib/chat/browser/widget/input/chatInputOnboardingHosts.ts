@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { IVoiceModeOnboardingService } from '../../../../agentsVoice/browser/voiceModeOnboarding.js';
+import { IVoiceModeOnboardingService } from '../../../../agentsVoice/browser/voiceModeOnboardingService.js';
 import { IDictationOnboardingService } from '../../speechToText/dictationOnboarding.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from './chatInputNoticeHost.js';
 

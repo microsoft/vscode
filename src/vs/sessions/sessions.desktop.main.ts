@@ -13,6 +13,7 @@
 //#region --- workbench common
 
 import './sessions.common.main.js';
+import { buildFeatureTesting } from '../platform/product/common/buildFeatures.js';
 
 //#endregion
 
@@ -176,7 +177,9 @@ import '../workbench/contrib/remote/electron-browser/remote.contribution.js';
 import '../workbench/contrib/terminal/electron-browser/terminal.contribution.js';
 
 // Themes
-import '../workbench/contrib/themes/browser/themes.test.contribution.js';
+if (buildFeatureTesting) {
+	await import('../workbench/contrib/themes/browser/themes.test.contribution.js');
+}
 import '../workbench/services/themes/electron-browser/themes.contribution.js';
 
 // Frosted glass overlays

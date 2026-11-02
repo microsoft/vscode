@@ -17,7 +17,7 @@ import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
@@ -30,6 +30,8 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable, asCssVariableWithDefault, selectBackground, selectListBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { AgentsVoiceStorageKeys } from '../common/agentsVoice.js';
+import { IVoiceModeOnboardingService } from './voiceModeOnboardingService.js';
+export { IVoiceModeOnboardingService } from './voiceModeOnboardingService.js';
 import { buildMicrophoneOptions, IMicrophoneOption, indexOfMicrophone } from '../../chat/browser/speechToText/dictationOnboarding.js';
 import './media/voiceModeOnboarding.css';
 
@@ -1176,28 +1178,6 @@ export class VoiceModeOnboardingBanner extends ChatInputNoticeWidget implements 
 			{ action, source: this.options.source }
 		);
 	}
-}
-
-export const IVoiceModeOnboardingService = createDecorator<IVoiceModeOnboardingService>('voiceModeOnboardingService');
-
-export interface IVoiceModeOnboardingService {
-	readonly _serviceBrand: undefined;
-	readonly isVisible: boolean;
-
-	/**
-	 * Register a container that can host the banner (a chat input). The most
-	 * recently focused host wins when the banner is shown.
-	 */
-	registerHost(options: IChatInputOnboardingHostOptions): IDisposable;
-
-	/**
-	 * Show the introduction if the user has never seen it. Marks it as seen on
-	 * the first successful show, so it never appears again.
-	 */
-	showIfNeeded(): void;
-
-	/** Show the introduction again regardless of whether it has been seen. */
-	show(): boolean;
 }
 
 export class VoiceModeOnboardingService extends Disposable implements IVoiceModeOnboardingService {

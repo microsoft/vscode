@@ -14,9 +14,12 @@ import { registerContributions as notebookSearchContributions } from './notebook
 import { ISearchHistoryService, SearchHistoryService } from '../common/searchHistoryService.js';
 import { searchConfigurationNode } from '../common/search.js';
 import { DEFAULT_MAX_SEARCH_RESULTS, SEARCH_EXCLUDE_CONFIG, SearchSortOrder } from '../../../services/search/common/search.js';
+import { buildFeatureNotebooks } from '../../../../platform/product/common/buildFeatures.js';
 
 replaceContributions();
-notebookSearchContributions();
+if (buildFeatureNotebooks) {
+	notebookSearchContributions();
+}
 registerSingleton(ISearchHistoryService, SearchHistoryService, InstantiationType.Delayed);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({

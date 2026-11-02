@@ -6,7 +6,7 @@
 //#region --- editor/workbench core
 
 import '../editor/editor.all.js';
-import { buildFeatureChatPanel, buildFeatureCopilotChat, buildFeatureDebugService, buildFeatureDebugUI, buildFeatureExtensionsUI, buildFeatureGit, buildFeatureNotebooks, buildFeatureProductServices, buildFeatureRemote, buildFeatureReview, buildFeatureScmService, buildFeatureSourceControlUI, buildFeatureSync, buildFeatureTasks, buildFeatureTesting, buildFeatureWelcome } from '../platform/product/common/buildFeatures.js';
+import { buildFeatureChatPanel, buildFeatureCopilotChat, buildFeatureDebugService, buildFeatureDebugUI, buildFeatureExtensionsUI, buildFeatureNotebooks, buildFeatureProductServices, buildFeatureRemote, buildFeatureReview, buildFeatureScmService, buildFeatureSourceControlUI, buildFeatureSync, buildFeatureTasks, buildFeatureTesting, buildFeatureWelcome } from '../platform/product/common/buildFeatures.js';
 
 import './api/browser/extensionHost.contribution.js';
 import './browser/workbench.contribution.js';
@@ -369,9 +369,9 @@ import './contrib/searchEditor/browser/searchEditor.contribution.js';
 import './contrib/sash/browser/sash.contribution.js';
 
 // Git
-if (buildFeatureGit) {
-	await import('./contrib/git/browser/git.contributions.js');
-}
+// Keep the empty Git API bridge registered so extension-host RPC customers are
+// complete, even when the built-in Git extension is not packaged.
+import './contrib/git/browser/git.contributions.js';
 
 if (buildFeatureReview) {
 	await import('./contrib/github/browser/githubLinkPresentation.contribution.js');
@@ -382,6 +382,10 @@ if (buildFeatureSourceControlUI) {
 	await import('./contrib/scm/browser/scm.contribution.js');
 	await import('./contrib/scm/browser/quickDiff.contribution.js');
 }
+
+// Editor and extension-host document bridges use quick-diff service contracts
+// even when the Source Control UI is omitted.
+await import('./contrib/scm/browser/quickDiffService.contribution.js');
 
 // SCM service is retained for workbench features that consume the provider API.
 if (buildFeatureScmService) {

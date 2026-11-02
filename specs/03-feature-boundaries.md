@@ -21,7 +21,7 @@ The common workbench entry point controls Git contributions, GitHub link present
 
 The minimal profile disables `git` and `sourceControlUI` while retaining `scmService`, which is injected by enabled features such as Search and Chat. Removing the service requires separately gating or redesigning those consumers. Third-party SCM providers can still register through the service, but the Source Control UI remains absent.
 
-Debug has the same split. The minimal profile disables `debugUI` and removes the built-in JavaScript debugger, while `debugService` keeps `IDebugService` available to the extension host API and workbench consumers. Removing the service requires separately gating those consumers.
+ Debug has the same split. The minimal profile disables `debugUI` and removes the built-in JavaScript debugger, while `debugService` keeps `IDebugService` available to the extension host API and workbench consumers. DebugService also injects `ITestService` and `ITestResultService`; when `testing` is off, register `NullTestService` and `NullTestResultService` to satisfy these dependencies without restoring Testing UI or MainThreadTesting. When `debugService` is off, register a dependency-free disabled MainThreadDebugService RPC proxy because the extension host initializes its public Debug API in every profile. Gate other service consumers before removing the underlying service.
 
 ## Chat and selected agents
 
@@ -46,11 +46,13 @@ The extension platform remains necessary if users depend on extension-provided l
 
 ## Diagnostics and testing
 
-Keep markers, diagnostic collections, editor decorations, and language feature APIs in core. Disabling Testing must not disable diagnostic markers. When `testing` is false, omit the Testing workbench contribution and the MainThreadTesting bridge, so extensions cannot register test controllers in that build. The extension-host testing implementation remains for internal Debug service consumers; exclude it only after Debug no longer depends on that contract.
+Keep markers, diagnostic collections, editor decorations, and language feature APIs in core. Disabling Testing must not disable diagnostic markers. When `testing` is false, omit the Testing workbench contribution and register a disabled MainThreadTesting RPC bridge, so the extension host initializes cleanly and test controller operations are unavailable. Debug receives null test service contracts for its internal dependencies.
+
+When `notebooks` is false, omit notebook editors and execution services but register disabled MainThreadNotebook, MainThreadNotebookDocuments, MainThreadNotebookEditors, MainThreadNotebookKernels, MainThreadNotebookRenderers, and MainThreadInteractive RPC channels. The extension host initializes these public API proxies even when notebook support is disabled.
 
 ## Remote workspaces and tunnels
 
-When `remote` is false, omit remote workbench contributions and the MainThread remote connection, managed socket, and tunnel bridges. Remote service contracts remain registered where the local extension-management and browser entry paths still depend on them; replacing those contracts with disabled implementations is a separate boundary before their implementations can be removed from every bundle.
+When `remote` is false, omit remote workbench contributions and register disabled MainThreadTunnelService and MainThreadManagedSockets RPC bridges. These channels are requested by the extension-host API bootstrap even in local-only windows. The bridges do not forward ports or open managed sockets. Remote service contracts remain registered where local extension-management and browser entry paths still depend on them.
 
 ## Welcome and onboarding
 
@@ -58,7 +60,7 @@ When `welcome` is false, omit Welcome, walkthrough, onboarding, and tryout contr
 
 ## Review comments
 
-When `review` is false, omit review/comment workbench contributions and the MainThreadComments extension bridge. Keep the separate agent-editor comments bridge, which serves agent session comments and does not use the review `ICommentService`.
+When `review` is false, omit review/comment workbench contributions and the full MainThreadComments implementation. Register a dependency-free disabled MainThreadComments proxy because the extension host eagerly constructs its public Comments API proxy in every profile. Keep the separate agent-editor comments bridge, which serves agent session comments and does not use the review `ICommentService`.
 
 ## Settings Sync
 

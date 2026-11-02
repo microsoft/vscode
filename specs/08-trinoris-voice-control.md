@@ -134,7 +134,7 @@ States: `unavailable`, `ready`, `requesting-microphone`, `listening`, `transcrib
 
 ## Feature-flag integration
 
-Propose a new optional build flag, `trinorisVoiceControl`, independent of `copilotChat`, `chatPanel`, and the existing Copilot Voice contribution. It requires the Trinoris coordination UI (`coordinationUI`, proposed in spec 05) and the shared speech service APIs, but not a Copilot entitlement or voice backend. Default it off in upstream/default builds; enable it only in a Trinoris product profile after the feature is implemented and the user has explicitly selected a speech provider. This proposal does not change the current count of 16 build feature controls until the flag is added to `build/features.json`.
+Propose a new optional build flag, `trinorisVoiceControl`, independent of `copilotChat`, `chatPanel`, and the existing Copilot Voice contribution. It requires the Trinoris coordination UI (`coordinationUI`, implemented in spec 05) and the shared speech service APIs, but not a Copilot entitlement or voice backend. Default it off in upstream/default builds; enable it only in a Trinoris product profile after the feature is implemented and the user has explicitly selected a speech provider. This proposal does not change the current count of 17 build feature controls until the flag is added to `build/features.json`.
 
 The existing `copilotChat`/Agents Voice feature remains independently disabled. Extracting generic voice UI or speech-session helpers must not make Copilot-specific services, assets, endpoint configuration, or session context reachable from the Trinoris contribution.
 

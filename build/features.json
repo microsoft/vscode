@@ -1,6 +1,7 @@
 {
 	"profiles": {
 		"default": {
+			"coordinationUI": false,
 			"copilotChat": true,
 			"chatPanel": true,
 			"git": true,
@@ -25,6 +26,7 @@
 			}
 		},
 		"minimal": {
+			"coordinationUI": true,
 			"copilotChat": false,
 			"chatPanel": false,
 			"git": false,
@@ -50,7 +52,8 @@
 				"vscode.json-language-features",
 				"vscode.references-view",
 				"vscode.search-result",
-				"vscode.typescript-language-features"
+				"vscode.typescript-language-features",
+				"trinoris.coordination"
 			],
 			"agents": {
 				"codex": true,

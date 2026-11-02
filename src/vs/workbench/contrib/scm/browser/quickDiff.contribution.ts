@@ -9,13 +9,9 @@ import { localize } from '../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { IQuickDiffService } from '../common/quickDiff.js';
-import { QuickDiffService } from '../common/quickDiffService.js';
 import { QuickDiffWorkbenchController } from './quickDiffDecorator.js';
-import { IQuickDiffModelService, QuickDiffModelService } from './quickDiffModel.js';
 import { QuickDiffEditorController } from './quickDiffWidget.js';
 
 MenuRegistry.appendMenuItem(MenuId.EditorLineNumberContext, {
@@ -111,6 +107,3 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		}
 	}
 });
-
-registerSingleton(IQuickDiffService, QuickDiffService, InstantiationType.Delayed);
-registerSingleton(IQuickDiffModelService, QuickDiffModelService, InstantiationType.Delayed);

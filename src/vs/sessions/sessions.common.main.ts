@@ -6,6 +6,7 @@
 //#region --- editor/workbench core
 
 import '../editor/editor.all.js';
+import { buildFeatureCopilotChat, buildFeatureNotebooks, buildFeatureRemote, buildFeatureReview } from '../platform/product/common/buildFeatures.js';
 import { getColorRegistry } from '../platform/theme/common/colorUtils.js';
 import { PANEL_BACKGROUND } from '../workbench/common/theme.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../workbench/contrib/terminal/common/terminalColorRegistry.js';
@@ -223,7 +224,11 @@ import '../workbench/contrib/preferences/browser/preferencesSearch.js';
 import '../workbench/contrib/performance/browser/performance.contribution.js';
 
 // Notebook
-import '../workbench/contrib/notebook/browser/notebook.contribution.js';
+if (buildFeatureNotebooks) {
+	await import('../workbench/contrib/notebook/browser/notebook.contribution.js');
+} else {
+	await import('../workbench/contrib/notebook/browser/disabledNotebookService.contribution.js');
+}
 
 // Speech
 import '../workbench/contrib/speech/browser/speech.contribution.js';
@@ -237,14 +242,20 @@ import '../workbench/contrib/chat/browser/contextContrib/chatContext.contributio
 import '../workbench/contrib/imageCarousel/browser/imageCarousel.contribution.js';
 
 // Voice Mode (voice UI actions, settings and context keys)
-import '../workbench/contrib/agentsVoice/browser/agentsVoice.contribution.js';
+if (buildFeatureCopilotChat) {
+	await import('../workbench/contrib/agentsVoice/browser/agentsVoice.contribution.js');
+}
 import './contrib/chat/browser/voiceBridge.contribution.js';
 
 // Interactive
-import '../workbench/contrib/interactive/browser/interactive.contribution.js';
+if (buildFeatureNotebooks) {
+	await import('../workbench/contrib/interactive/browser/interactive.contribution.js');
+}
 
 // repl
-import '../workbench/contrib/replNotebook/browser/repl.contribution.js';
+if (buildFeatureNotebooks) {
+	await import('../workbench/contrib/replNotebook/browser/repl.contribution.js');
+}
 
 // Testing (service)
 import { NullTestProfileService, NullTestResultService, NullTestService } from '../workbench/contrib/testing/common/nullTestingService.js';
@@ -311,7 +322,9 @@ import '../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.contributio
 import '../workbench/contrib/commands/common/commands.contribution.js';
 
 // Comments
-import '../workbench/contrib/comments/browser/comments.contribution.js';
+if (buildFeatureReview) {
+	await import('../workbench/contrib/comments/browser/comments.contribution.js');
+}
 
 // URL Support
 import '../workbench/contrib/url/browser/url.contribution.js';
@@ -353,8 +366,10 @@ import '../workbench/contrib/relauncher/browser/relauncher.contribution.js';
 import '../workbench/contrib/tasks/browser/task.contribution.js';
 
 // Remote
-import '../workbench/contrib/remote/common/remote.contribution.js';
-import '../workbench/contrib/remote/browser/remote.contribution.js';
+if (buildFeatureRemote) {
+	await import('../workbench/contrib/remote/common/remote.contribution.js');
+	await import('../workbench/contrib/remote/browser/remote.contribution.js');
+}
 
 // Emmet
 import '../workbench/contrib/emmet/browser/emmet.contribution.js';
