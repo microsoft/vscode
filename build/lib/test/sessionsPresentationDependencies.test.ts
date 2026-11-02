@@ -43,7 +43,7 @@ const mobilePresentationRoot = 'src/vs/sessions/contrib/mobile/browser/';
 suite('Sessions presentation entry isolation', () => {
 	for (const { entry, expected, configurationPresenter } of [
 		{ entry: 'src/vs/sessions/sessions.web.main.ts', expected: originalPicker, configurationPresenter: originalConfigurationPresenter },
-		{ entry: 'src/vs/sessions/sessions.web.mobile.main.ts', expected: experimentalPicker, configurationPresenter: experimentalConfigurationPresenter },
+		{ entry: 'src/vs/sessions/agents.web.mobile.main.ts', expected: experimentalPicker, configurationPresenter: experimentalConfigurationPresenter },
 	]) {
 		test(`${entry} reaches only its own host picker implementation and styles`, () => {
 			const dependencies = collectSourceDependencies(entry);
@@ -128,6 +128,15 @@ suite('Sessions presentation entry isolation', () => {
 			assert.deepStrictEqual(implementations.map(file => dependencies.has(file)), implementations.map(() => mobile));
 		});
 	}
+
+	test('mobile embedder and mock bootstrap share the Agents mobile entry', () => {
+		const entries = [
+			'src/vs/sessions/agents.web.mobile.main.internal.ts',
+			'src/vs/sessions/test/sessions.web.mobile.test.internal.ts',
+		];
+		assert.deepStrictEqual(entries.filter(entry => collectSourceDependencies(entry)
+			.has('src/vs/sessions/agents.web.mobile.main.ts')), entries);
+	});
 
 	test('mobile core registers the artifact and MCP OAuth services required by shared customers', () => {
 		const registrations = getSingletonRegistrations('src/vs/sessions/sessions.core.main.ts');

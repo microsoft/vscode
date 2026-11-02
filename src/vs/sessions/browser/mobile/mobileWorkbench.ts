@@ -24,7 +24,7 @@ export const MOBILE_WORKBENCH_CLASS = 'mobile-workbench';
  * The phone presentation of the Agents Window.
  *
  * The mobile workbench is selected by the mobile web entry point
- * (`sessions.web.mobile.main.ts`), never by measuring the window or sniffing
+ * (`agents.web.mobile.main.ts`), never by measuring the window or sniffing
  * the user agent at runtime. It fixes the viewport class to `phone` for the
  * lifetime of the window, which makes every downstream consumer of
  * {@link Workbench.viewportClass} — part factories, layout controllers,
