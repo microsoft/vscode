@@ -3103,8 +3103,18 @@
           "group": "1_merge@1"
         },
         {
+          "command": "git.mergeAbort",
+          "group": "1_merge@2",
+          "when": "gitMergeInProgress"
+        },
+        {
           "command": "git.rebase",
-          "group": "1_merge@2"
+          "group": "1_merge@3"
+        },
+        {
+          "command": "git.rebaseAbort",
+          "group": "1_merge@4",
+          "when": "gitRebaseInProgress"
         },
         {
           "command": "git.branch",
