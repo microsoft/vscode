@@ -27,6 +27,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
+import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -267,7 +268,10 @@ export class ContinueChatInCopilotAction extends Action2 {
 					throw new Error(continueInCopilotFailedMessage());
 				}
 			}
-			if (sourceSession?.isArchived()) {
+			// A transcript-only continuation keeps the source, and remote windows allow
+			// manually moving archived chats so chats stranded by earlier remote moves can recover.
+			const canContinueArchived = transcriptOnly || agentHostService.clientConnectionKind === AgentHostClientConnectionKind.RemoteExtensionHost;
+			if (!canContinueArchived && sourceSession?.isArchived()) {
 				throw new Error(continueInCopilotFailedMessage());
 			}
 			if (!await sessions.canResolveChatSession(SessionType.AgentHostCopilot)) {

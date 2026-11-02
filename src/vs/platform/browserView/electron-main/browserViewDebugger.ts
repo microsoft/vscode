@@ -221,6 +221,9 @@ export class BrowserViewDebugger extends Disposable {
 			if (this._knownTargets.has(p.targetInfo.targetId)) {
 				this._knownTargets.set(p.targetInfo.targetId, p.targetInfo);
 				this._onTargetInfoChanged.fire(p.targetInfo);
+			} else if (p.targetInfo.targetId === this.targetId) {
+				// The page target isn't in _knownTargets, but its URL and title still change on navigation.
+				this._onTargetInfoChanged.fire(p.targetInfo);
 			}
 		} else if (method === 'Debugger.paused') {
 			this._isPaused = true;

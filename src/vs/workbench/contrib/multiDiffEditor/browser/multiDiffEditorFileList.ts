@@ -31,7 +31,7 @@ import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from '../../
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { createFileIconThemableTreeContainerScope } from '../../files/browser/views/explorerView.js';
-import { MultiDiffEditorFileListFocusedContext, MultiDiffEditorFileListViewMode } from '../common/multiDiffEditor.js';
+import { MultiDiffEditorFileListFocusedContext, MultiDiffEditorFileListViewMode, sortMultiDiffEditorFileListItems } from '../common/multiDiffEditor.js';
 
 type FolderNode = IResourceNode<DocumentDiffItemViewModel, null>;
 type FileListElement = DocumentDiffItemViewModel | FolderNode;
@@ -89,7 +89,9 @@ function getCommonFolderPath(paths: readonly string[]): string {
 	return common.join('/') || '/';
 }
 
-function getFileListElements(items: readonly DocumentDiffItemViewModel[], viewMode: MultiDiffEditorFileListViewMode, workspaceContextService: IWorkspaceContextService): ICompressedTreeElement<FileListElement>[] {
+function getFileListElements(unsortedItems: readonly DocumentDiffItemViewModel[], viewMode: MultiDiffEditorFileListViewMode, workspaceContextService: IWorkspaceContextService): ICompressedTreeElement<FileListElement>[] {
+	// `MultiDiffEditor` orders the diffs the same way, so that they appear in the order of the list.
+	const items = sortMultiDiffEditorFileListItems(unsortedItems, getItemUri, viewMode);
 	if (viewMode === 'list' || items.length === 0) {
 		return items.map(item => ({ element: item, incompressible: true }));
 	}
@@ -137,8 +139,9 @@ function getFileListElements(items: readonly DocumentDiffItemViewModel[], viewMo
 
 /**
  * Lists the files of a {@link MultiDiffEditorWidget}, as a flat list or as a
- * tree of folders, and keeps its selection on the file the user is looking at.
- * Opening a file reveals it in the widget.
+ * tree of folders, both sorted like the Source Control view, and keeps its
+ * selection on the file the user is looking at. Opening a file reveals it in
+ * the widget.
  */
 export class MultiDiffEditorFileList extends Disposable {
 	private readonly _tree: WorkbenchCompressibleObjectTree<FileListElement>;

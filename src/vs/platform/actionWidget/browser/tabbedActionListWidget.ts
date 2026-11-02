@@ -122,6 +122,8 @@ export interface ITabBarAction {
 	readonly useManagedHover?: boolean;
 	/** When true, the button renders in its pressed state. */
 	readonly checked?: boolean;
+	/** When set, the button is disabled and its managed hover explains why instead of showing {@link tooltip}. */
+	readonly disabledReason?: string;
 	run(): void;
 }
 
@@ -407,10 +409,19 @@ export class TabbedActionListWidget extends Disposable {
 					button.classList.toggle('checked', !!tabAction.checked);
 					button.dataset.id = tabAction.id;
 					button.ariaLabel = tabAction.tooltip;
-					if (tabAction.useManagedHover) {
-						renderDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, tabAction.tooltip));
+					// `aria-disabled` rather than `disabled`, so the button stays focusable and hoverable to explain why.
+					const disabledReason = tabAction.disabledReason;
+					button.classList.toggle('disabled', !!disabledReason);
+					if (disabledReason) {
+						button.setAttribute('aria-disabled', 'true');
+						button.setAttribute('aria-description', disabledReason);
+					}
+					const hover = disabledReason ?? tabAction.tooltip;
+					// A disabled reason always uses a managed hover: a native title is easy to miss and never shows on keyboard focus.
+					if (tabAction.useManagedHover || disabledReason) {
+						renderDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, hover));
 					} else {
-						button.title = tabAction.tooltip;
+						button.title = hover;
 					}
 					// Only an action with a real on/off state announces as a toggle. A
 					// momentary one would otherwise read as a toggle that is switched off.
@@ -420,7 +431,9 @@ export class TabbedActionListWidget extends Disposable {
 					dom.append(button, dom.$(`span${ThemeIcon.asCSSSelector(tabAction.icon)}`));
 					renderDisposables.add(dom.addDisposableListener(button, dom.EventType.CLICK, e => {
 						dom.EventHelper.stop(e, true);
-						tabAction.run();
+						if (!disabledReason) {
+							tabAction.run();
+						}
 					}));
 				}
 

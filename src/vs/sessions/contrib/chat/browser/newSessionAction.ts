@@ -21,6 +21,8 @@ import { ISessionsPartService } from '../../../services/sessions/browser/session
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
+import { IWindowCanvasService } from '../../../services/canvas/browser/windowCanvasService.js';
 import { inheritableSessionTarget, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { NEW_SESSION_ACTION_ID } from '../common/constants.js';
 import { INewSessionComposerService } from './newSessionComposerService.js';
@@ -63,6 +65,14 @@ export class NewChatInSessionsWindowAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, options?: INewSessionInAgentsWindowOptions): Promise<URI | undefined> {
 		accessor.get(INewSessionComposerService).notifyUserNavigation();
+		if (!options?.toSide && !options?.prompt && !options?.prefillPrompt && !options?.noWorkspace && !options?.agentHostProvider) {
+			const request = accessor.get(ICustomViewService).activeCustomView.get()?.openNewSession?.()
+				?? accessor.get(IWindowCanvasService).openNewSession();
+			if (request) {
+				await request;
+				return;
+			}
+		}
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const sessionsPartService = options?.prompt ? accessor.get(ISessionsPartService) : undefined;

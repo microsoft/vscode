@@ -25,6 +25,7 @@ export class RunInTerminalToolTelemetry {
 		autoApproveResult: 'approved' | 'denied' | 'manual';
 		autoApproveReason: 'subCommand' | 'commandLine' | undefined;
 		autoApproveDefault: boolean | undefined;
+		autoApproveRuleKeyForm: string | undefined;
 	}) {
 		const subCommandsSanitized = state.subCommands.map(e => {
 			const commandName = e.split(' ')[0];
@@ -67,6 +68,7 @@ export class RunInTerminalToolTelemetry {
 			autoApproveResult: string;
 			autoApproveReason: string | undefined;
 			autoApproveDefault: boolean | undefined;
+			autoApproveRuleKeyForm: string | undefined;
 		};
 		type TelemetryClassification = {
 			owner: 'meganrogge';
@@ -79,6 +81,7 @@ export class RunInTerminalToolTelemetry {
 			autoApproveResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the command line was auto-approved' };
 			autoApproveReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason it was auto approved or denied' };
 			autoApproveDefault: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command line was auto approved due to a default rule' };
+			autoApproveRuleKeyForm: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the deciding auto approve rule keys are written (plain, path or regex), comma-separated. Never contains rule text' };
 		};
 
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal.prepare', {
@@ -88,6 +91,7 @@ export class RunInTerminalToolTelemetry {
 			autoApproveResult: state.autoApproveResult,
 			autoApproveReason: state.autoApproveReason,
 			autoApproveDefault: state.autoApproveDefault,
+			autoApproveRuleKeyForm: state.autoApproveRuleKeyForm,
 		});
 	}
 

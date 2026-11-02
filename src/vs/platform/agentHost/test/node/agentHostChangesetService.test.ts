@@ -20,8 +20,10 @@ import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChan
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../common/meta/agentWorkspaceContinuationMeta.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
+import { ChangesetStatus, ChatOriginKind, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
+import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { createFileEditDiscardRecord, readFileEditRevertSteps, spanFileEditRevertSteps } from '../../node/fileEditDiscard.js';
 import { createFileEditAcceptRecord } from '../../node/fileEditAccept.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
@@ -107,23 +109,30 @@ class TestAgentHostChangesetService extends AgentHostChangesetService {
 
 	readonly stateStore: IAgentHostSessionStateStore;
 	readonly provider: IAgent;
+	/** The agent chats are routed to, when a test gives chats their own agent; else the session's. */
+	readonly chatRouting: { agent: IAgent | undefined };
 	readonly storedTurnEdits: Emitter<{ readonly chat: URI; readonly turnIds: readonly string[] }>;
+	readonly fileEditCoordinator: AgentHostFileEditCoordinator;
 
-	constructor(...args: WithoutLastThree<WithoutLastThree<ConstructorParameters<typeof AgentHostChangesetService>>>) {
+	constructor(...args: WithoutLast<WithoutLastThree<WithoutLastThree<ConstructorParameters<typeof AgentHostChangesetService>>>>) {
 		const mirrorStore = createTestSessionStateStore(new AgentHostDatabase(':memory:'), args[2]);
 		const storedTurnEdits = new Emitter<{ readonly chat: URI; readonly turnIds: readonly string[] }>();
 		const provider = new class extends mock<IAgent>() {
 			override readonly onDidStoreTurnEdits = storedTurnEdits.event;
 			override waitForTurnEdits = async (_chat: URI, _turnId: string): Promise<void> => { };
 		};
+		const fileEditCoordinator = new AgentHostFileEditCoordinator();
+		const chatRouting: { agent: IAgent | undefined } = { agent: undefined };
 		super(...args, TEST_GIT_STATE_SERVICE, new NullAgentHostWorktreeIsolation(), {
 			_serviceBrand: undefined, setRead: async () => { }, setArchived: async () => { },
 			...createLegacyChatMetadataPersistence(args[2]),
 		}, createTestChatOwnershipService(args[0]),
-			mirrorStore, { ...createTestAgentHostProviderService(() => provider), getProviders: () => [provider] });
+			mirrorStore, { ...createTestAgentHostProviderService(() => provider), getProviderForChat: () => chatRouting.agent ?? provider, getProviders: () => [provider] }, fileEditCoordinator);
+		this.chatRouting = chatRouting;
 		this.stateStore = mirrorStore;
 		this.provider = provider;
 		this.storedTurnEdits = this._register(storedTurnEdits);
+		this.fileEditCoordinator = this._register(fileEditCoordinator);
 		settleServices.add(this);
 	}
 }
@@ -213,7 +222,7 @@ suite.skip('AgentHostChangesetService', () => {
 			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 			defaultChat: buildDefaultChatUri(sessionUri.toString()),
 		});
-		stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false));
+		stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady, });
 	}
 
@@ -762,7 +771,7 @@ suite.skip('AgentHostChangesetService', () => {
 				workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 				defaultChat: buildDefaultChatUri(sessionStr),
 			});
-			localStateManager.setSessionChangesets(sessionStr, buildDefaultChangesetCatalog(sessionStr, false));
+			localStateManager.setSessionChangesets(sessionStr, buildDefaultChangesetCatalog(sessionStr, false, false));
 			return sessionStr;
 		}
 
@@ -1454,12 +1463,8 @@ suite('AgentHostChangesetService - branch catalogue ownership', () => {
 
 suite('AgentHostChangesetService - materialization refresh', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => {
-		disposables.clear();
-	});
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('recomputes an uncommitted subscription added after worktree pending clears but before materialization', async () => {
 		const sessionStr = AgentSession.uri('mock', 'session-materialization').toString();
@@ -1532,13 +1537,9 @@ class RecordingLogService extends NullLogService {
 
 suite('AgentHostChangesetService - turn changeset lifecycle', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const sessionStr = AgentSession.uri('mock', 'session-turn-lifecycle').toString();
 
-	teardown(() => {
-		disposables.clear();
-	});
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('marks a cached empty turn changeset as recomputing until recomputation completes', async () => {
 		const firstComputeGate = new DeferredPromise<void>();
@@ -1725,17 +1726,8 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		}
 		if (options.peer) {
 			stateManager.addChat(resource, options.peer.resource, options.peer.storage ?? creationTimeChatStorageResource(resource, options.peer.resource, buildDefaultChatUri(resource)), { workingDirectories: options.peer.workingDirectories });
-			stateManager.dispatchServerAction(options.peer.resource, {
-				type: ActionType.ChatTurnStarted,
-				turnId: options.peer.turnId,
-				startedAt: new Date(0).toISOString(),
-				message: { text: 'peer', origin: { kind: MessageKind.User } },
-			});
-			stateManager.dispatchServerAction(options.peer.resource, {
-				type: ActionType.ChatTurnComplete,
-				turnId: options.peer.turnId,
-				duration: 1,
-			});
+			stateManager.dispatchServerAction(options.peer.resource, chatTurnStarted(options.peer.turnId, 'peer', new Date(0).toISOString()));
+			stateManager.dispatchServerAction(options.peer.resource, chatTurnComplete(options.peer.turnId, 1));
 		}
 		return { svc, stateManager, log };
 	}
@@ -1888,6 +1880,17 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			during: ChangesetStatus.Computing, calls: [[buildDefaultChatUri(sessionStr), 'cancelled-turn']],
 			status: ChangesetStatus.Ready, files: ['file:///repo/file.ts'],
 		});
+	});
+
+	test('turn changesets wait for the chat\'s own agent, not its session\'s', async () => {
+		const { svc } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db: new TestSessionDatabase() });
+		const calls: string[] = [];
+		svc.provider.waitForTurnEdits = async () => { throw new Error('The session\'s agent does not know the chat'); };
+		svc.chatRouting.agent = new class extends mock<IAgent>() {
+			override waitForTurnEdits = async (chat: URI, turnId: string): Promise<void> => { calls.push(`${chat.toString()} ${turnId}`); };
+		};
+		await svc.computeTurnChangeset(sessionStr, 'own-agent-turn', 'fileEditTracker');
+		assert.deepStrictEqual(calls, [`${buildDefaultChatUri(sessionStr)} own-agent-turn`]);
 	});
 
 	test('late snapshots refresh session changes without waiting for a native turn', async () => {
@@ -2174,6 +2177,92 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				{ path: '/repo/pending.txt', diff: { added: 1, removed: 0 } },
 			],
 			unsubscribedChat: undefined,
+		});
+	});
+
+	test('a subscribed Working Set follows each edit while a turn runs, publishing file nonces and marking the ones an agent is writing', async () => {
+		const edit = (turnId: string, toolCallId: string, path: string, before: string, after: string) => ({ turnId, toolCallId, filePath: path, kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString(before), afterContent: encodeString(after) });
+		const db = new TestSessionDatabase();
+		db.addEdit(edit('turn-1', 'tc1', '/repo/pending.txt', 'c', 'c\nd'));
+		const workingSet = buildWorkingSetChangesetUri(sessionStr);
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db, subscriptions: [workingSet] });
+		const files = () => stateManager.getChangesetState(workingSet)?.files.map(file => ({ path: URI.parse(file.id).path, nonce: file.nonce, isEditing: file.isEditing, meta: file._meta }));
+		svc.refreshWorkingSetChangeset(sessionStr);
+		await waitForChangesetReady(stateManager, workingSet);
+		const initial = files();
+
+		// The agent edits the file again while its turn runs; the Working Set follows without waiting for the turn.
+		db.addEdit(edit('turn-2', 'tc2', '/repo/pending.txt', 'c\nd', 'c\nd\ne'));
+		svc.onToolCallEditsApplied(sessionStr, 'turn-2');
+		await waitForChangesetReady(stateManager, workingSet);
+		const afterEdit = files();
+
+		const writing = disposables.add(await svc.fileEditCoordinator.beginEdit(URI.file('/repo/pending.txt')));
+		const whileWriting = files();
+		writing.dispose();
+		const awaitingRefresh = files();
+		await waitForChangesetReady(stateManager, workingSet);
+
+		assert.deepStrictEqual({ initial, afterEdit, whileWriting, awaitingRefresh, afterWriting: files() }, {
+			initial: [{ path: '/repo/pending.txt', nonce: 'tc1', isEditing: false, meta: undefined }],
+			afterEdit: [{ path: '/repo/pending.txt', nonce: 'tc2', isEditing: false, meta: undefined }],
+			whileWriting: [{ path: '/repo/pending.txt', nonce: 'tc2', isEditing: true, meta: undefined }],
+			awaitingRefresh: [{ path: '/repo/pending.txt', nonce: 'tc2', isEditing: true, meta: undefined }],
+			afterWriting: [{ path: '/repo/pending.txt', nonce: 'tc2', isEditing: false, meta: undefined }],
+		});
+	});
+
+	test('a Working Set clears the editing mark with the recorded version, not an older in-flight computation', async () => {
+		const staleRead = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+		const freshRead = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+		const db = new class extends TestSessionDatabase {
+			gate: typeof staleRead | undefined;
+			override async getAllFileEdits() {
+				const edits = [...await super.getAllFileEdits()];
+				const gate = this.gate;
+				this.gate = undefined;
+				if (gate) {
+					gate.started.complete();
+					await gate.release.p;
+				}
+				return edits;
+			}
+		}();
+		const record = (toolCallId: string, before: string, after: string) => db.addEdit({
+			turnId: 'turn-1', toolCallId, filePath: '/repo/pending.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined, beforeContent: encodeString(before), afterContent: encodeString(after),
+		});
+		record('tc1', 'a', 'a\nb');
+		const workingSet = buildWorkingSetChangesetUri(sessionStr);
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db, subscriptions: [workingSet] });
+		svc.refreshWorkingSetChangeset(sessionStr);
+		await waitForChangesetReady(stateManager, workingSet);
+
+		const published: { nonce: string | undefined; editing: boolean }[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === workingSet) {
+				const files = envelope.action.type === ActionType.ChangesetContentChanged ? envelope.action.files
+					: envelope.action.type === ActionType.ChangesetFileSet ? [envelope.action.file] : [];
+				published.push(...files.map(file => ({ nonce: file.nonce, editing: file.isEditing === true })));
+			}
+		}));
+		const writing = disposables.add(await svc.fileEditCoordinator.beginEdit(URI.file('/repo/pending.txt')));
+		db.gate = staleRead;
+		svc.refreshWorkingSetChangeset(sessionStr);
+		await staleRead.started.p;
+		record('tc2', 'a\nb', 'a\nb\nc');
+		svc.onToolCallEditsApplied(sessionStr, 'turn-1');
+		writing.dispose();
+		db.gate = freshRead;
+		staleRead.release.complete();
+		await freshRead.started.p;
+		const awaitingFreshResult = [...published];
+		freshRead.release.complete();
+		await waitForChangesetReady(stateManager, workingSet);
+
+		assert.deepStrictEqual({ awaitingFreshResult, published }, {
+			awaitingFreshResult: [{ nonce: 'tc1', editing: true }],
+			published: [{ nonce: 'tc1', editing: true }, { nonce: 'tc2', editing: false }],
 		});
 	});
 
@@ -2833,7 +2922,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			},
 		]) {
 			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: turn.id, startedAt: new Date(0).toISOString(), message: turn.message });
-			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: turn.id, duration: 1 });
+			stateManager.dispatchServerAction(chat, chatTurnComplete(turn.id, 1));
 		}
 
 		svc.refreshSessionChangeset(sessionStr, 'auto');
@@ -2886,8 +2975,8 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				[mainChat, 'main-edit', '2026-09-05T10:00:00.000Z'],
 				[peerChat, 'peer-edit', '2026-09-05T10:01:00.000Z'],
 			]) {
-				stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId, startedAt, message: { text: 'Edit a file', origin: { kind: MessageKind.User } } });
-				stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId, duration: 1000 });
+				stateManager.dispatchServerAction(chat, chatTurnStarted(turnId, 'Edit a file', startedAt));
+				stateManager.dispatchServerAction(chat, chatTurnComplete(turnId, 1000));
 			}
 
 			const changesetUri = buildSessionChangesetUri(sessionStr);
@@ -2903,7 +2992,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					origin: { kind: MessageKind.SystemNotification },
 				}, hidden),
 			});
-			stateManager.dispatchServerAction(mainChat, { type: ActionType.ChatTurnComplete, turnId: hidden ? 'notice' : 'repair', duration: 1000 });
+			stateManager.dispatchServerAction(mainChat, chatTurnComplete(hidden ? 'notice' : 'repair', 1000));
 			svc.refreshSessionChangeset(sessionStr, 'auto');
 			await waitForChangesetReady(stateManager, changesetUri);
 
@@ -2932,11 +3021,8 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 
 		function completeTurn(stateManager: AgentHostStateManager): void {
 			const chat = buildDefaultChatUri(sessionStr);
-			stateManager.dispatchServerAction(chat, {
-				type: ActionType.ChatTurnStarted, turnId: 'turn-summary', startedAt: new Date(0).toISOString(),
-				message: { text: 'edit', origin: { kind: MessageKind.User } },
-			});
-			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'turn-summary', duration: 1 });
+			stateManager.dispatchServerAction(chat, chatTurnStarted('turn-summary', 'edit', new Date(0).toISOString()));
+			stateManager.dispatchServerAction(chat, chatTurnComplete('turn-summary', 1));
 		}
 
 		function summaryCheckpoint(): IAgentHostCheckpointService {
@@ -3561,6 +3647,79 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			}
 		}
 
+		test('the Branch summary covers the folders of chats in use and never computes those of archived chats or their subagents', async () => {
+			const branchCalls: string[] = [];
+			const rootLookups: string[] = [];
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => {
+				rootLookups.push(wd.toString());
+				return wd;
+			};
+			git.computeSessionFileDiffs = async wd => {
+				branchCalls.push(wd.toString());
+				return [gitDiff(`${wd.path}/branch.ts`, 1, 0)];
+			};
+			const { svc, stateManager } = build({ workingDirectories: ['file:///default'], isolation: 'worktree', git, checkpoint: NULL_CHECKPOINT_SERVICE });
+			const defaultChat = buildDefaultChatUri(sessionStr);
+			const storage = creationTimeChatStorageResource(sessionStr, buildChatUri(sessionStr, 'visible'), defaultChat);
+			const visible = buildChatUri(sessionStr, 'visible');
+			const archived = buildChatUri(sessionStr, 'archived');
+			stateManager.addChat(sessionStr, visible, storage, { workingDirectories: ['file:///visible'] });
+			stateManager.addChat(sessionStr, archived, storage, { workingDirectories: ['file:///archived'] });
+			stateManager.addChat(sessionStr, buildChatUri(sessionStr, 'subagent'), storage, {
+				origin: { kind: ChatOriginKind.Tool, chat: archived, toolCallId: 'tool' },
+				workingDirectories: ['file:///deleted-worktree'],
+			});
+			stateManager.dispatchServerAction(archived, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+
+			svc.refreshBranchChangeset(sessionStr);
+			await waitForCondition(stateManager, () => stateManager.getSessionSummary(sessionStr)?.changes !== undefined);
+			await svc.whenSummaryPersisted();
+
+			assert.deepStrictEqual({
+				changes: stateManager.getSessionSummary(sessionStr)?.changes,
+				branchCalls: branchCalls.sort(),
+				rootLookups: rootLookups.sort(),
+			}, {
+				changes: { additions: 2, deletions: 0, files: 2 },
+				branchCalls: ['file:///default', 'file:///visible'],
+				rootLookups: ['file:///default', 'file:///visible'],
+			});
+		});
+
+		test('refreshing an unavailable owner does not recompute the owner whose computation already ended in an error', async () => {
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async () => undefined;
+			git.computeSessionFileDiffs = async () => undefined;
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///gone'],
+				isolation: 'worktree',
+				git,
+				checkpoint: NULL_CHECKPOINT_SERVICE,
+				peer: { resource: buildChatUri(sessionStr, 'other'), db: new TestSessionDatabase(), turnId: 'peer-turn', workingDirectories: ['file:///other'], openError: new Error('database unavailable') },
+			});
+			const branchChangeset = (folder: string) => buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId([folder])));
+			const statusChanges: Record<string, number> = {};
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.ChangesetStatusChanged) {
+					statusChanges[envelope.channel] = (statusChanges[envelope.channel] ?? 0) + 1;
+				}
+			}));
+
+			for (let round = 0; round < 3; round++) {
+				svc.refreshBranchChangeset(sessionStr);
+				await waitForCondition(stateManager, () => stateManager.getChangesetState(branchChangeset('file:///gone'))?.status === ChangesetStatus.Error
+					&& stateManager.getChangesetState(branchChangeset('file:///other'))?.status === ChangesetStatus.Error
+					&& !svc.isStaticChangesetComputeActive(branchChangeset('file:///gone')));
+				await timeout(0);
+			}
+
+			assert.deepStrictEqual(statusChanges, {
+				[branchChangeset('file:///gone')]: 5,
+				[branchChangeset('file:///other')]: 1,
+			});
+		});
+
 		test('Session Changes uses aggregate folders even when Branch Changes supplies the list summary', async () => {
 			const sessionCalls: string[] = [];
 			const git = createNoopGitService();
@@ -3653,20 +3812,10 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				peer: { resource: peer, db: new TestSessionDatabase(), turnId: 'stale-peer-turn' },
 			});
 			const defaultChat = buildDefaultChatUri(sessionStr);
-			stateManager.dispatchServerAction(defaultChat, {
-				type: ActionType.ChatTurnStarted,
-				turnId: 'turn-a',
-				startedAt: new Date(0).toISOString(),
-				message: { text: 'terminal A', origin: { kind: MessageKind.User } },
-			});
-			stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatTurnComplete, turnId: 'turn-a', duration: 1 });
-			stateManager.dispatchServerAction(peer, {
-				type: ActionType.ChatTurnStarted,
-				turnId: 'turn-b',
-				startedAt: new Date(1).toISOString(),
-				message: { text: 'terminal B', origin: { kind: MessageKind.User } },
-			});
-			stateManager.dispatchServerAction(peer, { type: ActionType.ChatTurnComplete, turnId: 'turn-b', duration: 1 });
+			stateManager.dispatchServerAction(defaultChat, chatTurnStarted('turn-a', 'terminal A', new Date(0).toISOString()));
+			stateManager.dispatchServerAction(defaultChat, chatTurnComplete('turn-a', 1));
+			stateManager.dispatchServerAction(peer, chatTurnStarted('turn-b', 'terminal B', new Date(1).toISOString()));
+			stateManager.dispatchServerAction(peer, chatTurnComplete('turn-b', 1));
 
 			svc.refreshSessionChangeset(sessionStr, 'auto');
 			await waitForChangesetReady(stateManager, sessionChangeset);

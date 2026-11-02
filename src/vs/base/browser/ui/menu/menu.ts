@@ -26,7 +26,7 @@ import { isLinux, isMacintosh } from '../../../common/platform.js';
 import { ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js';
 import * as strings from '../../../common/strings.js';
 import { AnchorAlignment, layout, LayoutAnchorPosition } from '../../../common/layout.js';
-import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, CONTEXT_VIEW_MENU_MOTION_BACKDROP_OPACITY_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS, CONTEXT_VIEW_MENU_MOTION_EASING, CONTEXT_VIEW_MENU_MOTION_OPEN_DURATION_MS, CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE } from '../contextview/contextview.js';
+import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, CONTEXT_VIEW_MENU_MOTION_BACKDROP_OPACITY_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLOSE_START_OPACITY_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS, CONTEXT_VIEW_MENU_MOTION_EASING, CONTEXT_VIEW_MENU_MOTION_OPEN_DURATION_MS, CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE } from '../contextview/contextview.js';
 
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
@@ -1378,9 +1378,11 @@ ${formatRule(Codicon.menuSubmenu)}
 
 		@keyframes frosted-glass-menu-motion-close {
 			from {
+				opacity: var(${CONTEXT_VIEW_MENU_MOTION_CLOSE_START_OPACITY_VARIABLE}, 1);
 				transform: var(${CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE}, scale(1));
 			}
 			to {
+				opacity: 0;
 				transform: scale(0.99);
 			}
 		}

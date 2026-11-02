@@ -2,9 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { existsSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import esbuild from 'esbuild';
+import { BuildLifecycle } from '../build/lib/buildEvents.ts';
 
 export interface RunConfig {
 	readonly srcDir: string;
@@ -15,23 +17,44 @@ export interface RunConfig {
 	readonly beforeBuild?: () => Promise<unknown> | unknown;
 }
 
+/**
+ * Returns the folder of an installed package, found like Node.js does from `fromDir`. pnpm can
+ * hoist an extension's dependency to a parent folder's `node_modules`.
+ */
+export function resolvePackageDirectory(fromDir: string, packageName: string): string {
+	for (let dir = path.resolve(fromDir); ; dir = path.dirname(dir)) {
+		const candidate = path.join(dir, 'node_modules', packageName);
+		if (existsSync(path.join(candidate, 'package.json'))) {
+			return candidate;
+		}
+		if (path.dirname(dir) === dir) {
+			throw new Error(`Cannot find package ${packageName} from ${fromDir}`);
+		}
+	}
+}
+
 // `esbuild.stop()` shuts down the single esbuild service shared by all concurrent builds, so we
 // must only call it once no builds are in flight. Otherwise a finishing build would tear down the
 // service while a sibling build (e.g. running in the same `Promise.all`) is still using it.
-let pendingBuilds = 0;
+const buildLifecycle = new BuildLifecycle(undefined, () => esbuild.stop());
 
 async function buildOnce(
 	options: esbuild.BuildOptions,
 	beforeBuild?: () => Promise<unknown> | unknown,
+	didBuild?: () => Promise<unknown> | unknown,
 ): Promise<esbuild.BuildResult> {
-	pendingBuilds++;
+	const complete = buildLifecycle.start();
+	let failed = false;
 	try {
 		await beforeBuild?.();
-		return await esbuild.build(options);
+		const result = await esbuild.build(options);
+		await didBuild?.();
+		return result;
+	} catch (error) {
+		failed = true;
+		throw error;
 	} finally {
-		if (--pendingBuilds === 0) {
-			esbuild.stop();
-		}
+		complete(failed);
 	}
 }
 
@@ -70,10 +93,10 @@ export async function runBuild(
 		);
 	} else {
 		try {
-			await buildOnce(resolvedOptions, config.beforeBuild);
-			await didBuild?.(outdir);
-		} catch {
-			process.exit(1);
+			await buildOnce(resolvedOptions, config.beforeBuild, () => didBuild?.(outdir));
+		} catch (error) {
+			console.error(error);
+			process.exitCode = 1;
 		}
 	}
 }
@@ -95,10 +118,7 @@ async function watchWithParcel(
 			try {
 				// Also instead of retaining the esbuild context, we are re-running the entire build on each change.
 				// This reduces memory usage since most projects don't need to be re-built often.
-				const result = await buildOnce(options, beforeBuild);
-				if (result.errors.length === 0) {
-					await didBuild?.();
-				}
+				await buildOnce(options, beforeBuild, didBuild);
 			} catch (error) {
 				console.error('[watch] build error:', error);
 			}
@@ -125,7 +145,7 @@ async function watchWithParcel(
 				rebuild();
 			}
 		}, {
-			ignore: [...ignore],
+			ignore: [...ignore, path.resolve(watchRoot, 'node_modules'), path.resolve(watchRoot, '.git')],
 		});
 	};
 	await Promise.all([

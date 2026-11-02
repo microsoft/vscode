@@ -14,6 +14,8 @@ For local testing, set `"experiments.override.chatOpenInAgentsTitleBarLabel": "T
 
 The boolean treatment `chatOpenInAgentsTitleBarExpandOnHover` applies to all users, independently of the copy experiment. It defaults to `true`; `false` keeps the action icon-only on pointer hover, while keyboard focus still reveals the label. Tooltips, accessible names, and action behavior remain available. Set `"experiments.override.chatOpenInAgentsTitleBarExpandOnHover": false` to test locally. Its `experimentTrigger` fires on pointer hover in both arms after the assignment resolves.
 
+The experimental setting `chat.titleBar.openInAgentsWindow.richHover` (`experiment: { mode: 'auto' }`) controls what users who are new to the Agents Window (`createdSessionCount < 2`) see when they hover or focus the action. `none` keeps the simple tooltip and the expanding label. The other values show a hover card (`AgentsWindowHoverCard`: a compact graphic, a title, a description, and an Open Agents Window button) and keep the action icon-only, even on keyboard focus. Each is named after its graphic, like the values of `chat.welcomePage.agentsWindowGraphic`: `manyWindowsToOne` shows editor windows for several projects becoming one Agents Window, and `windowComparison` shows the editor window and the Agents Window side by side. The card uses the same managed hover as the tooltip, so it also shows on keyboard focus and can be focused with Cmd/Ctrl+K Cmd/Ctrl+I. Other users always see the simple tooltip, and the action switches as the count or the setting changes. Its `experimentTrigger` (`treatmentName == "config.chat.titleBar.openInAgentsWindow.richHover"`) fires in every arm when a new user hovers or focuses the action. While the card shows, the label never does, so the card arms neither apply nor trigger the copy and expansion treatments. Set `"chat.titleBar.openInAgentsWindow.richHover": "manyWindowsToOne"` or `"windowComparison"` with a fresh profile/data directory to test locally.
+
 ## Key Folders
 
 ### `browser/`
@@ -35,6 +37,10 @@ The boolean treatment `chatOpenInAgentsTitleBarExpandOnHover` applies to all use
 - `participants/` - Chat participant management (sometimes called "agents" in code).
 - `tools/` - Language model tools infrastructure and services.
 	- `builtinTools/` - Implementations of some built-in tools.
+
+## Rejected Agent Host requests
+
+`AgentHostSessionHandler` listens for a local `chat/turnStarted` rejection before dispatch, including while subscription updates are buffered, and reports the reason through the normal failed-request UI. The prompt and error remain in the live transcript, including across history refreshes, without restoring text over a newer composer draft. Rejected requests are not added to the host's accepted turn history.
 
 ## Markdown file images
 

@@ -60,6 +60,25 @@
 	padding-top: 4px;
 }
 
+/* Progress may render as a toolbar item or replace the comparison picker's
+ * glyph, so rotate the compact loading glyph itself. */
+.sessions-shared-chat-input-busy .codicon-loading-compact,
+.sessions-shared-chat-input .model-picker-split.comparison-busy .codicon-loading-compact {
+	animation: none;
+}
+
+.sessions-shared-chat-input-busy .codicon-loading-compact::before,
+.sessions-shared-chat-input .model-picker-split.comparison-busy .codicon-loading-compact::before {
+	display: inline-block;
+	transform-origin: center center;
+	animation: codicon-spin 1.5s steps(30) infinite;
+}
+
+.monaco-reduce-motion .sessions-shared-chat-input-busy .codicon-loading-compact::before,
+.monaco-reduce-motion .sessions-shared-chat-input .model-picker-split.comparison-busy .codicon-loading-compact::before {
+	animation: none;
+}
+
 /* On phones, Send is a rounded square sized like the touch targets around it. It
  * extends past its toolbar row rather than growing the input. */
 .agent-sessions-workbench.phone-layout .sessions-shared-chat-input .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button,

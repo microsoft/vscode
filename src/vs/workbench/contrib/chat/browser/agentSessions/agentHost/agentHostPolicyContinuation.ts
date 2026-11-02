@@ -159,7 +159,7 @@ export class AgentHostPolicyContinuationService extends Disposable implements IA
 			if (model.getRequests().length !== turns.length) {
 				throw new Error(localize('agentHost.policyContinuation.sourceHistoryMissing', "The original conversation hasn't finished loading. Try again after its history loads."));
 			}
-			const savedInput = savedChatDraftInput(saved);
+			const savedInput = savedChatDraftInput(saved, this._connection.resourceUris);
 			const draft: Draft = input
 				? { inputText: input.inputText, attachments: input.attachments, selections: input.selections }
 				: { inputText: savedInput?.inputText ?? '', attachments: savedInput?.attachments ?? [], selections: savedInput?.selections ?? [] };

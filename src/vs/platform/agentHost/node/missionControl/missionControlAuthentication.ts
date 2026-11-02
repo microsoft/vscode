@@ -9,6 +9,7 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import type { IMissionControlCredentialSealingRequest } from '../../common/agentService.js';
+import { sealAgentHostCredential } from '../../common/agentHostCredentialSealing.js';
 import type { AuthenticateParams } from '../../common/agent.js';
 import type { IHostEncryptionKey } from '../../common/cloudSandboxAgentHost.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -35,43 +36,11 @@ async function createHpkeCipherSuite(): Promise<CipherSuite> {
 	});
 }
 
-/** The caller authenticates the public key through MC HTTPS before crossing trusted local IPC. */
+/** The caller supplies a recipient key authenticated through MC HTTPS or a trusted direct connection. */
 export async function sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string> {
-	if (!request.token || request.token.length > 32 * 1024 || request.resource.length > 8192
-		|| (request.key.algorithm !== 'x25519-sealedbox' && request.key.algorithm !== 'hpke-x25519-hkdf-sha256-aes256gcm')
-		|| (request.key.use !== 'auth-token' && request.key.use !== 'mcp-auth-token')
-		|| (request.challenge !== undefined && !/^[0-9a-f]{32}$/.test(request.challenge))) {
-		throw new Error('Invalid Mission Control credential sealing request');
-	}
-	new URL(request.resource);
-	const publicKey = Buffer.from(request.key.public_key, 'base64');
-	const keyId = createHash('sha256').update(publicKey).digest().subarray(0, 8).toString('base64url');
-	if (publicKey.length !== 32 || publicKey.toString('base64') !== request.key.public_key || keyId !== request.key.key_id) {
-		throw new Error('Invalid Mission Control recipient key');
-	}
 	const sodium = (await import('libsodium-wrappers')).default;
 	await sodium.ready;
-	const plaintext = sodium.from_string(JSON.stringify({
-		cty: 'text', value: request.token,
-		ctx: {
-			purpose: request.key.use, resource: request.resource,
-			...(request.challenge ? { connection: { challenge: request.challenge, nonce: randomBytes(16).toString('hex'), issuedAt: Math.floor(Date.now() / 1000) } } : {}),
-		},
-	}));
-	try {
-		let ciphertext: Uint8Array;
-		if (request.key.algorithm === 'hpke-x25519-hkdf-sha256-aes256gcm') {
-			const hpke = await createHpkeCipherSuite();
-			const recipientPublicKey = await globalThis.crypto.subtle.importKey('raw', publicKey, 'X25519', true, []);
-			const sender = await hpke.createSenderContext({ recipientPublicKey });
-			ciphertext = Buffer.concat([new Uint8Array(sender.enc), new Uint8Array(await sender.seal(plaintext))]);
-		} else {
-			ciphertext = sodium.crypto_box_seal(plaintext, publicKey);
-		}
-		return `copilot-sealed.v1.${keyId}.${Buffer.from(ciphertext).toString('base64url')}`;
-	} finally {
-		sodium.memzero(plaintext);
-	}
+	return sealAgentHostCredential(request, sodium, createHpkeCipherSuite);
 }
 
 /** Process-local sealing keys; private material never crosses IPC or the relay. */

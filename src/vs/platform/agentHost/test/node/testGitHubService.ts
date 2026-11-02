@@ -18,7 +18,7 @@ import { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { captureCredentialSource, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agent.js';
 
-export function createTestGitHubService(client: IGitHubClient = new class extends mock<IGitHubClient>() { }(), onDidChange: Event<void> = Event.None, api: Partial<Pick<IGitHubAccountClient, 'pullRequests' | 'actions' | 'checks'>> = {}, credentialSource?: IAgentHostCredentialSource): IAgentHostGitHubService {
+export function createTestGitHubService(client: IGitHubClient = new class extends mock<IGitHubClient>() { }(), onDidChange: Event<void> = Event.None, api: Partial<Pick<IGitHubAccountClient, 'pullRequests' | 'actions' | 'checks' | 'reviews'>> = {}, credentialSource?: IAgentHostCredentialSource): IAgentHostGitHubService {
 	const agentMergeBindings = new Map<string, IAgentHostCredentialSource>();
 	return new class extends mock<IAgentHostGitHubService>() {
 		override readonly onDidChangeRepositoryClient = onDidChange;
@@ -40,7 +40,7 @@ export function createTestGitHubService(client: IGitHubClient = new class extend
 		}
 		override acquireRepositoryClient() { return new ImmortalReference(client); }
 		override acquireRepositoryApiClient() {
-			return upcastPartial<IGitHubAccountClient>({ ...api, dispose: () => { } });
+			return upcastPartial<IGitHubAccountClient>({ authorization: client.authorization, ...api, dispose: () => { } });
 		}
 	}();
 }

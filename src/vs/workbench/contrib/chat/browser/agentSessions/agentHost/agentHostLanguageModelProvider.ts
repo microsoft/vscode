@@ -13,10 +13,11 @@ import { localize } from '../../../../../../nls.js';
 import { readAgentModelNoticesMeta } from '../../../../../../platform/agentHost/common/agentModelNotices.js';
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../../platform/agentHost/common/agent.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../../../../../platform/agentHost/common/localModel.js';
 import { readLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
-import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, readAgentModelFusionMeta, readAgentModelPricingMeta, type IAgentModelAutoTierPromotion, type IAgentModelAutoTiersMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { ConfigPropertySchema, ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, isAgentModelFusion, readAgentModelFusionInlineChatTier, readAgentModelPricingMeta, type IAgentModelAutoTierPromotion, type IAgentModelAutoTiersMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
@@ -133,7 +134,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		return discounts.length ? Math.max(...discounts) : undefined;
 	}
 
-	/** Adds service-discovered models without overriding metadata or policy published by the host. */
+	/** Adds service-discovered models, missing Copilot pricing and matching Cloud tier labels without changing host capabilities or policy. */
 	updateAdditionalModels(models: readonly SessionModelInfo[]): void {
 		this._additionalModels = models;
 		this._onDidChange.fire();
@@ -141,14 +142,25 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 
 	async provideLanguageModelChatInfo(_options: unknown, _token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
 		const hostModelIds = new Set(this._models.map(model => model.id));
+		const additionalModels = new Map(this._additionalModels.map(model => [model.id, model]));
 		return [...this._models, ...this._additionalModels.filter(model => !hostModelIds.has(model.id))]
 			.filter(m => m.policyState !== 'disabled')
 			.map(m => {
-				const pricing = readAgentModelPricingMeta(m);
+				const modelGroup = this._modelGroupFor(m);
+				const additional = additionalModels.get(m.id);
+				const matchingAdditional = m.id !== AUTO_RAW_MODEL_ID && additional?.provider === m.provider
+					&& modelGroup?.id === COPILOT_VENDOR_ID && this._modelGroupFor(additional)?.id === COPILOT_VENDOR_ID
+					? additional : undefined;
+				const cloudContextTier = matchingAdditional?.provider === CLOUD_SANDBOX_AGENT_PROVIDER ? matchingAdditional.configSchema?.properties.contextTier : undefined;
+				const pricing = {
+					...(matchingAdditional ? readAgentModelPricingMeta(matchingAdditional) : undefined),
+					...readAgentModelPricingMeta(m),
+				};
 				const multiplierNumeric = pricing.multiplierNumeric;
 				// "Auto" advertises the auto-mode discount (detail) + description (tooltip). microsoft/vscode#321778, #321659.
 				const isAuto = m.id === AUTO_RAW_MODEL_ID;
-				const fusion = isAuto ? readAgentModelFusionMeta(m) : undefined;
+				const fusion = isAuto && isAgentModelFusion(m);
+				const fusionInlineChatTier = fusion ? readAgentModelFusionInlineChatTier(m) : undefined;
 				const configurationDefaultKeys = readAgentModelConfigurationDefaults(m);
 				const notices = isAuto ? undefined : readAgentModelNoticesMeta(m);
 				const discountPercent = pricing.discountPercent;
@@ -158,15 +170,13 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				const tierPromotions = fusion ? readAgentModelAutoTierPromotionsMeta(m) : [];
 				const now = Date.now();
 				const promotionDiscount = AgentHostLanguageModelProvider._wholeModelPromotionDiscount(m, tierPromotions, now);
-				// Ended promotions are dropped and the rest carry their state, so each boundary changes the metadata.
 				const publishedPromotions = tierPromotions
-					.filter(({ endsAt }) => !endsAt || now < Date.parse(endsAt))
-					.map(({ id, message, discountPercent, tierIds, startsAt, endsAt }) => ({ id, message, discountPercent, tierIds, startsAt, endsAt, upcoming: !!startsAt && now < Date.parse(startsAt) }));
-				// While the service promotes Auto's tiers, its promotions alone decide the discount: Auto's own would contradict them.
-				const modelDiscount = hasDiscount && !publishedPromotions.length ? discountPercent : undefined;
+					.filter(promotion => ILanguageModelChatMetadata.isAutoTierPromotionActive(promotion, now))
+					.map(({ id, message, discountPercent, tierIds, startsAt, endsAt }) => ({ id, message, discountPercent, tierIds, startsAt, endsAt }));
+				// Fusion's discount comes only from the service's promotions, never from Auto's own billing discount.
+				const modelDiscount = hasDiscount && !fusion ? discountPercent : undefined;
 				const { detail, description } = this._routingPresentationFor(m, promotionDiscount ?? modelDiscount);
 				const tooltip = notices?.rowWarning ?? description;
-				const modelGroup = this._modelGroupFor(m);
 				const byokModelIdentifier = readAgentModelByokIdentifier(m);
 				// A host that derives its list from the Copilot SDK advertises no billing and no
 				// token counts, so fall back to the workbench's own catalogue entry for the same
@@ -189,7 +199,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						...(tooltip !== undefined && { tooltip }),
 						...(detail !== undefined && { detail }),
 						...(isAuto && modelDiscount !== undefined && { autoModelDiscountPercent: modelDiscount }),
-						...(fusion && { autoModelFusion: fusion }),
+						...(fusion && { autoModelFusion: true }),
+						...(fusionInlineChatTier !== undefined && { autoModelFusionInlineChatTier: fusionInlineChatTier }),
 						...(publishedPromotions.length && { autoModelTierPromotions: publishedPromotions }),
 						...(isAuto && readAgentModelAutoTiersMeta(m) && { autoModelProviderTiers: true }),
 						maxInputTokens,
@@ -200,8 +211,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						statusIcon: notices?.rowWarning ? Codicon.warning : undefined,
 						warningText: notices?.warningText,
 						infoText: notices?.infoText,
-						pricing: multiplierNumeric !== undefined ? `${multiplierNumeric}x` : known?.pricing,
-						multiplierNumeric: multiplierNumeric ?? known?.multiplierNumeric,
+						pricing: isAuto ? undefined : multiplierNumeric !== undefined ? `${multiplierNumeric}x` : known?.pricing,
+						multiplierNumeric: isAuto ? undefined : multiplierNumeric ?? known?.multiplierNumeric,
 						inputCost: pricing.inputCost ?? known?.inputCost,
 						cacheCost: pricing.cacheCost ?? known?.cacheCost,
 						cacheWriteCost: pricing.cacheWriteCost ?? known?.cacheWriteCost,
@@ -225,7 +236,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 							toolCalling: true,
 							agentMode: true,
 						},
-						configurationSchema: this._toLanguageModelConfigurationSchema(m.configSchema, isAuto ? readAgentModelAutoTiersMeta(m) : undefined),
+						configurationSchema: this._toLanguageModelConfigurationSchema(m.configSchema, isAuto ? readAgentModelAutoTiersMeta(m) : undefined, cloudContextTier),
 						...(configurationDefaultKeys !== undefined ? { configurationDefaultKeys } : {}),
 						managedModelDefaults: readAgentManagedModelDefaults(m),
 					},
@@ -235,16 +246,15 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 
 	/**
 	 * The picker detail and description of a model that routes across others: Auto advertises its
-	 * discount, and HydraFusion, or Auto presented as Fusion without a discount, that it is a research
-	 * preview. Other models have neither.
+	 * discount, and HydraFusion that it is a research preview. Other models have neither.
 	 */
 	private _routingPresentationFor(model: SessionModelInfo, discountPercent: number | undefined): { detail?: string; description?: string } {
 		if (model.id === AUTO_RAW_MODEL_ID) {
-			const fusion = !!readAgentModelFusionMeta(model);
+			const fusion = isAgentModelFusion(model);
 			return {
 				detail: discountPercent !== undefined
 					? localize('agentHost.auto.discount', "{0}% discount", discountPercent)
-					: fusion ? localize('agentHost.hydraFusion.researchPreview', "Research preview") : undefined,
+					: undefined,
 				// The discount is carried by `autoModelDiscountPercent` and described by the picker.
 				description: ILanguageModelChatMetadata.getAutoModelDescription(fusion),
 			};
@@ -287,18 +297,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		return undefined;
 	}
 
-	/**
-	 * Translate a host's model {@link ConfigSchema} into the picker's schema shape.
-	 *
-	 * Values and display text belong to the producer; the workbench only picks the group
-	 * ({@link _groupForConfigKey}). The one exception is a reasoning-effort enum with no display
-	 * text at all, labelled locally rather than rendering raw values like `xhigh`.
-	 *
-	 * A property is never dropped for want of local enrichment: a host advertises one because it
-	 * will honour it, and a new model, a staged rollout and an unresolved catalogue all look
-	 * identical from here.
-	 */
-	private _toLanguageModelConfigurationSchema(schema: ConfigSchema | undefined, autoTiers?: IAgentModelAutoTiersMeta): ILanguageModelConfigurationSchema | undefined {
+	/** Adapts host configuration, enriching only display text from matching Cloud tiers or missing effort labels. */
+	private _toLanguageModelConfigurationSchema(schema: ConfigSchema | undefined, autoTiers?: IAgentModelAutoTiersMeta, cloudContextTier?: ConfigPropertySchema): ILanguageModelConfigurationSchema | undefined {
 		if (!schema) {
 			return undefined;
 		}
@@ -311,6 +311,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 			const effortDisplay = property.enumLabels === undefined && property.enumDescriptions === undefined
 				? AgentHostLanguageModelProvider._reasoningEffortDisplay(key, property.enum)
 				: undefined;
+			const contextLabels = key === 'contextTier' ? AgentHostLanguageModelProvider._cloudContextTierLabels(property, cloudContextTier) : undefined;
 
 			properties[key] = {
 				type: property.type,
@@ -318,7 +319,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				description: property.description,
 				default: property.default,
 				enum: property.enum,
-				enumItemLabels: property.enumLabels ?? effortDisplay?.labels,
+				enumItemLabels: contextLabels ?? property.enumLabels ?? effortDisplay?.labels,
 				enumDescriptions: property.enumDescriptions ?? effortDisplay?.descriptions,
 				readOnly: property.readOnly,
 				group: AgentHostLanguageModelProvider._groupForConfigKey(key),
@@ -333,6 +334,25 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 			required: schema.required,
 			properties,
 		};
+	}
+
+	private static _cloudContextTierLabels(property: ConfigPropertySchema, catalog: ConfigPropertySchema | undefined): string[] | undefined {
+		if (property.type !== 'string' || !property.enum?.length || catalog?.type !== 'string') {
+			return undefined;
+		}
+		// TODO: Remove this display-only enrichment once hosts publish numeric context-tier labels.
+		const labels: string[] = [];
+		for (const value of property.enum) {
+			if (value !== 'default' && value !== 'long_context') {
+				return undefined;
+			}
+			const label = catalog.enumLabels?.[catalog.enum?.indexOf(value) ?? -1];
+			if (!label) {
+				return undefined;
+			}
+			labels.push(label);
+		}
+		return labels;
 	}
 
 	/** Adds the provider's unavailable tiers as disabled entries; enabled tiers missing from `enum` stay out. */

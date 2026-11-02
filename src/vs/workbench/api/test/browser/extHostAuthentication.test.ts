@@ -7,6 +7,7 @@ import assert from 'assert';
 import type { ProgressOptions } from 'vscode';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
@@ -280,7 +281,7 @@ suite('DynamicAuthProvider', () => {
 				onDidOpenUri: uri => openedUris.push(uri),
 			});
 
-			await assert.rejects(provider.createSession(['api://res/Read'], {}));
+			await assert.rejects(provider.createSession(['api://res/Read'], {}), isCancellationError);
 
 			const params = new URL(openedUris[0]).searchParams;
 			results[name] = {
@@ -296,6 +297,17 @@ suite('DynamicAuthProvider', () => {
 			entraWithForeignTokenEndpoint: { scope: 'api://res/Read offline_access', resource, prompt: null },
 		});
 	});
+
+	for (const failure of [new CancellationError(), new Error('Browser authorization failed')]) {
+		test(`preserves the final authentication flow error: ${failure.message}`, async () => {
+			const provider = createProvider({
+				...servers.nonMicrosoft,
+				resource,
+				onDidOpenUri: () => { throw failure; },
+			});
+			await assert.rejects(provider.createSession(['read'], {}), error => error === failure);
+		});
+	}
 });
 
 suite('Account Icon Revival', () => {

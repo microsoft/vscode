@@ -111,6 +111,20 @@ suite('SessionComparisonModelSelection', () => {
 		});
 	});
 
+	test('comparison description explains the available workflow before opening setup', () => {
+		const reviewAvailable = observableValue('reviewAvailable', true);
+		const selection = store.add(createModelSelection(constObservable(true), undefined, undefined, reviewAvailable));
+		const withReview = selection.description.get();
+		reviewAvailable.set(false, undefined);
+		const withoutReview = selection.description.get();
+		selection.start();
+		assert.deepStrictEqual({ withReview, withoutReview, setupDescription: selection.state.get()?.description }, {
+			withReview: 'Select two or more models to run one prompt in parallel. Compare results or have them judged and combined.',
+			withoutReview: 'Select two or more models to run one prompt in parallel and compare their responses side by side.',
+			setupDescription: withoutReview,
+		});
+	});
+
 	test('comparison navigation labels describe the configuration step', () => {
 		const selection = store.add(createModelSelection(constObservable(true)));
 		selection.start();

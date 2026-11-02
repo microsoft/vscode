@@ -7,14 +7,14 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ConfigurationScope, IConfigurationPropertySchema } from '../../../configuration/common/configurationRegistry.js';
 import { CopilotCliConfigKey, CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId, CopilotImageGenerationWatermarkSettingId, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
-import { getDefaultImageGenerationModel, imageGenerationConfigurationProperties, migrateLegacyImageGenerationSetting } from '../../common/imageGenerationConfiguration.js';
+import { imageGenerationConfigurationProperties, migrateLegacyImageGenerationSetting } from '../../common/imageGenerationConfiguration.js';
 
 suite('ImageGenerationConfiguration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const property = imageGenerationConfigurationProperties[CopilotImageGenerationModelSettingId];
 
-	test('image generation is a model dropdown mirrored to the boolean host key', () => {
+	test('image generation is an experiment-controlled model dropdown mirrored to the boolean host key', () => {
 		assert.deepStrictEqual({
 			settingIds: Object.keys(imageGenerationConfigurationProperties),
 			type: property.type,
@@ -22,6 +22,7 @@ suite('ImageGenerationConfiguration', () => {
 			enumItemLabels: property.enumItemLabels,
 			markdownEnumDescriptions: property.markdownEnumDescriptions.length,
 			scope: property.scope,
+			experiment: property.experiment,
 			agentHostKey: property.agentHost.key,
 		}, {
 			settingIds: ['chat.copilot.imageGeneration.model', 'chat.copilot.imageGeneration.watermark', 'chat.copilot.imageGeneration.enabled'],
@@ -30,6 +31,7 @@ suite('ImageGenerationConfiguration', () => {
 			enumItemLabels: ['Off', 'GPT Image 2.5 Flare'],
 			markdownEnumDescriptions: 2,
 			scope: ConfigurationScope.APPLICATION,
+			experiment: { mode: 'auto' },
 			agentHostKey: CopilotCliConfigKey.ImageGeneration,
 		});
 	});
@@ -84,8 +86,8 @@ suite('ImageGenerationConfiguration', () => {
 		);
 	});
 
-	test('image generation defaults to the current model in Insiders and off in Stable and development', () => {
-		assert.deepStrictEqual(['stable', 'insider', undefined].map(quality => getDefaultImageGenerationModel(quality)), ['off', 'gpt-image-2.5-flare', 'off']);
+	test('image generation defaults to the current model in every product', () => {
+		assert.strictEqual(property.default, 'gpt-image-2.5-flare');
 	});
 
 	test('the legacy boolean setting maps onto a model selection only when it holds a boolean', () => {

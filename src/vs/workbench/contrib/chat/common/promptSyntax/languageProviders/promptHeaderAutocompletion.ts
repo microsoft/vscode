@@ -16,13 +16,17 @@ import { getPromptsTypeForLanguageId, PromptsType, Target } from '../promptTypes
 import { IPromptsService } from '../service/promptsService.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { IMapValue, ISequenceValue, IValue, IHeaderAttribute, parseCommaSeparatedList, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
-import { getAttributeDefinition, getTarget, getValidAttributeNames, githubCopilotGithubProperties, GithubPromptHeaderAttributes, githubCopilotMcpLocalServerProperties, githubCopilotMcpRemoteServerProperties, IAttributeDefinition, knownClaudeTools, knownGithubCopilotTools, IValueEntry, ClaudeHeaderAttributes, } from './promptFileAttributes.js';
+import { getAttributeDefinition, getTarget, getValidAttributeNames, githubCopilotGithubProperties, GithubPromptHeaderAttributes, githubCopilotMcpLocalServerProperties, githubCopilotMcpRemoteServerProperties, IAttributeDefinition, knownClaudeTools, knownGithubCopilotToolNamespaces, knownGithubCopilotTools, IValueEntry, ClaudeHeaderAttributes, } from './promptFileAttributes.js';
 import { localize } from '../../../../../../nls.js';
 import { formatArrayValue, getQuotePreference } from '../utils/promptEditHelper.js';
 import { getAgentHookMetadata, getCanonicalAgentHookName, getValidAgentHookNames } from '../hookTypes.js';
 import { HOOK_COMMAND_FIELD_DESCRIPTIONS } from '../hookSchema.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { getAgentFileModelReasoningEfforts, resolveAgentFileModelIdentifiers, resolveAgentFileModels } from './promptModelResolver.js';
+import { getEffectiveAgentFileToolAvailability, resolveAgentFileTools, type IAgentFileTool } from './promptToolResolver.js';
+import { getAgentFileSkillDetails, getEffectiveAgentFileSkillAvailability, resolveAgentFileSkills, type IAgentFileSkill } from './promptSkillResolver.js';
 
 export class PromptHeaderAutocompletion implements CompletionItemProvider {
 	/**
@@ -42,6 +46,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
+		@ILogService private readonly logService: ILogService,
 	) {
 	}
 
@@ -126,14 +131,14 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 				const attrLineText = model.getLineContent(containingAttribute.range.startLineNumber);
 				const attrColonIndex = attrLineText.indexOf(':');
 				if (attrColonIndex !== -1) {
-					return this.provideValueCompletions(model, position, header, new Position(containingAttribute.range.startLineNumber, attrColonIndex + 1), promptType, containingAttribute);
+					return this.provideValueCompletions(model, position, header, new Position(containingAttribute.range.startLineNumber, attrColonIndex + 1), promptType, token, containingAttribute);
 				}
 			}
 
 
 			return this.provideAttributeNameCompletions(model, position, header, colonPosition, promptType);
 		} else if (colonPosition && colonPosition.isBefore(position)) {
-			return this.provideValueCompletions(model, position, header, colonPosition, promptType);
+			return this.provideValueCompletions(model, position, header, colonPosition, promptType, token);
 		}
 		return undefined;
 	}
@@ -191,6 +196,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		header: PromptHeader,
 		colonPosition: Position,
 		promptType: PromptsType,
+		token: CancellationToken,
 		preFoundAttribute?: IHeaderAttribute,
 	): Promise<CompletionList | undefined> {
 		const suggestions: CompletionItem[] = [];
@@ -212,11 +218,18 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 						if (target === Target.Claude) {
 							return knownClaudeTools;
 						} else {
-							return this.getModelNames(promptType === PromptsType.agent);
+							return this.getModelNames(promptType === PromptsType.agent, target);
 						}
 					};
 					return this.provideArrayCompletions(model, position, attribute.value, getValues);
 				}
+			}
+			if (attribute.key === PromptHeaderAttributes.reasoningEffort && promptType === PromptsType.agent && target === Target.GitHubCopilot) {
+				const catalogue = resolveAgentFileModels(target, this.customizationHarnessService, this.languageModelsService);
+				const selectedModels = (header.model ?? [])
+					.flatMap(model => resolveAgentFileModelIdentifiers(model, catalogue.models));
+				const efforts = new Set(selectedModels.flatMap(model => getAgentFileModelReasoningEfforts(model)));
+				return this.provideSimpleValueCompletions(model, position, colonPosition, Array.from(efforts));
 			}
 			if (attribute.key === PromptHeaderAttributes.tools || attribute.key === ClaudeHeaderAttributes.disallowedTools) {
 				let value = attribute.value;
@@ -226,7 +239,32 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 				if (value.type === 'sequence') {
 					// if the position is inside the tools metadata, we provide tool name completions
 					const getValues = async () => {
-						if (target === Target.GitHubCopilot || this.environmentService.isSessionsWindow) {
+						if (target === Target.GitHubCopilot) {
+							const catalogue = await resolveAgentFileTools(target, this.customizationHarnessService, this.logService, token);
+							const suggestions = new Map<string, IValueEntry>();
+							const toolsByName = new Map<string, IAgentFileTool[]>();
+							for (const tool of catalogue.tools) {
+								const matches = toolsByName.get(tool.name) ?? [];
+								matches.push(tool);
+								toolsByName.set(tool.name, matches);
+							}
+							for (const [name, matches] of toolsByName) {
+								const availability = getEffectiveAgentFileToolAvailability(matches);
+								const availabilityLabel = availability === 'disabled'
+									? localize('promptHeaderAutocompletion.toolDisabled', "Disabled")
+									: availability === 'unavailable'
+										? localize('promptHeaderAutocompletion.toolUnavailable', "Unavailable")
+										: undefined;
+								const description = [matches.find(tool => tool.description)?.description, availabilityLabel].filter(Boolean).join(' — ');
+								suggestions.set(name, { name, ...(description ? { description } : {}) });
+							}
+							for (const namespace of knownGithubCopilotToolNamespaces) {
+								if (!suggestions.has(namespace.name)) {
+									suggestions.set(namespace.name, namespace);
+								}
+							}
+							return [...suggestions.values()];
+						} else if (this.environmentService.isSessionsWindow) {
 							// for GitHub Copilot targets and the Sessions Window, we only suggest the known set of tools that are supported by GitHub Copilot, instead of all tools that the user has defined, because many tools won't work in these contexts and it would be frustrating for users to select a tool that doesn't work
 							return knownGithubCopilotTools;
 						} else if (target === Target.Claude) {
@@ -237,6 +275,27 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 					};
 					return this.provideArrayCompletions(model, position, value, getValues);
 				}
+			}
+			if (attribute.key === PromptHeaderAttributes.skills && target === Target.GitHubCopilot && attribute.value.type === 'sequence') {
+				return this.provideArrayCompletions(model, position, attribute.value, async () => {
+					const catalogue = await resolveAgentFileSkills(target, this.customizationHarnessService, this.logService, token);
+					const skillsByName = new Map<string, IAgentFileSkill[]>();
+					for (const skill of catalogue.skills) {
+						const matches = skillsByName.get(skill.name) ?? [];
+						matches.push(skill);
+						skillsByName.set(skill.name, matches);
+					}
+					return [...skillsByName].map(([name, matches]) => {
+						const availability = getEffectiveAgentFileSkillAvailability(matches);
+						const availabilityLabel = availability === 'disabled'
+							? localize('promptHeaderAutocompletion.skillDisabled', "Disabled")
+							: availability === 'unavailable'
+								? localize('promptHeaderAutocompletion.skillUnavailable', "Unavailable")
+								: undefined;
+						const description = [...getAgentFileSkillDetails(matches), availabilityLabel].filter(Boolean).join(' — ');
+						return { name, ...(description ? { description } : {}) };
+					});
+				});
 			}
 		}
 		if (attribute.key === PromptHeaderAttributes.agents) {
@@ -780,7 +839,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 				break;
 			case PromptHeaderAttributes.model:
 				if (promptType === PromptsType.prompt || promptType === PromptsType.agent) {
-					return this.getModelNames(promptType === PromptsType.agent);
+					return this.getModelNames(promptType === PromptsType.agent, target);
 				}
 				break;
 
@@ -792,7 +851,19 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		return getTarget(promptType, header, this.customizationHarnessService.getActiveDescriptor().customAgentTarget);
 	}
 
-	private getModelNames(agentModeOnly: boolean): IValueEntry[] {
+	private getModelNames(agentModeOnly: boolean, target: Target): IValueEntry[] {
+		if (agentModeOnly && target === Target.GitHubCopilot) {
+			const suggestions = new Map<string, IValueEntry>();
+			for (const model of resolveAgentFileModels(target, this.customizationHarnessService, this.languageModelsService).models) {
+				if (!suggestions.has(model.id)) {
+					suggestions.set(model.id, {
+						name: model.id,
+						description: model.metadata.tooltip ?? model.metadata.name,
+					});
+				}
+			}
+			return Array.from(suggestions.values());
+		}
 		const result = [];
 		for (const model of this.languageModelsService.getLanguageModelIds()) {
 			const metadata = this.languageModelsService.lookupLanguageModel(model);
@@ -806,6 +877,22 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 			}
 		}
 		return result;
+	}
+
+	private provideSimpleValueCompletions(model: ITextModel, position: Position, colonPosition: Position, values: readonly string[]): CompletionList | undefined {
+		if (values.length === 0) {
+			return undefined;
+		}
+		const lineContent = model.getLineContent(position.lineNumber);
+		const whitespaceAfterColon = lineContent.substring(colonPosition.column).match(/^\s*/)?.[0].length ?? 0;
+		return {
+			suggestions: values.map(value => ({
+				label: value,
+				kind: CompletionItemKind.Value,
+				insertText: whitespaceAfterColon === 0 ? ` ${value}` : value,
+				range: new Range(position.lineNumber, colonPosition.column + whitespaceAfterColon + 1, position.lineNumber, model.getLineMaxColumn(position.lineNumber)),
+			}))
+		};
 	}
 
 	private async provideArrayCompletions(model: ITextModel, position: Position, arrayValue: ISequenceValue, getValues: () => Promise<ReadonlyArray<IValueEntry>>): Promise<CompletionList | undefined> {

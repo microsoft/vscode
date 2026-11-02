@@ -20,6 +20,10 @@ All AHP JSONL writers in one process that use the same log directory share a cum
 
 When the next complete entry would exceed the budget, the process emits one `[AHPLog]` warning and stops capture for that log directory until the window or host process restarts. Already queued entries still flush. Subsequent messages are skipped before serialization; accounting uses memory only, without extra filesystem scans or metadata calls. Protocol traffic and other diagnostic logs are unaffected.
 
+## Mission Control authentication
+
+Mission Control hosts advertise public credential-encryption keys in root-state metadata. Every root snapshot, including subscriptions refreshed after authentication and reconnect snapshots, must retain these keys so clients can encrypt subsequent provider and MCP credentials. Listener-owned metadata stays scoped to that listener rather than modifying shared host state.
+
 ## Metadata location
 
 The registry is a **directory of per-instance entry files**:
@@ -97,6 +101,22 @@ Connect to `endpoint.path` (socket endpoints) using WebSocket framing and provid
 After the WebSocket upgrade succeeds, send the normal AHP `initialize` request. The metadata `protocolVersion` is useful for discovery and diagnostics, but it does not replace protocol negotiation.
 
 Connections without the token, or with the wrong token, are rejected with HTTP 403 during the WebSocket upgrade.
+
+### TCP connections and windowed delivery
+
+Authenticated owner connections can open outbound sockets in the agent host's network when the host advertises the standard `tcpConnections` capability in `initialize`. Trusted local MessagePort connections also support this capability; unauthenticated WebSockets and multi-tenant relay connections do not.
+
+Default VS Code clients offer upstream's released `SUPPORTED_PROTOCOL_VERSIONS` plus the legacy `0.10.0` compatibility alias. TCP availability is capability-based, with no additional 1.1 version gate or version override. Web PubSub and Mission Control transports reject TCP before opening a destination because their relay envelopes do not preserve original AHP JSON sizes.
+
+Use `createTcpConnection`, then `subscribe` with `flowControl.receive`. TCP requires windowed delivery: the subscribe response contains accepted limits, followed by a `channel/snapshot` with empty state. Small `tcp/data` and `tcp/eof` notifications are sent directly; larger notifications use `channel/frame`, sized to the remaining credit as well as the frame limit. Tiny windows permit enough overshoot for the envelope and forward progress. `tcp/reset`, `unsubscribe`, and `channel/credit` bypass the data window but share a separately bounded control lane. TCP channels belong to the exact transport that created them and are never replayed or restored on reconnect. Requested TCP channels are reported in a replay result's `missing`; snapshot results omit their snapshots and have no `missing` field.
+
+The control lane limits each notification to 16 KiB of UTF-16 JSON. Per transport, the receive token bucket allows a burst of 4096 controls and 1 MiB, replenished at those rates per second; outgoing controls are paced at half those limits to leave headroom for bunched delivery. Outgoing controls have a 64 KiB / 1024-entry queue, coalesce pending cumulative credits, and may use up to 64 KiB of reserved transport space beyond the 256 KiB data threshold. Incomplete fragments and releases reaching a quarter of the receive window schedule credit in a microtask, avoiding a browser timer delay on each credit/data round trip. Smaller complete-message releases coalesce for up to 10 ms. All credits still pass through the control budget. Incoming control-budget violations or outgoing queue overflow close the transport explicitly. These limits also cover TCP `unsubscribe` before subscription and controls for unknown TCP channels; ordinary subscriptions keep their existing unsubscribe behavior.
+
+The client exposes `IAgentConnection.openTcpConnection()` as a bounded pull stream (`read`, `write`, `drain`, `end`, `close`). Consumers must read continuously rather than wait for EOF before releasing data. `end` half-closes the outgoing direction; `drain` waits for peer consumption credit, not application-level delivery at the destination.
+
+The implementation allows 256 opening/live sockets per transport and 512 per host. Aggregate pending application writes are limited to 16 MiB per transport and 32 MiB per host, with a 4 MiB / 64-call per-stream write queue. Receive windows default to 256 KiB with 16 KiB frames, and separate local budgets bound reassembly and unread data. Creation/subscription and graceful drain after both half-closes have 30-second deadlines. Transport loss, reset, early unsubscribe, invalid data, and deadlines abort established sockets with TCP RST rather than normal EOF. Graceful closure preserves accepted writes; pending connection attempts are cancelled.
+
+[`AgentHostChannelDelivery`](common/agentHostChannelDelivery.ts) owns generic direct/fragmented delivery, original JSON UTF-16 byte accounting, credit, and fair scheduling. Channel adapters own snapshot installation, data consumption, reset behavior, and recovery. TCP is its first consumer; chat, terminal, telemetry, and other subscriptions still use their existing delivery paths. TCP and fragment payloads are redacted from AHP JSONL logs.
 
 ## Endpoint paths
 

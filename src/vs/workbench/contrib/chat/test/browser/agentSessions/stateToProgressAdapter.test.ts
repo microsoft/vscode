@@ -19,17 +19,21 @@ import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/c
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
+import { toToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { compactContextAttribution } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
+import { AgentHostArtifactNoticeMetaKey, AgentHostArtifactRequestMetaKey, AgentHostArtifactRunMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactIntegrationMeta.js';
+import { createTestArtifactRequestPresentation } from '../../../../../../platform/artifactIntegrations/test/common/artifactIntegrationTestUtils.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
+import { getComputerUseActivationAnswers, withComputerUseActivationCard, withComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { ConfirmationOptionKind, McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, type ActiveTurn, type ChatInputAnswer, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatPlanReviewResult, type IChatProgress, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
+import { ElicitationState, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatPlanReviewResult, type IChatProgress, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -605,6 +609,42 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('restores a Computer Use setup request as a settled card instead of the plugin\'s questions', () => {
+			const card = (id: string, response: ChatInputResponseKind) => ({
+				kind: ResponsePartKind.InputRequest,
+				request: withComputerUseSetupCard({ id, message: 'Copilot Computer Use needs macOS permissions', questions: [{ kind: ChatInputQuestionKind.SingleSelect, id: 'choice', title: 'choice', message: 'choice', required: true, options: [{ id: 'try_again', label: 'Try again' }] }] }, 'setup-1'),
+				response,
+			} as const);
+			const turn = createTurn({ responseParts: [card('ready', ChatInputResponseKind.Accept), card('declined', ChatInputResponseKind.Decline)] });
+			const parts = turnsToHistory(URI.parse('ahp-session:/opaque-host-identity'), [JSON.parse(JSON.stringify(turn))], 'participant').find(item => item.type === 'response')?.parts ?? [];
+			assert.deepStrictEqual(parts.map(part => part.kind === 'elicitationSerialized' ? { kind: part.kind, title: part.title, state: part.state } : { kind: part.kind }), [
+				{ kind: 'elicitationSerialized', title: 'Computer Use needs permission to control apps and capture their windows.', state: ElicitationState.Accepted },
+				{ kind: 'elicitationSerialized', title: 'Computer Use needs permission to control apps and capture their windows.', state: ElicitationState.Rejected },
+			]);
+		});
+
+		test('restores a request to turn on Computer Use as a settled card that is accepted only when Turn On was submitted', () => {
+			const card = (id: string, response: ChatInputResponseKind, answers: Record<string, ChatInputAnswer>, reason?: string) => ({
+				kind: ResponsePartKind.InputRequest,
+				request: withComputerUseActivationCard({ id, message: 'Copilot asks to turn on Computer Use', questions: [{ kind: ChatInputQuestionKind.SingleSelect, id: 'computerUse', title: 'Computer Use', message: 'Turn on Computer Use?', required: true, options: [{ id: 'turnOn', label: 'Turn On' }, { id: 'notNow', label: 'Not Now' }] }], answers }, reason ? { reason } : {}),
+				response,
+			} as const);
+			const turn = createTurn({
+				responseParts: [
+					card('turned-on', ChatInputResponseKind.Accept, getComputerUseActivationAnswers('turnOn'), 'Open *Calculator*'),
+					card('not-now', ChatInputResponseKind.Accept, getComputerUseActivationAnswers('notNow')),
+					card('declined', ChatInputResponseKind.Decline, getComputerUseActivationAnswers('turnOn')),
+				],
+			});
+			const parts = turnsToHistory(URI.parse('ahp-session:/opaque-host-identity'), [JSON.parse(JSON.stringify(turn))], 'participant').find(item => item.type === 'response')?.parts ?? [];
+			const explanation = 'Computer Use lets Copilot see and control apps on this computer. It stays on for Copilot, including the Copilot CLI, until you run `/computer off`.';
+			assert.deepStrictEqual(parts.map(part => part.kind === 'elicitationSerialized' ? { kind: part.kind, title: part.title, message: typeof part.message === 'string' ? part.message : part.message.value, state: part.state } : { kind: part.kind }), [
+				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: `Open \\*Calculator\\*\n\n${explanation}`, state: ElicitationState.Accepted },
+				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: explanation, state: ElicitationState.Rejected },
+				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: explanation, state: ElicitationState.Rejected },
+			]);
+		});
+
 		test('empty turns produces empty history', () => {
 			const result = turnsToHistory(URI.file('/'), [], 'p');
 			assert.deepStrictEqual(result, []);
@@ -673,6 +713,24 @@ suite('stateToProgressAdapter', () => {
 				{ isSystemInitiated: true, requestSource: undefined },
 				{ isSystemInitiated: undefined, requestSource: undefined },
 				{ isSystemInitiated: true, requestSource: undefined },
+			]);
+		});
+
+		test('artifact action history uses validated optional metadata on conforming hosts with opaque identifiers', () => {
+			const presentation = createTestArtifactRequestPresentation();
+			const meta = { [AgentHostArtifactRunMetaKey]: 'opaque-run-id', [AgentHostArtifactRequestMetaKey]: presentation };
+			const messages: Message[] = [
+				{ ...message('Analyse the scorecard', MessageKind.SystemNotification), _meta: meta },
+				{ ...message('Analyse the scorecard'), _meta: meta },
+				message('Analyse the scorecard', MessageKind.SystemNotification),
+				{ ...message('Analyse the scorecard', MessageKind.SystemNotification), _meta: { ...meta, [AgentHostArtifactRequestMetaKey]: { ...presentation, version: 2 } } },
+			];
+			const history = turnsToHistory(URI.parse('custom-host://opaque-session/42'), messages.map(message => createTurn({ message })), 'custom-participant');
+			assert.deepStrictEqual(history.filter(item => item.type === 'request').map(item => ({
+				prompt: item.prompt, source: item.requestSource, presentation: item.artifactRequest,
+			})), [
+				{ prompt: 'Analyse the scorecard', source: 'artifactIntegration', presentation },
+				...Array(3).fill({ prompt: 'Analyse the scorecard', source: undefined, presentation: undefined }),
 			]);
 		});
 
@@ -1003,6 +1061,24 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(thinking.kind, 'thinking');
 			assert.strictEqual(thinking.value, 'Let me think about this...');
 			assert.strictEqual(thinking.id, 'r-1');
+		});
+
+		test('restores producer reasoning timing without inventing timing for older hosts', () => {
+			const history = turnsToHistory(URI.parse('external:/opaque/session'), [createTurn({
+				responseParts: [
+					{ kind: ResponsePartKind.Reasoning, id: 'timed', content: 'Measured', startedAt: '1970-01-01T00:00:01.000Z', duration: 45_000 },
+					{ kind: ResponsePartKind.Reasoning, id: 'zero', content: 'Immediate', duration: 0 },
+					{ kind: ResponsePartKind.Reasoning, id: 'unknown', content: 'Older host' },
+					{ kind: ResponsePartKind.Reasoning, id: 'invalid', content: 'Invalid metadata', startedAt: 'invalid', duration: -1 },
+				],
+			})], 'participant');
+
+			assert.deepStrictEqual(history[1].type === 'response' ? history[1].parts : undefined, [
+				{ kind: 'thinking', id: 'timed', value: 'Measured', reasoningTimingSource: 'provider', reasoningStartedAt: 1000, reasoningDurationMs: 45_000 },
+				{ kind: 'thinking', id: 'zero', value: 'Immediate', reasoningTimingSource: 'provider', reasoningDurationMs: 0 },
+				{ kind: 'thinking', id: 'unknown', value: 'Older host', reasoningTimingSource: 'provider' },
+				{ kind: 'thinking', id: 'invalid', value: 'Invalid metadata', reasoningTimingSource: 'provider' },
+			]);
 		});
 
 		test('generic completed tool call in history includes input/output details', () => {
@@ -1557,39 +1633,6 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
-		test('terminal tool call in history carries autoApproveRuleResolvable only when stamped', () => {
-			const turn = createTurn({
-				responseParts: [
-					{
-						kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
-							toolCallId: 'tc-marked',
-							toolInput: 'my-custom-script',
-							_meta: { toolKind: 'terminal', autoApproveRuleResolvable: true },
-							content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///marked', title: 'Terminal' }],
-							success: true,
-						})
-					} as ToolCallResponsePart,
-					{
-						kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
-							toolCallId: 'tc-unmarked',
-							toolInput: 'echo hello',
-							content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///unmarked', title: 'Terminal' }],
-							success: true,
-						})
-					} as ToolCallResponsePart,
-				],
-			});
-
-			const history = turnsToHistory(URI.file('/'), [turn], 'p');
-			const response = history[1];
-			assert.strictEqual(response.type, 'response');
-			if (response.type !== 'response') { return; }
-			assert.deepStrictEqual(
-				response.parts.map(part => getSerializedTerminalData(part as IChatToolInvocationSerialized).autoApproveRuleResolvable),
-				[true, undefined],
-				'flag is copied from tool call meta and absent otherwise');
-		});
-
 		test('terminal tool call in history carries the LM intention', () => {
 			const turn = createTurn({
 				responseParts: [{
@@ -1899,6 +1942,65 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('MCP App results', () => {
+		const backendSession = URI.parse('other-host:/opaque-session');
+		const ui = { resourceUri: 'ui://remote/app', channel: 'mcp://other-host/opaque-channel' };
+		const resultMeta = { ui: { private: [null, false, 0, { value: 'opaque' }] }, toolKind: 'server-owned' };
+		for (const fixture of [
+			{ name: 'nested result meta', resultMeta, withContent: true, success: true },
+			{ name: 'metadata-only result', resultMeta, withContent: false, success: true },
+			{ name: 'empty result meta', resultMeta: {}, withContent: false, success: true },
+			{ name: 'metadata-only error result', resultMeta, withContent: false, success: false },
+		]) {
+			test(`preserves MCP ${fixture.name} identically in live and restored results`, () => {
+				const running = createToolCallState({
+					contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'remote-server' },
+					_meta: toToolCallMeta({ ui, mcpServerName: 'remote-server' }),
+				});
+				const content = fixture.withContent ? [{ type: ToolResultContentType.Text, text: 'Public result' }] satisfies ToolResultContent[] : [];
+				const structuredContent = fixture.withContent ? { public: true } : undefined;
+				const completed = createCompletedToolCall({
+					...running,
+					status: ToolCallStatus.Completed,
+					success: fixture.success,
+					content,
+					structuredContent,
+					resultMetadata: fixture.resultMeta,
+				});
+				const live = rawToolCallStateToInvocation(running, undefined, backendSession, 'other-host');
+				rawFinalizeToolInvocation(live, completed, backendSession, 'other-host');
+				const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'other-host');
+				const expected = {
+					content: content.map(block => ({ type: 'text', text: block.text })),
+					...(structuredContent !== undefined ? { structuredContent } : {}),
+					_meta: fixture.resultMeta,
+					isError: fixture.success ? undefined : true,
+				};
+				assert.deepStrictEqual([live, restored].map(part => {
+					const details = part.kind === 'toolInvocation' ? IChatToolInvocation.resultDetails(part) : part.resultDetails;
+					return isToolResultInputOutputDetails(details) ? details.mcpOutput : undefined;
+				}), [expected, expected]);
+			});
+		}
+
+		test('does not emit MCP result meta from a running tool', () => {
+			const running = {
+				...createToolCallState({
+					contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'remote-server' },
+					content: [],
+					_meta: toToolCallMeta({ ui }),
+				}),
+				resultMetadata: resultMeta,
+			};
+			const invocation = rawToolCallStateToInvocation(running, undefined, backendSession, 'other-host');
+			rawUpdateRunningToolSpecificData(invocation, running, backendSession, 'other-host');
+			const runningDetails = IChatToolInvocation.resultDetails(invocation);
+			rawFinalizeToolInvocation(invocation, running, backendSession, 'other-host');
+			assert.deepStrictEqual({ runningDetails, finalizedDetails: IChatToolInvocation.resultDetails(invocation) }, {
+				runningDetails: undefined,
+				finalizedDetails: { input: '', inputLanguage: 'json', output: [], isError: false, mcpOutput: undefined },
+			});
+		});
+
 		const textContent = [{ type: ToolResultContentType.Text, text: 'Opened the accent-color editor.' }] satisfies ToolResultContent[];
 		for (const toolInput of ['{}', undefined]) {
 			for (const content of [textContent, []]) {
@@ -4177,7 +4279,7 @@ suite('stateToProgressAdapter', () => {
 			]), undefined);
 
 			assert.deepStrictEqual(result, [
-				{ kind: 'thinking', id: 'reasoning', value: 'Assessing final output steps' },
+				{ kind: 'thinking', id: 'reasoning', value: 'Assessing final output steps', reasoningTimingSource: 'provider' },
 				{ kind: 'thinking', value: '' },
 			]);
 		});
@@ -4245,18 +4347,14 @@ suite('stateToProgressAdapter', () => {
 			const warning = result[0];
 			assert.ok(warning.kind === 'warning');
 
-			const rendered = renderMarkdown(warning.content);
-			try {
-				assert.deepStrictEqual({
-					links: [...rendered.element.querySelectorAll('a')].map(anchor => anchor.dataset.href),
-					text: rendered.element.textContent,
-				}, {
-					links: ['command:aiCustomization.openManagementEditor?%5B%22tools%22%5D'],
-					text: `Some tools were dropped. <${injected}> <a href="${injected}">hooks</a> &lt;b&gt; Configure Tools`,
-				});
-			} finally {
-				rendered.dispose();
-			}
+			const rendered = store.add(renderMarkdown(warning.content));
+			assert.deepStrictEqual({
+				links: [...rendered.element.querySelectorAll('a')].map(anchor => anchor.dataset.href),
+				text: rendered.element.textContent,
+			}, {
+				links: ['command:aiCustomization.openManagementEditor?%5B%22tools%22%5D'],
+				text: `Some tools were dropped. <${injected}> <a href="${injected}">hooks</a> &lt;b&gt; Configure Tools`,
+			});
 		});
 
 		test('keeps a managed plugin preparation failure visible and its host text inert', () => {
@@ -4272,22 +4370,18 @@ suite('stateToProgressAdapter', () => {
 			const warning = result[0];
 			assert.ok(warning.kind === 'warning');
 
-			const rendered = renderMarkdown(warning.content);
-			try {
-				assert.deepStrictEqual({
-					keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
-					links: rendered.element.querySelectorAll('a').length,
-					text: rendered.element.textContent,
-					plaintext: renderAsPlaintext(warning.content, { useLinkFormatter: true }),
-				}, {
-					keepVisibleWhenCollapsed: true,
-					links: 0,
-					text,
-					plaintext: text,
-				});
-			} finally {
-				rendered.dispose();
-			}
+			const rendered = store.add(renderMarkdown(warning.content));
+			assert.deepStrictEqual({
+				keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
+				links: rendered.element.querySelectorAll('a').length,
+				text: rendered.element.textContent,
+				plaintext: renderAsPlaintext(warning.content, { useLinkFormatter: true }),
+			}, {
+				keepVisibleWhenCollapsed: true,
+				links: 0,
+				text,
+				plaintext: text,
+			});
 		});
 
 		test('ends a managed plugin preparation failure with a trusted Retry link for its chat', () => {
@@ -4304,23 +4398,19 @@ suite('stateToProgressAdapter', () => {
 			const warning = result[0];
 			assert.ok(warning.kind === 'warning');
 
-			const rendered = renderMarkdown(warning.content);
-			try {
-				const links = [...rendered.element.querySelectorAll('a')].map(anchor => URI.parse(anchor.dataset.href!));
-				assert.deepStrictEqual({
-					isTrusted: warning.content.isTrusted,
-					keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
-					links: links.map(link => ({ scheme: link.scheme, command: link.path, args: JSON.parse(link.query) })),
-					text: rendered.element.textContent,
-				}, {
-					isTrusted: { enabledCommands: [AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID] },
-					keepVisibleWhenCollapsed: true,
-					links: [{ scheme: 'command', command: AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID, args: [target] }],
-					text: `${text} Retry`,
-				});
-			} finally {
-				rendered.dispose();
-			}
+			const rendered = store.add(renderMarkdown(warning.content));
+			const links = [...rendered.element.querySelectorAll('a')].map(anchor => URI.parse(anchor.dataset.href!));
+			assert.deepStrictEqual({
+				isTrusted: warning.content.isTrusted,
+				keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
+				links: links.map(link => ({ scheme: link.scheme, command: link.path, args: JSON.parse(link.query) })),
+				text: rendered.element.textContent,
+			}, {
+				isTrusted: { enabledCommands: [AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID] },
+				keepVisibleWhenCollapsed: true,
+				links: [{ scheme: 'command', command: AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID, args: [target] }],
+				text: `${text} Retry`,
+			});
 		});
 
 		test('styles workspace transitions as accessible transcript boundaries', () => {
@@ -4387,6 +4477,7 @@ suite('stateToProgressAdapter', () => {
 				configurationChanged: notice(AgentSystemNotificationKind.AgentMergeConfigurationChanged),
 				disabled: notice(AgentSystemNotificationKind.AgentMergeDisabled),
 				pullRequestMerged: notice(AgentSystemNotificationKind.AgentMergePullRequestMerged),
+				blocked: notice(AgentSystemNotificationKind.AgentMergeBlocked),
 				// An unrecognized kind must still render, using the default check.
 				unknown: activeTurnToProgress(URI.file('/'), createActiveTurnState([{
 					kind: ResponsePartKind.SystemNotification,
@@ -4398,8 +4489,24 @@ suite('stateToProgressAdapter', () => {
 				configurationChanged: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.settingsGear, collapsible: true, renderInlineTiming: true },
 				disabled: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.circleSlash, renderInlineTiming: true },
 				pullRequestMerged: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.gitMerge, renderInlineTiming: true },
+				blocked: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.warning, renderInlineTiming: true },
 				unknown: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state') },
 			});
+		});
+
+		test('artifact automation notices reuse expandable system notifications and tolerate unknown metadata', () => {
+			const notice = (kind: string | boolean | undefined, iconId = 'git-pull-request') => systemNotificationToChatPart('Automation changed\n\nWhat happens automatically.', 'host', { [AgentHostArtifactNoticeMetaKey]: { kind, iconId } });
+			const base = { kind: 'systemNotification', content: new MarkdownString('Automation changed\n\nWhat happens automatically.') };
+			assert.deepStrictEqual([
+				notice('enabled'), notice('changed'), notice('disabled'), notice('future'), notice(true), notice(undefined), notice('enabled', 'invalid icon'), notice('enabled', ''),
+			], [
+				{ ...base, icon: { id: Codicon.gitPullRequest.id }, collapsible: true, renderInlineTiming: true },
+				{ ...base, icon: { id: Codicon.gitPullRequest.id }, collapsible: true, renderInlineTiming: true },
+				{ ...base, icon: Codicon.circleSlash, collapsible: true, renderInlineTiming: true },
+				base, base, base,
+				{ ...base, icon: Codicon.link, collapsible: true, renderInlineTiming: true },
+				{ ...base, icon: Codicon.link, collapsible: true, renderInlineTiming: true },
+			]);
 		});
 
 		test('produces thinking progress for reasoning', () => {
@@ -4409,6 +4516,18 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(result.length, 1);
 			assert.strictEqual(result[0].kind, 'thinking');
 			assert.strictEqual((result[0] as IChatThinkingPart).id, 'r-1');
+		});
+
+		test('preserves completed and unfinished reasoning timing on reconnect', () => {
+			const result = activeTurnToProgress(URI.parse('external:/opaque/session'), createActiveTurnState([
+				{ kind: ResponsePartKind.Reasoning, id: 'completed', content: 'Already thought', startedAt: '1970-01-01T00:00:01.000Z', duration: 45_000 },
+				{ kind: ResponsePartKind.Reasoning, id: 'active', content: 'Still thinking', startedAt: '1970-01-01T00:01:00.000Z' },
+			]), 'remote-host');
+
+			assert.deepStrictEqual(result, [
+				{ kind: 'thinking', id: 'completed', value: 'Already thought', reasoningTimingSource: 'provider', reasoningStartedAt: 1000, reasoningDurationMs: 45_000 },
+				{ kind: 'thinking', id: 'active', value: 'Still thinking', reasoningTimingSource: 'provider', reasoningStartedAt: 60_000 },
+			]);
 		});
 
 		test('reasoning comes before streamed text when ordered that way', () => {

@@ -441,7 +441,7 @@ export class PluginInstallService implements IPluginInstallService {
 		if (this._pluginMarketplaceService.isStrictMarketplacePolicyActive() && !this._pluginMarketplaceService.isMarketplaceTrusted(plugin.marketplaceReference)) {
 			this._notificationService.notify({
 				severity: Severity.Warning,
-				message: localize('strictMarketplaceBlockedUpdate', "Updates from '{0}' are blocked by your organization's policy.", plugin.marketplaceReference.displayLabel),
+				message: localize('strictMarketplaceBlockedUpdate', "Updates from '{0}' are blocked by your organization.", plugin.marketplaceReference.displayLabel),
 			});
 			return false;
 		}
@@ -675,7 +675,7 @@ export class PluginInstallService implements IPluginInstallService {
 		if (this._pluginMarketplaceService.isStrictMarketplacePolicyActive()) {
 			this._notificationService.notify({
 				severity: Severity.Warning,
-				message: localize('strictMarketplaceBlockedInstall', "Plugins from '{0}' are blocked by your organization's policy.", reference.displayLabel),
+				message: localize('strictMarketplaceBlockedInstall', "Plugins from '{0}' are blocked by your organization.", reference.displayLabel),
 			});
 			return false;
 		}

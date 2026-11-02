@@ -151,6 +151,15 @@ export default defineConfig(
 			]
 		},
 	},
+	{
+		files: [
+			'src/vs/workbench/**/*.ts',
+			'src/vs/sessions/**/*.ts',
+		],
+		rules: {
+			'local/code-agent-host-uri-mapping': 'error',
+		},
+	},
 	// Production filesystem operations must not block the event loop.
 	{
 		files: [
@@ -186,6 +195,17 @@ export default defineConfig(
 		],
 		rules: {
 			'local/code-no-sync-fs': 'error',
+		},
+	},
+	// Enforce this rule in migrated areas only.
+	{
+		files: [
+			'src/vs/platform/agentHost/node/claude/**/*.ts',
+			'src/vs/workbench/api/browser/mainThreadMcp.ts',
+			'src/vs/workbench/api/common/extHostQuickOpen.ts',
+		],
+		rules: {
+			'local/code-prefer-event-or-observable': 'error',
 		},
 	},
 	// Disallow bracket notation for property names that can use dot notation.
@@ -981,8 +1001,6 @@ export default defineConfig(
 				{
 					// Files should (only) be removed from the list once they no longer poll
 					'exclude': [
-						'src/vs/platform/agentHost/test/node/agentHostDebugLogs.test.ts',
-						'src/vs/platform/agentHost/test/node/agentService.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/chatLayoutOwnership.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/desktopLayoutController.test.ts',
 					]
@@ -1803,18 +1821,6 @@ export default defineConfig(
 						'zod', // used by agentHost for Claude client-tool MCP input schemas
 						{ 'when': 'hasNode', 'pattern': 'libsodium-wrappers' },
 						{ 'when': 'hasNode', 'pattern': '@hpke/core' },
-						{
-							'when': 'test',
-							'pattern': 'events'
-						},
-						{
-							'when': 'test',
-							'pattern': 'module'
-						},
-						{
-							'when': 'test',
-							'pattern': 'websocket'
-						}
 					]
 				},
 				{
@@ -2434,6 +2440,13 @@ export default defineConfig(
 					]
 				},
 				{
+					'target': 'test/unit/**',
+					'restrictions': [
+						'test/unit/**',
+						'*' // node modules
+					]
+				},
+				{
 					'target': 'test/monaco/**',
 					'restrictions': [
 						'test/monaco/**',
@@ -2451,19 +2464,6 @@ export default defineConfig(
 						'@vscode/*',
 						'@parcel/*',
 						'@playwright/*',
-						'*' // node modules
-					]
-				},
-				{
-					'target': 'test/mcp/**',
-					'restrictions': [
-						'test/automation',
-						'test/scenario',
-						'test/mcp/**',
-						'@vscode/*',
-						'@parcel/*',
-						'@playwright/*',
-						'@modelcontextprotocol/sdk/**/*',
 						'*' // node modules
 					]
 				},
@@ -2778,7 +2778,7 @@ export default defineConfig(
 							from: ['./extensions/copilot/src/extension']
 						},
 						{
-							target: ['./extensions/copilot/test', '!./extensions/copilot/test/base/extHostContext/*.ts'],
+							target: './extensions/copilot/test',
 							from: ['**/vscode-node/**', '**/vscode-worker/**']
 						},
 						{
@@ -2953,7 +2953,6 @@ export default defineConfig(
 			'extensions/copilot/src/platform/configuration/test/common/inMemoryConfigurationService.ts',
 			'extensions/copilot/src/platform/configuration/vscode/configurationServiceImpl.ts',
 			'extensions/copilot/src/platform/customInstructions/common/customInstructionsService.ts',
-			'extensions/copilot/src/platform/debug/vscode/debugOutputListener.ts',
 			'extensions/copilot/src/platform/diff/node/diffWorkerMain.ts',
 			'extensions/copilot/src/platform/editing/common/notebookDocumentSnapshot.ts',
 			'extensions/copilot/src/platform/editing/common/textDocumentSnapshot.ts',
@@ -3011,7 +3010,6 @@ export default defineConfig(
 			'extensions/copilot/src/platform/telemetry/node/spyingTelemetryService.ts',
 			'extensions/copilot/src/platform/terminal/common/terminalService.ts',
 			'extensions/copilot/src/platform/terminal/vscode/terminalServiceImpl.ts',
-			'extensions/copilot/src/platform/test/common/endpointTestFixtures.ts',
 			'extensions/copilot/src/platform/test/common/testExtensionsService.ts',
 			'extensions/copilot/src/platform/test/node/extensionContext.ts',
 			'extensions/copilot/src/platform/test/node/fetcher.ts',

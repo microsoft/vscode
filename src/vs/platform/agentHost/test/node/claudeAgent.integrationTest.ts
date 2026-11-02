@@ -54,7 +54,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateSessionConfig, GITHUB_COPILOT_PROTECTED_RESOURCE, fixedChatOwnerRef } from '../../common/agent.js';
+import { AgentPermissionKind, AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateSessionConfig, GITHUB_COPILOT_PROTECTED_RESOURCE, fixedChatOwnerRef } from '../../common/agent.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, ResponsePartKind, ToolResultContentType, ChatInputResponseKind, ChatInputAnswerState, ChatInputAnswerValueKind, type ChatInputRequest, type ClientPluginCustomization } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -703,7 +703,7 @@ async function createSession(agent: ClaudeAgent, config: IAgentCreateSessionConf
  * resource, mirroring the orchestrator's own context builder.
  */
 function chatContext(chat: URI, session: URI): IAgentChatContext {
-	return { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session };
+	return { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session), resource: session };
 }
 
 // #endregion
@@ -1078,7 +1078,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 				// `Streaming`; `sessionPermissions` then emits a second Ready
 				// for the pending_confirmation card below.
 				{ kind: 'action', type: ActionType.ChatToolCallReady },
-				{ kind: 'pending_confirmation', toolCallId: TOOL_USE_ID, toolName: 'Read', permissionKind: 'read', permissionPath: '/tmp/x' },
+				{ kind: 'pending_confirmation', toolCallId: TOOL_USE_ID, toolName: 'Read', permissionKind: AgentPermissionKind.Read, permissionPath: '/tmp/x' },
 				{ kind: 'action', type: ActionType.ChatToolCallComplete, toolCallId: TOOL_USE_ID, success: true, content: [{ type: ToolResultContentType.Text, text: 'file contents' }] },
 				{ kind: 'action', type: ActionType.ChatResponsePart, partKind: ResponsePartKind.Markdown, content: '' },
 				{ kind: 'action', type: ActionType.ChatDelta, content: 'done' },

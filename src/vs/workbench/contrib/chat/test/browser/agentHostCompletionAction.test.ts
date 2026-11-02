@@ -12,7 +12,7 @@ import { TestDialogService } from '../../../../../platform/dialogs/test/common/t
 import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { applyAgentHostCompletionAction, isPolicyBlockedCompletionAction } from '../../browser/agentHostCompletionAction.js';
-import { autoApprovePolicyValue, getAgentHostApprovalDefault, isAutoApprovePolicyRestricted, normalizeAgentHostApprovalConfig, resolveInitialAgentHostApprovalConfig } from '../../common/agentHostConfigPolicy.js';
+import { autoApprovePolicyValue, getAgentHostApprovalDefault, getChatDefaultConfiguration, getDefaultConfigurationPolicyDescription, getOrganizationDefaultApprovalLevel, isAutoApprovePolicyRestricted, normalizeAgentHostApprovalConfig, resolveInitialAgentHostApprovalConfig } from '../../common/agentHostConfigPolicy.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { resetShownWarnings } from '../../common/chatPermissionWarnings.js';
 
@@ -144,6 +144,43 @@ suite('applyAgentHostCompletionAction', () => {
 		const initial = getAgentHostApprovalDefault(config);
 		await config.setUserConfiguration(ChatConfiguration.DefaultConfiguration, { approvals: 'manual' });
 		assert.deepStrictEqual({ initial, explicit: getAgentHostApprovalDefault(config) }, { initial: undefined, explicit: 'default' });
+	});
+
+	test('an organization-managed approval default keeps the configured mode and explains the preference it supersedes', () => {
+		const configured = { mode: 'plan', approvals: 'allowAll' };
+		const config = new class extends TestConfigurationService {
+			override inspect<T>(key: string): IConfigurationValue<T> {
+				const value = super.inspect<T>(key);
+				return key === ChatConfiguration.DefaultConfiguration
+					? { ...value, policyValue: { approvals: 'assisted' } as T, userValue: configured as T, value: { approvals: 'assisted' } as T }
+					: value;
+			}
+		}();
+		assert.deepStrictEqual({
+			effective: getChatDefaultConfiguration(config),
+			organizationDefault: getOrganizationDefaultApprovalLevel(config),
+			unmanaged: getChatDefaultConfiguration(new TestConfigurationService({ [ChatConfiguration.DefaultConfiguration]: configured })),
+			superseded: getDefaultConfigurationPolicyDescription({ approvals: 'assisted' }, configured),
+			matching: getDefaultConfigurationPolicyDescription({ approvals: 'assisted' }, { approvals: 'assisted' }),
+		}, {
+			effective: { mode: 'plan', approvals: 'assisted' },
+			organizationDefault: 'assisted',
+			unmanaged: configured,
+			superseded: 'Your organization sets Assisted permissions as the default for new agent sessions. Your saved preference Allow All is preserved but does not apply while this policy is in effect. You can choose other permissions for each session.',
+			matching: 'Your organization sets Assisted permissions as the default for new agent sessions. You can choose other permissions for each session.',
+		});
+	});
+
+	test('an organization-managed approval default merges unmanaged properties across configuration scopes', () => {
+		const config = new class extends TestConfigurationService {
+			override inspect<T>(key: string): IConfigurationValue<T> {
+				const value = super.inspect<T>(key);
+				return key === ChatConfiguration.DefaultConfiguration
+					? { ...value, policyValue: { approvals: 'assisted' } as T, userValue: { mode: 'plan' } as T, workspaceValue: { approvals: 'manual' } as T, value: { approvals: 'assisted' } as T }
+					: value;
+			}
+		}();
+		assert.deepStrictEqual(getChatDefaultConfiguration(config), { mode: 'plan', approvals: 'assisted' });
 	});
 
 	for (const native of [false, true]) {

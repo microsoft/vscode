@@ -325,12 +325,12 @@ export async function computeSessionDiffs(
  * carry over the rest. Requires plumbing the owning source of `changedTurnId`
  * through `onTurnComplete` → `_doComputeStaticChangeset`. See tracking issue.
  */
-export function computeUnionedDiffs(
+export async function computeUnionedDiffs(
 	sources: readonly ISessionDiffSource[],
 	diffService: IDiffComputeService,
 	folderScope?: readonly URI[],
 ): Promise<ISessionFileDiff[]> {
-	return computeUnionedFileDiffs(sources, diffService, folderScope, false);
+	return (await computeUnionedFileDiffs(sources, diffService, folderScope, false)).map(file => file.diff);
 }
 
 /**
@@ -343,24 +343,50 @@ export function computeUnionedDiffs(
  * database holds all of the file's records, which orders them. A file whose
  * changes were all accepted has no diff.
  */
-export function computeWorkingSetDiffs(
+export async function computeWorkingSetDiffs(
 	sources: readonly ISessionDiffSource[],
 	diffService: IDiffComputeService,
 	folderScope?: readonly URI[],
 ): Promise<ISessionFileDiff[]> {
-	return computeUnionedFileDiffs(sources, diffService, folderScope, true);
+	return (await computeWorkingSetFiles(sources, diffService, folderScope)).map(file => file.diff);
+}
+
+/** A file of a Working Set changeset, with the nonce of its changes. */
+export interface IWorkingSetFileDiff {
+	readonly diff: ISessionFileDiff;
+	/** See {@link getWorkingSetFileNonce}. */
+	readonly nonce: string;
+}
+
+/** Like {@link computeWorkingSetDiffs}, with the nonce of each file's changes. */
+export async function computeWorkingSetFiles(
+	sources: readonly ISessionDiffSource[],
+	diffService: IDiffComputeService,
+	folderScope?: readonly URI[],
+): Promise<IWorkingSetFileDiff[]> {
+	return (await computeUnionedFileDiffs(sources, diffService, folderScope, true))
+		.map(({ diff, lastRecord }) => ({ diff, nonce: getWorkingSetFileNonce(lastRecord) }));
+}
+
+/**
+ * Nonce of a Working Set change: the tool call ID of its last edit, accept, or discard record.
+ * Clients can echo this opaque value when deciding on a displayed change.
+ */
+export function getWorkingSetFileNonce(lastRecord: Pick<IFileEditRecord, 'toolCallId'>): string {
+	return lastRecord.toolCallId;
 }
 
 /**
  * Implements {@link computeUnionedDiffs}, and {@link computeWorkingSetDiffs}
  * when `fromAcceptedContent` is set. Otherwise accept rows are left out.
+ * Each diff comes with the file's last record that it counted.
  */
 async function computeUnionedFileDiffs(
 	sources: readonly ISessionDiffSource[],
 	diffService: IDiffComputeService,
 	folderScope: readonly URI[] | undefined,
 	fromAcceptedContent: boolean,
-): Promise<ISessionFileDiff[]> {
+): Promise<{ readonly diff: ISessionFileDiff; readonly lastRecord: Pick<IFileEditRecord, 'toolCallId'> }[]> {
 	// Load every source's edits in parallel, then concatenate in source order so
 	// the identity graph sees a deterministic session-first ordering while each
 	// source keeps its own insertion order.
@@ -442,7 +468,7 @@ async function computeUnionedFileDiffs(
 		return [];
 	}
 
-	const results: ISessionFileDiff[] = [];
+	const results: { readonly diff: ISessionFileDiff; readonly lastRecord: Pick<IFileEditRecord, 'toolCallId'> }[] = [];
 	const diffPromises: Promise<void>[] = [];
 
 	for (const identity of identities.values()) {
@@ -452,6 +478,8 @@ async function computeUnionedFileDiffs(
 		if (folderScope && !isPathWithinFolderScope(identity.terminalPath, folderScope)) {
 			continue;
 		}
+		// The Working Set also counts accept rows, which the identity's last edit leaves out.
+		const lastRecord = identity.rowsSinceBaseline?.at(-1)?.record ?? { toolCallId: identity.lastToolCallId };
 		diffPromises.push((async () => {
 			// Without a database that holds all of the file's records, their order
 			// is unknown: an accept row in a forked chat can follow, in source
@@ -464,7 +492,7 @@ async function computeUnionedFileDiffs(
 				const workingSetDiff = await computeSingleSourceWorkingSetDiff(sources, rowsSinceBaseline.map(({ record }) => ({ record, sourceIdx: holderIdx })), diffService);
 				if (workingSetDiff !== false) {
 					if (workingSetDiff) {
-						results.push(workingSetDiff);
+						results.push({ diff: workingSetDiff, lastRecord });
 					}
 					return;
 				}
@@ -494,7 +522,7 @@ async function computeUnionedFileDiffs(
 			}
 
 			const counts = await diffService.computeDiffCounts(beforeText, afterText);
-			results.push(createSessionFileDiff(firstSource.sessionUri, lastSource.sessionUri, identity, counts.added, counts.removed));
+			results.push({ diff: createSessionFileDiff(firstSource.sessionUri, lastSource.sessionUri, identity, counts.added, counts.removed), lastRecord });
 		})());
 	}
 

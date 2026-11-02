@@ -11,7 +11,7 @@ import { equals } from '../../../../../../base/common/objects.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
 import { AutoTierSourceConfigKey, isAutoModeRoutingTier, isInheritedAutoTier, parseManagedAutoTierDefault, type AutoModeTier } from '../../../../../../platform/agentHost/common/autoModeTiers.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { COPILOT_AUTO_TIER_KEY, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_AUTO_TIER_KEY, COPILOT_FUSION_TIER_KEY, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { COPILOT_VENDOR_ID, createModelConfigurationActions, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
@@ -41,11 +41,12 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	private readonly _explicitAutoTiers = new Set<string>();
 	private readonly _sessionAutoTiers = new Set<string>();
 	private _managedAutoTier: AutoModeTier | undefined;
+	private _managedFusionTier = false;
 	private _autoTierSchema: { original: ILanguageModelConfigurationSchema; tier: string; effective: ILanguageModelConfigurationSchema } | undefined;
 	private _sessionConfiguration: IAgentModelConfigurationReport | undefined;
 
-	private readonly _onDidChange = this._register(new Emitter<string>());
-	readonly onDidChange: Event<string> = this._onDidChange.event;
+	private readonly _onDidChange = this._register(new Emitter<readonly string[]>());
+	readonly onDidChange: Event<readonly string[]> = this._onDidChange.event;
 
 	private readonly _onDidSelectConfiguration = this._register(new Emitter<string>());
 	/** Explicit selections, including reselecting a value; restores and schema updates do not fire. */
@@ -63,6 +64,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		super();
 
 		const readManagedTier = () => {
+			this._managedFusionTier = managedSettingsService.getManagedSettings()[COPILOT_FUSION_TIER_KEY] !== undefined;
 			try {
 				this._managedAutoTier = parseManagedAutoTierDefault(managedSettingsService.getManagedSettingValue(COPILOT_AUTO_TIER_KEY));
 			} catch (error) {
@@ -81,6 +83,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 				return;
 			}
 			const bucket = this._readBucket();
+			const changed: string[] = [];
 			for (const [modelId, override] of [...this._overrides]) {
 				const schemaDefaults = this._schemaDefaults(modelId);
 				const uninitialized = Object.keys(override).length === 0;
@@ -94,8 +97,11 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 				nextOverride = this._applyHostDefaults(modelId, nextOverride, preferences);
 				if (!equals(override, nextOverride) || vendor === undefined) {
 					this._overrides.set(modelId, nextOverride);
-					this._onDidChange.fire(modelId);
+					changed.push(modelId);
 				}
+			}
+			if (changed.length > 0) {
+				this._onDidChange.fire(changed);
 			}
 		}));
 	}
@@ -233,7 +239,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 			this._writeBucket(bucket);
 		}
 
-		this._onDidChange.fire(modelId);
+		this._onDidChange.fire([modelId]);
 		return true;
 	}
 
@@ -286,7 +292,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 			return;
 		}
 		this._sessionConfiguration = report;
-		const modelIds = new Set([...this._overrides.keys(), ...Object.keys(report?.models ?? {})]);
+		const modelIds = [...new Set([...this._overrides.keys(), ...Object.keys(report?.models ?? {})])];
 		for (const modelId of modelIds) {
 			const previous = this.getModelConfiguration(modelId) ?? {};
 			const preferences = this._preferences.get(modelId);
@@ -295,7 +301,10 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 				: this._applyHostDefaults(modelId, { ...defaults, ...previous }, preferences);
 			next = this._applyRuntimeValues(modelId, next);
 			this._overrides.set(modelId, next);
-			this._onDidChange.fire(modelId);
+		}
+		// Notify once the whole snapshot applies, so listeners render once and never see it half applied.
+		if (modelIds.length > 0) {
+			this._onDidChange.fire(modelIds);
 		}
 	}
 
@@ -321,8 +330,8 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 
 	/** Rebinds picker observers after the owner has restored the incoming conversation's configuration. */
 	notifyConversationChanged(): void {
-		for (const modelId of [...this._overrides.keys()]) {
-			this._onDidChange.fire(modelId);
+		if (this._overrides.size > 0) {
+			this._onDidChange.fire([...this._overrides.keys()]);
 		}
 	}
 
@@ -457,7 +466,8 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 
 	private _usesManagedDefault(vendor: string): boolean {
 		return vendor === COPILOT_VENDOR_ID
-			|| (this.agentHostManagedDefaultScope.get() && vendor === SessionType.AgentHostCopilot);
+			// The Agent Host runtime ignores legacy Auto policy once a Fusion tier is managed.
+			|| (this.agentHostManagedDefaultScope.get() && vendor === SessionType.AgentHostCopilot && !this._managedFusionTier);
 	}
 
 	private _schemaDefaults(modelId: string): IStringDictionary<unknown> {

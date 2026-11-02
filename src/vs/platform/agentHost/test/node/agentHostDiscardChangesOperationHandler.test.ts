@@ -4,28 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FileService } from '../../../files/common/fileService.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../../files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { ITrackedEditSource, ITrackedTurnDatabase } from '../../common/agentHostChangesetService.js';
-import { EMPTY_TREE_OBJECT, type IAgentHostGitService, type IBranch, type IDefaultBranch } from '../../common/agentHostGitService.js';
+import { EMPTY_TREE_OBJECT } from '../../common/agentHostGitService.js';
+import { TestAgentHostGitService } from '../common/testAgentHostGitService.js';
 import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildWorkingSetChangesetUri, ChangesetKind } from '../../common/changesetUri.js';
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildChatUri, buildDefaultChatUri, FileEditKind, MessageKind, SessionStatus, type ISessionFileDiff, type TextRange } from '../../common/state/sessionState.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
+import { AHP_SESSION_NOT_FOUND, AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { buildChatUri, buildDefaultChatUri, FileEditKind, SessionStatus, type ISessionFileDiff, type TextRange } from '../../common/state/sessionState.js';
 import { AgentHostDiscardChangesOperationHandler } from '../../node/agentHostDiscardChangesOperationHandler.js';
+import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { AgentHostDiscardChangesOperationContribution } from '../../node/agentHostDiscardChangesOperationProvider.js';
 import { AgentHostFileEditRevert } from '../../node/agentHostFileEditRevert.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
@@ -36,64 +37,22 @@ import { computeSessionDiffs, computeTurnDiffs, computeWorkingSetDiffs } from '.
 import { createNoopChangesetService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { InProcessDiffComputeService } from './inProcessDiffComputeService.js';
 
-class TestGitService implements IAgentHostGitService {
-	declare readonly _serviceBrand: undefined;
-
+class TestGitService extends TestAgentHostGitService {
 	readonly restoreCalls: { workingDirectory: string; paths: readonly string[]; options?: { readonly staged?: boolean; readonly ref?: string } }[] = [];
 	restoreError: Error | undefined;
 	repositoryRoot: URI | undefined = URI.file('/repo');
 	readonly repositoryRoots = new Map<string, URI | undefined>();
 	untrackedPaths: readonly string[] = [];
 
-	async getCurrentBranch(): Promise<string | undefined> { return undefined; }
-	async getHEAD(): Promise<IBranch | undefined> { return undefined; }
-	async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return undefined; }
-	async getDefaultBranch2(): Promise<IBranch | undefined> { return undefined; }
-	async getBranch(): Promise<IBranch | undefined> { return undefined; }
-	async getRefs(): Promise<IBranch[]> { return []; }
-	async getBranches(): Promise<IBranch[]> { return []; }
-	hasGitRoot() { return constObservable(undefined); }
-	async getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined> { return this.repositoryRoots.get(workingDirectory.toString()) ?? this.repositoryRoot; }
-	async getWorktreeRoots(): Promise<URI[]> { return []; }
-	async addWorktree(): Promise<void> { }
-	async copyWorktreeIncludeFiles(): Promise<void> { }
-	async symlinkWorktreeFolders(): Promise<readonly string[]> { return []; }
-	async addExistingWorktree(): Promise<void> { }
-	async removeWorktree(): Promise<void> { }
-	async branchExists(): Promise<boolean> { return false; }
-	async createBranch(): Promise<void> { }
-	async checkout(): Promise<void> { }
-	async hasUncommittedChanges(): Promise<boolean> { return true; }
-	async createStash(): Promise<void> { }
-	async commitAll(): Promise<void> { }
-	async mergeBranch(): Promise<string> { return ''; }
-	async restore(workingDirectory: URI, paths: readonly string[], options?: { readonly staged?: boolean; readonly ref?: string }): Promise<void> {
+	override async getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined> { return this.repositoryRoots.get(workingDirectory.toString()) ?? this.repositoryRoot; }
+	override async hasUncommittedChanges(): Promise<boolean> { return true; }
+	override async restore(workingDirectory: URI, paths: readonly string[], options?: { readonly staged?: boolean; readonly ref?: string }): Promise<void> {
 		this.restoreCalls.push({ workingDirectory: workingDirectory.toString(), paths, options });
 		if (this.restoreError) {
 			throw this.restoreError;
 		}
 	}
-	async hasUpstream(): Promise<boolean> { return false; }
-	async fetch(): Promise<void> { }
-	async pull(): Promise<void> { }
-	async push(): Promise<void> { }
-	async getSessionGitState(): Promise<undefined> { return undefined; }
-	async computeSessionFileDiffs(): Promise<readonly ISessionFileDiff[] | undefined> { return undefined; }
-	async showBlob(): Promise<undefined> { return undefined; }
-	async captureWorkingTreeAsTree(): Promise<undefined> { return undefined; }
-	async commitTree(): Promise<undefined> { return undefined; }
-	async updateRef(): Promise<void> { }
-	async deleteRefs(): Promise<void> { }
-	async revParse(): Promise<string | undefined> { return undefined; }
-	async resolveBranchBaselineCommit(): Promise<string | undefined> { return undefined; }
-	async overlayPathIntoTree(): Promise<string | undefined> { return undefined; }
-	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
-	async computeFileDiffsBetweenRefs(): Promise<readonly ISessionFileDiff[] | undefined> { return undefined; }
-	async getFetchRemoteUrls(): Promise<undefined> { return undefined; }
-	async getFetchRemotes(): Promise<undefined> { return undefined; }
-	async getUntrackedPaths(): Promise<readonly string[]> { return this.untrackedPaths; }
-	async getBranchDiffSafetyInfo(): Promise<undefined> { return undefined; }
-	async getDiffPatchBetweenRefs(): Promise<undefined> { return undefined; }
+	override async getUntrackedPaths(): Promise<readonly string[]> { return this.untrackedPaths; }
 }
 
 class TestFileService extends mock<IFileService>() {
@@ -112,8 +71,7 @@ class TestFileService extends mock<IFileService>() {
 function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly withWorkingDirectory?: boolean; readonly workingDirectory?: URI; readonly workingDirectories?: readonly URI[]; readonly registerSession?: boolean; readonly onDiscarded?: (sessionKey: string) => Promise<void> }) {
 	const gitService = new TestGitService();
 	const fileService = new TestFileService();
-	const diskFileService = disposables.add(new FileService(new NullLogService()));
-	disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+	const diskFileService = createInMemoryFileService(disposables, Schemas.file);
 	const refreshes: string[] = [];
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	const session = URI.parse('agent:/session');
@@ -129,6 +87,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly with
 		folderScope: workingDirectories,
 	};
 	const discardedTurns: { owner: string; turnIds: readonly string[] }[] = [];
+	const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
 	const changesets = createNoopChangesetService();
 	changesets.openTrackedTurnDatabase = () => tracked.database;
 	changesets.openTrackedSessionDatabases = () => ({ ...trackedSession, dispose: () => { } });
@@ -157,9 +116,9 @@ function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly with
 		new NullLogService(),
 		stateManager,
 		changesets,
-		new InProcessDiffComputeService(),
+		new InProcessDiffComputeService(), fileEditCoordinator,
 	);
-	return { handler, gitService, fileService, diskFileService, trackedDb, tracked, trackedSession, discardedTurns, stateManager, refreshes, session };
+	return { handler, gitService, fileService, diskFileService, trackedDb, tracked, trackedSession, discardedTurns, stateManager, refreshes, session, fileEditCoordinator };
 }
 
 function addChangesetFile(stateManager: AgentHostStateManager, channel: string, edit: ISessionFileDiff): void {
@@ -188,17 +147,12 @@ function makeResourceTarget(resource: URI): InvokeChangesetOperationParams['targ
 }
 
 function startTurn(stateManager: AgentHostStateManager, chat: string, turnId: string): void {
-	stateManager.dispatchServerAction(chat, {
-		type: ActionType.ChatTurnStarted,
-		turnId,
-		startedAt: new Date(1).toISOString(),
-		message: { text: 'Edit files', origin: { kind: MessageKind.User } },
-	});
+	stateManager.dispatchServerAction(chat, chatTurnStarted(turnId, 'Edit files', new Date(1).toISOString()));
 }
 
 function addTurn(stateManager: AgentHostStateManager, chat: string, turnId: string): void {
 	startTurn(stateManager, chat, turnId);
-	stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId, duration: 1 });
+	stateManager.dispatchServerAction(chat, chatTurnComplete(turnId, 1));
 }
 
 suite('AgentHostDiscardChangesOperationHandler', () => {
@@ -1413,12 +1367,14 @@ suite('AgentHostDiscardChangesOperationHandler - working set', () => {
 			beforeContent: encodeString(before), afterContent: encodeString(after),
 		});
 		const accept = (turnId: string, content: string) => harness.trackedDb.addEdit(createFileEditAcceptRecord(turnId, target.fsPath, encodeString(content)));
-		const discard = (range?: { readonly range: TextRange; readonly side?: 'before' | 'after' }, channel = buildWorkingSetChangesetUri(harness.session.toString())) => harness.handler.invoke({
+		const discard = (range?: { readonly range: TextRange; readonly side?: 'before' | 'after' }, channel = buildWorkingSetChangesetUri(harness.session.toString()), nonce?: string) => harness.handler.invoke({
 			channel,
 			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
-			target: range
-				? { kind: ChangesetOperationTargetKind.Range, resource: target.toString() as unknown as InvokeChangesetOperationParams['channel'], ...range }
-				: makeResourceTarget(target),
+			target: {
+				resource: target.toString(),
+				...(range ? { kind: ChangesetOperationTargetKind.Range, ...range } : { kind: ChangesetOperationTargetKind.Resource }),
+				...(nonce !== undefined ? { nonce } : {}),
+			},
 		}, CancellationToken.None);
 		const diffService = new InProcessDiffComputeService();
 		const describe = async () => ({
@@ -1432,6 +1388,78 @@ suite('AgentHostDiscardChangesOperationHandler - working set', () => {
 		});
 		return { ...harness, chat, edit, accept, discard, describe };
 	}
+
+	test('discards changes while a turn runs only when the provider\'s edit tool calls wait for it, and tells the agent', async () => {
+		const { edit, discard, describe, diskFileService, stateManager, chat, fileEditCoordinator, session } = setupWorkingSet();
+		edit('turn-2', 'tc1', lines(), lines({ 0: 'L1', 4: 'L5' }));
+		await diskFileService.writeFile(target, VSBuffer.fromString(lines({ 0: 'L1', 4: 'L5' })));
+		startTurn(stateManager, chat, 'turn-3');
+		const reported: unknown[] = [];
+		disposables.add(fileEditCoordinator.onDidDiscardFileEdits(edits => reported.push({ storage: edits.storage, path: edits.resource.path, lines: edits.lines, deleted: edits.deleted })));
+		const shown = 'tc1';
+
+		const uncoordinated = await discard(undefined, undefined, shown).then(() => undefined, (err: Error) => err.message);
+		disposables.add(fileEditCoordinator.registerCoordinatedProvider('copilot'));
+		const channel = buildWorkingSetChangesetUri(session.toString());
+		stateManager.registerChangeset(channel);
+		stateManager.dispatchServerAction(channel, {
+			type: ActionType.ChangesetFileSet,
+			file: { id: target.toString(), edit: { after: { uri: target.toString(), content: { uri: target.toString() } } }, nonce: shown },
+		});
+		const result = await discard({ range: { start: { line: 4, character: 0 }, end: { line: 5, character: 0 } }, side: 'after' }, undefined, shown);
+
+		assert.deepStrictEqual({ uncoordinated, message: result.message, after: await describe(), reported }, {
+			uncoordinated: 'Changes can\'t be discarded while a turn is running.',
+			message: { markdown: 'Discarded the changes to `file.ts` in the given range.' },
+			after: { content: lines({ 0: 'L1' }), workingSet: 1, session: 1, turns: [0, 1] },
+			reported: [{ storage: session.toString(), path: target.path, lines: { startLineNumber: 5, endLineNumberExclusive: 6 }, deleted: false }],
+		});
+	});
+
+	test('accepts an omitted nonce for coordinated Undo during a turn', async () => {
+		const { edit, discard, describe, diskFileService, stateManager, chat, fileEditCoordinator } = setupWorkingSet();
+		edit('turn-2', 'tc1', lines(), lines({ 0: 'L1' }));
+		await diskFileService.writeFile(target, VSBuffer.fromString(lines({ 0: 'L1' })));
+		startTurn(stateManager, chat, 'turn-3');
+		disposables.add(fileEditCoordinator.registerCoordinatedProvider('copilot'));
+		await discard();
+
+		assert.deepStrictEqual(await describe(), { content: lines(), workingSet: 0, session: 0, turns: [0, 0] });
+	});
+
+	test('waits for the agent to finish writing the file, then refuses changes that its edit updated after they were shown', async () => {
+		const { edit, discard, describe, diskFileService, stateManager, chat, fileEditCoordinator } = setupWorkingSet();
+		edit('turn-2', 'tc1', lines(), lines({ 0: 'L1' }));
+		await diskFileService.writeFile(target, VSBuffer.fromString(lines({ 0: 'L1' })));
+		startTurn(stateManager, chat, 'turn-3');
+		disposables.add(fileEditCoordinator.registerCoordinatedProvider('copilot'));
+		const log: string[] = [];
+
+		const writing = await fileEditCoordinator.beginEdit(target);
+		let staleCode: number | undefined;
+		const stale = discard(undefined, undefined, 'tc1').then(() => 'discarded', (err: ProtocolError) => {
+			staleCode = err.code;
+			return err.message;
+		});
+		void stale.then(outcome => log.push(`first undo: ${outcome}`));
+		await timeout(0);
+		log.push('agent records its edit');
+		await diskFileService.writeFile(target, VSBuffer.fromString(lines({ 0: 'L1', 4: 'L5' })));
+		edit('turn-3', 'tc2', lines({ 0: 'L1' }), lines({ 0: 'L1', 4: 'L5' }));
+		writing.dispose();
+		await stale;
+		const retry = await discard(undefined, undefined, 'tc2');
+
+		assert.deepStrictEqual({ log, staleCode, retry: retry.message, after: await describe() }, {
+			staleCode: AhpErrorCodes.Conflict,
+			log: [
+				'agent records its edit',
+				'first undo: The changes to \'file.ts\' were updated after they were shown. Try again.',
+			],
+			retry: { markdown: 'Discarded the changes to `file.ts` that have not been accepted.' },
+			after: { content: lines(), workingSet: 0, session: 0, turns: [0, 0] },
+		});
+	});
 
 	test('reverts only the changes made since the file was accepted, keeping accepted changes and changes outside the session', async () => {
 		const { edit, accept, discard, describe, diskFileService, discardedTurns, chat } = setupWorkingSet();
@@ -1546,31 +1574,33 @@ suite('AgentHostDiscardChangesOperationHandler - working set', () => {
 		});
 	}
 
-	test('leaves a file alone when its changes were kept after its unaccepted changes were read', async () => {
-		const { edit, accept, discard, describe, diskFileService, trackedDb } = setupWorkingSet();
-		edit('turn-1', 'tc1', lines(), lines({ 0: 'L1' }));
-		await diskFileService.writeFile(target, VSBuffer.fromString(lines({ 0: 'L1' })));
-		// Another client keeps the file's changes while Undo prepares the revert.
-		const storeFileEdits = trackedDb.storeFileEdits.bind(trackedDb);
-		trackedDb.storeFileEdits = (edits, beforeCommit) => {
-			accept('turn-1', lines({ 0: 'L1' }));
-			return storeFileEdits(edits, beforeCommit);
-		};
+	for (const nonce of [undefined, 'tc1']) {
+		test(`leaves a file alone when its changes were kept after its unaccepted changes were read (nonce=${nonce})`, async () => {
+			const { edit, accept, discard, describe, diskFileService, trackedDb } = setupWorkingSet();
+			edit('turn-1', 'tc1', lines(), lines({ 0: 'L1' }));
+			await diskFileService.writeFile(target, VSBuffer.fromString(lines({ 0: 'L1' })));
+			// Another client keeps the file's changes while Undo prepares the revert.
+			const storeFileEdits = trackedDb.storeFileEdits.bind(trackedDb);
+			trackedDb.storeFileEdits = (edits, beforeCommit) => {
+				accept('turn-1', lines({ 0: 'L1' }));
+				return storeFileEdits(edits, beforeCommit);
+			};
 
-		let error: ProtocolError | undefined;
-		try {
-			await discard();
-		} catch (e) {
-			error = e as ProtocolError;
-		}
+			let error: ProtocolError | undefined;
+			try {
+				await discard(undefined, undefined, nonce);
+			} catch (e) {
+				error = e as ProtocolError;
+			}
 
-		assert.deepStrictEqual({ code: error?.code, message: error?.message, state: await describe(), rows: (await trackedDb.getAllFileEdits()).map(row => isFileEditAcceptRecord(row) ? 'accept' : row.toolCallId) }, {
-			code: JsonRpcErrorCodes.InvalidParams,
-			message: '\'file.ts\' changed while its changes were being discarded. Try again.',
-			state: { content: lines({ 0: 'L1' }), workingSet: 0, session: 1, turns: [1, 0] },
-			rows: ['tc1', 'accept'],
+			assert.deepStrictEqual({ code: error?.code, message: error?.message, state: await describe(), rows: (await trackedDb.getAllFileEdits()).map(row => isFileEditAcceptRecord(row) ? 'accept' : row.toolCallId) }, {
+				code: nonce === undefined ? JsonRpcErrorCodes.InvalidParams : AhpErrorCodes.Conflict,
+				message: nonce === undefined ? '\'file.ts\' changed while its changes were being discarded. Try again.' : 'The changes to \'file.ts\' were updated after they were shown. Try again.',
+				state: { content: lines({ 0: 'L1' }), workingSet: 0, session: 1, turns: [1, 0] },
+				rows: ['tc1', 'accept'],
+			});
 		});
-	});
+	}
 
 	/** A range on the zero-based lines from `start` through `end`. */
 	function lineRange(start: number, end = start): TextRange {

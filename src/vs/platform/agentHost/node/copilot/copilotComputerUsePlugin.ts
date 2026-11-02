@@ -9,7 +9,7 @@ import { raceCancellationError } from '../../../../base/common/async.js';
 import { streamToBuffer, type VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { dirname, join } from '../../../../base/common/path.js';
+import { basename, dirname, isAbsolute, join } from '../../../../base/common/path.js';
 import { Promises } from '../../../../base/node/pfs.js';
 import { extract } from '../../../../base/node/zip.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
@@ -53,6 +53,65 @@ const COMPLETE_SENTINEL = '.complete';
 
 /** Name of the Computer Use built-in plugin and of the MCP server it contributes. */
 export const COMPUTER_USE_PLUGIN_NAME = 'computer-use';
+
+/** The plugin's macOS helper app, which macOS lists as Copilot Computer Use in System Settings. */
+const COMPUTER_USE_HELPER_APP_NAME = 'Copilot Computer Use.app';
+
+/**
+ * Where the plugin's MCP server installs its macOS helper app, by the plugin's own rule: under `computer-use` in
+ * `COPILOT_COMPUTER_USE_HOME`, which hosts that isolate their Copilot home set to share one helper, else in the Copilot
+ * home. A relative home is relative to the user's home.
+ */
+export function getComputerUseHelperAppPath(computerUseHome: string | undefined, copilotHome: string, userHome: string): string {
+	const home = computerUseHome || copilotHome;
+	return join(isAbsolute(home) ? home : join(userHome, home), 'computer-use', COMPUTER_USE_HELPER_APP_NAME);
+}
+
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const MAX_APP_ICON_BYTES = 256 * 1024;
+
+/**
+ * Picks the smallest PNG in an `.icns` file that is at least `minSize` pixels wide, else the widest. An `.icns` file
+ * is a sequence of entries, each a four-character type, a big-endian length that includes its 8-byte header, and the
+ * image; modern sizes hold a PNG.
+ */
+export function pickIcnsPng(icns: Buffer, minSize: number): Buffer | undefined {
+	let best: { readonly width: number; readonly png: Buffer } | undefined;
+	for (let offset = 8; offset + 8 <= icns.length;) {
+		const length = icns.readUInt32BE(offset + 4);
+		if (length < 8 || offset + length > icns.length) {
+			break;
+		}
+		const png = icns.subarray(offset + 8, offset + length);
+		if (png.length >= 24 && png.subarray(0, 8).equals(PNG_SIGNATURE) && png.length <= MAX_APP_ICON_BYTES) {
+			const width = png.readUInt32BE(16);
+			if (!best || (best.width < minSize ? width > best.width : width >= minSize && width < best.width)) {
+				best = { width, png };
+			}
+		}
+		offset += length;
+	}
+	return best?.png;
+}
+
+/**
+ * Reads the icon of the macOS app at `appPath` as a PNG data URL, at least `minSize` pixels wide when it has one that
+ * large; `undefined` when the app names no icon file in an XML `Info.plist`, or the file holds no PNG.
+ */
+export async function readMacAppIcon(appPath: string, minSize: number): Promise<string | undefined> {
+	try {
+		const plist = await fs.promises.readFile(join(appPath, 'Contents', 'Info.plist'), 'utf8');
+		const name = /<key>CFBundleIconFile<\/key>\s*<string>([^<]+)<\/string>/.exec(plist)?.[1];
+		if (!name || basename(name) !== name || name.startsWith('.')) {
+			return undefined;
+		}
+		const icns = await fs.promises.readFile(join(appPath, 'Contents', 'Resources', name.endsWith('.icns') ? name : `${name}.icns`));
+		const png = pickIcnsPng(icns, minSize);
+		return png && `data:image/png;base64,${png.toString('base64')}`;
+	} catch {
+		return undefined;
+	}
+}
 
 /**
  * Resolves GitHub's Computer Use plugin for the current platform, downloading

@@ -108,9 +108,8 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 	}
 
 	async acquireDefaultAccountApiClient(signal: AbortSignal): Promise<IGitHubAccountClient> {
-		const generation = this._defaultClientGeneration;
 		const combinedSignal = AbortSignal.any([signal, this._lifetime.signal]);
-		const { options, accountId } = await this.resolveDefaultAccountOptions(combinedSignal);
+		const { options, accountId, generation } = await this.resolveDefaultAccountOptions(combinedSignal);
 		const client = await this.acquireApiClient({ ...options, authorization: { ...options.authorization, accountId } }, combinedSignal);
 		try {
 			combinedSignal.throwIfAborted();
@@ -131,16 +130,15 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 		return new AccountClient(reference.object.authorization, reference.object, reference);
 	}
 
-	private async resolveDefaultAccountOptions(signal: AbortSignal): Promise<{ options: GitHubClientOptions; accountId: string }> {
-		const generation = this._defaultClientGeneration;
+	private async resolveDefaultAccountOptions(signal: AbortSignal): Promise<{ options: GitHubClientOptions; accountId: string; generation: number }> {
 		const combinedSignal = AbortSignal.any([signal, this._lifetime.signal]);
-		const { options, accountId } = await withGitHubCredentialDeadline(combinedSignal, signal => this._getDefaultAccountOptions(signal));
+		const { options, accountId, generation } = await withGitHubCredentialDeadline(combinedSignal, signal => this._getDefaultAccountOptions(signal));
 		combinedSignal.throwIfAborted();
 		if (generation !== this._defaultClientGeneration) {
 			throw new GitHubRequestError(localize('githubAccountChanged', "The selected GitHub account changed. Try again."), 'authentication');
 		}
 		this._defaultSessionAccountId = accountId;
-		return { options, accountId };
+		return { options, accountId, generation };
 	}
 
 	private _getDefaultAccountKey(): string {
@@ -149,12 +147,17 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 		return JSON.stringify([provider.id, account?.sessionId, provider.enterprise, provider.enterprise ? this._defaultAccountService.resolveGitHubUrl('') : undefined]);
 	}
 
-	private async _getDefaultAccountOptions(signal: AbortSignal): Promise<{ options: GitHubClientOptions; accountId: string }> {
+	private async _getDefaultAccountOptions(signal: AbortSignal): Promise<{ options: GitHubClientOptions; accountId: string; generation: number }> {
 		signal.throwIfAborted();
 		const account = this._defaultAccountService.currentDefaultAccount ?? await this._defaultAccountService.getDefaultAccount();
 		signal.throwIfAborted();
 		if (!account) {
 			throw new GitHubRequestError(localize('githubAuthenticationRequired', "Sign in to GitHub to load GitHub data."), 'authentication');
+		}
+		const generation = this._defaultClientGeneration;
+		const current = this._defaultAccountService.currentDefaultAccount;
+		if (!current || account.sessionId !== current.sessionId || account.authenticationProvider.id !== current.authenticationProvider.id) {
+			throw new GitHubRequestError(localize('githubAccountChanged', "The selected GitHub account changed. Try again."), 'authentication');
 		}
 		const provider = account.authenticationProvider;
 		const sessions = await this._credentialProvider.getSessions(provider.id, signal);
@@ -189,6 +192,7 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 				missionControl: getWorkbenchMissionControlOptions(provider.id, endpoints.enterpriseHost),
 			},
 			accountId: selected.account.id,
+			generation,
 		};
 	}
 }

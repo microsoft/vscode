@@ -25,7 +25,7 @@ import { SessionConfigKey } from '../../../../../../platform/agentHost/common/se
 import { isSessionConfigWritable, validateChatPickerConfigWrite } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { SessionState, StateComponents, type SessionConfigState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { dispatchAgentHostConfigChange, getAgentHostBackendChat, getAgentHostChatConfig, readAgentHostChatSandboxState } from './applyAgentHostSessionConfig.js';
+import { dispatchAgentHostConfigChange, getAgentHostBackendChat, getAgentHostChatConfig, hostPublishesCompleteChatConfig, readAgentHostChatSandboxState } from './applyAgentHostSessionConfig.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -33,7 +33,7 @@ import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IChatWidgetService } from '../../chat.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationAction, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
 
 type CertificateOperation = 'install' | 'rotate' | 'remove';
 
@@ -73,6 +73,7 @@ export class AgentHostSandboxNotification extends Disposable {
 	private _localNetworkMessage: string | undefined;
 	private readonly _disableCommandId = `_chat.disableSandboxing.${generateUuid()}`;
 	private _canDisable = false;
+	private _required = false;
 
 	constructor(
 		private readonly _sessionResource: URI,
@@ -166,19 +167,24 @@ export class AgentHostSandboxNotification extends Disposable {
 		}
 		validateChatPickerConfigWrite(config.schema, config.values, SessionConfigKey.SandboxEnabled, AgentSandboxEnabledValue.Off, false);
 		// Turns off this chat's sandboxing, which is its own when the host lets a chat set it.
-		dispatchAgentHostConfigChange(resolution.connection, resolution.backendSession, chat, state, { [SessionConfigKey.SandboxEnabled]: AgentSandboxEnabledValue.Off });
+		dispatchAgentHostConfigChange(resolution.connection, resolution.backendSession, chat, state, { [SessionConfigKey.SandboxEnabled]: AgentSandboxEnabledValue.Off }, config);
 	}
 
 	/** This notification's chat in its session's catalog, and that chat's effective config. */
 	private _readChat(state: SessionState): { readonly chat: string | undefined; readonly config: SessionConfigState | undefined } {
 		const chat = getAgentHostBackendChat(this._sessionResource, state);
 		const connection = this._connectionsService.resolveSessionResource(this._sessionResource)?.connection;
-		return { chat, config: getAgentHostChatConfig(state, chat, chat => connection?.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value) };
+		return { chat, config: getAgentHostChatConfig(state, chat, chat => connection?.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value, hostPublishesCompleteChatConfig(connection?.rootState?.value)) };
 	}
 
 	private _canDisableSandboxing(state: SessionState | Error | undefined): boolean {
+		return this._readSandboxControl(state).canDisable;
+	}
+
+	/** Mirrors the permissions picker: `required` is a managed floor without bypass, which locks the toggle on. */
+	private _readSandboxControl(state: SessionState | Error | undefined): { readonly required: boolean; readonly canDisable: boolean } {
 		if (!state || state instanceof Error) {
-			return false;
+			return { required: false, canDisable: false };
 		}
 		const policy = readSessionSandboxPolicy(state);
 		const connection = this._connectionsService.resolveSessionResource(this._sessionResource)?.connection;
@@ -187,13 +193,16 @@ export class AgentHostSandboxNotification extends Disposable {
 		const { chat, config } = this._readChat(state);
 		const value = config?.values[SessionConfigKey.SandboxEnabled] ?? config?.schema.properties[SessionConfigKey.SandboxEnabled]?.default;
 		const confirmedEnabled = readAgentHostChatSandboxState(state, chat)?.enabled;
-		return !isAgentHostSandboxDisablingBlocked({
+		const required = isAgentHostSandboxDisablingBlocked({
 			sessionEnabled: value === AgentSandboxEnabledValue.On ? true : value === AgentSandboxEnabledValue.Off ? false : confirmedEnabled,
 			confirmedEnabled,
 			managedEnabled: policy ? policy.enabled && !policy.failClosed : useLocalPolicy && this._enablementService.managedSandboxEnforced.get(),
 			allowsBypass: policy ? policy.allowBypass === true : useLocalPolicy && this._enablementService.managedSandboxAllowsBypass.get(),
-		})
-			&& this._configurationService.inspect(AgentSandboxSettingId.AgentSandboxEnabled).policyValue === undefined;
+		});
+		return {
+			required,
+			canDisable: !required && this._configurationService.inspect(AgentSandboxSettingId.AgentSandboxEnabled).policyValue === undefined,
+		};
 	}
 
 	/** Shows optional certificate guidance only in the focused chat, independently of dependency warnings. */
@@ -228,12 +237,19 @@ export class AgentHostSandboxNotification extends Disposable {
 			this._notificationService.deleteNotification(this._certificateId);
 			return;
 		}
+		const learnMore = new MarkdownString().appendLink(
+			'https://aka.ms/vscode-sandboxing-certtrust',
+			localize('agentHost.sandboxCertificateWhyTrust', "Learn more"),
+		);
 		const description = new MarkdownString();
-		description.appendText(this._certificateOperation === 'remove'
+		description.appendMarkdown(this._certificateOperation === 'remove'
 			? localize('agentHost.sandboxCertificateRemovingDetail', "Removing trust from the agent host's operating system trust store. The stored certificate authority is kept.")
 			: this._certificateOperation === 'rotate'
 				? localize('agentHost.sandboxCertificateRotatingDetail', "Replacing the certificate authority and establishing operating system trust. Running sandboxed tools may need to restart.")
-				: localize('agentHost.sandboxCertificateMissingDetail', "Some tools in this session's sandbox might require the sandbox certificate authority (CA) to be trusted by the agent host's operating system. Install it in the OS trust store to enable those tools to connect securely."));
+				: localize({
+					key: 'agentHost.sandboxCertificateMissingDetail',
+					comment: ['{0} is a Markdown link labeled "Learn more" that opens certificate trust documentation.'],
+				}, "Install the sandbox certificate authority (CA) so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. {0}.", learnMore.value));
 		this._notificationService.setNotification({
 			id: this._certificateId,
 			inputUri,
@@ -244,7 +260,7 @@ export class AgentHostSandboxNotification extends Disposable {
 					? localize('agentHost.sandboxCertificateRotating', "Rotating sandbox certificate")
 					: this._certificateOperation === 'install'
 						? localize('agentHost.sandboxCertificateInstalling', "Installing sandbox certificate")
-						: localize('agentHost.sandboxCertificateMissing', "Sandbox trusted CA is not installed"),
+						: localize('agentHost.sandboxCertificateMissing', "Sandbox trusted CA is not installed (optional)"),
 			description,
 			actions: canInstall && !this._certificateBusy ? [{
 				kind: ChatInputNotificationActionKind.Command,
@@ -377,41 +393,54 @@ export class AgentHostSandboxNotification extends Disposable {
 				? localize('agentHost.sandboxLocalNetworkManaged', "Your organization disables local network access, which some sandboxing features need. {0}", localNetworkLink)
 				: localize('agentHost.sandboxLocalNetworkRequired', "Sandboxing requires access to local network. {0}", localNetworkLink)
 			: undefined;
-		const canDisable = this._canDisableSandboxing(state);
-		if (equals(this._reasons ?? [], reasons ?? []) && this._canDisable === canDisable && this._localNetworkMessage === localNetworkMessage) {
+		const { required, canDisable } = this._readSandboxControl(state);
+		if (equals(this._reasons ?? [], reasons ?? []) && this._canDisable === canDisable && this._required === required && this._localNetworkMessage === localNetworkMessage) {
 			return;
 		}
 		this._reasons = reasons;
 		this._canDisable = canDisable;
+		this._required = required;
 		this._localNetworkMessage = localNetworkMessage;
 		if (!reasons && !localNetworkMessage) {
 			this._notificationService.deleteNotification(this._id);
 			return;
 		}
-		const description = new MarkdownString('', { isTrusted: { enabledCommands: localNetworkMessage ? [OPEN_SETTINGS_COMMAND] : canDisable ? [this._disableCommandId] : [] } });
-		if (localNetworkMessage) {
-			description.appendMarkdown(localNetworkMessage);
-		} else if (reasons) {
-			description.appendText(reasons[0]);
-			description.appendText(' ');
-			description.appendLink('https://aka.ms/vscode-sandboxing-troubleshoot', localize('agentHost.sandboxTroubleshooting', "Troubleshooting Guide"));
+		const actions: IChatInputNotificationAction[] = [];
+		if (reasons) {
+			actions.push({
+				kind: ChatInputNotificationActionKind.Command,
+				label: localize('agentHost.sandboxTroubleshooting', "Troubleshooting Guide"),
+				commandId: 'vscode.open',
+				commandArgs: ['https://aka.ms/vscode-sandboxing-troubleshoot'],
+				primary: false,
+				filled: true,
+				keepOpen: true,
+			});
 			if (canDisable) {
-				description.appendText(' | ');
-				description.appendLink(
-					createCommandUri(this._disableCommandId).toString(),
-					localize('agentHost.disableSandboxing', "Disable Sandboxing"),
-					localize('agentHost.disableSandboxingDetail', "Disable sandboxing for this session and in settings. Terminal commands may run without sandbox restrictions. Organization policy still applies."),
-				);
+				actions.push({
+					kind: ChatInputNotificationActionKind.Command,
+					label: localize('agentHost.disableSandboxing', "Disable Sandboxing"),
+					tooltip: localize('agentHost.disableSandboxingDetail', "Disable sandboxing for this session and in settings. Terminal commands may run without sandbox restrictions. Organization policy still applies."),
+					commandId: this._disableCommandId,
+					primary: false,
+					filled: true,
+					keepOpen: true,
+				});
 			}
 		}
+		const requiredButUnavailable = reasons !== undefined && required;
 		this._notificationService.setNotification({
 			id: this._id,
 			severity: localNetworkMessage ? ChatInputNotificationSeverity.Info : ChatInputNotificationSeverity.Warning,
 			message: localNetworkMessage
-				? description
-				: localize('agentHost.sandboxMayNotWorkAsExpected', "Sandboxing might not work as expected"),
-			description: localNetworkMessage ? undefined : description,
-			actions: [],
+				? new MarkdownString(localNetworkMessage, { isTrusted: { enabledCommands: [OPEN_SETTINGS_COMMAND] } })
+				: requiredButUnavailable
+					? localize('agentHost.sandboxRequiredUnavailable', "Sandboxing is required by your organization but isn't available on this machine")
+					: localize('agentHost.sandboxMayNotWorkAsExpected', "Sandboxing might not work as expected"),
+			description: requiredButUnavailable
+				? localize('agentHost.sandboxRequiredUnavailableDetail', "Terminal commands can't run until this machine meets the sandbox requirements or your admin changes the policy. {0}", reasons[0])
+				: reasons?.[0],
+			actions,
 			dismissible: true,
 			onDismiss: () => {
 				this._dismissedSessions.add(this._sessionResource);

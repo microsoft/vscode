@@ -518,6 +518,14 @@ export class CapiReplayProxy {
 	// -- request handling -----------------------------------------------------
 
 	private _handle(req: http.IncomingMessage, res: http.ServerResponse): void {
+		const path = new URL(req.url ?? '/', 'http://localhost').pathname;
+		if (req.method === 'GET' && (path === '/json/version' || path === '/json/list')) {
+			// Debugger discovery scans local listening ports. This is not a DevTools server or CAPI traffic.
+			req.resume();
+			res.writeHead(404);
+			res.end();
+			return;
+		}
 		const chunks: Buffer[] = [];
 		req.on('data', chunk => chunks.push(chunk));
 		req.on('end', () => {

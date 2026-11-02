@@ -106,11 +106,11 @@ suite('Dev Container samples', () => {
 				leases.acquired++;
 				return upcastPartial<IGitHubAnonymousClient>({
 					content: upcastPartial<IContentClient>({
-						resolveRef: async (owner, repo, ref) => {
+						resolveRef: async ({ owner, repo }, ref) => {
 							calls.push(`resolve ${owner}/${repo}@${ref}`);
 							return commit;
 						},
-						getRawFile: async (owner, repo, commitSha, path) => {
+						getRawFile: async ({ owner, repo }, commitSha, path) => {
 							calls.push(`read ${owner}/${repo}@${commitSha}/${path}`);
 							return JSON.stringify(config);
 						},

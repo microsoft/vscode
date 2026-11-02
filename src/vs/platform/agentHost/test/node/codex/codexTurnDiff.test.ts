@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { createHash } from 'crypto';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
@@ -279,6 +279,21 @@ suite('Codex turn diff snapshots', () => {
 			assert.deepStrictEqual(await snapshots(), expected);
 		});
 	}
+
+	test('separate stores of one host turn add rows instead of replacing them', async () => {
+		const store = (threadId: string, patch: string, sequence: number) => storeCodexTurnDiffs([{
+			notification: { threadId, turnId: `${threadId}-native`, diff: patch }, initialDiffs: [patch],
+			snapshots: [{ turnId: 'host-turn', diff: patch, startSequence: sequence, sequence, fileSequences: fileSequences(['edit.txt'], sequence) }],
+		}], { relatedDiffs: [], cwd, nativeCwd: cwd, database, fileService, logService });
+		await write('child\n');
+		await store('child', diff('original\n', 'child\n', '@@ -1 +1 @@\n-original\n+child\n'), 1);
+		await write('last\n');
+		await store('parent', diff('child\n', 'last\n', '@@ -1 +1 @@\n-child\n+last\n'), 2);
+		assert.deepStrictEqual(await snapshots(), [
+			{ path: expectedPath('edit.txt'), kind: FileEditKind.Edit, before: 'original\n', after: 'child\n' },
+			{ path: expectedPath('edit.txt'), kind: FileEditKind.Edit, before: 'child\n', after: 'last\n' },
+		]);
+	});
 });
 
 suite('Codex turn diff readiness', () => {
@@ -330,12 +345,16 @@ suite('Codex turn diff readiness', () => {
 		]);
 	});
 
-	test('disposing a runtime cancels pending checkpoint reads', async () => {
-		const tracker = disposables.add(new CodexTurnDiffTracker(async () => { }));
-		tracker.start('thread', 'native', 'host');
+	test('disposing a runtime cancels pending checkpoint reads, but a running store still settles its turns', async () => {
+		const stored = new DeferredPromise<void>();
+		const tracker = disposables.add(new CodexTurnDiffTracker(() => stored.p));
+		tracker.start('thread', 'storing-native', 'storing-host');
+		const storing = tracker.complete('storing-native');
+		tracker.start('other-thread', 'native', 'host');
 		const waiting = assert.rejects(tracker.waitForTurnEdits('host'), /Canceled/);
 		tracker.dispose();
-		await waiting;
+		stored.complete();
+		await Promise.all([waiting, storing]);
 	});
 
 	for (const receivesDiff of [false, true]) {
@@ -356,18 +375,102 @@ suite('Codex turn diff readiness', () => {
 		});
 	}
 
-	test('a timed-out child fails its checkpoint and releases later persistence', async () => {
-		const stored: string[] = [];
-		const tracker = disposables.add(new CodexTurnDiffTracker(async captures => { stored.push(...captures.map(capture => capture.notification.turnId)); }));
-		tracker.start('parent', 'cancelled-native', 'cancelled-host');
-		tracker.trackChild('child', 'cancelled-host');
-		const cancelled = assert.rejects(tracker.complete('cancelled-native'), /timed out/);
-		const waiting = assert.rejects(tracker.waitForTurnEdits('cancelled-host'), /timed out/);
-		tracker.start('parent', 'replacement-native', 'replacement-host');
-		const replacement = tracker.complete('replacement-native');
-		tracker.failWaitingTurn('cancelled-host', new Error('timed out'));
-		await Promise.all([cancelled, waiting, replacement]);
-		await assert.rejects(tracker.waitForTurnEdits('cancelled-host'), /timed out/);
-		assert.deepStrictEqual(stored, ['replacement-native']);
+	const fileDiff = (path: string) => `diff --git a/${path} b/${path}\nindex 1..2 100644\n--- a/${path}\n+++ b/${path}\n@@ -1 +1 @@\n-a\n+b\n`;
+
+	for (const [laterPath, holdsBack] of [['parent.txt', 'a later turn on its parent\'s path'], ['child.txt', 'a later turn on its path'], ['other.txt', 'no later turn on another path']] as const) {
+		test(`a slow child holds back its own turn and ${holdsBack}`, async () => {
+			const stored: string[][] = [];
+			const tracker = disposables.add(new CodexTurnDiffTracker(async captures => { stored.push(captures.map(capture => capture.notification.turnId).sort()); }));
+			tracker.start('parent', 'parent-native', 'first-host');
+			tracker.update({ threadId: 'parent', turnId: 'parent-native', diff: fileDiff('parent.txt') });
+			tracker.trackChild('child', 'first-host');
+			tracker.update({ threadId: 'child', turnId: 'child-native', diff: fileDiff('child.txt') });
+			const parent = tracker.complete('parent-native');
+			tracker.start('parent', 'later-native', 'later-host');
+			tracker.update({ threadId: 'parent', turnId: 'later-native', diff: fileDiff(laterPath) });
+			const later = tracker.complete('later-native');
+			await timeout(0);
+			const beforeChildCompletes = [...stored];
+			await tracker.complete('child-native');
+			await Promise.all([parent, later]);
+			assert.deepStrictEqual({ beforeChildCompletes, stored }, laterPath === 'other.txt' ? {
+				beforeChildCompletes: [['later-native']],
+				stored: [['later-native'], ['child-native', 'parent-native']],
+			} : {
+				beforeChildCompletes: [],
+				stored: [['child-native', 'later-native', 'parent-native']],
+			});
+		});
+	}
+
+	test('a slow child of a truncated turn holds back no later turn', async () => {
+		const stored: string[][] = [];
+		const tracker = disposables.add(new CodexTurnDiffTracker(async captures => { stored.push(captures.map(capture => capture.notification.turnId).sort()); }));
+		tracker.start('parent', 'truncated-native', 'truncated-host');
+		tracker.update({ threadId: 'parent', turnId: 'truncated-native', diff: fileDiff('shared.txt') });
+		tracker.trackChild('child', 'truncated-host');
+		tracker.update({ threadId: 'child', turnId: 'child-native', diff: fileDiff('shared.txt') });
+		const truncated = tracker.complete('truncated-native');
+		tracker.start('parent', 'next-native', 'next-host');
+		tracker.update({ threadId: 'parent', turnId: 'next-native', diff: fileDiff('shared.txt') });
+		const next = tracker.complete('next-native');
+		await timeout(0);
+		const beforeTruncation = [...stored];
+		tracker.discard(['truncated-host']);
+		await timeout(0);
+		const afterTruncation = [...stored];
+		const pendingAfterTruncation = tracker.hasPendingTurns();
+		await tracker.complete('child-native');
+		await Promise.all([truncated, next]);
+		assert.deepStrictEqual({ beforeTruncation, afterTruncation, pendingAfterTruncation }, { beforeTruncation: [], afterTruncation: [['next-native'], ['truncated-native']], pendingAfterTruncation: false });
+	});
+
+	test('a turn waits for an overlapping store that started first', async () => {
+		const events: string[] = [];
+		const release = new DeferredPromise<void>();
+		const tracker = disposables.add(new CodexTurnDiffTracker(async captures => {
+			const turns = captures.map(capture => capture.notification.turnId).join();
+			events.push(`start ${turns}`);
+			if (turns === 'late-native') {
+				await release.p;
+			}
+			events.push(`end ${turns}`);
+		}));
+		tracker.start('child', 'early-native', 'early-host');
+		tracker.update({ threadId: 'child', turnId: 'early-native', diff: fileDiff('a.txt') });
+		tracker.start('parent', 'late-native', 'late-host');
+		tracker.update({ threadId: 'parent', turnId: 'late-native', diff: fileDiff('q.txt') });
+		const late = tracker.complete('late-native');
+		await timeout(0);
+		tracker.update({ threadId: 'child', turnId: 'early-native', diff: fileDiff('a.txt') + fileDiff('q.txt') });
+		const early = tracker.complete('early-native');
+		await timeout(0);
+		const whileLateStores = [...events];
+		release.complete();
+		await Promise.all([late, early]);
+		assert.deepStrictEqual({ whileLateStores, events }, {
+			whileLateStores: ['start late-native'],
+			events: ['start late-native', 'end late-native', 'start early-native', 'end early-native'],
+		});
+	});
+	test('a removed turn\'s diffs stay available until kept turns on its paths are stored', async () => {
+		const stores: { turns: string[]; hasRemovedDiff: boolean }[] = [];
+		const tracker = disposables.add(new CodexTurnDiffTracker(async (captures, relatedDiffs) => {
+			stores.push({ turns: captures.map(capture => capture.notification.turnId), hasRemovedDiff: relatedDiffs.some(diff => diff.includes('removed.txt')) });
+		}));
+		tracker.start('parent', 'kept-native', 'kept-host');
+		tracker.update({ threadId: 'parent', turnId: 'kept-native', diff: fileDiff('shared.txt') });
+		tracker.start('child', 'removed-native', 'removed-host');
+		tracker.update({ threadId: 'child', turnId: 'removed-native', diff: fileDiff('shared.txt') + fileDiff('removed.txt') });
+		tracker.discard(['removed-host']);
+		const removed = tracker.complete('removed-native');
+		await timeout(0);
+		const whileKeptRuns = [...stores];
+		await tracker.complete('kept-native');
+		await removed;
+		assert.deepStrictEqual({ whileKeptRuns, stores }, {
+			whileKeptRuns: [],
+			stores: [{ turns: ['kept-native'], hasRemovedDiff: true }, { turns: ['removed-native'], hasRemovedDiff: false }],
+		});
 	});
 });

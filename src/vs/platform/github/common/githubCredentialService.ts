@@ -116,9 +116,9 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 		super();
 		this._backoff = backoff ?? this._register(new BackoffGate('GitHub identity resolution', policy, this._scheduler, _logService));
 		if (this._tokenProvider.onDidChangeToken) {
-			this._register(this._tokenProvider.onDidChangeToken(() => this._invalidateCurrent('replacement')));
+			this._register(this._tokenProvider.onDidChangeToken(() => this._invalidateCurrent('replacement', true)));
 		}
-		this._register(this._endpointProvider.onDidChange(() => this._invalidateCurrent('endpoint')));
+		this._register(this._endpointProvider.onDidChange(() => this._invalidateCurrent('endpoint', true)));
 	}
 
 	getCredential(signal: AbortSignal): Promise<GitHubCredential> {
@@ -297,7 +297,7 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 		};
 	}
 
-	private _invalidateCurrent(reason: GitHubCredentialInvalidation['reason']): void {
+	private _invalidateCurrent(reason: GitHubCredentialInvalidation['reason'], notifyWhenEmpty = false): void {
 		// The gate keys its record by host, so a credential held back on the
 		// previous endpoint must not keep the new one waiting.
 		if (reason === 'endpoint') {
@@ -306,7 +306,7 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 		this._preserveBootstrapCooldown();
 		const current = this._current;
 		if (!current) {
-			if (reason === 'replacement' && this._lastCredential) {
+			if (notifyWhenEmpty || reason === 'replacement' && this._lastCredential) {
 				this._logService?.debug(`[GitHubCredentialService] Invalidating retained credential (${reason})`);
 				this._onDidInvalidate.fire({ credential: this._lastCredential, reason });
 			}

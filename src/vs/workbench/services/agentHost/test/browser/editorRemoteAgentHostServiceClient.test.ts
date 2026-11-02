@@ -17,11 +17,12 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
-import { AgentHostClientState, AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
+import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
-import { agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import type { IAgentHostDebugLogsArtifact, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
+import type { IAgentHostTcpConnection } from '../../../../../platform/agentHost/common/agentHostTcpConnection.js';
+import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import type { IAgentHostDebugLogsArtifact } from '../../../../../platform/agentHost/common/agentService.js';
 import type { IClientTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
@@ -33,9 +34,11 @@ import type { PersistentConnectionEvent } from '../../../../../platform/remote/c
 import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, type ResolverResult } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { EditorRemoteAgentHostServiceClient } from '../../browser/editorRemoteAgentHostServiceClient.js';
 import { IAgentHostFileSystemService } from '../../common/agentHostFileSystemService.js';
-import { EditorRemoteAgentHostTransport } from '../../common/editorRemoteAgentHostTransport.js';
 import { IRemoteAgentService, type IRemoteAgentConnection } from '../../../remote/common/remoteAgentService.js';
 import { TestRemoteAgentService } from '../../../../test/browser/workbenchTestServices.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IRequestService } from '../../../../../platform/request/common/request.js';
 
 class TestRemoteAgentConnection extends Disposable implements IRemoteAgentConnection {
 	readonly isConnected = true;
@@ -87,10 +90,18 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
-	function createTransportFactory(channel: IChannel, resolveAuthority: IRemoteAuthorityResolverService['resolveAuthority'], isSessionsWindow = false, logService = new NullLogService()): () => IClientTransport {
-		const remoteAgentService = new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection(channel, 'codespaces+test')));
+	function createTransportFactory(channel: IChannel, resolveAuthority: IRemoteAuthorityResolverService['resolveAuthority'], isSessionsWindow = false, logService = new NullLogService(), certificates?: { useHostProxy: boolean; systemCertificates: boolean; authority?: string }, onOptions?: (options: IAgentHostProtocolClientOptions) => void): () => IClientTransport {
+		const remoteAgentService = new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection(channel, certificates ? certificates.authority ?? 'wsl+test' : 'codespaces+test')));
+		remoteAgentService.environmentReady.complete(upcastPartial<IRemoteAgentEnvironment>({ useHostProxy: certificates?.useHostProxy ?? false }));
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
 			[IRemoteAgentService, remoteAgentService],
+			[IConfigurationService, new TestConfigurationService({ 'http.systemCertificates': certificates?.systemCertificates ?? false })],
+			[IRequestService, upcastPartial<IRequestService>({
+				loadCertificates: async () => {
+					assert.ok(certificates?.useHostProxy && certificates.systemCertificates);
+					return ['LOCAL CA'];
+				}
+			})],
 			[IRemoteAuthorityResolverService, upcastPartial<IRemoteAuthorityResolverService>({ resolveAuthority })],
 			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) }],
 			[ILogService, logService],
@@ -111,7 +122,43 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		const createInstanceSpy = sinon.spy(instantiationService, 'createInstance');
 		disposables.add(instantiationService.createInstance(EditorRemoteAgentHostServiceClient));
 		const protocolClientCall = createInstanceSpy.getCalls().find(call => call.args[0] === AgentHostProtocolClient);
+		onOptions?.(protocolClientCall?.args[3] as IAgentHostProtocolClientOptions);
 		return protocolClientCall?.args[2] as () => IClientTransport;
+	}
+
+	for (const useHostProxy of [true, false]) {
+		for (const systemCertificates of [true, false]) {
+			test(`forwards certificates only for local-network remotes (useHostProxy=${useHostProxy}, systemCertificates=${systemCertificates})`, async () => {
+				const calls: unknown[] = [];
+				const channel: IChannel = {
+					call: async <T>(_command: string, arg?: unknown) => {
+						calls.push(arg);
+						return undefined as T;
+					},
+					listen: () => Event.None,
+				};
+				let provider: IAgentHostProtocolClientOptions['clientCertificates'];
+				const createTransport = createTransportFactory(channel, async () => upcastPartial<ResolverResult>({}), false, new NullLogService(), { useHostProxy, systemCertificates }, options => provider = options.clientCertificates);
+				await disposables.add(createTransport()).connect();
+				assert.deepStrictEqual({ calls, enabled: provider?.isEnabled(), certificates: provider?.isEnabled() ? await provider.loadCertificates() : undefined }, {
+					calls: [{ env: {}, debugEnv: { GITHUB_TOKEN: 'debug-token', DEBUG_ENV: 'debug-value' } }],
+					enabled: useHostProxy && systemCertificates,
+					certificates: useHostProxy && systemCertificates ? ['LOCAL CA'] : undefined,
+				});
+			});
+		}
+	}
+
+	for (const authority of ['wsl+test', 'dev-container+test', 'attached-container+test', 'ssh-remote+test', 'tunnel+test', 'codespaces+test']) {
+		test(`limits the client certificate API to WSL and local container authorities (${authority})`, async () => {
+			const channel: IChannel = { call: async <T>() => undefined as T, listen: () => Event.None };
+			let provider: IAgentHostProtocolClientOptions['clientCertificates'];
+			const createTransport = createTransportFactory(channel, async () => upcastPartial<ResolverResult>({}), false, new NullLogService(), {
+				authority, useHostProxy: true, systemCertificates: true,
+			}, options => provider = options.clientCertificates);
+			await disposables.add(createTransport()).connect();
+			assert.deepStrictEqual(provider?.isEnabled() ? await provider.loadCertificates() : undefined, ['wsl+test', 'dev-container+test', 'attached-container+test'].includes(authority) ? ['LOCAL CA'] : undefined);
+		});
 	}
 
 	for (const isSessionsWindow of [false, true]) {
@@ -203,6 +250,8 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		};
 		const remoteAgentService = new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection(channel)));
 		let connectCalls = 0;
+		const tcpTargets: Array<{ host: string; port: number }> = [];
+		const tcpConnection = upcastPartial<IAgentHostTcpConnection>({});
 		const onDidChangeConnectionState = disposables.add(new Emitter<AgentHostClientState>());
 		const protocolClient = {
 			clientId: 'test-client',
@@ -210,6 +259,10 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			connect: async () => {
 				connectCalls++;
 				throw new Error('Initial connection failed');
+			},
+			openTcpConnection: async (target: { host: string; port: number }) => {
+				tcpTargets.push(target);
+				return tcpConnection;
 			},
 			onDidClose: Event.None,
 			onDidChangeConnectionState: onDidChangeConnectionState.event,
@@ -272,6 +325,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		const protocolClientCall = createInstanceSpy.getCalls().find(call => call.args[0] === AgentHostProtocolClient);
 		const createTransport = protocolClientCall?.args[2] as () => IClientTransport;
 		const transport = disposables.add(createTransport());
+		const openedTcpConnection = await service.openTcpConnection({ host: 'canvas.test', port: 4321 });
 		assert.deepStrictEqual({
 			beforeReady,
 			afterReady: connectCalls,
@@ -280,7 +334,10 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			clientInfo: protocolClientCall?.args[3]?.clientInfo,
 			registeredAuthorities,
 			registeredFormatters: registeredFormatters.map(formatter => formatter.formatting),
-			mapsRemoteDirectories: transport instanceof EditorRemoteAgentHostTransport,
+			toHost: protocolClientCall?.args[3]?.resourceUris?.toAgentHost(URI.parse('vscode-remote://ssh-remote+test/x')).toString(),
+			toClient: protocolClientCall?.args[3]?.resourceUris?.fromAgentHost(URI.file('/x')).toString(),
+			tcpTargets,
+			openedTcpConnection: openedTcpConnection === tcpConnection,
 		}, {
 			beforeReady: 0,
 			afterReady: 1,
@@ -293,55 +350,11 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 				separator: '\\',
 				normalizeDriveLetter: true,
 			}],
-			mapsRemoteDirectories: true,
+			toHost: 'file:///x',
+			toClient: URI.parse('vscode-remote://ssh-remote+test/x').toString(),
+			tcpTargets: [{ host: 'canvas.test', port: 4321 }],
+			openedTcpConnection: true,
 		});
-	});
-
-	test('returns remote workspace identities for both session-list directory fields', async () => {
-		const channel: IChannel = {
-			call: <T>() => Promise.resolve(undefined as T),
-			listen: () => Event.None,
-		};
-		const remoteAgentService = new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection(channel)));
-		const directory = URI.parse('vscode-remote://ssh-remote+test/workspace');
-		const secondDirectory = URI.parse('vscode-remote://ssh-remote+test/second');
-		const directorySets = [undefined, [], [directory], [directory, secondDirectory]];
-		const sessions: IAgentSessionMetadata[] = directorySets.map((directories, index) => ({
-			session: URI.parse(`copilot:/session-${index}`),
-			startTime: 0,
-			modifiedTime: 0,
-			workingDirectory: directories?.[0] ? toAgentHostUri(directories[0], 'test') : undefined,
-			workingDirectories: directories?.map(directory => toAgentHostUri(directory, 'test')),
-		}));
-		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
-			[IRemoteAgentService, remoteAgentService],
-			[IRemoteAuthorityResolverService, upcastPartial<IRemoteAuthorityResolverService>({})],
-			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) }],
-			[ILogService, new NullLogService()],
-			[IWorkbenchEnvironmentService, { isSessionsWindow: false }],
-			[ILabelService, upcastPartial<ILabelService>({
-				registerFormatter: () => Disposable.None,
-			})],
-			[IAgentHostFileSystemService, {
-				_serviceBrand: undefined,
-				registerAuthority: () => Disposable.None,
-				ensureSyncedCustomizationProvider: () => { },
-			}],
-		)));
-		instantiationService.stubInstance(AgentHostProtocolClient, {
-			onDidClose: Event.None,
-			onDidChangeConnectionState: Event.None,
-			listSessions: async () => sessions,
-			dispose: () => { },
-		});
-		instantiationService.set(IInstantiationService, instantiationService);
-		const service = disposables.add(instantiationService.createInstance(EditorRemoteAgentHostServiceClient));
-
-		assert.deepStrictEqual(await service.listSessions(), sessions.map((session, index) => ({
-			...session,
-			workingDirectory: directorySets[index]?.[0],
-			workingDirectories: directorySets[index],
-		})));
 	});
 
 	test('forwards debug-log collection progress tokens and cancellation to the remote bridge', async () => {

@@ -37,13 +37,13 @@ registerAction2(class CopyAgentHostSessionLinkAction extends Action2 {
 			title: localize2('copyAgentHostSessionLink', "Copy Link"),
 			menu: [{
 				id: Menus.SessionItemContextMenu,
-				group: '2_open',
-				order: 2,
+				group: '3_copy',
+				order: 1,
 				when: ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 			}, ...SessionHeaderMenus.map(id => ({
 				id,
-				group: 'secondary/1_session',
-				order: 40,
+				group: 'secondary/3_copy',
+				order: 10,
 				when: ContextKeyExpr.and(SessionIsCreatedContext, ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE)),
 			}))],
 		});

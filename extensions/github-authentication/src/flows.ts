@@ -228,6 +228,7 @@ class UrlHandlerFlow implements IFlow {
 		logger.info(`Trying without local server... (${scopes})`);
 		return await window.withProgress<string>({
 			location: ProgressLocation.Notification,
+			notificationId: 'githubAuthentication.signIn.browser',
 			title: l10n.t({
 				message: 'Signing in to {0}...',
 				args: [baseUri.authority],
@@ -318,6 +319,7 @@ class LocalServerFlow implements IFlow {
 		logger.info(`Trying with local server... (${scopes})`);
 		return await window.withProgress<string>({
 			location: ProgressLocation.Notification,
+			notificationId: 'githubAuthentication.signIn.browser',
 			title: l10n.t({
 				message: 'Signing in to {0}...',
 				args: [baseUri.authority],
@@ -460,6 +462,7 @@ class DeviceCodeFlow implements IFlow {
 	): Promise<string> {
 		return await window.withProgress<string>({
 			location: ProgressLocation.Notification,
+			notificationId: 'githubAuthentication.signIn.deviceCode',
 			cancellable: true,
 			title: l10n.t({
 				message: 'Open [{0}]({0}) in a new tab and paste your one-time code: {1}',

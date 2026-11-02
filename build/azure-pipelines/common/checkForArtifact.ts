@@ -45,10 +45,9 @@ async function main(args: string[]): Promise<void> {
 	}
 }
 
-main(process.argv.slice(2))
-	.then(() => {
-		process.exit(0);
-	}, err => {
-		console.error(err);
-		process.exit(1);
-	});
+// Let Node exit on its own. Forcing an exit while fetch is still closing its
+// connection crashes Node on Windows with a libuv assertion (src\win\async.c)
+main(process.argv.slice(2)).catch(err => {
+	console.error(err);
+	process.exitCode = 1;
+});

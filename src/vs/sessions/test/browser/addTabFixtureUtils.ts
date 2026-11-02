@@ -18,6 +18,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../platform/contextkey
 import { IContextViewDelegate, IContextViewService, IOpenContextView } from '../../../platform/contextview/browser/contextView.js';
 import { USLayoutResolvedKeybinding } from '../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { MockKeybindingService } from '../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { SessionActivityBarGroup } from '../../browser/menus.js';
 
 // Shared fixture data and services for the Add Tab surfaces (empty editor group list, session activity bar).
 
@@ -37,8 +38,9 @@ export const fixtureChanges: IFixtureEntry = { id: 'sessions.fixture.addTab.chan
 export const fixtureFiles: IFixtureEntry = { id: 'sessions.fixture.addTab.files', title: 'Files', icon: Codicon.files, keybinding: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE };
 export const fixtureBrowser: IFixtureEntry = { id: 'sessions.fixture.addTab.browser', title: 'Browser', icon: Codicon.globe, keybinding: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyB };
 export const fixtureCanvas: IFixtureEntry = { id: 'sessions.fixture.addTab.canvas', title: 'Canvas', icon: Codicon.preview, submenu: ['Kusto'] };
-export const fixtureTogglePanel: IFixtureEntry = { id: 'sessions.fixture.layout.panel', title: 'Show Panel', icon: Codicon.layoutPanelOff, keybinding: KeyMod.CtrlCmd | KeyCode.KeyJ, group: '3_panel' };
-export const fixtureToggleSidePanel: IFixtureEntry = { id: 'sessions.fixture.layout.sidePanel', title: 'Toggle Side Panel', icon: Codicon.layoutSidebarRightOff, keybinding: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyB, group: '1_sidePanel' };
+export const fixtureTogglePanel: IFixtureEntry = { id: 'sessions.fixture.layout.panel', title: 'Show Panel', icon: Codicon.layoutPanelOff, keybinding: KeyMod.CtrlCmd | KeyCode.KeyJ, group: SessionActivityBarGroup.Panel };
+export const fixtureToggleSidePanel: IFixtureEntry = { id: 'sessions.fixture.layout.sidePanel', title: 'Toggle Side Panel', icon: Codicon.layoutSidebarRightOff, keybinding: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyB, group: SessionActivityBarGroup.SidePanel };
+export const fixtureTerminal: IFixtureEntry = { id: 'sessions.fixture.terminal', title: 'Terminal', icon: Codicon.terminal, group: SessionActivityBarGroup.Panel };
 
 export class FixtureMenuService extends mock<IMenuService>() {
 

@@ -13,7 +13,7 @@ import { Event } from '../../common/event.js';
 import { URI } from '../../common/uri.js';
 import { runWithFakedTimers } from './timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
-import { DisposableStore } from '../../common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../common/lifecycle.js';
 import { Iterable } from '../../common/iterator.js';
 import { isWeb } from '../../common/platform.js';
 
@@ -1308,21 +1308,17 @@ suite('Async', () => {
 		test('does not count wall-clock jumps', () => {
 			const clock = sinon.useFakeTimers();
 			const calls: boolean[] = [];
-			const scheduler = new async.ProcessTimeRunOnceScheduler(() => calls.push(true), 3000);
+			const scheduler = store.add(new async.ProcessTimeRunOnceScheduler(() => calls.push(true), 3000));
 
-			try {
-				scheduler.schedule();
-				clock.tick(1000);
-				clock.setSystemTime(Date.now() + 8 * 60 * 60 * 1000);
-				clock.tick(1000);
-				assert.deepStrictEqual(calls, []);
+			store.add(toDisposable(() => clock.restore()));
+			scheduler.schedule();
+			clock.tick(1000);
+			clock.setSystemTime(Date.now() + 8 * 60 * 60 * 1000);
+			clock.tick(1000);
+			assert.deepStrictEqual(calls, []);
 
-				clock.tick(1000);
-				assert.deepStrictEqual(calls, [true]);
-			} finally {
-				scheduler.dispose();
-				clock.restore();
-			}
+			clock.tick(1000);
+			assert.deepStrictEqual(calls, [true]);
 		});
 	});
 
