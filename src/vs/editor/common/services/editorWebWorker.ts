@@ -5,6 +5,7 @@
 
 import { stringDiff } from '../../../base/common/diff/diff.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import { isHighSurrogate } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { IWebWorkerServerRequestHandler } from '../../../base/common/worker/webWorker.js';
 import { Position } from '../core/position.js';
@@ -279,18 +280,35 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 			// compute diff between original and edit.text
 			const changes = stringDiff(original, text, pretty);
 			const editOffset = model.offsetAt(Range.lift(range).getStartPosition());
+			const newEdits: TextEdit[] = [];
+			let useOriginalEdit = false;
 
 			for (const change of changes) {
+				const originalEnd = change.originalStart + change.originalLength;
+				if (
+					(change.originalStart > 0 && isHighSurrogate(original.charCodeAt(change.originalStart - 1)))
+					|| (originalEnd > 0 && isHighSurrogate(original.charCodeAt(originalEnd - 1)))
+				) {
+					useOriginalEdit = true;
+					break;
+				}
+
 				const start = model.positionAt(editOffset + change.originalStart);
-				const end = model.positionAt(editOffset + change.originalStart + change.originalLength);
+				const end = model.positionAt(editOffset + originalEnd);
 				const newEdit: TextEdit = {
-					text: text.substr(change.modifiedStart, change.modifiedLength),
+					text: text.slice(change.modifiedStart, change.modifiedStart + change.modifiedLength),
 					range: { startLineNumber: start.lineNumber, startColumn: start.column, endLineNumber: end.lineNumber, endColumn: end.column }
 				};
 
 				if (model.getValueInRange(newEdit.range) !== newEdit.text) {
-					result.push(newEdit);
+					newEdits.push(newEdit);
 				}
+			}
+
+			if (useOriginalEdit) {
+				result.push({ range, text });
+			} else {
+				result.push(...newEdits);
 			}
 		}
 
