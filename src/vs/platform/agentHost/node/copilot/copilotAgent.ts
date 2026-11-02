@@ -1205,6 +1205,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _pendingClientRestartWaiter: DeferredPromise<void> | undefined;
 	private _closedConnectionRecovery: { readonly clientFailureId: string; readonly promise: Promise<ICopilotClosedConnectionRecoveryResult> } | undefined;
 	private readonly _clientRecoveries = new WeakMap<CopilotSessionLaunchPlan['client'], { readonly clientFailureId: string; readonly promise: Promise<ICopilotClosedConnectionRecoveryResult> }>();
+	private readonly _pendingClientRecoveries = new Set<Promise<ICopilotClosedConnectionRecoveryResult>>();
 	private readonly _clientHealthChecks = this._register(new DisposableMap<CopilotClient, RunOnceScheduler>());
 	private readonly _authenticationSequencer = new Sequencer();
 	private _updatingGitHubCredentials = false;
@@ -1833,7 +1834,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/** Retries a restore when its acquired SDK client is replaced, preserving lazy acquisition and startup overlap. */
-	private async _retryRestoreAfterClientReplacement<T>(restore: (acquireClient: () => Promise<CopilotClient>) => Promise<T>, chat?: URI, operationClient?: ICopilotClientOperationContext): Promise<T> {
+	private async _retryRestoreAfterClientReplacement<T>(restore: (acquireClient: () => Promise<CopilotClient>) => Promise<T>, chat?: URI, operationClient?: ICopilotClientOperationContext, token = CancellationToken.None): Promise<T> {
 		if (chat && this._credentialSources.has(chat.toString())) {
 			return restore(() => this._ensureClientForChat(chat, operationClient));
 		}
@@ -1847,11 +1848,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 					return client;
 				});
 				if (client && (this._shutdownPromise || this._client !== client || this._clientGeneration !== generation)) {
+					this._throwIfClientFailed(client, token);
 					throw new CancellationError();
 				}
 				return result;
 			} catch (error) {
-				if (attempt >= MAX_SESSION_RESTORE_ATTEMPTS || this._shutdownPromise || !client || this._client === client && this._clientGeneration === generation) {
+				if (client && error instanceof CancellationError) {
+					this._throwIfClientFailed(client, token);
+				}
+				if (attempt >= MAX_SESSION_RESTORE_ATTEMPTS || this._shutdownPromise || !client || this._clientRecoveries.has(client) || this._client === client && this._clientGeneration === generation) {
 					throw error;
 				}
 				this._logService.info('[Copilot] SDK client replaced during session restore; retrying with the current client', error);
@@ -2137,7 +2142,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * chat to go idle drives this again.
 	 */
 	private async _applyPendingClientRestart(): Promise<void> {
-		if (this._pendingClientRestartReasons.size === 0 || this._shutdownPromise || !this._client || this._updatingGitHubCredentials || this._chatsWithInFlightWork() > 0) {
+		if (this._pendingClientRestartReasons.size === 0 || this._shutdownPromise || this._closedConnectionRecovery || !this._client || this._updatingGitHubCredentials || this._chatsWithInFlightWork() > 0) {
 			return;
 		}
 		const reason = [...this._pendingClientRestartReasons].join('; ');
@@ -2267,15 +2272,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const recovery = Promise.resolve().then(() => this._runClosedConnectionRecovery(clientFailureId, failureKind, ownedClient, scoped));
 		const entry = { clientFailureId, promise: recovery };
 		this._clientRecoveries.set(ownedClient, entry);
+		this._pendingClientRecoveries.add(recovery);
 		if (!scoped) {
 			this._closedConnectionRecovery = entry;
-			const cleanup = () => {
-				if (this._closedConnectionRecovery?.promise === recovery) {
-					this._closedConnectionRecovery = undefined;
-				}
-			};
-			recovery.then(cleanup, cleanup);
 		}
+		const cleanup = () => {
+			this._pendingClientRecoveries.delete(recovery);
+			if (this._closedConnectionRecovery?.promise === recovery) {
+				this._closedConnectionRecovery = undefined;
+			}
+		};
+		recovery.then(cleanup, cleanup);
 
 		return recovery;
 	}
@@ -4322,7 +4329,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._client = undefined;
 			this._clientStartupAuthentication = undefined;
 			this._clientStarting = undefined;
-			const policySessionRelease = this._customizationInstallations.releasePolicySession(client);
+			const policySessionRelease = client
+				? this._customizationInstallations.invalidateClient(client)
+				: this._customizationInstallations.releasePolicySession();
 			let stopSucceeded = true;
 			if (failed && client) {
 				const [policyReleased, stopped] = await Promise.all([
@@ -4429,6 +4438,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		if (!scoped && this._closedConnectionRecovery) {
 			await this._closedConnectionRecovery.promise;
+			if (this._shutdownPromise) {
+				throw new CancellationError();
+			}
 		}
 		while (!scoped && this._clientStopping) {
 			await this._clientStopping;
@@ -6276,6 +6288,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (credential) {
 				entry.assertScopedCredential(credential);
 			}
+			this._throwIfSessionDisposed(entry, token);
 			await entry.resume(turnId, this._resolveSdkMode(current.ownerSession, current.chat), senderClientId, clientType, clientTelemetryContext, !URI.isUri(operationContext) && operationContext.agentMergeTurn === true, stageRecorder);
 			if (!token.isCancellationRequested) {
 				this._deliverPendingSteering(chat, entry);
@@ -7739,6 +7752,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (entry.hasPendingConnectorRefresh) {
 				await entry.refreshConnectors(options.token);
 			}
+			this._throwIfSessionDisposed(entry, options.token);
 			await this._applyPendingModelSelection(context, entry, options.token ?? CancellationToken.None, options.operationClient);
 			return entry;
 		}
@@ -7768,6 +7782,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			// Finish a started restart so queued control operations can target the replacement runtime.
 			await this._destroyLiveSession(entry, true);
+			this._throwIfClientFailed(entry.sdkClient, options.token);
 			const token = operation === 'startMcpServer' ? CancellationToken.None : options.token;
 			if (entry.sessionId === context.sessionBackedId) {
 				replacement = await this._resumeSession(entry.sessionId, context.chat, context.workspaceless, workingDirectories, undefined, token, context.surface, options.operationClient);
@@ -7853,6 +7868,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 
 			await this._applyPendingModelSelection(current, entry, token, operationClient);
+			this._throwIfSessionDisposed(entry, token);
 			if (turnId) {
 				entry.resetTurnState(turnId, senderClientId, clientType, clientTelemetryContext);
 			}
@@ -8859,7 +8875,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const canvasHandoff = this._canvasHandoffs.get(chat);
 			let replacement: CopilotAgentSession | undefined;
 			try {
-				replacement = await this._retryRestoreAfterClientReplacement(acquireClient => this._resumeChatSessionOnce(context, acquireClient, workingDirectories, stageRecorder, token), chat, operationClient);
+				replacement = await this._retryRestoreAfterClientReplacement(acquireClient => this._resumeChatSessionOnce(context, acquireClient, workingDirectories, stageRecorder, token), chat, operationClient, token);
 				return replacement;
 			} finally {
 				if (canvasHandoff) {
@@ -9153,10 +9169,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!entry.isDisposed) {
 			return;
 		}
-		if (!token.isCancellationRequested && this._clientRecoveries.has(entry.sdkClient)) {
+		this._throwIfClientFailed(entry.sdkClient, token);
+		throw new CancellationError();
+	}
+
+	private _throwIfClientFailed(client: CopilotSessionLaunchPlan['client'], token = CancellationToken.None): void {
+		if (this._clientRecoveries.has(client)) {
+			if (token.isCancellationRequested || this._isShuttingDown) {
+				throw new CancellationError();
+			}
 			throw new Error(localize('copilotAgent.connectionClosed', "Copilot stopped unexpectedly. Retry your request."));
 		}
-		throw new CancellationError();
 	}
 
 	private async _applyModelSelection(context: IResolvedCopilotChatContext, entry: CopilotAgentSession, model: ModelSelection, token: CancellationToken, operationClient?: ICopilotClientOperationContext): Promise<void> {
@@ -9258,6 +9281,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 					await this._destroyLiveSession(session);
 				}
 				await this._stopClient();
+				await Promise.all([...this._pendingClientRecoveries].map(async recovery => {
+					try {
+						await recovery;
+					} catch (error) {
+						this._logService.error(error, '[Copilot] Failed to finish client recovery during shutdown');
+					}
+				}));
 				await Promise.all([...this._scopedClients.values()].map(client => client.stop()));
 				this._scopedClients.clearAndDisposeAll();
 				this._credentialSources.clear();
@@ -9679,6 +9709,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const scoped = agentSession.usesScopedGitHubCredentials;
 		if (this._shutdownPromise || !scoped && this._client !== client || scoped && this._scopedClients.get(agentSession.chatChannelUri.toString())?.client !== client) {
 			agentSession.dispose();
+			this._throwIfClientFailed(client);
 			throw new CancellationError();
 		}
 	}
@@ -9730,16 +9761,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const runtimePluginsListener = session.onDidChangeRuntimePlugins(() => { runtimePluginsChangedBeforeRegistration = true; });
 		try {
 			await session.initializeSession(token);
+			this._throwIfSessionDisposed(session, token);
 			await beforeRegistration?.();
 			if (session.hasPendingConnectorRefresh) {
 				await session.refreshConnectors();
 			}
 			await session.revalidateTelemetryBeforeRegistration?.();
+			this._throwIfSessionDisposed(session, token);
 			if (!this._sessionsPendingRegistration.deleteAndLeak(session)) {
 				throw new CancellationError();
 			}
 			runtimePluginsListener.dispose();
 			register();
+		} catch (error) {
+			if (error instanceof CancellationError) {
+				this._throwIfClientFailed(session.sdkClient, token);
+			}
+			throw error;
 		} finally {
 			runtimePluginsListener.dispose();
 			this._sessionsPendingRegistration.deleteAndLeak(session);
@@ -9775,7 +9813,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _doResumeSession(sessionId: string, chatChannelUri: URI, workspaceless: boolean | undefined, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder, token = CancellationToken.None, surface?: CopilotChatSurface, operationClient?: ICopilotClientOperationContext): Promise<CopilotAgentSession> {
 		const canvasHandoff = this._canvasHandoffs.get(chatChannelUri);
 		let replacement: CopilotAgentSession | undefined;
-		return this._retryRestoreAfterClientReplacement(acquireClient => this._resumeSessionOnce(sessionId, chatChannelUri, workspaceless, acquireClient, workingDirectories, stageRecorder, token, surface), chatChannelUri, operationClient).then(session => {
+		return this._retryRestoreAfterClientReplacement(acquireClient => this._resumeSessionOnce(sessionId, chatChannelUri, workspaceless, acquireClient, workingDirectories, stageRecorder, token, surface), chatChannelUri, operationClient, token).then(session => {
 			replacement = session;
 			return session;
 		}).finally(() => {
