@@ -1712,21 +1712,52 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('unauthenticated transports do not advertise or open TCP connections', async () => {
+	test('accepted transports advertise TCP and validate connection targets', async () => {
 		const transport = connectClient('client-tcp');
 		const initialize = findResponse(transport.sent, 1);
 		assert.ok(initialize && hasKey(initialize, { result: true }));
 		const result = initialize.result as InitializeResult;
 		const response = waitForResponse(transport, 2);
-		transport.simulateMessage(request(2, 'createTcpConnection', { channel: 'ahp-tcp:/test', host: 'localhost', port: 8080 }));
+		transport.simulateMessage(request(2, 'createTcpConnection', { channel: 'ahp-tcp:/test', host: 'localhost', port: 0 }));
 		assert.deepStrictEqual({
 			capability: result.tcpConnections,
 			response: await response,
 		}, {
-			capability: undefined,
-			response: { jsonrpc: '2.0', id: 2, error: { code: AhpErrorCodes.PermissionDenied, message: 'TCP requires an authenticated owner of this host' } },
+			capability: {},
+			response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.InvalidParams, message: 'Invalid TCP connection target' } },
 		});
 	});
+
+	for (const relay of ['roots', 'metadata', 'transport'] as const) {
+		test(`does not advertise or open TCP connections with relay ${relay}`, async () => {
+			const relayServer = disposables.add(new MockProtocolServer());
+			disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, relayServer,
+				relay === 'roots' ? { relayRoots: ['/workspace'] } : relay === 'metadata' ? { relayRootMeta: {} } : {},
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			));
+			const transport = disposables.add(relay === 'transport'
+				? new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'client-tcp-relay', false)
+				: new MockProtocolTransport());
+			relayServer.simulateConnection(transport);
+			const initialized = waitForResponse(transport, 1);
+			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'client-tcp-relay' }));
+			const initialize = await initialized;
+			assert.ok(hasKey(initialize, { result: true }));
+			const result = initialize.result as InitializeResult;
+			const response = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'createTcpConnection', { channel: 'ahp-tcp:/test', host: 'localhost', port: 8080 }));
+			assert.deepStrictEqual({
+				capability: result.tcpConnections,
+				response: await response,
+			}, {
+				capability: undefined,
+				response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not available to relay clients: createTcpConnection' } },
+			});
+		});
+	}
 
 	test('collects Agent Host debug logs through the extension request', async () => {
 		const transport = connectClient('client-debug-logs');

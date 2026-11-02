@@ -1010,6 +1010,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			&& compareProtocolVersions(protocolVersion, MULTIPLE_CHAT_PROVIDERS_PROTOCOL_VERSION) >= 0;
 	}
 
+	private _supportsTcpConnections(transport: IProtocolTransport): boolean {
+		return !this._config.relayRoots && !this._config.relayRootMeta
+			&& transport.relayClientId === undefined && !transport.relayPassive;
+	}
+
 	private _handleInitialize(
 		params: InitializeParams,
 		transport: IProtocolTransport,
@@ -1159,7 +1164,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
 				automations: this._config.relayRoots || this._config.scopedRelayCredentials ? undefined : this._agentService.automationCapabilities,
 				...(this._supportsMultipleChatProviders(negotiated) ? { multipleChatProviders: {} } : {}),
-				tcpConnections: this._tcpConnections.get(transport)?.supported && !this._config.relayRoots ? {} : undefined,
+				tcpConnections: this._supportsTcpConnections(transport) ? {} : undefined,
 			};
 			return {
 				client,
@@ -2117,6 +2122,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 */
 	private readonly _requestHandlers: RequestHandlerMap = {
 		createTcpConnection: async (client, params) => {
+			if (!this._supportsTcpConnections(client.transport)) {
+				throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Method not available to relay clients: createTcpConnection');
+			}
 			return this._tcpConnections.get(client.transport)!.create(params);
 		},
 		subscribe: async (client, params) => {

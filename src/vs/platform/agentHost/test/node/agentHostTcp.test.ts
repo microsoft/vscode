@@ -35,7 +35,6 @@ import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
-import { authenticateAgentHostTransport } from '../../node/agentHostTransportAuthentication.js';
 import { MockDevContainerService } from '../common/mockDevContainerService.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
@@ -97,7 +96,7 @@ suite('AHP windowed TCP', function () {
 	this.timeout(20_000);
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function harness(onConnection: (socket: Socket) => void, authenticated = true, advertiseTcp = true) {
+	async function harness(onConnection: (socket: Socket) => void, advertiseTcp = true) {
 		const sockets = new Set<Socket>();
 		const destination = createServer({ allowHalfOpen: true }, socket => {
 			sockets.add(socket);
@@ -154,7 +153,6 @@ suite('AHP windowed TCP', function () {
 					return message;
 				};
 			}
-			if (authenticated) { authenticateAgentHostTransport(remote); }
 			connections.fire(remote);
 			return local;
 		}
@@ -188,7 +186,7 @@ suite('AHP windowed TCP', function () {
 		}
 	}
 
-	test('default clients use TCP capabilities on the released protocol version', async () => {
+	test('accepted transports advertise TCP and forward data on the released protocol version', async () => {
 		const input = VSBuffer.fromString('capability-negotiated TCP');
 		const h = await harness(socket => socket.on('data', data => socket.end(data)));
 		assert.strictEqual(h.client.initializeResult.get()?.protocolVersion, '1.0.0');
@@ -201,7 +199,7 @@ suite('AHP windowed TCP', function () {
 	});
 
 	test('clients do not open TCP destinations without an advertised capability', async () => {
-		const h = await harness(() => { assert.fail('No TCP capability must not open a socket'); }, true, false);
+		const h = await harness(() => { assert.fail('No TCP capability must not open a socket'); }, false);
 		assert.strictEqual(h.client.initializeResult.get()?.protocolVersion, '1.0.0');
 		assert.strictEqual(h.client.initializeResult.get()?.tcpConnections, undefined);
 		await assert.rejects(h.open(), /does not support TCP/);
@@ -404,17 +402,6 @@ suite('AHP windowed TCP', function () {
 		assert.deepStrictEqual(await readAll(current), input);
 		await current.end();
 		await current.drain();
-	});
-
-	test('TCP capability and destination creation require authentication', async () => {
-		const untrusted = await harness(socket => socket.end(), false);
-		assert.strictEqual(untrusted.client.initializeResult.get()?.tcpConnections, undefined);
-		await assert.rejects(untrusted.open(), /does not support TCP/);
-		await assert.rejects(untrusted.wire.request({
-			jsonrpc: '2.0', id: 902, method: 'createTcpConnection', params: {
-				channel: 'ahp-tcp:/denied', host: '127.0.0.1', port: untrusted.port,
-			}
-		}), /authenticated/);
 	});
 
 	test('ownership is transport-local, even for the same logical client identity', async () => {
