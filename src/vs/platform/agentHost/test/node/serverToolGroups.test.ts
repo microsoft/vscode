@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { StringOrMarkdown } from '../../common/state/sessionState.js';
+import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { buildServerToolGroups, getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
 
 function text(value: StringOrMarkdown | undefined): string | undefined {
@@ -56,6 +57,7 @@ suite('serverToolGroups display', () => {
 			send: display('send_message'),
 			context: display('get_session_context'),
 			del: display('delete_session'),
+			archive: display('archive_chat', undefined, true),
 		}, {
 			list: { displayName: 'List Sessions', invocation: 'List sessions', past: undefined },
 			current: { displayName: 'Get Current Session', invocation: 'Get current session', past: undefined },
@@ -66,6 +68,7 @@ suite('serverToolGroups display', () => {
 			send: { displayName: 'Send Message', invocation: 'Send message', past: undefined },
 			context: { displayName: 'Get Session Context', invocation: 'Read session context', past: undefined },
 			del: { displayName: 'Delete Session', invocation: 'Deleting session', past: 'Deleted session' },
+			archive: { displayName: 'Archive Chat', invocation: 'Archiving chat', past: 'Archived chat' },
 		});
 	});
 
@@ -145,5 +148,16 @@ suite('serverToolGroups deferral budget', () => {
 		assert.deepStrictEqual(definitions.filter(def => def.deferLoading === false).map(def => def.name), [
 			'add_artifact_or_reference',
 		]);
+	});
+
+	test('move_session is in neither the eager nor the materialized baseline; it is displayed without a host', () => {
+		assert.deepStrictEqual({
+			// Its own group joins only with the host's accessor and limits, and offers it only while moving chats is enabled (see sessionServerTools.test.ts).
+			inBaseline: definitions.some(definition => definition.name === SessionServerToolName.MoveSession),
+			displayName: getServerToolDisplay(SessionServerToolName.MoveSession, undefined)?.displayName,
+		}, {
+			inBaseline: false,
+			displayName: 'Move Session',
+		});
 	});
 });

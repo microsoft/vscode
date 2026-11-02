@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME, hasReadableCustomizationContent, isAgentBuiltinCustomizationUri } from '../../common/agentHostCustomizationUri.js';
+import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME, AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, hasReadableCustomizationContent, isAgentBuiltinCustomizationUri } from '../../common/agentHostCustomizationUri.js';
 import { toAgentHostUri } from '../../common/agentHostUri.js';
 
 suite('Agent Host customization URI', () => {
@@ -31,5 +31,14 @@ suite('Agent Host customization URI', () => {
 			wrappedReadable: false,
 			fileReadable: true,
 		});
+
+	});
+
+	test('discovery identities do not imply readable source files', () => {
+		const resource = URI.from({ scheme: AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, authority: 'copilot', path: '/hooks', fragment: 'opaque-id' });
+		assert.deepStrictEqual([resource, toAgentHostUri(resource, 'remote')].map(uri => ({
+			readable: hasReadableCustomizationContent(uri),
+			builtin: isAgentBuiltinCustomizationUri(uri),
+		})), [{ readable: false, builtin: false }, { readable: false, builtin: false }]);
 	});
 });

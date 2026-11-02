@@ -28,7 +28,7 @@ export const FONT_WEIGHT = {
 export const COLOR = {
 	// Match the waveform/glow colors from agentsVoiceWidget._view()
 	userTranscript: 'rgb(88,166,255)',       // listening / user voice
-	assistantTranscript: 'rgb(163,113,247)', // speaking / assistant voice
+	assistantTranscript: 'var(--vscode-editorInfo-foreground)', // speaking / assistant voice
 } as const;
 
 /**

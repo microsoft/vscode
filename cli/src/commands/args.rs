@@ -375,6 +375,9 @@ pub struct AgentArgs {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum AgentSubcommand {
+	/// Manage sandbox certificate trust on this computer as the current OS user.
+	Sandbox(AgentSandboxArgs),
+
 	/// Start an agent host server, with optional remote access.
 	Host(AgentHostArgs),
 
@@ -402,6 +405,48 @@ pub enum AgentSubcommand {
 	/// bridge to reach `editor`-owned (socket/pipe) endpoints remotely.
 	#[clap(hide = true)]
 	Relay(AgentRelayArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentSandboxArgs {
+	#[clap(subcommand)]
+	pub subcommand: AgentSandboxSubcommand,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum AgentSandboxSubcommand {
+	/// Manage the credential-proxy CA in this user's COPILOT_HOME.
+	Ca(AgentCertificateArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentCertificateArgs {
+	#[clap(subcommand)]
+	pub subcommand: AgentCertificateSubcommand,
+
+	/// Accept the VS Code Server license terms without prompting.
+	#[clap(long, global = true)]
+	pub accept_server_license_terms: bool,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum AgentCertificateSubcommand {
+	/// Create the CA if missing, without changing OS trust. Prints its public certificate path.
+	Create,
+	/// Trust this user's existing CA. OS authorization may still be required.
+	Trust {
+		/// Confirm changing OS trust without a CLI confirmation. Does not bypass OS authorization.
+		#[clap(long)]
+		yes: bool,
+	},
+	/// Remove OS trust for this user's CA, retaining the stored CA and private key.
+	Remove {
+		/// Confirm removing OS trust without a CLI confirmation. Does not bypass OS authorization.
+		#[clap(long)]
+		yes: bool,
+	},
+	/// Check OS trust without changing the CA. Exit codes: 0 trusted, 3 missing, 4 unsupported, 5 rotation needed, 1 error.
+	Status,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -1144,6 +1189,61 @@ mod tests {
 	use clap::Parser;
 
 	const MACHINE_STATUS_ENV: &str = "VSCODE_CLI_MACHINE_STATUS";
+
+	#[test]
+	fn agent_certificate_commands_are_local_and_require_an_operation() {
+		for operation in ["create", "trust", "remove", "status"] {
+			let cli = IntegratedCli::try_parse_from(["code", "agent", "sandbox", "ca", operation])
+				.unwrap();
+			assert!(
+				matches!(cli.core.subcommand, Some(Commands::Agent(args)) if matches!(args.subcommand, Some(AgentSubcommand::Sandbox(_))))
+			);
+		}
+		for args in [
+			vec!["code", "agent", "sandbox", "ca"],
+			vec!["code", "agent", "sandbox", "ca", "trust", "other-user.pem"],
+			vec!["code", "agent", "sandbox", "ca", "remove", "other-user.pem"],
+			vec![
+				"code", "agent", "sandbox", "ca", "remove", "--tunnel", "remote",
+			],
+			vec![
+				"code", "agent", "sandbox", "ca", "create", "--tunnel", "remote",
+			],
+			vec!["code", "agent", "sandbox", "ca", "status", "--yes"],
+		] {
+			assert!(IntegratedCli::try_parse_from(args).is_err());
+		}
+		for operation in ["trust", "remove"] {
+			let cli = IntegratedCli::try_parse_from([
+				"code",
+				"agent",
+				"sandbox",
+				"ca",
+				operation,
+				"--yes",
+				"--accept-server-license-terms",
+			])
+			.unwrap();
+			let Some(Commands::Agent(agent)) = cli.core.subcommand else {
+				panic!("expected agent");
+			};
+			let Some(AgentSubcommand::Sandbox(sandbox)) = agent.subcommand else {
+				panic!("expected sandbox");
+			};
+			let super::AgentSandboxSubcommand::Ca(ca) = sandbox.subcommand;
+			assert!(ca.accept_server_license_terms);
+			assert!(matches!(
+				(operation, ca.subcommand),
+				(
+					"trust",
+					super::AgentCertificateSubcommand::Trust { yes: true }
+				) | (
+					"remove",
+					super::AgentCertificateSubcommand::Remove { yes: true }
+				)
+			));
+		}
+	}
 
 	fn parse_machine_status(args: &[&str]) -> bool {
 		let cli = IntegratedCli::try_parse_from(args).unwrap();

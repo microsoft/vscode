@@ -17,7 +17,7 @@ import path from 'path';
 //
 // `findMissingNativeOptionalDep` is the reusable primitive that detects this.
 // It is used from two places:
-//   - The CLI entry point below runs after `npm ci` in the node_modules
+//   - The CLI entry point below runs after `pnpm install` in the node_modules
 //     cache-build jobs (.github/workflows/pr-node-modules.yml) and fails the
 //     job so a poisoned cache is never saved.
 //   - The agent-SDK producer (build/agent-sdk/package.ts) runs it after its
@@ -46,7 +46,9 @@ export function findMissingNativeOptionalDep(nodeModulesDir: string, basePackage
 		return undefined;
 	}
 	const platformPackage = `${basePackage}-${target}`;
-	if (!fs.existsSync(path.join(nodeModulesDir, platformPackage))) {
+	// With pnpm's hoisted layout the platform package is either next to the base package or in the
+	// base package's own node_modules (when another version of it is hoisted).
+	if (!fs.existsSync(path.join(nodeModulesDir, platformPackage)) && !fs.existsSync(path.join(nodeModulesDir, basePackage, 'node_modules', platformPackage))) {
 		return platformPackage;
 	}
 	return undefined;
@@ -54,7 +56,7 @@ export function findMissingNativeOptionalDep(nodeModulesDir: string, basePackage
 
 // #region CLI entry point
 //
-// Runs after the root `npm ci` in the node_modules cache-build jobs (see
+// Runs after the root `pnpm install` in the node_modules cache-build jobs (see
 // .github/workflows/pr-node-modules.yml), before the cache is saved. Verifies
 // the repo-root node_modules has the per-platform package for the current host
 // so a poisoned cache (base package present, native package silently skipped)
@@ -100,7 +102,7 @@ function main(): void {
 		for (const err of errors) {
 			console.error(`  - ${err}`);
 		}
-		console.error('\nnpm does not fail when an optional dependency cannot be installed, so this tree would poison the shared node_modules cache. Re-run a fresh `npm ci` (e.g. after bumping build/.cachesalt) to restore the package before the cache is saved.');
+		console.error('\nThe package manager does not fail when an optional dependency cannot be installed, so this tree would poison the shared node_modules cache. Re-run a fresh `pnpm install --frozen-lockfile` (e.g. after bumping build/.cachesalt) to restore the package before the cache is saved.');
 		process.exit(1);
 	}
 

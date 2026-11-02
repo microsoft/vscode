@@ -194,20 +194,11 @@
 	overflow: hidden;
 }
 
-/* Editor / workbench hover, suggest and parameter hint widgets */
+/* Editor / workbench hover and parameter hints. Suggestion widgets use suggestWidget.css. */
 .modern-ui .monaco-hover,
-.modern-ui .editor-widget.suggest-widget,
 .modern-ui .monaco-editor .parameter-hints-widget {
 	border-radius: var(--vscode-cornerRadius-large);
 	overflow: hidden;
-}
-
-/* Only boundary rows adopt the overlay's outer corners; interior rows keep the Control radius. */
-.modern-ui .editor-widget.suggest-widget .monaco-list .monaco-list-row:not(.separator):first-child {
-	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
-}
-.modern-ui .editor-widget.suggest-widget .monaco-list .monaco-list-row:not(.separator):last-child {
-	border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
 }
 
 /* Context menus and general menu surfaces */

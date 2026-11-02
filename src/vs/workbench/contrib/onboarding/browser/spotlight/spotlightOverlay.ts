@@ -39,6 +39,8 @@ export interface ISpotlightContent {
 	readonly description: string | IMarkdownString;
 	/** Localized primary button label, replacing the default Next or Done. */
 	readonly nextButtonLabel?: string;
+	/** Localized label of the button that ends the tour, replacing End Tour. */
+	readonly endTourLabel?: string;
 	/** Zero-based index of the current step. */
 	readonly stepIndex: number;
 	/** Total number of steps in the tour. Progress is displayed only for multi-step tours. */
@@ -150,8 +152,6 @@ export class SpotlightOverlay extends Disposable {
 		const actions = append(footer, $('.spotlight-callout-actions'));
 
 		this._skipButton = this._register(new Button(actions, { ...defaultButtonStyles, secondary: true }));
-		this._skipButton.label = localize('spotlight.endTour', "End Tour");
-		this._skipButton.setTitle(localize('spotlight.endTour.tooltip', "End Tour (Esc)"));
 		this._register(this._skipButton.onDidClick(() => this._onDidSkip.fire(OnboardingDismissReason.SkipButton)));
 
 		this._backButton = this._register(new Button(actions, { ...defaultButtonStyles, secondary: true }));
@@ -488,6 +488,10 @@ export class SpotlightOverlay extends Disposable {
 			: '';
 
 		this._skipButton.element.style.display = content.isLastStep && !content.showEndTour ? 'none' : '';
+		this._skipButton.label = content.endTourLabel ?? localize('spotlight.endTour', "End Tour");
+		this._skipButton.setTitle(content.endTourLabel
+			? localize('spotlight.endTour.customTooltip', "{0} (Esc)", content.endTourLabel)
+			: localize('spotlight.endTour.tooltip', "End Tour (Esc)"));
 		this._backButton.element.style.display = content.canGoBack ? '' : 'none';
 		this._nextButton.label = content.nextButtonLabel ?? (content.isLastStep
 			? localize('spotlight.done', "Done")

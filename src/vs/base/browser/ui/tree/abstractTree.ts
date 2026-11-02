@@ -181,7 +181,10 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 		},
 		accessibilityProvider: options.accessibilityProvider && {
 			...options.accessibilityProvider,
-			getSetSize(node) {
+			getSetSize(node, index, listLength) {
+				if (options.accessibilityProvider!.getSetSize) {
+					return options.accessibilityProvider!.getSetSize(node.element, index, listLength);
+				}
 				const model = modelProvider();
 				const ref = model.getNodeLocation(node);
 				const parentRef = model.getParentNodeLocation(ref);
@@ -189,8 +192,8 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 
 				return parentNode.visibleChildrenCount;
 			},
-			getPosInSet(node) {
-				return node.visibleChildIndex + 1;
+			getPosInSet(node, index) {
+				return options.accessibilityProvider!.getPosInSet?.(node.element, index) ?? node.visibleChildIndex + 1;
 			},
 			isChecked: options.accessibilityProvider && options.accessibilityProvider.isChecked ? (node) => {
 				return options.accessibilityProvider!.isChecked!(node.element);
@@ -3038,6 +3041,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	layout(height?: number, width?: number): void {
 		this.view.layout(height, width);
+	}
+
+	withScrollAnchorAtBottom(fn: () => void): void {
+		this.view.withScrollAnchorAtBottom(fn);
 	}
 
 	style(styles: IListStyles): void {

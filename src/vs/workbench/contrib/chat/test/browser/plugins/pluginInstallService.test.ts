@@ -30,6 +30,7 @@ import { AgentPluginEnablementService, IAgentPluginEnablementService } from '../
 import { IFetchMarketplacePluginsOptions, IMarketplaceInstalledPlugin, IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, IPluginSourceDescriptor, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { IPluginSource } from '../../../common/plugins/pluginSource.js';
 import { isMarketplaceReferenceAllowed, StrictKnownMarketplaces } from '../../../common/plugins/strictKnownMarketplaces.js';
+import { TestUserDataProfileService } from '../../../../../test/common/workbenchTestServices.js';
 
 suite('PluginInstallService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -175,7 +176,7 @@ suite('PluginInstallService', () => {
 			state.durablePluginUris = state.installedPlugins.map(candidate => candidate.pluginUri);
 		}
 		const instantiationService = store.add(new TestInstantiationService());
-		const enablementService = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService())));
+		const enablementService = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
 		instantiationService.stub(IAgentPluginEnablementService, enablementService);
 
 		// IFileService
@@ -1056,7 +1057,7 @@ suite('PluginInstallService', () => {
 			}, {
 				updated: false,
 				updateCalls: 0,
-				notifications: ['Updates from \'microsoft/vscode\' are blocked by your organization\'s policy.'],
+				notifications: ['Updates from \'microsoft/vscode\' are blocked by your organization.'],
 			});
 		});
 

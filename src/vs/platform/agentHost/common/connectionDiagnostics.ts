@@ -9,7 +9,16 @@ import { parseGitHubRequestId } from '../../github/common/client/headers.js';
 
 export { parseGitHubRequestId as getGitHubRequestId } from '../../github/common/client/headers.js';
 
-export interface IConnectionDiagnosticEvent {
+export interface IConnectionDiagnosticState {
+	readonly connectionState?: 'connecting' | 'connected' | 'reconnecting' | 'incompatible' | 'closed';
+	readonly authenticationRestorePending?: boolean;
+	readonly lastSuccessfulResponseAgeMs?: number;
+	readonly reconnectAttempt?: number;
+	readonly reconnectScheduled?: boolean;
+	readonly reconnectDelayMs?: number;
+}
+
+export interface IConnectionDiagnosticEvent extends IConnectionDiagnosticState {
 	readonly operationId: string;
 	readonly attemptId?: string;
 	readonly phase: string;
@@ -20,6 +29,10 @@ export interface IConnectionDiagnosticEvent {
 	readonly error?: IConnectionDiagnosticError;
 	readonly requestKind?: ConnectionDiagnosticRequestKind;
 	readonly connectionOperation?: 'connect' | 'recover';
+	readonly sessionResource?: string;
+	readonly chatResource?: string;
+	readonly turnId?: string;
+	readonly sessionState?: 'creating' | 'ready' | 'failed';
 }
 
 export type ConnectionDiagnosticRequestKind = 'listSessions' | 'createSession' | 'subscribeRoot' | 'subscribeSession' | 'subscribeChat' | 'subscribeOther';
@@ -181,6 +194,9 @@ export class ConnectionDiagnosticBuffer {
 	private readonly events: IRemoteConnectionDiagnosticEvent[] = [];
 
 	record(address: string, event: IConnectionDiagnosticEvent): void {
+		if (event.outcome === 'info' && (event.phase === 'session.snapshot' || event.phase === 'chat.binding' || event.phase === 'turn.submit')) {
+			return;
+		}
 		this.events.push({ ...event, address });
 		if (this.events.length > 200) {
 			this.events.shift();

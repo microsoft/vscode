@@ -11,6 +11,7 @@ import { ManagedSettingsData } from '../../../../../base/common/policy.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { COPILOT_SANDBOX_ENABLED_KEY, COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, IManagedSettingsService, NullManagedSettingsService, requiresCopilotAgentHost } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Configuration, ConfigurationModel } from '../../../../../platform/configuration/common/configurationModels.js';
@@ -18,7 +19,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, Workspace, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { ChatConfiguration, ChatPermissionLevel, CopilotHarnessIntroductionMode, getChatPermissionLevelFromDefaultConfiguration, getComputedDefaultSessionResource, getComputedDefaultSessionType, getCopilotHarnessIntroductionMode, getDefaultNewChatSessionResource, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReason, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, IDefaultNewChatSessionTypeOptions, isEditorLocalAgentEnabled, isNewChatSessionTypeUsable, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel, CopilotHarnessIntroductionMode, getChatPermissionLevelFromDefaultConfiguration, getComputedDefaultSessionResource, getComputedDefaultSessionType, getCopilotHarnessIntroductionMode, getDefaultNewChatSessionResource, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReason, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, IDefaultNewChatSessionTypeOptions, isEditorLocalAgentEnabled, isLocalAgentHostSessionTypeDisabledByPolicy, isNewChatSessionTypeUsable, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../common/constants.js';
 import { localChatSessionType, SessionType, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { MockChatSessionsService } from './mockChatSessionsService.js';
 import { TestContextService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
@@ -81,7 +82,7 @@ suite('ChatConfiguration defaults', () => {
 				visible: isVisibleEditorChatSessionType(localChatSessionType, configuration, sessions, workspace, false, enabled, true),
 			})));
 		assert.deepStrictEqual(results, Array.from({ length: 4 }, () => ({
-			computed: SessionType.AgentHostCopilot, explicit: SessionType.AgentHostCopilot, remembered: SessionType.AgentHostCopilot, usable: false, visible: false,
+			computed: SessionType.AgentHostCopilot, explicit: SessionType.AgentHostCopilot, remembered: SessionType.AgentHostCopilot, usable: false, visible: true,
 		})));
 	});
 
@@ -104,7 +105,7 @@ suite('ChatConfiguration defaults', () => {
 		function requiresAgentHost(configuration: IConfigurationService, sandbox: boolean, permissions: boolean, allowLocal = true): boolean {
 			const settings: ManagedSettingsData = {
 				[COPILOT_SANDBOX_ENABLED_KEY]: sandbox,
-				...(permissions ? { 'permissions.allow': '[]' } : {}),
+				...(permissions ? { 'permissions.deny': '["Shell"]' } : {}),
 				[COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: allowLocal,
 				[COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY]: true,
 			};
@@ -175,7 +176,7 @@ suite('ChatConfiguration defaults', () => {
 				results: Array.from({ length: 4 }, () => ({
 					computed: SessionType.AgentHostCopilot, explicit: SessionType.AgentHostCopilot,
 					remembered: SessionType.AgentHostCopilot, current: SessionType.AgentHostCopilot,
-					usable: false, visible: false,
+					usable: false, visible: true,
 				})),
 				stored: localChatSessionType,
 			});
@@ -1029,6 +1030,25 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
+	test('remote agent host is only usable when its contribution is registered in this window', () => {
+		const configurationService = new TestConfigurationService();
+		const remoteType = 'remote-example-host-copilotcli';
+		const storageService = disposables.add(new TestStorageService());
+		storeUserSelectedSessionType(storageService, remoteType);
+
+		assert.deepStrictEqual({
+			unavailable: isNewChatSessionTypeUsable(remoteType, configurationService, createChatSessionsService(), localWorkspace),
+			unavailableRemembered: getDefaultNewChatSessionType(configurationService, createChatSessionsService(), storageService, localWorkspace, true),
+			available: isNewChatSessionTypeUsable(remoteType, configurationService, createChatSessionsService(remoteType), localWorkspace),
+			availableRemembered: getDefaultNewChatSessionType(configurationService, createChatSessionsService(remoteType), storageService, localWorkspace, true),
+		}, {
+			unavailable: false,
+			unavailableRemembered: getComputedDefaultSessionType(configurationService, createChatSessionsService(), localWorkspace, true),
+			available: true,
+			availableRemembered: remoteType,
+		});
+	});
+
 	test('disabled Agent Host is not inherited from remembered or current session types', () => {
 		const configurationService = new TestConfigurationService();
 		const chatSessionsService = createChatSessionsService();
@@ -1043,6 +1063,93 @@ suite('ChatConfiguration defaults', () => {
 			usable: false,
 			remembered: localChatSessionType,
 			current: { sessionType: localChatSessionType },
+		});
+	});
+
+	suite('harnesses disabled by policy', () => {
+		teardown(() => sinon.restore());
+
+		function createConfiguration(disabledSettings: readonly string[], settings: Record<string, unknown> = {}) {
+			const configuration = new TestConfigurationService(settings);
+			disposables.add(configuration.onDidChangeConfigurationEmitter);
+			const inspection = sinon.stub(configuration, 'inspect').callThrough();
+			for (const setting of disabledSettings) {
+				inspection.withArgs(setting).returns({ value: false, policyValue: false });
+			}
+			return configuration;
+		}
+
+		test('New Chat falls back from remembered, current and explicit Claude or Codex choices without forgetting them', () => {
+			const configuration = createConfiguration([AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId]);
+			const sessions = createChatSessionsService(SessionType.AgentHostCopilot);
+			const types = [SessionType.AgentHostClaude, SessionType.AgentHostCodex];
+			const results = types.map(type => {
+				const storage = disposables.add(new TestStorageService());
+				storeUserSelectedSessionType(storage, type);
+				return {
+					usable: isNewChatSessionTypeUsable(type, configuration, sessions, localWorkspace),
+					remembered: resolveSessionTypeWithReason(configuration, sessions, storage, localWorkspace, true),
+					current: resolveSessionTypeWithReason(configuration, sessions, storage, localWorkspace, true, { currentSessionType: type }),
+					explicit: resolveSessionTypeWithReason(configuration, sessions, storage, localWorkspace, true, { explicitOverride: type }),
+					stored: getRememberedSessionType(storage),
+				};
+			});
+
+			const computed = { sessionType: localChatSessionType, selectionReason: 'computedDefault' };
+			assert.deepStrictEqual(results, types.map(type => ({ usable: false, remembered: computed, current: computed, explicit: computed, stored: type })));
+		});
+
+		test('New Chat falls back to the Copilot harness when it is the default or required', () => {
+			const configuration = createConfiguration([AgentHostClaudeAgentEnabledSettingId], { [ChatConfiguration.DefaultToCopilotHarness]: true });
+			const sessions = createChatSessionsService(SessionType.AgentHostCopilot);
+			const storage = disposables.add(new TestStorageService());
+			storeUserSelectedSessionType(storage, SessionType.AgentHostClaude);
+
+			assert.deepStrictEqual({
+				remembered: getDefaultNewChatSessionTypeAndReasonFromServices(configuration, sessions, storage, localWorkspace, true),
+				explicitWhileRequired: getDefaultNewChatSessionTypeAndReasonFromServices(configuration, sessions, storage, localWorkspace, true, { explicitOverride: SessionType.AgentHostClaude }, false, true),
+			}, {
+				remembered: { sessionType: SessionType.AgentHostCopilot, selectionReason: 'computedDefault' },
+				explicitWhileRequired: { sessionType: SessionType.AgentHostCopilot, selectionReason: 'copilotPreference' },
+			});
+		});
+
+		test('New Chat does not fall back to Local when only the Copilot harness is allowed', () => {
+			const sessions = createChatSessionsService(SessionType.AgentHostCopilot);
+			const cases = [
+				{ localDisabledBy: 'managed policy requires the Agent Host', settings: {}, managedSandboxEnforced: false, managedPolicyRequiresAgentHost: true },
+				{ localDisabledBy: 'managed sandbox', settings: {}, managedSandboxEnforced: true, managedPolicyRequiresAgentHost: false },
+				{ localDisabledBy: 'prefer Copilot harness', settings: { [ChatConfiguration.EditorPreferCopilotHarness]: true }, managedSandboxEnforced: false, managedPolicyRequiresAgentHost: false },
+				{ localDisabledBy: 'Local harness hidden', settings: { [ChatConfiguration.EditorLocalAgentEnabled]: false }, managedSandboxEnforced: false, managedPolicyRequiresAgentHost: false },
+			];
+			const types = [SessionType.AgentHostClaude, SessionType.AgentHostCodex];
+			const results = cases.flatMap(({ localDisabledBy, settings, managedSandboxEnforced, managedPolicyRequiresAgentHost }) => types.map(type => {
+				const configuration = createConfiguration([AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId], settings);
+				const storage = disposables.add(new TestStorageService());
+				storeUserSelectedSessionType(storage, type);
+				const resolve = (options?: IDefaultNewChatSessionTypeOptions) => getDefaultNewChatSessionType(configuration, sessions, storage, localWorkspace, true, options, managedSandboxEnforced, managedPolicyRequiresAgentHost);
+				return { localDisabledBy, type, remembered: resolve(), current: resolve({ currentSessionType: type }), explicit: resolve({ explicitOverride: type }) };
+			}));
+
+			assert.deepStrictEqual(results, cases.flatMap(({ localDisabledBy }) => types.map(type => ({
+				localDisabledBy, type, remembered: SessionType.AgentHostCopilot, current: SessionType.AgentHostCopilot, explicit: SessionType.AgentHostCopilot,
+			}))));
+		});
+
+		test('only the local provider that policy disables is excluded', () => {
+			const configuration = createConfiguration([AgentHostCodexAgentEnabledSettingId]);
+			const sessions = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude);
+			const storage = disposables.add(new TestStorageService());
+			storeUserSelectedSessionType(storage, SessionType.AgentHostClaude);
+
+			assert.deepStrictEqual({
+				disabled: [SessionType.AgentHostClaude, SessionType.AgentHostCodex, SessionType.AgentHostCopilot, localChatSessionType, 'remote-example-codex']
+					.map(type => isLocalAgentHostSessionTypeDisabledByPolicy(type, configuration)),
+				remembered: resolveSessionTypeWithReason(configuration, sessions, storage, localWorkspace, true),
+			}, {
+				disabled: [false, true, false, false, false],
+				remembered: { sessionType: SessionType.AgentHostClaude, selectionReason: 'rememberedSelection' },
+			});
 		});
 	});
 

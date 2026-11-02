@@ -470,13 +470,7 @@ suite('PlanReviewFeedbackService - Submit', () => {
 
 suite('PlanReviewFeedbackService - Provider-backed navigation', () => {
 
-	const store = new DisposableStore();
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('navigation and bearings use comments from the selected provider', () => {
 		const planUri = URI.parse('file:///plan.md');

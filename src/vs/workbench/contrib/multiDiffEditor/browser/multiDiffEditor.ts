@@ -39,18 +39,33 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { FloatingEditorToolbarWidget } from '../../../../editor/contrib/floatingMenu/browser/floatingMenu.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFileListVisibleContext, multiDiffEditorExperimentalFileListSetting, observableMultiDiffEditorFileListPosition, observableMultiDiffEditorFileListViewMode, observableMultiDiffEditorFileListVisible, observableWorkbenchMultiDiffEditorVariant } from '../common/multiDiffEditor.js';
+import { MULTI_DIFF_EDITOR_ID, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewMode, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFileListVisibleContext, multiDiffEditorExperimentalFileListSetting, observableMultiDiffEditorFileListPosition, observableMultiDiffEditorFileListViewMode, observableMultiDiffEditorFileListVisible, observableWorkbenchMultiDiffEditorVariant, sortMultiDiffEditorFileListItems } from '../common/multiDiffEditor.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { MultiDiffEditorWithFileListWidget } from './multiDiffEditorWithFileListWidget.js';
 
+type ResourceOrder = (resources: readonly MultiDiffEditorItem[]) => readonly MultiDiffEditorItem[];
+
+function getResourceUri(resource: MultiDiffEditorItem): URI {
+	return (resource.modifiedUri ?? resource.originalUri)!;
+}
+
+/** The order of the file list for each of its view modes. */
+const fileListResourceOrders: Record<MultiDiffEditorFileListViewMode, ResourceOrder> = {
+	list: resources => sortMultiDiffEditorFileListItems(resources, getResourceUri, 'list'),
+	tree: resources => sortMultiDiffEditorFileListItems(resources, getResourceUri, 'tree'),
+};
+
 export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
-	static readonly ID = 'multiDiffEditor';
+	static readonly ID = MULTI_DIFF_EDITOR_ID;
 
 	private _multiDiffEditorWidget: MultiDiffEditorWidget | undefined = undefined;
 	private _multiDiffEditorWithFileListWidget: MultiDiffEditorWithFileListWidget | undefined = undefined;
 	private _viewModel: MultiDiffEditorViewModel | undefined;
 	private readonly _contentOverlay = this._register(new MutableDisposable<MultiDiffEditorContentMenuOverlay>());
 	private readonly _logger: MultiDiffEditorLogger;
+	/** The order of the file list, which the diffs follow while it is used. */
+	private _fileListResourceOrder: IObservable<ResourceOrder> | undefined;
+	private readonly _inputResourceOrder = this._register(new MutableDisposable());
 
 	public get viewModel(): MultiDiffEditorViewModel | undefined {
 		return this._viewModel;
@@ -96,6 +111,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 			const fileListVisible = observableMultiDiffEditorFileListVisible(this, this.configurationService, this.storageService, this._store);
 			const fileListViewMode = observableMultiDiffEditorFileListViewMode(this, this.storageService, this._store);
 			const fileListPosition = observableMultiDiffEditorFileListPosition(this, this.storageService, this._store);
+			this._fileListResourceOrder = fileListViewMode.map(this, viewMode => fileListResourceOrders[viewMode]);
 			this._register(bindContextKey(MultiDiffEditorFileListAvailableContext, this.contextKeyService, () => true));
 			this._register(bindContextKey(MultiDiffEditorFileListEnabledContext, this.contextKeyService, reader => fileListVisible.read(reader)));
 			this._register(bindContextKey(MultiDiffEditorFileListViewModeContext, this.contextKeyService, reader => fileListViewMode.read(reader)));
@@ -152,6 +168,12 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 
 	override async setInput(input: MultiDiffEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
+		// Order the diffs like the file list before the view model is created. The input keeps
+		// the order when it is no longer shown, so that the diffs do not move when it is shown again.
+		const fileListResourceOrder = this._fileListResourceOrder;
+		if (fileListResourceOrder) {
+			this._inputResourceOrder.value = autorun(reader => input.setResourceOrder(fileListResourceOrder.read(reader)));
+		}
 		this._viewModel = await input.getViewModel();
 		this._contentOverlay.value?.updateResource(input.resource);
 
@@ -187,6 +209,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 
 	override async clearInput(): Promise<void> {
 		this._logger.log('editor clear input');
+		this._inputResourceOrder.clear();
 		await super.clearInput();
 		this._contentOverlay.value?.updateResource(undefined);
 		this._multiDiffEditorWidget!.setViewModel(undefined);

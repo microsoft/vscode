@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy, stub } from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event as CommonEvent } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
+import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -19,13 +21,24 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { INotificationHandle, INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IChatWidget, isResponseSelectionSupported } from '../../../../../workbench/contrib/chat/browser/chat.js';
-import { IChatResponseViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
-import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, ResponseSelectionSideChatController } from '../../browser/responseSelectionSideChatController.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, isResponseSelectionSupported } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { AskSelectionInSideChatAction, EditorResponseSelectionSideChatContribution, ResponseSelectionSideChatController } from '../../../../../workbench/contrib/chat/browser/responseSelectionSideChatController.js';
+import { resolveResponseSelection } from '../../../../../workbench/contrib/chat/browser/responseSelectionResolver.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatSideChatService, IChatSideChatService } from '../../../../../workbench/contrib/chat/common/chatSideChatService.js';
+import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { IChatModel, IChatRequestModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatResponseViewModel, IChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
+import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
+import { logResponseSelectionWidgetAction } from '../../../../common/sessionsTelemetry.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../common/constants.js';
+import { SessionsSideChatProviderContribution } from '../../browser/sideChatProvider.contribution.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ChatInteractivity, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 class RecordingNotificationService extends TestNotificationService {
 	readonly notifications: { severity: Severity; message: string }[] = [];
@@ -63,6 +76,10 @@ suite('ResponseSelectionSideChatController', () => {
 		});
 	}
 
+	function bindChat(controller: ResponseSelectionSideChatController, chat: IChat): void {
+		controller.setChat(chat.resource, derived(reader => chat.interactivity.read(reader) !== ChatInteractivity.Full));
+	}
+
 	function setup(options?: {
 		createSideChatInSession?: ISessionsManagementService['createSideChatInSession'];
 		sendRequest?: ISessionsManagementService['sendRequest'];
@@ -71,6 +88,8 @@ suite('ResponseSelectionSideChatController', () => {
 		responseSelectionSupported?: boolean;
 		initialInput?: string;
 		chatInteractivity?: ChatInteractivity;
+		supported?: boolean;
+		aiHidden?: boolean;
 	}) {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = store.add(new TestInstantiationService());
@@ -123,16 +142,27 @@ suite('ResponseSelectionSideChatController', () => {
 		markdown.appendChild(wrappedParagraph);
 		transcriptDomNode.appendChild(markdown);
 
-		const response = upcastPartial<IChatResponseViewModel>({ requestId: 'turn-1', setVote: () => undefined });
+		const response = upcastPartial<IChatResponseViewModel>({ requestId: 'turn-1', sessionResource: URI.parse('test:///chat/source'), setVote: () => undefined });
 		const focusResponseItemCalls: boolean[] = [];
 		let inputValue = options?.initialInput ?? '';
 		let focusInputCalls = 0;
 		const onDidScroll = store.add(new Emitter<void>());
+		const onDidChangeViewModel = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
+		const readOnly = observableValue('readOnly', false);
+		let viewModel: IChatViewModel | undefined = upcastPartial<IChatViewModel>({
+			sessionResource: URI.parse('test:///chat/source'),
+			model: upcastPartial<IChatModel>({ isReadOnly: readOnly }),
+		});
 		let autoScrollHolds = 0;
 		const widget = upcastPartial<IChatWidget>({
 			domNode: widgetDomNode,
 			transcriptDomNode,
+			location: ChatAgentLocation.Chat,
+			viewContext: {},
+			get viewModel() { return viewModel; },
+			onDidChangeViewModel: onDidChangeViewModel.event,
 			getElementFromNode: options?.getElementFromNode ?? (() => response),
+			getContrib: () => undefined,
 			focusResponseItem: (lastFocused?: boolean) => { focusResponseItemCalls.push(!!lastFocused); },
 			onDidScroll: onDidScroll.event,
 			holdAutoScroll: () => {
@@ -262,12 +292,13 @@ suite('ResponseSelectionSideChatController', () => {
 
 		const sideChat = upcastPartial<IChat>({ resource: URI.parse('test:///chat/side') });
 		const chat = createChat(URI.parse('test:///chat/source'), options?.chatInteractivity);
-		const session = upcastPartial<ISession>({
+		const session = upcastPartial<IActiveSession>({
 			sessionId: 'session',
 			resource: URI.parse('test:///session'),
 			status: constObservable(SessionStatus.Completed),
 			isArchived: constObservable(false),
 			capabilities: constObservable({ supportsMultipleChats: true, supportsSideChat: true }),
+			chats: constObservable([chat, sideChat]),
 		});
 
 		const callOrder: string[] = [];
@@ -289,6 +320,7 @@ suite('ResponseSelectionSideChatController', () => {
 			}),
 		}));
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+			visibleSessions: constObservable([session]),
 			openChat: async (_session, chatUri) => {
 				callOrder.push(`open:${chatUri.toString()}`);
 			},
@@ -305,12 +337,40 @@ suite('ResponseSelectionSideChatController', () => {
 		instantiationService.stub(ITelemetryService, upcastPartial<ITelemetryService>({
 			publicLog2: (name, data) => { telemetryEvents.push({ name, data }); },
 		}));
+		instantiationService.stub(IChatEntitlementService, upcastPartial<IChatEntitlementService>({
+			sentiment: upcastPartial<IChatEntitlementService['sentiment']>({ hidden: !!options?.aiHidden }),
+			onDidChangeSentiment: CommonEvent.None,
+		}));
+		const sideChatService = store.add(new ChatSideChatService());
+		instantiationService.stub(IChatSideChatService, sideChatService);
+		instantiationService.stub(IChatService, upcastPartial<IChatService>({
+			getSession: () => options?.supported === false ? undefined : upcastPartial<IChatModel>({
+				isReadOnly: constObservable(false),
+				getRequests: () => ['turn-1', 'turn-2'].map(id => upcastPartial<IChatRequestModel>({ id })),
+			}),
+		}));
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({}));
+		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
+		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }));
+		store.add(instantiationService.createInstance(SessionsSideChatProviderContribution));
 
-		const controller = store.add(instantiationService.createInstance(ResponseSelectionSideChatController, widget, options?.responseSelectionSupported ?? true));
-		controller.setChat(chat);
+		const controller = store.add(instantiationService.createInstance(ResponseSelectionSideChatController, widget, options?.responseSelectionSupported ?? true, {
+			useActionMenu: () => configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING) === true,
+			onAction: (variant, action) => logResponseSelectionWidgetAction(instantiationService.get(ITelemetryService), variant, action),
+		}));
+		bindChat(controller, chat);
 
 		return {
 			controller,
+			instantiationService,
+			store,
+			widget,
+			readOnly,
+			bindModel: (resource?: URI) => {
+				const previousSessionResource = viewModel?.sessionResource;
+				viewModel = resource ? upcastPartial<IChatViewModel>({ sessionResource: resource, model: upcastPartial<IChatModel>({ isReadOnly: readOnly }) }) : undefined;
+				onDidChangeViewModel.fire({ previousSessionResource, currentSessionResource: resource });
+			},
 			transcriptDomNode,
 			setSelection,
 			setSelectionWithoutEvent,
@@ -372,6 +432,159 @@ suite('ResponseSelectionSideChatController', () => {
 	function inputDomNode(controller: ResponseSelectionSideChatController): HTMLElement {
 		return (controller as unknown as { _input: { domNode: HTMLElement } })._input.domNode;
 	}
+
+	function setupEditor(options?: Parameters<typeof setup>[0]) {
+		const harness = setup(options);
+		harness.controller.dispose();
+		const create = spy(harness.instantiationService, 'createInstance');
+		harness.store.add(toDisposable(() => create.restore()));
+		const contribution = harness.store.add(new EditorResponseSelectionSideChatContribution(
+			harness.widget,
+			upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }),
+			harness.instantiationService,
+		));
+		const controller = create.returnValues.find(value => value instanceof ResponseSelectionSideChatController);
+		assert.ok(controller instanceof ResponseSelectionSideChatController);
+		const getContrib = stub(harness.widget, 'getContrib');
+		harness.store.add(toDisposable(() => getContrib.restore()));
+		getContrib.withArgs(EditorResponseSelectionSideChatContribution.ID).returns(contribution);
+		harness.instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
+			getWidgetBySessionResource: resource => extUri.isEqual(resource, harness.chat.resource) ? harness.widget : undefined,
+		}));
+		const openFromContextMenu = () => {
+			const selection = resolveResponseSelection(harness.widget);
+			assert.ok(selection);
+			harness.instantiationService.invokeFunction(accessor => new AskSelectionInSideChatAction().run(accessor, {
+				$chatContextMenu: true,
+				item: selection.response,
+				responseSelection: selection,
+			}));
+		};
+		return { ...harness, contribution, controller, openFromContextMenu };
+	}
+
+	suite('editor-window host', () => {
+		test('shows nothing automatically and opens the shared input only from the context menu without Agents telemetry', () => {
+			const { controller, setSelection, telemetryEvents, openFromContextMenu } = setupEditor();
+			setSelection('hello world');
+			const selectionSurfaces = [menuDomNode(controller).style.display, inputDomNode(controller).style.display];
+			openFromContextMenu();
+			assert.deepStrictEqual({
+				selectionSurfaces,
+				menuVisible: menuDomNode(controller).style.display !== 'none',
+				inputVisible: inputDomNode(controller).style.display !== 'none',
+				focused: dom.getActiveElement() === inputTextArea(controller),
+				telemetryEvents,
+			}, { selectionSurfaces: ['none', 'none'], menuVisible: false, inputVisible: true, focused: true, telemetryEvents: [] });
+		});
+
+		test('keeps the captured selection when opening the context menu collapses the native selection', async () => {
+			const { controller, contribution, setSelection, widget, callOrder, sideChat } = setupEditor();
+			setSelection('hello world');
+			const selection = resolveResponseSelection(widget);
+			assert.ok(selection);
+			setSelection('');
+			contribution.openQuestionInput(selection);
+			submitViaClick(controller, 'Explain this');
+			await new Promise(resolve => setTimeout(resolve, 0));
+			assert.deepStrictEqual(callOrder, ['create:turn-1:hello world', `open:${sideChat.resource}`, `send:${sideChat.resource}:Explain this`]);
+		});
+
+		test('submits the selected older response and dismisses even when the source editor stays open', async () => {
+			const { controller, setSelection, callOrder, sideChat, openFromContextMenu } = setupEditor();
+			setSelection('hello world');
+			openFromContextMenu();
+			submitViaClick(controller, 'Explain the earlier answer');
+			await new Promise(resolve => setTimeout(resolve, 0));
+			assert.deepStrictEqual({
+				callOrder,
+				inputVisible: inputDomNode(controller).style.display !== 'none',
+				busy: isInputBusy(controller),
+			}, {
+				callOrder: ['create:turn-1:hello world', `open:${sideChat.resource}`, `send:${sideChat.resource}:Explain the earlier answer`],
+				inputVisible: false,
+				busy: false,
+			});
+		});
+
+		test('restores the question for retry after failure', async () => {
+			let attempts = 0;
+			const { controller, setSelection, sideChat, notificationService, openFromContextMenu } = setupEditor({
+				createSideChatInSession: async () => {
+					if (++attempts === 1) {
+						throw new Error('Create failed');
+					}
+					return sideChat;
+				},
+			});
+			setSelection('hello world');
+			openFromContextMenu();
+			submitViaClick(controller, 'Try this question');
+			await new Promise(resolve => setTimeout(resolve, 0));
+			const failed = { visible: inputDomNode(controller).style.display !== 'none', question: inputTextArea(controller).value, busy: isInputBusy(controller) };
+			submitViaClick(controller, inputTextArea(controller).value);
+			await new Promise(resolve => setTimeout(resolve, 0));
+			assert.deepStrictEqual({ failed, attempts, errors: notificationService.notifications.length, visible: inputDomNode(controller).style.display !== 'none' }, {
+				failed: { visible: true, question: 'Try this question', busy: false }, attempts: 2, errors: 1, visible: false,
+			});
+		});
+
+		test('unbinds the controller when its model is cleared and rebinds a new model', () => {
+			const { controller, setSelection, bindModel, chat, openFromContextMenu } = setupEditor();
+			setSelection('hello world');
+			openFromContextMenu();
+			bindModel();
+			const unbound = inputDomNode(controller).style.display;
+			setSelection('hello world');
+			openFromContextMenu();
+			const noModel = inputDomNode(controller).style.display;
+			bindModel(chat.resource);
+			setSelection('hello world');
+			openFromContextMenu();
+			assert.deepStrictEqual([unbound, noModel, inputDomNode(controller).style.display], ['none', 'none', '']);
+		});
+
+		test('does not open the question input on read-only models', () => {
+			const { controller, setSelection, readOnly, openFromContextMenu } = setupEditor();
+			readOnly.set(true, undefined);
+			setSelection('hello world');
+			openFromContextMenu();
+			assert.deepStrictEqual([menuDomNode(controller).style.display, inputDomNode(controller).style.display], ['none', 'none']);
+		});
+
+		test('hides the inline question action when AI is disabled', () => {
+			const { controller, setSelection, openFromContextMenu } = setupEditor({ aiHidden: true });
+			setSelection('hello world');
+			openFromContextMenu();
+			assert.deepStrictEqual([menuDomNode(controller).style.display, inputDomNode(controller).style.display], ['none', 'none']);
+		});
+
+		test('does not open the question input for a conversation without side-chat capability', () => {
+			const { controller, setSelection, openFromContextMenu } = setupEditor({ supported: false });
+			setSelection('hello world');
+			openFromContextMenu();
+			assert.strictEqual(inputDomNode(controller).style.display, 'none');
+		});
+
+		test('does not mount a second controller in Agents, quick chat, or inline chat', () => {
+			const { instantiationService, store } = setup();
+			const create = spy(instantiationService, 'createInstance');
+			store.add(toDisposable(() => create.restore()));
+			for (const [isSessionsWindow, location, viewContext] of [
+				[true, ChatAgentLocation.Chat, {}],
+				[false, ChatAgentLocation.Chat, { isQuickChat: true }],
+				[false, ChatAgentLocation.Chat, { isInlineChat: true }],
+				[false, ChatAgentLocation.EditorInline, {}],
+			] as const) {
+				store.add(new EditorResponseSelectionSideChatContribution(
+					upcastPartial<IChatWidget>({ location, viewContext }),
+					upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow }),
+					instantiationService,
+				));
+			}
+			assert.strictEqual(create.callCount, 0);
+		});
+	});
 
 	function inputTextArea(controller: ResponseSelectionSideChatController): HTMLTextAreaElement {
 		return (controller as unknown as { _input: { inputElement: HTMLTextAreaElement } })._input.inputElement;
@@ -680,7 +893,7 @@ suite('ResponseSelectionSideChatController', () => {
 		beginPointerSelection();
 		setSelection('hello world');
 		releasePointerSelection();
-		controller.setChat(createChat(URI.parse('test:///chat/other')));
+		bindChat(controller, createChat(URI.parse('test:///chat/other')));
 
 		await waitForAnimationFrame();
 
@@ -1495,7 +1708,7 @@ suite('ResponseSelectionSideChatController', () => {
 		// A new IChat object for the same resource (e.g. ChatView re-invoking
 		// setChat on a status/interactivity observable change) must not
 		// discard the visible draft.
-		controller.setChat(createChat(chat.resource));
+		bindChat(controller, createChat(chat.resource));
 
 		assert.notStrictEqual(inputDomNode(controller).style.display, 'none', 'input must stay visible on a same-resource setChat');
 		assert.strictEqual(textArea.value, 'a draft in progress', 'the typed draft must survive a same-resource setChat');
@@ -1516,7 +1729,7 @@ suite('ResponseSelectionSideChatController', () => {
 
 		// A same-resource setChat (status/interactivity update) must not
 		// force-dismiss or clear busy while the submission is still pending.
-		controller.setChat(createChat(chat.resource));
+		bindChat(controller, createChat(chat.resource));
 		assert.strictEqual(isInputBusy(controller), true, 'busy must survive a same-resource setChat');
 		assert.strictEqual(inputTextArea(controller).disabled, true);
 		assert.notStrictEqual(inputDomNode(controller).style.display, 'none');
@@ -1545,7 +1758,7 @@ suite('ResponseSelectionSideChatController', () => {
 		submitViaClick(controller, 'what does this mean?');
 		assert.strictEqual(isInputBusy(controller), true);
 
-		controller.setChat(createChat(URI.parse('test:///chat/other')));
+		bindChat(controller, createChat(URI.parse('test:///chat/other')));
 
 		assert.strictEqual(inputDomNode(controller).style.display, 'none', 'a genuine chat change must dismiss even a busy overlay');
 		assert.strictEqual(isInputBusy(controller), false);
@@ -1571,7 +1784,7 @@ suite('ResponseSelectionSideChatController', () => {
 		setSelection('hello world');
 		submitViaClick(controller, 'what does this mean?');
 
-		controller.setChat(createChat(URI.parse('test:///chat/other')));
+		bindChat(controller, createChat(URI.parse('test:///chat/other')));
 		setSelection('');
 		const focusCallsAtDismiss = focusResponseItemCalls.length;
 
@@ -1592,7 +1805,7 @@ suite('ResponseSelectionSideChatController', () => {
 		setSelection('hello world');
 		submitViaClick(controller, 'what does this mean?');
 
-		controller.setChat(createChat(URI.parse('test:///chat/other')));
+		bindChat(controller, createChat(URI.parse('test:///chat/other')));
 		setSelection('');
 		const focusCallsAtDismiss = focusResponseItemCalls.length;
 

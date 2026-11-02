@@ -28,7 +28,7 @@ if (options.help) {
 	console.info('  --fgrep, -f <string>            Only run tests containing the given <string>');
 	console.info('  --test-results, -t <path>       Output test results in JUnit format to the specified path');
 	console.info('  --timeout <sec>                 Set the test-case timeout in seconds (default: 600 seconds)');
-	console.info('  --screenshots-dir, -s <path>    Save failure screenshots to the specified directory');
+	console.info('  --screenshots-dir, -s <path>    Save failure screenshots, and app logs of failed desktop UI tests, to the specified directory');
 	console.info('  --crash-dumps-dir, -d <path>    Save crash dumps from desktop app runs to the specified directory');
 	console.info('  --artifacts-dir <path>          Resolve builds from downloaded pipeline artifacts instead of the update service');
 	console.info('  --setuid-sandbox                Test installed DEB/RPM apps using the setuid sandbox (requires a non-root user)');

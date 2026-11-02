@@ -151,12 +151,19 @@ suite('Zip', () => {
 		const zipPath = path.join(testDir, 'logs.zip');
 		await fs.promises.mkdir(testDir, { recursive: true });
 		await fs.promises.writeFile(presentPath, 'present-contents');
+		const sourceErrors: { path: string; missing: boolean }[] = [];
 		await zip(zipPath, [
 			{ path: 'missing.txt', localPath: missingPath, localPathSize: 8, skipSourceErrors: true },
 			{ path: 'present.txt', localPath: presentPath, localPathSize: 7 },
-		]);
+		], { onSourceError: (path, error) => sourceErrors.push({ path, missing: error.message.includes('ENOENT') }) });
 
-		assert.strictEqual((await buffer(zipPath, 'present.txt')).toString(), 'present');
+		assert.deepStrictEqual({
+			contents: (await buffer(zipPath, 'present.txt')).toString(),
+			sourceErrors,
+		}, {
+			contents: 'present',
+			sourceErrors: [{ path: 'missing.txt', missing: true }],
+		});
 		await assert.rejects(buffer(zipPath, 'missing.txt'));
 
 		await Promises.rm(testDir);

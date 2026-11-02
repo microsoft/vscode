@@ -75,7 +75,7 @@ export class SessionStorageCleanupNotice extends Disposable {
 			}
 		}));
 
-		let suggestionWasVisible = false;
+		let previousDescription: string | undefined;
 		this._register(autorun(reader => {
 			this.suggestion = this.cleanupService.suggestion.read(reader);
 			const available = this.suggestion !== undefined;
@@ -84,14 +84,14 @@ export class SessionStorageCleanupNotice extends Disposable {
 			manageButton.enabled = available;
 			disableButton.enabled = available;
 			dismissButton.disabled = !available;
-			if (available && !suggestionWasVisible) {
+			if (available && this.suggestion?.description !== previousDescription) {
 				this.announceStatus(localize(
 					'sessionStorageCleanupNotice.announcement',
 					"{0} Run Open Worktree Cleanup to review it. To stop these suggestions, run Disable Session Storage Cleanup Suggestions.",
 					this.suggestion?.description,
 				));
 			}
-			suggestionWasVisible = available;
+			previousDescription = this.suggestion?.description;
 		}));
 
 		void this.cleanupService.activate().catch(error => this.logService.warn('[SessionStorageCleanupNotice] Failed to measure session storage', error));

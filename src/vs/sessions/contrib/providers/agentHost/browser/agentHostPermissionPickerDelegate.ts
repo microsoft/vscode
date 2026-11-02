@@ -6,30 +6,31 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { derived, IObservable, IReader, observableSignal } from '../../../../../base/common/observable.js';
+import { derived, derivedOpts, IObservable, IReader, observableSignal, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { localize } from '../../../../../nls.js';
 import { createAgentHostSandboxToggle } from '../../../../../platform/agentHost/browser/agentHostSandboxToggle.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, isSessionConfigWritable, readSessionApprovalLevel, writeSessionApprovalLevel } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, isSessionConfigWritable, getWithheldSessionApprovalValues, readSessionApprovalLevel, writeSessionApprovalLevel } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { narrowClaudePermissionMode } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { narrowCodexPermissionsPreset } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { disableGlobalAutoApproveForPermissionSelection, isAutoApprovePolicyRestricted } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
+import { disableGlobalAutoApproveForPermissionSelection, isApprovalLevelDisabledByKnownPolicy, isAutoApprovePolicyRestricted } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { IPermissionLevelMeta, IPermissionPickerDelegate } from '../../copilotChatSessions/browser/permissionPicker.js';
 import { getSessionConfigProvider, IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionConfigProvider, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxEnabledSettingValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../../../platform/sandbox/common/settings.js';
 import { CopilotCLISessionType } from './baseAgentHostSessionsProvider.js';
 import { IChatPhoneInputPresenter } from '../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
-import { isWellKnownAutoApproveSchema, isWellKnownModeSchema, shouldCombineModeAndPermissions } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
+import { equalsUnavailablePermissionLevels, isWellKnownAutoApproveSchema, isWellKnownModeSchema, IUnavailablePermissionLevel, shouldCombineModeAndPermissions } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 
 const REQUIRED_PERMISSION_MODE_VALUE = 'default';
 const REQUIRED_CODEX_APPROVALS_VALUE = 'default';
@@ -44,6 +45,8 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	private readonly _providerSubscriptions = this._register(new DisposableMap<string>());
 
 	readonly currentPermissionLevel: IObservable<ChatPermissionLevel>;
+	/** Supported levels the host's availability report withholds; shown disabled and never selectable. */
+	readonly unavailableLevels: IObservable<readonly IUnavailablePermissionLevel[]>;
 	readonly isApplicable: IObservable<boolean>;
 	readonly isModePickerCombined: IObservable<boolean>;
 	readonly isResolving: IObservable<boolean>;
@@ -120,6 +123,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		@IChatPhoneInputPresenter phoneInputPresenter: IChatPhoneInputPresenter,
 		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IManagedSettingsService managedSettingsService: IManagedSettingsService,
 	) {
 		super();
 		const isDevContainer = derived(this, reader => {
@@ -165,12 +169,26 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			this._configChangedSignal.trigger(undefined);
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.ExperimentalModePermissionsPicker)) {
+			if (e.affectsConfiguration(ChatConfiguration.ExperimentalModePermissionsPicker) || e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove)) {
 				this._configChangedSignal.trigger(undefined);
 			}
 		}));
 
 		this.currentPermissionLevel = derived(this, reader => this._readLevel(reader));
+		const managedSettingsChanged = observableSignalFromEvent(this, managedSettingsService.onDidChangeManagedSettings);
+		this.unavailableLevels = derivedOpts({ owner: this, equalsFn: equalsUnavailablePermissionLevels }, reader => {
+			this._configChangedSignal.read(reader);
+			managedSettingsChanged.read(reader);
+			const session = this._session.read(reader);
+			const config = session && this._getProvider(session.providerId)?.getSessionConfig(session.sessionId, session.activeChat.read(reader).resource);
+			const approvalProperty = getSessionApprovalProperty(config?.schema);
+			const values = config && approvalProperty ? getWithheldSessionApprovalValues(approvalProperty, config.schema, config.values).map(value => readSessionApprovalLevel(approvalProperty, value)) : [];
+			const useLocalPolicy = !isDevContainer.read(reader) && !isWeb && !environmentService.remoteAuthority
+				&& session?.providerId === LOCAL_AGENT_HOST_PROVIDER_ID && session.sessionType === CopilotCLISessionType.id;
+			return [ChatPermissionLevel.Assisted, ChatPermissionLevel.AutoApprove]
+				.filter(level => values.some(value => value === level))
+				.map(level => ({ level, byPolicy: useLocalPolicy && isApprovalLevelDisabledByKnownPolicy(level, this._configurationService, managedSettingsService) }));
+		});
 		this.sandboxConfirmedEnabled = derived(this, reader => {
 			if (isDevContainer.read(reader)) {
 				return undefined;

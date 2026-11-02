@@ -18,8 +18,7 @@ import { NullRemoteAgentHostService } from '../../../../../platform/agentHost/co
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { createChatState, createSessionState, CustomizationType, SessionStatus, StateComponents, type ChatState, type ComponentToState, type Customization, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { FileService } from '../../../../../platform/files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../../../platform/files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import type { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { TestCopilotHomeService } from '../../../../../platform/environment/test/common/testCopilotHomeService.js';
@@ -414,8 +413,7 @@ suite('AgentHostChatDebugContribution - live refresh', () => {
 	}
 
 	function setup(sessionSub: IAgentSubscription<SessionState>, chatSubs: ReadonlyMap<string, IAgentSubscription<ChatState>>) {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		let provider: IChatDebugLogProvider | undefined;
 		const refreshes: string[] = [];
 		const chatDebugService = new class extends mock<IChatDebugService>() {

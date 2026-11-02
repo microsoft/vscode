@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { applyChatConfigLayers, filterChatConfigValues, filterSessionConfigValues, getChatConfigChain, getChatConfigWriteTarget, getEffectiveChatConfig, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionBaseBranchProperty, getSessionConfigPresentationKey, getSessionIsolationProperty, getSessionModeProperty, getSessionWorkspaceProperties, isChatConfigProperty, isSessionConfigWritable, readSessionApprovalLevel, readSessionIsolation, mergeChatConfigChain, splitChatConfigPatch, validateChatConfigWrite, validateChatPickerConfigWrite, validateSessionConfigWrite, writeSessionApprovalLevel, writeSessionIsolation } from '../../common/sessionConfigProperties.js';
+import { applyChatConfigLayers, filterChatConfigValues, filterSessionConfigValues, getChatConfigChain, getChatConfigSchema, getChatConfigWriteTarget, getCompleteChatConfigValues, getEffectiveChatConfig, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getWithheldSessionApprovalValues, getSessionApprovalProperty, getSessionBaseBranchProperty, getSessionConfigPresentationKey, getSessionIsolationProperty, getSessionModeProperty, getSessionWorkspaceProperties, isChatConfigProperty, isSessionConfigWritable, readSessionApprovalLevel, readSessionIsolation, mergeChatConfigChain, splitChatConfigPatch, validateChatConfigWrite, validateChatPickerConfigWrite, validateSessionConfigWrite, writeSessionApprovalLevel, writeSessionIsolation } from '../../common/sessionConfigProperties.js';
 import type { SessionConfigSchema } from '../../common/state/protocol/commands.js';
 import { ChatOriginKind, type ChatSummary } from '../../common/state/protocol/state.js';
 
@@ -158,9 +158,12 @@ suite('Session config properties', () => {
 			absent: getEffectiveSessionApprovalValue(approvalProperty, copilot, { approvalMode: 'assisted' }),
 			unknown: readSessionApprovalLevel(approvalProperty, getEffectiveSessionApprovalValue(approvalProperty, copilot, { effectiveApprovalMode: 'unknown' })),
 			emptyChoices: getAvailableSessionApprovalValues(approvalProperty, copilot, { availableApprovalModes: [] }),
+			withheld: getWithheldSessionApprovalValues(approvalProperty, copilot, values),
+			noReport: getWithheldSessionApprovalValues(approvalProperty, copilot, { approvalMode: 'manual' }),
 		}, {
 			effective: 'manual', requested: 'allow-all', choices: ['manual', 'assisted'],
 			absent: 'assisted', unknown: undefined, emptyChoices: [],
+			withheld: ['allow-all'], noReport: [],
 		});
 	});
 
@@ -305,6 +308,28 @@ suite('Chat config properties', () => {
 			absent: true,
 			empty: true,
 			overlay: { autoApprove: 'autoApprove', mode: 'plan', webSearch: true },
+		});
+	});
+
+	test('with complete values (chats with their own agents on), a chat\'s values are its complete config: the session gives only its session-wide properties', () => {
+		const session = { schema, values: { autoApprove: 'autoApprove', mode: 'plan', webSearch: true, isolation: 'worktree' } };
+		const ownSchema: SessionConfigSchema = { type: 'object', properties: { mode: { type: 'string', title: 'Mode', enum: ['ask', 'agent'], default: 'agent', chatMutable: true } } };
+		assert.deepStrictEqual({
+			absent: getEffectiveChatConfig(session, undefined) === session,
+			// A missing property is the schema's default, never the session's value.
+			empty: getEffectiveChatConfig(session, { values: {} }, true).values,
+			complete: getEffectiveChatConfig(session, { values: { autoApprove: 'assisted', mode: 'interactive', webSearch: false } }, true).values,
+			ownSchema: getEffectiveChatConfig(session, { schema: ownSchema, values: {} }, false),
+			schemaOf: [getChatConfigSchema(session, undefined) === schema, getChatConfigSchema(session, { schema: ownSchema, values: {} }) === ownSchema],
+			// What a new chat starts with, or an older build's overlay completes to: the session's settable, non-reported values with the chat's over them.
+			completed: getCompleteChatConfigValues({ schema, values: { ...session.values, effectiveApprovalMode: 'autoApprove' } }, { mode: 'autopilot' }),
+		}, {
+			absent: true,
+			empty: { webSearch: true, isolation: 'worktree', autoApprove: 'default', mode: 'interactive' },
+			complete: { webSearch: true, isolation: 'worktree', autoApprove: 'assisted', mode: 'interactive' },
+			ownSchema: { schema: ownSchema, values: { mode: 'agent' } },
+			schemaOf: [true, true],
+			completed: { autoApprove: 'autoApprove', mode: 'autopilot' },
 		});
 	});
 

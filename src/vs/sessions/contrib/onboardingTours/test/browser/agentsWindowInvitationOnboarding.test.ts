@@ -18,6 +18,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/virtualSched
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -86,7 +87,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 				return (name.endsWith('.show') ? true : name.endsWith('.id') ? 'onb-parallel-work-test' : undefined) as T | undefined;
 			}
 		}();
-		const onboarding = store.add(new OnboardingScenarioService(storage, context, configuration, lifecycle, assignment, NullTelemetryService));
+		const onboarding = store.add(new OnboardingScenarioService(storage, context, configuration, lifecycle, assignment, NullTelemetryService, new TestDialogService()));
 		store.add(onboardingScenarioRegistry.register(createNewSessionViewV2Tour(constObservable(true))));
 		const entitlement = new class extends TestChatEntitlementService {
 			override readonly sentiment = { hidden: options.hidden ?? false };

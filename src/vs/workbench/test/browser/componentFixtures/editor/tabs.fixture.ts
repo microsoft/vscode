@@ -532,7 +532,7 @@ function render(modernUI: boolean, options: Omit<IEditorTabsFixtureOptions, 'mod
 	return ctx => renderEditorTabsFixture(ctx, { ...options, modernUI });
 }
 
-function renderTabStyleDensityComparison(tabHeight: IEditorPartOptions['tabHeight']): (ctx: ComponentFixtureContext) => void {
+function renderTabStyleDensityComparison(tabHeight: IEditorPartOptions['tabHeight'], showScrollbar = false): (ctx: ComponentFixtureContext) => void {
 	return ctx => {
 		for (const [name, modernUI, editorTabStyle] of [
 			['Legacy', false, undefined],
@@ -548,8 +548,10 @@ function renderTabStyleDensityComparison(tabHeight: IEditorPartOptions['tabHeigh
 			renderEditorTabsFixture({ ...ctx, container }, {
 				modernUI,
 				editorTabStyle,
-				partOptions: { tabHeight },
-				editors: [
+				partOptions: { tabHeight, titleScrollbarVisibility: showScrollbar ? 'visible' : 'auto' },
+				width: showScrollbar ? 520 : undefined,
+				breadcrumbs: showScrollbar ? {} : undefined,
+				editors: showScrollbar ? manyEditorSpecs(5) : [
 					{ resource: file('/project/alpha.ts'), pinned: true },
 					{ resource: file('/project/beta.ts'), pinned: true, active: true },
 					{ resource: file('/project/gamma.ts'), pinned: true },
@@ -758,6 +760,14 @@ function renderPinnedSeparateRow(): (ctx: ComponentFixtureContext) => void {
 export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	Density: defineThemedFixtureGroup(createDensityFixtures()),
 	Layout: defineThemedFixtureGroup(createLayoutFixtures()),
+	ScrollbarPlacement: defineComponentFixture({
+		render: renderTabStyleDensityComparison('default', true),
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: [
+			'Overflowing Modern UI Pill and Connected tabs show the scrollbar at the top, keeping a consistent tab-strip treatment.',
+			'Legacy tabs retain their bottom scrollbar; the breadcrumb bar and editor body remain below each tab strip in all styles.',
+		],
+	}),
 	Styles: defineThemedFixtureGroup({
 		Connected: defineComponentFixture({
 			render: render(true, {}),

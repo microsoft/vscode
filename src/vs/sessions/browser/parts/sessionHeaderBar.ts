@@ -7,7 +7,7 @@ import './media/chatCompositeBar.css';
 import { IAction } from '../../../base/common/actions.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { $, addDisposableGenericMouseDownListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, getWindow, isMouseEvent } from '../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventHelper, EventType, getWindow, isMouseEvent } from '../../../base/browser/dom.js';
 import { IconLabel } from '../../../base/browser/ui/iconLabel/iconLabel.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
@@ -23,7 +23,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/acti
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { Menus } from '../menus.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
-import { DraggedSessionIdentifier, fillSessionChatDragData, isSessionDragFromPaneEdge, SessionsDataTransfers } from '../dnd.js';
+import { DraggedSessionIdentifier, fillSessionChatDragData, fillSessionDragData, isSessionDragFromPaneEdge } from '../dnd.js';
 import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
@@ -33,6 +33,7 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { createSessionActionViewItemProvider } from '../sessionActionViewItem.js';
 import { CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
+import { HoverStyle } from '../../../base/browser/ui/hover/hover.js';
 
 export function getSessionChatAncestors(session: IActiveSession, chat: IChat | undefined, reader: IReader): readonly string[] {
 	const ancestors: string[] = [];
@@ -62,6 +63,7 @@ export interface ISessionHeaderBarContext {
 	readonly actionsTargetChat?: boolean;
 	readonly showParentContext?: boolean;
 	readonly activateChatGroup?: () => void;
+	readonly closeSession?: () => void;
 }
 
 export function getSessionToolbarSecondaryActionsPosition(primaryActions: readonly IAction[]): number {
@@ -92,6 +94,7 @@ export class SessionHeaderBar extends Disposable {
 	private _actionsTargetChat = false;
 	private _showParentContext = false;
 	private _activateChatGroup: (() => void) | undefined;
+	private _closeSession: (() => void) | undefined;
 	private _activeChat: IChat | undefined;
 	private readonly _menuActionArgs: unknown[] = [];
 	private _sessionIsCreated = false;
@@ -163,13 +166,20 @@ export class SessionHeaderBar extends Disposable {
 		this._titleTextEl = $('span.chat-composite-bar-session-title-text');
 		this._titleEl.appendChild(this._titleTextEl);
 		this._titleLabel = this._register(new IconLabel(this._titleTextEl));
-		this._register(hoverService.setupDelayedHover(this._titleEl, () => ({ content: this._titlePath })));
+		this._register(hoverService.setupDelayedHover(this._titleEl, () => ({ content: this._titlePath, style: HoverStyle.Pointer })));
 
 		// Click the title to start an inline rename. Click is preferred over
 		// mousedown so that initiating a drag from the title doesn't also
 		// flip into edit mode.
 		this._register(addDisposableListener(this._titleEl, EventType.CLICK, () => {
 			this.startTitleEditing();
+		}));
+		this._register(addDisposableListener(this._titleEl, EventType.AUXCLICK, e => {
+			if (e.button !== 1 || !this._closeSession || this._renameInput?.contains(e.target as Node)) {
+				return;
+			}
+			EventHelper.stop(e, true);
+			this._closeSession();
 		}));
 
 		const titleActions = $('.chat-composite-bar-title-actions');
@@ -269,13 +279,7 @@ export class SessionHeaderBar extends Disposable {
 				}
 				fillSessionChatDragData(e, session.sessionId, chat.resource, !!session.scopedChatResource);
 			} else {
-				this._sessionTransfer.setData(
-					[new DraggedSessionIdentifier(session.sessionId, session.resource)],
-					DraggedSessionIdentifier.prototype,
-				);
-
-				const payload = JSON.stringify({ sessionId: session.sessionId, resource: session.resource.toString() });
-				e.dataTransfer.setData(SessionsDataTransfers.SESSION, payload);
+				fillSessionDragData(e, session);
 			}
 			e.dataTransfer.effectAllowed = 'move';
 
@@ -294,11 +298,13 @@ export class SessionHeaderBar extends Disposable {
 		const actionsTargetChat = context?.actionsTargetChat ?? false;
 		const showParentContext = context?.showParentContext ?? false;
 		const activateChatGroup = context?.activateChatGroup;
+		const closeSession = context?.closeSession;
 		if (this._session === session
 			&& this._activeChatObservable === activeChat
 			&& this._actionsTargetChat === actionsTargetChat
 			&& this._showParentContext === showParentContext
-			&& this._activateChatGroup === activateChatGroup) {
+			&& this._activateChatGroup === activateChatGroup
+			&& this._closeSession === closeSession) {
 			return;
 		}
 		// Cancel any in-flight rename when switching sessions.
@@ -308,6 +314,7 @@ export class SessionHeaderBar extends Disposable {
 		this._actionsTargetChat = actionsTargetChat;
 		this._showParentContext = showParentContext;
 		this._activateChatGroup = activateChatGroup;
+		this._closeSession = closeSession;
 		this._activeChat = undefined;
 		this._menuActionArgs.splice(0, this._menuActionArgs.length, ...(session ? [session] : []));
 		this._toolbar.context = session;
@@ -353,16 +360,10 @@ export class SessionHeaderBar extends Disposable {
 		activeChatObservable: IObservable<IChat | undefined>,
 		reader: IReader,
 	): void {
-		// Session icon — the SessionStatusIcon widget owns the rendering (spinner vs.
-		// codicon, cross-fade, reduced-motion); here we just feed it the latest state.
-		// Metadata is surfaced above the chat input, so the title keeps the
-		// read/unread status indicator.
-		// The title shows the active chat, so its status and read state must too: the
-		// session's own `status` and `isRead` aggregate all chats and would show another
-		// peer chat's in-progress or unread state.
+		// An empty header must not inherit activity or unread state from other chats.
 		const activeChat = activeChatObservable.read(reader);
-		const status = activeChat ? activeChat.status.read(reader) : session.status.read(reader);
-		const isRead = activeChat ? activeChat.isRead.read(reader) : session.isRead.read(reader);
+		const status = activeChat?.status.read(reader) ?? SessionStatus.Untitled;
+		const isRead = activeChat?.isRead.read(reader) ?? true;
 		const isArchived = session.isArchived.read(reader);
 		this._statusIcon.setStatus(status, isRead, isArchived);
 
@@ -500,10 +501,9 @@ export class SessionHeaderBar extends Disposable {
 				e.preventDefault();
 				e.stopPropagation();
 				finish(false);
-			} else {
-				// Don't let typing leak out to workbench shortcuts (e.g. Space).
-				e.stopPropagation();
 			}
+			// Other keys must bubble: clipboard and editing shortcuts (paste, copy,
+			// select all, undo) are workbench keybindings for plain inputs.
 		}));
 
 		store.add(addDisposableListener(input, EventType.BLUR, () => {
@@ -542,11 +542,12 @@ export class SessionHeaderBar extends Disposable {
  * {@link SessionHeaderBar}, this toolbar is absolutely positioned at the top-right of
  * the session view and does not allocate any vertical space.
  *
- * It is shown only when the hosted session exists but has not yet been created.
+ * Its blank area also serves as the drag source for drafts and the empty composer.
  */
 export class SessionViewFloatingToolbar extends Disposable {
 
 	private readonly _container: HTMLElement;
+	private readonly _toolbarContainer: HTMLElement;
 	private readonly _toolbar: MenuWorkbenchToolBar;
 	private _session: IActiveSession | undefined;
 	private readonly _sessionDisposables = this._register(new MutableDisposable<DisposableStore>());
@@ -562,7 +563,11 @@ export class SessionViewFloatingToolbar extends Disposable {
 		super();
 
 		this._container = $('.chat-composite-bar.chat-composite-bar-toolbar-floating');
-		const toolbar = $('.chat-composite-bar-toolbar');
+		this._container.draggable = true;
+		this._container.setAttribute('role', 'group');
+		this._container.setAttribute('aria-label', localize('newSessionDragArea', "New Session"));
+		const toolbar = this._toolbarContainer = $('.chat-composite-bar-toolbar');
+		toolbar.style.display = 'none';
 		this._container.appendChild(toolbar);
 
 		this._toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, toolbar, Menus.SessionBarToolbar, {
@@ -573,7 +578,23 @@ export class SessionViewFloatingToolbar extends Disposable {
 			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService),
 		}));
 
-		this._setVisible(false);
+		let canDrag = false;
+		this._register(addDisposableGenericMouseDownListener(this._container, e => {
+			canDrag = !toolbar.contains(e.target as Node | null) && !isSessionDragFromPaneEdge(this._container, e);
+		}));
+		this._register(addDisposableListener(this._container, EventType.DRAG_START, (e: DragEvent) => {
+			if (!canDrag || !e.dataTransfer || this._session?.isCreated.get()) {
+				e.preventDefault();
+				return;
+			}
+			fillSessionDragData(e, this._session);
+			e.dataTransfer.effectAllowed = 'move';
+			applyDragImage(e, this._container, getUntitledSessionTitle(this._session?.isQuickChat?.get() ?? false));
+			e.stopPropagation();
+		}));
+		this._register(addDisposableListener(this._container, EventType.DRAG_END, () => {
+			LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>().clearData(DraggedSessionIdentifier.prototype);
+		}));
 	}
 
 	setSession(session: IActiveSession | undefined): void {
@@ -582,12 +603,13 @@ export class SessionViewFloatingToolbar extends Disposable {
 		}
 		this._session = session;
 		this._toolbar.context = session;
+		this._toolbarContainer.style.display = session ? '' : 'none';
 
 		const store = new DisposableStore();
 		this._sessionDisposables.value = store;
 
 		if (!session) {
-			this._setVisible(false);
+			this._setVisible(true);
 			return;
 		}
 

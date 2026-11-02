@@ -21,6 +21,7 @@ import { IRemoteAuthorityResolverService, RemoteConnectionType } from '../../pla
 import { IRemoteAgentService } from '../services/remote/common/remoteAgentService.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { FileService } from '../../platform/files/common/fileService.js';
+import { BrowserResourceService, IBrowserResourceService } from '../../platform/files/browser/browserResourceService.js';
 import { Schemas, connectionTokenCookieName } from '../../base/common/network.js';
 import { IAnyWorkspaceIdentifier, IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE, isTemporaryWorkspace, isWorkspaceIdentifier } from '../../platform/workspace/common/workspace.js';
 import { IWorkbenchConfigurationService } from '../services/configuration/common/configuration.js';
@@ -59,6 +60,8 @@ import { BrowserWindow } from './window.js';
 import { ITimerService } from '../services/timer/browser/timerService.js';
 import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from '../services/workspaces/common/workspaceTrust.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../platform/workspace/common/workspaceTrust.js';
+import { CanonicalUriService } from '../services/workspaces/common/canonicalUriService.js';
+import { ICanonicalUriService } from '../../platform/workspace/common/canonicalUri.js';
 import { HTMLFileSystemProvider } from '../../platform/files/browser/htmlFileSystemProvider.js';
 import { IOpenerService } from '../../platform/opener/common/opener.js';
 import { mixin, safeStringify } from '../../base/common/objects.js';
@@ -322,7 +325,12 @@ export class BrowserMain extends Disposable {
 
 
 		const connectionToken = environmentService.options.connectionToken || getCookieValue(connectionTokenCookieName);
-		const remoteResourceLoader = this.configuration.remoteResourceProvider ? new BrowserRemoteResourceLoader(fileService, this.configuration.remoteResourceProvider) : undefined;
+		const resourceProvider = this.configuration.remoteResourceProvider;
+		const browserResourceService = this._register(new BrowserResourceService(resourceProvider ? (resourceId, resource) => URI.parse(document.location.href).with({
+			path: resourceProvider.path, query: new URLSearchParams({ resourceId }).toString(), fragment: resource.fragment,
+		}) : undefined, fileService));
+		serviceCollection.set(IBrowserResourceService, browserResourceService);
+		const remoteResourceLoader = resourceProvider ? this._register(new BrowserRemoteResourceLoader(resourceProvider, fileService, browserResourceService)) : undefined;
 		const resourceUriProvider = this.configuration.resourceUriProvider ?? remoteResourceLoader?.getResourceUriProvider();
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(!environmentService.expectsResolverExtension, connectionToken, resourceUriProvider, this.configuration.serverBasePath, productService, logService);
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
@@ -454,10 +462,8 @@ export class BrowserMain extends Disposable {
 	}
 
 	/**
-	 * Creates and registers the workspace context, configuration, storage,
-	 * and workspace trust services. Override this to provide different
-	 * workspace/configuration implementations (e.g., sessions in-memory
-	 * workspace). Overrides must also register workspace trust services.
+	 * Creates and registers workspace, configuration, storage, canonical URI, and trust services.
+	 * Overrides must also register the canonical URI and workspace trust services.
 	 */
 	protected async createWorkspaceConfigAndStorageServices(
 		serviceCollection: ServiceCollection,
@@ -485,10 +491,13 @@ export class BrowserMain extends Disposable {
 		]);
 
 		// Workspace Trust Service
+		const canonicalUriService = this._register(new CanonicalUriService());
+		serviceCollection.set(ICanonicalUriService, canonicalUriService);
+
 		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);
 		serviceCollection.set(IWorkspaceTrustEnablementService, workspaceTrustEnablementService);
 
-		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService, workspaceTrustEnablementService, fileService);
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService, workspaceTrustEnablementService, fileService, canonicalUriService, logService);
 		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
 
 		// Update workspace trust so that configuration is updated accordingly

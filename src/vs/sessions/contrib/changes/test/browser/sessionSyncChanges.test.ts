@@ -33,6 +33,8 @@ import { ISessionsPartService } from '../../../../services/sessions/browser/sess
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { SessionSyncChangesActionViewItem, SessionSyncChangesContribution } from '../../browser/sessionSyncChanges.js';
 import '../../../../../base/browser/ui/actionbar/actionbar.css';
 import '../../../../../workbench/browser/media/style.css';
@@ -198,10 +200,23 @@ suite('Session Sync Changes', () => {
 		assert.deepStrictEqual(counts, [1, 0, 1, 0, 0, 1]);
 	});
 
+	test('registered sync shortcut focuses the control without synchronizing', () => {
+		const data = createSession('first');
+		const visibility = store.add(new SessionInputPickerVisibility());
+		let runs = 0;
+		const action = store.add(new Action(commandId, 'Sync Changes', undefined, true, async () => { runs++; }));
+		const item = store.add(new SessionSyncChangesActionViewItem(action, {}, new SessionContext(constObservable(data.session)), new class extends mock<ISessionsPartService>() { }(), visibility, new MockKeybindingService()));
+		const container = append(document.body, $('.action-item'));
+		store.add(toDisposable(() => container.remove()));
+		item.render(container);
+		visibility.focusPicker('sync');
+		assert.deepStrictEqual({ focused: document.activeElement === container.querySelector('.action-label'), runs, visible: visibility.visibility.get().sync }, { focused: true, runs: 0, visible: true });
+	});
+
 	test('disabled sync icon matches the count label color in every theme', () => {
 		const data = createSession('first');
 		const action = store.add(new Action(commandId, 'Sync Changes', undefined, false));
-		const item = store.add(new SessionSyncChangesActionViewItem(action, {}, new SessionContext(constObservable(data.session)), new class extends mock<ISessionsPartService>() { }()));
+		const item = store.add(new SessionSyncChangesActionViewItem(action, {}, new SessionContext(constObservable(data.session)), new class extends mock<ISessionsPartService>() { }(), store.add(new SessionInputPickerVisibility()), new MockKeybindingService()));
 		const root = append(document.body, $('.monaco-workbench.agent-sessions-workbench'));
 		store.add(toDisposable(() => root.remove()));
 		root.style.setProperty('--vscode-disabledForeground', 'rgb(128, 128, 128)');
@@ -251,7 +266,7 @@ suite('Session Sync Changes', () => {
 			container.replaceChildren();
 			const action = menu.getActions().flatMap(([, actions]) => actions).find(action => action.id === commandId);
 			if (action) {
-				item.value = new SessionSyncChangesActionViewItem(action, {}, new SessionContext(constObservable(data.session)), new class extends mock<ISessionsPartService>() { }());
+				item.value = new SessionSyncChangesActionViewItem(action, {}, new SessionContext(constObservable(data.session)), new class extends mock<ISessionsPartService>() { }(), store.add(new SessionInputPickerVisibility()), new MockKeybindingService());
 				item.value.render(container);
 			}
 		};
@@ -407,6 +422,8 @@ suite('Session Sync Changes', () => {
 		const menu = store.add(menuService.createMenu(Menus.NewSessionRepositoryConfig, contextKeyService, { eventDebounceDelay: 0 }));
 		const scopedInstantiationService = store.add(new TestInstantiationService());
 		scopedInstantiationService.stub(ISessionContext, new SessionContext(session));
+		scopedInstantiationService.stub(ISessionInputPickerVisibility, store.add(new SessionInputPickerVisibility()));
+		scopedInstantiationService.stub(IKeybindingService, new MockKeybindingService());
 		scopedInstantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 		const container = document.createElement('div');
 		const item = store.add(new MutableDisposable<SessionSyncChangesActionViewItem>());
@@ -473,7 +490,7 @@ suite('Session Sync Changes', () => {
 		const data = createSession('first');
 		data.operations.set([{ ...data.operation, description: undefined, label: 'Localized sync operation' }], undefined);
 		const action = store.add(new Action(commandId, 'Sync Changes'));
-		const item = store.add(new SessionSyncChangesActionViewItem(action, {}, new SessionContext(constObservable(data.session)), new class extends mock<ISessionsPartService>() { }()));
+		const item = store.add(new SessionSyncChangesActionViewItem(action, {}, new SessionContext(constObservable(data.session)), new class extends mock<ISessionsPartService>() { }(), store.add(new SessionInputPickerVisibility()), new MockKeybindingService()));
 		const container = document.createElement('div');
 		item.render(container);
 		const labels = [];
@@ -491,7 +508,7 @@ suite('Session Sync Changes', () => {
 	test('matches the Git sync hover and accessible label as counts and upstream change', () => {
 		const data = createSession('first');
 		const action = store.add(new Action(commandId, 'Sync Changes'));
-		const item = store.add(new SessionSyncChangesActionViewItem(action, {}, new SessionContext(constObservable(data.session)), new class extends mock<ISessionsPartService>() { }()));
+		const item = store.add(new SessionSyncChangesActionViewItem(action, {}, new SessionContext(constObservable(data.session)), new class extends mock<ISessionsPartService>() { }(), store.add(new SessionInputPickerVisibility()), new MockKeybindingService()));
 		const container = document.createElement('div');
 		item.render(container);
 		const label = container.querySelector<HTMLElement>('.action-label')!;
@@ -536,7 +553,7 @@ suite('Session Sync Changes', () => {
 				input.focus();
 			}
 		}();
-		const item = store.add(new SessionSyncChangesActionViewItem(action, {}, new SessionContext(constObservable(data.session)), sessionsPartService));
+		const item = store.add(new SessionSyncChangesActionViewItem(action, {}, new SessionContext(constObservable(data.session)), sessionsPartService, store.add(new SessionInputPickerVisibility()), new MockKeybindingService()));
 		const container = document.createElement('div');
 		widget.append(input, container);
 		document.body.append(widget);

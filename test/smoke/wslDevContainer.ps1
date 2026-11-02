@@ -52,7 +52,10 @@ function Format-WslResult($Result) {
 }
 
 function Save-Download([string] $Url, [string] $Destination) {
-	curl.exe --fail --location --retry 5 --retry-all-errors --retry-max-time 120 --connect-timeout 30 --max-time 180 --output $Destination $Url
+	# curl only retries until --retry-max-time has passed, so it is longer than --max-time, or a transfer that runs until
+	# --max-time would never be retried. Below 1 MiB/s, the 210-325 MiB downloads can't finish within --max-time, so such
+	# a transfer is stopped after 30 seconds and retried on a fresh connection.
+	curl.exe --fail --location --retry 5 --retry-all-errors --retry-max-time 300 --connect-timeout 30 --max-time 180 --speed-limit 1048576 --speed-time 30 --output $Destination $Url
 	if ($LASTEXITCODE -ne 0) {
 		throw "Download failed with exit code ${LASTEXITCODE}: $Url"
 	}
@@ -246,8 +249,12 @@ $linuxArchive = $wslPath.Output.Trim()
 if ($wslPath.ExitCode -ne 0 -or $linuxArchive -notmatch '^/mnt/[a-z]/[a-zA-Z0-9/_.-]+$') {
 	throw 'Cannot safely resolve the Linux server archive path.'
 }
+# From the Azure-hosted agents, archive.ubuntu.com and security.ubuntu.com are at times so slow that apt runs past this
+# command's timeout, so apt uses the Azure Ubuntu mirror, and retries downloads that fail.
 Invoke-Wsl @"
 export DEBIAN_FRONTEND=noninteractive
+sed -i -e 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' -e 's|http://security.ubuntu.com|http://azure.archive.ubuntu.com|g' /etc/apt/sources.list
+echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries
 apt-get update
 apt-get install -y --no-install-recommends ca-certificates curl git iproute2 procps docker.io libatomic1 libkrb5-3
 mkdir -p /opt/vscode-smoke-server

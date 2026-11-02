@@ -5,6 +5,7 @@
 
 import { execFile, exec } from 'child_process';
 import { AutoOpenBarrier, ProcessTimeRunOnceScheduler, Promises, Queue, timeout } from '../../../base/common/async.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IProcessEnvironment, isWindows, OperatingSystem, OS } from '../../../base/common/platform.js';
@@ -106,12 +107,12 @@ export class PtyService extends Disposable implements IPtyService {
 
 	private readonly _autoRepliesContribution: AutoRepliesPtyServiceContribution;
 	@traceRpc
-	async installAutoReply(match: string, reply: string) {
-		await this._autoRepliesContribution.installAutoReply(match, reply);
+	async installAutoReply(match: string, reply: string, ownerId: string) {
+		await this._autoRepliesContribution.installAutoReply(match, reply, ownerId);
 	}
 	@traceRpc
-	async uninstallAllAutoReplies() {
-		await this._autoRepliesContribution.uninstallAllAutoReplies();
+	async uninstallAllAutoReplies(ownerId: string) {
+		await this._autoRepliesContribution.uninstallAllAutoReplies(ownerId);
 	}
 
 	// #endregion
@@ -391,6 +392,11 @@ export class PtyService extends Disposable implements IPtyService {
 	@traceRpc
 	async clearBuffer(id: number): Promise<void> {
 		this._throwIfNoPty(id).clearBuffer();
+	}
+
+	@traceRpc
+	async setParentWindow(id: number, handle: VSBuffer): Promise<void> {
+		this._throwIfNoPty(id).setParentWindow(handle);
 	}
 
 	@traceRpc
@@ -921,6 +927,9 @@ class PersistentTerminalProcess extends Disposable {
 	async clearBuffer(): Promise<void> {
 		this._serializer.clearBuffer();
 		this._terminalProcess.clearBuffer();
+	}
+	setParentWindow(handle: VSBuffer): void {
+		this._terminalProcess.setParentWindow(handle);
 	}
 	setUnicodeVersion(version: '6' | '11'): void {
 		this.unicodeVersion = version;

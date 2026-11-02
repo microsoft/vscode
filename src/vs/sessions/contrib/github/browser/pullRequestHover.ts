@@ -48,6 +48,7 @@ function toChecksStatus(ciStatus: GitHubCIOverallStatus | undefined): GitHubChec
 		case GitHubCIOverallStatus.Success: return 'success';
 		case GitHubCIOverallStatus.Failure: return 'failure';
 		case GitHubCIOverallStatus.Neutral: return 'neutral';
+		case GitHubCIOverallStatus.Loading:
 		case undefined: return undefined;
 	}
 }

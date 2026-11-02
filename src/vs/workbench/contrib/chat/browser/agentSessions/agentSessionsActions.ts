@@ -9,7 +9,7 @@ import { AgentSessionSection, IAgentSession, IAgentSessionSection, IMarshalledAg
 import { Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, AgentSessionChatContextMenu, AgentSessionProviders, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
+import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, AgentSessionChatContextMenu, AgentSessionChatToolbar, AgentSessionProviders, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -519,6 +519,9 @@ export class MarkAgentSessionReadAction extends BaseAgentSessionAction {
 
 abstract class BaseArchiveAgentSessionAction extends BaseAgentSessionAction {
 
+	protected override readonly supportsChildSessions = true;
+	protected override readonly supportsMultiSelection = true;
+
 	constructor(private readonly wording: ChatSessionArchiveActionWording) {
 		const action = getChatSessionArchiveActionPresentation(wording).archive;
 		super({
@@ -531,7 +534,7 @@ abstract class BaseArchiveAgentSessionAction extends BaseAgentSessionAction {
 				weight: KeybindingWeight.WorkbenchContrib + 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.agentSessionsViewerFocused,
-					ChatContextKeys.isAgentSessionChild.negate(),
+					ContextKeyExpr.or(ChatContextKeys.isAgentSessionChild.negate(), ChatContextKeys.agentSessionChildCanArchive),
 					ChatContextKeys.isArchivedAgentSession.negate()
 				)
 			},
@@ -545,16 +548,23 @@ abstract class BaseArchiveAgentSessionAction extends BaseAgentSessionAction {
 				group: '1_edit',
 				order: 2,
 				when: ChatContextKeys.isArchivedAgentSession.negate()
-			}]
+			}, ...[AgentSessionChatContextMenu, AgentSessionChatToolbar].map(id => ({
+				id,
+				group: id === AgentSessionChatToolbar ? 'navigation' : '1_state',
+				order: 2,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.agentSessionChildCanArchive, ChatContextKeys.isArchivedAgentSession.negate()),
+			}))]
 		});
 	}
 
 	async runWithSessions(sessions: IAgentSession[], accessor: ServicesAccessor): Promise<void> {
-		const chatService = accessor.get(IChatService);
-		const dialogService = accessor.get(IDialogService);
-
 		// Archive all sessions
 		for (const session of sessions) {
+			if (isAgentSessionChild(session) && session.canArchive !== true) {
+				continue;
+			}
+			const chatService = accessor.get(IChatService);
+			const dialogService = accessor.get(IDialogService);
 			const chatModel = chatService.getSession(session.resource);
 			if (chatModel && !await showClearEditingSessionConfirmation(chatModel, dialogService, {
 				isArchiveAction: true,
@@ -585,6 +595,9 @@ export class MarkAgentSessionDoneAction extends BaseArchiveAgentSessionAction {
 
 abstract class BaseUnarchiveAgentSessionAction extends BaseAgentSessionAction {
 
+	protected override readonly supportsChildSessions = true;
+	protected override readonly supportsMultiSelection = true;
+
 	constructor(wording: ChatSessionArchiveActionWording) {
 		const action = getChatSessionArchiveActionPresentation(wording).unarchive;
 		super({
@@ -599,7 +612,7 @@ abstract class BaseUnarchiveAgentSessionAction extends BaseAgentSessionAction {
 				weight: KeybindingWeight.WorkbenchContrib + 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.agentSessionsViewerFocused,
-					ChatContextKeys.isAgentSessionChild.negate(),
+					ContextKeyExpr.or(ChatContextKeys.isAgentSessionChild.negate(), ChatContextKeys.agentSessionChildCanArchive),
 					ChatContextKeys.isArchivedAgentSession
 				)
 			},
@@ -613,13 +626,20 @@ abstract class BaseUnarchiveAgentSessionAction extends BaseAgentSessionAction {
 				group: '1_edit',
 				order: 2,
 				when: ChatContextKeys.isArchivedAgentSession,
-			}]
+			}, ...[AgentSessionChatContextMenu, AgentSessionChatToolbar].map(id => ({
+				id,
+				group: id === AgentSessionChatToolbar ? 'navigation' : '1_state',
+				order: 2,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.agentSessionChildCanArchive, ChatContextKeys.isArchivedAgentSession),
+			}))]
 		});
 	}
 
 	runWithSessions(sessions: IAgentSession[]): void {
 		for (const session of sessions) {
-			session.setArchived(false);
+			if (!isAgentSessionChild(session) || session.canArchive === true) {
+				session.setArchived(false);
+			}
 		}
 	}
 }

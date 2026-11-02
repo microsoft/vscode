@@ -14,7 +14,7 @@ They do this by recording the model traffic once (against real CAPI) into commit
 
 ```bash
 # Run the complete deterministic suite in parallel (same as ./scripts/test-agent-host-e2e.sh).
-npm run test-agent-host-e2e
+pnpm run test-agent-host-e2e
 
 # Replay (default): deterministic, tokenless. This is what CI runs.
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts
@@ -108,17 +108,17 @@ Execution priority is independent of conformance/parity. `AGENT_HOST_TEST_PROFIL
 
 ```bash
 # Full deterministic E2E coverage (default).
-npm run test-agent-host-e2e
+pnpm run test-agent-host-e2e
 
 # PR-profile E2E coverage.
-AGENT_HOST_TEST_PROFILE=pr npm run test-agent-host-e2e
+AGENT_HOST_TEST_PROFILE=pr pnpm run test-agent-host-e2e
 
 # The same profile also applies to neighboring provider integration tests.
 AGENT_HOST_TEST_PROFILE=pr ./scripts/test-integration.sh --run \
   src/vs/platform/agentHost/test/node/providerIntegration/copilotOtel.integrationTest.ts
 ```
 
-GitHub PR jobs use the existing broad affected-file check to skip the parallel E2E runner for unrelated changes. Relevant implementation changes select the PR profile. Any Agent Host test, fixture, snapshot, test harness, selection infrastructure, build infrastructure, or dependency-manifest change forces Full in that same PR. Renames check both old and new paths. Failed or incomplete changed-file lookups also select Full. The selected profile and reason appear in integration-test output. Provider-integration tests outside the parallel runner inherit the same profile; the affected-file skip still applies only to the parallel runner.
+GitHub PR jobs use the existing broad affected-file check to skip the parallel E2E runner for unrelated changes. On macOS and Windows, they also skip it unless the test plan of [ripple](../../../../../../../build/ripple/README.md) selects one of its suites, and pass it the plan with `--runList`; Linux runs every suite that the affected-file check selects. Relevant implementation changes select the PR profile. Any Agent Host test, fixture, snapshot, test harness, selection infrastructure, build infrastructure, or dependency-manifest change forces Full in that same PR. Renames check both old and new paths. Failed or incomplete changed-file lookups also select Full. The selected profile and reason appear in integration-test output. Provider-integration tests outside the parallel runner inherit the same profile; the affected-file skip applies only to the parallel runner, but on macOS and Windows they too run only when the plan selects them.
 
 New tests remain in PR coverage by default. Use `fullOnlyTest(...)` from `../../agentHostTestProfile.js` (relative to an E2E suite) for native-runtime stress or redundant variations, preserving existing capability gates. Existing file-operation and peer registrars accept a final `'full'` profile argument. Do not rename tests to classify them: titles identify committed fixtures.
 
@@ -179,11 +179,15 @@ The MCP side-channel scenarios use the `channel` advertised by a real ready serv
 
 The expanded side-channel cases cover structured results, ordered content/resource encodings, empty results, concurrent error isolation, resource retry, and catalog additions/removals/schema changes. Catalog readiness is established by the actual `tools/list` result, not by a model-facing tool-change notification that need not fire for an idle MCP Apps request.
 
+Copilot's `runtime MCP: identical plugin republished under a different URI does not restart servers` scenario copies a client's plugin without changing its content nonce, republishes it at a new URI, and checks that the next turn retains a single MCP process start without stopped/starting transitions. Two replayed no-tool turns exercise the live-session restart check; an unclaimed early launch would bypass that check for a host-only MCP start. Cache eviction of older materialized roots and duplicate-name plugin ownership are outside this scenario.
+
 Live client-tool coverage updates a materialized Copilot session over AHP and checks real execution plus the provider-bound request. Removal assertions project the effective Anthropic inventory, including structured addition/removal blocks, rather than assuming a cache-preserving runtime must rewrite its baseline tool array.
 
 Terminal resilience assertions compare filesystem identity rather than Windows short/long path spelling, render VT scrollback through a headless terminal rather than counting ConPTY repaint bytes, and send Unicode to an already-running child rather than relying on a shell editor's locale. Claude history-edit fixtures perform the required `Read` before `Edit`, including after cold resume; replayed success text cannot substitute for that tool prerequisite.
 
 The `regression coverage:` history cases inspect actual provider-bound continued context after cold resume and selected-turn forks, with live file-edit/result pairing and independent peer histories. They do not establish native overlapping disposal, interrupted parallel completion, or strict-transcript opt-in prerequisites that AHP does not expose.
+
+Claude's provider-context fork scenarios are enabled with the bundled SDK `0.3.304`: client-assigned turn IDs resolve to the requested provider boundary in live recording and strict replay. Coverage includes first- and middle-turn boundaries, completed tools, a restored peer as the source, independent branch continuation after restart, and unknown-turn forks retaining no source context. The bounded side-chat scenario also enforces request comparison without a stale-capture exception. These checks cover the previously gated behavior tracked in [#328104](https://github.com/microsoft/vscode/issues/328104), without substituting seeded AHP history for the actual model request.
 
 Historical checkpoint comparisons use completed provider turns rather than bang commands. Per-turn subscriptions currently select the file-edit tracker, which cannot see shell edits; compare-turn subscriptions use Git checkpoints. Checkpoint capture is asynchronous after turn completion, so these historical scenarios finish a subsequent no-tool turn before comparing earlier turns. Seed staged user changes before the baseline turn, and use an ignored execution witness when an edit-and-restore scenario intentionally has no final diff.
 
@@ -280,13 +284,13 @@ Replay is the default — no setup, no token:
 
 ```bash
 # Refresh client output when running from local sources without an existing build task.
-npm run build-fast -- --client-only
+pnpm run build-fast --client-only
 
 # Run conformance and all provider suites in parallel.
-npm run test-agent-host-e2e
+pnpm run test-agent-host-e2e
 
 # Limit parallelism when machine resources are constrained.
-npm run test-agent-host-e2e -- --jobs 2
+pnpm run test-agent-host-e2e --jobs 2
 
 # Run one provider.
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts
@@ -296,13 +300,15 @@ The complete-suite runner reuses Electron when its installed version matches the
 
 The complete-suite runner starts one test process per entrypoint and runs up to five concurrently, including the separate Copilot OTel suite. `AGENT_HOST_E2E_JOBS` or `--jobs` can lower the worker count. Each process's output is printed as one block when it completes, and any Mocha failure details are repeated after the final suite summary so failures remain easy to find. Recording and snapshot-update modes remain per-provider commands so they never make concurrent writes or real CAPI requests.
 
-The complete suite is not part of `./scripts/test-integration.sh` or `.\scripts\test-integration.bat`; those only exclude these entrypoints from their serial node.js run. Run it with `./scripts/test-agent-host-e2e.sh` or `.\scripts\test-agent-host-e2e.bat`. They take the runner's options (`--jobs`, `--grep`, `--build`, `--tfs`) and are what CI calls. `npm run test-agent-host-e2e` runs the same runner. In GitHub pull request CI it is the `🧪 Run Agent Host E2E tests (Electron)` step, which runs on the same machine as, and before, `🧪 Run integration tests (Electron)`, each with its own timeout and failure; the integration tests also run after an Agent Host E2E failure. In Azure DevOps it is the `integration-agent-host-e2e` test ID, which runs in its own `Agent Host E2E Tests (Electron)` job on each platform, in parallel with the `Integration Tests (Electron)` job that runs `integration-electron`. Each passed ADO test ID is checkpointed, so a rerun of a job skips the tests that already passed.
+The complete suite is not part of `./scripts/test-integration.sh` or `.\scripts\test-integration.bat`; those only exclude these entrypoints from their serial node.js run. Run it with `./scripts/test-agent-host-e2e.sh` or `.\scripts\test-agent-host-e2e.bat`. They take the runner's options (`--jobs`, `--shard`, `--grep`, `--build`, `--tfs`) and are what CI calls. `pnpm run test-agent-host-e2e` runs the same runner. In GitHub pull request CI it is the `🧪 Run Agent Host E2E tests (Electron)` step. On Windows, where it is the slowest part of the Electron job, it runs in two shards, the `Windows / Agent-Host-E2E (shard 1/2)` and `Windows / Agent-Host-E2E (shard 2/2)` jobs, which each run every other suite of those the test plan selects (`--shard <index>/<total>`), in parallel with the `Windows / Electron` integration tests job, and PR Gate fails when any of them fails. When the changes cannot affect these tests, the jobs are skipped and still show under those names. On Linux it runs in the `Linux / Agent-Host-E2E` job on its own machine, in parallel with the `Linux / Electron` integration tests job. On macOS it runs in the `macOS / Electron` job, before `🧪 Run integration tests (Electron)` and `🧪 Run extension host integration tests (Electron)`, which also run after an Agent Host E2E failure. In Azure DevOps it is the `integration-agent-host-e2e` test ID, which runs in its own `Agent Host E2E Tests (Electron)` job on each platform, in parallel with the `Integration Tests (Electron)` job that runs `integration-electron`. Each passed ADO test ID is checkpointed, so a rerun of a job skips the tests that already passed.
 
-Pull request Electron jobs run the complete suite only when the changed files can affect the Agent Host, its shared platform dependencies, provider SDK versions, build infrastructure, or the E2E harness. The classification happens inside each already-allocated Electron runner so Linux, macOS, and Windows jobs remain parallel. When no relevant files changed, CI sets `VSCODE_SKIP_AGENT_HOST_E2E=1` and `test-agent-host-e2e.sh` / `.bat` skip the suite.
+Pull requests run the Agent Host E2E jobs only when the changed files can affect the Agent Host, its shared platform dependencies, provider SDK versions, build infrastructure, or the E2E harness. The `Detect Changes` job in `.github/workflows/pr.yml` classifies the changes once, before any test machine is allocated, and passes the selected profile to the Agent Host E2E and Electron integration test jobs. When no relevant files changed, the Linux and Windows Agent Host E2E jobs and the macOS Agent Host E2E step are skipped, and `PR Gate` still passes. Locally, setting `VSCODE_SKIP_AGENT_HOST_E2E=1` makes `test-agent-host-e2e.sh` / `.bat` skip the suite.
 
 The Copilot managed-settings diagnostics suite waits for the authenticated provider's model catalog before requesting diagnostics. Authentication schedules runtime startup asynchronously; the catalog establishes a completed runtime RPC without creating a session or making a model request. The policy probe still fetches server settings afresh and retains the production 4.5-second overall and 3.5-second query deadlines. Cold-start deadline behavior is covered by the Copilot agent unit tests.
 
 The managed-telemetry suite asserts actual session-correlated native spans at loopback collectors. It covers managed capture restrictions and fine-grained overrides, exporter/resource/protocol precedence, per-session collector changes, policy removal, reenablement, and revoked capture on cold resume. Negative export assertions drain the host before inspecting the final collected spans. Runtime-managed telemetry and the Agent Host's own metadata pipeline are separate; native policy assertions must not treat host-produced metadata as native Copilot export.
+
+Copilot session finalization preloads the SDK agent catalog before exposing a created or resumed chat. This avoids the runtime's lazy-discovery event-publication defect when configuration discovery and explicit plugin directories are both enabled ([github/copilot-agent-runtime#27963](https://github.com/github/copilot-agent-runtime/issues/27963)). Discovery, plugins, and native span assertions remain enabled; remove the preload only after the fixed runtime passes those scenarios without it.
 
 The managed-permissions AHP suite sends real client policy contributions rather than calling SDK tools directly. It checks native read/write asks under Allow All and Assisted approval, one-time confirmation, denied side effects, unconditional managed denials, live updates to default and peer chats, and current contributions on cold resume. Successful file mutations and real tool results are the oracles; replayed assistant responses are not proof of enforcement.
 
@@ -373,7 +379,7 @@ Remove test workspaces only after disposing the shared server lease in suite tea
 ## Collecting coverage
 
 ```bash
-npm run test-agent-host-e2e-coverage
+pnpm run test-agent-host-e2e-coverage
 ```
 
 Two complementary signals are checked in. Neither is a gate; both are for deciding where to look next.
@@ -411,7 +417,7 @@ Per-provider reports are deferred until there is a concrete need. Per-test attri
 
 Coverage is a discovery tool, not the goal by itself. A coverage expansion round should add tests for meaningful full-stack contracts, not manufacture line hits or add equivalent prompt variants.
 
-1. **Measure before selecting work.** Save a fresh baseline from `npm run test-agent-host-e2e-coverage`, rank loaded files by uncovered executable lines/functions, cross-reference the protocol-surface `uncovered` lists, then inspect the exact LCOV ranges and existing lower-layer tests. Compare the final result against that same run, not an older checked-in baseline.
+1. **Measure before selecting work.** Save a fresh baseline from `pnpm run test-agent-host-e2e-coverage`, rank loaded files by uncovered executable lines/functions, cross-reference the protocol-surface `uncovered` lists, then inspect the exact LCOV ranges and existing lower-layer tests. Compare the final result against that same run, not an older checked-in baseline.
 2. **Choose behavior that belongs at this boundary.** Prefer behavior whose value comes from the real server, provider SDK/CLI, AHP transport, persistence, or local tools working together. Pure reducer rules and provider-independent validation usually belong in unit tests instead.
 3. **Prioritize useful breadth.** Favor underrepresented host-owned behavior and cross-provider contracts over more variants of an already-covered prompt. Count declarations per tier: a conformance declaration executes once, a parity declaration executes once per enabled provider.
 4. **Choose the model boundary explicitly.** Cross it only when realistic model behavior is what drives the scenario.
@@ -501,6 +507,8 @@ After recording, **review the diff** (paths normalized? no usernames, tokens, or
 
 The same suite verifies the bundled model-policy composition contract: model-specific effort/context options stay with the channel supplying the model, Auto and missing-model policies discard those options with diagnostics, and lock/default metadata survives composition. Composition is not model-catalog validation: an unavailable model or unsupported effort can still appear in `values`. These tests do not certify session enforcement or picker behavior.
 
+The runtime-owned `fusionTier` policy uses `standard` for Auto Balance, `high` for HydraFusion with Auto Intelligence fallback, and `max` for HydraFusion Max. Explicit `unmanaged` suppresses the legacy `autoTier` fallback. Without an explicit Fusion policy, composition reports legacy Auto efficiency/balance as `standard` and intelligence as `high` without changing legacy execution.
+
 The Agent Host model-default integration in [`copilotManagedModelConfiguration.ts`](../../../node/copilot/copilotManagedModelConfiguration.ts) projects matching runtime values onto offered model options and uses scalar configuration-source markers to distinguish implicit defaults from explicit choices across serialization. It enables managed settings without opting into `enforceManagedModelDefaults`: plain server-delivered model defaults do not create picker locks. Authoring wrappers may have been removed by server composition, so their absence cannot establish end-user mutability. Generic host-advertised read-only schema properties remain supported independently. Live sessions resolve policy with their working directory and publish a protected, chat-scoped report with defaults and SDK `model.getCurrent()` values. Reports do not become personal preferences. The runtime must supply a concrete matching model ID; the client never implements its own alias resolver.
 
 [`../providerIntegration/copilotAutoTier.integrationTest.ts`](../providerIntegration/copilotAutoTier.integrationTest.ts) exercises session-level model controls against a synthetic local endpoint serving plain scalar settings, matching the server-normalized shape rather than raw authoring wrappers. These tests stub the payload after composition; they do not exercise GitHub's team-membership or settings-composition service. They verify implicit effort/context defaults, preserved explicit choices, editable Auto tiers through actual synthetic inference requests, switching models, and an unavailable managed model. Resume coverage persists a completed turn and explicit options, changes the scalar policy, and checks that the conversation's choices and history survive. No real account or model service is contacted.
@@ -508,6 +516,8 @@ The Agent Host model-default integration in [`copilotManagedModelConfiguration.t
 Run this suite without native model or permission policy. Its temporary home and mock server do not isolate machine-wide MDM, registry, or managed-settings files; the setup preflight fails explicitly if device policy controls the model, Auto/Fusion tier, effort, context, or permissions. Unrelated device settings, such as remote-control policy, do not block the local SDK scenarios. Do not interpret results from a conflicting device-governed run as evidence about the synthetic server policy, or remove machine policy automatically to make the tests pass.
 
 The [github/copilot-agent-runtime#26681](https://github.com/github/copilot-agent-runtime/issues/26681) test characterizes unsupported effort being forwarded to synthetic inference even without strict enforcement; a passing characterization test is not a fix. The separate strict SDK resume scenario for [github/copilot-agent-runtime#26739](https://github.com/github/copilot-agent-runtime/issues/26739) now specifies successful policy reconciliation and retained history but is skipped while the runtime intermittently rejects it. Requiring that rejection as an expected failure is itself flaky: the identical scenario can also resume successfully under the new lock. The narrowly gated scenario and reproduction are tracked in [KNOWN_ISSUES.md](./KNOWN_ISSUES.md#copilot-strict-managed-model-resume-is-nondeterministic); default-only resume tests remain enabled. VS Code does not enable strict model enforcement. Unsupported effort validation still requires a runtime fix; use supported model/effort combinations for manual testing.
+
+Managed effort defaults are validated against the session's model catalog; readback tests load that catalog before asserting applied defaults. Auto accepts a routing tier rather than a session-level reasoning effort. The on-device bridge suite checks explicit thinking choices on direct model rows and the routed model's default effort under Auto, and separately asserts that Auto rejects an explicit session effort before routing.
 
 Traffic summaries omit unsolicited, report-only `vscode.modelConfiguration` patches because their asynchronous readback timing is independent of conversation ordering. Client writes, rejections, replacements, and patches containing other settings remain in the summaries. The raw notifications are retained, and the materialized Copilot scenario independently waits for and asserts the protected per-chat report and applied model.
 
@@ -639,6 +649,10 @@ Everything else — i.e. the model endpoints `/v1/messages` and `/responses` —
 ---
 
 ## Troubleshooting
+
+### Unrecorded `GET /json/version` or `GET /json/list`
+
+Local debugger discovery (for example dbgjs) probes listening HTTP ports to find DevTools targets, including the replay proxy's port. These requests are not provider traffic. The proxy responds with HTTP 404 before record/replay processing, so probes neither enter fixtures nor cause teardown cache misses. Other unknown endpoints and unrecorded model requests still fail strict replay.
 
 ### `[capi-replay] N cache miss(es): POST <endpoint> (call #K) — no recorded response`
 

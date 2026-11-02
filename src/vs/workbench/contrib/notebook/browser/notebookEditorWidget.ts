@@ -1949,6 +1949,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const isModal = DOM.isHTMLElement(modalEditorContainer) && modalEditorContainer.contains(anchorElement);
 		const clippingContainer = isModal ? undefined : this.layoutService.getContainer(DOM.getWindow(this.getDomNode()), Parts.EDITOR_PART);
 
+		this._overlayContainer.classList.toggle('notebook-overlay-modal', isModal);
 		this._overlayContainer.style.visibility = 'visible';
 		this._overflowContainer.style.display = '';
 		this._overlayLayout.setAnchorElement(anchorElement, { clippingContainer });
