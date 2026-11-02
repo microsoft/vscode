@@ -64,8 +64,14 @@ steps:
           script: ./scripts/test.sh --build --tfs "Unit Tests"
           env:
             VSCODE_SKIP_PRELAUNCH: '1'
+            VSCODE_TEST_ISOLATION_RESET: '1'
+            VSCODE_TEST_ISOLATION_REPORT: $(Agent.TempDirectory)/isolation.jsonl
           displayName: 🧪 Run unit tests (Electron)
           timeoutInMinutes: 30
+
+  - script: cat "$(Agent.TempDirectory)/isolation.jsonl" || echo 'no isolation findings'
+    displayName: PROOF ONLY - print isolation findings
+    condition: always()
 
   - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'unit-node') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
