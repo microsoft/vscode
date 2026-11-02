@@ -28,6 +28,16 @@ import { registerAction2, Action2, MenuId } from '../../../../platform/actions/c
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 
 export const quickDiffDecorationCount = new RawContextKey<number>('quickDiffDecorationCount', 0);
+const DEFAULT_DIFF_DECORATIONS_GUTTER_WIDTH = 3;
+const MAX_DIFF_DECORATIONS_GUTTER_WIDTH = 20;
+
+export function normalizeDiffDecorationsGutterWidth(width: number): number {
+	if (!Number.isInteger(width) || width <= 0 || width > MAX_DIFF_DECORATIONS_GUTTER_WIDTH) {
+		return DEFAULT_DIFF_DECORATIONS_GUTTER_WIDTH;
+	}
+
+	return width;
+}
 
 class QuickDiffDecorator extends Disposable {
 
@@ -272,12 +282,7 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 	}
 
 	private onDidChangeDiffWidthConfiguration(): void {
-		let width = this.configurationService.getValue<number>('scm.diffDecorationsGutterWidth');
-
-		if (isNaN(width) || width <= 0 || width > 5) {
-			width = 3;
-		}
-
+		const width = normalizeDiffDecorationsGutterWidth(this.configurationService.getValue<number>('scm.diffDecorationsGutterWidth'));
 		this.setViewState({ ...this.viewState, width });
 	}
 
