@@ -239,10 +239,13 @@ importers:
     devDependencies:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.304
-        version: 0.3.304(@anthropic-ai/sdk@0.82.0(zod@4.4.3))(zod@4.4.3)
+        version: 0.3.304(@anthropic-ai/sdk@0.82.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(zod@4.4.3)
       '@eslint/compat':
         specifier: ^2.1.0
         version: 2.1.0(eslint@10.8.0)
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@4.4.3)
       '@openai/codex':
         specifier: 0.163.0
         version: 0.163.0
@@ -1393,12 +1396,21 @@ importers:
 
   test/smoke:
     dependencies:
+      axios:
+        specifier: ^1.20.0
+        version: 1.20.0
+      graceful-fs:
+        specifier: ^4.2.11
+        version: 4.2.11
       ncp:
         specifier: ^2.0.0
         version: 2.0.0
       node-fetch:
         specifier: ^2.6.7
         version: 2.6.7
+      tree-kill:
+        specifier: 1.2.2
+        version: 1.2.2
       vscode-jsonrpc:
         specifier: ^8.2.1
         version: 8.2.1
@@ -5833,12 +5845,6 @@ packages:
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
 
-  graceful-fs@4.2.4:
-    resolution: {integrity: sha512-WjKPNJF79dtJAVniUlGGWHYGz2jWxT6VhN/4m1NdkbZ2nOsEF+cI1Edgql5zCRhs/VsQYRvrXctxktVXZUkixw==}
-
-  graceful-fs@4.2.8:
-    resolution: {integrity: sha512-qkIilPUYcNhJpd33n0GBXTB1MMPp14TxEsEs0pTrsSVucApsYzW5V+Q8Qxhik6KU3evy+qkAAowTByymK0avdg==}
-
   graphql-tag@2.12.6:
     resolution: {integrity: sha512-FdSNcu2QQcWnM2VNvSCCDCVS5PpPqpzgFT8+GXzqJuoDd0CBncxCY278u4mhRO7tMgo2JjgJA5aZ+nWSQ/Z+xg==}
     engines: {node: '>=10'}
@@ -9510,9 +9516,10 @@ snapshots:
   '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.304':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk@0.3.304(@anthropic-ai/sdk@0.82.0(zod@4.4.3))(zod@4.4.3)':
+  '@anthropic-ai/claude-agent-sdk@0.3.304(@anthropic-ai/sdk@0.82.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(zod@4.4.3)':
     dependencies:
       '@anthropic-ai/sdk': 0.82.0(zod@4.4.3)
+      '@modelcontextprotocol/sdk': 1.29.0(zod@4.4.3)
       zod: 4.4.3
     optionalDependencies:
       '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.304
@@ -12329,6 +12336,16 @@ snapshots:
       junit-report-builder: 5.1.1
       picocolors: 1.1.1
 
+  axios@1.20.0:
+    dependencies:
+      follow-redirects: 1.16.1
+      form-data: 4.0.6
+      https-proxy-agent: 5.0.1
+      proxy-from-env: 2.1.0
+    transitivePeerDependencies:
+      - debug
+      - supports-color
+
   axios@1.20.0(debug@4.4.3):
     dependencies:
       follow-redirects: 1.16.1(debug@4.4.3)
@@ -14076,6 +14093,8 @@ snapshots:
       inherits: 2.0.4
       readable-stream: 2.3.8
 
+  follow-redirects@1.16.1: {}
+
   follow-redirects@1.16.1(debug@4.4.3):
     optionalDependencies:
       debug: 4.4.3
@@ -14141,7 +14160,7 @@ snapshots:
   fs-extra@9.1.0:
     dependencies:
       at-least-node: 1.0.0
-      graceful-fs: 4.2.8
+      graceful-fs: 4.2.11
       jsonfile: 6.1.0
       universalify: 2.0.0
 
@@ -14385,10 +14404,6 @@ snapshots:
       uint8array-extras: 1.5.0
 
   graceful-fs@4.2.11: {}
-
-  graceful-fs@4.2.4: {}
-
-  graceful-fs@4.2.8: {}
 
   graphql-tag@2.12.6(graphql@16.8.1):
     dependencies:
@@ -15425,7 +15440,7 @@ snapshots:
 
   load-yaml-file@0.2.0:
     dependencies:
-      graceful-fs: 4.2.4
+      graceful-fs: 4.2.11
       js-yaml: 3.15.2
       pify: 4.0.1
       strip-bom: 3.0.0
