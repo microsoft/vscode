@@ -9,6 +9,7 @@ import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
 import { Position } from '../../../common/core/position.js';
 import * as languages from '../../../common/languages.js';
 import { ActionSet } from '../../../../platform/actionWidget/common/actionWidget.js';
+import { IMarkerData } from '../../../../platform/markers/common/markers.js';
 
 export const CodeActionKind = new class {
 	public readonly QuickFix = new HierarchicalKind('quickfix');
@@ -127,6 +128,8 @@ export interface CodeActionTrigger {
 		readonly notAvailableMessage: string;
 		readonly position: Position;
 	};
+	/** When set, only these diagnostics are included in the code action request context. */
+	readonly diagnostics?: readonly IMarkerData[];
 }
 
 export class CodeActionCommandArgs {
