@@ -310,6 +310,24 @@ suite('AgentHostByokLmHandler', () => {
 		]);
 	});
 
+	test('listModels carries the tool search capability from renderer BYOK metadata', async () => {
+		const service = new TestLanguageModelsService(
+			new Map<string, ILanguageModelChatMetadata>([
+				['id-search', byokModel('acme', 'search', { toolCalling: true, toolSearch: true })],
+				['id-plain', byokModel('acme', 'plain', { toolCalling: true })],
+			]),
+			() => responseOf([]),
+		);
+		const handler = createHandler(service);
+
+		const models = await handler.listModels(CancellationToken.None);
+
+		assert.deepStrictEqual(models, [
+			{ vendor: 'acme', id: 'search', name: 'acme search', modelIdentifier: 'id-search', maxContextWindowTokens: 2000, maxPromptTokens: 1000, maxOutputTokens: 1000, supportsVision: false, supportsToolSearch: true },
+			{ vendor: 'acme', id: 'plain', name: 'acme plain', modelIdentifier: 'id-plain', maxContextWindowTokens: 2000, maxPromptTokens: 1000, maxOutputTokens: 1000, supportsVision: false },
+		]);
+	});
+
 	test('chat resolves the configured provider group when models share a vendor and id', async () => {
 		const workIdentifier = 'google/Gemini Work/gemini-2.5-pro';
 		const service = new TestLanguageModelsService(

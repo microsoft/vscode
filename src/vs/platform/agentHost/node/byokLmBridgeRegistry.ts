@@ -170,6 +170,7 @@ function modelsEqual(a: readonly IByokLmModelInfo[], b: readonly IByokLmModelInf
 			&& m.maxPromptTokens === n.maxPromptTokens
 			&& m.maxOutputTokens === n.maxOutputTokens
 			&& m.supportsVision === n.supportsVision
+			&& m.supportsToolSearch === n.supportsToolSearch
 			&& m.defaultReasoningEffort === n.defaultReasoningEffort
 			&& arraysEqual(m.supportedReasoningEfforts, n.supportedReasoningEfforts);
 	});
