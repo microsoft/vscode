@@ -251,12 +251,28 @@ if ($wslPath.ExitCode -ne 0 -or $linuxArchive -notmatch '^/mnt/[a-z]/[a-zA-Z0-9/
 }
 # From the Azure-hosted agents, archive.ubuntu.com and security.ubuntu.com are at times so slow that apt runs past this
 # command's timeout, so apt uses the Azure Ubuntu mirror, and retries downloads that fail.
+# The Azure mirror is usually fast (the package download takes 2-17 seconds), but a connection to it can fail or crawl
+# for minutes. apt has no minimum transfer speed and ignores index files it could not fetch, so the index update and
+# the package download are each bounded and retried on fresh connections. A retried download resumes partial files.
+$aptPackages = 'ca-certificates curl git iproute2 procps docker.io libatomic1 libkrb5-3'
 Invoke-Wsl @"
 export DEBIAN_FRONTEND=noninteractive
 sed -i -e 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' -e 's|http://security.ubuntu.com|http://azure.archive.ubuntu.com|g' /etc/apt/sources.list
 echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries
-apt-get update
-apt-get install -y --no-install-recommends ca-certificates curl git iproute2 procps docker.io libatomic1 libkrb5-3
+apt_bounded() {
+	seconds=`$1
+	shift
+	for attempt in 1 2 3; do
+		if timeout --kill-after=10 "`$seconds" "`$@"; then
+			return 0
+		fi
+		echo "Attempt `$attempt of 3 failed or ran past `$seconds seconds: `$*" >&2
+	done
+	return 1
+}
+apt_bounded 60 apt-get update --error-on=any
+apt_bounded 100 apt-get install -y --download-only --no-install-recommends $aptPackages
+apt-get install -y --no-install-recommends $aptPackages
 mkdir -p /opt/vscode-smoke-server
 tar -xzf '$linuxArchive' --strip-components=1 -C /opt/vscode-smoke-server
 /opt/vscode-smoke-server/node --version
@@ -264,7 +280,7 @@ test -f /opt/vscode-smoke-server/out/bootstrap-fork.js
 useradd --create-home --shell /bin/bash vscode-smoke
 usermod -aG docker vscode-smoke
 printf '[user]\ndefault=vscode-smoke\n' > /etc/wsl.conf
-"@
+"@ 600
 if ((Invoke-WslExe -ArgumentList '--terminate', $Distribution).ExitCode -ne 0) {
 	throw 'Failed to restart the owned distribution to apply its non-root default user.'
 }
