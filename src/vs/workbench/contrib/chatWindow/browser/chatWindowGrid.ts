@@ -6,11 +6,11 @@
 import { addDisposableListener, EventType, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { Direction, ISerializedGrid, ISerializedNode, IViewSize, Orientation } from '../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
-import { IPartGridView, PartGrid, PartGridCellContent, PartGridLocation } from '../../../browser/parts/partGrid/partGrid.js';
+import { IPartGridPartFactory, IPartGridView, PartGrid, PartGridCellContent, PartGridLocation } from '../../../browser/parts/partGrid/partGrid.js';
 import { IGridEdgeInsets, NO_GRID_EDGE_INSETS } from '../../../browser/parts/partGrid/partGridGap.js';
-import { IContentPart } from '../../../services/editor/common/editorGroupsService.js';
+import { IContentPart, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { ChatWindowLayoutMode, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
 import { ChatWindowPartSizes } from '../common/chatWindowState.js';
 
@@ -216,16 +216,38 @@ export class ChatWindowGrid extends Disposable {
 	private readonly _titleRow: ChromeView | undefined;
 	private readonly _strip: ChromeView | undefined;
 
+	/** The parts the grid created, such as for an editor dropped on an edge of the window, until they close. */
+	private readonly _created = new Map<string, IContentPart>();
+	private readonly _createdListeners = this._register(new DisposableMap<string>());
+	private readonly _partFactory: IPartGridPartFactory | undefined;
+	private readonly _partFactoryRegistration = this._register(new MutableDisposable());
+
+	private readonly _terminalPosition: IObservable<ChatWindowTerminalPosition>;
+
 	constructor(
 		private readonly _container: HTMLElement,
 		private readonly _cells: IChatWindowGridCells,
 		private readonly _layoutMode: IObservable<ChatWindowLayoutMode>,
 		private readonly _gap: IObservable<number>,
 		sizes: ChatWindowPartSizes | undefined,
-		private readonly _terminalPosition: IObservable<ChatWindowTerminalPosition> = constObservable(ChatWindowTerminalPosition.FullWidth),
+		terminalPosition: IObservable<ChatWindowTerminalPosition> | undefined,
+		partFactory: IPartGridPartFactory | undefined,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 	) {
 		super();
 		this._sizes = { ...sizes };
+		this._terminalPosition = terminalPosition ?? constObservable(ChatWindowTerminalPosition.FullWidth);
+		this._partFactory = partFactory && {
+			createPart: () => {
+				const created = partFactory.createPart();
+				this._created.set(created.id, created.part);
+				this._createdListeners.set(created.id, created.part.onWillClose(() => {
+					this._created.delete(created.id);
+					this._createdListeners.deleteAndDispose(created.id);
+				}));
+				return created;
+			}
+		};
 		this._titleRow = _cells.titleRow && this._register(new ChromeView(_cells.titleRow, 'row'));
 		this._strip = _cells.strip && this._register(new ChromeView(_cells.strip, 'column'));
 
@@ -437,10 +459,11 @@ export class ChatWindowGrid extends Disposable {
 		const root = this._serialize(topology, orientation === Orientation.HORIZONTAL ? width : height, orientation, remembered, { width, height });
 		// Applied once the cells of the arrangement show or hide, such as the title row, whose room would otherwise go to them.
 		this._pendingTerminalsHeight = terminals ? Math.min(height, this._terminalsHeight()) : undefined;
-		const serializedRoot: ISerializedNode = { type: 'branch', data: root.type === 'branch' ? root.data : [root], size: orientation === Orientation.HORIZONTAL ? height : width };
+		const serializedRoot: ISerializedNode = { type: 'branch', data: this._withCreatedParts(root.type === 'branch' ? root.data : [root], orientation, width, height), size: orientation === Orientation.HORIZONTAL ? height : width };
 		const serializedGrid: ISerializedGrid = { root: serializedRoot, orientation, width, height };
-		const state = { grid: serializedGrid, hidden: [], parts: {} };
-		const partGrid = this._grid.value = PartGrid.restore(this._container, state, id => this._contentOf(id));
+		const state = { grid: serializedGrid, hidden: [], parts: {}, created: Array.from(this._created.keys()) };
+		const partGrid = this._grid.value = PartGrid.restore(this._container, state, id => this._contentOf(id), this._editorGroupsService);
+		this._partFactoryRegistration.value = this._partFactory && partGrid.setPartFactory(this._partFactory);
 		this._terminalsFirstShowHeight = undefined;
 		this._gridListener.value = partGrid.onDidChangePartEmpty(e => {
 			const height = this._terminalsFirstShowHeight;
@@ -453,6 +476,21 @@ export class ChatWindowGrid extends Disposable {
 		partGrid.setGap(this._gap.get());
 		partGrid.setOuterInsets(insets);
 		partGrid.layout(dimension.width, dimension.height);
+	}
+
+	/**
+	 * The cells of the root of an arrangement with the parts the grid created after them, at the end of the window
+	 * beside the arrangement of the layout mode: under the title row that spans the window, beside what is under it.
+	 */
+	private _withCreatedParts(rootCells: readonly ISerializedNode[], orientation: Orientation, width: number, height: number): ISerializedNode[] {
+		const createdLeaves = (extent: number): ISerializedNode[] => Array.from(this._created.keys(), id => ({ type: 'leaf', data: { id }, size: Math.round(extent / (this._created.size + 2)) }));
+		const [first, content] = rootCells;
+		const titleRowFirst = first?.type === 'leaf' && (first.data as { id: string }).id === ChatWindowGridCell.TitleRow;
+		if (this._created.size && titleRowFirst && rootCells.length === 2 && content.type === 'branch') {
+			const contentExtent = orientation === Orientation.HORIZONTAL ? height : width;
+			return [first, { ...content, data: [...content.data, ...createdLeaves(contentExtent)] }];
+		}
+		return [...rootCells, ...createdLeaves(orientation === Orientation.HORIZONTAL ? width : height)];
 	}
 
 	/** The room the grid keeps to the edges of the window, such as the main window's outer insets. */
@@ -486,6 +524,10 @@ export class ChatWindowGrid extends Disposable {
 	}
 
 	private _contentOf(id: string): PartGridCellContent {
+		const created = this._created.get(id);
+		if (created) {
+			return { part: created };
+		}
 		switch (id) {
 			// The main part shows as its mode says, also without editors, as it did: the terminals show only with terminals.
 			case ChatWindowGridCell.Main: return { part: this._cells.main, options: { showWhileEmpty: true } };

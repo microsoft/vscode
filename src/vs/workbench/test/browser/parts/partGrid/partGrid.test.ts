@@ -563,6 +563,30 @@ suite('Part Grid', () => {
 		});
 	});
 
+	test('a part added or moved to an edge of the window goes beside the parts, and a view spanning the window such as a title row keeps spanning it', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		const [chat, main, side] = [createPart(parts), createPart(parts), createPart(parts)];
+		await Promise.all([openEditor(chat, '/chat.txt'), openEditor(main, '/main.txt'), openEditor(side, '/side.txt')]);
+		grid.addPart('chat', chat);
+		grid.addPart('main', main, { reference: 'chat', direction: Direction.Right });
+		grid.addView('title', createView(), { edge: Direction.Up });
+		const before = grid.describe();
+
+		grid.addPart('side', side, { edge: Direction.Right });
+		const added = grid.describe();
+		grid.moveCell('chat', { edge: Direction.Up });
+		const movedUp = grid.describe();
+		grid.moveCell('chat', { edge: Direction.Down });
+
+		assert.deepStrictEqual({ before, added, movedUp, movedDown: grid.describe() }, {
+			before: 'column(title, row(chat, main))',
+			added: 'column(title, row(chat, main, side))',
+			movedUp: 'column(title, chat, row(main, side))',
+			movedDown: 'column(title, row(main, side), chat)'
+		});
+	});
+
 	test('an editor dropped on an edge of the window outside the parts goes into a new part there, which closes with its last editor', async () => {
 		const parts = await createParts();
 		const container = boxAt(0, 0, 1000, 800);

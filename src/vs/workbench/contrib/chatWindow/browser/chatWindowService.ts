@@ -33,6 +33,7 @@ import { deserializeChatWindowEditors, reopenChatWindow, serializeChatWindowEdit
 import { InFlightOperations, openCleaningUpOnFailure } from './chatWindowOpening.js';
 import { bindMainPartVisible, moveEditorsToChatWindow, showChatInsteadOfEmptyMainPart, trackMainPartEditors } from './chatWindowParts.js';
 import { ChatWindowGrid } from './chatWindowGrid.js';
+import { ChatWindowPartFactory } from './chatWindowPartFactory.js';
 import { ChatWindowsRestoration } from './chatWindowsRestoration.js';
 
 /** The options of the groups of the part that holds a chat window's terminals. */
@@ -477,13 +478,15 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		// While something is dragged, such as an editor from this window or the main window, the window says so, so that
 		// regions that move the window, such as the empty space of a tab row at its top, take the drop instead.
 		disposables.add(bindDraggingClass(host, [auxiliaryWindow.window, mainWindow]));
-		const grid = disposables.add(new ChatWindowGrid(host, {
+		// Parts for editors dropped on an edge of the window, like its main part
+		const partFactory = disposables.add(this._instantiationService.createInstance(ChatWindowPartFactory, auxiliaryWindow, services, look));
+		const grid = disposables.add(this._instantiationService.createInstance(ChatWindowGrid, host, {
 			main: mainPart,
 			chat: chatPart,
 			titleRow: titleRow && { element: titleRowElement, visible: titleRow.visible, size: titleRow.size, layout: (width, height) => titleRow.layout(width, height) },
 			strip: strip && { element: stripElement, visible: strip.visible, size: strip.size, layout: (width, height) => strip.layout(width, height) },
 			terminals: window.terminalsPart,
-		}, state.layoutMode, look.gap, this._chatSizes.get(chat), state.terminalPosition));
+		}, state.layoutMode, look.gap, this._chatSizes.get(chat), state.terminalPosition, partFactory));
 		gridRef.set(grid, undefined);
 		// What the window shows is what it shows again for its chat: the sizes of its parts per arrangement.
 		const saveSizes = () => this._chatSizes.set(content.chat.get(), grid.exportSizes());

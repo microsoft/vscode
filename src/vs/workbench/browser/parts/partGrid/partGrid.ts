@@ -5,7 +5,7 @@
 
 import { $, append, getWindow } from '../../../../base/browser/dom.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
-import { Direction, GridNode, isGridBranchNode, ISerializableView, ISerializedGrid, ISerializedNode, IViewSize, Orientation, SerializableGrid, Sizing } from '../../../../base/browser/ui/grid/grid.js';
+import { Direction, GridNode, isGridBranchNode, ISerializableView, ISerializedGrid, ISerializedNode, IViewSize, Orientation, orthogonal, SerializableGrid, Sizing } from '../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -558,6 +558,10 @@ export class PartGrid extends Disposable {
 		const grid = this.grid!;
 		const orientation = edge === Direction.Up || edge === Direction.Down ? Orientation.VERTICAL : Orientation.HORIZONTAL;
 		const atEnd = edge === Direction.Right || edge === Direction.Down;
+		if (this.addAtEdgeOfParts(cell, orientation, atEnd, size)) {
+			return;
+		}
+
 		const root = grid.getViews();
 		const edgeChild = root.children[atEnd ? root.children.length - 1 : 0];
 
@@ -582,6 +586,61 @@ export class PartGrid extends Disposable {
 			newRoot = { type: 'branch', data: atEnd ? [rest, added] : [added, rest], size: orientation === Orientation.VERTICAL ? state.width : state.height };
 		}
 		this.setGrid(this.deserialize({ root: newRoot, orientation, width: state.width, height: state.height }));
+	}
+
+	/**
+	 * Views that are not parts, such as a title row, can span the window
+	 * beside the parts. The edges of the window are then the edges of what
+	 * holds the parts: a cell added there goes beside the parts, and the
+	 * views keep spanning the window. Returns whether it added the cell.
+	 */
+	private addAtEdgeOfParts(cell: PartGridCell, orientation: Orientation, atEnd: boolean, size: number | undefined): boolean {
+		const state = this.grid!.serialize();
+		const isView = (child: ISerializedNode) => child.type === 'leaf' && !this.cells.get((child.data as { id: string }).id)?.part;
+		const path: number[] = [];
+		let node = state.root;
+		let nodeOrientation = state.orientation;
+		while (node.type === 'branch' && nodeOrientation !== orientation) {
+			const parts = node.data.filter(child => !isView(child));
+			if (parts.length !== 1 || parts[0].type !== 'branch' || parts.length === node.data.length) {
+				break;
+			}
+			path.push(node.data.indexOf(parts[0]));
+			node = parts[0];
+			nodeOrientation = orthogonal(nodeOrientation);
+		}
+		if (node.type !== 'branch') {
+			return false;
+		}
+
+		// Along the edge's orientation, the cell goes past the parts but not past the views at that edge
+		let index = atEnd ? node.data.length : 0;
+		if (nodeOrientation === orientation) {
+			while (atEnd ? index > 0 && isView(node.data[index - 1]) : index < node.data.length && isView(node.data[index])) {
+				index += atEnd ? -1 : 1;
+			}
+		}
+		if (!path.length && index === (atEnd ? node.data.length : 0)) {
+			return false;
+		}
+
+		const extent = orientation === Orientation.VERTICAL ? state.height : state.width;
+		const cellSize = Math.min(size ?? Math.round(extent / (nodeOrientation === orientation ? node.data.length + 1 : 2)), extent);
+		const added: ISerializedNode = { type: 'leaf', data: cell.toJSON(), size: cellSize };
+		let replacement: ISerializedNode;
+		if (nodeOrientation === orientation) {
+			replacement = { ...node, data: [...node.data.slice(0, index), added, ...node.data.slice(index)] };
+		} else {
+			const rest: ISerializedNode = { type: 'branch', data: node.data, size: Math.max(0, (node.size ?? extent) - cellSize) };
+			replacement = { type: 'branch', data: atEnd ? [rest, added] : [added, rest], size: node.size };
+		}
+
+		const replace = (current: ISerializedNode, depth: number): ISerializedNode => depth === path.length || current.type !== 'branch'
+			? replacement
+			: { ...current, data: current.data.map((child, childIndex) => childIndex === path[depth] ? replace(child, depth + 1) : child) };
+		this.setGrid(this.deserialize({ ...state, root: replace(state.root, 0) }));
+
+		return true;
 	}
 
 	private getCellsInGrid(node: GridNode<PartGridCell>, into: PartGridCell[] = []): PartGridCell[] {
