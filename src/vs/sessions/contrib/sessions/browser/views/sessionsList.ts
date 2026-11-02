@@ -7226,7 +7226,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return true;
 		}, name => {
 			if (!this._store.isDisposed && (parentId === undefined || this.canHoldSubgroups(parentId))) {
-				this.finishCreateGroup(groupSessions, name || defaultName, parentId, false);
+				this.finishCreateGroup(groupSessions, name.trim() || defaultName, parentId, false);
 			}
 		});
 	}
@@ -7268,8 +7268,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.update();
 			return true;
 		}, name => {
-			if (name && !this._store.isDisposed) {
-				this._sessionGroupsService.renameGroup(groupId, name);
+			const trimmed = name.trim();
+			if (trimmed && !this._store.isDisposed) {
+				this._sessionGroupsService.renameGroup(groupId, trimmed);
 				this.update();
 			}
 		});
@@ -7362,8 +7363,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 			return this._sessionRenderer.beginRename(target);
 		}, async title => {
-			if (title && !this._store.isDisposed) {
-				await this._sessionsManagementService.renameSession(target, title);
+			const trimmed = title.trim();
+			if (trimmed && !this._store.isDisposed) {
+				await this._sessionsManagementService.renameSession(target, trimmed);
 			}
 		});
 	}
@@ -7383,8 +7385,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 			return this._chatRenderer.beginRename(target);
 		}, async title => {
-			if (title && !this._store.isDisposed) {
-				await this._sessionsManagementService.renameChat(target.session, target.chat.resource, title);
+			const trimmed = title.trim();
+			if (trimmed && !this._store.isDisposed) {
+				await this._sessionsManagementService.renameChat(target.session, target.chat.resource, trimmed);
 			}
 		});
 	}
