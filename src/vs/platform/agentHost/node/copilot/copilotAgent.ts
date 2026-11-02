@@ -48,7 +48,7 @@ import { agentModelConfigurationReportKey, createContextSizeConfigSchemaProperty
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
-import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MODEL_IDS, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { agentModelCatalogStatusKey, type AgentModelCatalogStatus } from '../../common/agentModelCatalogStatus.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, AgentHostWorkspaceTrustConfigKey, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
@@ -4003,7 +4003,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _getUnlistedHydraFusionModels(providerTiers: CopilotAutoTierMetadata | undefined, capiModels = this._capiModels, signedIn = !!this._githubCredentials.token): IAgentModelInfo[] {
 		const hydraFusionModels: IAgentModelInfo[] = [];
-		for (const id of COPILOT_HYDRA_FUSION_MODEL_NAMES.keys()) {
+		for (const id of COPILOT_HYDRA_FUSION_MODEL_IDS) {
 			if (signedIn && offersRunnableFusionTier(providerTiers, id) && !capiModels.some(model => model.id === id)) {
 				hydraFusionModels.push({
 					provider: this.id,

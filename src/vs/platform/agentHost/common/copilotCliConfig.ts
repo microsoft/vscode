@@ -13,15 +13,12 @@ export const COPILOT_HYDRA_FUSION_MODEL_ID = 'hydrafusion';
 /** The runtime's HydraFusion Max model, which it only offers with HydraFusion v2 (`HYDRAFUSION_PLAN_V2`). */
 export const COPILOT_HYDRA_FUSION_MAX_MODEL_ID = 'hydrafusion-max';
 
-/** The runtime's HydraFusion routing models and their display names, HydraFusion before HydraFusion Max. */
-export const COPILOT_HYDRA_FUSION_MODEL_NAMES: ReadonlyMap<string, string> = new Map([
-	[COPILOT_HYDRA_FUSION_MODEL_ID, 'HydraFusion'],
-	[COPILOT_HYDRA_FUSION_MAX_MODEL_ID, 'HydraFusion Max'],
-]);
+/** The runtime's HydraFusion routing models, which users see as Copilot Fusion's High and Max effort levels, in that order. */
+export const COPILOT_HYDRA_FUSION_MODEL_IDS: readonly string[] = [COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MAX_MODEL_ID];
 
 /** Whether the model id names one of the runtime's HydraFusion routing models. */
 export function isCopilotHydraFusionModelId(modelId: string | undefined): boolean {
-	return modelId !== undefined && COPILOT_HYDRA_FUSION_MODEL_NAMES.has(modelId);
+	return modelId !== undefined && COPILOT_HYDRA_FUSION_MODEL_IDS.includes(modelId);
 }
 
 /**

@@ -7531,7 +7531,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			toLanguageModelId: (rawModelId) => this._toLanguageModelId(sessionResource, resolveRaw(rawModelId)),
 			isFusionModel: rawModelId => this._config.provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(rawModelId),
 			toActualModelId: rawModelId => lookupRawModel(rawModelId)?.identifier ?? this._toLanguageModelId(sessionResource, rawModelId),
-			toModelDisplayName: rawModelId => lookupRawModel(rawModelId)?.model.name ?? this._localModels.getDisplayName(rawModelId),
+			toModelDisplayName: rawModelId => lookupRawModel(rawModelId)?.model.name ?? this._localModels.getDisplayName(rawModelId) ?? (isCopilotFusionTier(rawModelId) ? fusionModelName(rawModelId) : undefined),
 			toResponseDetails: (rawModelId, usage, responseModelId) => {
 				const local = responseModelId ? undefined : localTurn(usage);
 				if (local) {

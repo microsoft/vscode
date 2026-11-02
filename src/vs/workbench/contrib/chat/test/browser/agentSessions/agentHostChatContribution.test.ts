@@ -13015,6 +13015,39 @@ suite('AgentHostChatContribution', () => {
 			});
 		}
 
+		test('usage hover names unpublished HydraFusion token totals as Copilot Fusion only for Copilot CLI', async () => {
+			const modelTotals = async (provider: string) => {
+				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels: new Map(), provider });
+				const sessionUri = AgentSession.uri(provider, 'sess-fusion-usage-hover');
+				agentHostService.sessionStates.set(sessionUri.toString(), {
+					...createSessionState({
+						resource: sessionUri.toString(), provider, title: 'Test',
+						status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+					}),
+					lifecycle: SessionLifecycle.Ready,
+					turns: [{
+						id: 'fusion',
+						message: { text: 'Request', origin: { kind: MessageKind.User }, model: { id: 'hydrafusion-max' } },
+						responseParts: [],
+						usage: {
+							model: 'hydrafusion-max', inputTokens: 100, outputTokens: 20,
+							_meta: { turnTokenTotals: [{ model: 'hydrafusion-max', inputTokens: 100, cachedTokens: 0, outputTokens: 20 }] },
+						},
+						state: TurnState.Complete,
+					}],
+				});
+				const session = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/sess-fusion-usage-hover' }), CancellationToken.None);
+				disposables.add(toDisposable(() => session.dispose()));
+				const response = session.history.find(item => item.type === 'response');
+				const usage = response?.type === 'response' ? response.parts.find((part): part is IChatUsage => part.kind === 'usage') : undefined;
+				return usage?.modelTotals?.map(total => total.model);
+			};
+			assert.deepStrictEqual({ copilotCli: await modelTotals('copilotcli'), other: await modelTotals('claude') }, {
+				copilotCli: ['Copilot Fusion Max'],
+				other: ['hydrafusion-max'],
+			});
+		});
+
 		test('restored Fusion response footers keep their workflow label independently of other turns, only for Copilot CLI', async () => {
 			const footers = async (provider: string) => {
 				const languageModels = new Map<string, ILanguageModelChatMetadata>([
