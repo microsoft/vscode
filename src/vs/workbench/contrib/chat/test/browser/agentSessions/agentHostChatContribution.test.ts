@@ -14451,6 +14451,69 @@ suite('AgentHostChatContribution', () => {
 			}
 		});
 
+		test('names a subagent billed to an unpublished HydraFusion model as Copilot Fusion only for Copilot CLI', async () => {
+			const subagentModelName = async (provider: string) => {
+				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels: new Map(), provider });
+				const sessionUri = AgentSession.uri(provider, 'subagent-unpublished-fusion');
+				const defaultChatUri = buildDefaultChatUri(sessionUri.toString());
+				const childChatUri = buildSubagentChatUri(sessionUri.toString(), 'tc-subagent');
+				const summary = { resource: sessionUri.toString(), provider, title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() };
+				agentHostService.sessionStates.set(sessionUri.toString(), {
+					...createSessionState(summary),
+					lifecycle: SessionLifecycle.Ready,
+					defaultChat: defaultChatUri,
+					chats: [{
+						resource: childChatUri,
+						title: 'Research',
+						status: SessionStatus.InProgress,
+						modifiedAt: new Date().toISOString(),
+						origin: { kind: ChatOriginKind.Tool, chat: defaultChatUri, toolCallId: 'tc-subagent' },
+						interactivity: ChatInteractivity.ReadOnly,
+					}],
+					turns: [{
+						id: 'turn-1',
+						message: { text: 'research', origin: { kind: MessageKind.User } },
+						state: TurnState.Complete,
+						responseParts: [{
+							kind: ResponsePartKind.ToolCall,
+							toolCall: {
+								status: ToolCallStatus.Completed,
+								toolCallId: 'tc-subagent',
+								toolName: 'task',
+								displayName: 'Delegating task',
+								invocationMessage: 'Delegating task',
+								confirmed: ToolCallConfirmationReason.NotNeeded,
+								success: true,
+								content: [{ type: ToolResultContentType.Subagent, resource: buildSubagentSessionUri(sessionUri.toString(), 'tc-subagent'), title: 'Research' }],
+							},
+						}],
+						usage: undefined,
+					}],
+				} as SessionState);
+				agentHostService.sessionStates.set(childChatUri, {
+					...createSessionState({ ...summary, resource: childChatUri, title: 'Research' }),
+					lifecycle: SessionLifecycle.Ready,
+					turns: [],
+					activeTurn: {
+						id: 'child-turn-active',
+						startedAt: '2025-01-01T00:00:00.000Z',
+						message: { text: 'research', origin: { kind: MessageKind.User } },
+						responseParts: [],
+						usage: { model: 'hydrafusion' },
+					},
+				} as SessionState);
+				const chatSession = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/subagent-unpublished-fusion' }), CancellationToken.None);
+				disposables.add(toDisposable(() => chatSession.dispose()));
+				const response = chatSession.history[1];
+				const toolPart = response?.type === 'response' ? response.parts[0] as IChatToolInvocation : undefined;
+				return toolPart?.toolSpecificData?.kind === 'subagent' ? toolPart.toolSpecificData.modelName : undefined;
+			};
+			assert.deepStrictEqual({ copilotCli: await subagentModelName('copilotcli'), other: await subagentModelName('claude') }, {
+				copilotCli: 'Copilot Fusion High',
+				other: 'hydrafusion',
+			});
+		});
+
 		test('restores failed subagent calls from the chat catalog when tool metadata was lost', async () => {
 			const byok = createByokLanguageModelTestData();
 			const { sessionHandler, agentHostService } = createContribution(disposables, byok);

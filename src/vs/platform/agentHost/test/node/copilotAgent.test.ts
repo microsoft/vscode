@@ -7272,7 +7272,8 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('waits for a scoped caller\'s in-flight model discovery before launching with its Auto tier', async () => {
+		/** A scoped caller whose model discovery is held until `discovery` completes, with a chat whose first send waits for it. */
+		async function setupScopedDiscoveryRace(name: string) {
 			const discovery = new DeferredPromise<void>();
 			const discoveryClientCreated = new DeferredPromise<void>();
 			const launchWaitsForDiscovery = new DeferredPromise<void>();
@@ -7301,33 +7302,54 @@ suite('CopilotAgent', () => {
 					}
 				},
 			});
-			const session = AgentSession.uri('copilotcli', 'scoped-tier-discovery-race');
+			afterTest(async () => {
+				discovery.complete();
+				await disposeAgent(agent);
+			});
+			const session = AgentSession.uri('copilotcli', name);
 			const chat = defaultChatUri(session);
 			const directory = URI.file(process.cwd());
 			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'caller-token', expiresAt: undefined, revision: 1 }) };
 			const context = { ...exactChatContext(session, chat, session), credentials };
-			try {
-				const discovered = agent.getModelsForCredentials(credentials);
-				await discoveryClientCreated.p;
-				await provisionSession(agent, { session, credentials, model: { id: 'auto', config: { tier: 'intelligence' } }, workingDirectories: [directory] });
-				const sent = agent.chats.sendMessage(chat, 'first', [directory], undefined, 'first', undefined, context);
-				await launchWaitsForDiscovery.p;
-				const launchedBeforeDiscovery = launches.length;
-				discovery.complete();
-				await discovered;
-				await sent;
+			const discovered = agent.getModelsForCredentials(credentials);
+			await discoveryClientCreated.p;
+			await provisionSession(agent, { session, credentials, model: { id: 'auto', config: { tier: 'intelligence' } }, workingDirectories: [directory] });
+			const sent = agent.chats.sendMessage(chat, 'first', [directory], undefined, 'first', undefined, context);
+			await launchWaitsForDiscovery.p;
+			return { agent, launches, discovery, discovered, sent, chat, context };
+		}
 
-				assert.deepStrictEqual({
-					launchedBeforeDiscovery,
-					launches: launches.map(launch => ({ kind: launch.kind, capi: launch.config.capi })),
-				}, {
-					launchedBeforeDiscovery: 0,
-					launches: [{ kind: 'create', capi: { autoTier: 'intelligence' } }],
-				});
-			} finally {
-				discovery.complete();
-				await disposeAgent(agent);
-			}
+		test('waits for a scoped caller\'s in-flight model discovery before launching with its Auto tier', async () => {
+			const { launches, discovery, discovered, sent } = await setupScopedDiscoveryRace('scoped-tier-discovery-race');
+			const launchedBeforeDiscovery = launches.length;
+			discovery.complete();
+			await discovered;
+			await sent;
+
+			assert.deepStrictEqual({
+				launchedBeforeDiscovery,
+				launches: launches.map(launch => ({ kind: launch.kind, capi: launch.config.capi })),
+			}, {
+				launchedBeforeDiscovery: 0,
+				launches: [{ kind: 'create', capi: { autoTier: 'intelligence' } }],
+			});
+		});
+
+		test('Stop releases a launch waiting for a scoped caller\'s model discovery without cancelling the discovery', async () => {
+			const { agent, launches, discovery, discovered, sent, chat, context } = await setupScopedDiscoveryRace('scoped-tier-discovery-stop');
+			await agent.chats.abort(chat, context);
+			const settledWhileDiscoveryPending = await raceTimeout(sent.then(() => true, () => true), 1000);
+			discovery.complete();
+
+			assert.deepStrictEqual({
+				settledWhileDiscoveryPending,
+				launches: launches.length,
+				discoveredModels: (await discovered).map(model => model.id),
+			}, {
+				settledWhileDiscoveryPending: true,
+				launches: 0,
+				discoveredModels: ['auto'],
+			});
 		});
 
 		for (const rotate of [false, true]) {
@@ -14585,7 +14607,7 @@ suite('CopilotAgent', () => {
 			});
 		});
 
-		test('offers runtime-listed HydraFusion models whatever CAPI\'s tiers allow, named as Copilot Fusion\'s effort levels', async () => {
+		test('offers runtime-listed HydraFusion models only as Fusion tiers CAPI lets the account run, named as Copilot Fusion\'s effort levels', async () => {
 			const published = async (autoTierMetadata: CopilotAutoTierMetadata | undefined) => {
 				const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }, { id: 'hydrafusion', name: 'HydraFusion' }, { id: 'hydrafusion-max', name: 'HydraFusion Max' }]);
 				client.autoTierMetadata = autoTierMetadata;
@@ -14605,8 +14627,8 @@ suite('CopilotAgent', () => {
 				withoutProviderTiers: await published(undefined),
 			}, {
 				fusionAvailable: ['auto:Copilot Fusion', 'hydrafusion:Copilot Fusion High', 'hydrafusion-max:Copilot Fusion Max'],
-				fusionUnavailable: ['auto:Copilot Fusion', 'hydrafusion:Copilot Fusion High', 'hydrafusion-max:Copilot Fusion Max'],
-				withoutProviderTiers: ['auto:Auto', 'hydrafusion:Copilot Fusion High', 'hydrafusion-max:Copilot Fusion Max'],
+				fusionUnavailable: ['auto:Copilot Fusion'],
+				withoutProviderTiers: ['auto:Auto'],
 			});
 		});
 
@@ -15032,7 +15054,7 @@ suite('CopilotAgent', () => {
 				published.push(agent.models.read(reader).map(model => model.id));
 			}));
 			afterTest(() => disposeAgent(agent));
-			afterTest(() => setAdvertisedAutoModeTiers(undefined));
+			afterTest(async () => setAdvertisedAutoModeTiers(undefined));
 			await agent.authenticate('https://api.github.com', 'token');
 			await agent.listChatsToMigrate();
 			await waitForState(agent.models, models => models.some(model => model.id === 'gpt-6.1-sol'));

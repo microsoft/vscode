@@ -217,6 +217,11 @@ function getProviderAutoTierLabel(tier: CopilotAutoTierDescriptor): string {
 	return tier.displayName || (tier.type === 'fusion' ? getFusionAutoModeTierLabel(tier.id) : getAutoModeTierLabel(tier.id));
 }
 
+/** Whether the provider's tiers include an enabled Fusion tier for the HydraFusion model, which is the only way it is offered. */
+function offersRunnableFusionTier(metadata: CopilotAutoTierMetadata | undefined, id: string): boolean {
+	return !!metadata?.tiers.some(tier => tier.id === id && tier.type === 'fusion' && isRunnableAutoTier(tier));
+}
+
 /** A HydraFusion model is one of Copilot Fusion's effort levels, so it is named as that level, never as HydraFusion. */
 function getFusionTierModelName(id: string, metadata: CopilotAutoTierMetadata | undefined): string {
 	const tier = metadata?.tiers.find(tier => tier.id === id && tier.type === 'fusion');
@@ -3986,6 +3991,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const support = getAutoModeTierSupport(autoTierMetadata);
 		return models
 			.map(model => policy ? projectCopilotManagedModelConfiguration(model, policy, this._logService) : model)
+			// HydraFusion is offered only as a Copilot Fusion tier the service lets the account run, even when the runtime lists it.
+			.filter(model => !isCopilotHydraFusionModelId(model.id) || offersRunnableFusionTier(autoTierMetadata, model.id))
 			.map(model => isCopilotHydraFusionModelId(model.id) ? { ...model, name: getFusionTierModelName(model.id, autoTierMetadata) } : model)
 			.map(model => this._withModelConfigAliases(this._asPresented(model, fusion, support)));
 	}
@@ -3997,8 +4004,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _getUnlistedHydraFusionModels(providerTiers: CopilotAutoTierMetadata | undefined, capiModels = this._capiModels, signedIn = !!this._githubCredentials.token): IAgentModelInfo[] {
 		const hydraFusionModels: IAgentModelInfo[] = [];
 		for (const id of COPILOT_HYDRA_FUSION_MODEL_NAMES.keys()) {
-			const enabled = !!providerTiers?.tiers.some(tier => tier.id === id && tier.type === 'fusion' && isRunnableAutoTier(tier));
-			if (signedIn && enabled && !capiModels.some(model => model.id === id)) {
+			if (signedIn && offersRunnableFusionTier(providerTiers, id) && !capiModels.some(model => model.id === id)) {
 				hydraFusionModels.push({
 					provider: this.id,
 					id,

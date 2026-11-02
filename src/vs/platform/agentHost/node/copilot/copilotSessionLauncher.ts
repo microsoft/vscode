@@ -5,6 +5,7 @@
 
 import type { AttributedPermissionResult, ContextTier, CopilotClient, CopilotExpAssignmentResponse, CopilotSession, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsPermissions, ModelCapabilitiesOverride, NamedProviderConfig, PermissionHandler, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
+import { raceCancellation } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -1418,8 +1419,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (canvasRuntimeEnabled && !plan.extensionSdkPath) {
 			throw new Error(`Extension SDK path is unavailable for canvas-enabled Copilot session '${plan.sessionId}'`);
 		}
-		// A scoped caller's Auto tiers come from its own model discovery, which may still be running.
-		await plan.whenAutoTierSupportReady?.();
+		// A scoped caller's Auto tiers come from its own model discovery, which may still be running. A cancelled launch
+		// stops waiting without cancelling the shared discovery; the launch then throws.
+		if (plan.whenAutoTierSupportReady) {
+			await raceCancellation(plan.whenAutoTierSupportReady(), runtime.cancellationToken ?? CancellationToken.None);
+		}
 		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
 		// renderer reports no BYOK models), merged into the returned config so both
 		// createSession and resumeSession advertise the models to the runtime.
