@@ -169,4 +169,32 @@ suite('Scoped Editor Service', () => {
 
 		assert.deepStrictEqual({ main: parts.mainPart.groups.some(group => group.contains(input)), modalOpen: !!parts.activeModalEditorPart }, { main: true, modalOpen: false });
 	});
+
+	test('the global service, and a scoped one while its part has focus, put a typed editor into its group synchronously, as before', async () => {
+		const { parts, editorService, b } = await createServices();
+		focusIn(b);
+
+		const viaGlobal = createInput('/sync-global.txt');
+		const globalPromise = editorService.openEditor(viaGlobal, { pinned: true });
+		const globalSync = b.groups.some(group => group.contains(viaGlobal));
+
+		const viaScoped = createInput('/sync-scoped.txt');
+		const scopedPromise = scopedEditorServiceOf(parts, b).openEditor(viaScoped, { pinned: true });
+		const scopedSync = b.groups.some(group => group.contains(viaScoped));
+
+		await Promise.all([globalPromise, scopedPromise]);
+
+		assert.deepStrictEqual({ globalSync, scopedSync }, { globalSync: true, scopedSync: true });
+	});
+
+	test('several editors opened to the side through a scoped service open beside its part\'s group, in one new group of that part', async () => {
+		const { parts, a, b } = await createServices();
+		focusIn(a);
+
+		const editors = [createInput('/side1.txt'), createInput('/side2.txt')];
+		await scopedEditorServiceOf(parts, b).openEditors(editors.map(editor => ({ editor, options: { pinned: true } })), SIDE_GROUP);
+
+		const groupsWith = editors.map(editor => b.groups.findIndex(group => group.contains(editor)));
+		assert.deepStrictEqual({ groupsOfA: a.groups.length, groupsOfB: b.groups.length, groupsWith }, { groupsOfA: 1, groupsOfB: 2, groupsWith: [1, 1] });
+	});
 });

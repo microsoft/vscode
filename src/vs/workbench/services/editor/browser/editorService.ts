@@ -547,12 +547,15 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// Scoped: resolve the group within the scope
-		const scoped = await this.resolveScopedPreferredGroup(isEditorInput(editor) ? { editor, options } : editor, preferredGroup);
-		preferredGroup = scoped.preferredGroup;
-		if (scoped.options !== options) {
-			options = scoped.options;
-			if (!isEditorInput(editor)) {
-				editor = { ...editor, options };
+		const scopedResolution = this.resolveScopedPreferredGroup(isEditorInput(editor) ? { editor, options } : editor, preferredGroup);
+		if (scopedResolution) {
+			const scoped = await scopedResolution;
+			preferredGroup = scoped.preferredGroup;
+			if (scoped.options !== options) {
+				options = scoped.options;
+				if (!isEditorInput(editor)) {
+					editor = { ...editor, options };
+				}
 			}
 		}
 
@@ -610,17 +613,23 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	 * A scoped editor service opens an editor without a specific group (the
 	 * active group or to the side) in its own groups. While one of its groups
 	 * is the active group, that is what the editor groups service resolves
-	 * anyway, so nothing is done then.
+	 * anyway, so nothing is done then: `undefined` is returned synchronously,
+	 * so that opening is as synchronous as before.
 	 */
-	private async resolveScopedPreferredGroup(editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<{ preferredGroup: PreferredGroup | undefined; options: IEditorOptions | undefined }> {
-		const options = editor.options;
+	private resolveScopedPreferredGroup(editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<{ preferredGroup: PreferredGroup | undefined; options: IEditorOptions | undefined }> | undefined {
 		if (
 			!this.isScoped ||
 			(preferredGroup !== undefined && preferredGroup !== ACTIVE_GROUP && preferredGroup !== SIDE_GROUP) ||
 			this.editorGroupsContainer.groups.some(group => group.id === this.editorGroupService.activeGroup.id)
 		) {
-			return { preferredGroup, options };
+			return undefined;
 		}
+
+		return this.doResolveScopedPreferredGroup(editor, preferredGroup);
+	}
+
+	private async doResolveScopedPreferredGroup(editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<{ preferredGroup: PreferredGroup | undefined; options: IEditorOptions | undefined }> {
+		const options = editor.options;
 
 		let [group, activation] = await this.instantiationService.invokeFunction(findGroup, editor, preferredGroup, this.editorGroupsContainer);
 
@@ -659,9 +668,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			let group: IEditorGroup | undefined = undefined;
 
 			// Scoped: resolve the group within the scope
-			const scoped = await this.resolveScopedPreferredGroup(candidateEditor, preferredGroup);
-			const editorPreferredGroup = scoped.preferredGroup;
-			const editor = scoped.options !== candidateEditor.options ? { ...candidateEditor, options: scoped.options } : candidateEditor;
+			const scopedResolution = this.resolveScopedPreferredGroup(candidateEditor, preferredGroup);
+			const scoped = scopedResolution ? await scopedResolution : undefined;
+			const editorPreferredGroup = scoped ? scoped.preferredGroup : preferredGroup;
+			const editor = scoped && scoped.options !== candidateEditor.options ? { ...candidateEditor, options: scoped.options } : candidateEditor;
 
 			// Resolve override unless disabled
 			if (!isEditorInputWithOptions(editor)) {
