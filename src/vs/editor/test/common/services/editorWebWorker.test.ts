@@ -217,8 +217,56 @@ suite('EditorWebWorker', () => {
 	});
 
 	test('MoreMinimal falls back when a range follows an unpaired high surrogate', async () => {
-		const original = 'x\uD83Dy';
-		const modified = 'x😀y';
+		const original = 'aX\uD83Dy';
+		const modified = 'bX😀y';
+		const workerModel = worker.addModel([original]);
+		const edits = await worker.$computeMoreMinimalEdits(workerModel.uri.toString(), [{
+			text: modified,
+			range: new Range(1, 1, 1, original.length + 1)
+		}], false);
+		const textModel = store.add(createTextModel(original));
+
+		textModel.applyEdits(edits);
+
+		assert.deepStrictEqual({
+			edits,
+			value: textModel.getValue(),
+		}, {
+			edits: [{
+				text: modified,
+				range: new Range(1, 1, 1, original.length + 1),
+			}],
+			value: modified,
+		});
+	});
+
+	test('MoreMinimal can delete an unpaired high surrogate at the end of a line', async () => {
+		const original = 'AB\uD83D';
+		const modified = 'AB';
+		const workerModel = worker.addModel([original]);
+		const edits = await worker.$computeMoreMinimalEdits(workerModel.uri.toString(), [{
+			text: modified,
+			range: new Range(1, 1, 1, original.length + 1)
+		}], false);
+		const textModel = store.add(createTextModel(original));
+
+		textModel.applyEdits(edits);
+
+		assert.deepStrictEqual({
+			edits,
+			value: textModel.getValue(),
+		}, {
+			edits: [{
+				text: '',
+				range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 4 },
+			}],
+			value: modified,
+		});
+	});
+
+	test('MoreMinimal falls back when inserting after an unpaired high surrogate at the end of a line', async () => {
+		const original = 'AB\uD83D';
+		const modified = 'AB\uD83DX';
 		const workerModel = worker.addModel([original]);
 		const edits = await worker.$computeMoreMinimalEdits(workerModel.uri.toString(), [{
 			text: modified,

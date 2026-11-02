@@ -285,16 +285,17 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 
 			for (const change of changes) {
 				const originalEnd = change.originalStart + change.originalLength;
-				if (
-					(change.originalStart > 0 && isHighSurrogate(original.charCodeAt(change.originalStart - 1)))
-					|| (originalEnd > 0 && isHighSurrogate(original.charCodeAt(originalEnd - 1)))
-				) {
+				const start = model.positionAt(editOffset + change.originalStart);
+				const end = model.positionAt(editOffset + originalEnd);
+				const startLineContent = model.getLineContent(start.lineNumber);
+				const endLineContent = model.getLineContent(end.lineNumber);
+				const startFollowsHighSurrogate = start.column > 1 && isHighSurrogate(startLineContent.charCodeAt(start.column - 2));
+				const endFollowsHighSurrogate = end.column > 1 && end.column <= endLineContent.length && isHighSurrogate(endLineContent.charCodeAt(end.column - 2));
+				if (startFollowsHighSurrogate || endFollowsHighSurrogate) {
 					useOriginalEdit = true;
 					break;
 				}
 
-				const start = model.positionAt(editOffset + change.originalStart);
-				const end = model.positionAt(editOffset + originalEnd);
 				const newEdit: TextEdit = {
 					text: text.slice(change.modifiedStart, change.modifiedStart + change.modifiedLength),
 					range: { startLineNumber: start.lineNumber, startColumn: start.column, endLineNumber: end.lineNumber, endColumn: end.column }
