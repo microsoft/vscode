@@ -122,17 +122,19 @@ suite('AgentHostTelemetryReporter', () => {
 		};
 	}
 
-	test('reports whether a turn used or discarded a pre-warmed session, and nothing when it found none', () => {
+	test('reports whether a turn used, discarded or skipped a pre-warmed session, and nothing when none applies', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 		const completion = createTurnCompletedReport('copilotcli');
 		reporter.turnCompleted(completion);
 		reporter.turnCompleted({ ...completion, providerTelemetryContext: { usedPrewarmedSession: true } });
 		reporter.turnCompleted({ ...completion, providerTelemetryContext: { prewarmedSessionDiscardReason: 'clientToolsChanged' } });
-		assert.deepStrictEqual(service.standardEvents.filter(event => event.eventName === 'agentHost.turnCompleted').map(event => ({ used: event.data?.usedPrewarmedSession, discardReason: event.data?.prewarmedSessionDiscardReason })), [
-			{ used: undefined, discardReason: undefined },
-			{ used: true, discardReason: undefined },
-			{ used: undefined, discardReason: 'clientToolsChanged' },
+		reporter.turnCompleted({ ...completion, providerTelemetryContext: { prewarmSkipReason: 'expired' } });
+		assert.deepStrictEqual(service.standardEvents.filter(event => event.eventName === 'agentHost.turnCompleted').map(event => ({ used: event.data?.usedPrewarmedSession, discardReason: event.data?.prewarmedSessionDiscardReason, skipReason: event.data?.prewarmSkipReason })), [
+			{ used: undefined, discardReason: undefined, skipReason: undefined },
+			{ used: true, discardReason: undefined, skipReason: undefined },
+			{ used: undefined, discardReason: 'clientToolsChanged', skipReason: undefined },
+			{ used: undefined, discardReason: undefined, skipReason: 'expired' },
 		]);
 	});
 

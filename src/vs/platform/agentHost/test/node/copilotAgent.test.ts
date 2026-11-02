@@ -21973,9 +21973,9 @@ suite('CopilotAgent', () => {
 			const context = exactChatContext(result.session, chat, result.session);
 			const materialized: IAgentMaterializeChatEvent[] = [];
 			disposables.add(agent.onDidMaterializeChat(e => materialized.push(e)));
-			// What each send reported: 'used', or the reason it discarded the early launch.
+			// What each send reported: 'used', the reason it discarded the early launch, or why it found none.
 			const prewarm: string[] = [];
-			const sendContext: IAgentChatContext = { ...context, reportPrewarmedSession: discardReason => prewarm.push(discardReason ?? 'used') };
+			const sendContext: IAgentChatContext = { ...context, reportPrewarmedSession: discardReason => prewarm.push(discardReason ?? 'used'), reportPrewarmSkipped: reason => prewarm.push(`skipped:${reason}`) };
 			return {
 				agent, client, chat, context, sendContext, sdkSessions, launchConfigs, materialized, resolvedWorkingDirectory: result.resolvedWorkingDirectory,
 				sdkSessionId: () => chatBackings(agent).get(chat.toString())?.sdkSessionId,
@@ -21996,6 +21996,54 @@ suite('CopilotAgent', () => {
 					afterSend: { creates: 1, mcpLists: 1, materialized: 1, prewarm: ['used'], deleted: 0, live: true },
 					sends: 1,
 				});
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
+		test('a prepared turn that claims the warm launch reports it once', async () => {
+			const h = await createWarmableAgent('warm-prepared-turn');
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				await h.agent.chats.prepareTurn!(h.chat, 'turn-1', [workingDirectory], h.sendContext);
+				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+				assert.deepStrictEqual(h.state(), { creates: 1, mcpLists: 1, materialized: 1, prewarm: ['used'], deleted: 0, live: true });
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
+		test('a send without a warm launch reports why the draft has none', async () => {
+			const results: Record<string, string[]> = {};
+			for (const skipped of [undefined, 'disabled', 'customizationsPending'] as const) {
+				const h = await createWarmableAgent(`warm-skipped-${skipped ?? 'none'}`);
+				try {
+					if (skipped) {
+						h.agent.chats.noteWarmSkipped!(h.chat, h.context, skipped);
+					}
+					await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+					results[skipped ?? 'none'] = h.state().prewarm;
+				} finally {
+					await disposeAgent(h.agent);
+				}
+			}
+
+			assert.deepStrictEqual(results, {
+				none: ['skipped:notRequested'],
+				disabled: ['skipped:disabled'],
+				customizationsPending: ['skipped:customizationsPending'],
+			});
+		});
+
+		test('a skip noted after warming does not hide the warm launch', async () => {
+			const h = await createWarmableAgent('warm-skip-after-warm');
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				h.agent.chats.noteWarmSkipped!(h.chat, h.context, 'disabled');
+				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+				assert.deepStrictEqual(h.state().prewarm, ['used']);
 			} finally {
 				await disposeAgent(h.agent);
 			}
@@ -22076,18 +22124,36 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('a model option change before the first send starts it cold instead of applying it live', async () => {
+		test('a model option change before the first send is applied live to the warm launch', async () => {
 			const h = await createWarmableAgent('warm-model-config-change', undefined, { model: { id: 'claude-sonnet' } });
 			try {
 				await h.agent.chats.warmChat!(h.chat, h.context);
-				const sdkSessionId = h.sdkSessionId();
 				await h.agent.chats.changeModel(h.chat, { id: 'claude-sonnet', config: { thinkingLevel: 'high' } }, h.context);
 				const afterModelChange = h.state();
 				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
 
-				assert.deepStrictEqual({ afterModelChange, afterSend: { ...h.state(), deleted: h.client.deletedSessionIds, setModel: h.sdkSessions.map(s => s.setModelCalls.length) } }, {
+				assert.deepStrictEqual({ afterModelChange, afterSend: { ...h.state(), setModel: h.sdkSessions.map(s => s.setModelCalls.length), sends: h.sdkSessions.map(s => s.sendCalls) } }, {
 					afterModelChange: { creates: 1, mcpLists: 1, materialized: 0, prewarm: [], deleted: 0, live: true },
-					afterSend: { creates: 2, mcpLists: 1, materialized: 1, prewarm: ['modelChanged'], deleted: [sdkSessionId], live: true, setModel: [0, 0] },
+					afterSend: { creates: 1, mcpLists: 1, materialized: 1, prewarm: ['used'], deleted: 0, live: true, setModel: [1], sends: [1] },
+				});
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
+		test('a model option change starts the first send cold when the launch set capability overrides that setModel drops', async () => {
+			const h = await createWarmableAgent('warm-model-config-override', undefined, {
+				model: { id: 'claude-sonnet' },
+				rootConfig: { [CopilotCliConfigKey.ModelCapabilityOverrides]: { 'claude-sonnet': { modelCapabilities: { supports: { vision: false } } } } },
+			});
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				const sdkSessionId = h.sdkSessionId();
+				await h.agent.chats.changeModel(h.chat, { id: 'claude-sonnet', config: { thinkingLevel: 'high' } }, h.context);
+				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+				assert.deepStrictEqual({ ...h.state(), deleted: h.client.deletedSessionIds, setModel: h.sdkSessions.map(s => s.setModelCalls.length) }, {
+					creates: 2, mcpLists: 1, materialized: 1, prewarm: ['modelChanged'], deleted: [sdkSessionId], live: true, setModel: [0, 0],
 				});
 			} finally {
 				await disposeAgent(h.agent);
@@ -22108,7 +22174,7 @@ suite('CopilotAgent', () => {
 					launches: h.launchConfigs.map(config => ({ model: config.model, modelCapabilities: config.modelCapabilities })),
 					sends: h.sdkSessions.map(s => s.sendCalls),
 				}, {
-					prewarm: ['modelChanged'],
+					prewarm: ['modelSelected'],
 					launches: [{ model: undefined, modelCapabilities: undefined }, { model: 'claude-sonnet', modelCapabilities: { supports: { vision: false } } }],
 					sends: [0, 1],
 				});
@@ -22168,7 +22234,7 @@ suite('CopilotAgent', () => {
 
 					assert.deepStrictEqual({ afterTeardown, afterSend: { ...h.state(), deleted: h.client.deletedSessionIds, sdkSessionIds: h.sdkSessions.map(s => s.sessionId), sends: h.sdkSessions.map(s => s.sendCalls) } }, {
 						afterTeardown: { live: false },
-						afterSend: { creates: 2, mcpLists: 1, materialized: 1, prewarm: [], live: true, deleted: [sdkSessionId], sdkSessionIds: [sdkSessionId, sdkSessionId], sends: [0, 1] },
+						afterSend: { creates: 2, mcpLists: 1, materialized: 1, prewarm: ['skipped:released'], live: true, deleted: [sdkSessionId], sdkSessionIds: [sdkSessionId, sdkSessionId], sends: [0, 1] },
 					});
 				} finally {
 					await disposeAgent(h.agent);
