@@ -748,6 +748,7 @@ suite('Session Artifacts', () => {
 			{
 				name: 'agents/sessionArtifactOpen',
 				data: {
+					surface: 'agentsWindow',
 					agentSessionId: hashSessionIdForTelemetry('provider:session'),
 					itemCategory: 'artifact',
 					itemKind: 'file',
@@ -756,6 +757,7 @@ suite('Session Artifacts', () => {
 			{
 				name: 'agents/sessionArtifactOpen',
 				data: {
+					surface: 'agentsWindow',
 					agentSessionId: hashSessionIdForTelemetry('provider:session'),
 					itemCategory: 'reference',
 					itemKind: 'website',

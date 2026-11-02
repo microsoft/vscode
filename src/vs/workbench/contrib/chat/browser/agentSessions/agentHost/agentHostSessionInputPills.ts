@@ -23,6 +23,7 @@ import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AgentSession } from '../../../../../../platform/agentHost/common/agent.js';
 import { AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, AGENT_HOST_DISCARD_CHANGES_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { isCopilotAgentHostProvider } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -59,6 +60,7 @@ import { computePullRequestIcon, getHighestPriorityPullRequestIcon } from '../..
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind, type IChatBackgroundShell } from '../../../common/sessionChatPills.js';
 import { createCustomizationIndexObservable, createProgressiveChatCustomizations, type ICustomizationJobScheduler } from '../../../common/agentHostSessionCustomizations.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../common/constants.js';
+import { reportSessionArtifactOpen } from '../../../../../common/sessionArtifactOpenTelemetry.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
 import { IChatEditingService, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
@@ -74,7 +76,6 @@ import { SessionBackgroundShellsControl } from '../../sessionBackgroundShellsCon
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry } from '../../sessionPullRequestPill.js';
 import { SessionCustomizations } from '../../sessionCustomizations.js';
 import { createSessionSubagentsPillData, type IChatSubagentPillEntry } from '../../sessionSubagentsPill.js';
-import { reportAgentHostSessionArtifactOpen } from './agentHostArtifactTelemetry.js';
 import { AgentHostBackgroundShellOutputs } from './agentHostBackgroundShells.js';
 import { agentHostChangesetFileToEntryDiff, getAgentHostResourceAuthority } from './agentHostResponseFileChanges.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
@@ -1605,7 +1606,7 @@ export class AgentHostSessionInputPills extends Disposable {
 	private _openRecorded(resolution: IAgentHostSessionResolution | undefined, artifact: ISessionArtifact | undefined, open: () => void): void {
 		open();
 		if (resolution && artifact) {
-			reportAgentHostSessionArtifactOpen(this._telemetryService, resolution.backendSession, artifact);
+			reportSessionArtifactOpen(this._telemetryService, { surface: 'editorWindow', backendSessionId: AgentSession.id(resolution.backendSession), kind: artifact.type, isArtifact: artifact.isArtifact });
 		}
 	}
 
