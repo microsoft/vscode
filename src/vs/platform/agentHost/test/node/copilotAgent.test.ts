@@ -7452,6 +7452,59 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		test('waits for the host\'s initial model discovery before launching with its Auto tier', async () => {
+			const discovery = new DeferredPromise<void>();
+			const discoveryRequested = new DeferredPromise<TestCopilotClient>();
+			const launchWaitsForDiscovery = new DeferredPromise<void>();
+			class WaitRecordingLogService extends NullLogService {
+				override trace(message: string, ..._args: unknown[]): void {
+					if (message.includes('Waiting for model discovery before resolving Auto tiers')) {
+						launchWaitsForDiscovery.complete();
+					}
+				}
+			}
+			const { agent, launches } = setup(undefined, [], [], undefined, {
+				logService: new WaitRecordingLogService(),
+				onClientCreated: client => {
+					void discoveryRequested.complete(client);
+					client.modelListGate = discovery.p;
+					client.modelListResponses.push([{ id: 'auto', name: 'Auto' }]);
+					client.autoTierMetadata = {
+						defaultTier: 'balance',
+						tiers: [
+							{ id: 'balance', displayName: 'Standard', description: '', type: 'auto', status: { enabled: true } },
+							{ id: 'intelligence', displayName: 'Intelligence', description: '', type: 'auto', status: { enabled: true } },
+						],
+					};
+				},
+			});
+			afterTest(async () => {
+				discovery.complete();
+				await disposeAgent(agent);
+			});
+			const session = AgentSession.uri('copilotcli', 'host-tier-discovery-race');
+			const chat = defaultChatUri(session);
+			const directory = URI.file(process.cwd());
+			await agent.authenticate('https://api.github.com', 'host-token');
+			const client = await discoveryRequested.p;
+			await client.waitForCalls(() => client.modelListRequests.length > 0);
+			await provisionSession(agent, { session, model: { id: 'auto', config: { tier: 'intelligence' } }, workingDirectories: [directory] });
+			const sent = agent.chats.sendMessage(chat, 'first', [directory], undefined, 'first', undefined, exactChatContext(session, chat, session));
+			// Settles on whichever comes first, so a launch that does not wait fails the assertion below rather than timing out.
+			await Promise.race([launchWaitsForDiscovery.p, sent.then(() => undefined, () => undefined)]);
+			const launchedBeforeDiscovery = launches.length;
+			discovery.complete();
+			await sent;
+
+			assert.deepStrictEqual({
+				launchedBeforeDiscovery,
+				launches: launches.map(launch => ({ kind: launch.kind, capi: launch.config.capi })),
+			}, {
+				launchedBeforeDiscovery: 0,
+				launches: [{ kind: 'create', capi: { autoTier: 'intelligence' } }],
+			});
+		});
+
 		test('Stop releases a launch waiting for a scoped caller\'s model discovery without cancelling the discovery', async () => {
 			const { agent, launches, discovery, discovered, sent, chat, context } = await setupScopedDiscoveryRace('scoped-tier-discovery-stop');
 			await agent.chats.abort(chat, context);
