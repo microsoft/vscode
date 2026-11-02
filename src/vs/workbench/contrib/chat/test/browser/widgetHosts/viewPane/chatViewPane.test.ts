@@ -40,7 +40,8 @@ suite('ChatViewPane session transitions', () => {
 		const bindings: (URI | undefined)[] = [];
 		const disposed: URI[] = [];
 		const locks: string[] = [];
-		const modelRef = store.add(new MutableDisposable<IChatModelReference>());
+		const paneStore = store.add(new DisposableStore());
+		const modelRef = paneStore.add(new MutableDisposable<IChatModelReference>());
 		const createReference = (model: IChatModel): IChatModelReference => Object.assign(toDisposable(() => {
 			disposed.push(model.sessionResource);
 			if (shown === model) {
@@ -69,7 +70,7 @@ suite('ChatViewPane session transitions', () => {
 			applyModel(): void;
 			restoringSession: Promise<void> | undefined;
 		} = Object.assign(Object.create(ChatViewPane.prototype), {
-			_store: store.add(new DisposableStore()),
+			_store: paneStore,
 			modelRef,
 			widgetViewStates: new Map(),
 			viewState: {},
@@ -90,7 +91,7 @@ suite('ChatViewPane session transitions', () => {
 			agentSessionsService: { model: { getSession: () => undefined } },
 			updateActions: () => { },
 		});
-		return { pane, widget, modelRef, nextModel, nextRef, bindings, disposed, locks };
+		return { pane, paneStore, widget, modelRef, nextModel, nextRef, bindings, disposed, locks };
 	}
 
 	test('keeps the previous session bound until its replacement is ready', async () => {
@@ -138,17 +139,33 @@ suite('ChatViewPane session transitions', () => {
 		});
 	}
 
-	test('cancelling a replacement does not dispose the displayed session', async () => {
+	test('cancelling a replacement releases its pending reference before provider activation completes', async () => {
 		const resolving = new DeferredPromise<void>();
 		const rig = createPane(resolving.p);
 		const cts = store.add(new CancellationTokenSource());
 		const showing = rig.pane.showModel(cts.token, rig.nextRef);
 		await timeout(0);
 		cts.cancel();
-		await resolving.complete();
+		const whileProviderPending = [...rig.disposed];
 		const result = await showing;
-		assert.deepStrictEqual({ result, bindings: rig.bindings, disposed: rig.disposed, shown: rig.widget.viewModel?.sessionResource, locks: rig.locks }, {
-			result: undefined, bindings: [], disposed: [nextResource], shown: previousResource, locks: [],
+		await resolving.complete();
+		assert.deepStrictEqual({ whileProviderPending, result, bindings: rig.bindings, disposed: rig.disposed, shown: rig.widget.viewModel?.sessionResource, locks: rig.locks }, {
+			whileProviderPending: [nextResource], result: undefined, bindings: [], disposed: [nextResource], shown: previousResource, locks: [],
+		});
+	});
+
+	test('disposing the pane releases the incoming reference before provider activation completes', async () => {
+		const resolving = new DeferredPromise<void>();
+		const rig = createPane(resolving.p);
+		const showing = rig.pane.showModel(CancellationToken.None, rig.nextRef);
+		await timeout(0);
+		rig.paneStore.dispose();
+		const whileProviderPending = [...rig.disposed];
+		const result = await showing;
+		await resolving.complete();
+		assert.deepStrictEqual({ whileProviderPending, result, bindings: rig.bindings, disposed: rig.disposed, locks: rig.locks }, {
+			whileProviderPending: [previousResource, nextResource],
+			result: undefined, bindings: [undefined], disposed: [previousResource, nextResource], locks: [],
 		});
 	});
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -160,7 +161,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 		}
 		const ref = resolution.connection.getSubscription(StateComponents.Session, resolution.backendSession, 'AgentHostGenericConfigChips');
 		const sub = ref.object;
-		const listener = sub.onDidChange(() => this._sync());
+		const listener = Event.any(sub.onDidChange, sub.onDidError ?? Event.None)(() => this._sync());
 		const creationListener = retrySessionConfigSubscriptionOnCreation(resolution.connection, resolution.backendSession, sub, () => this._reattach());
 		this._subRef.value = {
 			...resolution,

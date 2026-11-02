@@ -12,7 +12,7 @@ import { IDropdownMenuActionViewItemOptions } from '../../../../../../base/brows
 import { Orientation, Sash } from '../../../../../../base/browser/ui/sash/sash.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { IAction } from '../../../../../../base/common/actions.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -1430,37 +1430,45 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		const model = ref?.object;
-		const contribution = model ? await this.resolveChatSessionContribution(getChatSessionType(model.sessionResource)) : undefined;
-		if (model && isUntitledChatSession(model.sessionResource) && !token.isCancellationRequested) {
-			await raceCancellation(this.provisionalSessionService.prepareSessionConfig(model.sessionResource, token), token);
-		}
-
-		if (token.isCancellationRequested || this._store.isDisposed) {
-			ref?.dispose();
-			return undefined;
-		}
-
-		// Rebind before releasing the old model, whose disposal otherwise clears the widget.
-		const previousRef = this.modelRef.clearAndLeak();
-		this.modelRef.value = ref;
+		const transition = this._store.add(new DisposableStore());
+		const pendingRef = transition.add(new MutableDisposable<IChatModelReference>());
+		pendingRef.value = ref;
+		const transitionToken = cancelOnDispose(transition);
+		transition.add(token.onCancellationRequested(() => this._store.delete(transition)));
 		try {
-			if (model) {
-				if (contribution) {
-					this._widget.lockToCodingAgent(contribution.name, contribution.displayName, getChatSessionType(model.sessionResource), contribution.agentHostProviderId);
+			const contribution = model ? await raceCancellation(this.resolveChatSessionContribution(getChatSessionType(model.sessionResource)), transitionToken) : undefined;
+			if (model && isUntitledChatSession(model.sessionResource) && !transitionToken.isCancellationRequested) {
+				await raceCancellation(this.provisionalSessionService.prepareSessionConfig(model.sessionResource, transitionToken), transitionToken);
+			}
+
+			if (transitionToken.isCancellationRequested) {
+				return undefined;
+			}
+
+			// Rebind before releasing the old model, whose disposal otherwise clears the widget.
+			const previousRef = this.modelRef.clearAndLeak();
+			this.modelRef.value = pendingRef.clearAndLeak();
+			try {
+				if (model) {
+					if (contribution) {
+						this._widget.lockToCodingAgent(contribution.name, contribution.displayName, getChatSessionType(model.sessionResource), contribution.agentHostProviderId);
+					} else {
+						this._widget.unlockFromCodingAgent();
+					}
+					this.viewState.sessionResource = model.sessionResource;
+					setModelPreservingInputTypedWhileLoading(this._widget, baselineInput, () => this._widget.setModel(model));
+					const widgetViewState = this.widgetViewStates.get(getComparisonKey(model.sessionResource));
+					if (widgetViewState) {
+						this._widget.restoreViewState(widgetViewState);
+					}
 				} else {
-					this._widget.unlockFromCodingAgent();
+					this._widget.setModel(model);
 				}
-				this.viewState.sessionResource = model.sessionResource;
-				setModelPreservingInputTypedWhileLoading(this._widget, baselineInput, () => this._widget.setModel(model));
-				const widgetViewState = this.widgetViewStates.get(getComparisonKey(model.sessionResource));
-				if (widgetViewState) {
-					this._widget.restoreViewState(widgetViewState);
-				}
-			} else {
-				this._widget.setModel(model);
+			} finally {
+				previousRef?.dispose();
 			}
 		} finally {
-			previousRef?.dispose();
+			this._store.delete(transition);
 		}
 		this.setBoundChatResource(model?.sessionResource);
 

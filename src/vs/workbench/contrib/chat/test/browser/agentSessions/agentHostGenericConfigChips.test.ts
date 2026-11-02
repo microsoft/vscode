@@ -75,13 +75,14 @@ suite('AgentHostGenericConfigChips', () => {
 		const provisionalRequests: Parameters<IAgentHostUntitledProvisionalSessionService['getOrCreate']>[] = [];
 		const provisionalChanged = disposables.add(new Emitter<URI>());
 		const sessionChanged = disposables.add(new Emitter<SessionState>());
+		const sessionErrored = disposables.add(new Emitter<Error>());
 		let provisionalBackend: URI | undefined;
 		let sessionState: SessionState | Error | undefined;
 		const subscriptions: { [K in StateComponents]?: IAgentSubscription<ComponentToState[K]> } = {
 			[StateComponents.Session]: {
 				get value() { return sessionState; },
 				get verifiedValue() { return sessionState instanceof Error ? undefined : sessionState; },
-				onDidChange: sessionChanged.event, onWillApplyAction: Event.None, onDidApplyAction: Event.None,
+				onDidChange: sessionChanged.event, onDidError: sessionErrored.event, onWillApplyAction: Event.None, onDidApplyAction: Event.None,
 			},
 		};
 		const restarted = disposables.add(new Emitter<void>());
@@ -155,7 +156,9 @@ suite('AgentHostGenericConfigChips', () => {
 			},
 			setSessionState: (state: SessionState | Error) => {
 				sessionState = state;
-				if (!(state instanceof Error)) {
+				if (state instanceof Error) {
+					sessionErrored.fire(state);
+				} else {
 					sessionChanged.fire(state);
 				}
 			},
@@ -163,6 +166,28 @@ suite('AgentHostGenericConfigChips', () => {
 	}
 
 	for (const generic of [false, true]) {
+		test(`${generic ? 'generic' : 'dedicated'} chips clear prepared controls when the first snapshot fails`, () => {
+			const property = generic ? 'choice' : 'mode';
+			const preparedConfig: ResolveSessionConfigResult = {
+				schema: { type: 'object', properties: { [property]: { type: 'string', title: 'Mode', enum: ['interactive', 'autopilot'], enumLabels: ['Interactive', 'Autopilot'] } } },
+				values: { [property]: 'autopilot' },
+			};
+			const rig = createChips(generic, { preparedConfig });
+			const container = dom.$('div');
+			rig.chips.render(container);
+			rig.setProvisional(URI.parse('ahp-session:/failed-first-snapshot'));
+			const snapshot = () => ({
+				label: container.querySelector('.agent-host-chat-input-picker-label')?.textContent,
+				busy: container.querySelector('[aria-busy="true"]') !== null,
+			});
+			const pending = snapshot();
+			rig.setSessionState(new Error('Initial snapshot failed'));
+			assert.deepStrictEqual({ pending, failed: snapshot() }, {
+				pending: { label: 'Autopilot', busy: true },
+				failed: { label: undefined, busy: false },
+			});
+		});
+
 		test(`${generic ? 'generic' : 'dedicated'} chips render prepared defaults synchronously without another read`, async () => {
 			const property = generic ? 'choice' : 'mode';
 			const preparedConfig: ResolveSessionConfigResult = {
@@ -238,7 +263,6 @@ suite('AgentHostGenericConfigChips', () => {
 			}());
 			const hydrated = snapshot();
 			rig.setSessionState(new Error('Session no longer available'));
-			rig.changed.fire({ previousSessionResource: rig.sessionResource, currentSessionResource: rig.sessionResource });
 			const failed = snapshot();
 			assert.deepStrictEqual({ resolved, hydrating, hydrated, failed }, {
 				resolved: { label: 'Autopilot', busy: false },
