@@ -27,9 +27,10 @@ import type { InitializeResult } from '../../../../../../platform/agentHost/comm
 import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { agentHostAuthority, createAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
-import { IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { CanvasesEnabledSettingId, IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentHostTcpConnection } from '../../../../../../platform/agentHost/common/agentHostTcpConnection.js';
 import { BrowserRemoteProxyEnabledSettingId } from '../../../../../../workbench/contrib/browserView/common/browserView.js';
+import { RemoteAgentHostCanvasesEnabledSettingId } from '../../../../../../workbench/contrib/canvases/common/agentHostCanvas.js';
 import { IRemoteAgentHostService, NullRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
@@ -1146,7 +1147,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(provider.sessionTypes[0].label, 'Copilot');
 	});
 
-	test('offers canvases for Copilot CLI sessions only while the browser proxy is enabled and the host can proxy', async () => {
+	test('offers canvases for Copilot CLI sessions only while every remote presentation gate is enabled', async () => {
 		const tcpConnection = disposables.add(new class extends MockAgentConnection {
 			override async openTcpConnection(): Promise<IAgentHostTcpConnection> { throw new Error('unused'); }
 		}());
@@ -1176,9 +1177,19 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			});
 		};
 
+		const disabled = supports();
+		await set(CanvasesEnabledSettingId, true);
+		const generalOnly = supports();
+		await set(RemoteAgentHostCanvasesEnabledSettingId, true);
 		const proxyDisabled = supports();
 		await set(BrowserRemoteProxyEnabledSettingId, true);
 		const enabled = supports();
+		await set(CanvasesEnabledSettingId, false);
+		const generalDisabled = supports();
+		await set(CanvasesEnabledSettingId, true);
+		await set(RemoteAgentHostCanvasesEnabledSettingId, false);
+		const remoteDisabled = supports();
+		await set(RemoteAgentHostCanvasesEnabledSettingId, true);
 		const otherAgent = otherAgentSession.capabilities.get().supportsCanvases;
 		// The host reconnects as a version that cannot proxy browsers.
 		tcpConnection.handshakeState.set({ ...tcpConnection.handshakeState.get(), tcpConnections: undefined }, undefined);
@@ -1187,8 +1198,16 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		// Support is unknown while disconnected; canvases are kept so reconnecting keeps their pages.
 		provider.clearConnection();
 
-		assert.deepStrictEqual({ proxyDisabled, enabled, otherAgent, unsupportedHost, disconnected: supports() }, {
-			proxyDisabled: false, enabled: true, otherAgent: false, unsupportedHost: false, disconnected: true,
+		assert.deepStrictEqual({ disabled, generalOnly, proxyDisabled, enabled, generalDisabled, remoteDisabled, otherAgent, unsupportedHost, disconnected: supports() }, {
+			disabled: false,
+			generalOnly: false,
+			proxyDisabled: false,
+			enabled: true,
+			generalDisabled: false,
+			remoteDisabled: false,
+			otherAgent: false,
+			unsupportedHost: false,
+			disconnected: true,
 		});
 	});
 

@@ -65,6 +65,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { getTelemetryMigrationSessionId } from '../../../../../../platform/agentHost/common/agentTelemetryCorrelation.js';
 import { LEGACY_MIGRATION_RESTORE_TIMEOUT_MS } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
+import { RemoteAgentHostCanvasesEnabledSettingId } from '../../../../../../workbench/contrib/canvases/common/agentHostCanvas.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { VisibleSessions } from '../../../../../services/sessions/browser/visibleSessions.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
@@ -1302,7 +1303,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} },
 			{ provider: CODEX_AGENT_PROVIDER_ID, displayName: 'Codex', description: '', models: [], capabilities: {} },
 		]);
-		const configurationService = new TestConfigurationService();
+		const configurationService = new TestConfigurationService({ [RemoteAgentHostCanvasesEnabledSettingId]: false });
 		configurationService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, true);
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
 		fireSessionAdded(agentHost, 'canvas-copilot');

@@ -21,7 +21,6 @@ import { AgentHostProtocolClient } from '../../../../../platform/agentHost/brows
 import { AGENT_HOST_SCHEME, agentHostAuthority, type AgentHostUriMapper, fromAgentHostUri, normalizeRemoteAgentHostAddress, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostTcpSupport, getAgentHostTcpSupport } from '../../../../../platform/agentHost/common/agentHostTcpSupport.js';
 import { IAgentHostConnectionsService, type IAgentHostSessionSchemeAlias } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { IRemoteAgentHostService, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -38,7 +37,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { BrowserRemoteProxyEnabledSettingId } from '../../../../../workbench/contrib/browserView/common/browserView.js';
+import { createRemoteAgentHostCanvasPresentationSupport } from '../../../../../workbench/contrib/canvases/common/agentHostCanvas.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostMcpAppToolsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
@@ -855,16 +854,12 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 
 	protected _adapterOptions(agentProvider: string) {
 		const typeIcon = this._workspaceTypeIcon;
-		// Canvas pages load through the host's network.
-		const remoteProxyEnabled = observableConfigValue(BrowserRemoteProxyEnabledSettingId, false, this._configurationService);
+		const canvasPresentationSupport = createRemoteAgentHostCanvasPresentationSupport(this._configurationService, this.isWebPlatform);
 		return {
 			readOnly: this._readOnly,
 			allowOfflineDrafts: this._allowOfflineDrafts,
-			// Support is unknown while disconnected; only a host known not to proxy browser connections removes canvases,
-			// so a temporary disconnect keeps their pages.
 			supportsCanvasPresentation: (agentProvider: string, connection: IAgentConnection | undefined, reader: IReader) =>
-				!this.isWebPlatform && agentProvider === 'copilotcli' && remoteProxyEnabled.read(reader)
-				&& getAgentHostTcpSupport(connection, reader) !== AgentHostTcpSupport.Unsupported,
+				canvasPresentationSupport.isSupported(agentProvider, connection, reader),
 			defaultChangesetKind: this._defaultChangesetKind,
 			useSessionTitleForDefaultChat: agentProvider === 'copilot',
 			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
