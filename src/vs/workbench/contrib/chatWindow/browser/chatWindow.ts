@@ -49,7 +49,7 @@ export interface IChatWindowContent extends IDisposable {
 	readonly input: EditorInput;
 	/** The title of the window. */
 	readonly title: IObservable<string>;
-	/** Services scoped to the window: what its chat, its parts and its chrome act on. */
+	/** Services scoped to the window, created for it: what its chat, its parts and its chrome act on. */
 	readonly services?: ServiceCollection;
 	/** Fires when the chat is gone, such as deleted or archived: the window closes. */
 	readonly onDidEnd: Event<void>;
