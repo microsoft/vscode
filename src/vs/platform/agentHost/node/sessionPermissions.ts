@@ -29,7 +29,7 @@ import { ISessionDataService, isSessionAttachmentPath } from '../common/sessionD
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { SessionConfigSchema } from '../common/state/protocol/commands.js';
 import { getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, readSessionApprovalLevel } from '../common/sessionConfigProperties.js';
-import { matchesPermissionRule, matchesShellCommandLine, matchesShellSubCommand, parsePermissionGrantOptionId, pathRule, permissionGrantOptionId, PermissionGrantScope, shellExactRule, shellPrefixRule, webFetchRule, type IPermissionRequest, type IPermissionRuleContext } from '../common/permissionRules.js';
+import { isExactAbsolutePathRule, matchesPermissionRule, matchesShellCommandLine, matchesShellSubCommand, parsePermissionGrantOptionId, pathRule, permissionGrantOptionId, PermissionGrantScope, shellExactRule, shellPrefixRule, webFetchRule, type IPermissionRequest, type IPermissionRuleContext } from '../common/permissionRules.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
 import { ActionType, type IToolCallReadyAction } from '../common/state/sessionActions.js';
@@ -199,7 +199,7 @@ async function resolveRealPathForNonexistent(resource: URI, realpath: (fsPath: s
 
 /**
  * Owns deny/ask/allow decisions, implicit terminal defaults, scoped confirmation options, and persistent session or host grants.
- * Global or session Allow All bypasses ask rules, but never deny rules.
+ * Allow All bypasses asks, but never denies; only exact absolute-file grants override protected-write asks.
  */
 export class SessionPermissionManager extends Disposable {
 
@@ -244,7 +244,7 @@ export class SessionPermissionManager extends Disposable {
 	 * 0. Sandbox bypass requires confirmation
 	 * 1. Global auto-approve setting (`chat.tools.global.autoApprove`)
 	 * 2. Session-level bypass (`autoApprove` config)
-	 * 3. Permission ask rules, then allow rules (chat/session/host `permissions`)
+	 * 3. Permission asks, protected writes (except exact absolute-file grants), then permission allows
 	 * 4. Read path rules (within working directory)
 	 * 5. Write path rules (within working directory + glob patterns)
 	 * 6. Explicit shell allow/ask rules, then implicit terminal defaults
@@ -285,14 +285,29 @@ export class SessionPermissionManager extends Disposable {
 		const permissions = this._getPermissionRules(sessionKey);
 		const request = this._permissionRequest(e, sessionKey);
 		const context = this._permissionContext(sessionKey);
+		const writeResources = e.permissionKind === AgentPermissionKind.Write && e.permissionPath
+			? await this._resolveResourcesForApproval(URI.file(e.permissionPath)) : undefined;
+		if (e.permissionKind === AgentPermissionKind.Write && e.permissionPath && !writeResources) {
+			return undefined;
+		}
+		let matchingAllowRules: readonly string[] = [];
 		if (permissions.allow.length || permissions.ask?.length) {
-			const requests = await this._resolvePermissionRequests(request);
+			const requests = writeResources
+				? writeResources.map(resource => ({ ...request, path: resource.fsPath }))
+				: await this._resolvePermissionRequests(request);
 			if (!requests || permissions.ask?.some(rule => requests.some(candidate => matchesPermissionRule(rule, candidate, context)))) {
 				return undefined;
 			}
-			if (e.permissionKind !== AgentPermissionKind.Shell && permissions.allow.some(rule => requests.every(candidate => matchesPermissionRule(rule, candidate, context)))) {
-				return ToolCallConfirmationReason.Setting;
+			if (e.permissionKind !== AgentPermissionKind.Shell) {
+				matchingAllowRules = permissions.allow.filter(rule => requests.every(candidate => matchesPermissionRule(rule, candidate, context)));
 			}
+		}
+		if (writeResources && !matchingAllowRules.some(isExactAbsolutePathRule)
+			&& await this._requiresEditConfirmation(writeResources, workingDirectories, sessionKey)) {
+			return undefined;
+		}
+		if (matchingAllowRules.length) {
+			return ToolCallConfirmationReason.Setting;
 		}
 
 		// 3.5 Surface edit scope. A session created by a file-bound surface
@@ -342,8 +357,8 @@ export class SessionPermissionManager extends Disposable {
 		}
 
 		// 5. Write auto-approval
-		if (e.permissionKind === AgentPermissionKind.Write && e.permissionPath) {
-			if (await this._isEditAutoApproved(URI.file(e.permissionPath), workingDirectories, sessionKey)) {
+		if (writeResources) {
+			if (this._isEditAutoApproved(writeResources, workingDirectories)) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving write to ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
 			}
@@ -713,7 +728,10 @@ export class SessionPermissionManager extends Disposable {
 		if (!resource) {
 			return false;
 		}
-		return this._isEditAutoApproved(resource, workingDirectories, sessionKey);
+		const resources = await this._resolveResourcesForApproval(resource);
+		return resources !== undefined
+			&& !await this._requiresEditConfirmation(resources, workingDirectories, sessionKey)
+			&& this._isEditAutoApproved(resources, workingDirectories);
 	}
 
 	/**
@@ -758,38 +776,15 @@ export class SessionPermissionManager extends Disposable {
 		return URI.file(path.resolve(workingDirectory.fsPath, trimmed));
 	}
 
-	/**
-	 * Determines whether a write to `resource` can be auto-approved. Mirrors the
-	 * checks performed by the workbench edit-confirmation pipeline:
-	 *
-	 * 1. The path is resolved through any symlinks (following ancestors that do
-	 *    not yet exist) so a link can't redirect an edit outside the working
-	 *    directory. Both the literal and resolved paths must pass every check.
-	 * 2. The path must be free of suspicious characters (see {@link assertPathIsSafe}).
-	 * 3. The path must live inside the working directory.
-	 * 4. The path must not target a platform-restricted location (home dotfiles,
-	 *    `~/Library`, `%APPDATA%`, ...).
-	 * 5. The path must match the edit auto-approve glob rules.
-	 */
-	private async _isEditAutoApproved(resource: URI, workingDirectories: readonly URI[] | undefined, sessionKey: ProtocolURI): Promise<boolean> {
-		if (!workingDirectories || workingDirectories.length === 0) {
-			// A write is never auto-approved without a working directory to
-			// contain it (matches the previous behaviour).
-			return false;
-		}
-		// Resolve the write target once (literal + symlink real path); a denied
-		// resolution requires confirmation.
-		const resourcesToCheck = await this._resolveResourcesForApproval(resource);
-		if (resourcesToCheck === undefined) {
-			return false;
-		}
-		if (await this._matchesSensitiveEditLocations(resourcesToCheck, workingDirectories, sessionKey)) {
-			return false;
-		}
-		// Approve if ANY root clears the write checks for every resource
-		// candidate. `_checkWriteResource` is synchronous, so a plain `.some`
-		// already short-circuits — there is no per-root async work to parallelize.
-		return workingDirectories.some(workingDirectory => resourcesToCheck.every(candidate => this._checkWriteResource(candidate, workingDirectory)));
+	/** Checks implicit write defaults for literal and resolved paths after protected-write checks have passed. */
+	private _isEditAutoApproved(resources: readonly URI[], workingDirectories: readonly URI[] | undefined): boolean {
+		return workingDirectories?.some(workingDirectory => resources.every(candidate => this._checkWriteResource(candidate, workingDirectory))) ?? false;
+	}
+
+	private async _requiresEditConfirmation(resources: readonly URI[], workingDirectories: readonly URI[] | undefined, sessionKey: ProtocolURI): Promise<boolean> {
+		return resources.some(resource => Object.keys(ALWAYS_CHECKED_EDIT_PATTERNS).some(pattern =>
+			globMatch(pattern, resource.fsPath, { ignoreCase: extUriBiasedIgnorePathCase.ignorePathCasing(resource) })))
+			|| this._matchesSensitiveEditLocations(resources, workingDirectories ?? [], sessionKey);
 	}
 
 	private async _matchesSensitiveEditLocations(resources: readonly URI[], workingDirectories: readonly URI[], sessionKey: ProtocolURI): Promise<boolean> {
@@ -932,7 +927,7 @@ export class SessionPermissionManager extends Disposable {
 		return { workingDirectory: directory ? URI.parse(directory).fsPath : undefined, homeDirectory: homedir(), ignorePathCase: isWindows || isMacintosh };
 	}
 
-	/** Builds file and nearest Git-root (or parent-folder) session grants without resolving symlinks. */
+	/** Builds exact-file grants and, for unprotected targets, nearest Git-root or parent-folder grants. */
 	async getPathConfirmationOptions(e: IAgentToolPendingConfirmationSignal): Promise<readonly ConfirmationOption[]> {
 		if ((e.permissionKind !== AgentPermissionKind.Read && e.permissionKind !== AgentPermissionKind.Write) || !e.permissionPath || !e.state.confirmationTitle
 			|| e.managedApprovalRequired || e.requestSandboxBypass || e.requestSandboxPermissive) {
@@ -941,11 +936,31 @@ export class SessionPermissionManager extends Disposable {
 		const tool = e.permissionKind === AgentPermissionKind.Write ? 'Edit' : 'Read';
 		const fileRule = pathRule(tool, e.permissionPath, false);
 		const pathLib = path.win32.isAbsolute(e.permissionPath) && !path.posix.isAbsolute(e.permissionPath) ? path.win32 : path.posix;
-		const parent = pathLib.dirname(e.permissionPath);
-		let folder = parent;
 		if (!pathLib.isAbsolute(e.permissionPath)) {
 			return [];
 		}
+		const options: ConfirmationOption[] = [];
+		if (fileRule) {
+			const basename = pathLib.basename(e.permissionPath) || e.permissionPath;
+			options.push(permissionGrantOption(e.permissionKind === AgentPermissionKind.Write
+				? localize('sessionPermissions.allowFileEdits', "Allow Edits to {0} in this Session", basename)
+				: localize('sessionPermissions.allowFileReads', "Allow Reading {0} in this Session", basename), [fileRule]));
+		}
+		if (e.permissionKind === AgentPermissionKind.Write) {
+			const resources = await this._resolveResourcesForApproval(URI.file(e.permissionPath));
+			if (!resources) {
+				return [];
+			}
+			const sessionKey = e.chat.toString();
+			const workingDirectories = getEffectiveWorkingDirectories(this._stateManager, sessionKey)?.map(directory => URI.parse(directory));
+			if (await this._requiresEditConfirmation(resources, workingDirectories, sessionKey)) {
+				return fileRule && resources.every(resource => matchesPermissionRule(fileRule, {
+					kind: e.permissionKind, toolName: e.state.toolName, path: resource.fsPath,
+				}, this._permissionContext(sessionKey))) ? options : [];
+			}
+		}
+		const parent = pathLib.dirname(e.permissionPath);
+		let folder = parent;
 		for (let current = parent; ; current = pathLib.dirname(current)) {
 			if (await this._exists(pathLib.join(current, '.git'))) {
 				folder = current;
@@ -956,13 +971,6 @@ export class SessionPermissionManager extends Disposable {
 			}
 		}
 		const folderRule = pathRule(tool, folder, true);
-		const options: ConfirmationOption[] = [];
-		if (fileRule) {
-			const basename = pathLib.basename(e.permissionPath) || e.permissionPath;
-			options.push(permissionGrantOption(e.permissionKind === AgentPermissionKind.Write
-				? localize('sessionPermissions.allowFileEdits', "Allow Edits to {0} in this Session", basename)
-				: localize('sessionPermissions.allowFileReads', "Allow Reading {0} in this Session", basename), [fileRule]));
-		}
 		if (folderRule) {
 			const basename = pathLib.basename(folder) || folder;
 			options.push(permissionGrantOption(e.permissionKind === AgentPermissionKind.Write
