@@ -463,7 +463,7 @@ suite('Sessions - ChatGroupsView', () => {
 		const { view } = createHarness(disposables);
 		const workbench = $('.monaco-workbench.agent-sessions-workbench.mac.macos-tahoe.modern-ui-tabs.modern-ui-connected-editor-tabs.nopanel.noeditorpane.nosidebar');
 		workbench.style.cssText = '--agents-floating-panel-gap: 4px; --agents-part-corner-radius: 8px; --vscode-strokeThickness: 1px; --window-corner-radius: 16px; --modern-ui-connected-tab-border: #445566; --session-view-background: #112233; --vscode-inactiveSessionView-background: #112233;';
-		const card = $('.part.sessionspart.agents-part-card');
+		const card = $('.part.sessionspart.sessions-chat-surface.agents-part-card.agents-card-surface');
 		const sessionView = $('.session-view.independent-chat-groups');
 		sessionView.appendChild(view.element);
 		card.appendChild(sessionView);

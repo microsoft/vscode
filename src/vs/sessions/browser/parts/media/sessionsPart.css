@@ -29,14 +29,14 @@
 }
 
 .monaco-workbench .part.sessionspart > .title,
-.monaco-workbench .part.sessionspart > .content {
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface) > .content {
 	position: relative;
 	z-index: 2;
 }
 
-.monaco-workbench .part.sessionspart > .content .monaco-editor,
-.monaco-workbench .part.sessionspart > .content .monaco-editor .margin,
-.monaco-workbench .part.sessionspart > .content .monaco-editor .monaco-editor-background {
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface) > .content .monaco-editor,
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface) > .content .monaco-editor .margin,
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface) > .content .monaco-editor .monaco-editor-background {
 	background-color: var(--vscode-agentsPanel-background);
 }
 

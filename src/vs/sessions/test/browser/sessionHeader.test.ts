@@ -826,7 +826,7 @@ suite('Sessions - Headers', () => {
 		workbench.classList.add('monaco-workbench', 'agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#202020');
 		const part = mainWindow.document.createElement('div');
-		part.classList.add('part', 'sessionspart', 'has-chat-background');
+		part.classList.add('part', 'sessionspart', 'sessions-chat-surface', 'has-chat-background');
 		part.appendChild(header.element.parentElement!);
 		workbench.appendChild(part);
 		mainWindow.document.body.appendChild(workbench);
