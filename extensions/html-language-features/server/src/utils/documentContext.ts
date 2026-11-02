@@ -35,9 +35,19 @@ export function getDocumentContext(documentUri: string, workspaceFolders: Worksp
 				}
 			}
 			const baseUri = URI.parse(base);
+			if (!isHierarchicalBase(baseUri, documentUri)) {
+				// A `<base href>` with another scheme, for example `command:`, cannot be used to
+				// resolve relative references. Doing so would give them that scheme and its query.
+				return undefined;
+			}
 			const baseUriDir = baseUri.path.endsWith('/') ? baseUri : Utils.dirname(baseUri);
 			return Utils.resolvePath(baseUriDir, ref).toString(true);
 		},
 	};
 }
 
+const hierarchicalSchemes = new Set(['http', 'https', 'file']);
+
+function isHierarchicalBase(baseUri: URI, documentUri: string): boolean {
+	return hierarchicalSchemes.has(baseUri.scheme) || baseUri.scheme === URI.parse(documentUri).scheme;
+}
