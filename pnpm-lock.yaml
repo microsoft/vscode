@@ -719,15 +719,15 @@ importers:
         specifier: 21.3.2
         version: 21.3.2
       picomatch:
-        specifier: 2.3.2
+        specifier: ^2.3.2
         version: 2.3.2
       which:
-        specifier: 4.0.0
+        specifier: ^4.0.0
         version: 4.0.0
     devDependencies:
       '@types/byline':
-        specifier: 4.2.31
-        version: 4.2.31
+        specifier: ^4.2.32
+        version: 4.2.32
       '@types/mocha':
         specifier: ^10.0.10
         version: 10.0.10
@@ -735,10 +735,10 @@ importers:
         specifier: 24.x
         version: 24.12.4
       '@types/picomatch':
-        specifier: 2.3.0
+        specifier: ^2.3.0
         version: 2.3.0
       '@types/which':
-        specifier: 3.0.0
+        specifier: ^3.0.0
         version: 3.0.0
 
   extensions/git-base:
@@ -2843,8 +2843,8 @@ packages:
   '@types/babel__generator@7.6.8':
     resolution: {integrity: sha512-ASsj+tpEDsEiFr1arWrlN6V3mdfjRMZt6LtK/Vp/kreFLnr5QH5+DhvD5nINYZXzwJvXeGq+05iUXcAzVrqWtw==}
 
-  '@types/byline@4.2.31':
-    resolution: {integrity: sha512-TC6Ljn7tALesQMQyTNoMWoM44SNvWtCLkJDrA/TxcwE5ILkWt4zi5wbEokqiDk42S75eykAY1onPImWDybOkmQ==}
+  '@types/byline@4.2.32':
+    resolution: {integrity: sha512-qtlm/J6XOO9p+Ep/ZB5+mCFEDhzWDDHWU4a1eReN7lkPZXW9rkloq2jcAhvKKmlO5tL2GSvKROb+PTsNVhBiyQ==}
 
   '@types/chai@4.2.14':
     resolution: {integrity: sha512-G+ITQPXkwTrslfG5L/BksmbLUA0M1iybEsmCWPqzSxsRRhJZimBKJkoMi8fr/CPygPTj4zO5pJH7I2/cm9M7SQ==}
@@ -10947,7 +10947,7 @@ snapshots:
     dependencies:
       '@babel/types': 7.29.7
 
-  '@types/byline@4.2.31':
+  '@types/byline@4.2.32':
     dependencies:
       '@types/node': 24.12.4
 
