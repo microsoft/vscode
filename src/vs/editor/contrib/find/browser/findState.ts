@@ -27,6 +27,7 @@ export interface FindReplaceStateChangedEvent {
 	loop: boolean;
 	isSearching: boolean;
 	filters: boolean;
+	ignoreFoldedRegions: boolean;
 }
 
 export const enum FindOptionOverride {
@@ -52,6 +53,7 @@ export interface INewFindReplaceState<T extends { update: (value: T) => void } =
 	loop?: boolean;
 	isSearching?: boolean;
 	filters?: T;
+	ignoreFoldedRegions?: boolean;
 }
 
 function effectiveOptionValue(override: FindOptionOverride, value: boolean): boolean {
@@ -84,6 +86,7 @@ export class FindReplaceState<T extends { update: (value: T) => void } = { updat
 	private _loop: boolean;
 	private _isSearching: boolean;
 	private _filters: T | null;
+	private _ignoreFoldedRegions: boolean;
 	private readonly _onFindReplaceStateChange = this._register(new Emitter<FindReplaceStateChangedEvent>());
 
 	public get searchString(): string { return this._searchString; }
@@ -94,6 +97,7 @@ export class FindReplaceState<T extends { update: (value: T) => void } = { updat
 	public get wholeWord(): boolean { return effectiveOptionValue(this._wholeWordOverride, this._wholeWord); }
 	public get matchCase(): boolean { return effectiveOptionValue(this._matchCaseOverride, this._matchCase); }
 	public get preserveCase(): boolean { return effectiveOptionValue(this._preserveCaseOverride, this._preserveCase); }
+	public get ignoreFoldedRegions(): boolean { return this._ignoreFoldedRegions; }
 
 	public get actualIsRegex(): boolean { return this._isRegex; }
 	public get actualWholeWord(): boolean { return this._wholeWord; }
@@ -129,6 +133,7 @@ export class FindReplaceState<T extends { update: (value: T) => void } = { updat
 		this._loop = true;
 		this._isSearching = false;
 		this._filters = null;
+		this._ignoreFoldedRegions = false;
 	}
 
 	public changeMatchInfo(matchesPosition: number, matchesCount: number, currentMatch: Range | undefined): void {
@@ -149,7 +154,8 @@ export class FindReplaceState<T extends { update: (value: T) => void } = { updat
 			currentMatch: false,
 			loop: false,
 			isSearching: false,
-			filters: false
+			filters: false,
+			ignoreFoldedRegions: false
 		};
 		let somethingChanged = false;
 
@@ -202,7 +208,8 @@ export class FindReplaceState<T extends { update: (value: T) => void } = { updat
 			currentMatch: false,
 			loop: false,
 			isSearching: false,
-			filters: false
+			filters: false,
+			ignoreFoldedRegions: false
 		};
 		let somethingChanged = false;
 
@@ -250,6 +257,13 @@ export class FindReplaceState<T extends { update: (value: T) => void } = { updat
 		}
 		if (typeof newState.preserveCase !== 'undefined') {
 			this._preserveCase = newState.preserveCase;
+		}
+		if (typeof newState.ignoreFoldedRegions !== 'undefined') {
+			if (this._ignoreFoldedRegions !== newState.ignoreFoldedRegions) {
+				this._ignoreFoldedRegions = newState.ignoreFoldedRegions;
+				changeEvent.ignoreFoldedRegions = true;
+				somethingChanged = true;
+			}
 		}
 		if (typeof newState.searchScope !== 'undefined') {
 			if (!newState.searchScope?.every((newSearchScope) => {
