@@ -369,6 +369,9 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 
 		// The provider's chrome, with the window's services: its title row first in the window, its strip last.
 		const windowInstantiationService = disposables.add(this._instantiationService.createChild(services));
+		// The main window's editors move in before the content binds to the window, which takes the chat's session out of
+		// the main window, and with it the editors the main window shows for it.
+		moveEditorsToChatWindow(options?.editors?.moveFrom ?? [], mainPart.activeGroup);
 		if (content.bind) {
 			disposables.add(content.bind(window, windowInstantiationService));
 		}
@@ -413,7 +416,6 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		}));
 
 		await chatPart.activeGroup.openEditor(content.input, { pinned: true, preserveFocus: options?.preserveFocus });
-		moveEditorsToChatWindow(options?.editors?.moveFrom ?? [], mainPart.activeGroup);
 		await this._openEditors(options?.editors, mainPart);
 		showChatInsteadOfEmptyMainPart(mainPart, window);
 		if (options?.showTerminals) {
