@@ -7,6 +7,17 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import * as nls from '../../../../nls.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IMarker } from '../../../../platform/markers/common/markers.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorAction, EditorCommand, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
@@ -14,16 +25,8 @@ import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
-import { IMarkerNavigationService, MarkerList } from './markerNavigationService.js';
-import * as nls from '../../../../nls.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IMarker } from '../../../../platform/markers/common/markers.js';
-import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { MarkerNavigationWidget } from './gotoErrorWidget.js';
+import { IMarkerNavigationService, MarkerList } from './markerNavigationService.js';
 
 export class MarkerController implements IEditorContribution {
 
@@ -47,6 +50,7 @@ export class MarkerController implements IEditorContribution {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		this._editor = editor;
 		this._widgetVisible = CONTEXT_MARKERS_NAVIGATION_VISIBLE.bindTo(this._contextKeyService);
@@ -146,28 +150,59 @@ export class MarkerController implements IEditorContribution {
 			return;
 		}
 
+		const showPeekWidget = this._configurationService.getValue<boolean>('editor.markers.showPeekWidget') ?? true;
+
 		const textModel = this._editor.getModel();
-		const model = this._getOrCreateModel(multiFile ? undefined : textModel.uri);
-		model.move(next, textModel, this._editor.getPosition());
-		if (!model.selected) {
-			return;
-		}
-		if (model.selected.marker.resource.toString() !== textModel.uri.toString()) {
-			// show in different editor
-			this._cleanUp();
-			const otherEditor = await this._editorService.openCodeEditor({
-				resource: model.selected.marker.resource,
-				options: { pinned: false, revealIfOpened: true, selectionRevealType: TextEditorSelectionRevealType.NearTop, selection: model.selected.marker }
-			}, this._editor);
-
-			if (otherEditor) {
-				MarkerController.get(otherEditor)?.close();
-				MarkerController.get(otherEditor)?.navigate(next, multiFile);
+		if (showPeekWidget) {
+			const model = this._getOrCreateModel(multiFile ? undefined : textModel.uri);
+			model.move(next, textModel, this._editor.getPosition());
+			if (!model.selected) {
+				return;
 			}
+			if (model.selected.marker.resource.toString() !== textModel.uri.toString()) {
+				// show in different editor
+				this._cleanUp();
+				const otherEditor = await this._editorService.openCodeEditor({
+					resource: model.selected.marker.resource,
+					options: { pinned: false, revealIfOpened: true, selectionRevealType: TextEditorSelectionRevealType.NearTop, selection: model.selected.marker }
+				}, this._editor);
 
+				if (otherEditor) {
+					MarkerController.get(otherEditor)?.close();
+					MarkerController.get(otherEditor)?.navigate(next, multiFile);
+				}
+
+			} else {
+				// show in this editor
+				this._widget!.showAtMarker(model.selected.marker, model.selected.index, model.selected.total);
+			}
 		} else {
-			// show in this editor
-			this._widget!.showAtMarker(model.selected.marker, model.selected.index, model.selected.total);
+			// navigate without peek widget
+			const model = this._markerNavigationService.getMarkerList(multiFile ? undefined : textModel.uri);
+			try {
+				model.move(next, textModel, this._editor.getPosition());
+				if (!model.selected) {
+					return;
+				}
+				if (model.selected.marker.resource.toString() !== textModel.uri.toString()) {
+					// open in different editor without peek widget
+					const otherEditor = await this._editorService.openCodeEditor({
+						resource: model.selected.marker.resource,
+						options: { pinned: false, revealIfOpened: true, selectionRevealType: TextEditorSelectionRevealType.NearTop, selection: model.selected.marker }
+					}, this._editor);
+
+					if (otherEditor) {
+						MarkerController.get(otherEditor)?.navigate(next, multiFile);
+					}
+				} else {
+					// move cursor to marker in this editor
+					const pos = new Position(model.selected.marker.startLineNumber, model.selected.marker.startColumn);
+					this._editor.setPosition(pos);
+					this._editor.revealPositionInCenterIfOutsideViewport(pos);
+				}
+			} finally {
+				model.dispose();
+			}
 		}
 	}
 }
@@ -302,3 +337,15 @@ registerEditorCommand(new MarkerCommand({
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
+
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	id: 'editor',
+	properties: {
+		'editor.markers.showPeekWidget': {
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
+			description: nls.localize('showPeekWidget', "Controls whether a peek widget is shown when navigating between problems (errors, warnings, info) using F8 and Shift+F8."),
+			default: true,
+			type: 'boolean'
+		}
+	}
+});
