@@ -30,6 +30,7 @@ import { IChatEditingService, ModifiedFileEntryState } from '../../chat/common/e
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { buildFeatureSourceControlUI } from '../../../../platform/product/common/buildFeatures.js';
 
 export const IQuickDiffModelService = createDecorator<IQuickDiffModelService>('IQuickDiffModelService');
 
@@ -254,7 +255,7 @@ export class QuickDiffModel extends Disposable {
 	}
 
 	private diff(): Promise<{ allChanges: QuickDiffChange[]; changes: QuickDiffChange[]; mapChanges: Map<string, number[]>; versionId: number } | null> {
-		const location = this.environmentService.isSessionsWindow ? ProgressLocation.Window : ProgressLocation.Scm;
+		const location = this.environmentService.isSessionsWindow || !buildFeatureSourceControlUI ? ProgressLocation.Window : ProgressLocation.Scm;
 		return this.progressService.withProgress({ location, delay: 250 }, async () => {
 			if (this._disposed || this._model.isDisposed()) {
 				return null;

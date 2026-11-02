@@ -586,7 +586,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		// See https://github.com/microsoft/vscode/issues/7950
 		if (msg.indexOf('No space left on device') !== -1) {
 			if (!this.enospcErrorLogged) {
-				this.error('Inotify limit reached (ENOSPC)', request);
+				this.warn('Inotify limit reached (ENOSPC)', request);
 
 				this.enospcErrorLogged = true;
 			}

@@ -303,7 +303,8 @@ if (buildFeatureNotebooks) {
 	await import('./contrib/notebook/browser/disabledNotebookService.contribution.js');
 }
 
-// Speech
+// The speech provider API remains available to extensions. Copilot-specific
+// dictation startup is gated separately with the Copilot Chat feature.
 import './contrib/speech/browser/speech.contribution.js';
 
 // Chat
@@ -317,7 +318,9 @@ if (buildFeatureRemote) {
 	await import('./contrib/chat/browser/remoteAgentHost/remoteAgentHost.contribution.js');
 }
 import './contrib/chat/browser/chat.view.contribution.js';
-import './contrib/inlineChat/browser/inlineChat.contribution.js';
+if (buildFeatureChatPanel && buildFeatureNotebooks) {
+	await import('./contrib/inlineChat/browser/inlineChat.contribution.js');
+}
 
 // Copilot Voice
 if (buildFeatureCopilotChat) {

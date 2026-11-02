@@ -114,7 +114,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		// (user IS in approved org, just waiting for data) so the UI doesn't flash.
 		const isRestricted = this.isGateRestricted(info);
 		this.updatePolicyGateState();
-		this.logService.info(`[AccountPolicyGate] apply: state=${info.state}, reason=${info.reason}, isRestricted=${isRestricted}`);
+		this.logService.trace(`[AccountPolicyGate] apply: state=${info.state}, reason=${info.reason}, isRestricted=${isRestricted}`);
 
 		if (stateChanged) {
 			this.telemetryService.publicLog2<AccountPolicyGateStateEvent, AccountPolicyGateStateClassification>('accountPolicy.gateState', {

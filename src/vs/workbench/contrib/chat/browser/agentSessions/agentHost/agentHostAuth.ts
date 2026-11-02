@@ -948,7 +948,7 @@ function logAuthenticationSessionResolution(
 	if (resolution.kind === 'unavailable') {
 		logService.info(`${logPrefix} Authentication provider is not ready for resource: ${resource}; deferring authentication`);
 	} else {
-		logService.info(`${logPrefix} No signed-in session resolved for resource: ${resource}`);
+		logService.trace(`${logPrefix} No signed-in session resolved for resource: ${resource}`);
 	}
 }
 
