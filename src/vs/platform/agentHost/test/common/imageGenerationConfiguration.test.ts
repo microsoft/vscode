@@ -7,14 +7,15 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ConfigurationScope, IConfigurationPropertySchema } from '../../../configuration/common/configurationRegistry.js';
 import { CopilotCliConfigKey, CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId, CopilotImageGenerationWatermarkSettingId, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
-import { imageGenerationConfigurationProperties, migrateLegacyImageGenerationSetting } from '../../common/imageGenerationConfiguration.js';
+import { CopilotImageGenerationModelChoicesKey, createImageGenerationModelChoices, getImageGenerationModelConfiguration, imageGenerationConfigurationProperties, migrateLegacyImageGenerationSetting, readImageGenerationModelChoices } from '../../common/imageGenerationConfiguration.js';
+import { createRootState } from '../../common/state/sessionState.js';
 
 suite('ImageGenerationConfiguration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const property = imageGenerationConfigurationProperties[CopilotImageGenerationModelSettingId];
 
-	test('image generation is an experiment-controlled model dropdown mirrored to the boolean host key', () => {
+	test('image generation is an experiment-controlled dropdown that mirrors model and enablement', () => {
 		assert.deepStrictEqual({
 			settingIds: Object.keys(imageGenerationConfigurationProperties),
 			type: property.type,
@@ -32,7 +33,7 @@ suite('ImageGenerationConfiguration', () => {
 			markdownEnumDescriptions: 2,
 			scope: ConfigurationScope.APPLICATION,
 			experiment: { mode: 'auto' },
-			agentHostKey: CopilotCliConfigKey.ImageGeneration,
+			agentHostKey: CopilotCliConfigKey.ImageGenerationModel,
 		});
 	});
 
@@ -79,11 +80,72 @@ suite('ImageGenerationConfiguration', () => {
 		});
 	});
 
-	test('only a listed model turns the host key on', () => {
+	test('model IDs are forwarded without a client-side allowlist and retain legacy enablement', () => {
 		assert.deepStrictEqual(
-			['off', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst', true, undefined].map(value => property.agentHost.transform(value)),
-			[false, true, false, false, false],
+			['off', 'gpt-image-2.5-flare', 'new-image-model', '', ' padded ', true, undefined].map(value => ({
+				model: property.agentHost.transform(value),
+				enabled: property.agentHost.derivedKeys[CopilotCliConfigKey.ImageGeneration](value),
+			})),
+			[
+				{ model: '', enabled: false },
+				{ model: 'gpt-image-2.5-flare', enabled: true },
+				{ model: 'new-image-model', enabled: true },
+				{ model: '', enabled: false },
+				{ model: '', enabled: false },
+				{ model: '', enabled: false },
+				{ model: '', enabled: false },
+			],
 		);
+	});
+
+	test('the settings enum uses every runtime image model and the catalog billing batch', () => {
+		const choices = createImageGenerationModelChoices([
+			{
+				id: 'new-image-model', name: 'New Image Model', availability: 'available', supportedOperations: ['generate'],
+				pricing: { batchSize: 100_000, textInputPrice: 0, imageOutputPrice: 300.001 },
+			},
+			{ id: 'another-image-model', name: 'Another Image Model', availability: 'available', supportedOperations: ['edit'] },
+		]);
+		const configuration = getImageGenerationModelConfiguration(choices);
+		assert.deepStrictEqual({
+			enum: configuration.enum,
+			labels: configuration.enumItemLabels,
+			batch: choices[0].description.includes(`AI credits per ${(100_000).toLocaleString()} tokens`),
+			zero: choices[0].description.includes(`**Text input:** ${(0).toLocaleString()}`),
+			fraction: choices[0].description.includes(`**Image output:** ${(300.001).toLocaleString(undefined, { maximumSignificantDigits: 21 })}`),
+			absentRate: choices[0].description.includes('**Image input:**'),
+			noRates: choices[1].description.includes('Token rates are not published'),
+			unknownCost: choices[1].description.includes('may consume additional AI credits'),
+		}, {
+			enum: ['off', 'new-image-model', 'another-image-model'],
+			labels: ['Off', 'New Image Model', 'Another Image Model'],
+			batch: true, zero: true, fraction: true, absentRate: false, noRates: true, unknownCost: true,
+		});
+	});
+
+	test('catalog choices validate at the host boundary and older hosts retain the fallback', () => {
+		const root = createRootState();
+		const choices = [{ id: 'new-image-model', label: 'New Image Model', description: 'Account rates' }];
+		root.config = { schema: { type: 'object', properties: {} }, values: { [CopilotImageGenerationModelChoicesKey]: choices } };
+		assert.deepStrictEqual(readImageGenerationModelChoices(root), choices);
+		for (const value of [null, {}, [{ id: 'off', label: 'Off', description: 'Invalid model ID' }], [{ id: 'bad-image', label: 3, description: 'Invalid label' }]]) {
+			root.config.values[CopilotImageGenerationModelChoicesKey] = value;
+			assert.strictEqual(readImageGenerationModelChoices(root), undefined);
+		}
+		assert.deepStrictEqual(getImageGenerationModelConfiguration().enum, ['off', 'gpt-image-2.5-flare']);
+	});
+
+	test('image choices describe only the operations advertised by each model', () => {
+		const choices = createImageGenerationModelChoices([
+			{ id: 'generate-only', name: 'Generator', availability: 'available', supportedOperations: ['generate'] },
+			{ id: 'edit-only', name: 'Editor', availability: 'available', supportedOperations: ['edit'] },
+			{ id: 'both', name: 'Both', availability: 'available', supportedOperations: ['generate', 'edit'] },
+		]);
+		assert.deepStrictEqual(choices.map(choice => choice.description.split('\n')[0]), [
+			'Generate images with **Generator**. Image editing and reference-image inputs are not supported. Account access and tool permissions still apply.',
+			'Edit images with **Editor**. Text-only image generation is not supported. Prompts and selected images are sent to this image model. Account access and tool permissions still apply.',
+			'Generate and edit images with **Both**. Prompts and selected images are sent to this image model. Account access and tool permissions still apply.',
+		]);
 	});
 
 	test('image generation defaults to the current model in every product', () => {
