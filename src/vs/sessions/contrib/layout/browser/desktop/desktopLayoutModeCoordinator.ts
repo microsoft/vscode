@@ -170,6 +170,12 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 		this._register(this._ctx.onDidEndSessionLayoutRestore(() => {
 			const focused = this._focusedOwner.get();
 			if (focused && this._isOwnerScoped(undefined)) {
+				if (this._isChatHidden() && !this._layoutService.isSidePaneVisible() && !this._layoutService.isEditorMaximized()) {
+					// The restore closed the side pane that the remembered editor only was to show, such as for lack of a file editor:
+					// the window shows the chat rather than nothing, and the chat remembers editor only for when it has one.
+					this._showChat();
+					return;
+				}
 				const previous = this._layoutModeService.getMainWindowMode(focused.owner, focused.kind);
 				this._layoutModeService.setMainWindowMode(focused.owner, focused.kind, { mode: this.mode.get(), splitLayout: this.splitLayout.get(), inputOnly: previous?.inputOnly ?? false });
 			}

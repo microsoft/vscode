@@ -175,13 +175,18 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 			await focus(controller, draft);
 			await focus(controller, sessionB);
 			const againB = sidePane();
+			const ownerB = { sessionResource: sessionB.resource, chatResource: sessionB.resource };
+			const remembered = harness.layoutModeService.getMainWindowMode(ownerB, LayoutModeOwnerKind.Existing)?.mode;
 
 			const detailsOnly = { mode: SessionLayoutMode.EditorOnly, context: SessionLayoutMode.EditorOnly, arrangement: SessionLayoutMode.SideBySide, maximized: false, chatHidden: true, editor: false, details: true };
-			assert.deepStrictEqual({ editorOnlyB, chatOnlyDraft, backToB, againB }, {
+			// Scoped per chat, no file editor is open and the side pane closes on the restore: the window shows the chat, never nothing.
+			const chatInstead = { mode: SessionLayoutMode.ChatOnly, context: SessionLayoutMode.ChatOnly, arrangement: SessionLayoutMode.SideBySide, maximized: false, chatHidden: false, editor: false, details: false };
+			assert.deepStrictEqual({ editorOnlyB, chatOnlyDraft, backToB, againB, remembered }, {
 				editorOnlyB: detailsOnly,
 				chatOnlyDraft: { mode: SessionLayoutMode.ChatOnly, context: SessionLayoutMode.ChatOnly, arrangement: SessionLayoutMode.SideBySide, maximized: false, chatHidden: false, editor: false, details: false },
-				backToB: detailsOnly,
-				againB: detailsOnly,
+				backToB: scope === 'chat' ? chatInstead : detailsOnly,
+				againB: scope === 'chat' ? chatInstead : detailsOnly,
+				remembered: SessionLayoutMode.EditorOnly,
 			});
 		});
 	}
