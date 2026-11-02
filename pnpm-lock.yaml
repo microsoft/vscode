@@ -991,9 +991,15 @@ importers:
       '@vscode/markdown-it-katex':
         specifier: ^1.1.1
         version: 1.1.1
+      json5:
+        specifier: ^2.2.3
+        version: 2.2.3
       lodash.throttle:
         specifier: ^4.1.1
         version: 4.1.1
+      playwright:
+        specifier: ^1.61.1
+        version: 1.61.1
       vscode-languageserver-types:
         specifier: ^3.17.2
         version: 3.17.5
@@ -1066,6 +1072,9 @@ importers:
       '@vscode/codicons':
         specifier: ^0.0.36
         version: 0.0.36
+      playwright:
+        specifier: ^1.61.1
+        version: 1.61.1
 
   extensions/microsoft-authentication:
     dependencies:

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import * as path from 'path';
-import * as glob from 'glob';
 import Mocha from 'mocha';
 
 const options: Mocha.MochaOptions = {
@@ -27,7 +27,7 @@ if (ciOutputDir) {
 	};
 }
 
-const files = glob.sync('**/*.test.js', { cwd: __dirname });
+const files = fs.readdirSync(__dirname, { recursive: true, encoding: 'utf8' }).filter(file => file.endsWith('.test.js'));
 if (files.length === 0) {
 	throw new Error('No compiled JSON extension tests found.');
 }
