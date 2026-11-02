@@ -625,7 +625,9 @@ export class EditorDropTarget extends Themable {
 
 		this.counter++;
 
-		if (!this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype) && isHTMLElement(event.target) && isInputDropTarget(event.target, event)) {
+		const targetElement = isHTMLElement(event.target) ? event.target : undefined;
+		const targetGroupElement = (targetElement && this.findTargetGroupView(targetElement)?.element) ?? this.container;
+		if (!this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype) && targetElement && isInputDropTarget(targetElement, event, targetGroupElement)) {
 			this.disposeOverlay();
 			this.updateContainer(false);
 			return;

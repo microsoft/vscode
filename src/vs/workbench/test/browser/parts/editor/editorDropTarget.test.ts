@@ -141,4 +141,30 @@ suite('EditorDropTarget', () => {
 			operations: [`split ${GroupDirection.LEFT}`, 'move 1 editor(s) to new group']
 		});
 	});
+
+	test('an input drop target outside the group, such as one under a modal over it, does not take the drop', () => {
+		const { groupElement, operations } = setup();
+
+		// An input of another part in the same document, under the group at the same point
+		const otherPart = $('div');
+		otherPart.style.cssText = 'position: fixed; left: 0; top: 0; width: 300px; height: 300px; z-index: -1;';
+		const otherInput = append(otherPart, $('div'));
+		otherInput.style.cssText = 'position: absolute; left: 0; top: 100px; width: 300px; height: 100px;';
+		mainWindow.document.body.appendChild(otherPart);
+		store.add(toDisposable(() => otherPart.remove()));
+		store.add(registerInputDropTarget(otherInput));
+
+		dispatch(groupElement, 'dragenter', 5, 150);
+		const overlay = getOverlay(groupElement);
+		dispatch(overlay!, 'dragover', 5, 150);
+		const overlayOnOver = !!getOverlay(groupElement);
+		dispatch(overlay!, 'drop', 5, 150);
+		dispatch(groupElement, 'dragend', 5, 150);
+
+		assert.deepStrictEqual({ overlayOnEnter: !!overlay, overlayOnOver, operations }, {
+			overlayOnEnter: true,
+			overlayOnOver: true,
+			operations: [`split ${GroupDirection.LEFT}`, 'move 1 editor(s) to new group']
+		});
+	});
 });
