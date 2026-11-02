@@ -150,7 +150,7 @@ suite('Chat window terminals', () => {
 			override getScopedInstantiationService(part: IEditorPart) {
 				assert.strictEqual(part, mainPart);
 				const accessor = upcastPartial<ServicesAccessor>({ get: <T>() => sessionScope as T });
-				return upcastPartial<IInstantiationService>({ invokeFunction: (fn => fn(accessor)) as IInstantiationService['invokeFunction'] });
+				return upcastPartial<IInstantiationService>({ invokeFunction: (<R>(fn: (accessor: ServicesAccessor) => R) => fn(accessor)) as IInstantiationService['invokeFunction'] });
 			}
 		}());
 		instantiationService.stub(IChatWindowService, new class extends mock<IChatWindowService>() {

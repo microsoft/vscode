@@ -379,7 +379,7 @@ suite('SessionChangesEditorInput', () => {
 			}()];
 		}();
 		const editorGroupsService = new class extends TestEditorGroupsService {
-			override readonly parts = [this, otherPart];
+			override readonly parts: readonly IEditorPart[] = [this, otherPart];
 		}();
 		const input = disposables.add(new SessionChangesEditorInput(
 			URI.parse('test-changes:session'),

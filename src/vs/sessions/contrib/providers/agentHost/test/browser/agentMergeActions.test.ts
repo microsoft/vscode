@@ -191,6 +191,7 @@ suite('Agent Merge Actions', () => {
 				changesetsLoadingObs: constObservable(false),
 				loadingObs: constObservable(false),
 				changesetObs: constObservable(upcastPartial<ISessionChangeset>({ operations: constObservable([]) })),
+				changesetOperationsObs: constObservable([]),
 				stateObs: constObservable(upcastPartial<ActiveSessionState>({})),
 			},
 			pullRequest: {
