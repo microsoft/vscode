@@ -27322,29 +27322,41 @@ Use the attached image as context.
 		});
 
 		test('MCP routing stops the search loop when a ready server\'s tools never reach the session', async () => {
-			const routeTwice = async (currentToolMetadata: CurrentToolMetadata[]) => {
+			const routeTwice = async (currentToolMetadata: CurrentToolMetadata[], laterResponse: boolean) => {
 				const { session, runtime, mockSession } = await createMcpRoutingSession(true);
 				mockSession.mcpListToolsResult = { tools: [{ name: 'current_search' }] };
 				mockSession.currentToolMetadata = currentToolMetadata;
 				const [, proxy] = runtime.createClientSdkTools(true);
 				session.resetTurnState('turn-repeat-mcp-route');
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-first-route' } as SessionEventPayload<'assistant.turn_start'>['data']);
 				const first = await invokeClientToolHandler(proxy, 'first-route');
+				if (laterResponse) {
+					mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-second-route' } as SessionEventPayload<'assistant.turn_start'>['data']);
+				}
 				const second = await invokeClientToolHandler(proxy, 'second-route');
 				return [first, second].map(result => ({
 					resultType: result.resultType,
 					stopsSearching: result.textResultForLlm.includes('searching again will not find them'),
 				}));
 			};
+			const filteredOut: CurrentToolMetadata[] = [{ name: 'other-tool', description: '', mcpServerName: 'other', deferLoading: true }];
+			const available: CurrentToolMetadata[] = [{ name: 'docs-current_search', description: '', mcpServerName: 'docs', mcpToolName: 'current_search', deferLoading: true }];
 
 			assert.deepStrictEqual({
-				filteredOut: await routeTwice([{ name: 'other-tool', description: '', mcpServerName: 'other', deferLoading: true }]),
-				available: await routeTwice([{ name: 'docs-current_search', description: '', mcpServerName: 'docs', mcpToolName: 'current_search', deferLoading: true }]),
+				filteredOutLaterResponse: await routeTwice(filteredOut, true),
+				// The snapshot refreshes only between model requests, so a repeat within one response proves nothing.
+				filteredOutSameResponse: await routeTwice(filteredOut, false),
+				availableLaterResponse: await routeTwice(available, true),
 			}, {
-				filteredOut: [
+				filteredOutLaterResponse: [
 					{ resultType: 'success', stopsSearching: false },
 					{ resultType: 'failure', stopsSearching: true },
 				],
-				available: [
+				filteredOutSameResponse: [
+					{ resultType: 'success', stopsSearching: false },
+					{ resultType: 'success', stopsSearching: false },
+				],
+				availableLaterResponse: [
 					{ resultType: 'success', stopsSearching: false },
 					{ resultType: 'success', stopsSearching: false },
 				],
@@ -27353,6 +27365,8 @@ Use the attached image as context.
 
 		test('MCP routing shares activation between concurrent tool calls', async () => {
 			const { session, runtime, mockSession } = await createMcpRoutingSession();
+			// An initialized snapshot without the server's tools, as during a turn that activates it.
+			mockSession.currentToolMetadata = [];
 			const [, proxy] = runtime.createClientSdkTools(true);
 			session.resetTurnState('turn-concurrent-mcp-route');
 			const first = invokeClientToolHandler(proxy, 'first-route');

@@ -2019,8 +2019,10 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _configuredMcpRoutingServers = new Map<string, ICopilotMcpRoutingServer>();
 	private readonly _mcpRoutingProxies = new Map<string, IMcpRoutingProxy>();
 	private readonly _mcpRoutingActivations = new Map<string, { readonly promise: Promise<void>; readonly cancellation: CancellationTokenSource }>();
-	/** Servers whose routing proxy already reported the current connection's tools to the model. */
-	private readonly _mcpRoutingReportedServers = new Set<string>();
+	/** For each server, the root model round in which its routing proxy reported the current connection's tools. */
+	private readonly _mcpRoutingReportedRounds = new Map<string, number>();
+	/** Counts root `assistant.turn_start` events; the runtime refreshes its tool snapshot before each model request. */
+	private _rootModelRound = 0;
 
 	/**
 	 * Fans MCP server notifications (today: `notifications/tools/list_changed`)
@@ -4239,13 +4241,18 @@ export class CopilotAgentSession extends Disposable {
 						await this._activateMcpRoutingServer(server.serverName);
 						const liveTools = await this._refreshMcpToolRoutingCache(server.serverName);
 						const liveToolNames = JSON.stringify(liveTools.map(tool => tool.name));
-						// A repeat call on the same connection means the previous "search again" found nothing:
-						// the session's tools, which tool search reads, still lack this server.
-						if (this._mcpRoutingReportedServers.has(server.serverName) && !(await this._hasCurrentMcpServerTools(server.serverName))) {
+						// Subagents search their own tool set, so only root calls are checked against the root session's snapshot.
+						const rootCall = !invocation.agentId;
+						const reportedRound = this._mcpRoutingReportedRounds.get(server.serverName);
+						// A call from a later model response on the same connection means the previous "search again"
+						// found nothing: the snapshot tool search reads, refreshed since, still lacks this server.
+						if (rootCall && reportedRound !== undefined && reportedRound < this._rootModelRound && !(await this._hasCurrentMcpServerTools(server.serverName))) {
 							this._logService.warn(`[Copilot:${this.sessionId}] MCP server '${server.serverName}' is connected and lists ${liveTools.length} tools, but none are available to the session; its configured tool filter may exclude them`);
 							return this._toolSearchFailure(`The ${displayName} MCP server is connected and lists these tools: ${liveToolNames}. None of them are available in this session, so searching again will not find them. The server's configuration may restrict which tools are exposed, for example a "tools" allowlist naming tools the server no longer offers. Do not search for or call this server's tools again; tell the user to check its MCP configuration.`);
 						}
-						this._mcpRoutingReportedServers.add(server.serverName);
+						if (rootCall && reportedRound === undefined) {
+							this._mcpRoutingReportedRounds.set(server.serverName, this._rootModelRound);
+						}
 						return {
 							resultType: 'success',
 							textResultForLlm: `The ${displayName} MCP server is connected. Search tools again to use one of its current tools: ${liveToolNames}`,
@@ -10993,6 +11000,11 @@ export class CopilotAgentSession extends Disposable {
 		store.add(wrapper.onMcpOAuthCompleted(e => {
 			this._handleMcpOAuthCompleted(e.data.requestId, e.data.outcome);
 		}));
+		store.add(wrapper.onTurnStart(e => {
+			if (!e.agentId) {
+				this._rootModelRound++;
+			}
+		}));
 
 		store.add(wrapper.onToolsUpdated(() => {
 			this._slashCommandProvider.clearCache();
@@ -11138,7 +11150,7 @@ export class CopilotAgentSession extends Disposable {
 	private _noteMcpSdkStatus(serverName: string, status: SdkMcpServerStatus): void {
 		if (this._mcpSdkStatus.get(serverName) === 'connected' && status !== 'connected') {
 			this._mcpToolsLoaded.delete(serverName);
-			this._mcpRoutingReportedServers.delete(serverName);
+			this._mcpRoutingReportedRounds.delete(serverName);
 		}
 		this._mcpSdkStatus.set(serverName, status);
 	}
