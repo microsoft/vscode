@@ -2365,13 +2365,15 @@ configurationRegistry.registerConfiguration({
 		[ChatAIDisabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.disableAIFeatures', "Disable and hide built-in AI features provided by GitHub Copilot, including chat and inline suggestions."),
-			default: false,
+			// Fork: AI comes from the user's own models, so the built-in Copilot features are off by default.
+			default: true,
 			scope: ConfigurationScope.WINDOW,
 		},
 		[ChatConfiguration.CopilotCliCommandEnabled]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.copilotCliCommand.enabled', "Controls whether integrated terminals include the `copilot` command that ships with VS Code. The command runs GitHub Copilot CLI and offers to install it when it's missing. A GitHub Copilot CLI that you installed yourself isn't affected."),
-			default: true,
+			// Fork: do not inject the bundled Copilot CLI into terminals by default.
+			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			policy: {
 				name: 'CopilotCliCommand',
