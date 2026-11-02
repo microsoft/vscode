@@ -3839,6 +3839,121 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(agentHost.dispatchedActions, []);
 	});
 
+	test('a draft applies agent model and effort once without changing shared preferences', async () => {
+		const pickerId = 'agent-host-copilotcli:picker';
+		const pinnedId = 'agent-host-copilotcli:sonnet';
+		const agents: AgentCustomization[] = [{
+			type: CustomizationType.Agent, id: 'review', uri: 'other-host:/opaque/review', name: 'Review',
+			model: 'missing', _meta: { 'vscode.models': ['missing', 'Sonnet (copilot)'], 'vscode.reasoningEffort': 'low' },
+		}];
+		const sharedWrites: unknown[] = [];
+		const provider = createProvider(disposables, agentHost, undefined, {
+			activeClientAgents: constObservable(agents),
+			languageModelIds: [pickerId, pinnedId],
+			lookupLanguageModel: id => ({
+				...createTestLanguageModel(id === pinnedId ? 'sonnet' : 'picker'),
+				name: id === pinnedId ? 'Sonnet' : 'Picker',
+				targetChatSessionType: 'agent-host-copilotcli',
+				configurationSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', enum: ['low', 'medium'], default: 'medium' } } },
+			}),
+			languageModelsService: { setModelConfiguration: async (...args) => { sharedWrites.push(args); } },
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/proj'), provider.sessionTypes[0].id);
+		provider.setModel(session.sessionId, session.resource, pickerId, ChatModelSource.Chosen);
+		provider.setAgent(session.sessionId, { uri: agents[0].uri, name: agents[0].name });
+		await timeout(0);
+		const applied = {
+			model: session.modelId.get(),
+			config: provider.getAutomationModelConfiguration(session.sessionId)?.getModelConfigurationForRequest(pinnedId),
+		};
+		provider.setModel(session.sessionId, session.resource, pickerId, ChatModelSource.Chosen);
+		provider.setAgent(session.sessionId, { uri: agents[0].uri, name: agents[0].name });
+		const explicitChoice = session.modelId.get();
+		provider.setAgent(session.sessionId, undefined);
+		provider.setAgent(session.sessionId, { uri: agents[0].uri, name: agents[0].name });
+		assert.deepStrictEqual({ applied, explicitChoice, reselected: session.modelId.get(), sharedWrites }, {
+			applied: { model: pinnedId, config: { reasoningEffort: 'low' } },
+			explicitChoice: pickerId, reselected: pinnedId, sharedWrites: [],
+		});
+	});
+
+	test('an agent preference waits for its model catalogue without overtaking a later explicit choice', async () => {
+		const modelId = 'agent-host-copilotcli:sonnet';
+		const models: string[] = [];
+		const changed = disposables.add(new Emitter<string>());
+		const agents: AgentCustomization[] = [{ type: CustomizationType.Agent, id: 'review', uri: 'other-host:/review', name: 'Review', model: 'sonnet' }];
+		const provider = createProvider(disposables, agentHost, undefined, {
+			activeClientAgents: constObservable(agents), languageModelIds: models, languageModelChanges: changed.event,
+			lookupLanguageModel: () => ({ ...createTestLanguageModel('sonnet'), targetChatSessionType: 'agent-host-copilotcli' }),
+		});
+		const waiting = provider.createNewSession(URI.parse('file:///home/user/first'), provider.sessionTypes[0].id);
+		const chosen = provider.createNewSession(URI.parse('file:///home/user/second'), provider.sessionTypes[0].id);
+		for (const session of [waiting, chosen]) {
+			provider.setAgent(session.sessionId, { uri: agents[0].uri, name: agents[0].name });
+		}
+		provider.setModel(chosen.sessionId, chosen.resource, 'unpublished-choice', ChatModelSource.Chosen);
+		models.push(modelId);
+		changed.fire(modelId);
+		await timeout(0);
+		assert.deepStrictEqual([waiting.modelId.get(), chosen.modelId.get()], [modelId, 'unpublished-choice']);
+	});
+
+	test('agent model and effort are sent on first, follow-up, and running-session agent changes', async () => {
+		const pickerId = 'agent-host-copilotcli:picker';
+		const pinnedId = 'agent-host-copilotcli:sonnet';
+		const agent: AgentCustomization = {
+			type: CustomizationType.Agent, id: 'review', uri: 'other-host:/review', name: 'Review', model: 'sonnet',
+			_meta: { 'vscode.reasoningEffort': 'low' },
+		};
+		const sent: object[] = [];
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true, activeClientAgents: constObservable([agent]),
+			languageModelIds: [pickerId, pinnedId],
+			lookupLanguageModel: id => ({
+				...createTestLanguageModel(id === pinnedId ? 'sonnet' : 'picker'), targetChatSessionType: 'agent-host-copilotcli',
+				configurationSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', enum: ['low', 'medium'], default: 'medium' } } },
+			}),
+			acquireOrLoadSession: async () => new ImmortalReference(new class extends mock<IChatModel>() {
+				override readonly inputModel = new class extends mock<IInputModel>() {
+					override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+					override setState(): void { }
+					override clearState(): void { }
+				}();
+			}()),
+			sendRequest: async (resource, _message, options) => {
+				sent.push({ model: options?.userSelectedModelId, configuration: options?.userSelectedModelConfiguration });
+				if (sent.length === 1) {
+					agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Agent Preferences' }));
+				}
+				return { kind: 'sent' as const, data: {} as IChatSendRequestData };
+			},
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id, { modelId: pickerId });
+		provider.setAgent(session.sessionId, { uri: agent.uri, name: agent.name });
+		const chat = await provider.createNewChat(session.sessionId);
+		const committed = await provider.sendRequest(session.sessionId, chat.resource, { query: 'first' });
+		await provider.sendRequest(committed.sessionId, committed.resource, { query: 'second' });
+		const switchedAgent: AgentCustomization = {
+			...agent, id: 'other', uri: 'other-host:/other', name: 'Other', _meta: { 'vscode.reasoningEffort': 'medium' },
+		};
+		provider.getSessionConfig(committed.sessionId, committed.resource);
+		agentHost.setSessionState(AgentSession.id(committed.resource), 'copilotcli', {
+			provider: 'copilotcli', title: 'Agent Preferences', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
+			customizations: [{
+				type: CustomizationType.Plugin, id: 'plugin://other', uri: 'plugin://other', name: 'Other',
+				load: { kind: CustomizationLoadStatus.Loaded }, children: [switchedAgent],
+			}],
+		});
+		provider.setAgent(committed.sessionId, { uri: switchedAgent.uri, name: switchedAgent.name });
+		await provider.sendRequest(committed.sessionId, committed.resource, { query: 'third' });
+		assert.deepStrictEqual(sent, [
+			{ model: pinnedId, configuration: { reasoningEffort: 'low' } },
+			{ model: pinnedId, configuration: { reasoningEffort: 'low' } },
+			{ model: pinnedId, configuration: { reasoningEffort: 'medium' } },
+		]);
+	});
+
 	test('setAgent with undefined clears the cached agent selection', () => {
 		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'clear-agent', { title: 'Clear Agent Session' });

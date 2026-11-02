@@ -191,6 +191,7 @@ import { SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js'
 import { WorkspacePickerActionItem } from './workspacePickerActionItem.js';
 import { ChatContextUsageWidget } from '../../widgetHosts/viewPane/chatContextUsageWidget.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
+import { resolveAgentModelPreference, resolveAgentReasoningEffort } from '../../../common/promptSyntax/languageProviders/promptModelResolver.js';
 import { matchesSessionType } from '../../../common/promptSyntax/service/promptsService.js';
 import { ConfigureToolsAction } from '../../actions/chatToolActions.js';
 import { InlineCompletionsController } from '../../../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
@@ -1469,8 +1470,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return;
 			}
 			const models = mode.model?.read(r);
-			if (models) {
-				this.switchModelByQualifiedName(models);
+			const effort = mode.reasoningEffort?.read(r);
+			if (models || effort) {
+				const preferences = models ?? [this._currentLanguageModel.read(undefined)?.metadata.id].filter(isDefined);
+				if (preferences.length > 0) {
+					this.switchModelByQualifiedName(preferences, effort);
+				}
 			}
 		}));
 
@@ -1551,16 +1556,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return false;
 	}
 
-	public switchModelByQualifiedName(qualifiedModelNames: readonly string[]): boolean {
-		const models = this.getModels();
-		for (const qualifiedModelName of qualifiedModelNames) {
-			const model = models.find(m => ILanguageModelChatMetadata.matchesQualifiedName(qualifiedModelName, m.metadata));
-			if (model) {
-				this._applyProgrammaticLanguageModel(model);
-				return true;
+	public switchModelByQualifiedName(qualifiedModelNames: readonly string[], reasoningEffort?: string): boolean {
+		const model = resolveAgentModelPreference(qualifiedModelNames, this.getModels());
+		if (model) {
+			const configuration = resolveAgentReasoningEffort(reasoningEffort, model.metadata);
+			if (configuration) {
+				this.restoreModelConfiguration(model.identifier, { ...this.getModelConfiguration(model.identifier), ...configuration }, false);
 			}
+			this._applyProgrammaticLanguageModel(model);
+			return true;
 		}
-		this.logService.warn(`[chat] Node of the models "${qualifiedModelNames.join(', ')}" not found. Use format "<name> (<vendor>)", e.g. "GPT-4o (copilot)".`);
+		this.logService.warn(`[chat] None of the models "${qualifiedModelNames.join(', ')}" found. Use a model ID or "<name> (<vendor>)", e.g. "GPT-4o (copilot)".`);
 		return false;
 	}
 
@@ -1570,10 +1576,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	public requestModelByQualifiedName(qualifiedModelNames: readonly string[]): Promise<boolean> {
-		return this._requestProgrammaticLanguageModel(() => {
-			const models = this.getModels();
-			return qualifiedModelNames.map(name => models.find(model => ILanguageModelChatMetadata.matchesQualifiedName(name, model.metadata))).find(isDefined);
-		});
+		return this._requestProgrammaticLanguageModel(() => resolveAgentModelPreference(qualifiedModelNames, this.getModels()));
 	}
 
 	get hasPendingProgrammaticModelSelection(): boolean {
