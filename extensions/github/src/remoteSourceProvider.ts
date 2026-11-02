@@ -29,6 +29,11 @@ function asRemoteSource(raw: RemoteSourceResponse): RemoteSource {
 	};
 }
 
+function matchesQuery(remoteSource: RemoteSource, query: string): boolean {
+	const normalizedName = remoteSource.name.toLowerCase();
+	return query.toLowerCase().trim().split(/\s+/).every(part => normalizedName.includes(part));
+}
+
 export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 
 	readonly name = 'GitHub';
@@ -50,8 +55,8 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 		}
 
 		const all = await Promise.all([
-			this.getQueryRemoteSources(octokit, query),
 			this.getUserRemoteSources(octokit, query),
+			this.getQueryRemoteSources(octokit, query),
 		]);
 
 		const map = new Map<string, RemoteSource>();
@@ -69,11 +74,11 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 		if (!query) {
 			const user = await octokit.users.getAuthenticated({});
 			const username = user.data.login;
-			const res = await octokit.repos.listForAuthenticatedUser({ username, sort: 'updated', per_page: 100 });
+			const res = await octokit.repos.listForAuthenticatedUser({ username, affiliation: 'owner,collaborator,organization_member', sort: 'updated', per_page: 100 });
 			this.userReposCache = res.data.map(asRemoteSource);
 		}
 
-		return this.userReposCache;
+		return query ? this.userReposCache.filter(remoteSource => matchesQuery(remoteSource, query)) : this.userReposCache;
 	}
 
 	private async getQueryRemoteSources(octokit: Octokit, query?: string): Promise<RemoteSource[]> {
