@@ -92,6 +92,11 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotStabilityOrderedPromptEnabledSettingId),
 			},
 			{
+				key: CopilotCliConfigKey.ProgressUpdatesPromptDefaultControlled,
+				computeValue: () => this._isDefaultControlled(AgentHostCopilotProgressUpdatesPromptSettingId),
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostCopilotProgressUpdatesPromptSettingId),
+			},
+			{
 				key: CopilotCliConfigKey.ProgressUpdatesPrompt,
 				computeValue: () => this._configurationService.getValue<boolean>(AgentHostCopilotProgressUpdatesPromptSettingId) === true,
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostCopilotProgressUpdatesPromptSettingId),

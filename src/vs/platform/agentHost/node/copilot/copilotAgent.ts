@@ -6930,7 +6930,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return { discardReason };
 		}
 		const session = early.launch.session;
-		if (provisional.model && !structuralEquals(provisional.model, early.model)) {
+		// Compare with the options the runtime has, which a cancelled earlier claim may already have changed.
+		if (provisional.model && !structuralEquals(provisional.model, session.appliedModelSelection ?? early.model)) {
 			try {
 				await this._applyModelSelection(context, session, provisional.model, token ?? CancellationToken.None);
 			} catch (error) {

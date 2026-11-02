@@ -22141,6 +22141,40 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('a retry after a claim cancelled past setModel reapplies the options the retry selects', async () => {
+			const h = await createWarmableAgent('warm-model-config-cancelled', undefined, { model: { id: 'claude-sonnet' } });
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				const warmSession = chatEntriesBySdkId(h.agent).get(h.sdkSessionId()!)!.chatSession;
+				// Cancels the first claim after its model options were applied, then behaves normally.
+				const updateClientTools = warmSession.updateClientTools;
+				warmSession.updateClientTools = async () => {
+					warmSession.updateClientTools = updateClientTools;
+					throw new CancellationError();
+				};
+				await h.agent.chats.changeModel(h.chat, { id: 'claude-sonnet', config: { thinkingLevel: 'high' } }, h.context);
+				const cancelled = await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext).then(() => false, error => isCancellationError(error));
+				await h.agent.chats.changeModel(h.chat, { id: 'claude-sonnet' }, h.context);
+				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-2', undefined, h.sendContext);
+
+				assert.deepStrictEqual({
+					cancelled,
+					prewarm: h.state().prewarm,
+					creates: h.state().creates,
+					appliedOptions: h.sdkSessions[0].setModelCalls.map(([, options]) => options?.reasoningEffort),
+					applied: warmSession.appliedModelSelection,
+				}, {
+					cancelled: true,
+					prewarm: ['used'],
+					creates: 1,
+					appliedOptions: ['high', undefined],
+					applied: { id: 'claude-sonnet' },
+				});
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
 		test('a model option change starts the first send cold when the launch set capability overrides that setModel drops', async () => {
 			const h = await createWarmableAgent('warm-model-config-override', undefined, {
 				model: { id: 'claude-sonnet' },

@@ -59,6 +59,7 @@ import { COPILOT_DEFAULT_AVAILABLE_TOOLS } from './copilotBuiltinToolAllowlist.j
 import './prompts/allPrompts.js';
 import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
 import { applyPromptOverridesFromString, resolveConfiguredPromptOverride } from './prompts/promptOverride.js';
+import { isProgressUpdatesPromptModel } from './prompts/progressUpdatesInstructions.js';
 import { describeSystemMessageConfig, fullSystemPrompt } from './prompts/systemMessage.js';
 import type { SandboxConfig } from './sandboxConfigForSdk.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
@@ -373,6 +374,12 @@ export interface ICopilotSessionRuntime {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	createClientSdkTools(toolSearchActive: boolean, hostToolNames?: ReadonlySet<string>, withheldToolNames?: ReadonlySet<string>): Tool<any>[];
 	configureClientTools?(configuration: ICopilotClientToolConfiguration): void;
+	/**
+	 * Whether the system message this launch resolved gets the progress-update guidance when its experiment
+	 * enables it: the family-aliased model is GPT or Auto, and no prompt override replaces the registry.
+	 * Independent of the experiment arm, so both arms report the same exposure.
+	 */
+	setProgressUpdatesPromptEligible?(eligible: boolean): void;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	createServerSdkTools(toolSearchActive?: boolean): Tool<any>[];
 	/** Tools that let the agent ask the user to turn on Computer Use; empty unless the runtime has it and it is off. */
@@ -1628,6 +1635,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			},
 		});
 		const systemMessage = toolConfiguration.sessionConfig.systemMessage;
+		runtime.setProgressUpdatesPromptEligible?.(isProgressUpdatesPromptModel(effectiveModel) && applyToolOverrides([]).systemPrompt === undefined);
 		this._logService.info(`[Copilot:${plan.sessionId}] Resolved system message: ${describeSystemMessageConfig(systemMessage)}`);
 		const additionalDisabledMcpServers = plan.isEphemeral ? [
 			...plugins.flatMap(plugin => plugin.mcpServers.map(server => server.name)),

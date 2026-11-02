@@ -20808,21 +20808,23 @@ Use the attached image as context.
 			assert.deepStrictEqual(executionTriggers(telemetryService), []);
 		});
 
-		test('reports the progress-update prompt trigger in both arms at root turn start, only for GPT and Auto launches', async () => {
+		test('reports the progress-update prompt trigger in both arms at root turn start, for eligible launches whose setting follows the experiment', async () => {
 			const results: Record<string, { beforeRootTurn: readonly string[]; afterRootTurn: readonly string[] }> = {};
-			for (const [name, modelId, enabled] of [
-				['gpt control', 'gpt-6-luna', false],
-				['gpt treatment', 'gpt-6-luna', true],
-				['auto', 'auto', false],
-				['no model', undefined, false],
-				['claude', 'claude-sonnet-5', true],
+			// Eligibility is the launcher's decision from the family-aliased model and any prompt override.
+			for (const [name, eligible, enabled, defaultControlled] of [
+				['control', true, false, true],
+				['treatment', true, true, true],
+				['ineligible launch', false, true, true],
+				['explicit user value', true, true, false],
+				['unknown provenance', true, false, undefined],
 			] as const) {
 				const telemetryService = new TestExperimentTriggerTelemetryService();
 				const { session, mockSession } = await createAgentSession(disposables, {
 					telemetryService,
-					modelId,
+					duringLaunch: runtime => runtime.setProgressUpdatesPromptEligible?.(eligible),
 					rootValues: {
 						[CopilotCliConfigKey.ProgressUpdatesPrompt]: enabled,
+						[CopilotCliConfigKey.ProgressUpdatesPromptDefaultControlled]: defaultControlled,
 						[CopilotCliVSCodeAssignmentContextKey]: 'assignment-context',
 					},
 				});
@@ -20835,11 +20837,11 @@ Use the attached image as context.
 
 			const trigger = `config.${AgentHostCopilotProgressUpdatesPromptSettingId}`;
 			assert.deepStrictEqual(results, {
-				'gpt control': { beforeRootTurn: [], afterRootTurn: [trigger] },
-				'gpt treatment': { beforeRootTurn: [], afterRootTurn: [trigger] },
-				auto: { beforeRootTurn: [], afterRootTurn: [trigger] },
-				'no model': { beforeRootTurn: [], afterRootTurn: [trigger] },
-				claude: { beforeRootTurn: [], afterRootTurn: [] },
+				control: { beforeRootTurn: [], afterRootTurn: [trigger] },
+				treatment: { beforeRootTurn: [], afterRootTurn: [trigger] },
+				'ineligible launch': { beforeRootTurn: [], afterRootTurn: [] },
+				'explicit user value': { beforeRootTurn: [], afterRootTurn: [] },
+				'unknown provenance': { beforeRootTurn: [], afterRootTurn: [] },
 			});
 		});
 
