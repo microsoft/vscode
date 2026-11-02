@@ -40,10 +40,11 @@ export interface IAgentHostEntry {
 	/** Getter for the connection (may be lazily resolved). */
 	readonly getConnection: () => IAgentConnection | undefined;
 	/**
-	 * The name to show for the host on its terminals, through the `${host}` variable in
-	 * terminal titles and descriptions. Leave unset for a host on this computer.
+	 * Returns the name to show for the host on its terminals, through the `${host}` variable
+	 * in terminal titles and descriptions. It is read when each terminal is created, so new
+	 * terminals show the host's current name. Leave unset for a host on this computer.
 	 */
-	readonly terminalHostLabel?: string;
+	readonly getTerminalHostLabel?: () => string | undefined;
 }
 
 export interface IAgentHostTerminalProfileInfo {
@@ -512,7 +513,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 
 	/** The label of the host that owns the given connection, for the terminals created on it. */
 	private _getHostLabel(connection: IAgentConnection): string | undefined {
-		return this._entries.find(entry => entry.getConnection()?.clientId === connection.clientId)?.terminalHostLabel;
+		return this._entries.find(entry => entry.getConnection()?.clientId === connection.clientId)?.getTerminalHostLabel?.();
 	}
 
 	isCommandExecuting(instance: ITerminalInstance): boolean | undefined {

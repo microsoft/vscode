@@ -39,14 +39,13 @@ class RemoteAgentHostTerminalContribution extends Disposable {
 			}
 			connectedAddresses.add(info.address);
 			if (!this._remoteEntries.has(info.address)) {
-				const name = info.name || info.address;
 				this._remoteEntries.set(info.address, this._agentHostTerminalService.registerEntry({
-					name,
+					name: info.name || info.address,
 					address: info.address,
 					getConnection: () => connection,
 					// Like a local terminal in a remote window, mark the terminals that run on another
 					// machine than the window's. On the web, the window shows one host at a time.
-					terminalHostLabel: isWeb ? undefined : name,
+					getTerminalHostLabel: isWeb ? undefined : () => this._getName(info.address),
 				}));
 			}
 		}
@@ -57,6 +56,11 @@ class RemoteAgentHostTerminalContribution extends Disposable {
 				this._remoteEntries.deleteAndDispose(address);
 			}
 		}
+	}
+
+	/** The host's current name. A host can be renamed while it is connected, which only fires `onDidChangeDisplayName`. */
+	private _getName(address: string): string {
+		return this._remoteAgentHostService.connections.find(info => info.address === address)?.name || address;
 	}
 }
 

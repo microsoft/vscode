@@ -142,7 +142,7 @@ suite('AgentHostTerminalService', () => {
 		));
 	});
 
-	test('terminals are titled by their process with the default icon unless named, like local terminals, and name a remote host', async () => {
+	test('terminals are titled by their process with the default icon unless named, like local terminals, and name a remote host by its current name', async () => {
 		store.add(service.registerEntry({ name: 'This Computer', address: '__local__', getConnection: () => connection }));
 
 		await service.createTerminal(connection);
@@ -150,9 +150,12 @@ suite('AgentHostTerminalService', () => {
 		await profileProviders.get('__local__')!.createContributedTerminalProfile({});
 		await service.reviveTerminal(connection, URI.parse('agenthost-terminal:/tool-terminal'), 'tool-session');
 
+		let remoteName = 'devbox';
 		const remote = new TestAgentConnection('remote-client');
-		const remoteEntry = service.registerEntry({ name: 'devbox', address: 'ssh://devbox', getConnection: () => remote, terminalHostLabel: 'devbox' });
+		const remoteEntry = service.registerEntry({ name: 'devbox', address: 'ssh://devbox', getConnection: () => remote, getTerminalHostLabel: () => remoteName });
 		await service.createTerminal(remote);
+		// The host is renamed while it stays connected.
+		remoteName = 'buildbox';
 		await service.reviveTerminal(remote, URI.parse('agenthost-terminal:/remote-tool-terminal'), 'remote-tool-session');
 		// The host disconnects, before the suite's store disposes the service.
 		remoteEntry.dispose();
@@ -163,7 +166,7 @@ suite('AgentHostTerminalService', () => {
 			{ name: undefined, icon: undefined, hostLabel: undefined },
 			{ name: undefined, icon: ThemeIcon.fromId(Codicon.chatSparkle.id), hostLabel: undefined },
 			{ name: undefined, icon: undefined, hostLabel: 'devbox' },
-			{ name: undefined, icon: ThemeIcon.fromId(Codicon.chatSparkle.id), hostLabel: 'devbox' },
+			{ name: undefined, icon: ThemeIcon.fromId(Codicon.chatSparkle.id), hostLabel: 'buildbox' },
 		]);
 	});
 
