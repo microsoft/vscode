@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { EditorGroupLayout, GroupActivationReason, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart, IModalEditorPart, IEditorGroupActivationEvent } from '../../../services/editor/common/editorGroupsService.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { EditorGroupLayout, GroupActivationReason, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart, IModalEditorPart, IEditorGroupActivationEvent, ICreateEditorPartOptions, IContentPart } from '../../../services/editor/common/editorGroupsService.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { GroupIdentifier, IEditorPartOptions } from '../../../common/editor.js';
 import { EditorPart, IEditorPartUIState, MainEditorPart } from './editorPart.js';
@@ -15,6 +15,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { distinct } from '../../../../base/common/arrays.js';
 import { AuxiliaryEditorPart, IAuxiliaryEditorPartOpenOptions } from './auxiliaryEditorPart.js';
 import { ModalEditorPart } from './modalEditorPart.js';
+import { ContentPart } from './contentPart.js';
 import { MultiWindowParts } from '../../part.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -22,7 +23,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { getActiveElement, IDimension, isAncestor, isHTMLElement } from '../../../../base/browser/dom.js';
+import { getActiveElement, getWindow, IDimension, isAncestor, isHTMLElement } from '../../../../base/browser/dom.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { DeepPartial } from '../../../../base/common/types.js';
@@ -176,6 +177,37 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		this._onDidAddGroup.fire(part.activeGroup);
 
 		this._onDidCreateAuxiliaryEditorPart.fire(part);
+
+		return part;
+	}
+
+	//#endregion
+
+	//#region Content Parts
+
+	createEditorPart(options: ICreateEditorPartOptions): IContentPart {
+		const disposables = new DisposableStore();
+		const container = options.container as HTMLElement;
+
+		const instantiationService = options.services ? disposables.add(this.instantiationService.createChild(options.services)) : this.instantiationService;
+		const part = disposables.add(instantiationService.createInstance(ContentPart, getWindow(container).vscodeWindowId, this, options));
+		disposables.add(this.registerPart(part));
+		part.create(container);
+
+		// Keep instantiation service
+		const scopedInstantiationService = this.instantiationService.invokeFunction(accessor => disposables.add(part.scopedInstantiationService.createChild(new ServiceCollection(
+			[IEditorService, accessor.get(IEditorService).createScoped(part, disposables)]
+		))));
+		this.mapPartToInstantiationService.set(part, scopedInstantiationService);
+		disposables.add(toDisposable(() => this.mapPartToInstantiationService.delete(part)));
+
+		// Release the part once its owner closed it
+		disposables.add(Event.once(part.onDidClose)(() => disposables.dispose()));
+
+		// Events
+		for (const group of part.getGroups(GroupsOrder.CREATION_TIME)) {
+			this._onDidAddGroup.fire(group);
+		}
 
 		return part;
 	}
