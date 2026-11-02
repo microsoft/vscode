@@ -8,7 +8,7 @@ import { getWindow } from '../../../../base/browser/dom.js';
 import { raceTimeout, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, ISettableObservable, observableFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, ISettableObservable, observableFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isNative } from '../../../../base/common/platform.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { DeepPartial } from '../../../../base/common/types.js';
@@ -528,7 +528,8 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		});
 		return {
 			visible: observableConfigValue<boolean>(SESSION_ACTIVITY_BAR_SETTING, true, this._configurationService),
-			size: constObservable(SESSION_ACTIVITY_BAR_COLUMN_WIDTH),
+			// Its column, the gap to the parts beside it included, as the grid adds the half of the gap beside its card.
+			size: derived(reader => SESSION_ACTIVITY_BAR_COLUMN_WIDTH - Math.floor(this.look.gap.read(reader) / 2)),
 			layout: (_width, columnHeight) => height.set(columnHeight, undefined),
 			dispose: () => registration.dispose(),
 		};

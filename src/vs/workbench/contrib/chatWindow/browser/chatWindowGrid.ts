@@ -258,7 +258,10 @@ export class ChatWindowGrid extends Disposable {
 		grid.setCellVisible(ChatWindowGridCell.Chat, mode !== ChatWindowLayoutMode.EditorOnly);
 		grid.setCellVisible(ChatWindowGridCell.Main, mode !== ChatWindowLayoutMode.ChatOnly);
 		if (this._titleRow) {
-			grid.setCellVisible(ChatWindowGridCell.TitleRow, !!this._cells.titleRow?.visible.get());
+			const titleRowVisible = !!this._cells.titleRow?.visible.get();
+			// For the look of the cells below, such as the chat's card, which heads itself while the title row is hidden.
+			this._container.classList.toggle('title-row-hidden', !titleRowVisible);
+			grid.setCellVisible(ChatWindowGridCell.TitleRow, titleRowVisible);
 		}
 		if (this._strip && (mode === ChatWindowLayoutMode.Stacked || mode === ChatWindowLayoutMode.EditorOnly)) {
 			grid.setCellVisible(ChatWindowGridCell.Strip, !!this._cells.strip?.visible.get());
@@ -369,9 +372,11 @@ export class ChatWindowGrid extends Disposable {
 
 	private _contentOf(id: string): PartGridCellContent {
 		switch (id) {
-			case ChatWindowGridCell.Main: return { part: this._cells.main };
+			// The main part shows as its mode says, also without editors, as it did: the terminals show only with terminals.
+			case ChatWindowGridCell.Main: return { part: this._cells.main, options: { showWhileEmpty: true } };
 			case ChatWindowGridCell.Chat: return { part: this._cells.chat };
-			case ChatWindowGridCell.TitleRow: return { view: this._titleRow! };
+			// Above the cards, as the title bar of a window is.
+			case ChatWindowGridCell.TitleRow: return { view: this._titleRow!, options: { keepsNoGap: true } };
 			case ChatWindowGridCell.Terminals: return { part: this._cells.terminals!.get()! };
 			default: return { view: this._strip! };
 		}
