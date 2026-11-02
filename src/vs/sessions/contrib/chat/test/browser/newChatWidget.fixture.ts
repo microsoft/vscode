@@ -343,7 +343,7 @@ const loudChatBackground: ISessionsChatBackground = {
 
 /** Wraps the composer in the Agents Window host and paints its resolved background. */
 function createChatBackgroundPart(container: HTMLElement, disposableStore: DisposableStore, background: ISessionsChatBackground | undefined): HTMLElement {
-	const part = dom.append(container, dom.$('.part.sessionspart'));
+	const part = dom.append(container, dom.$('.part.sessionspart.sessions-chat-surface'));
 	part.style.position = 'relative';
 	part.style.width = '100%';
 	part.style.height = '100%';

@@ -550,7 +550,7 @@ suite('Sessions - ChatCompositeBar', () => {
 		root.style.setProperty('--part-border-color', '#abcdef');
 		root.style.setProperty('--vscode-agentsCard-border', '#abcdef');
 		const card = mainWindow.document.createElement('div');
-		card.className = 'part sessionspart agents-part-card';
+		card.className = 'part sessionspart sessions-chat-surface agents-part-card agents-card-surface';
 		card.style.transition = 'none';
 		const cardContent = mainWindow.document.createElement('div');
 		cardContent.className = 'content';
@@ -637,7 +637,7 @@ suite('Sessions - ChatCompositeBar', () => {
 		root.style.setProperty('--vscode-cornerRadius-large', '8px');
 		root.style.setProperty('--vscode-strokeThickness', '1px');
 		root.style.setProperty('--vscode-agents-background', '#102030');
-		const part = append(root, $('.part.sessionspart.has-chat-background'));
+		const part = append(root, $('.part.sessionspart.sessions-chat-surface.has-chat-background'));
 		const session = append(part, $('.session-view'));
 		const groups = append(session, $('.chat-groups-view.chat-groups-view-has-gaps'));
 		const group = append(groups, $('.chat-group-view'));

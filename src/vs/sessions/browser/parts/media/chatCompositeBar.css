@@ -18,11 +18,11 @@
 	box-sizing: border-box;
 }
 
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-composite-bar.session-header-bar {
+.monaco-workbench.agent-sessions-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .chat-composite-bar.session-header-bar {
 	background-color: color-mix(in srgb, var(--session-view-background) 85%, transparent);
 }
 
-:is(.hc-black, .hc-light).monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-composite-bar.session-header-bar {
+:is(.hc-black, .hc-light).monaco-workbench.agent-sessions-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .chat-composite-bar.session-header-bar {
 	background-color: var(--session-view-background);
 }
 
@@ -600,13 +600,15 @@
 }
 
 /* Default-density sessions own their individual frames in both tab styles.
- * Connected tabs retain the same ownership in compact density. */
-.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .part.sessionspart.agents-part-card {
+ * Connected tabs retain the same ownership in compact density.
+ * `--agents-card-frame-owner` tells the layout that the card's border is only room for the frame of its content. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) :is(.part.sessionspart.agents-part-card, .sessions-chat-surface.agents-card-surface) {
+	--agents-card-frame-owner: content;
 	border-color: transparent;
 	background-clip: padding-box;
 }
 
-.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .part.sessionspart.agents-part-card::after {
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) :is(.part.sessionspart.agents-part-card, .sessions-chat-surface.agents-card-surface)::after {
 	content: none;
 }
 
