@@ -7,6 +7,7 @@ import { VSBuffer } from '../../../common/buffer.js';
 import { Emitter, Event } from '../../../common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../common/lifecycle.js';
 import { IIPCLogger, IMessagePassingProtocol, IPCClient } from './ipc.js';
+import { isSigPipeError } from '../../../common/errors.js';
 
 export const enum SocketDiagnosticsEventType {
 	Created = 'created',
@@ -923,7 +924,14 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 			this._didSendDisconnect = true;
 			const msg = new ProtocolMessage(ProtocolMessageType.Disconnect, 0, 0, getEmptyBuffer());
 			this._socketWriter.write(msg);
-			this._socketWriter.flush();
+			try {
+				this._socketWriter.flush();
+			} catch (err) {
+				if (!isSigPipeError(err)) {
+					throw err;
+				}
+				// socket already closed on client disconnect, ignore
+			}
 		}
 	}
 
