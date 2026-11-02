@@ -36,6 +36,8 @@
  *                      `.build/distro` is checked automatically when present
  *   --report <file>    write the JSON report to this file
  *   --npm-ref <ref>    read the npm state from this git revision (default: see npmSource.ts)
+ *   --distro-only      check only the distro roots, e.g. after vscode's pnpm lockfiles changed
+ *                      since the npm state was recorded
  *   --verbose          print informational findings too
  *   --strict           also fail on differences for the owner to review
  */
@@ -175,13 +177,14 @@ function main(): void {
 			'npm-ref': { type: 'string' },
 			'verbose': { type: 'boolean', default: false },
 			'strict': { type: 'boolean', default: false },
+			'distro-only': { type: 'boolean', default: false },
 		},
 	});
 
 	const source = getNpmSource(REPO_ROOT, values['npm-ref']);
 	source.prefetch?.(getAllNpmLockfileFolders().flatMap(folder => [path.posix.join(folder, 'package.json'), path.posix.join(folder, 'package-lock.json')]));
 	const satisfies = loadSatisfies(REPO_ROOT);
-	const roots: { root: InstallRoot; baseDir: string; display: string; distro: boolean }[] = getInstallRootFolders()
+	const roots: { root: InstallRoot; baseDir: string; display: string; distro: boolean }[] = values['distro-only'] ? [] : getInstallRootFolders()
 		.map(folders => ({ root: loadInstallRoot(source, folders, satisfies, REPO_ROOT, true), baseDir: REPO_ROOT, display: folders[0], distro: false }));
 
 	const distroDirs = [values.distro ? path.resolve(values.distro) : path.join(REPO_ROOT, '.build', 'distro')].filter(dir => fs.existsSync(path.join(dir, 'npm', 'package.json')));

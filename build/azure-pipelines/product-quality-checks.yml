@@ -159,7 +159,9 @@ jobs:
       # keeps its npm lockfiles next to the pnpm ones until every release branch uses pnpm, and the
       # pull request check cannot see the distro. vscode's npm lockfiles are read from the parent of
       # the commit that deleted package-lock.json, which the shallow checkout lacks, so fetch the last
-      # commits first. No --strict; reports differences without failing the build.
+      # commits first. No --strict; reports differences without failing the build. After the deletion
+      # commit, vscode's pnpm lockfiles move on from that npm state (every dependency change would be
+      # reported), so later commits check only the distro.
       - script: |
           set -e
           git fetch --no-tags --deepen=50 origin "$(Build.SourceVersion)" || echo "##vso[task.logissue type=warning]Could not fetch the history of $(Build.SourceVersion)."
@@ -168,7 +170,12 @@ jobs:
             echo "##vso[task.logissue type=warning]No commit in the fetched history deleted package-lock.json; skipping the pnpm lockfile verification."
             exit 0
           fi
-          node build/npm/pnpm/verify-locks.ts --npm-ref "$DELETION^" --distro .build/distro --report .build/verify-locks-report.json
+          SCOPE=""
+          if [ "$DELETION" != "$(git rev-parse HEAD)" ]; then
+            echo "vscode's pnpm lockfiles may have changed since $DELETION deleted package-lock.json; checking only the distro."
+            SCOPE="--distro-only"
+          fi
+          node build/npm/pnpm/verify-locks.ts --npm-ref "$DELETION^" --distro .build/distro --report .build/verify-locks-report.json $SCOPE
         displayName: Verify pnpm lockfiles (including the distro)
         continueOnError: true
 
