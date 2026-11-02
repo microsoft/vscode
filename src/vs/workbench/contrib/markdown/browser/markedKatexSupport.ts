@@ -9,7 +9,46 @@ import { MarkdownSanitizerConfig } from '../../../../base/browser/markdownRender
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import type * as marked from '../../../../base/common/marked/marked.js';
-import { katexContainerLatexAttributeName, MarkedKatexExtension } from '../common/markedKatexExtension.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { katexContainerLatexAttributeName, katexOutputMarkerAttributeName, MarkedKatexExtension } from '../common/markedKatexExtension.js';
+
+/**
+ * Identifies math rendered by this process. Unlike other HTML, rendered math may use arbitrary classes and
+ * a restricted set of inline styles, so content must not be able to claim to be math by guessing this value.
+ */
+const katexOutputMarker = generateUuid();
+
+/**
+ * Math containers whose marker has been verified. The sanitizer removes the marker attribute, so it must
+ * remember the containers to recognize their descendants.
+ */
+const verifiedKatexOutputRoots = new WeakSet<Element>();
+
+function isKatexOutput(element: Element): boolean {
+	for (let node: Element | null = element; node; node = node.parentElement) {
+		if (verifiedKatexOutputRoots.has(node) || node.getAttribute(katexOutputMarkerAttributeName) === katexOutputMarker) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Returns how the base configuration treats an attribute, following the sanitizer's rule that later entries win.
+ */
+function getBaseAttributePredicate(allowedAttributes: ReadonlyArray<string | domSanitize.SanitizeAttributeRule>, attributeName: string): domSanitize.SanitizeAttributePredicate {
+	let predicate: domSanitize.SanitizeAttributePredicate = () => false;
+	for (const attr of allowedAttributes) {
+		if (typeof attr === 'string') {
+			if (attr.toLowerCase() === attributeName) {
+				predicate = () => true;
+			}
+		} else if (attr.attributeName.toLowerCase() === attributeName) {
+			predicate = attr.shouldKeep;
+		}
+	}
+	return predicate;
+}
 
 export class MarkedKatexSupport {
 
@@ -17,6 +56,8 @@ export class MarkedKatexSupport {
 		readonly allowedTags: readonly string[];
 		readonly allowedAttributes: ReadonlyArray<string | domSanitize.SanitizeAttributeRule>;
 	}): MarkdownSanitizerConfig {
+		const baseClassPredicate = getBaseAttributePredicate(baseConfig.allowedAttributes, 'class');
+		const baseStylePredicate = getBaseAttributePredicate(baseConfig.allowedAttributes, 'style');
 		return {
 			allowedTags: {
 				override: [
@@ -39,13 +80,28 @@ export class MarkedKatexSupport {
 					'viewBox',
 					'preserveAspectRatio',
 
-					// Allow all classes since we don't have a list of allowed katex classes
-					'class',
+					// Verify and remove the marker of rendered math
+					{
+						attributeName: katexOutputMarkerAttributeName,
+						shouldKeep: (el, data) => {
+							if (data.attrValue === katexOutputMarker) {
+								verifiedKatexOutputRoots.add(el);
+							}
+							return false;
+						},
+					},
 
-					// Sanitize allowed styles for katex
+					// Allow all classes in rendered math since we don't have a list of allowed katex classes.
+					// Other HTML must not use them to borrow the styles of the workbench.
+					{
+						attributeName: 'class',
+						shouldKeep: (el, data) => isKatexOutput(el) || baseClassPredicate(el, data),
+					},
+
+					// Sanitize allowed styles for katex. Other HTML must not use them to place content over other UI.
 					{
 						attributeName: 'style',
-						shouldKeep: (_el, data) => this.sanitizeKatexStyles(data.attrValue),
+						shouldKeep: (el, data) => isKatexOutput(el) ? this.sanitizeKatexStyles(data.attrValue) : baseStylePredicate(el, data),
 					},
 				]
 			},
@@ -73,6 +129,10 @@ export class MarkedKatexSupport {
 			const prop = style[i];
 			if (allowedProperties.includes(prop)) {
 				const value = style.getPropertyValue(prop);
+				// KaTeX only positions elements relative to their normal position.
+				if (prop === 'position' && value !== 'relative') {
+					continue;
+				}
 				// Allow through lists of numbers with units or bare words like 'block'
 				// Main goal is to block things like 'url()'.
 				if (/^(([\d\.\-]+\w*\s?)+|\w+)$/.test(value)) {
@@ -141,13 +201,13 @@ export class MarkedKatexSupport {
 		}
 
 		this.ensureKatexStyles(window);
-		return MarkedKatexExtension.extension(this._katex, options);
+		return MarkedKatexExtension.extension(this._katex, options, katexOutputMarker);
 	}
 
 	public static async loadExtension(window: CodeWindow, options: MarkedKatexExtension.MarkedKatexOptions = {}): Promise<marked.MarkedExtension> {
 		const katex = await this._katexPromise.value;
 		this.ensureKatexStyles(window);
-		return MarkedKatexExtension.extension(katex, options);
+		return MarkedKatexExtension.extension(katex, options, katexOutputMarker);
 	}
 
 	public static ensureKatexStyles(window: CodeWindow) {
