@@ -10,6 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import type { AgentSignal } from '../../common/agent.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { chatToolCallReady, chatToolCallStart } from '../common/chatActionBuilders.js';
 import { ResponsePartKind, ToolResultContentType } from '../../common/state/sessionState.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/protocol/state.js';
@@ -268,14 +269,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(signals, [{
 			kind: 'action',
 			resource: SESSION,
-			action: {
-				type: ActionType.ChatToolCallStart,
-				turnId: TURN_ID,
-				toolCallId: 'tu_1',
-				toolName: 'Read',
-				displayName: 'Read file',
-				_meta: { toolKind: 'read' },
-			},
+			action: chatToolCallStart(TURN_ID, 'tu_1', 'Read', 'Read file', { _meta: { toolKind: 'read' } }),
 		}]);
 		assert.deepStrictEqual(log.warns, []);
 	});
@@ -306,14 +300,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(signals, [{
 			kind: 'action',
 			resource: SESSION,
-			action: {
-				type: ActionType.ChatToolCallStart,
-				turnId: TURN_ID,
-				toolCallId: 'tu_c',
-				toolName: 'problems',
-				displayName: 'problems',
-				contributor: { kind: ToolCallContributorKind.Client, clientId: CLIENT_ID },
-			},
+			action: chatToolCallStart(TURN_ID, 'tu_c', 'problems', 'problems', { contributor: { kind: ToolCallContributorKind.Client, clientId: CLIENT_ID } }),
 		}]);
 		assert.deepStrictEqual(log.warns, []);
 	});
@@ -529,14 +516,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			{
 				kind: 'action',
 				resource: SESSION,
-				action: {
-					type: ActionType.ChatToolCallStart,
-					turnId: TURN_ID,
-					toolCallId: 'tu_client_write',
-					toolName: 'Write',
-					displayName: 'Write',
-					contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-1' },
-				},
+				action: chatToolCallStart(TURN_ID, 'tu_client_write', 'Write', 'Write', { contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-1' } }),
 			},
 			{
 				kind: 'action',
@@ -551,14 +531,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			{
 				kind: 'action',
 				resource: SESSION,
-				action: {
-					type: ActionType.ChatToolCallReady,
-					turnId: TURN_ID,
-					toolCallId: 'tu_client_write',
-					invocationMessage: 'Write',
-					toolInput: '{\n  "value": "client input"\n}',
-					confirmed: ToolCallConfirmationReason.NotNeeded,
-				},
+				action: chatToolCallReady(TURN_ID, 'tu_client_write', 'Write', { toolInput: '{\n  "value": "client input"\n}', confirmed: ToolCallConfirmationReason.NotNeeded }),
 			},
 			{
 				kind: 'action',

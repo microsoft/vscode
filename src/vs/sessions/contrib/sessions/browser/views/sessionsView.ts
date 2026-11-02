@@ -58,6 +58,7 @@ import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsListPresentation } from '../../../../services/presentation/browser/sessionsListPresentation.js';
 import { logSessionsListCompactViewState } from '../../../../common/sessionsTelemetry.js';
+import { IPinnedCanvasService } from '../../../canvases/browser/pinnedCanvases.js';
 import { SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../../../common/sessionConfig.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -200,6 +201,7 @@ export class SessionsView extends ViewPane {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ISessionsListPresentation private readonly presentation: ISessionsListPresentation,
+		@IPinnedCanvasService private readonly pinnedCanvasService: IPinnedCanvasService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.separateNavigation = observableConfigValue(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, false, configurationService);
@@ -316,6 +318,7 @@ export class SessionsView extends ViewPane {
 			customizationExtensionSuggestionsAvailable: this.customizationsNavigationState.extensionSuggestionsAvailable,
 			navigationContainer,
 			onDidChangeNavigationHeight: () => this.layoutSidebarSplitView(),
+			pinnedCanvases: this.pinnedCanvasService,
 			focusNewSessionInput: () => this.sessionsPartService.focusSession(this.sessionsService.activeSession.get()),
 			findWidgetContainer,
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {

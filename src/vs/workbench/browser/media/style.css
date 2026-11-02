@@ -66,7 +66,8 @@ body {
 	--vscode-shadow-depth-y: 0 5px 10px -4px rgba(0, 0, 0, 0.04);
 }
 
-.monaco-workbench.sash-grippers-hidden {
+/* Scoped to the sashes: inherited custom properties on the root would restyle the whole workbench on every toggle. */
+.monaco-workbench.sash-grippers-hidden .monaco-sash {
 	--sash-grip-opacity: 0;
 	--sash-grip-transition-duration: 0.3s;
 }

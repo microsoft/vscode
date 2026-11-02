@@ -1027,7 +1027,8 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-list-widget .section-title-header .section-title-actions,
-.mcp-list-widget .section-title-header .section-title-actions {
+.mcp-list-widget .section-title-header .section-title-actions,
+.ai-customization-management-editor .tools-list-widget .section-title-header .section-title-actions {
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
@@ -1035,7 +1036,8 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-list-widget .section-title-header .section-title-actions > .monaco-button,
-.mcp-list-widget .section-title-header .section-title-actions > .monaco-button {
+.mcp-list-widget .section-title-header .section-title-actions > .monaco-button,
+.ai-customization-management-editor .tools-list-widget .section-title-header .section-title-actions > .monaco-button {
 	width: auto;
 	height: var(--vscode-spacing-size240);
 	font-size: var(--vscode-fontSize-label1);

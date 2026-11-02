@@ -106,8 +106,8 @@
     ]
   },
   "scripts": {
-    "compile": "npm run build-notebook",
-    "watch": "npm run build-notebook",
+    "compile": "pnpm run build-notebook",
+    "watch": "pnpm run build-notebook",
     "build-notebook": "node ./esbuild.notebook.mts"
   },
   "devDependencies": {
