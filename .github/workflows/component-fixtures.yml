@@ -78,7 +78,7 @@ jobs:
         uses: ./.github/actions/restore-playwright
         with:
           browsers: chromium
-          package-lock: test/componentFixtures/playwright/package-lock.json
+          pnpm-lock: test/componentFixtures/playwright/pnpm-lock.yaml
           save-cache: ${{ github.event_name != 'pull_request' }}
 
       - name: Install Playwright Chromium

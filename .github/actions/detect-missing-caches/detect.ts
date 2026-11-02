@@ -161,7 +161,7 @@ export function getCaches(job: ICacheWarmingJob, readFile: ReadRepositoryFile): 
 		caches.push(cache(`wsl-installer-v1-${job.os}-${hashFiles(readFile('build/checksums/wsl.txt'))}`, '.build/wsl-installer'));
 	}
 	if (job.playwright) {
-		const version = JSON.parse(readFile('package-lock.json').toString('utf8')).packages['node_modules/playwright'].version;
+		const version = /\n  \.:\n(?:(?!\n  \S)[\s\S])*?\n      '@playwright\/test':\n        specifier: .*\n        version: ([^\s(]+)/.exec(readFile('pnpm-lock.yaml').toString('utf8').replace(/\r\n/g, '\n'))![1];
 		const browsers = job.playwright.browsers.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '');
 		caches.push(cache(`playwright-v1-${job.os}-${job.playwright.arch}-${version}-${browsers}`, '.build/ms-playwright'));
 	}

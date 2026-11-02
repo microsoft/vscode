@@ -151,7 +151,7 @@ suite('Detect missing caches', () => {
 			playwright: [
 				{ key: 'playwright-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.prepare.outputs.version }}-${{ steps.prepare.outputs.browsers }}', path: '.build/ms-playwright', enableCrossOsArchive: undefined },
 				{ key: '${{ steps.restore.outputs.cache-primary-key }}', path: '.build/ms-playwright', enableCrossOsArchive: undefined },
-				'const version = JSON.parse(fs.readFileSync(process.env.PLAYWRIGHT_PACKAGE_LOCK, \'utf8\')).packages[\'node_modules/playwright\'].version;',
+				'const version = /\\n  \\.:\\n(?:(?!\\n  \\S)[\\s\\S])*?\\n      \'@playwright\\/test\':\\n        specifier: .*\\n        version: ([^\\s(]+)/.exec(fs.readFileSync(process.env.PLAYWRIGHT_PNPM_LOCK, \'utf8\').replace(/\\r\\n/g, \'\\n\'))[1];',
 				'const browsers = process.env.PLAYWRIGHT_INSTALL_ARGS.replace(/[^A-Za-z0-9]+/g, \'-\').replace(/^-|-$/g, \'\');',
 			],
 		});

@@ -5,9 +5,9 @@ inputs:
   browsers:
     description: The arguments of `playwright install`, for example `--only-shell chromium`.
     required: true
-  package-lock:
-    description: The package-lock.json whose `playwright` package installs the browsers.
-    default: package-lock.json
+  pnpm-lock:
+    description: The pnpm-lock.yaml whose root `@playwright/test` dependency installs the browsers.
+    default: pnpm-lock.yaml
   save-cache:
     description: When 'true', also downloads and saves the browsers on a cache miss. Use on main, whose caches pull requests can read.
     default: 'false'
@@ -24,12 +24,12 @@ runs:
       id: prepare
       shell: node {0}
       env:
-        PLAYWRIGHT_PACKAGE_LOCK: ${{ inputs.package-lock }}
+        PLAYWRIGHT_PNPM_LOCK: ${{ inputs.pnpm-lock }}
         PLAYWRIGHT_INSTALL_ARGS: ${{ inputs.browsers }}
       run: |
         const fs = require('fs');
         const path = require('path');
-        const version = JSON.parse(fs.readFileSync(process.env.PLAYWRIGHT_PACKAGE_LOCK, 'utf8')).packages['node_modules/playwright'].version;
+        const version = /\n  \.:\n(?:(?!\n  \S)[\s\S])*?\n      '@playwright\/test':\n        specifier: .*\n        version: ([^\s(]+)/.exec(fs.readFileSync(process.env.PLAYWRIGHT_PNPM_LOCK, 'utf8').replace(/\r\n/g, '\n'))[1];
         const browsers = process.env.PLAYWRIGHT_INSTALL_ARGS.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '');
         fs.appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\nbrowsers=${browsers}\n`);
         fs.appendFileSync(process.env.GITHUB_ENV, `PLAYWRIGHT_BROWSERS_PATH=${path.join(process.env.GITHUB_WORKSPACE, '.build', 'ms-playwright')}\n`);
