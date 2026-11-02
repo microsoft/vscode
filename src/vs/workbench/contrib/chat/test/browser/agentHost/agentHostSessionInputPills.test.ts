@@ -47,6 +47,7 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
@@ -283,8 +284,11 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	};
 
-	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local', workbenchGitHubService?: IWorkbenchGitHubService, transcript?: { service: IChatArtifactsService; local?: boolean }, options?: { sessionResource?: URI; configurationService?: IConfigurationService; defaultChangesetKind?: DefaultChangesetKind; dialogService?: IDialogService; notificationService?: INotificationService; supportsSessionWorkingSet?: boolean; getUriLabel?: ILabelService['getUriLabel']; workingSetUndo?: boolean; openerService?: IOpenerService; resourceUris?: IAgentHostResourceUriMapper }) {
+	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local', workbenchGitHubService?: IWorkbenchGitHubService, transcript?: { service: IChatArtifactsService; local?: boolean }, options?: { sessionResource?: URI; configurationService?: IConfigurationService; defaultChangesetKind?: DefaultChangesetKind; dialogService?: IDialogService; notificationService?: INotificationService; supportsSessionWorkingSet?: boolean; getUriLabel?: ILabelService['getUriLabel']; workingSetUndo?: boolean; openerService?: IOpenerService; resourceUris?: IAgentHostResourceUriMapper; telemetryService?: ITelemetryService }) {
 		const instantiationService = createInstantiationService();
+		if (options?.telemetryService) {
+			instantiationService.stub(ITelemetryService, options.telemetryService);
+		}
 		if (options?.configurationService) {
 			instantiationService.stub(IConfigurationService, options.configurationService);
 		}
@@ -737,6 +741,33 @@ suite('AgentHostSessionInputPills', () => {
 			localWindow: [artifact.toString()],
 			remoteWindow: [toAgentHostUri(artifact, 'ambient-remote').toString()],
 			remoteHost: [toAgentHostUri(artifact, 'remote').toString()],
+		});
+	});
+
+	test('reports opening recorded artifacts and references with the backend session', () => {
+		const openRecorded = (recorded: ISessionArtifact, dropdown?: { readonly pill: string; readonly item: string }) => {
+			const events: { eventName: string; data: unknown }[] = [];
+			const telemetryService = upcastPartial<ITelemetryService>({ publicLog2: (eventName: string, data?: unknown) => { events.push({ eventName, data }); } });
+			const harness = createActivityPills(upcastPartial<SessionState>({
+				defaultChat: 'vendor-chat:/main', chats: [],
+				_meta: withSessionArtifacts(undefined, [recorded]),
+			}), undefined, undefined, 'local', undefined, undefined, { openerService: new TestOpenerService(), telemetryService });
+			if (dropdown) {
+				harness.dropdown(dropdown.pill).find(item => item.label === dropdown.item)?.select();
+			} else {
+				harness.persistentContent.querySelector<HTMLElement>('.chat-resource-pill-button')?.click();
+			}
+			return events;
+		};
+
+		assert.deepStrictEqual({
+			file: openRecorded({ id: 'notes', label: 'Notes', uri: URI.file('/workspace/notes.md').toString(), type: SessionArtifactType.File, isArtifact: true }),
+			website: openRecorded({ id: 'docs', label: 'Docs', link: 'https://example.com/docs', type: SessionArtifactType.Website, isArtifact: true }, { pill: '1 Artifact', item: 'Docs' }),
+			reference: openRecorded({ id: 'spec', label: 'Spec', uri: URI.file('/workspace/spec.md').toString(), type: SessionArtifactType.File, isArtifact: false }, { pill: '1 Reference', item: 'spec.md' }),
+		}, {
+			file: [{ eventName: 'agentHost.sessionArtifactOpen', data: { agentSessionId: 'sessions/42', itemCategory: 'artifact', itemKind: 'file' } }],
+			website: [{ eventName: 'agentHost.sessionArtifactOpen', data: { agentSessionId: 'sessions/42', itemCategory: 'artifact', itemKind: 'website' } }],
+			reference: [{ eventName: 'agentHost.sessionArtifactOpen', data: { agentSessionId: 'sessions/42', itemCategory: 'reference', itemKind: 'file' } }],
 		});
 	});
 
@@ -1504,6 +1535,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
 			instantiationService.get(IChatEditingService),
+			instantiationService.get(ITelemetryService),
 		));
 		const draft = URI.parse('agent-host-copilotcli:/untitled-draft');
 		viewModel = upcastPartial<ChatViewModel>({ sessionResource: draft });
@@ -2039,6 +2071,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
 			instantiationService.get(IChatEditingService),
+			instantiationService.get(ITelemetryService),
 		));
 		await timeout(0);
 
@@ -2388,6 +2421,7 @@ suite('AgentHostSessionInputPills', () => {
 				instantiationService.get(ICommandService),
 				instantiationService.get(IDialogService),
 				instantiationService.get(IChatEditingService),
+				instantiationService.get(ITelemetryService),
 			));
 			const button = persistentContent.querySelector<HTMLElement>('.chat-changes-pill-button');
 			button?.click();
@@ -3434,6 +3468,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
 			instantiationService.get(IChatEditingService),
+			instantiationService.get(ITelemetryService),
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
 
@@ -3544,6 +3579,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
 			instantiationService.get(IChatEditingService),
+			instantiationService.get(ITelemetryService),
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
 		const initial = {
@@ -3719,6 +3755,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
 			instantiationService.get(IChatEditingService),
+			instantiationService.get(ITelemetryService),
 		));
 		const button = persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button');
 		const icon = button?.querySelector<HTMLElement>('.chat-pill-icon');
@@ -3901,6 +3938,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
 			instantiationService.get(IChatEditingService),
+			instantiationService.get(ITelemetryService),
 		));
 		persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button')?.click();
 		const copied: string[] = [];
@@ -4025,6 +4063,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
 			instantiationService.get(IChatEditingService),
+			instantiationService.get(ITelemetryService),
 		));
 		const showChat = (resource: URI) => {
 			const previousSessionResource = viewModel.sessionResource;
@@ -4118,6 +4157,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
 			instantiationService.get(IChatEditingService),
+			instantiationService.get(ITelemetryService),
 		));
 		const pills = () => Array.from(persistentContent.querySelectorAll('.chat-pill-label')).map(label => label.textContent);
 		const running = pills();

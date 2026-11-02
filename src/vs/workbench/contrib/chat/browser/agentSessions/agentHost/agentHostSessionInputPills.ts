@@ -46,6 +46,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillEntries, getChatPillResourceLocation, getChatReferencePillPresentation, IChatPillEntry, IChatPillSection, type ChatPillsCompactMode, withChatPillHoverLabel } from '../../../../../browser/chatPills.js';
 import { chatChangesStatsEqual, EMPTY_CHAT_CHANGES_STATS, IChatChangesStats } from '../../../../../browser/chatChangesPill.js';
@@ -73,6 +74,7 @@ import { SessionBackgroundShellsControl } from '../../sessionBackgroundShellsCon
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry } from '../../sessionPullRequestPill.js';
 import { SessionCustomizations } from '../../sessionCustomizations.js';
 import { createSessionSubagentsPillData, type IChatSubagentPillEntry } from '../../sessionSubagentsPill.js';
+import { reportAgentHostSessionArtifactOpen } from './agentHostArtifactTelemetry.js';
 import { AgentHostBackgroundShellOutputs } from './agentHostBackgroundShells.js';
 import { agentHostChangesetFileToEntryDiff, getAgentHostResourceAuthority } from './agentHostResponseFileChanges.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
@@ -571,6 +573,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		@ICommandService commandService: ICommandService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IChatEditingService chatEditingService: IChatEditingService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._gitHubReferenceResolver = this._register(instantiationService.createInstance(AgentHostGitHubReferenceResolver));
@@ -920,6 +923,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				currentMetadata.pullRequestTitles,
 				currentMetadata.pullRequestArtifacts,
 				this._getRemoveArtifactAction(currentResolution, reader),
+				currentResolution,
 			);
 		});
 		const pullRequestIcon = derived(this, reader => {
@@ -938,6 +942,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				currentMetadata.issueTitles,
 				currentMetadata.issueArtifacts,
 				this._getRemoveArtifactAction(currentResolution, reader),
+				currentResolution,
 			);
 		});
 		const issueIcon = derived(this, reader => computeAggregateIssueIcon(metadata.read(reader).issueUrls.map(link => {
@@ -1104,6 +1109,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		titles?: ReadonlyMap<string, string>,
 		artifacts?: ReadonlyMap<string, ISessionArtifact>,
 		removeArtifact?: (artifact: ISessionArtifact) => Promise<void>,
+		resolution?: IAgentHostSessionResolution,
 	) {
 		const entries = links.map(link => {
 			const resource = parseUri(link);
@@ -1113,6 +1119,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			const number = githubReferenceNumber(resource, kind);
 			const title = titles?.get(linkKey(link));
 			const artifact = artifacts?.get(linkKey(link));
+			const openReference = () => this._openRecorded(resolution, artifact, () => this._openExternal(resource));
 			const label = referenceLabel(link, kind, title);
 			const target = parseGitHubReferenceTarget(resource, kind);
 			const pullRequestDetails = kind === 'pullRequest' && target
@@ -1141,7 +1148,7 @@ export class AgentHostSessionInputPills extends Disposable {
 					checksStatus: pullRequestDetails.checksStatus,
 					density,
 					onDidClickRepository: () => this._openExternal(URI.parse(`https://github.com/${target.owner}/${target.repo}`)),
-					onDidClickReference: () => this._openExternal(resource),
+					onDidClickReference: openReference,
 					onDidClickBaseBranch: () => this._clipboardService.writeText(pullRequestDetails.pullRequest.baseRef),
 					onDidClickHeadBranch: () => this._clipboardService.writeText(pullRequestDetails.pullRequest.headRef),
 				})
@@ -1153,7 +1160,7 @@ export class AgentHostSessionInputPills extends Disposable {
 						issue,
 						density,
 						onDidClickRepository: () => this._openExternal(URI.parse(`https://github.com/${target.owner}/${target.repo}`)),
-						onDidClickReference: () => this._openExternal(resource),
+						onDidClickReference: openReference,
 					})
 					: undefined;
 			const stateDescription = pullRequestDetails
@@ -1186,7 +1193,7 @@ export class AgentHostSessionInputPills extends Disposable {
 						: localize('agentHostSessionPills.referenceDescription', "{0}. {1}", stateDescription, resource.toString(true))
 					: resource.toString(true),
 				...(liveTitle || title ? { tooltip: `${resourceLabel}\n${resource.toString(true)}` } : {}),
-				open: () => this._openExternal(resource),
+				open: openReference,
 			};
 			return target ? {
 				...entry,
@@ -1260,7 +1267,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				} : {}),
 				...(imageMimeType?.startsWith('image/') ? { imagePreview: { resource, mimeType: imageMimeType } } : {}),
 				...getChatPillResourceLocation(resource, label),
-				open: () => this._openResource(resource),
+				open: () => this._openRecorded(resolution, artifact, () => this._openResource(resource)),
 			};
 		}
 
@@ -1278,7 +1285,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				commit,
 				density,
 				onDidClickRepository: () => this._openExternal(URI.parse(`https://github.com/${commitTarget.owner}/${commitTarget.repo}`)),
-				onDidClickReference: () => this._openExternal(link),
+				onDidClickReference: () => this._openRecorded(resolution, artifact, () => this._openExternal(link)),
 			}) : undefined;
 			const copyAction = artifact.type === SessionArtifactType.Commit
 				? withChatPillHoverLabel(toAction({
@@ -1317,7 +1324,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				fallbackLabel: label,
 				enrich: !artifact.isArtifact,
 				onDidClickRepository: resource => this._openExternal(resource),
-				onDidClickReference: () => this._openExternal(link),
+				onDidClickReference: () => this._openRecorded(resolution, artifact, () => this._openExternal(link)),
 				onDidClickBranch: branch => { void this._clipboardService.writeText(branch); },
 			}) : undefined;
 			const gitHubPresentation = gitHubDetails
@@ -1346,7 +1353,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				...gitHubHover,
 				...(gitHubDetails ? { prefetch: gitHubDetails.prefetch } : {}),
 				...(gitHubDetails && !gitHubHover ? { ariaDescription: resourceLocation.ariaDescription } : {}),
-				open: () => this._openExternal(link),
+				open: () => this._openRecorded(resolution, artifact, () => this._openExternal(link)),
 			};
 			return artifact.type === SessionArtifactType.Commit
 				? { ...entry, ...this._commitHoverCache.get(artifact.id, entry, createCommitHover, commitTarget ? 'preview' : 'content') }
@@ -1592,6 +1599,14 @@ export class AgentHostSessionInputPills extends Disposable {
 
 	private _openExternal(resource: URI): void {
 		void this._openerService.open(resource, { openExternal: true, allowContributedOpeners: true, fromUserGesture: true });
+	}
+
+	/** Opens an item and, when it is a recorded artifact or reference of an agent host session, reports the open. */
+	private _openRecorded(resolution: IAgentHostSessionResolution | undefined, artifact: ISessionArtifact | undefined, open: () => void): void {
+		open();
+		if (resolution && artifact) {
+			reportAgentHostSessionArtifactOpen(this._telemetryService, resolution.backendSession, artifact);
+		}
 	}
 
 	private _openResource(resource: URI): void {
