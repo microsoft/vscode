@@ -32,7 +32,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ISCMProvider, ISCMResource, ISCMResourceGroup } from '../../common/scm.js';
-import { SCMStructuralDiffModel, getSCMStructuralDiffAriaLabel, getSCMStructuralDiffChange, getSCMStructuralDiffChangeAnnotation, getSCMStructuralDiffDescription, getSCMStructuralDiffLabel } from '../../common/scmStructuralDiff.js';
+import { SCMStructuralDiffElement, SCMStructuralDiffModel, getSCMStructuralDiffAriaLabel, getSCMStructuralDiffChange, getSCMStructuralDiffChangeAnnotation, getSCMStructuralDiffDescription, getSCMStructuralDiffLabel } from '../../common/scmStructuralDiff.js';
 
 class TestResource extends mock<ISCMResource>() {
 	constructor(
@@ -215,6 +215,10 @@ suite('SCM structural diff model', () => {
 		return new TestResource(group, fileUri, index.uri, working.uri);
 	}
 
+	function flatten(elements: readonly SCMStructuralDiffElement[]): SCMStructuralDiffElement[] {
+		return elements.flatMap(element => [element, ...(element.type === 'structuralDiff' ? flatten(element.children) : [])]);
+	}
+
 	test('checks eligibility without loading models or invoking providers', () => {
 		assert.deepStrictEqual({
 			supported: model.hasChildren(resource),
@@ -276,12 +280,12 @@ suite('SCM structural diff model', () => {
 			const refreshed = await model.getChildren(staged);
 			assert.deepStrictEqual({
 				current, calls: provider.calls,
-				newIdentity: refreshed[0].id !== stagedChildren[0].id,
+				sameId: refreshed[0].id === stagedChildren[0].id,
 				refreshedCurrent: model.isCurrent(refreshed[0]),
 				inputs: [provider.original?.getValue(), provider.modified?.getValue()],
 			}, {
 				current: { staged: false, workingTree: changed !== 'index' }, calls: 3,
-				newIdentity: true, refreshedCurrent: true,
+				sameId: true, refreshedCurrent: true,
 				inputs: [head.getValue(), original.getValue()],
 			});
 		});
@@ -341,13 +345,13 @@ suite('SCM structural diff model', () => {
 		assert.deepStrictEqual({
 			disabled,
 			enabled: model.enabled,
-			newIdentity: next[0].id !== previous[0].id,
+			sameId: next[0].id === previous[0].id,
 			current: model.isCurrent(next[0]),
 			calls: provider.calls,
 			changes,
 		}, {
 			disabled: { expandable: false, children: [], current: false, released: [original.uri, modified.uri], calls: 1 },
-			enabled: true, newIdentity: true, current: true, calls: 2, changes: [undefined, undefined],
+			enabled: true, sameId: true, current: true, calls: 2, changes: [undefined, undefined],
 		});
 	});
 
@@ -379,7 +383,7 @@ suite('SCM structural diff model', () => {
 	});
 
 	for (const invalidate of ['release', 'group', 'provider', 'clear'] as const) {
-		test(`disposes model references and result identities on ${invalidate}`, async () => {
+		test(`disposes model references and invalidates previous results on ${invalidate}`, async () => {
 			const children = await model.getChildren(resource);
 			switch (invalidate) {
 				case 'release': model.release(resource); break;
@@ -391,13 +395,62 @@ suite('SCM structural diff model', () => {
 			const next = await model.getChildren(resource);
 			assert.deepStrictEqual({
 				previousIsCurrent,
-				differentId: next[0].id !== children[0].id,
+				sameId: next[0].id === children[0].id,
 				current: model.isCurrent(next[0]),
 				released: resolver.released,
 				calls: provider.calls,
-			}, { previousIsCurrent: false, differentId: true, current: true, released: [original.uri, modified.uri], calls: 2 });
+			}, { previousIsCurrent: false, sameId: true, current: true, released: [original.uri, modified.uri], calls: 2 });
 		});
 	}
+
+	test('keeps the ids of entities and status rows when a file is reloaded', async () => {
+		provider.result = { ...createResult(), isIncomplete: true };
+		const before = await model.getChildren(resource);
+		modified.setValue('class Calculator {\n\trun() { return 3; }\n}');
+		const after = await model.getChildren(resource);
+		assert.deepStrictEqual({
+			labels: flatten(after).map(getSCMStructuralDiffLabel),
+			ids: flatten(after).map(element => element.id),
+			previousCurrent: model.isCurrent(before[0]),
+			current: flatten(after).every(element => model.isCurrent(element)),
+			calls: provider.calls,
+		}, {
+			labels: ['Calculator', 'run', 'Partial structural changes'],
+			ids: flatten(before).map(element => element.id),
+			previousCurrent: false, current: true, calls: 2,
+		});
+	});
+
+	test('derives distinct ids for same-name siblings and keeps the id of a renamed entity', async () => {
+		const result = createResult();
+		const method = result.root.children[0].children[0];
+		const withMethods = (renamedTo: string, idSuffix: string): StructuralDiff => ({
+			...result,
+			root: {
+				...result.root,
+				children: [{
+					...result.root.children[0],
+					children: [
+						{ ...method, id: `first${idSuffix}` },
+						{ ...method, id: `second${idSuffix}` },
+						{ ...method, id: `renamed${idSuffix}`, original: { ...method.original!, name: 'compute' }, modified: { ...method.modified!, name: renamedTo } },
+						{ ...method, id: `added${idSuffix}`, original: undefined, modified: { ...method.modified!, name: 'helper' } },
+					],
+				}],
+			},
+		});
+		provider.result = withMethods('calculate', '');
+		const [before] = await model.getChildren(resource);
+		model.release(resource);
+		provider.result = withMethods('compute', '-reloaded');
+		const [after] = await model.getChildren(resource);
+		assert.ok(before.type === 'structuralDiff' && after.type === 'structuralDiff');
+		const childIds = before.children.map(child => child.id);
+		assert.deepStrictEqual({
+			distinct: new Set(childIds).size,
+			reloaded: after.children.map(child => child.id),
+		}, { distinct: 4, reloaded: childIds });
+	});
 
 	test('keeps the results of resources that remain in a changed group and releases the others', async () => {
 		const other = createWorkingTreeResource('other.ts');

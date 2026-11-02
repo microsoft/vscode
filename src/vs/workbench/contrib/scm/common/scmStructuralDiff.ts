@@ -10,7 +10,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { StructuralDiffClassification, StructuralDiffNode, symbolKindNames } from '../../../../editor/common/languages.js';
+import { StructuralDiffClassification, StructuralDiffNode, SymbolKind, symbolKindNames } from '../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
@@ -33,7 +33,12 @@ const MAX_CONCURRENT_LOADS = 3;
 const MAX_LOAD_TIME_MS = 30_000;
 
 interface SCMStructuralDiffElementBase {
+	/**
+	 * Identifies the entity or status that the element shows. It stays the same when the structural
+	 * changes of a file are reloaded, so the tree keeps focus, selection and collapse state.
+	 */
 	readonly id: string;
+	/** Identifies the result that contains the element, see {@link SCMStructuralDiffModel.isCurrent}. */
 	readonly generation: number;
 	readonly resource: ISCMResource;
 	readonly order: number;
@@ -53,6 +58,14 @@ export interface SCMStructuralDiffStatus extends SCMStructuralDiffElementBase {
 }
 
 export type SCMStructuralDiffElement = SCMStructuralDiffNode | SCMStructuralDiffStatus;
+
+/** A step from a parent to a structural entity: its kind, language kind and name, and its position among siblings with the same ones. */
+type EntityKey = readonly [kind: SymbolKind, languageKind: string, name: string, ordinal: number];
+
+function createElementId(resource: ISCMResource, path: readonly (EntityKey | string)[]): string {
+	const group = resource.resourceGroup;
+	return SCM_STRUCTURAL_DIFF_ID_PREFIX + JSON.stringify([group.provider.id, group.id, resource.sourceUri.toString(), ...path]);
+}
 
 export function isSCMStructuralDiffElement(element: unknown): element is SCMStructuralDiffElement {
 	return typeof element === 'object' && element !== null && 'type' in element
@@ -388,16 +401,25 @@ export class SCMStructuralDiffModel extends Disposable {
 			}
 			const result = await StructuralDiffs.compute(this.editorWorkerService, this.configurationService, this.languageFeaturesService.structuralDiffProvider, original, modified, entry.cancellation.token);
 			this.checkCancellation(entry);
-			const wrap = (node: StructuralDiffNode, parent: ISCMResource | SCMStructuralDiffNode, order: number): SCMStructuralDiffNode => {
-				const children: SCMStructuralDiffNode[] = [];
-				const element: SCMStructuralDiffNode = {
-					type: 'structuralDiff', id: `${SCM_STRUCTURAL_DIFF_ID_PREFIX}${entry.generation}:node:${node.id}`,
-					generation: entry.generation, resource, node, parent, order, children,
-				};
-				children.push(...node.children.map((child, index) => wrap(child, element, index)));
-				return element;
+			const wrap = (nodes: readonly StructuralDiffNode[], parent: ISCMResource | SCMStructuralDiffNode, path: readonly EntityKey[]): SCMStructuralDiffNode[] => {
+				const ordinals = new Map<string, number>();
+				return nodes.map((node, order) => {
+					// Edits do not change the original document, so a modified or renamed entity keeps its id.
+					const entity = (node.original ?? node.modified)!;
+					const key = JSON.stringify([entity.kind, entity.languageKind ?? '', entity.name]);
+					const ordinal = ordinals.get(key) ?? 0;
+					ordinals.set(key, ordinal + 1);
+					const nodePath: EntityKey[] = [...path, [entity.kind, entity.languageKind ?? '', entity.name, ordinal]];
+					const children: SCMStructuralDiffNode[] = [];
+					const element: SCMStructuralDiffNode = {
+						type: 'structuralDiff', id: createElementId(resource, nodePath),
+						generation: entry.generation, resource, node, parent, order, children,
+					};
+					children.push(...wrap(node.children, element, nodePath));
+					return element;
+				});
 			};
-			const children: SCMStructuralDiffElement[] = result?.root.children.map((node, index) => wrap(node, resource, index)) ?? [];
+			const children: SCMStructuralDiffElement[] = result ? wrap(result.root.children, resource, []) : [];
 			if (result?.isIncomplete) {
 				children.push(this.createStatus(entry, 'incomplete', children.length));
 			}
@@ -438,7 +460,7 @@ export class SCMStructuralDiffModel extends Disposable {
 
 	private createStatus(entry: StructuralDiffEntry, status: SCMStructuralDiffStatus['status'], order: number): SCMStructuralDiffStatus {
 		return {
-			type: 'structuralDiffStatus', id: `${SCM_STRUCTURAL_DIFF_ID_PREFIX}${entry.generation}:status:${status}`,
+			type: 'structuralDiffStatus', id: createElementId(entry.resource, ['status', status]),
 			generation: entry.generation, resource: entry.resource, parent: entry.resource, order, status,
 		};
 	}
