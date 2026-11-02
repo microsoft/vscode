@@ -38,7 +38,7 @@ import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { DesktopLayoutController } from '../../browser/desktopLayoutController.js';
 import { DesktopLayoutModeCoordinator, MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS } from '../../browser/desktop/desktopLayoutModeCoordinator.js';
-import { createTestHarness, ITestLayoutHarness, makeSession } from './layoutControllerTestUtils.js';
+import { createTestHarness, ITestLayoutHarness, makeSession, TestStubEditorInput } from './layoutControllerTestUtils.js';
 import { describeMenuGroup, describeSessionActivityBarLayout } from '../../../../test/browser/sessionLayoutModeTestUtils.js';
 import { Menus } from '../../../../browser/menus.js';
 import { bindSessionLayoutButtonsContext, registerSessionLayoutButtonsContextMenu, SessionLayoutButton, sessionLayoutButtonPromotedContext, sessionLayoutButtons, SessionLayoutButtonsAllPromotedContext, SessionLayoutButtonsService } from '../../../../browser/sessionLayoutButtons.js';
@@ -65,6 +65,10 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 
 	function createController(chatLayoutMode: ChatLayoutMode, initialSession: IActiveSession, workspaceFolder = URI.file('/repo')): TestDesktopController {
 		harness = createTestHarness(store, { desktopLayout: true, chatLayoutMode, workspaceFolders: [{ uri: workspaceFolder }] });
+		// Every chat has a file open: a chat layout without one hides its side pane.
+		const openFile = () => { harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/editor.txt')))]; };
+		openFile();
+		harness.onApplyWorkingSet = openFile;
 		harness.activeSessionObs.set(initialSession, undefined);
 		return store.add(harness.instaService.createInstance(TestDesktopController));
 	}
