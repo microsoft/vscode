@@ -67,6 +67,10 @@ $PacProxy = "$(if ($ProxyScheme -eq 'Https') { 'HTTPS' } else { 'PROXY' }) local
 $LogDirectory = Join-Path $RepositoryRoot '.build\logs\agents-window-wsl-kerberos-proxy'
 $SmokeLogs = Join-Path $RepositoryRoot '.build\logs\smoke-tests-electron'
 $EarlierSmokeLogs = Join-Path $RepositoryRoot '.build\logs\smoke-tests-electron-before-wsl-kerberos-proxy'
+# Where test/smoke/test/index.js writes its JUnit report.
+$SmokeTestResults = Join-Path (@($env:BUILD_ARTIFACTSTAGINGDIRECTORY, $env:GITHUB_WORKSPACE, (Join-Path $RepositoryRoot 'test\smoke\test')) | Where-Object { $_ } | Select-Object -First 1) 'test-results'
+$SmokeTestResultsFilter = '*-desktop-smoke-tests-results.xml'
+$EarlierSmokeTestResultsSuffix = '.before-wsl-kerberos-proxy'
 $TempRoot = Join-Path ([IO.Path]::GetTempPath()) "vscode-agents-window-wsl-kerberos-proxy-$PID"
 $WslRoot = "/tmp/vscode-agents-window-wsl-kerberos-proxy-$PID"
 $Wsl = Join-Path $env:SystemRoot 'System32\wsl.exe'
@@ -706,11 +710,14 @@ exit `$LASTEXITCODE
 "@, [Text.UTF8Encoding]::new($true))
 	$smokeLog = Join-Path $TempRoot 'smoke-test.log'
 	New-Item -ItemType File $smokeLog | Out-Null
-	# The smoke tests replace the Electron smoke test logs, such as those of an earlier run in the same CI job, so these
-	# are kept aside while this run's go to the log directory.
+	# The smoke tests replace the Electron smoke test logs and JUnit report, such as those of an earlier run in the same
+	# CI job, so these are kept aside while this run's go to the log directory and to a report of their own.
 	if (Test-Path $SmokeLogs) {
 		Remove-Item -Recurse -Force $EarlierSmokeLogs -ErrorAction SilentlyContinue
 		Move-Item $SmokeLogs $EarlierSmokeLogs
+	}
+	Get-ChildItem $SmokeTestResults -File -ErrorAction SilentlyContinue | Where-Object Name -Like $SmokeTestResultsFilter | ForEach-Object {
+		Move-Item -Force $_.FullName "$($_.FullName)$EarlierSmokeTestResultsSuffix"
 	}
 	$smokeStarted = $true
 	Write-Host "Running the smoke tests with network-only credentials for $KerberosUser@$Realm..."
@@ -766,6 +773,16 @@ exit `$LASTEXITCODE
 			}
 		} catch {
 			Write-Warning "Could not file the smoke test logs: $_"
+		}
+		try {
+			Get-ChildItem $SmokeTestResults -File -ErrorAction SilentlyContinue | Where-Object Name -Like $SmokeTestResultsFilter | ForEach-Object {
+				Move-Item -Force $_.FullName (Join-Path $_.DirectoryName ($_.Name -replace '-results\.xml$', '-wsl-kerberos-proxy-results.xml'))
+			}
+			Get-ChildItem $SmokeTestResults -File -ErrorAction SilentlyContinue | Where-Object Name -Like "$SmokeTestResultsFilter$EarlierSmokeTestResultsSuffix" | ForEach-Object {
+				Move-Item -Force $_.FullName $_.FullName.Substring(0, $_.FullName.Length - $EarlierSmokeTestResultsSuffix.Length)
+			}
+		} catch {
+			Write-Warning "Could not file the smoke test results: $_"
 		}
 	}
 	if ($savedProxySettings) {
