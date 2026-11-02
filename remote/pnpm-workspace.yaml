@@ -19,6 +19,8 @@ verifyDepsBeforeRun: false
 pmOnFail: ignore
 skills:
   dirs: []
+ignoredOptionalDependencies:
+  - '@parcel/watcher-*'
 allowBuilds:
   '@parcel/watcher@2.5.6': true
   '@vscode/deviceid@0.1.5': true
