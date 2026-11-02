@@ -14,6 +14,7 @@ import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext,
 import { SessionHasChangesContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
+import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { CodeReviewService, ICodeReviewService } from './codeReviewService.js';
@@ -82,7 +83,16 @@ class RunSessionCodeReviewAction extends Action2 {
 		}
 
 		if (session.capabilities.get().supportsMultipleChats) {
-			await sessionManagementService.sendNewChatRequest(session, { query: CODE_REVIEW_QUERY });
+			if (session.status.get() === SessionStatus.Untitled) {
+				await sessionManagementService.sendNewChatRequest(session, { query: CODE_REVIEW_QUERY });
+			} else {
+				// sendNewChatRequest only starts pending sessions; an existing session gets a new chat instead.
+				// forceNew keeps any unsent draft chat (and its composed input) untouched.
+				const chat = await sessionManagementService.createNewChatInSession(session, { forceNew: true });
+				if (chat) {
+					await sessionManagementService.sendRequest(session, chat, { query: CODE_REVIEW_QUERY });
+				}
+			}
 		} else {
 			chatWidgetService.getWidgetBySessionResource(session.resource)?.acceptInput(CODE_REVIEW_QUERY);
 		}

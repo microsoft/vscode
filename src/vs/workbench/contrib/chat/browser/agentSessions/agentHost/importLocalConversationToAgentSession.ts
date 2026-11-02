@@ -179,7 +179,14 @@ function responsePartsFromRequest(request: IChatRequestModel): ResponsePart[] {
 			} else if (part.kind === 'thinking') {
 				const content = Array.isArray(part.value) ? part.value.join('') : (part.value ?? '');
 				if (content) {
-					responseParts.push({ kind: ResponsePartKind.Reasoning, id: generateUuid(), content });
+					const startedAt = part.reasoningStartedAt === undefined ? undefined : new Date(part.reasoningStartedAt);
+					responseParts.push({
+						kind: ResponsePartKind.Reasoning,
+						id: generateUuid(),
+						content,
+						...(startedAt && Number.isFinite(startedAt.getTime()) ? { startedAt: startedAt.toISOString() } : {}),
+						...(part.reasoningDurationMs !== undefined && Number.isFinite(part.reasoningDurationMs) && part.reasoningDurationMs >= 0 ? { duration: part.reasoningDurationMs } : {}),
+					});
 				}
 			} else if (part.kind === 'inlineReference') {
 				// A file/symbol chip interleaved with the response text; render it

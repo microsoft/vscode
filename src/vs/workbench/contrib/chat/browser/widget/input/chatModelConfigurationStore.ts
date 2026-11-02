@@ -45,8 +45,8 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	private _autoTierSchema: { original: ILanguageModelConfigurationSchema; tier: string; effective: ILanguageModelConfigurationSchema } | undefined;
 	private _sessionConfiguration: IAgentModelConfigurationReport | undefined;
 
-	private readonly _onDidChange = this._register(new Emitter<string>());
-	readonly onDidChange: Event<string> = this._onDidChange.event;
+	private readonly _onDidChange = this._register(new Emitter<readonly string[]>());
+	readonly onDidChange: Event<readonly string[]> = this._onDidChange.event;
 
 	private readonly _onDidSelectConfiguration = this._register(new Emitter<string>());
 	/** Explicit selections, including reselecting a value; restores and schema updates do not fire. */
@@ -83,6 +83,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 				return;
 			}
 			const bucket = this._readBucket();
+			const changed: string[] = [];
 			for (const [modelId, override] of [...this._overrides]) {
 				const schemaDefaults = this._schemaDefaults(modelId);
 				const uninitialized = Object.keys(override).length === 0;
@@ -96,8 +97,11 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 				nextOverride = this._applyHostDefaults(modelId, nextOverride, preferences);
 				if (!equals(override, nextOverride) || vendor === undefined) {
 					this._overrides.set(modelId, nextOverride);
-					this._onDidChange.fire(modelId);
+					changed.push(modelId);
 				}
+			}
+			if (changed.length > 0) {
+				this._onDidChange.fire(changed);
 			}
 		}));
 	}
@@ -235,7 +239,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 			this._writeBucket(bucket);
 		}
 
-		this._onDidChange.fire(modelId);
+		this._onDidChange.fire([modelId]);
 		return true;
 	}
 
@@ -288,7 +292,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 			return;
 		}
 		this._sessionConfiguration = report;
-		const modelIds = new Set([...this._overrides.keys(), ...Object.keys(report?.models ?? {})]);
+		const modelIds = [...new Set([...this._overrides.keys(), ...Object.keys(report?.models ?? {})])];
 		for (const modelId of modelIds) {
 			const previous = this.getModelConfiguration(modelId) ?? {};
 			const preferences = this._preferences.get(modelId);
@@ -297,7 +301,10 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 				: this._applyHostDefaults(modelId, { ...defaults, ...previous }, preferences);
 			next = this._applyRuntimeValues(modelId, next);
 			this._overrides.set(modelId, next);
-			this._onDidChange.fire(modelId);
+		}
+		// Notify once the whole snapshot applies, so listeners render once and never see it half applied.
+		if (modelIds.length > 0) {
+			this._onDidChange.fire(modelIds);
 		}
 	}
 
@@ -323,8 +330,8 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 
 	/** Rebinds picker observers after the owner has restored the incoming conversation's configuration. */
 	notifyConversationChanged(): void {
-		for (const modelId of [...this._overrides.keys()]) {
-			this._onDidChange.fire(modelId);
+		if (this._overrides.size > 0) {
+			this._onDidChange.fire([...this._overrides.keys()]);
 		}
 	}
 

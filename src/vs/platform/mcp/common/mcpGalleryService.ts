@@ -714,7 +714,7 @@ namespace McpServerSchemaVersion_v0_1 {
 				return undefined;
 			}
 
-			const { 'io.modelcontextprotocol.registry/official': registryInfo, ...apicInfo } = from._meta;
+			const { 'io.modelcontextprotocol.registry/official': registryInfo, ...apicInfo } = from._meta ?? {};
 			const githubInfo = from.server._meta?.['io.modelcontextprotocol.registry/publisher-provided']?.github as IGitHubInfo | undefined;
 			const packages = filterMcpPackages(
 				from.server.packages,
@@ -799,6 +799,17 @@ namespace McpServerSchemaVersion_v0 {
 }
 
 const DefaultPageSize = 50;
+
+/** Reads the configuration and identity using the same schema adapters as Gallery discovery. */
+export function parseMcpGalleryServerConfiguration(data: unknown): Pick<IGalleryMcpServer, 'name' | 'version' | 'configuration'> | undefined {
+	const server = McpServerSchemaVersion_v0.SERIALIZER.toRawGalleryMcpServer(data);
+	return server ? {
+		name: server.name,
+		version: server.version,
+		configuration: { packages: server.packages, remotes: server.remotes },
+	} : undefined;
+}
+
 const maxMcpGalleryErrorResponseBytes = 1024;
 
 /**

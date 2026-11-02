@@ -477,10 +477,10 @@ suite('Agent Host Session Config Picker', () => {
 		assert.deepStrictEqual({ properties, targetItems, targetIcon, writes: services.provider.setSessionConfigValueArguments, checkouts: services.checkoutInvocations }, {
 			properties: ['target', 'baseBranch', 'branch'],
 			targetItems: [
-				{ value: 'workspace', icon: Codicon.folder.id },
+				{ value: 'workspace', icon: Codicon.gitBranchCheckout.id },
 				{ value: 'worktree', icon: Codicon.worktree.id },
 			],
-			targetIcon: 'codicon codicon-folder',
+			targetIcon: 'codicon codicon-git-branch-checkout',
 			writes: [
 				{ sessionId: SESSION_ID, property: 'target', value: 'workspace' },
 				{ sessionId: SESSION_ID, property: 'baseBranch', value: 'main' },
@@ -567,6 +567,7 @@ suite('Agent Host Session Config Picker', () => {
 		const services = setupServices(store);
 		const { container } = renderPicker(store, services);
 		const snapshots = [];
+		const triggerIcons = [];
 		for (const value of ['folder', 'worktree']) {
 			isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 			await new Promise(resolve => setTimeout(resolve));
@@ -579,17 +580,20 @@ suite('Agent Host Session Config Picker', () => {
 			})));
 			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.value === value)!.item!);
 			await new Promise(resolve => setTimeout(resolve));
+			triggerIcons.push(isolationSlot(container)?.querySelector('.codicon')?.className);
 		}
 		assert.deepStrictEqual({
 			snapshots,
+			triggerIcons,
 			selections: services.provider.setSessionConfigValueArguments,
 			finalLabel: isolationSlot(container)?.textContent,
 			checkbox: container.querySelector('.monaco-checkbox'),
 		}, {
 			snapshots: [true, false].map(worktreeSelected => [
-				{ label: 'Branch', value: 'folder', checked: !worktreeSelected, detail: 'Works in the repository already on this computer', icon: Codicon.folder.id },
+				{ label: 'Branch', value: 'folder', checked: !worktreeSelected, detail: 'Works in the repository already on this computer', icon: Codicon.gitBranchCheckout.id },
 				{ label: 'New Worktree', value: 'worktree', checked: worktreeSelected, detail: 'Creates a separate copy for this session', icon: Codicon.worktree.id },
 			]),
+			triggerIcons: ['codicon codicon-git-branch-checkout', 'codicon codicon-worktree'],
 			selections: ['folder', 'worktree'].map(value => ({ sessionId: SESSION_ID, property: SessionConfigKey.Isolation, value })),
 			finalLabel: 'New Worktree',
 			checkbox: null,
@@ -1153,55 +1157,45 @@ suite('Agent Host Session Config Picker', () => {
 		services.workspaceObs.set(makeWorkspace(changes.length), undefined);
 		const { container } = renderAttachedPicker(store, services);
 		const trigger = isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!;
-		const open = async () => {
-			trigger.click();
-			await timeout(0);
-			return {
-				rows: services.actionWidget.items.map(item => item.kind === ActionListItemKind.Separator
-					? (item.label ? `[${item.label}]` : '|')
-					: [item.label, item.badge, item.detail].filter(Boolean).join(' · ')),
-				header: services.actionWidget.listOptions?.headerText,
-				className: services.actionWidget.listOptions?.className,
-			};
-		};
 
 		const shown = {
 			label: trigger.textContent,
 			count: trigger.querySelector('.sessions-chat-uncommitted-count.visible')?.textContent ?? null,
 			ariaLabel: trigger.getAttribute('aria-label'),
 		};
-		const opened = await open();
+		trigger.click();
+		await timeout(0);
+		const opened = {
+			rows: services.actionWidget.items.map(item => item.kind === ActionListItemKind.Separator
+				? (item.label ? `[${item.label}]` : '|')
+				: [item.label, item.badge, item.detail].filter(Boolean).join(' · ')),
+			header: services.actionWidget.listOptions?.headerText,
+			className: services.actionWidget.listOptions?.className,
+		};
 		const ariaLabel = services.actionWidget.accessibilityProvider!.getAriaLabel!(services.actionWidget.items.find(item => item.label === 'app.ts')!);
-		// Closing the explanation keeps the files listed.
-		services.actionWidget.listOptions?.headerDismiss?.();
-		const reopened = await open();
 		for (const label of ['2 more', 'New Worktree']) {
 			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.label === label)!.item!);
 		}
 		await timeout(0);
 
-		const rows = [
-			'Branch · Works alongside your 5 uncommitted files',
-			'New Worktree · Recommended · Creates a separate copy for this session',
-			'[5 Uncommitted Files]',
-			'app.ts',
-			'README.md',
-			'todo.ts',
-			'2 more',
-		];
-		assert.deepStrictEqual({ shown, opened, ariaLabel, reopened, calls: suggestions.calls, selections: services.provider.setSessionConfigValueArguments }, {
+		assert.deepStrictEqual({ shown, opened, ariaLabel, calls: suggestions.calls, selections: services.provider.setSessionConfigValueArguments }, {
 			shown: { label: 'Branch5', count: '5', ariaLabel: 'Isolation: Branch. main has 5 uncommitted files. On Branch, the agent works alongside them.' },
 			opened: {
-				rows,
-				header: 'main has 5 uncommitted files. On Branch, the agent works alongside them, so its changes can mix with yours.',
+				rows: [
+					'Branch · Works alongside your 5 uncommitted files',
+					'New Worktree · Recommended · Creates a separate copy for this session',
+					'[5 Uncommitted Files]',
+					'app.ts',
+					'README.md',
+					'todo.ts',
+					'2 more',
+				],
+				header: undefined,
 				className: 'sessions-chat-isolation-listed-changes',
 			},
 			ariaLabel: 'app.ts, 5 Uncommitted Files',
-			reopened: { rows, header: undefined, className: 'sessions-chat-isolation-listed-changes' },
 			calls: [
 				'shown:uncommittedFilesCount',
-				'opened:uncommittedFilesCount',
-				'explanationClosed',
 				'opened:uncommittedFilesCount',
 				'reviewChanges:uncommittedFilesCount',
 				'accepted:uncommittedFilesCount',

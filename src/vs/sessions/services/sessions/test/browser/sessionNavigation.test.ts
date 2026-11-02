@@ -292,6 +292,9 @@ class MockSessionStore implements ISessionsManagementService {
 	listCanvases(_session: ISession, _chat: IChat): Promise<readonly ISessionCanvasDefinition[]> { throw new Error('not implemented'); }
 	openCanvas(_session: ISession, _chat: IChat, _canvas: ISessionCanvasDefinition, _instanceId: string): Promise<void> { throw new Error('not implemented'); }
 	closeCanvas(_session: ISession, _chat: IChat, _canvas: ISessionCanvas): Promise<void> { throw new Error('not implemented'); }
+	readonly onDidCloseCanvas = Event.None;
+	observeCanvas(): undefined { return undefined; }
+	observeChatCanvases(): undefined { return undefined; }
 }
 
 suite('SessionsNavigation', () => {
@@ -333,9 +336,10 @@ suite('SessionsNavigation', () => {
 		return contextKeyService.getContextKeyValue('sessionsCanGoForward') ?? false;
 	}
 
-	function registerCustomView(id: string) {
+	function registerCustomView(id: string, acceptsState?: (state: string) => boolean) {
 		return ds.add(customViewService.registerCustomView({
 			id,
+			acceptsState,
 			ctor: new SyncDescriptor(class extends AbstractCustomView {
 				readonly title = constObservable('Custom View');
 				render(_container: HTMLElement): void { }
@@ -559,6 +563,38 @@ suite('SessionsNavigation', () => {
 			canGoFurtherBack: false,
 			forward: ['s1', 's2', 'other', 'automations'],
 			canGoForward: false,
+		});
+	});
+
+	test('back and forward return a custom view to the item each opening showed, skipping items it can no longer show', async () => {
+		const s1 = stubSession('s1');
+		store.addSession(s1);
+		const shownItems = new Set(['plan', 'preview', 'removed']);
+		// Like the pinned canvas page, the view declines an opening for an item it can no longer show.
+		registerCustomView('canvas', state => shownItems.has(state));
+		const destinations = async (direction: 'back' | 'forward', count: number) => {
+			const shown: string[] = [];
+			for (let i = 0; i < count; i++) {
+				await (direction === 'back' ? nav.goBack() : nav.goForward());
+				const open = customViewService.activeCustomViewOpen.get();
+				shown.push(open ? `${open.descriptor.id}:${open.state}` : store.activeSession.get()?.sessionId ?? 'newSession');
+			}
+			return shown;
+		};
+
+		await store.openSession(s1.resource);
+		customViewService.showCustomView('canvas', { state: 'removed' });
+		customViewService.showCustomView('canvas', { state: 'plan' });
+		customViewService.showCustomView('canvas', { state: 'preview' });
+		shownItems.delete('removed');
+
+		const back = await destinations('back', 2);
+		const forward = await destinations('forward', 1);
+
+		assert.deepStrictEqual({ back, forward, canGoForward: canGoForward() }, {
+			back: ['canvas:plan', 's1'],
+			forward: ['canvas:plan'],
+			canGoForward: true,
 		});
 	});
 

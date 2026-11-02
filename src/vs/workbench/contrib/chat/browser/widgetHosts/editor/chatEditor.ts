@@ -68,6 +68,11 @@ export interface IChatEditorOptions extends IEditorOptions {
 		preferred?: string;
 		fallback?: string;
 	};
+	/**
+	 * Last known title of the chat, cached in the serialized editor state so that
+	 * restored editors show it before their session is loaded.
+	 */
+	restoredTitle?: string;
 }
 
 export type IChatEditorViewState = IChatWidgetViewState;

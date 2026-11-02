@@ -9,6 +9,8 @@ import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu
 import * as dom from '../../../../../../base/browser/dom.js';
 import { OverlayLayoutElement } from '../../../../../../base/browser/overlayLayoutElement.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { ObjectTree } from '../../../../../../base/browser/ui/tree/objectTree.js';
+import { IObjectTreeElement } from '../../../../../../base/browser/ui/tree/tree.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Event } from '../../../../../../base/common/event.js';
@@ -44,6 +46,7 @@ import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../
 import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions, getChatContextMenuTargetContext, isChatBackgroundContextMenuTarget, shouldShowChatLinkOpenWith } from '../../../browser/widget/chatListWidget.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { ChatListItemRenderer } from '../../../browser/widget/chatListRenderer.js';
+import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatRequestQueueKind, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { IChatSideChatService } from '../../../common/chatSideChatService.js';
@@ -860,6 +863,170 @@ suite('ChatListWidget', () => {
 		});
 	});
 
+	test('restores the row at the top of the viewport after switching to another chat and back', async () => {
+		const { disposables, instantiationService, model, viewModel, widget } = createWidget();
+		const other = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		for (const target of [model, other]) {
+			for (let index = 0; index < 6; index++) {
+				const text = `question ${index}`;
+				const request = target.addRequest({
+					text,
+					parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+				}, { variables: [] }, 0);
+				target.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 30 }, (_, line) => `answer ${index} line ${line}`).join('\n\n')) });
+				request.response!.complete();
+			}
+		}
+		// Agent host sessions come back with the same request IDs, but new response IDs.
+		const data = model.toJSON();
+		const restoredModel = disposables.add(instantiationService.createInstance(ChatModel, { value: { ...data, requests: data.requests.map(request => ({ ...request, responseId: undefined })) }, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		// Hosts save and restore the view state through ChatWidget, around binding a new view model for each chat.
+		const chatWidget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), { listWidget: widget });
+		let bound: ChatViewModel = viewModel;
+		// Like ChatWidget.setModel: the outgoing view model is disposed, which empties the list, then a new one is bound.
+		const switchTo = (target: ChatModel) => {
+			bound.dispose();
+			widget.refresh();
+			bound = disposables.add(instantiationService.createInstance(ChatViewModel, target, undefined));
+			widget.setViewModel(bound);
+			widget.refresh();
+			return bound;
+		};
+		const topOfViewport = (viewModel: ChatViewModel) => {
+			const items = viewModel.getItems();
+			const row = items.findLastIndex(item => widget.getElementTop(item)! <= widget.scrollTop);
+			return { row, offset: widget.scrollTop - widget.getElementTop(items[row])! };
+		};
+
+		widget.layout(300, 500);
+		const first = switchTo(model);
+		await waitForStableLayout(widget);
+		// Read down to the fourth response, which renders and measures every row above it.
+		const items = first.getItems();
+		for (const item of items.slice(0, 8)) {
+			widget.reveal(item, 0);
+			await waitForStableLayout(widget);
+		}
+		widget.scrollTop = widget.getElementTop(items[7])! + 150;
+		const saved = topOfViewport(first);
+		const viewState = chatWidget.getViewState();
+
+		switchTo(other);
+		chatWidget.restoreViewState({ scrollTop: 0, isAtBottom: true });
+		await waitForStableLayout(widget);
+		const restored = switchTo(restoredModel);
+		chatWidget.restoreViewState(viewState);
+		await waitForStableLayout(widget);
+
+		assert.deepStrictEqual({
+			saved,
+			restored: topOfViewport(restored),
+			responseIdsChanged: restored.getItems().filter(isResponseVM).every(response => !items.some(item => item.id === response.id)),
+		}, {
+			saved: { row: 7, offset: 150 },
+			restored: { row: 7, offset: 150 },
+			responseIdsChanged: true,
+		});
+		disposables.dispose();
+	});
+
+	suite('streaming into a long transcript', () => {
+		const message = (text: string) => ({
+			text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+		});
+		const countElements = (elements: Iterable<IObjectTreeElement<unknown>> | undefined): number => {
+			let count = 0;
+			for (const element of elements ?? []) {
+				count += 1 + countElements(element.children);
+			}
+			return count;
+		};
+
+		// Wires the widget the way ChatWidget does: one refresh per batch of view model changes.
+		async function createTranscript(priorTurns: number) {
+			const created = createWidget();
+			const { disposables, model, viewModel, widget } = created;
+			disposables.add(Event.runAndSubscribe(Event.accumulate(viewModel.onDidChange), events => widget.refresh(events)));
+			for (let index = 0; index < priorTurns; index++) {
+				const request = model.addRequest(message(`Turn ${index}`), { variables: [] }, 0);
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`Answer ${index}`) });
+				request.response!.complete();
+			}
+			const request = model.addRequest(message('Stream a reply'), { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Streamed reply.') });
+			widget.layout(300, 500);
+			await timeout(0);
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			return { ...created, request, setChildren: sinon.spy(ObjectTree.prototype, 'setChildren') };
+		}
+
+		async function streamParagraphs(priorTurns: number) {
+			const { disposables, model, container, widget, request, setChildren } = await createTranscript(priorTurns);
+			for (let index = 0; index < 5; index++) {
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`\n\nStreamed paragraph ${index}.`) });
+				await timeout(0);
+			}
+			// Streamed words render progressively, so wait for the last paragraph before checking the scroll position.
+			const lastParagraphVisible = await retry(async () => assert.ok(container.textContent?.includes('Streamed paragraph 4.')), 100, 30).then(() => true, () => false);
+			await waitForStableLayout(widget);
+			const result = {
+				fullRefreshes: setChildren.getCalls().filter(call => call.args[0] === null).length,
+				diffedElements: setChildren.getCalls().reduce((sum, call) => sum + countElements(call.args[1]), 0),
+				lastParagraphVisible,
+				atBottom: widget.isScrolledToBottom,
+			};
+			setChildren.restore();
+			disposables.dispose();
+			return result;
+		}
+
+		test('diffs only the streaming response, however many turns precede it', async () => {
+			const short = await streamParagraphs(5);
+			const long = await streamParagraphs(100);
+			assert.deepStrictEqual({ short, long }, {
+				short: { fullRefreshes: 0, diffedElements: 5, lastParagraphVisible: true, atBottom: true },
+				long: { fullRefreshes: 0, diffedElements: 5, lastParagraphVisible: true, atBottom: true },
+			});
+		});
+
+		test('falls back to a full refresh when the request or the transcript changes', async () => {
+			const { model, viewModel, container, widget, request, setChildren } = await createTranscript(3);
+			const fullRefreshes = () => setChildren.getCalls().filter(call => call.args[0] === null).length;
+			const states: { fullRefreshes: number; requests: string[]; text: boolean }[] = [];
+			const record = async (text: string) => {
+				await timeout(0);
+				await waitForStableLayout(widget);
+				states.push({
+					fullRefreshes: fullRefreshes(),
+					requests: viewModel.getItems().filter(isRequestVM).map(item => item.messageText),
+					text: !!container.textContent?.includes(text),
+				});
+			};
+
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(' More text.') });
+			await record('More text.');
+			// Completing the response changes its request's identity.
+			request.response!.complete();
+			await record('More text.');
+			const next = model.addRequest(message('Follow-up'), { variables: [] }, 0);
+			await record('Follow-up');
+			model.acceptResponseProgress(next, { kind: 'markdownContent', content: new MarkdownString('Follow-up reply.') });
+			await record('Follow-up reply.');
+			// Undo removes the request while its reply streams.
+			model.removeRequest(next.id);
+			await record('More text.');
+
+			assert.deepStrictEqual(states, [
+				{ fullRefreshes: 0, requests: ['Turn 0', 'Turn 1', 'Turn 2', 'Stream a reply'], text: true },
+				{ fullRefreshes: 1, requests: ['Turn 0', 'Turn 1', 'Turn 2', 'Stream a reply'], text: true },
+				{ fullRefreshes: 2, requests: ['Turn 0', 'Turn 1', 'Turn 2', 'Stream a reply', 'Follow-up'], text: true },
+				{ fullRefreshes: 2, requests: ['Turn 0', 'Turn 1', 'Turn 2', 'Stream a reply', 'Follow-up'], text: true },
+				{ fullRefreshes: 3, requests: ['Turn 0', 'Turn 1', 'Turn 2', 'Stream a reply'], text: true },
+			]);
+		});
+	});
+
 	async function measureFirstRequestPushOut(firstText: string) {
 		const { disposables, model, viewModel, container, widget } = createWidget({}, configurationService => {
 			configurationService.setUserConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING, true);
@@ -886,6 +1053,9 @@ suite('ChatListWidget', () => {
 
 		widget.refresh();
 		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		// Rows only measure once they render, so render the first exchange before reading the second request's position.
+		widget.scrollTop = 0;
 		await waitForStableLayout(widget);
 		const secondRequestItem = viewModel.getItems().filter(isRequestVM)[1];
 		const secondRequestTop = widget.getElementTop(secondRequestItem);
@@ -1283,6 +1453,9 @@ suite('ChatListWidget', () => {
 		container.style.setProperty('--vscode-cornerRadius-medium', '6px');
 		container.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgb(1, 2, 3)');
 		container.style.setProperty('--vscode-chat-requestBubbleHoverBackground', 'rgb(4, 5, 6)');
+		// The hover checks dispatch synthetic mouse events. Keep a real pointer that happens to rest over the
+		// test window (Linux Electron) from also matching `:hover` and leaving a bubble in its hover color.
+		container.style.pointerEvents = 'none';
 		const hasStickyShadowRule = Array.from(container.querySelectorAll('style')).some(style =>
 			style.textContent?.includes('.monaco-tree-sticky-container-shadow') && style.textContent.includes('box-shadow'));
 		const firstParagraph = 'question with an attachment '.repeat(20).trim();

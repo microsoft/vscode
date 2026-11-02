@@ -26,7 +26,7 @@ import { NoMatchingKb } from '../../../keybinding/common/keybindingResolver.js';
 import { IMarkdownRendererService } from '../../../markdown/browser/markdownRenderer.js';
 import type { IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { AnchorAlignment } from '../../../../base/common/layout.js';
+import { AnchorAlignment, AnchorPosition } from '../../../../base/common/layout.js';
 import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import '../../browser/hover.css';
 
@@ -521,6 +521,200 @@ suite('HoverService', () => {
 			hover.dispose();
 			assertNotInDOM(hover, 'Hover should be removed from DOM after dispose');
 		});
+
+		test('should re-evaluate the requested side on every layout as the content size changes', () => {
+			// Less room to the right of the target than to its left
+			const documentWidth = mainWindow.document.documentElement.clientWidth;
+			const target = createTarget();
+			target.getBoundingClientRect = () => new DOMRect(documentWidth - 300, 100, 50, 20);
+			const hover = showHover('Growing content', target, {
+				position: { hoverPosition: HoverPosition.RIGHT },
+				appearance: { showPointer: true }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			const pointer = hoverWidget.domNode.parentElement?.querySelector<HTMLElement>('.workbench-hover-pointer');
+			assert.ok(pointer);
+
+			const layoutWithWidth = (clientWidth: number) => {
+				Object.defineProperty(hoverWidget.domNode, 'clientWidth', { configurable: true, value: clientWidth });
+				hoverWidget.layout();
+				const side = ['left', 'right', 'top', 'bottom'].find(c => pointer.classList.contains(c));
+				// The pointer must sit on the hover edge facing the target, which an offset left
+				// over from the previous axis would override
+				const style = mainWindow.getComputedStyle(pointer);
+				return side === 'left' ? `right@${hoverWidget.x} pointer-left:${style.left}`
+					: side === 'right' ? `left@${hoverWidget.x}`
+						: side === 'top' ? `below pointer-top:${style.top}`
+							: 'above';
+			};
+
+			assert.deepStrictEqual([
+				layoutWithWidth(100),
+				layoutWithWidth(300),
+				layoutWithWidth(documentWidth),
+				layoutWithWidth(documentWidth),
+				layoutWithWidth(100),
+			], [
+				`right@${documentWidth - 250 + 3} pointer-left:-3px`,
+				`left@${documentWidth - 300 - 3 - 302}`,
+				'below pointer-top:-3px',
+				'below pointer-top:-3px',
+				`right@${documentWidth - 250 + 3} pointer-left:-3px`,
+			]);
+			hover.dispose();
+		});
+
+		test('should re-evaluate a requested LEFT side on every layout as the content size changes', () => {
+			// Less room to the left of the target than to its right
+			const documentWidth = mainWindow.document.documentElement.clientWidth;
+			const target = createTarget();
+			target.getBoundingClientRect = () => new DOMRect(250, 100, 50, 20);
+			const hover = showHover('Growing content', target, {
+				position: { hoverPosition: HoverPosition.LEFT },
+				appearance: { showPointer: true }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			const pointer = hoverWidget.domNode.parentElement?.querySelector<HTMLElement>('.workbench-hover-pointer');
+			assert.ok(pointer);
+
+			const layoutWithWidth = (clientWidth: number) => {
+				Object.defineProperty(hoverWidget.domNode, 'clientWidth', { configurable: true, value: clientWidth });
+				hoverWidget.layout();
+				const side = ['left', 'right', 'top', 'bottom'].find(c => pointer.classList.contains(c));
+				const style = mainWindow.getComputedStyle(pointer);
+				return side === 'left' ? `right@${hoverWidget.x} pointer-left:${style.left}`
+					: side === 'right' ? `left@${hoverWidget.x}`
+						: side === 'top' ? `below pointer-top:${style.top}`
+							: 'above';
+			};
+
+			assert.deepStrictEqual([
+				layoutWithWidth(100),
+				layoutWithWidth(300),
+				layoutWithWidth(documentWidth),
+				layoutWithWidth(documentWidth),
+				layoutWithWidth(100),
+			], [
+				`left@${250 - 3 - 102}`,
+				`right@${300 + 3} pointer-left:-3px`,
+				'below pointer-top:-3px',
+				'below pointer-top:-3px',
+				`left@${250 - 3 - 102}`,
+			]);
+			hover.dispose();
+		});
+
+		test('should re-evaluate a requested ABOVE side on every layout as the content size changes', () => {
+			const target = createTarget();
+			// Little room above the target, so whether the content fits above does not depend on the window size
+			target.getBoundingClientRect = () => new DOMRect(100, 20, 100, 22);
+			const hover = showHover('Growing content', target, {
+				position: { hoverPosition: HoverPosition.ABOVE },
+				appearance: { showPointer: true }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			const pointer = hoverWidget.domNode.parentElement?.querySelector<HTMLElement>('.workbench-hover-pointer');
+			assert.ok(pointer);
+
+			const layoutWithHeight = (height: number) => {
+				Object.defineProperty(hoverWidget.domNode, 'clientHeight', { configurable: true, value: height });
+				Object.defineProperty(hoverWidget.domNode, 'offsetHeight', { configurable: true, value: height });
+				hoverWidget.layout();
+				const style = mainWindow.getComputedStyle(pointer);
+				return hoverWidget.anchor === AnchorPosition.BELOW ? `below pointer-top:${style.top}` : `above pointer-bottom:${style.bottom}`;
+			};
+
+			// Fits above, then only below once taller than the room above (even at its maximum height), then above again
+			assert.deepStrictEqual([
+				layoutWithHeight(10),
+				layoutWithHeight(mainWindow.innerHeight),
+				layoutWithHeight(10),
+			], [
+				'above pointer-bottom:3px',
+				'below pointer-top:-3px',
+				'above pointer-bottom:3px',
+			]);
+			hover.dispose();
+		});
+
+		test('should not choose a side using the maximum height applied by a previous layout', () => {
+			const target = createTarget();
+			const content = document.createElement('div');
+			content.style.height = '800px';
+			let targetTop = 200;
+			target.getBoundingClientRect = () => new DOMRect(100, targetTop, 100, 22);
+			const hover = showHover('', target, {
+				content,
+				position: { hoverPosition: HoverPosition.ABOVE },
+				appearance: { maxHeightRatio: 0.5 }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			const innerHeightDescriptor = Object.getOwnPropertyDescriptor(mainWindow, 'innerHeight');
+			const layoutWithWindowHeight = (innerHeight: number) => {
+				Object.defineProperty(mainWindow, 'innerHeight', { configurable: true, value: innerHeight });
+				hoverWidget.layout();
+				return hoverWidget.anchor === AnchorPosition.BELOW ? 'below' : 'above';
+			};
+
+			try {
+				// The content is capped to half of the window, which is still taller than the room above
+				const small = layoutWithWindowHeight(600);
+				targetTop = 400;
+				const large = layoutWithWindowHeight(1200);
+				assert.deepStrictEqual([small, large], ['below', 'below']);
+			} finally {
+				if (innerHeightDescriptor) {
+					Object.defineProperty(mainWindow, 'innerHeight', innerHeightDescriptor);
+				} else {
+					delete (mainWindow as { innerHeight?: number }).innerHeight;
+				}
+				hover.dispose();
+			}
+		});
+
+		test('should use the maximum height of the hover when choosing a vertical fallback', () => {
+			const target = createTarget();
+			target.getBoundingClientRect = () => new DOMRect(100, 44, 100, 22);
+			const hover = showHover('Tall content', target, {
+				position: { hoverPosition: HoverPosition.BELOW },
+				appearance: { maxHeightRatio: 0.5 }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			// Taller than the room below the target, but not once limited to half of the window
+			Object.defineProperty(hoverWidget.domNode, 'clientHeight', { configurable: true, value: mainWindow.innerHeight });
+			Object.defineProperty(hoverWidget.domNode, 'offsetHeight', { configurable: true, value: mainWindow.innerHeight });
+			hoverWidget.layout();
+
+			assert.strictEqual(hoverWidget.anchor, AnchorPosition.BELOW);
+			hover.dispose();
+		});
+
+		test('should keep a side hover taller than the room above its target within the window', () => {
+			const target = createTarget();
+			target.getBoundingClientRect = () => new DOMRect(0, 20, 100, 20);
+			const hover = showHover('Tall side hover', target, {
+				position: { hoverPosition: HoverPosition.RIGHT },
+				appearance: { showPointer: true }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			const pointer = hoverWidget.domNode.parentElement?.querySelector<HTMLElement>('.workbench-hover-pointer');
+			assert.ok(pointer);
+			Object.defineProperty(hoverWidget.domNode, 'clientWidth', { configurable: true, value: 100 });
+			Object.defineProperty(hoverWidget.domNode, 'clientHeight', { configurable: true, value: 300 });
+			hoverWidget.layout();
+
+			// The hover is anchored above `y`, so its top edge is `y` minus its height and borders
+			const hoverTop = hoverWidget.y - 302;
+			assert.deepStrictEqual({
+				hoverTop,
+				pointerCentre: hoverWidget.y - 300 + Number.parseFloat(pointer.style.top) + 3,
+			}, {
+				hoverTop: 2,
+				pointerCentre: 30,
+			});
+			hover.dispose();
+		});
+
 	});
 
 	suite('hideHover', () => {

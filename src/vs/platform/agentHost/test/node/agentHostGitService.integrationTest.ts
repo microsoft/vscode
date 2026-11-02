@@ -2000,6 +2000,28 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}, { exists: false, refs: 1, preserved: 'recover this work', branchHead: head });
 	});
 
+	(hasGit ? test : test.skip)('explicit discard removes dirty work without a recovery ref and retains committed history', async () => {
+		const dir = initRepo();
+		const wtPath = join(dir, '..', `wt-discard-${Date.now()}`);
+		const fs = await import('fs/promises');
+		try {
+			await svc!.addWorktree(URI.file(dir), { path: URI.file(wtPath), commitish: 'main', newBranchName: 'agents/discard', track: false });
+			const head = cp.execFileSync('git', ['rev-parse', 'agents/discard'], { cwd: dir, env, encoding: 'utf8' }).trim();
+			await fs.writeFile(join(wtPath, 'untracked.txt'), 'discard this work');
+			await fs.writeFile(join(wtPath, '.gitignore'), 'ignored.txt\n');
+			await fs.writeFile(join(wtPath, 'ignored.txt'), 'discard ignored work');
+			await assert.rejects(svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { discardChanges: true }), /requires forced removal/);
+			await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true, discardChanges: true });
+			assert.deepStrictEqual({
+				exists: existsSync(wtPath),
+				recoveryRefs: cp.execFileSync('git', ['for-each-ref', '--format=%(refname)', 'refs/vscode-preserved-worktrees/'], { cwd: dir, env, encoding: 'utf8' }).trim(),
+				branchHead: cp.execFileSync('git', ['rev-parse', 'agents/discard'], { cwd: dir, env, encoding: 'utf8' }).trim(),
+			}, { exists: false, recoveryRefs: '', branchHead: head });
+		} finally {
+			await rmDirWithRetry(wtPath);
+		}
+	});
+
 	(hasGit ? test : test.skip)('forced removal aborts when preservation cannot capture the worktree', async () => {
 		const dir = initRepo();
 		const wtPath = join(dir, 'checkout');

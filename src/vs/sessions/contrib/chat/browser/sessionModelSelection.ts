@@ -101,7 +101,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 
 	private readonly _providerListener = this._register(new MutableDisposable());
 	private readonly _modelConfigurationListener = this._register(new MutableDisposable());
-	private readonly _onDidChangeModelConfiguration = this._register(new Emitter<string>());
+	private readonly _onDidChangeModelConfiguration = this._register(new Emitter<readonly string[]>());
 	private _modelConfigurationAccess: IModelConfigurationAccess | undefined;
 	private readonly _diagnostics: ChatModelSelectionDiagnostics;
 	private readonly _controller: ChatInputModelSelectionController;
@@ -348,11 +348,11 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		const modelConfiguration = this.modelConfiguration && session ? provider?.getAutomationModelConfiguration?.(session.sessionId) : undefined;
 		if (modelConfiguration !== this._modelConfigurationAccess) {
 			this._modelConfigurationAccess = modelConfiguration;
-			this._modelConfigurationListener.value = modelConfiguration?.onDidChange?.(modelId => this._onDidChangeModelConfiguration.fire(modelId));
+			this._modelConfigurationListener.value = modelConfiguration?.onDidChange?.(modelIds => this._onDidChangeModelConfiguration.fire(modelIds));
 			const displayedModelId = this._state.get().currentModel?.identifier;
 			if (displayedModelId) {
 				// A new draft may use the same model with different preferences.
-				this._onDidChangeModelConfiguration.fire(displayedModelId);
+				this._onDidChangeModelConfiguration.fire([displayedModelId]);
 			}
 		}
 

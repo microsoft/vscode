@@ -26,16 +26,18 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService, ISidePaneState, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
 import { HasDockedDetailsContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
+import { DockedEditorInput } from '../../../../common/dockedEditorInput.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { DetailPanelTarget, DesktopDetailPanelCoordinator } from './desktopDetailPanelCoordinator.js';
 import { DesktopDockedTabsCoordinator } from './desktopDockedTabsCoordinator.js';
 import { FilesDetailsState, getFilesDetailsState, isChangesEditorInput, isEditorWithoutDockedDetails, isMainPartEmpty } from './desktopSharedHelpers.js';
 import { IDesktopLayoutContext, DesktopLayoutStrategy } from './desktopLayoutStrategy.js';
-import { SessionVisibilityProfile, DesktopVisibilityProfileStore } from './desktopVisibilityProfileStore.js';
+import { ISidePaneVisibilityState, SessionVisibilityProfile, DesktopVisibilityProfileStore } from './desktopVisibilityProfileStore.js';
+import { ISessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
 
 /** Command that toggles the desktop detail panel (auxiliary bar) from the editor header. */
 export const TOGGLE_DETAILS_COMMAND_ID = 'workbench.action.agentSessions.toggleDetails';
@@ -74,6 +76,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@ISessionChangesService private readonly _sessionChangesService: ISessionChangesService,
+		@ISessionEditorWorkingSetService private readonly _editorWorkingSetService: ISessionEditorWorkingSetService,
 	) {
 		super(ctx);
 
@@ -148,13 +151,17 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		let previousOwnerKey: URI | undefined;
 		let wasSuspended = false;
 		let togglingSidePane = false;
+		let pendingComposition: { readonly ownerKey: URI; readonly state: ISidePaneVisibilityState; readonly reveal: boolean } | undefined;
 		this._register(autorun(reader => {
 			const multipleLayoutOwnersVisible = this._multipleLayoutOwnersVisible(reader);
 			const activeSession = this._sessionsService.activeSession.read(reader);
 			activeSession?.activeChat.read(reader);
 			const isQuickChat = activeSession?.isQuickChat?.read(reader) ?? false;
+			const perChatLayout = this._ctx.chatLayoutActive(reader) && !this._ctx.sharedChatLayout;
+			const restoringWorkingSet = perChatLayout && this._editorWorkingSetService.restoreState.read(reader).restoring;
 
 			if (this._ctx.chatLayoutSuspended(reader)) {
+				pendingComposition = undefined;
 				wasSuspended = true;
 				return;
 			}
@@ -171,6 +178,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			const ownerKey = this._ctx.chatLayoutActive(reader) && activeSession ? this._ctx.ownerKeyFor(activeSession, reader) : undefined;
 
 			if (multipleLayoutOwnersVisible) {
+				pendingComposition = undefined;
 				if (!this._ctx.chatLayoutActive(reader) || this._ctx.sharedChatLayout) {
 					const activeChat = activeSession?.activeChat.read(reader);
 					const workspace = activeChat?.workspace.read(reader);
@@ -186,11 +194,13 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			}
 
 			if (!activeSession) {
+				pendingComposition = undefined;
 				previousOwnerKey = ownerKey;
 				return;
 			}
 
 			if (isQuickChat) {
+				pendingComposition = undefined;
 				wasExistingActive = false;
 				previousOwnerKey = ownerKey;
 				return;
@@ -210,11 +220,26 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 					|| (!isSubmit && !isWorkspaceConversion && (!initialized || !wasExistingActive || wasQuickChatActive || sessionChanged || ownerChanged))) {
 					const compositionKey = this._ctx.chatLayoutActive(reader) ? this._ctx.compositionKeyFor(activeSession, reader) : undefined;
 					const revealSavedComposition = !this._ctx.sharedChatLayout && initialized && !!compositionKey && this._ctx.compositionStore.get(compositionKey) !== undefined;
-					this._ctx.withSessionLayoutRestore(() => this._apply(this._resolveComposition(activeSession, ownerKey), false, revealSavedComposition));
+					const state = this._resolveComposition(activeSession, ownerKey);
+					if (perChatLayout && ownerKey) {
+						pendingComposition = { ownerKey, state, reveal: revealSavedComposition || this._layoutService.isSidePaneVisible() };
+						if (restoringWorkingSet && activeSession.activeChat.read(reader).status.read(reader) !== SessionStatus.Untitled) {
+							this._ctx.withSessionLayoutRestore(() => this._apply({ editorVisible: false, auxiliaryBarVisible: false }));
+						}
+					} else {
+						this._ctx.withSessionLayoutRestore(() => this._apply(state, false, revealSavedComposition));
+					}
 				}
 				wasExistingActive = true;
 			} else {
+				pendingComposition = undefined;
 				wasExistingActive = false;
+			}
+
+			if (pendingComposition && !restoringWorkingSet && isEqual(pendingComposition.ownerKey, ownerKey)) {
+				const { state, reveal } = pendingComposition;
+				pendingComposition = undefined;
+				this._ctx.withSessionLayoutRestore(() => this._apply(state, false, reveal));
 			}
 
 			previousIsCreated = isCreated;
@@ -233,8 +258,12 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			this._captureExistingProfileIfApplicable();
 		}));
 		this._register(this._layoutService.onWillToggleSidePane(() => {
+			pendingComposition = undefined;
 			togglingSidePane = true;
 			this._capturePreHideComposition();
+		}));
+		this._register(this._layoutService.onDidRevealSidePane(() => {
+			pendingComposition = undefined;
 		}));
 		this._register(this._layoutService.onDidToggleSidePane(e => {
 			try {
@@ -269,9 +298,16 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			|| (this._ctx.multipleChatsVisibleObs.get() && !this._ctx.sharedChatLayout)) {
 			return;
 		}
-		const composition = this._getToggleReopenComposition();
+		let composition = this._getToggleReopenComposition();
 		if (!composition || (!composition.editor && !composition.auxiliaryBar)) {
 			return;
+		}
+		const activeSession = this._sessionsService.activeSession.get();
+		if (this._ctx.chatLayoutActive() && !this._ctx.sharedChatLayout
+			&& activeSession?.isCreated.get()
+			&& activeSession.activeChat.get().status.get() !== SessionStatus.Untitled
+			&& !composition.editor && composition.auxiliaryBar) {
+			composition = { editor: true, auxiliaryBar: true };
 		}
 		if (composition.editor !== e.after.editor || composition.auxiliaryBar !== e.after.auxiliaryBar) {
 			this._layoutService.restoreSidePaneComposition(composition);
@@ -360,6 +396,13 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	}
 
 	private _apply(state: { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean }, revealOnly = false, revealSavedComposition = false): void {
+		const draftDetailsOnly = !state.editorVisible && state.auxiliaryBarVisible
+			&& this._sessionsService.activeSession.get()?.activeChat.get().status.get() === SessionStatus.Untitled;
+		if (this._ctx.chatLayoutActive() && !this._ctx.sharedChatLayout
+			&& !draftDetailsOnly
+			&& (!state.editorVisible || !this._editorGroupsService.mainPart.groups.some(group => group.editors.some(editor => !(editor instanceof DockedEditorInput))))) {
+			state = { editorVisible: false, auxiliaryBarVisible: false };
+		}
 		this._detailPanel.resetTransientVisibility();
 		const sidePaneVisible = this._layoutService.isSidePaneVisible();
 		const suppression = this._layoutService.suppressEditorPartAutoVisibility();

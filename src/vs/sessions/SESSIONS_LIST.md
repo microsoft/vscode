@@ -17,6 +17,7 @@ This specification defines stable placement and state-ownership rules. Row styli
 | Order of a session's nested chats | The session's provider |
 | Custom groups, group and grouping-section appearance, nesting, automatic-section parents, mixed child order, and session membership | `ISessionGroupsService` |
 | Top-level custom group and grouping-section order | `ISessionSectionOrderService` |
+| Pinned canvas rows after Automations | `IPinnedCanvasService` |
 | Tree composition and presentation | `SessionsView` and `SessionsList` |
 
 List-owned state is local presentation state. It is not synchronized back to a provider and must not mutate provider timestamps or metadata.
@@ -117,7 +118,7 @@ The list supports created-time and updated-time sorting. Manual ordering stores 
 
 Filters compose across harness, environment, creating application within each environment, and archive state. Providers apply External visibility before publishing their catalogs; list filters further narrow those catalogs. Application options come from the current catalog before list filtering, including cached sessions from disconnected environments. Environment and application preferences use stable identifiers, not mutable display names, and survive an option's disappearance.
 
-The archived filter governs both archived sessions and archived nested chats; there is no per-session archive-visibility override. The agent host filter scopes to every provider the selected host entry covers, which is more than one when that entry groups several hosts and none while such a group is empty. The find widget matches session and section labels and bypasses presentation capping while a search is active.
+The archived filter governs both archived sessions and archived nested chats; there is no per-session archive-visibility override. The agent host filter scopes to every provider the selected host entry covers, which is more than one when that entry groups several hosts and none while such a group is empty. Searching shows the sessions whose title, chat titles, location, group, branch, pull requests, or remote host contain every word of the query, in any order, ignoring case and accents; a session's nested chats show when their title contains a word. A search bypasses presentation capping and expands the rows that hold its results without persisting that expansion, and the rows return to their previous collapse state when it ends.
 
 ## Drag and drop
 
@@ -152,6 +153,8 @@ A collapsed session row uses the provider's aggregate status without inspecting 
 ## Persistence
 
 List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace, repository, or environment section, the Chats section, and custom group, pins, automation sessions shown in the list, custom groups with their nesting, automatic-section parents and mixed child order, manual sort keys, and top-level section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
+
+Pinned canvases are not list state: their rows mirror `IPinnedCanvasService`, which persists them per workspace. Like Automations, they appear in the separate navigation list when it is shown, and otherwise directly below Automations in the sessions tree. They are absent while there are no pins.
 
 ## Change policy
 

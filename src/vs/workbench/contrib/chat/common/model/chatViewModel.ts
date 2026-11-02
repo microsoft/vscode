@@ -68,10 +68,16 @@ export function assertIsResponseVM(item: unknown): asserts item is IChatResponse
 	}
 }
 
-export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | IChatSetHiddenEvent | null;
+export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | IChatSetHiddenEvent | IChatChangeResponseEvent | null;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
+}
+
+/** The content or state of an existing response changed. */
+export interface IChatChangeResponseEvent {
+	kind: 'changeResponse';
+	response: IChatResponseViewModel;
 }
 
 export interface IChangePlaceholderEvent {
@@ -266,6 +272,10 @@ export interface IChatPendingDividerViewModel {
 
 export interface IChatViewModelOptions {
 	/**
+	 * Only return the latest visible request and its response, excluding queued requests and handoffs.
+	 */
+	latestRequestOnly?: boolean;
+	/**
 	 * Maximum number of items to return from getItems().
 	 * When set, only the last N items are returned (most recent request/response pairs).
 	 */
@@ -395,7 +405,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		this._responseDisposables.set(responseModel.id, store);
 		const response = store.add(this.instantiationService.createInstance(ChatResponseViewModel, responseModel, this));
 		store.add(response.onDidChange(() => {
-			return this._onDidChange.fire(null);
+			return this._onDidChange.fire({ kind: 'changeResponse', response });
 		}));
 		this._visibleItemsCache = undefined;
 		this._items.splice(index, 0, response);
@@ -418,6 +428,11 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			}
 			return true;
 		});
+		if (this._options?.latestRequestOnly) {
+			const latestItem = items.at(-1);
+			const requestId = latestItem && (isResponseVM(latestItem) ? latestItem.requestId : latestItem.id);
+			return items.filter(item => (isResponseVM(item) ? item.requestId : item.id) === requestId);
+		}
 		if (this._options?.maxVisibleItems !== undefined && items.length > this._options.maxVisibleItems) {
 			items = items.slice(-this._options.maxVisibleItems);
 		}

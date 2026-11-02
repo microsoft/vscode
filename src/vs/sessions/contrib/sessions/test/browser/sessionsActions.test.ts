@@ -71,6 +71,9 @@ import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessions
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
+import { IWindowCanvasService } from '../../../../services/canvas/browser/windowCanvasService.js';
 
 suite('Sessions - Actions', () => {
 
@@ -150,41 +153,37 @@ suite('Sessions - Actions', () => {
 	});
 
 	test('swaps the primary session row action when New Chat is promoted', () => {
-		const actionRegistration = new DisposableStore();
+		const actionRegistration = disposables.add(new DisposableStore());
 		actionRegistration.add(registerAction2(ArchiveSessionAction));
-		try {
-			const actionIds = new Set([
-				'sessions.chatCompositeBar.addChat',
-				'sessionsViewPane.pinSession',
-				'sessionsViewPane.unpinSession',
-				ARCHIVE_SESSION_COMMAND_ID,
-			]);
-			const snapshot = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
-				.filter(isIMenuItem)
-				.filter(item => actionIds.has(item.command.id))
-				.sort((a, b) => a.command.id.localeCompare(b.command.id))
-				.map(item => ({ id: item.command.id, group: item.group, order: item.order, when: item.when?.serialize() }));
+		const actionIds = new Set([
+			'sessions.chatCompositeBar.addChat',
+			'sessionsViewPane.pinSession',
+			'sessionsViewPane.unpinSession',
+			ARCHIVE_SESSION_COMMAND_ID,
+		]);
+		const snapshot = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
+			.filter(isIMenuItem)
+			.filter(item => actionIds.has(item.command.id))
+			.sort((a, b) => a.command.id.localeCompare(b.command.id))
+			.map(item => ({ id: item.command.id, group: item.group, order: item.order, when: item.when?.serialize() }));
 
-			assert.deepStrictEqual({
-				toolbar: snapshot(Menus.SessionItemToolbar),
-				contextMenu: snapshot(Menus.SessionItemContextMenu),
-			}, {
-				toolbar: [
-					{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1, when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !sessionIsArchived && !sessionItem.inExternalSection && !sessionItem.isCloud' },
-					{ id: ARCHIVE_SESSION_COMMAND_ID, group: 'navigation', order: 2, when: '!sessionIsArchived' },
-					{ id: 'sessionsViewPane.pinSession', group: 'navigation', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned && !sessionsListPromoteNewChatAction' },
-					{ id: 'sessionsViewPane.unpinSession', group: 'navigation', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived && !sessionsListPromoteNewChatAction' },
-				],
-				contextMenu: [
-					{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 2, when: 'sessionSupportsMultipleChats && !sessionIsArchived && !sessionItem.inExternalSection' },
-					{ id: ARCHIVE_SESSION_COMMAND_ID, group: '1_state', order: 3, when: '!sessionIsArchived' },
-					{ id: 'sessionsViewPane.pinSession', group: '2_organize', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned' },
-					{ id: 'sessionsViewPane.unpinSession', group: '2_organize', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived' },
-				],
-			});
-		} finally {
-			actionRegistration.dispose();
-		}
+		assert.deepStrictEqual({
+			toolbar: snapshot(Menus.SessionItemToolbar),
+			contextMenu: snapshot(Menus.SessionItemContextMenu),
+		}, {
+			toolbar: [
+				{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1, when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !sessionIsArchived && !sessionItem.inExternalSection && !sessionItem.isCloud' },
+				{ id: ARCHIVE_SESSION_COMMAND_ID, group: 'navigation', order: 2, when: '!sessionIsArchived' },
+				{ id: 'sessionsViewPane.pinSession', group: 'navigation', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned && !sessionsListPromoteNewChatAction' },
+				{ id: 'sessionsViewPane.unpinSession', group: 'navigation', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived && !sessionsListPromoteNewChatAction' },
+			],
+			contextMenu: [
+				{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 2, when: 'sessionSupportsMultipleChats && !sessionIsArchived && !sessionItem.inExternalSection' },
+				{ id: ARCHIVE_SESSION_COMMAND_ID, group: '1_state', order: 3, when: '!sessionIsArchived' },
+				{ id: 'sessionsViewPane.pinSession', group: '2_organize', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned' },
+				{ id: 'sessionsViewPane.unpinSession', group: '2_organize', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived' },
+			],
+		});
 	});
 
 	test('uses the promoted session row action by default and preserves experiment assignments', async () => {
@@ -871,47 +870,43 @@ suite('Sessions - Actions', () => {
 	});
 
 	test('switches nested session headers from Delete Chat to archive after commit', () => {
-		const actionRegistration = new DisposableStore();
+		const actionRegistration = disposables.add(new DisposableStore());
 		actionRegistration.add(registerAction2(ArchiveSessionAction));
 		actionRegistration.add(registerAction2(ArchiveChatAction));
-		try {
-			const getItems = (commandId: string) => MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
-				.filter(isIMenuItem)
-				.filter(item => item.command.id === commandId)
-				.map(item => ({
-					title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
-					group: item.group,
-					order: item.order,
-					when: item.when?.serialize(),
-				}));
+		const getItems = (commandId: string) => MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id === commandId)
+			.map(item => ({
+				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+				group: item.group,
+				order: item.order,
+				when: item.when?.serialize(),
+			}));
 
-			assert.deepStrictEqual({
-				archiveSession: getItems(ARCHIVE_SESSION_COMMAND_ID),
-				archiveNestedSession: getItems(ARCHIVE_CHAT_COMMAND_ID),
-				deleteChat: getItems('sessions.chatCompositeBar.deleteChat'),
-			}, {
-				archiveSession: [{
-					title: 'Archive',
-					group: 'secondary/1_state',
-					order: 20,
-					when: 'sessionIsCreated && !sessionHeaderTargetsChat && !sessionIsArchived',
-				}],
-				archiveNestedSession: [{
-					title: 'Archive',
-					group: 'secondary/1_state',
-					order: 20,
-					when: 'sessionActiveChatCanArchive && sessionHeaderTargetsChat && !sessionActiveChatIsUntitled',
-				}],
-				deleteChat: [{
-					title: 'Delete Chat',
-					group: 'secondary/4_manage',
-					order: 20,
-					when: 'sessionActiveChatIsDeletable && sessionActiveChatIsUntitled && sessionHeaderTargetsChat',
-				}],
-			});
-		} finally {
-			actionRegistration.dispose();
-		}
+		assert.deepStrictEqual({
+			archiveSession: getItems(ARCHIVE_SESSION_COMMAND_ID),
+			archiveNestedSession: getItems(ARCHIVE_CHAT_COMMAND_ID),
+			deleteChat: getItems('sessions.chatCompositeBar.deleteChat'),
+		}, {
+			archiveSession: [{
+				title: 'Archive',
+				group: 'secondary/1_state',
+				order: 20,
+				when: 'sessionIsCreated && !sessionHeaderTargetsChat && !sessionIsArchived',
+			}],
+			archiveNestedSession: [{
+				title: 'Archive',
+				group: 'secondary/1_state',
+				order: 20,
+				when: 'sessionActiveChatCanArchive && sessionHeaderTargetsChat && !sessionActiveChatIsUntitled',
+			}],
+			deleteChat: [{
+				title: 'Delete Chat',
+				group: 'secondary/4_manage',
+				order: 20,
+				when: 'sessionActiveChatIsDeletable && sessionActiveChatIsUntitled && sessionHeaderTargetsChat',
+			}],
+		});
 	});
 
 	test('routes New Quick Chat through the new-session composer', async () => {
@@ -1770,6 +1765,8 @@ suite('Sessions - Actions', () => {
 		]) {
 			test(`New Session preserves ${scenario.name} inheritance with toSide=${toSide}`, async () => {
 				const instantiationService = disposables.add(new TestInstantiationService());
+				instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
+				instantiationService.stub(IWindowCanvasService, { openNewSession: () => undefined });
 				const composerService = disposables.add(new NewSessionComposerService());
 				instantiationService.stub(INewSessionComposerService, composerService);
 				instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
@@ -1815,6 +1812,8 @@ suite('Sessions - Actions', () => {
 		for (const pending of [false, true]) {
 			test(`New Session preserves container intent across repeated New (pending: ${pending}, toSide: ${toSide})`, async () => {
 				const instantiationService = disposables.add(new TestInstantiationService());
+				instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
+				instantiationService.stub(IWindowCanvasService, { openNewSession: () => undefined });
 				const composerService = disposables.add(new NewSessionComposerService());
 				instantiationService.stub(INewSessionComposerService, composerService);
 				const sourceAddress = 'wsl:Ubuntu';
@@ -1917,6 +1916,8 @@ suite('Sessions - Actions', () => {
 	test('New Session leaves an uncreated quick chat and opens the workspace picker', async () => {
 		const run = async (toSide: boolean | undefined, noWorkspaceChecked: boolean) => {
 			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
+			instantiationService.stub(IWindowCanvasService, { openNewSession: () => undefined });
 			const composerService = disposables.add(new NewSessionComposerService());
 			instantiationService.stub(INewSessionComposerService, composerService);
 			const { session } = createTestSession('quick-chat-draft');
@@ -2188,6 +2189,31 @@ suite('Sessions - Actions', () => {
 		await run({ sessions: [sandbox('sandbox'), local] });
 
 		assert.deepStrictEqual({ opened, selections }, { opened: 2, selections: ['local-provider file:///local'] });
+	});
+
+	test('New Session uses the displayed custom view for plain invocations and incidental toolbar context', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
+		let hosted = 0;
+		let opened = 0;
+		const descriptor = upcastPartial<ICustomViewDescriptor>({ id: 'inbox', openNewSession: async () => { hosted++; } });
+		const activeCustomView = observableValue<ICustomViewDescriptor | undefined>('customView', descriptor);
+		instantiationService.stub(ICustomViewService, { activeCustomView });
+		instantiationService.stub(IWindowCanvasService, { openNewSession: () => undefined });
+		instantiationService.stub(ISessionsService, {
+			activeSession: constObservable(undefined),
+			openNewSession: async () => { opened++; return { session: undefined, trustDeclined: false }; },
+		});
+		instantiationService.stub(ISessionsManagementService, {});
+		const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID)!;
+		await command.handler(instantiationService);
+		await command.handler(instantiationService, {});
+		await command.handler(instantiationService, { preserveFocus: true });
+		await command.handler(instantiationService, { toSide: false });
+		await command.handler(instantiationService, { toSide: true });
+		activeCustomView.set(undefined, undefined);
+		await command.handler(instantiationService);
+		assert.deepStrictEqual({ hosted, opened }, { hosted: 4, opened: 2 });
 	});
 
 	test('New Session propagates opening failures', async () => {

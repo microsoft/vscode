@@ -247,7 +247,7 @@ suite('GitHubRecentUserWorkFetcher', () => {
 
 suite('GitHubRepositoryFetcher', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let mockApi: MockApiClient;
 	let fetcher: GitHubRepositoryFetcher;
 
@@ -255,10 +255,6 @@ suite('GitHubRepositoryFetcher', () => {
 		mockApi = new MockApiClient();
 		fetcher = new GitHubRepositoryFetcher(mockApi);
 	});
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('getRepositories propagates API errors', async () => {
 		mockApi.setNextError(new GitHubRequestError('Forbidden', 'authorization', 403));

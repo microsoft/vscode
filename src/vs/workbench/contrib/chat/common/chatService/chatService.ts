@@ -656,6 +656,8 @@ export interface IChatThinkingPart {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	metadata?: { readonly [key: string]: any };
 	generatedTitle?: string;
+	/** Provider-owned timing must not be inferred from client observation or replay, even when no duration is supplied. */
+	reasoningTimingSource?: 'provider';
 	/** Epoch milliseconds when the reasoning interval started, persisted so the span survives reload. */
 	reasoningStartedAt?: number;
 	/** Elapsed reasoning time in milliseconds, persisted so the duration survives reload. */
@@ -770,8 +772,6 @@ export interface IChatTerminalToolInvocationData {
 	terminalCommandId?: string;
 	/** Whether the terminal command was started as a background execution */
 	isBackground?: boolean;
-	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this confirmation. */
-	autoApproveRuleResolvable?: boolean;
 	/** Whether the command was explicitly approved to run outside the sandbox */
 	requestUnsandboxedExecution?: boolean;
 	/** The model-provided reason for requesting sandbox bypass */

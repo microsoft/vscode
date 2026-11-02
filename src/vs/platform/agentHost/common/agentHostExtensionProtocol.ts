@@ -5,6 +5,7 @@
 
 import { ValidatorBase, vArray, vBoolean, vEnum, vObj, vOptionalProp, vString, type ValidationError, type ValidatorType } from '../../../base/common/validation.js';
 import { LoadClientCertificatesExtensionMethod, loadClientCertificatesResultValidator } from './clientCertificatesProtocol.js';
+import { ClientProxyChangedExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, resolveClientProxyResultValidator } from './clientProxyProtocol.js';
 import type { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import type { IDevContainerAgentHostConnectResult } from './devContainerAgentHost.js';
 import type { AgentExtensionMode, AgentExtensionSource, AgentExtensionStatus } from './agent.js';
@@ -17,11 +18,12 @@ import { AgentHostSessionImportCapabilityMetaKey } from './meta/agentHostSession
 import { AgentHostSessionMoveCapabilityMetaKey } from './meta/agentHostSessionMoveMeta.js';
 import { AgentHostSavedChatCapabilityMetaKey, AgentHostSavedChatContinuationCapabilityMetaKey } from './meta/agentHostSavedChatMeta.js';
 import { AgentHostDevContainersCapabilityMetaKey } from './meta/agentHostDevContainersMeta.js';
+import { AgentHostClientProxyCapabilityMetaKey } from './meta/agentHostClientProxyMeta.js';
 import { AgentHostTimingCapabilityMetaKey, ChatUserInteractionCapability } from './meta/agentHostTimingMeta.js';
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import type { IAgentHostSavedChatDto, IAgentHostSavedChatContinuationResult } from './agentHostSavedChat.js';
-import { AgentHostAutomationHistoryCapabilityMetaKey, AgentHostAutomationHistoryReceiptsCapabilityMetaKey, AgentHostAutonomousAutomationsCapabilityMetaKey } from './meta/agentHostAutomationsMeta.js';
+import { AgentHostAutomationHistoryCapabilityMetaKey, AgentHostAutomationHistoryDeletionStateCapabilityMetaKey, AgentHostAutomationHistoryReceiptsCapabilityMetaKey, AgentHostAutonomousAutomationsCapabilityMetaKey } from './meta/agentHostAutomationsMeta.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey } from './meta/agentHostSessionUrisMeta.js';
 import { AgentHostDebugLogsCancellationCapabilityMetaKey } from './meta/agentHostDebugLogsMeta.js';
 import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from './meta/agentHostWorktreeDiskUsageMeta.js';
@@ -137,12 +139,15 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostDevContainersCapabilityMetaKey]?: true;
 	readonly [AgentHostTimingCapabilityMetaKey]?: true;
 	readonly [ChatUserInteractionCapability]?: true;
+	/** Present when the host serves the client's proxy support and accepts `vscode/clientProxyChanged`. */
+	readonly [AgentHostClientProxyCapabilityMetaKey]?: true;
 	readonly [AgentHostCopilotExtensionsCapabilityMetaKey]?: true;
 	/** Present when Automation execution does not require a client activation or migration handshake. */
 	readonly [AgentHostAutonomousAutomationsCapabilityMetaKey]?: true;
 	/** Present when removing an Automation can keep or delete its run history. */
 	readonly [AgentHostAutomationHistoryCapabilityMetaKey]?: true;
 	readonly [AgentHostAutomationHistoryReceiptsCapabilityMetaKey]?: true;
+	readonly [AgentHostAutomationHistoryDeletionStateCapabilityMetaKey]?: true;
 }
 
 /** Standard AHP initialize response with typed VS Code-specific capability metadata. */
@@ -165,6 +170,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		...(automationHistory ? {
 			[AgentHostAutomationHistoryCapabilityMetaKey]: true as const,
 			[AgentHostAutomationHistoryReceiptsCapabilityMetaKey]: true as const,
+			[AgentHostAutomationHistoryDeletionStateCapabilityMetaKey]: true as const,
 		} : {}),
 		...(savedChat ? { [AgentHostSavedChatCapabilityMetaKey]: true as const } : {}),
 		...(savedChatContinuation ? { [AgentHostSavedChatContinuationCapabilityMetaKey]: true as const } : {}),
@@ -310,6 +316,7 @@ export interface IAgentHostExtensionCommandMap {
 	[SetChatWorkspaceExtensionMethod]: { params: ValidatorType<typeof setChatWorkspaceParamsValidator>; result: void };
 	[ReportAgentHostFirstResponseExtensionMethod]: { params: IAgentHostFirstResponseDiagnostic; result: void };
 	[ReportChatUserInteractionExtensionMethod]: { params: IChatUserInteractionTiming; result: void };
+	[ClientProxyChangedExtensionMethod]: { params: Record<string, never>; result: void };
 	[ArtifactIntegrationExtensionMethod]: { params: ArtifactIntegrationRequest; result: ArtifactIntegrationResponse };
 	[RegisterClientArtifactIntegrationsExtensionMethod]: { params: { readonly integrations: readonly ArtifactIntegrationDescriptor[] }; result: void };
 	[ClientArtifactIntegrationUpdateExtensionMethod]: { params: ArtifactIntegrationUpdate; result: void };
@@ -402,6 +409,11 @@ export interface IAgentHostMcpAuthenticationRequest {
 
 export interface IAgentHostExtensionServerCommandMap {
 	[LoadClientCertificatesExtensionMethod]: { params: Record<string, never>; result: ValidatorType<typeof loadClientCertificatesResultValidator> };
+	[ResolveClientProxyExtensionMethod]: { params: ValidatorType<typeof resolveClientProxyParamsValidator>; result: ValidatorType<typeof resolveClientProxyResultValidator> };
+	[LookupClientProxyKerberosAuthorizationExtensionMethod]: {
+		params: ValidatorType<typeof lookupClientProxyKerberosAuthorizationParamsValidator>;
+		result: ValidatorType<typeof lookupClientProxyKerberosAuthorizationResultValidator>;
+	};
 	[RequestAgentHostWorkspaceTrustExtensionMethod]: {
 		params: IAgentHostWorkspaceTrustRequest;
 		result: { trusted: boolean };

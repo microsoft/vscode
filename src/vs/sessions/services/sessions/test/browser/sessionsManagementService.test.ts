@@ -29,7 +29,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
-import { IProgress, IProgressService, IProgressStep } from '../../../../../platform/progress/common/progress.js';
+import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
@@ -47,7 +47,7 @@ import { IPathService } from '../../../../../workbench/services/path/common/path
 import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ICopilotHomeService } from '../../../../../platform/environment/common/copilotHome.js';
 import { TestCopilotHomeService } from '../../../../../platform/environment/test/common/testCopilotHomeService.js';
-import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestPathService, TestProgressService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
@@ -182,12 +182,6 @@ class TestChatService extends mock<IChatService>() {
 		if (this.cancelError) {
 			throw this.cancelError;
 		}
-	}
-}
-
-class TestProgressService extends mock<IProgressService>() {
-	override async withProgress<R>(_options: Parameters<IProgressService['withProgress']>[0], task: (progress: IProgress<IProgressStep>) => Promise<R>): Promise<R> {
-		return task({ report() { } });
 	}
 }
 
@@ -2607,6 +2601,40 @@ suite('SessionsManagementService', () => {
 			);
 		});
 
+		test('markAllRead hands each provider its sessions in one call', async () => {
+			const batched1 = stubSession({ sessionId: 'b1', providerId: 'batched' });
+			const batched2 = stubSession({ sessionId: 'b2', providerId: 'batched' });
+			const single1 = stubSession({ sessionId: 's1', providerId: 'single' });
+			const single2 = stubSession({ sessionId: 's2', providerId: 'single' });
+			const calls: string[] = [];
+			const batched = new class extends TestSessionsProvider {
+				override readonly id = 'batched';
+				override getSessions(): ISession[] { return [batched1, batched2]; }
+				override async setSessionReadState(sessionId: string, isRead: boolean): Promise<void> {
+					calls.push(`batched one ${sessionId} ${isRead}`);
+				}
+				override async setSessionsReadState(sessionIds: readonly string[], isRead: boolean): Promise<void> {
+					calls.push(`batched all ${sessionIds.join(',')} ${isRead}`);
+				}
+			}(batched1);
+			const single = new class extends TestSessionsProvider {
+				override readonly id = 'single';
+				override getSessions(): ISession[] { return [single1, single2]; }
+				override async setSessionReadState(sessionId: string, isRead: boolean): Promise<void> {
+					calls.push(`single one ${sessionId} ${isRead}`);
+				}
+			}(single1);
+			const { service } = createSessionsManagementService(batched1, disposables, [batched, single]);
+
+			await service.markAllRead([batched1, single1, batched2, single2]);
+
+			assert.deepStrictEqual(calls, [
+				'batched all b1,b2 true',
+				'single one s1 true',
+				'single one s2 true',
+			]);
+		});
+
 		test('preserves an explicit unread active single chat until the chat advances', async () => {
 			const sessionIsRead = observableValue('sessionIsRead', false);
 			const mainIsRead = observableValue('mainIsRead', true);
@@ -3171,8 +3199,12 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	for (const preserveNavigation of [false, true]) {
-		test(`openQuickChat preserves pending navigation only for an automatic fallback (${preserveNavigation})`, () => {
+	for (const { preserveNavigation, preserveFocus } of [
+		{ preserveNavigation: false, preserveFocus: undefined },
+		{ preserveNavigation: true, preserveFocus: undefined },
+		{ preserveNavigation: true, preserveFocus: true },
+	]) {
+		test(`openQuickChat preserves navigation and focus independently (${preserveNavigation}, ${preserveFocus})`, () => {
 			const quickChat = stubSession({
 				sessionId: 'quick-chat',
 				providerId: 'test',
@@ -3182,17 +3214,137 @@ suite('SessionsManagementService', () => {
 				override readonly supportsQuickChats = true;
 				override createQuickChat(): ISession { return quickChat; }
 			}(quickChat);
-			const { view } = createSessionsManagementService(quickChat, disposables, provider);
+			const { view, sessionsPartService } = createSessionsManagementService(quickChat, disposables, provider);
 			const navigation = view.navigationRequest.get();
+			sessionsPartService.focusedSessions.length = 0;
 
-			view.openQuickChat(undefined, preserveNavigation);
+			view.openQuickChat(undefined, preserveNavigation, preserveFocus);
 
 			assert.deepStrictEqual({
 				activeSession: view.activeSession.get()?.sessionId,
 				preservedNavigation: view.navigationRequest.get() === navigation,
+				focused: sessionsPartService.focusedSessions,
 			}, {
 				activeSession: 'quick-chat',
 				preservedNavigation: preserveNavigation,
+				focused: preserveFocus ? [] : ['quick-chat'],
+			});
+		});
+	}
+
+	for (const quickChat of [false, true]) {
+		test(`custom-view quick-chat preparation reconciles the normal draft without navigation (quick chat: ${quickChat})`, async () => {
+			const folderUri = URI.file('/workspace');
+			const workspace: ISessionWorkspace = {
+				uri: folderUri, label: 'workspace', icon: Codicon.folder,
+				folders: [{ root: folderUri, workingDirectory: folderUri, name: 'workspace', description: undefined }],
+				requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+			};
+			const draft = stubSession({
+				sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled),
+				isQuickChat: constObservable(quickChat), workspace: constObservable(quickChat ? undefined : workspace),
+			});
+			const replacement = stubSession({
+				sessionId: 'replacement', providerId: 'other', status: constObservable(SessionStatus.Untitled),
+				isQuickChat: constObservable(true),
+			});
+			const deleted: string[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override readonly supportsQuickChats = true;
+				override resolveWorkspace(): ISessionWorkspace { return workspace; }
+				override createQuickChat(): ISession { return draft; }
+				override deleteNewSession(id: string): void { deleted.push(id); }
+			}(draft);
+			const other = new class extends TestSessionsProvider {
+				override readonly id = 'other';
+				override readonly supportsQuickChats = true;
+				override createQuickChat(): ISession { return replacement; }
+			}(replacement);
+			const { view, service, customViewService, sessionsPartService } = createSessionsManagementService(draft, disposables, [provider, other]);
+			if (quickChat) {
+				view.openQuickChat({ providerId: provider.id });
+			} else {
+				await view.openNewSession({ folderUri, providerId: provider.id });
+			}
+			showTestCustomView(customViewService, disposables);
+			const navigation = view.navigationRequest.get();
+			sessionsPartService.focusedSessions.length = 0;
+			const replacements: { from: string; to: string; currentDraft: string | undefined }[] = [];
+			disposables.add(service.onDidReplaceNewDraftSession(({ from, to }) => {
+				replacements.push({ from: from.sessionId, to: to.sessionId, currentDraft: service.newSession.get()?.sessionId });
+			}));
+
+			service.createQuickChat({ providerId: other.id });
+			const customView = customViewService.activeCustomView.get()?.id;
+			customViewService.hideCustomView();
+
+			assert.deepStrictEqual({
+				draft: service.newSession.get()?.sessionId,
+				active: view.activeSession.get()?.sessionId,
+				visible: view.visibleSessions.get().map(session => session?.sessionId),
+				deleted, replacements, customView,
+				navigationPreserved: view.navigationRequest.get() === navigation,
+				focused: sessionsPartService.focusedSessions,
+			}, {
+				draft: 'replacement', active: 'replacement', visible: ['replacement'], deleted: ['draft'],
+				replacements: [{ from: 'draft', to: 'replacement', currentDraft: 'draft' }],
+				customView: 'test.customView', navigationPreserved: true, focused: [],
+			});
+		});
+	}
+
+	for (const preserveCustomView of [false, true]) {
+		test(`new-session draft preparation preserves the custom view only when requested (${preserveCustomView})`, async () => {
+			const session = stubSession({ sessionId: 'active', providerId: 'test' });
+			const { view, customViewService, sessionsPartService } = createSessionsManagementService(session, disposables);
+			await view.openSession(session.resource);
+			sessionsPartService.focusedSessions.length = 0;
+			showTestCustomView(customViewService, disposables);
+			await view.openNewSession({ preserveCustomView });
+			const first = customViewService.activeCustomView.get()?.id;
+			await view.openNewSession({ preserveCustomView });
+			assert.deepStrictEqual({ first, repeated: customViewService.activeCustomView.get()?.id, active: view.activeSession.get()?.sessionId, focused: sessionsPartService.focusedSessions }, {
+				first: preserveCustomView ? 'test.customView' : undefined,
+				repeated: preserveCustomView ? 'test.customView' : undefined,
+				active: preserveCustomView ? 'active' : undefined,
+				focused: preserveCustomView ? [] : [undefined],
+			});
+		});
+	}
+
+	for (const trusted of [false, true]) {
+		test(`custom-view draft preparation preserves the grid and honors workspace trust (${trusted})`, async () => {
+			const folderUri = URI.file('/workspace');
+			const workspace: ISessionWorkspace = {
+				uri: folderUri, label: 'workspace', icon: Codicon.folder,
+				folders: [{ root: folderUri, workingDirectory: folderUri, name: 'workspace', description: undefined }],
+				requiresWorkspaceTrust: true, isVirtualWorkspace: false,
+			};
+			const active = stubSession({ sessionId: 'active', providerId: 'test' });
+			const draft = stubSession({ sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled), workspace: constObservable(workspace) });
+			let creates = 0;
+			let trustRequests = 0;
+			const provider = new class extends TestSessionsProvider {
+				override resolveWorkspace(): ISessionWorkspace { return workspace; }
+				override createNewSession(): ISession { creates++; return draft; }
+			}(active);
+			const trust = new class extends mock<IWorkspaceTrustRequestService>() {
+				override async requestResourcesTrust(): Promise<boolean> { trustRequests++; return trusted; }
+			};
+			const { view, service, customViewService, sessionsPartService } = createSessionsManagementService(active, disposables, provider, undefined, trust);
+			await view.openSession(active.resource);
+			showTestCustomView(customViewService, disposables);
+			const navigation = view.navigationRequest.get();
+			sessionsPartService.focusedSessions.length = 0;
+			const result = await view.openNewSession({ folderUri, preserveCustomView: true });
+			assert.deepStrictEqual({
+				trustRequests, creates, trustDeclined: result.trustDeclined, draft: service.newSession.get()?.sessionId,
+				active: view.activeSession.get()?.sessionId, visible: view.visibleSessions.get().map(session => session?.sessionId),
+				navigationPreserved: view.navigationRequest.get() === navigation,
+				customView: customViewService.activeCustomView.get()?.id, focused: sessionsPartService.focusedSessions,
+			}, {
+				trustRequests: 1, creates: trusted ? 1 : 0, trustDeclined: !trusted, draft: trusted ? 'draft' : undefined,
+				active: 'active', visible: ['active'], navigationPreserved: true, customView: 'test.customView', focused: [],
 			});
 		});
 	}
@@ -4009,7 +4161,7 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	test('restoreVisibleSessions waits for session to appear via onDidChangeSessions', async () => {
+	test('restoreVisibleSessions still waits for the session while a custom-view composer prepares', async () => {
 		const targetSession = stubSession({ sessionId: 'target', providerId: 'test' });
 		const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
 
@@ -4051,6 +4203,7 @@ suite('SessionsManagementService', () => {
 		// (mimicking an agent host provider whose cache has not loaded yet).
 		const restorePromise = view.restoreVisibleSessions();
 		await Promise.resolve();
+		await view.openNewSession({ preserveCustomView: true });
 		assert.deepStrictEqual({
 			visible: view.visibleSessions.get().filter((s): s is NonNullable<typeof s> => !!s).map(s => s.sessionId),
 			restoreComplete: view.initialRestoreComplete.get(),
@@ -8771,6 +8924,30 @@ suite('SessionsManagementService', () => {
 			const plain = new TestSessionsProvider(stubSession({ sessionId: 'p1', providerId: 'test' }));
 			const service = setupQuickChat([plain]);
 			assert.throws(() => service.createQuickChat(), /No sessions provider supports quick chats/);
+		});
+
+		test('keeps the previous draft and its grid binding when quick-chat creation fails', () => {
+			const draft = stubSession({ sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled), isQuickChat: constObservable(true) });
+			const deleted: string[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override readonly supportsQuickChats = true;
+				private creates = 0;
+				override createQuickChat(): ISession {
+					if (this.creates++ > 0) {
+						throw new Error('create failed');
+					}
+					return draft;
+				}
+				override deleteNewSession(id: string): void { deleted.push(id); }
+			}(draft);
+			const { service, view } = createSessionsManagementService(draft, disposables, provider);
+			const replacements: string[] = [];
+			disposables.add(service.onDidReplaceNewDraftSession(({ to }) => replacements.push(to.sessionId)));
+			view.openQuickChat();
+			assert.throws(() => service.createQuickChat(), /create failed/);
+			assert.deepStrictEqual({
+				draft: service.newSession.get()?.sessionId, active: view.activeSession.get()?.sessionId, deleted, replacements,
+			}, { draft: 'draft', active: 'draft', deleted: [], replacements: [] });
 		});
 
 		test('honours options.providerId and the requested session type', () => {

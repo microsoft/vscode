@@ -7,6 +7,7 @@ import { equals } from '../../../../base/common/arrays.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
@@ -23,6 +24,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -30,7 +32,7 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
-import { IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from './sessionWorkspacePicker.js';
+import { IWorkspacePickerItem, IWorkspacePickerOptions, MAX_NEW_PICKER_RECENT_WORKSPACES, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from './mobile/mobileWorkspacePickerSheet.js';
 
 /**
@@ -53,6 +55,7 @@ import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } f
  */
 export class WebWorkspacePicker extends WorkspacePicker {
 	private readonly _mobilePicker = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _onDidChangeMobileItems = this._register(new Emitter<void>());
 
 	constructor(
 		options: IWorkspacePickerOptions,
@@ -76,6 +79,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		@IDialogService dialogService: IDialogService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@IProgressService progressService: IProgressService,
 	) {
 		super(
 			{
@@ -104,6 +108,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			fileService,
 			dialogService,
 			_agentHostFilterService,
+			progressService,
 		);
 
 		// When the scoped host changes, if the current selection no longer
@@ -138,6 +143,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			return;
 		}
 		this._setDirectPickerFilter(preferredGroup, attachesContext);
+		this._workspaceFilter = '';
 		const items = this._buildItems();
 		const resources = new DisposableStore();
 		this._mobilePicker.value = resources;
@@ -151,9 +157,18 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			this._getAllBrowseActions(),
 			attachesContext !== true,
 			cancellation.token,
+			undefined,
+			{
+				getItems: query => {
+					this._workspaceFilter = query.trim().toLocaleLowerCase();
+					return this._buildItems();
+				},
+				onDidChange: this._onDidChangeMobileItems.event,
+			},
 		).finally(() => {
 			if (this._mobilePicker.value === resources) {
 				this._mobilePicker.clear();
+				this._workspaceFilter = '';
 			}
 		}).catch(onUnexpectedError);
 	}
@@ -161,6 +176,14 @@ export class WebWorkspacePicker extends WorkspacePicker {
 	protected override _refreshPickerItems(): void {
 		this._mobilePicker?.clear();
 		super._refreshPickerItems();
+	}
+
+	protected override _refreshRecentWorkspaces(): void {
+		if (this._mobilePicker?.value) {
+			this._onDidChangeMobileItems.fire();
+		} else {
+			super._refreshRecentWorkspaces();
+		}
 	}
 
 	private _onScopedHostChanged(): void {
@@ -206,7 +229,8 @@ export class WebWorkspacePicker extends WorkspacePicker {
 				: scopedProviderIds.has(w.providerId) || (includeGitHub && w.workspace.group === SESSION_WORKSPACE_GROUP_GITHUB))
 			&& this._directPickerAttachesContext !== true
 			&& (this._directPickerGroup === undefined || w.workspace.group === this._directPickerGroup)
-		);
+		).filter(w => this._matchesWorkspaceFilter(w.workspace))
+			.slice(0, this._workspaceFilter ? undefined : MAX_NEW_PICKER_RECENT_WORKSPACES);
 		for (const { workspace, providerId } of recents) {
 			const folderUri = workspace.folders[0]?.root;
 			if (!folderUri) {

@@ -14,7 +14,7 @@ import { IChatMessage, ILanguageModelChatRequestOptions, ILanguageModelChatRespo
 export const IChatUtilityModelService = createDecorator<IChatUtilityModelService>('chatUtilityModelService');
 
 /** The core feature making a utility model request, used to attribute it in logs and telemetry. */
-export type ChatUtilityModelPurpose = 'thinkingTitle' | 'goalSummary' | 'toolRiskAssessment' | 'editExplanation' | 'dictationCleanup' | 'issueTitle';
+export type ChatUtilityModelPurpose = 'thinkingTitle' | 'goalSummary' | 'toolRiskAssessment' | 'editExplanation' | 'dictationCleanup' | 'issueTitle' | 'inboxPreview' | 'inboxDetailSummary' | 'inboxContentClassification';
 
 export interface IChatUtilityModelRequest {
 	readonly purpose: ChatUtilityModelPurpose;

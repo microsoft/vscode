@@ -6,12 +6,13 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TunnelProtocol } from '../../../../../platform/tunnel/common/tunnel.js';
 import { OnPortForward, PortsAttributes } from '../../common/tunnelModel.js';
 
 suite('PortsAttributes', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createAttributes(portsAttributes: Record<string, { label?: string; requireLocalPort?: boolean }>, otherPortsAttributes = {}) {
+	function createAttributes(portsAttributes: Record<string, { label?: string; requireLocalPort?: boolean; protocol?: TunnelProtocol }>, otherPortsAttributes = {}) {
 		const configurationService = new TestConfigurationService({
 			'remote.portsAttributes': portsAttributes,
 			'remote.otherPortsAttributes': otherPortsAttributes
@@ -118,5 +119,54 @@ suite('PortsAttributes', () => {
 		});
 
 		assert.deepStrictEqual(actual, [true, false]);
+	});
+
+	for (const range of ['3000-4000', '3500-4000']) {
+		test(`preserves ${range} protocol when an exact-port rule leaves it unset`, () => {
+			const actual = [TunnelProtocol.Http, TunnelProtocol.Https].map(protocol => {
+				const attributes = createAttributes({
+					[range]: { protocol },
+					'3500': { label: 'Exact' }
+				});
+				const result = attributes.getAttributes(3500, 'localhost');
+				return { label: result?.label, protocol: result?.protocol };
+			});
+
+			assert.deepStrictEqual(actual, [
+				{ label: 'Exact', protocol: TunnelProtocol.Http },
+				{ label: 'Exact', protocol: TunnelProtocol.Https }
+			]);
+		});
+
+		test(`preserves explicit exact-port protocol over ${range}`, () => {
+			const actual = [TunnelProtocol.Http, TunnelProtocol.Https].map(protocol => {
+				const attributes = createAttributes({
+					[range]: { protocol: protocol === TunnelProtocol.Http ? TunnelProtocol.Https : TunnelProtocol.Http },
+					'3500': { protocol }
+				});
+				return attributes.getAttributes(3500, 'localhost')?.protocol;
+			});
+
+			assert.deepStrictEqual(actual, [TunnelProtocol.Http, TunnelProtocol.Https]);
+		});
+	}
+
+	test('does not use fallback attributes when an empty exact-port rule follows a protocol-only range', () => {
+		const actual = [{}, { protocol: undefined }].map(rule => {
+			const attributes = createAttributes({
+				'3000-4000': { protocol: TunnelProtocol.Https },
+				'3500': rule
+			}, { label: 'Fallback', protocol: TunnelProtocol.Http });
+			return attributes.getAttributes(3500, 'localhost');
+		});
+		const expected = {
+			label: undefined,
+			onAutoForward: undefined,
+			elevateIfNeeded: undefined,
+			requireLocalPort: undefined,
+			protocol: TunnelProtocol.Https
+		};
+
+		assert.deepStrictEqual(actual, [expected, expected]);
 	});
 });

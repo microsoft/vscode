@@ -172,7 +172,7 @@ export const sessionsConfiguration = {
 		},
 		[SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: {
 			type: 'boolean',
-			description: localize('sessions.markAsDoneConfetti', "Controls whether a confetti animation is shown when marking a session as done."),
+			description: localize('sessions.markAsDoneConfetti', "Controls whether a confetti animation is shown when marking a session or Inbox notification as done."),
 			default: true,
 			experiment: { mode: 'auto' }
 			// https://github.com/microsoft/vscode/issues/335801

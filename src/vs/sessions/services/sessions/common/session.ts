@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { arrayEquals } from '../../../../base/common/equals.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -837,6 +838,8 @@ export interface IChat {
 	readonly customizations?: IObservable<readonly ISessionChatCustomization[]>;
 	/** Server-published live canvases owned by this chat; undefined while membership is unknown. */
 	readonly canvases?: IObservable<readonly ISessionCanvas[] | undefined>;
+	/** Keep canvas channels observed while this chat's session is inactive. Dispose when the external presentation closes. */
+	observeCanvases?(): IDisposable;
 	/** Active background shells, including commands started in earlier turns. */
 	readonly backgroundShells?: IObservable<readonly IChatBackgroundShell[]>;
 	/** Checkpoints associated with the chat. */
