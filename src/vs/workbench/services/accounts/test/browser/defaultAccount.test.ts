@@ -15,6 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { Configuration, ConfigurationChangeEvent } from '../../../../../platform/configuration/common/configurationModels.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -1783,6 +1784,51 @@ suite('DefaultAccountProvider', () => {
 				{ host: 'api.b.ghe.com', token: `Bearer ${enterprise.accessToken}` },
 			],
 		});
+	}));
+
+	test('parent-key configuration events reconcile only effective Copilot provider changes', () => runWithFakedTimers({}, async () => {
+		const configuration = new TestConfigurationService({
+			github: { copilot: { advanced: { authProvider: 'github-enterprise' } } },
+		});
+		const enterprise = enterpriseSession('b');
+		let sessionLookups = 0;
+		const provider = await createProvider(new TestRequestService(enterpriseResponse), {}, {}, undefined, {
+			getSessions: async id => {
+				sessionLookups++;
+				return id === 'github' ? sessions : [enterprise];
+			},
+		}, configuration);
+		const outcomes = [];
+		for (const authProvider of [undefined, 'github', 'github-enterprise', 'github-enterprise']) {
+			const lookupsBefore = sessionLookups;
+			const contents = { github: { copilot: { advanced: { authProvider, unrelated: String(lookupsBefore) } } } };
+			await configuration.setUserConfiguration('github', contents.github);
+			const empty = { contents: {}, keys: [], overrides: [] };
+			const logService = new NullLogService();
+			const currentConfiguration = Configuration.parse({
+				defaults: empty, policy: empty, application: empty, userRemote: empty, workspace: empty, folders: [],
+				userLocal: { contents, keys: ['github.copilot.advanced'], overrides: [] },
+			}, logService);
+			const event = new ConfigurationChangeEvent(
+				{ keys: ['github.copilot.advanced'], overrides: [] }, undefined, currentConfiguration, undefined, logService);
+			event.source = ConfigurationTarget.USER;
+			configuration.onDidChangeConfigurationEmitter.fire(event);
+			await timeout(200);
+			outcomes.push({
+				matchesNestedKey: event.affectsConfiguration('github.copilot.advanced.authProvider'),
+				provider: provider.defaultAccount?.authenticationProvider.id,
+				session: provider.defaultAccount?.sessionId,
+				policy: provider.policyData?.managedSettings,
+				refreshed: sessionLookups > lookupsBefore,
+			});
+		}
+
+		assert.deepStrictEqual(outcomes, [
+			{ matchesNestedKey: false, provider: 'github', session: sessions[0].id, policy: { model: 'api.github.com' }, refreshed: true },
+			{ matchesNestedKey: false, provider: 'github', session: sessions[0].id, policy: { model: 'api.github.com' }, refreshed: false },
+			{ matchesNestedKey: false, provider: 'github-enterprise', session: enterprise.id, policy: { model: 'api.b.ghe.com' }, refreshed: true },
+			{ matchesNestedKey: false, provider: 'github-enterprise', session: enterprise.id, policy: { model: 'api.b.ghe.com' }, refreshed: false },
+		]);
 	}));
 
 	for (const providerId of ['github', 'github-enterprise']) {
