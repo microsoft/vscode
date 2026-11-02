@@ -9329,21 +9329,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			availableModels,
 			modelPolicyModels: () => credentials ? availableModels() : this._capiModels.map(model => this._asPresented(model)),
 			autoTierSupport: () => credentials ? getAutoModeTierSupport(this._getScopedModelCatalog(credentials)?.autoTierMetadata) : getAdvertisedAutoModeTierSupport(),
-			// Joins model discovery already in flight rather than starting one; without its catalog the launch sends the runtime's default tier.
-			whenAutoTierSupportReady: credentials ? async () => {
-				const entry = this._scopedModelCatalogs.get(credentials);
-				if (entry && !entry.catalog) {
-					this._logService.trace(`[Copilot] Waiting for scoped model discovery before resolving Auto tiers`);
-					await entry.promise.catch(error => this._logService.warn(`[Copilot] Scoped model discovery failed before launching with Auto tiers: ${getErrorMessage(error)}`));
-				}
-			} : async () => {
-				// Until a catalog brings CAPI's tiers, a requested tier would be dropped for the life of the session.
-				const pending = this._autoTierMetadata ? undefined : this._scheduledModelRefresh?.deferred.p ?? this._modelRefreshInFlight;
-				if (pending) {
-					this._logService.trace(`[Copilot] Waiting for model discovery before resolving Auto tiers`);
-					await pending;
-				}
-			},
 			managedSettingsResolver: this._managedSettingsResolver,
 		};
 		const { owner, chatChannelUri } = identity;

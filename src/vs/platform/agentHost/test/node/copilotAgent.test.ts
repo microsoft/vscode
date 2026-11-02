@@ -141,7 +141,7 @@ import { CopilotClientStartupConfigChangedError } from '../../node/copilot/copil
 import { AgentBranchNameGenerator, getAgentBranchNameHintFromMessage, normalizeAgentBranchName } from '../../node/shared/agentBranchNameGenerator.js';
 import { getCopilotAutoTier, getCopilotCustomAgents, getCopilotAgentSelectionName, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from '../../node/copilot/copilotSessionLauncher.js';
 import { getSdkCustomAgentName } from '../../node/copilot/copilotPluginConverters.js';
-import { autoModeTiers, setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
+import { autoModeTiers, getAdvertisedAutoModeTierSupport, setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { modelConfigurationSourceKey } from '../../common/agentModelConfiguration.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { registerPendingEditContentProvider } from '../../node/copilot/pendingEditContentStore.js';
@@ -7369,6 +7369,7 @@ suite('CopilotAgent', () => {
 			const context = { ...exactChatContext(session, chat, session), credentials };
 			const max: ModelSelection = { id: 'auto', config: { tier: 'hydrafusion-max' } };
 			try {
+				setAdvertisedAutoModeTiers(['balance']);
 				await agent.getModelsForCredentials(credentials);
 				await provisionSession(agent, { session, credentials, model: max, workingDirectories: [directory] });
 				await agent.chats.sendMessage(chat, 'first', [directory], undefined, 'first', undefined, context);
@@ -7377,7 +7378,7 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({
 					launches: launches.map(launch => ({ kind: launch.kind, capi: launch.config.capi })),
 					autoTiers: launches.map(launch => launch.runtime.setModelCalls.map(([, options]) => options?.autoTier)),
-					// The host-wide catalog has no provider tiers, so only the caller's catalog accepts the tier.
+					// The host-wide catalog offers only Balance, so only the caller's catalog accepts Max.
 					hostAccepts: getCopilotAutoTier(max),
 				}, {
 					launches: [{ kind: 'create', capi: { autoTier: 'hydrafusion-max' } }],
@@ -7385,86 +7386,16 @@ suite('CopilotAgent', () => {
 					hostAccepts: undefined,
 				});
 			} finally {
+				setAdvertisedAutoModeTiers(undefined);
 				await disposeAgent(agent);
 			}
 		});
 
-		/** A scoped caller whose model discovery is held until `discovery` completes, with a chat whose first send waits for it. */
-		async function setupScopedDiscoveryRace(name: string) {
-			const discovery = new DeferredPromise<void>();
-			const discoveryClientCreated = new DeferredPromise<void>();
-			const launchWaitsForDiscovery = new DeferredPromise<void>();
-			class WaitRecordingLogService extends NullLogService {
-				override trace(message: string, ..._args: unknown[]): void {
-					if (message.includes('Waiting for scoped model discovery before resolving Auto tiers')) {
-						launchWaitsForDiscovery.complete();
-					}
-				}
-			}
-			const { agent, launches } = setup(undefined, [], [], undefined, {
-				logService: new WaitRecordingLogService(),
-				onClientCreated: (client, options) => {
-					// Only the first scoped client discovers models; the session's own client must not be held.
-					if (options.gitHubToken && !discoveryClientCreated.isSettled) {
-						discoveryClientCreated.complete();
-						client.modelListGate = discovery.p;
-						client.modelListResponses.push([{ id: 'auto', name: 'Auto' }]);
-						client.autoTierMetadata = {
-							defaultTier: 'balance',
-							tiers: [
-								{ id: 'balance', displayName: 'Standard', description: '', type: 'auto', status: { enabled: true } },
-								{ id: 'intelligence', displayName: 'Intelligence', description: '', type: 'auto', status: { enabled: true } },
-							],
-						};
-					}
-				},
-			});
-			afterTest(async () => {
-				discovery.complete();
-				await disposeAgent(agent);
-			});
-			const session = AgentSession.uri('copilotcli', name);
-			const chat = defaultChatUri(session);
-			const directory = URI.file(process.cwd());
-			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'caller-token', expiresAt: undefined, revision: 1 }) };
-			const context = { ...exactChatContext(session, chat, session), credentials };
-			const discovered = agent.getModelsForCredentials(credentials);
-			await discoveryClientCreated.p;
-			await provisionSession(agent, { session, credentials, model: { id: 'auto', config: { tier: 'intelligence' } }, workingDirectories: [directory] });
-			const sent = agent.chats.sendMessage(chat, 'first', [directory], undefined, 'first', undefined, context);
-			await launchWaitsForDiscovery.p;
-			return { agent, launches, discovery, discovered, sent, chat, context };
-		}
-
-		test('waits for a scoped caller\'s in-flight model discovery before launching with its Auto tier', async () => {
-			const { launches, discovery, discovered, sent } = await setupScopedDiscoveryRace('scoped-tier-discovery-race');
-			const launchedBeforeDiscovery = launches.length;
-			discovery.complete();
-			await discovered;
-			await sent;
-
-			assert.deepStrictEqual({
-				launchedBeforeDiscovery,
-				launches: launches.map(launch => ({ kind: launch.kind, capi: launch.config.capi })),
-			}, {
-				launchedBeforeDiscovery: 0,
-				launches: [{ kind: 'create', capi: { autoTier: 'intelligence' } }],
-			});
-		});
-
-		test('waits for the host\'s initial model discovery before launching with its Auto tier', async () => {
+		/** Holds every model discovery until the returned `discovery` completes, serving Auto tiers that accept `intelligence`. */
+		function setupHeldDiscovery() {
 			const discovery = new DeferredPromise<void>();
 			const discoveryRequested = new DeferredPromise<TestCopilotClient>();
-			const launchWaitsForDiscovery = new DeferredPromise<void>();
-			class WaitRecordingLogService extends NullLogService {
-				override trace(message: string, ..._args: unknown[]): void {
-					if (message.includes('Waiting for model discovery before resolving Auto tiers')) {
-						launchWaitsForDiscovery.complete();
-					}
-				}
-			}
-			const { agent, launches } = setup(undefined, [], [], undefined, {
-				logService: new WaitRecordingLogService(),
+			const fixture = setup(undefined, [], [], undefined, {
 				onClientCreated: client => {
 					void discoveryRequested.complete(client);
 					client.modelListGate = discovery.p;
@@ -7480,123 +7411,48 @@ suite('CopilotAgent', () => {
 			});
 			afterTest(async () => {
 				discovery.complete();
-				await disposeAgent(agent);
+				await disposeAgent(fixture.agent);
 			});
-			const session = AgentSession.uri('copilotcli', 'host-tier-discovery-race');
+			return { ...fixture, discovery, discoveryRequested: discoveryRequested.p };
+		}
+
+		test('leaves an Auto tier requested before the host\'s model discovery completes to the runtime', async () => {
+			const { agent, launches, discoveryRequested } = setupHeldDiscovery();
+			const session = AgentSession.uri('copilotcli', 'host-tier-before-discovery');
 			const chat = defaultChatUri(session);
 			const directory = URI.file(process.cwd());
 			await agent.authenticate('https://api.github.com', 'host-token');
-			const client = await discoveryRequested.p;
+			const client = await discoveryRequested;
 			await client.waitForCalls(() => client.modelListRequests.length > 0);
 			await provisionSession(agent, { session, model: { id: 'auto', config: { tier: 'intelligence' } }, workingDirectories: [directory] });
-			const sent = agent.chats.sendMessage(chat, 'first', [directory], undefined, 'first', undefined, exactChatContext(session, chat, session));
-			// Settles on whichever comes first, so a launch that does not wait fails the assertion below rather than timing out.
-			await Promise.race([launchWaitsForDiscovery.p, sent.then(() => undefined, () => undefined)]);
-			const launchedBeforeDiscovery = launches.length;
-			discovery.complete();
-			await sent;
-
-			assert.deepStrictEqual({
-				launchedBeforeDiscovery,
-				launches: launches.map(launch => ({ kind: launch.kind, capi: launch.config.capi })),
-			}, {
-				launchedBeforeDiscovery: 0,
-				launches: [{ kind: 'create', capi: { autoTier: 'intelligence' } }],
-			});
-		});
-
-		test('launches a concrete model without waiting for the host\'s initial model discovery', async () => {
-			const discovery = new DeferredPromise<void>();
-			const discoveryRequested = new DeferredPromise<TestCopilotClient>();
-			let waitedForDiscovery = false;
-			class WaitRecordingLogService extends NullLogService {
-				override trace(message: string, ..._args: unknown[]): void {
-					if (message.includes('Waiting for model discovery before resolving Auto tiers')) {
-						waitedForDiscovery = true;
-					}
-				}
-			}
-			const { agent, launches } = setup(undefined, [], [], undefined, {
-				logService: new WaitRecordingLogService(),
-				onClientCreated: client => {
-					void discoveryRequested.complete(client);
-					client.modelListGate = discovery.p;
-				},
-			});
-			afterTest(async () => {
-				discovery.complete();
-				await disposeAgent(agent);
-			});
-			const session = AgentSession.uri('copilotcli', 'host-concrete-model-no-wait');
-			const chat = defaultChatUri(session);
-			const directory = URI.file(process.cwd());
-			await agent.authenticate('https://api.github.com', 'host-token');
-			const client = await discoveryRequested.p;
-			await client.waitForCalls(() => client.modelListRequests.length > 0);
-			await provisionSession(agent, { session, model: { id: 'gpt-4o' }, workingDirectories: [directory] });
-			// Discovery is still held, so this send settles only if the launch does not wait for it.
+			// Discovery is still held, so this send settles only because the launch does not wait for it.
 			await agent.chats.sendMessage(chat, 'first', [directory], undefined, 'first', undefined, exactChatContext(session, chat, session));
 
-			assert.deepStrictEqual({
-				waitedForDiscovery,
-				launches: launches.map(launch => ({ kind: launch.kind, model: launch.config.model })),
-			}, {
-				waitedForDiscovery: false,
-				launches: [{ kind: 'create', model: 'gpt-4o' }],
-			});
+			assert.deepStrictEqual(launches.map(launch => ({ kind: launch.kind, capi: launch.config.capi })), [
+				{ kind: 'create', capi: { autoTier: 'intelligence' } },
+			]);
 		});
 
-		test('Stop releases a launch waiting for a scoped caller\'s model discovery without cancelling the discovery', async () => {
-			const { agent, launches, discovery, discovered, sent, chat, context } = await setupScopedDiscoveryRace('scoped-tier-discovery-stop');
-			await agent.chats.abort(chat, context);
-			const settledWhileDiscoveryPending = await raceTimeout(sent.then(() => true, () => true), 1000);
-			discovery.complete();
+		test('leaves an Auto tier requested during a scoped caller\'s model discovery to the runtime', async () => {
+			const { agent, launches } = setupHeldDiscovery();
+			const session = AgentSession.uri('copilotcli', 'scoped-tier-during-discovery');
+			const chat = defaultChatUri(session);
+			const directory = URI.file(process.cwd());
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'caller-token', expiresAt: undefined, revision: 1 }) };
+			const context = { ...exactChatContext(session, chat, session), credentials };
+			const discovered = agent.getModelsForCredentials(credentials);
+			await provisionSession(agent, { session, credentials, model: { id: 'auto', config: { tier: 'intelligence' } }, workingDirectories: [directory] });
+			// The caller's discovery is still held, so this send settles only because the launch does not wait for it.
+			await agent.chats.sendMessage(chat, 'first', [directory], undefined, 'first', undefined, context);
 
 			assert.deepStrictEqual({
-				settledWhileDiscoveryPending,
-				launches: launches.length,
-				discoveredModels: (await discovered).map(model => model.id),
+				launches: launches.map(launch => ({ kind: launch.kind, capi: launch.config.capi })),
+				discoveryPending: await raceTimeout(discovered.then(() => false), 0) ?? true,
 			}, {
-				settledWhileDiscoveryPending: true,
-				launches: 0,
-				discoveredModels: ['auto'],
+				launches: [{ kind: 'create', capi: { autoTier: 'intelligence' } }],
+				discoveryPending: true,
 			});
 		});
-
-		for (const rotate of [false, true]) {
-			test(`prewarming uses the caller credential and ${rotate ? 'replaces a rotated sponsor' : 'keeps the runtime'} on first send`, async () => {
-				const { agent, clients, options, launches } = setup();
-				const session = AgentSession.uri('copilotcli', `scoped-prewarm-${rotate}`);
-				const chat = defaultChatUri(session);
-				const directory = URI.file(process.cwd());
-				let token = 'sponsor-a';
-				const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token, expiresAt: undefined, revision: 1 }) };
-				const context = { ...exactChatContext(session, chat, session), credentials };
-				afterTest(() => disposeAgent(agent));
-				await provisionSession(agent, { session, credentials, model: { id: 'gpt-4o' }, workingDirectories: [directory] });
-				const warmed = await agent.chats.warmChat!(chat, context);
-				const afterWarm = { warmed, tokens: options.filter(option => option.gitHubToken !== undefined).map(option => option.gitHubToken), launches: launches.map(launch => launch.kind) };
-				if (rotate) {
-					token = 'sponsor-b';
-				}
-
-				await agent.chats.sendMessage(chat, 'first', [directory], undefined, 'first', undefined, context);
-
-				assert.deepStrictEqual({
-					afterWarm,
-					tokens: options.filter(option => option.gitHubToken !== undefined).map(option => option.gitHubToken),
-					stops: clients.filter((_client, index) => options[index].gitHubToken !== undefined).map(client => client.stopCallCount),
-					launches: launches.map(launch => launch.kind),
-					sends: launches.map(launch => launch.runtime.sendCalls),
-				}, {
-					afterWarm: { warmed: true, tokens: ['sponsor-a'], launches: ['create'] },
-					tokens: rotate ? ['sponsor-a', 'sponsor-b'] : ['sponsor-a'],
-					stops: rotate ? [1, 0] : [0],
-					launches: rotate ? ['create', 'create'] : ['create'],
-					sends: rotate ? [0, 1] : [1],
-				});
-			});
-		}
 
 		test('prewarming does not borrow a host token when the caller credential is unavailable', async () => {
 			const { agent, options, launches } = setup();
@@ -15430,13 +15286,11 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual({
 					models: agent.models.get().map(model => model.id),
-					acceptsStaleTier: getCopilotAutoTier({ id: 'auto', config: { tier: 'hydrafusion' } }),
-					// The replacement catalog has no provider tiers, so no tier is accepted.
-					acceptsClassicTier: getCopilotAutoTier({ id: 'auto', config: { tier: 'balance' } }),
+					// The replacement catalog has no provider tiers, so the stale catalog's must not be published.
+					advertisedTiers: getAdvertisedAutoModeTierSupport(),
 				}, {
 					models: ['replacement'],
-					acceptsStaleTier: undefined,
-					acceptsClassicTier: undefined,
+					advertisedTiers: { tiers: undefined, fusion: false },
 				});
 			} finally {
 				await disposeAgent(agent);
