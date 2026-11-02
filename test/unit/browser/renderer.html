@@ -392,6 +392,8 @@
 			const testFiles = claimTestFiles ? parallelTestFiles.trackTestFiles(mocha.suite) : undefined;
 			const { installRegistryLeakCheck } = await import(`../../../${out}/vs/platform/actions/test/common/registryLeakCheck.js`);
 			installRegistryLeakCheck(mocha.suite);
+			const { installIsolationCheck } = await import(`../../../${out}/vs/base/test/browser/isolationCheck.js`);
+			installIsolationCheck(mocha.suite);
 			await loadModules(modules);
 			prepareTestsForRerun(rerunTargets);
 			if (testFiles) {
