@@ -203,6 +203,7 @@ jobs:
         parameters:
           workingDirectory: $(TEST_DIR)
           setupRegistry: true
+          os: ${{ parameters.os }}
 
       - script: pnpm install --frozen-lockfile
         workingDirectory: $(TEST_DIR)
