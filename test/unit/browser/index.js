@@ -433,6 +433,7 @@ async function runTestsInBrowser(testModules, browserType, browserChannel, grep,
 			grep,
 			rerunTargets,
 			claimTestFiles: !!claims,
+			isolationProbes: !!process.env.VSCODE_TEST_ISOLATION_REPORT,
 		});
 		await writeIsolationFindings(page, browserType);
 	} finally {

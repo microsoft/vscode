@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
-import { focusDetector, leftoverDomDetector } from './isolationCheck.js';
+import { fakeTimersDetector, focusDetector, leftoverDomDetector } from './isolationCheck.js';
 
 suite('Isolation check', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -43,6 +43,28 @@ suite('Isolation check', () => {
 		assert.deepStrictEqual({ findings, stillFocused, restored: focusDetector.check(before) }, {
 			findings: ['left focus on div.list > input'],
 			stillFocused: [],
+			restored: [],
+		});
+	});
+
+	test('reports fake timers that a suite installed and did not restore', () => {
+		const realSetTimeout = globalThis.setTimeout;
+		const realDate = globalThis.Date;
+		const before = fakeTimersDetector.snapshot();
+		globalThis.setTimeout = (() => 0) as unknown as typeof globalThis.setTimeout;
+		globalThis.Date = class extends realDate { } as DateConstructor;
+		let findings: string[];
+		let stillInstalled: string[];
+		try {
+			findings = fakeTimersDetector.check(before);
+			stillInstalled = fakeTimersDetector.check(fakeTimersDetector.snapshot());
+		} finally {
+			globalThis.setTimeout = realSetTimeout;
+			globalThis.Date = realDate;
+		}
+		assert.deepStrictEqual({ findings, stillInstalled, restored: fakeTimersDetector.check(before) }, {
+			findings: ['left fake setTimeout, Date installed'],
+			stillInstalled: [],
 			restored: [],
 		});
 	});
