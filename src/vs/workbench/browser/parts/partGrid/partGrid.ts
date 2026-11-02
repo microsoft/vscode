@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../base/browser/dom.js';
+import { $, append, getWindow } from '../../../../base/browser/dom.js';
 import { Direction, GridNode, isGridBranchNode, ISerializableView, ISerializedGrid, ISerializedNode, IViewSize, Orientation, SerializableGrid, Sizing } from '../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { IContentPart, IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { getGridEdgeInsets, IGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from './partGridGap.js';
 
 /**
  * What a cell of a {@link PartGrid} shows that is not an editor part, such as
@@ -54,23 +55,72 @@ export type PartGridCellContent = { readonly part: IContentPart } | { readonly v
 class PartGridCell implements ISerializableView {
 
 	readonly element: HTMLElement;
+	private readonly card: HTMLElement;
 
-	get minimumWidth(): number { return this.view.minimumWidth; }
-	get maximumWidth(): number { return this.view.maximumWidth; }
-	get minimumHeight(): number { return this.view.minimumHeight; }
-	get maximumHeight(): number { return this.view.maximumHeight; }
+	private insets: IGridEdgeInsets = NO_GRID_EDGE_INSETS;
+	private lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
+
+	get minimumWidth(): number { return this.view.minimumWidth + this.horizontalFrame; }
+	get maximumWidth(): number { return this.view.maximumWidth + this.horizontalFrame; }
+	get minimumHeight(): number { return this.view.minimumHeight + this.verticalFrame; }
+	get maximumHeight(): number { return this.view.maximumHeight + this.verticalFrame; }
+
+	private get horizontalFrame(): number { return this.insets.left + this.insets.right; }
+	private get verticalFrame(): number { return this.insets.top + this.insets.bottom; }
 
 	readonly onDidChange: Event<IViewSize | undefined>;
 
 	constructor(readonly id: string, readonly view: IPartGridView, readonly part: IContentPart | undefined) {
 		this.element = $('.part-grid-cell');
 		this.element.dataset.partGridCell = id;
-		this.element.appendChild(view.element);
+		this.card = append(this.element, $('.part-grid-card'));
+		this.card.appendChild(view.element);
 		this.onDidChange = view.onDidChange;
 	}
 
+	/**
+	 * The gap the card keeps to the cells beside it.
+	 */
+	setInsets(insets: IGridEdgeInsets): boolean {
+		const current = this.insets;
+		if (current.top === insets.top && current.right === insets.right && current.bottom === insets.bottom && current.left === insets.left) {
+			return false;
+		}
+
+		this.insets = insets;
+		this.layoutCard();
+
+		return true;
+	}
+
 	layout(width: number, height: number, top: number, left: number): void {
-		this.view.layout(width, height, top, left);
+		this.lastLayout = { width, height, top, left };
+		this.layoutCard();
+	}
+
+	private layoutCard(): void {
+		const insets = this.insets;
+		this.card.style.inset = `${insets.top}px ${insets.right}px ${insets.bottom}px ${insets.left}px`;
+
+		const layout = this.lastLayout;
+		if (!layout) {
+			return;
+		}
+
+		// The content is inside the card's border, which the owner's look may draw
+		const style = getWindow(this.card).getComputedStyle(this.card);
+		const border = (value: string) => parseFloat(value) || 0;
+		const borderTop = border(style.borderTopWidth);
+		const borderRight = border(style.borderRightWidth);
+		const borderBottom = border(style.borderBottomWidth);
+		const borderLeft = border(style.borderLeftWidth);
+
+		this.view.layout(
+			Math.max(0, layout.width - insets.left - insets.right - borderLeft - borderRight),
+			Math.max(0, layout.height - insets.top - insets.bottom - borderTop - borderBottom),
+			layout.top + insets.top + borderTop,
+			layout.left + insets.left + borderLeft
+		);
 	}
 
 	setVisible(visible: boolean): void {
@@ -133,6 +183,9 @@ export class PartGrid extends Disposable {
 	private readonly empty = new Set<string>();
 
 	private dimension: IViewSize | undefined;
+
+	private gap = 0;
+	private outerInsets: IGridEdgeInsets = NO_GRID_EDGE_INSETS;
 
 	private readonly _onDidChangePartEmpty = this._register(new Emitter<{ readonly id: string; readonly empty: boolean }>());
 	/**
@@ -221,7 +274,7 @@ export class PartGrid extends Disposable {
 			this.empty.delete(id);
 		}
 
-		this.updateVisibility(id);
+		this.updateAllVisibility();
 		this._onDidChangePartEmpty.fire({ id, empty });
 
 		if (empty && this.isEmpty) {
@@ -279,6 +332,16 @@ export class PartGrid extends Disposable {
 		this.setGrid(this.deserialize({ root: newRoot, orientation, width: state.width, height: state.height }));
 	}
 
+	private getCellsInGrid(node: GridNode<PartGridCell>, into: PartGridCell[] = []): PartGridCell[] {
+		if (isGridBranchNode(node)) {
+			node.children.forEach(child => this.getCellsInGrid(child, into));
+		} else {
+			into.push(node.view);
+		}
+
+		return into;
+	}
+
 	private getCell(id: string): PartGridCell {
 		const cell = this.cells.get(id);
 		if (!cell) {
@@ -302,9 +365,7 @@ export class PartGrid extends Disposable {
 		grid.element.classList.add('part-grid');
 		this.container.appendChild(grid.element);
 
-		if (this.dimension) {
-			grid.layout(this.dimension.width, this.dimension.height);
-		}
+		this.layoutGrid();
 	}
 
 	/**
@@ -356,6 +417,7 @@ export class PartGrid extends Disposable {
 	 */
 	swapCells(id: string, otherId: string): void {
 		this.grid?.swapViews(this.getCell(id), this.getCell(otherId));
+		this.applyLook();
 	}
 
 	/**
@@ -369,7 +431,7 @@ export class PartGrid extends Disposable {
 			this.hidden.add(id);
 		}
 
-		this.updateVisibility(id);
+		this.updateAllVisibility();
 	}
 
 	/**
@@ -403,6 +465,8 @@ export class PartGrid extends Disposable {
 		for (const id of this.cells.keys()) {
 			this.updateVisibility(id);
 		}
+
+		this.applyLook();
 	}
 
 	getCellSize(id: string): IViewSize {
@@ -437,7 +501,67 @@ export class PartGrid extends Disposable {
 
 	layout(width: number, height: number): void {
 		this.dimension = { width, height };
-		this.grid?.layout(width, height);
+		this.layoutGrid();
+	}
+
+	/**
+	 * The gap between the cards of the cells; 0 keeps them flush.
+	 */
+	setGap(gap: number): void {
+		if (this.gap === gap) {
+			return;
+		}
+
+		this.gap = gap;
+		this.applyLook();
+	}
+
+	/**
+	 * The room the grid keeps to the edges of the window.
+	 */
+	setOuterInsets(insets: IGridEdgeInsets): void {
+		this.outerInsets = insets;
+		this.layoutGrid();
+	}
+
+	private layoutGrid(): void {
+		const grid = this.grid;
+		if (!grid || !this.dimension) {
+			return;
+		}
+
+		const insets = this.outerInsets;
+		grid.element.style.margin = `${insets.top}px ${insets.right}px ${insets.bottom}px ${insets.left}px`;
+		grid.layout(Math.max(0, this.dimension.width - insets.left - insets.right), Math.max(0, this.dimension.height - insets.top - insets.bottom));
+		this.applyLook();
+	}
+
+	/**
+	 * Insets each card by its share of the gap to the visible cells beside
+	 * it, and shows the gripper on the sashes in the gaps.
+	 */
+	private applyLook(): void {
+		const grid = this.grid;
+		if (!grid || !this.dimension) {
+			return; // the grid knows its neighbors once laid out
+		}
+
+		const cells = this.getCellsInGrid(grid.getViews());
+		let changed = false;
+		for (const cell of cells) {
+			if (cells.length > 1 && !grid.isViewVisible(cell)) {
+				continue;
+			}
+
+			changed = cell.setInsets(getGridEdgeInsets(grid, cell, this.gap, neighbor => grid.isViewVisible(neighbor))) || changed;
+		}
+
+		updateGridGapSashes(grid, true);
+
+		// Insets change the size constraints of the cells
+		if (changed && this.dimension) {
+			grid.layout(grid.width, grid.height);
+		}
 	}
 
 	/**

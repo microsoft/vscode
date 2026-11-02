@@ -41,7 +41,7 @@ import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/
 import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../browser/parts/sessionActivityBar.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
 import { ChatGroupView } from '../../browser/parts/chatGroupView.js';
-import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
+import { GRID_GAP_SASH_CLASS } from '../../../workbench/browser/parts/partGrid/partGridGap.js';
 import { SessionDropTarget } from '../../browser/parts/sessionDropTarget.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
 import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';

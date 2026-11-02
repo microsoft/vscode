@@ -11,7 +11,7 @@ import { Disposable, IDisposable, MutableDisposable } from '../../../base/common
 import { ISessionGridPlacement } from '../../services/sessions/browser/sessionsPartService.js';
 import { isSessionGridLeafData, projectSessionGrid } from '../../services/sessions/browser/sessionGridState.js';
 import { Color } from '../../../base/common/color.js';
-import { getGridBottomCornerViews, getGridEdgeInsets, IGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from './gridGap.js';
+import { getGridBottomCornerViews, getGridEdgeInsets, IGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from '../../../workbench/browser/parts/partGrid/partGridGap.js';
 
 export interface ISessionGridView extends IView {
 	/** Applies the allocated geometry without laying out descendants. */

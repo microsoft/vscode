@@ -118,8 +118,8 @@ suite('Sessions - Agents Part Card', () => {
 			append(view, $('.part.panel'));
 
 			const sashes = [
-				append(card, $('.monaco-sash.vertical.agents-grid-gap-sash')),
-				append(card, $('.monaco-sash.horizontal.agents-grid-gap-sash')),
+				append(card, $('.monaco-sash.vertical.part-grid-gap-sash')),
+				append(card, $('.monaco-sash.horizontal.part-grid-gap-sash')),
 				append(container, $('.monaco-sash.vertical.sessions-side-pane-divider')),
 				append(sashContainer, $('.monaco-sash.horizontal')),
 			];

@@ -15,6 +15,7 @@ import { SyncDescriptor } from '../../../../../platform/instantiation/common/des
 import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IPartGridView, PartGrid } from '../../../../browser/parts/partGrid/partGrid.js';
+import { GRID_GAP_SASH_CLASS } from '../../../../browser/parts/partGrid/partGridGap.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
 import { IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
@@ -189,5 +190,50 @@ suite('Part Grid', () => {
 			bottomVisible: restored.isCellVisible('bottom'),
 			sideEmpty: restored.isPartEmpty('side'),
 		}, { shape: 'column(row(side, chat), bottom)', sideWidth: 300, bottomVisible: false, sideEmpty: false });
+	});
+
+	test('cards keep their share of the gap to visible cells beside them, none to the window edges, inside the outer insets', async () => {
+		const parts = await createParts();
+		const container = createContainer();
+		const grid = disposables.add(new PartGrid(container));
+		const side = createPart(parts);
+		const chat = createPart(parts);
+		const bottom = createPart(parts);
+		await Promise.all([openEditor(side, '/side.txt'), openEditor(chat, '/chat.txt'), openEditor(bottom, '/bottom.txt')]);
+		grid.addPart('side', side);
+		grid.addPart('chat', chat, { reference: 'side', direction: Direction.Right });
+		grid.addPart('bottom', bottom, { edge: Direction.Down });
+		grid.setGap(8);
+		grid.setOuterInsets({ top: 0, right: 8, bottom: 8, left: 8 });
+		grid.layout(1000, 800);
+
+		const insetOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"] > .part-grid-card`)!.style.inset;
+		const withAll = { side: insetOf('side'), chat: insetOf('chat'), bottom: insetOf('bottom') };
+		grid.setCellVisible('bottom', false);
+		const withoutBottom = { side: insetOf('side'), chat: insetOf('chat') };
+		const gridElement = container.querySelector<HTMLElement>('.part-grid')!;
+
+		assert.deepStrictEqual({
+			withAll,
+			withoutBottom,
+			margin: gridElement.style.margin,
+			gapSashes: container.querySelectorAll(`.monaco-sash.${GRID_GAP_SASH_CLASS}`).length > 0
+		}, {
+			withAll: { side: '0px 4px 4px 0px', chat: '0px 0px 4px 4px', bottom: '4px 0px 0px' },
+			withoutBottom: { side: '0px 4px 0px 0px', chat: '0px 0px 0px 4px' },
+			margin: '0px 8px 8px',
+			gapSashes: true
+		});
+	});
+
+	test('the gripper on a gap sash draws its outer dots the grid gap apart', () => {
+		const container = createContainer();
+		container.style.setProperty('--part-grid-gap', '6px');
+		const sash = container.appendChild(mainWindow.document.createElement('div'));
+		sash.classList.add('monaco-sash', 'vertical', GRID_GAP_SASH_CLASS);
+
+		const style = mainWindow.getComputedStyle(sash, '::after');
+
+		assert.deepStrictEqual({ content: style.content, shadow: style.boxShadow.replace(/rgba?\([^)]*\)\s*/g, '').trim() }, { content: '""', shadow: '0px -6px 0px 0px, 0px 6px 0px 0px' });
 	});
 });
