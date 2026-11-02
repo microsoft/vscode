@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { scheduleAtNextAnimationFrame } from '../../browser/dom.js';
 import { mainWindow } from '../../browser/window.js';
 
 /**
@@ -91,7 +92,93 @@ export const hoverDetector: IIsolationDetector<ReadonlySet<Element>> = {
 	},
 };
 
-export const defaultIsolationDetectors: readonly IIsolationDetector[] = [leftoverDomDetector, focusDetector, hoverDetector];
+function captureTimeGlobals() {
+	return {
+		setTimeout: globalThis.setTimeout,
+		clearTimeout: globalThis.clearTimeout,
+		setInterval: globalThis.setInterval,
+		clearInterval: globalThis.clearInterval,
+		Date: globalThis.Date,
+		'performance.now': globalThis.performance?.now,
+		requestAnimationFrame: globalThis.requestAnimationFrame,
+		cancelAnimationFrame: globalThis.cancelAnimationFrame,
+	};
+}
+
+/** The time globals when the runner loads this module, before any test file. */
+const originalTimeGlobals = captureTimeGlobals();
+
+/** Names of the time globals that are currently not the original ones, for example because fake timers are installed. */
+export function getReplacedTimeGlobals(): string[] {
+	const current = captureTimeGlobals();
+	return (Object.keys(originalTimeGlobals) as (keyof typeof originalTimeGlobals)[]).filter(name => current[name] !== originalTimeGlobals[name]);
+}
+
+/**
+ * Fake timers (sinon, `pushGlobalTimeApi`) that a suite installed and did not restore. Every later suite then runs on a
+ * clock that nobody advances, and `dom.ts` requests its animation frames from a fake that never runs them.
+ */
+export const fakeTimersDetector: IIsolationDetector<ReadonlySet<string>> = {
+	kind: 'timers',
+	snapshot: () => new Set(getReplacedTimeGlobals()),
+	check: before => {
+		const replaced = getReplacedTimeGlobals().filter(name => !before.has(name));
+		return replaced.length ? [`left fake ${replaced.join(', ')} installed`] : [];
+	},
+};
+
+interface IAnimationFrameProbe {
+	scheduledRan: boolean;
+	nativeRan: boolean;
+}
+
+let pendingAnimationFrameProbe: IAnimationFrameProbe | undefined;
+let reportedStuckAnimationFrames = false;
+
+/**
+ * A stuck animation frame queue in `dom.ts`. `scheduleAtNextAnimationFrame` requests one native frame per window and sets
+ * a flag until that frame runs. When the frame was requested from a fake `requestAnimationFrame` that is removed without
+ * running it, the flag stays set and no runner scheduled later in the page runs again.
+ *
+ * At the end of a suite this schedules a probe through `dom.ts` and then requests a native frame itself. Both frames run in
+ * request order, so if the native frame ran by the end of the next suite but the probe did not, the queue was already stuck
+ * when the probe was scheduled: the suite reporting it inherited it from an earlier suite. If no native frame runs, as in a
+ * window that does not paint, the probe stays pending and reports nothing.
+ *
+ * Not a default detector: the probe puts a runner in the `dom.ts` queue between suites, which could change when the runners
+ * of the next suite run, so runners add it only for reporting runs.
+ */
+export const animationFrameQueueDetector: IIsolationDetector<void> = {
+	kind: 'animationFrame',
+	snapshot: () => undefined,
+	check: () => {
+		const findings: string[] = [];
+		const probe = pendingAnimationFrameProbe;
+		if (probe && !probe.nativeRan) {
+			return findings;
+		}
+		if (probe && !probe.scheduledRan) {
+			if (!reportedStuckAnimationFrames) {
+				reportedStuckAnimationFrames = true;
+				findings.push('scheduleAtNextAnimationFrame runners stopped running before this suite started: a native frame ran but the runner scheduled at the end of the previous suite did not');
+			}
+		} else if (probe) {
+			reportedStuckAnimationFrames = false;
+		}
+		if (getReplacedTimeGlobals().length) {
+			// dom.ts would request the frame from the fake, which is what gets the queue stuck.
+			pendingAnimationFrameProbe = undefined;
+			return findings;
+		}
+		const next: IAnimationFrameProbe = { scheduledRan: false, nativeRan: false };
+		scheduleAtNextAnimationFrame(mainWindow, () => next.scheduledRan = true);
+		originalTimeGlobals.requestAnimationFrame.call(mainWindow, () => next.nativeRan = true);
+		pendingAnimationFrameProbe = next;
+		return findings;
+	},
+};
+
+export const defaultIsolationDetectors: readonly IIsolationDetector[] = [leftoverDomDetector, focusDetector, hoverDetector, fakeTimersDetector];
 
 /**
  * Runs `detectors` around every top-level suite of `root` and records what each suite leaves behind in

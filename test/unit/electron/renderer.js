@@ -278,8 +278,11 @@ async function loadTests(opts) {
 	const { assertCleanState } = await loadFn('vs/workbench/test/common/utils');
 	const { installRegistryLeakCheck } = await loadFn('vs/platform/actions/test/common/registryLeakCheck');
 	installRegistryLeakCheck(mocha.suite);
-	const { installIsolationCheck } = await loadFn('vs/base/test/browser/isolationCheck');
-	installIsolationCheck(mocha.suite);
+	const { installIsolationCheck, defaultIsolationDetectors, animationFrameQueueDetector } = await loadFn('vs/base/test/browser/isolationCheck');
+	const { menuChangeListenerDetector } = await loadFn('vs/platform/actions/test/common/menuChangeListenerDetector');
+	// The animation frame probe changes when queued runners run, so only reporting runs use it.
+	const isolationProbes = process.env.VSCODE_TEST_ISOLATION_REPORT ? [animationFrameQueueDetector] : [];
+	installIsolationCheck(mocha.suite, [...defaultIsolationDetectors, menuChangeListenerDetector, ...isolationProbes]);
 
 	suite('Tests are using suiteSetup and setup correctly', () => {
 		test('assertCleanState - check that registries are clean at the start of test running', () => {
