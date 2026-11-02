@@ -2064,7 +2064,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			ask: ['Shell'],
 		};
 		const logService = new CapturingLogService();
-		const configValues: Record<string, unknown> = { [AgentHostCanvasesEnabledConfigKey]: true, [CopilotCliConfigKey.ImageGeneration]: true, memory: true, localMemory: true };
+		const configValues: Record<string, unknown> = { [AgentHostCanvasesEnabledConfigKey]: true, [CopilotCliConfigKey.ImageGeneration]: true, localMemory: true };
 		const launcher = createTestLauncher(managedSettingsPermissions, configValues, logService);
 		const pluginDir = URI.file('/tmp/synced-customizations');
 		const syntheticPluginDir = URI.file('/tmp/vscode-synced-customizations');
@@ -4005,14 +4005,11 @@ suite('CopilotSessionLauncher resume config', () => {
 		assert.deepStrictEqual(config.excludedTools, ['builtin:search_code_subagent', ...alwaysDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]);
 	});
 
-	test('explicitly disables Copilot Memory and the local store unless opted in', async () => {
+	test('always enables Copilot Memory and explicitly disables the local store unless opted in', async () => {
 		const store = disposables.add(new DisposableStore());
 		const configs = {
-			cloud: await buildResumeConfig(createLauncher(store, { memory: true }), { id: 'gpt-5' }),
-			local: await buildResumeConfig(createLauncher(store, { memory: true, localMemory: true }), { id: 'gpt-5' }),
-			localWithoutMemory: await buildResumeConfig(createLauncher(store, { memory: false, localMemory: true }), { id: 'gpt-5' }),
-			disabled: await buildResumeConfig(createLauncher(store, { memory: false }), { id: 'gpt-5' }),
-			notOptedIn: await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' }),
+			cloud: await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' }),
+			local: await buildResumeConfig(createLauncher(store, { localMemory: true }), { id: 'gpt-5' }),
 		};
 
 		assert.deepStrictEqual(Object.fromEntries(Object.entries(configs).map(([name, config]) => [name, {
@@ -4021,9 +4018,6 @@ suite('CopilotSessionLauncher resume config', () => {
 		}])), {
 			cloud: { memory: { enabled: true }, localStore: false },
 			local: { memory: { enabled: true }, localStore: true },
-			localWithoutMemory: { memory: { enabled: false }, localStore: false },
-			disabled: { memory: { enabled: false }, localStore: false },
-			notOptedIn: { memory: { enabled: false }, localStore: false },
 		});
 	});
 

@@ -14605,17 +14605,17 @@ suite('CopilotAgent', () => {
 
 			configurationService.updateRootConfig({ [CopilotCliConfigKey.LocalMemory]: true });
 			await agent.listChatsToMigrate();
-			const localWithoutMemory = client.stopCallCount;
+			const afterEnable = client.stopCallCount;
 
-			configurationService.updateRootConfig({ [CopilotCliConfigKey.Memory]: true });
+			configurationService.updateRootConfig({ [CopilotCliConfigKey.LocalMemory]: true });
 			await agent.listChatsToMigrate();
 
 			assert.deepStrictEqual({
-				localWithoutMemory,
-				localWithMemory: client.stopCallCount,
+				afterEnable,
+				afterUnchanged: client.stopCallCount - afterEnable,
 			}, {
-				localWithoutMemory: 0,
-				localWithMemory: 1,
+				afterEnable: 1,
+				afterUnchanged: 0,
 			});
 		});
 
