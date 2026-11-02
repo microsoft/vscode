@@ -21,13 +21,13 @@ import { bindEditorPartsToWindow } from '../../../services/editor/browser/editor
 import { IContentPart, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { ChatWindowLayoutCell, ChatWindowLayoutMode, ChatWindowSplitLayout } from '../common/chatWindowLayout.js';
-import { ChatWindowChatLayouts, ChatWindowDefaults, ChatWindowState } from '../common/chatWindowState.js';
+import { ChatWindowChatLayouts, ChatWindowChatSizes, ChatWindowDefaults, ChatWindowState } from '../common/chatWindowState.js';
 import { IChatWindow, IChatWindowContent, IChatWindowEditors, IChatWindowOpenOptions, IChatWindowProvider, IChatWindowService } from './chatWindow.js';
 import { bindWindowLayoutContext } from './chatWindowContextKeys.js';
 import { deserializeChatWindowEditors, serializeChatWindowEditors } from './chatWindowEditors.js';
 import { InFlightOperations, openCleaningUpOnFailure } from './chatWindowOpening.js';
 import { bindMainPartVisible, moveEditorsToChatWindow, showChatInsteadOfEmptyMainPart, trackMainPartEditors } from './chatWindowParts.js';
-import { ChatWindowPartsLayout } from './chatWindowPartsLayout.js';
+import { ChatWindowGrid } from './chatWindowGrid.js';
 import { ChatWindowsRestoration } from './chatWindowsRestoration.js';
 
 /** The size of a chat window when it opens. */
@@ -169,6 +169,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 
 	private readonly _opening = new InFlightOperations<IChatWindow | undefined>();
 	private readonly _chatLayouts: ChatWindowChatLayouts;
+	private readonly _chatSizes: ChatWindowChatSizes;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -181,6 +182,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		super();
 		this.hasProvider = this._provider.map(provider => !!provider);
 		this._chatLayouts = new ChatWindowChatLayouts(_storageService);
+		this._chatSizes = new ChatWindowChatSizes(_storageService);
 		this._register(this._instantiationService.createInstance(ChatWindowsRestoration, {
 			provider: this._provider,
 			windows: this._windows,
@@ -318,23 +320,23 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			}
 		}
 
-		const partsLayout = disposables.add(new ChatWindowPartsLayout(new Map([
-			[ChatWindowLayoutCell.SidePane, { element: mainPartElement, layout: (width, height, top, left) => mainPart.layout(width, height, top, left) }],
-			[ChatWindowLayoutCell.Chat, {
-				element: chatPartElement,
-				// What the chat shows bounds its part, such as only its input.
-				get maximumHeight() { return chatPart.maximumHeight; },
-				onDidChange: chatPart.onDidChange,
-				layout: (width, height, top, left) => chatPart.layout(width, height, top, left),
-			}],
-		]), state.layoutMode, look.gap, {
+		if (look.className) {
+			container.classList.add(look.className);
+		}
+		const grid = disposables.add(new ChatWindowGrid(host, {
+			main: mainPart,
+			chat: chatPart,
 			titleRow: titleRow && { element: titleRowElement, visible: titleRow.visible, size: titleRow.size, layout: (width, height) => titleRow.layout(width, height) },
 			strip: strip && { element: stripElement, visible: strip.visible, size: strip.size, layout: (width, height) => strip.layout(width, height) },
-		}));
+		}, state.layoutMode, look.gap, this._chatSizes.get(chat)));
+		// What the window shows is what it shows again for its chat: the sizes of its parts per arrangement.
+		const saveSizes = () => this._chatSizes.set(content.chat.get(), grid.exportSizes());
+		disposables.add(this._storageService.onWillSaveState(saveSizes));
+		disposables.add(auxiliaryWindow.onBeforeUnload(saveSizes));
 		if (look.paintChatBackground) {
 			disposables.add(look.paintChatBackground(chatPartElement));
 		}
-		disposables.add(auxiliaryWindow.onWillLayout(dimension => partsLayout.layout(dimension.width, dimension.height)));
+		disposables.add(auxiliaryWindow.onWillLayout(dimension => grid.layout(dimension.width, dimension.height)));
 
 		disposables.add(autorun(reader => {
 			auxiliaryWindow.window.document.title = content.title.read(reader);

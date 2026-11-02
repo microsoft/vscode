@@ -97,8 +97,8 @@ export interface IChatWindowChrome {
 export interface IChatWindowLook {
 	/** The gap between the parts of the window, in pixels. */
 	readonly gap: IObservable<number>;
-	/** Whether each part of the window shows as a card. */
-	readonly cards: boolean;
+	/** A class name on the window's container, through which the provider styles it, such as the cards of its parts. */
+	readonly className?: string;
 	/** Paints a background behind the chat part's element, such as a wallpaper. */
 	paintChatBackground?(element: HTMLElement): IDisposable;
 	/** Options of the main part of the window, such as how its tabs show, that override the user's settings there. */

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/chatWindow.css';
 import { getWindow } from '../../../../base/browser/dom.js';
 import { raceTimeout, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -303,7 +304,7 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		this.look = {
 			// The parts are cards, as the main window's are, unless Layout Density is compact, which keeps them flush.
 			gap: derived(reader => density.read(reader) === ModernUIDensity.Compact ? 0 : AGENTS_FLOATING_PANEL_GAP),
-			cards: true,
+			className: 'agents-chat-window',
 			paintChatBackground: element => this._instantiationService.createInstance(SessionsChatSurface, element),
 			mainPartOptions: derived(reader => getChatWindowMainPartOptions(showTabs.read(reader))),
 			mainPartGroupViewOptions: CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS,

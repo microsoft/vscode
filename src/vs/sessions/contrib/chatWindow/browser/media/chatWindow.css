@@ -1,0 +1,35 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The window behind the cards of a chat window, as behind the main window's. */
+.monaco-workbench .agents-chat-window {
+	background-color: var(--vscode-agents-background);
+}
+
+/* The parts of a chat window are cards, as the main window's are. */
+.monaco-workbench .agents-chat-window .part-grid-cell > .part-grid-card {
+	--part-grid-card-background: var(--vscode-agentsPanel-background);
+	--part-grid-card-border-color: var(--vscode-agentsCard-border, var(--vscode-agentsPanel-border, transparent));
+	--part-grid-card-border-width: 1px;
+	--part-grid-card-radius: var(--agents-part-corner-radius);
+}
+
+/* The main part's card has the background of the main window's side pane: the editor's. */
+.monaco-workbench .agents-chat-window .part-grid-cell[data-part-grid-cell="main"] > .part-grid-card {
+	--part-grid-card-background: var(--vscode-editor-background);
+}
+
+/* The title row and the strip are not cards: they take the chat's background. */
+.monaco-workbench .agents-chat-window .part-grid-cell:is([data-part-grid-cell="titleRow"], [data-part-grid-cell="strip"]) > .part-grid-card {
+	--part-grid-card-border-width: 0;
+	--part-grid-card-radius: 0;
+}
+
+/* Compact density keeps the cards flush, without frames. */
+.monaco-workbench.modern-ui-compact .agents-chat-window .part-grid-cell > .part-grid-card,
+.monaco-workbench .agents-chat-window.modern-ui-compact .part-grid-cell > .part-grid-card {
+	--part-grid-card-border-width: 0;
+	--part-grid-card-radius: 0;
+}
