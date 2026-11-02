@@ -87,6 +87,16 @@ suite('MobileRepositoryPicker', () => {
 	}
 
 	(isWeb ? test : test.skip)('workspace GitHub header opens the mobile repository sheet without quick input', async () => {
+		// Exercise a shared document that already contains unrelated Quick Input widgets.
+		const unrelatedInputs = dom.append(mainWindow.document.body, dom.$('div'));
+		store.add(toDisposable(() => unrelatedInputs.remove()));
+		unrelatedInputs.hidden = true;
+		for (let index = 0; index < 4; index++) {
+			dom.append(unrelatedInputs, dom.$('.quick-input-widget'));
+		}
+		const existingQuickInputs = new Set(mainWindow.document.querySelectorAll('.quick-input-widget'));
+		const countNewQuickInputs = () => [...mainWindow.document.querySelectorAll('.quick-input-widget')]
+			.filter(widget => !existingQuickInputs.has(widget)).length;
 		const { picker, container, trigger, errors } = createPicker();
 		container.classList.add('phone-layout');
 		const layoutService = upcastPartial<IWorkbenchLayoutService>({ mainContainer: container });
@@ -131,7 +141,7 @@ suite('MobileRepositoryPicker', () => {
 			recentVisible: recentRow.getBoundingClientRect().height > 0,
 			expanded: trigger.getAttribute('aria-expanded'),
 			browseCalls,
-			quickInputs: mainWindow.document.querySelectorAll('.quick-input-widget').length,
+			newQuickInputs: countNewQuickInputs(),
 		};
 		container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-header-action[aria-label="GitHub"]')!.click();
 		await clock.tickAsync(181);
@@ -142,7 +152,7 @@ suite('MobileRepositoryPicker', () => {
 			dialogs: container.querySelectorAll('[role="dialog"]').length,
 			expanded: trigger.getAttribute('aria-expanded'),
 			focused: dom.getActiveElement() === input,
-			quickInputs: mainWindow.document.querySelectorAll('.quick-input-widget').length,
+			newQuickInputs: countNewQuickInputs(),
 		};
 
 		const instantiationService = store.add(new TestInstantiationService());
@@ -179,7 +189,7 @@ suite('MobileRepositoryPicker', () => {
 		await clock.tickAsync(300);
 		const searchState = {
 			rows: getRows(container).map(row => row.textContent),
-			quickInputs: mainWindow.document.querySelectorAll('.quick-input-widget').length,
+			newQuickInputs: countNewQuickInputs(),
 		};
 		getRows(container)[0].click();
 		await clock.tickAsync(180);
@@ -188,14 +198,14 @@ suite('MobileRepositoryPicker', () => {
 			selection: await selected.p,
 			dialogs: container.querySelectorAll('[role="dialog"]').length,
 			focusRestored: dom.getActiveElement() === trigger,
-			quickInputs: mainWindow.document.querySelectorAll('.quick-input-widget').length,
+			newQuickInputs: countNewQuickInputs(),
 		}, {
-			workspaceState: { title: 'Choose Workspace', rows: ['Example/recent'], recentVisible: true, expanded: 'true', browseCalls: 0, quickInputs: 0 },
-			repositoryState: { title: 'Choose repository', dialogs: 1, expanded: 'false', focused: true, quickInputs: 0 },
+			workspaceState: { title: 'Choose Workspace', rows: ['Example/recent'], recentVisible: true, expanded: 'true', browseCalls: 0, newQuickInputs: 0 },
+			repositoryState: { title: 'Choose repository', dialogs: 1, expanded: 'false', focused: true, newQuickInputs: 0 },
 			accessibilityHelp: { applies: true, search: true, keyboard: true, verbosity: 'accessibility.verbosity.sessionsChat', restoresSearchFocus: true },
-			searchState: { rows: ['Mixed.Owner/Some-Repo'], quickInputs: 0 },
+			searchState: { rows: ['Mixed.Owner/Some-Repo'], newQuickInputs: 0 },
 			queries: ['', 'some-repo'], browseCalls: 1, errors: [],
-			selection: 'Mixed.Owner/Some-Repo', dialogs: 0, focusRestored: true, quickInputs: 0,
+			selection: 'Mixed.Owner/Some-Repo', dialogs: 0, focusRestored: true, newQuickInputs: 0,
 		});
 	});
 
