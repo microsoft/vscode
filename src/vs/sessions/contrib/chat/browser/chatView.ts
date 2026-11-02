@@ -79,6 +79,7 @@ import { ExternalSessionBanner } from './externalSessionBanner.js';
 import { ISessionOpenTelemetryService } from '../../../services/sessions/browser/sessionOpenTelemetryService.js';
 import { ISessionArchiveNudgeTarget, SessionArchiveNudge } from './sessionArchiveNudge.js';
 import { SessionsChatBackgroundReplica } from '../../../services/chatBackground/browser/chatBackgroundRenderer.js';
+import { SESSIONS_CHAT_SURFACE_CLASS } from '../../../services/chatBackground/browser/sessionsChatSurface.js';
 import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
 import { SessionComparisonResult } from './sessionComparisonResult.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
@@ -1410,8 +1411,8 @@ export class ChatView extends AbstractChatView {
 
 		let replica = this._stickyScrollBackgroundReplica.value;
 		if (!replica) {
-			const sessionsPart = this.element.closest('.part.sessionspart');
-			const source = sessionsPart ? Array.from(sessionsPart.children).find(element => element.classList.contains('sessions-chat-background')) : undefined;
+			const surface = this.element.closest(`.${SESSIONS_CHAT_SURFACE_CLASS}`);
+			const source = surface ? Array.from(surface.children).find(element => element.classList.contains('sessions-chat-background')) : undefined;
 			if (!isHTMLElement(source)) {
 				return;
 			}
