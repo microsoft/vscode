@@ -3068,6 +3068,60 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('managed settings retry eager config on the restarted client when a resolved proxy restarts it', async () => {
+		class DisposingConnectionClient extends TestCopilotClient {
+			readonly connection = new DeferredPromise<ManagedSettingsResolveResult>();
+
+			override async stop(): ReturnType<ITestCopilotClient['stop']> {
+				this.connection.error(new Error('Pending response rejected since connection got disposed'));
+				return super.stop();
+			}
+		}
+		const proxy = 'http://client-proxy.example:8080';
+		const proxyResolver = new TestProxyResolver();
+		const proxyResolved = new DeferredPromise<void>();
+		proxyResolver.resolvedProxy = proxy;
+		proxyResolver.resolveProxyGate = proxyResolved.p;
+		const client = new DisposingConnectionClient([]);
+		const firstQueryStarted = new DeferredPromise<void>();
+		const restricted: ManagedSettingsResolveResult = {
+			...client.managedSettingsResolution,
+			resolved: {
+				...client.managedSettingsResolution.resolved,
+				bypassPermissionsDisabled: true,
+				settings: { permissions: { disableBypassPermissionsMode: 'disable', disableAssistedPermissionsMode: true } },
+			},
+		};
+		client.resolveManagedSettings = async () => {
+			if (!firstQueryStarted.isSettled) {
+				firstQueryStarted.complete();
+				return client.connection.p;
+			}
+			return restricted;
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client, proxyResolver });
+		try {
+			const config = agent.resolveChatConfig({});
+			await firstQueryStarted.p;
+			proxyResolved.complete();
+			assert.deepStrictEqual({
+				availableApprovalModes: (await config).values.availableApprovalModes,
+				startCallCount: client.startCallCount,
+				stopCallCount: client.stopCallCount,
+				httpsProxy: getCreatedClientOptions(agent).at(-1)?.env?.['HTTPS_PROXY'],
+			}, {
+				availableApprovalModes: ['default'],
+				startCallCount: 2,
+				stopCallCount: 1,
+				httpsProxy: proxy,
+			});
+		} finally {
+			proxyResolved.complete();
+			client.connection.complete(client.managedSettingsResolution);
+			await disposeAgent(agent);
+		}
+	});
+
 	for (const kind of ['create', 'resume', 'peerResume', 'resumeWithSelections', 'peerResumeWithSelections'] as const) {
 		test(`Stop releases a ${kind} waiting on managed settings before the SDK starts`, async () => {
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/copilot-policy-stop-`);

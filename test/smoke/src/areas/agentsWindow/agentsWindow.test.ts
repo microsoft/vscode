@@ -245,6 +245,9 @@ export function setup(logger: Logger, quality: Quality) {
 				'chat.agentHost.devContainer.enabled': true,
 				'chat.agentHost.devContainer.worktree.enabled': false,
 				'chat.remoteAgentHostsEnabled': true,
+				// The Agent Host in a local container resolves proxies through this client. The mock CAPI host only
+				// resolves inside the container, so a proxy configured on the CI machine cannot reach it.
+				'http.useLocalProxyConfiguration': false,
 			},
 			prepareWorkspace: (workspacePath, options) => prepareDevContainerWorkspace(workspacePath, devContainer.mockServer.port, options),
 			cleanupWorkspace: cleanupDevContainerWorkspace,
