@@ -82,14 +82,25 @@ export const focusDetector: IIsolationDetector<Element | null> = {
 	},
 };
 
-/** An element the suite added that is still under the real pointer, so `:hover` styles apply to it in later layouts. */
+/**
+ * The real pointer over the page after the suite when it was not before, or over an element the suite added. Either way
+ * `:hover` styles apply in the layouts of later suites. A real pointer only hovers the page where the window can
+ * receive it, as under Xvfb on Linux once a suite activates the window, so this reports nothing where it never does.
+ */
 export const hoverDetector: IIsolationDetector<ReadonlySet<Element>> = {
 	kind: 'hover',
 	snapshot: () => new Set(Array.from(mainWindow.document.querySelectorAll(':hover'))),
 	check: before => {
-		const hovered = Array.from(mainWindow.document.querySelectorAll(':hover')).filter(element => !before.has(element));
+		const document = mainWindow.document;
+		const hovered = Array.from(document.querySelectorAll(':hover')).filter(element => !before.has(element));
 		const innermost = hovered.at(-1);
-		return innermost ? [`left the pointer over ${describePath(innermost)}`] : [];
+		if (!innermost) {
+			return [];
+		}
+		if (innermost === document.body || innermost === document.documentElement) {
+			return ['left the real pointer over the page'];
+		}
+		return [`left the pointer over ${describePath(innermost)}`];
 	},
 };
 
