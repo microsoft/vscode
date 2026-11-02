@@ -28,28 +28,32 @@ class CodePointDiffSequence implements ISequence {
 	private readonly offsets: Int32Array;
 
 	constructor(source: string) {
-		const elements: number[] = [];
-		const offsets: number[] = [];
-
+		let elementCount = 0;
 		for (let offset = 0; offset < source.length;) {
-			offsets.push(offset);
+			const charCode = source.charCodeAt(offset);
+			offset += isHighSurrogate(charCode) && offset + 1 < source.length && isLowSurrogate(source.charCodeAt(offset + 1)) ? 2 : 1;
+			elementCount++;
+		}
+
+		this.elements = new Int32Array(elementCount);
+		this.offsets = new Int32Array(elementCount + 1);
+		let elementIndex = 0;
+		for (let offset = 0; offset < source.length; elementIndex++) {
+			this.offsets[elementIndex] = offset;
 			const charCode = source.charCodeAt(offset);
 			if (isHighSurrogate(charCode) && offset + 1 < source.length) {
 				const nextCharCode = source.charCodeAt(offset + 1);
 				if (isLowSurrogate(nextCharCode)) {
-					elements.push(computeCodePoint(charCode, nextCharCode));
+					this.elements[elementIndex] = computeCodePoint(charCode, nextCharCode);
 					offset += 2;
 					continue;
 				}
 			}
 
-			elements.push(charCode);
+			this.elements[elementIndex] = charCode;
 			offset++;
 		}
-
-		offsets.push(source.length);
-		this.elements = Int32Array.from(elements);
-		this.offsets = Int32Array.from(offsets);
+		this.offsets[elementCount] = source.length;
 	}
 
 	getElements(): Int32Array {
