@@ -4071,6 +4071,26 @@ suite('Automation workspace trust', () => {
 		});
 	});
 
+	test('identifies the remote agent environment when prompting', async () => {
+		const trustRequests: ResourceTrustRequestOptions[] = [];
+		await canSelectAutomationWorkspace(
+			FOLDER,
+			'preferred',
+			upcastPartial<ISessionsManagementService>({
+				resolveWorkspace: () => ({ providerId: 'preferred', workspace: createWorkspace(true) }),
+				getRemoteHostLabel: (_workspace, providerId) => `Host of ${providerId}`,
+			}),
+			upcastPartial<IWorkspaceTrustRequestService>({
+				requestResourcesTrust: async options => {
+					trustRequests.push(options);
+					return true;
+				},
+			}),
+		);
+
+		assert.deepStrictEqual(trustRequests.map(request => request.remoteHostLabel), ['Host of preferred']);
+	});
+
 	for (const trustResult of [true, false, undefined]) {
 		test(`returns ${trustResult === true ? 'true when trust is granted' : 'false when trust is ' + (trustResult === false ? 'declined' : 'cancelled')}`, async () => {
 			const trustRequests: ResourceTrustRequestOptions[] = [];
@@ -4079,6 +4099,7 @@ suite('Automation workspace trust', () => {
 				'preferred',
 				upcastPartial<ISessionsManagementService>({
 					resolveWorkspace: () => ({ providerId: 'preferred', workspace: createWorkspace(true) }),
+					getRemoteHostLabel: () => undefined,
 				}),
 				upcastPartial<IWorkspaceTrustRequestService>({
 					requestResourcesTrust: async options => {
