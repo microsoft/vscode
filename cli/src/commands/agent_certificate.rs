@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use super::args::{AgentCertificateSubcommand, AgentSandboxArgs, AgentSandboxSubcommand};
 use super::CommandContext;
-use crate::constants::{IS_INTERACTIVE_CLI, VSCODE_CLI_COMMIT, VSCODE_CLI_QUALITY};
+use crate::constants::{IS_INTERACTIVE_CLI, VSCODE_CLI_QUALITY};
 use crate::options::Quality;
 use crate::tunnels::code_server::{CodeServerArgs, ServerBuilder, ServerParamsRaw};
 use crate::tunnels::legal;
@@ -18,14 +18,6 @@ use crate::util::prereqs::PreReqChecker;
 
 pub async fn run(ctx: CommandContext, args: AgentSandboxArgs) -> Result<i32, AnyError> {
 	let dev_override = option_env!("VSCODE_CLI_OVERRIDE_SERVER_PATH").is_some();
-	let commit = VSCODE_CLI_COMMIT
-		.or(if dev_override { Some("dev") } else { None })
-		.ok_or_else(|| {
-			wrap(
-				"Missing matching server",
-				"Development certificate commands require VSCODE_CLI_OVERRIDE_SERVER_PATH to point to a matching server when building the CLI.",
-			)
-		})?;
 	let AgentSandboxSubcommand::Ca(args) = args.subcommand;
 	let (operation, confirmation) = match args.subcommand {
 		AgentCertificateSubcommand::Create => ("create", None),
@@ -57,7 +49,7 @@ pub async fn run(ctx: CommandContext, args: AgentSandboxArgs) -> Result<i32, Any
 	let platform = PreReqChecker::new().verify().await?;
 	let http = Arc::new(ReqwestSimpleHttp::with_client(ctx.http.clone()));
 	let params = ServerParamsRaw {
-		commit_id: Some(commit.to_owned()),
+		commit_id: None,
 		quality: Quality::try_from(VSCODE_CLI_QUALITY.unwrap_or("insiders"))
 			.map_err(|e| wrap(e, "Invalid CLI quality"))?,
 		code_server_args: CodeServerArgs::default(),

@@ -47,9 +47,11 @@ code-insiders agent sandbox ca remove
 
 `remove` confirms the change and removes OS trust for that account's CA. It keeps the stored CA and private key; it does not create or rotate the CA. Tools that require the proxy CA can lose connectivity. `remove --yes` skips only the CLI confirmation, not OS authorization. Restart affected tools after removal.
 
-The command provisions the matching VS Code Server if needed, then runs a one-shot certificate entry point and its bundled Copilot runtime over stdio. It opens no server port, creates no chat, does not enable sandboxing, and stops the runtime after the operation. It does not connect to an existing host or accept a remote address or another user's certificate path. Use `--accept-server-license-terms` when server-license consent must be supplied noninteractively.
+The command asks the update service for the latest VS Code Server for the CLI's platform and release channel on each invocation that proceeds past confirmation and license consent. It reuses that version from the cache or downloads it if needed. It does not select a server by the CLI's build commit or by a running agent host's version. If the lookup fails, the command reports the error instead of falling back to an older version. The latest published server must support certificate commands; a custom CLI build does not publish that server.
 
-For development, build the CLI with `VSCODE_CLI_OVERRIDE_SERVER_PATH` pointing to the matching development server launcher. This skips downloading a server. An unversioned CLI without this override fails rather than using a published server that might not support certificate commands.
+The command then runs a one-shot certificate entry point and its bundled Copilot runtime over stdio. It opens no server port, creates no chat, does not enable sandboxing, and stops the runtime after the operation. It does not connect to an existing host or accept a remote address or another user's certificate path. Use `--accept-server-license-terms` when server-license consent must be supplied noninteractively.
+
+For development, build the CLI with `VSCODE_CLI_OVERRIDE_SERVER_PATH` pointing to the development server launcher. This uses the local launcher instead of downloading and running the published server, but the latest-version lookup still occurs. An unversioned CLI without this override uses the latest published Insiders server.
 
 Status exit codes are `0` (trusted), `3` (missing trust), `4` (unsupported platform), `5` (rotation needed), and `1` (error). Other commands return `0` only on success. The runtime owns certificate validation and OS trust integration. Linux currently uses a per-process CA bundle rather than OS root installation.
 
