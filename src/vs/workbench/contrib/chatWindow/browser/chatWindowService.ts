@@ -402,6 +402,10 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		if (look.paintChatBackground) {
 			disposables.add(look.paintChatBackground(chatPartElement));
 		}
+		const outerInsets = look.outerInsets;
+		if (outerInsets) {
+			disposables.add(autorun(reader => grid.setOuterInsets(outerInsets.read(reader))));
+		}
 		disposables.add(auxiliaryWindow.onWillLayout(dimension => grid.layout(dimension.width, dimension.height)));
 
 		disposables.add(autorun(reader => {

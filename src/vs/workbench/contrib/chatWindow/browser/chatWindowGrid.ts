@@ -8,6 +8,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { IPartGridView, PartGrid, PartGridCellContent, PartGridLocation } from '../../../browser/parts/partGrid/partGrid.js';
+import { IGridEdgeInsets, NO_GRID_EDGE_INSETS } from '../../../browser/parts/partGrid/partGridGap.js';
 import { IContentPart } from '../../../services/editor/common/editorGroupsService.js';
 import { ChatWindowLayoutMode, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
 import { ChatWindowPartSizes } from '../common/chatWindowState.js';
@@ -178,6 +179,7 @@ export class ChatWindowGrid extends Disposable {
 	private _baseTopologyKey: string | undefined;
 	private _terminalsInGrid = false;
 	private _dimension: IViewSize | undefined;
+	private _outerInsets: IGridEdgeInsets = NO_GRID_EDGE_INSETS;
 	private _sizes: ChatWindowPartSizes = {};
 
 	private readonly _terminalsVisible = observableValue<boolean>(this, false);
@@ -326,7 +328,10 @@ export class ChatWindowGrid extends Disposable {
 
 		const remembered = this._sizes[key] ?? {};
 		const orientation = isBranch(topology) ? topology.orientation : Orientation.HORIZONTAL;
-		const { width, height } = dimension;
+		// The grid keeps the outer insets to the edges of the window: its cells share what is inside them.
+		const insets = this._outerInsets;
+		const width = Math.max(0, dimension.width - insets.left - insets.right);
+		const height = Math.max(0, dimension.height - insets.top - insets.bottom);
 		const root = this._serialize(topology, orientation === Orientation.HORIZONTAL ? width : height, orientation, remembered, { width, height });
 		const serializedRoot: ISerializedNode = { type: 'branch', data: root.type === 'branch' ? root.data : [root], size: orientation === Orientation.HORIZONTAL ? height : width };
 		const serializedGrid: ISerializedGrid = { root: serializedRoot, orientation, width, height };
@@ -334,7 +339,14 @@ export class ChatWindowGrid extends Disposable {
 		const partGrid = this._grid.value = PartGrid.restore(this._container, state, id => this._contentOf(id));
 		this._gridListener.value = partGrid.onDidChangePartEmpty(() => this._updateTerminalsVisible());
 		partGrid.setGap(this._gap.get());
-		partGrid.layout(width, height);
+		partGrid.setOuterInsets(insets);
+		partGrid.layout(dimension.width, dimension.height);
+	}
+
+	/** The room the grid keeps to the edges of the window, such as the main window's outer insets. */
+	setOuterInsets(insets: IGridEdgeInsets): void {
+		this._outerInsets = insets;
+		this._grid.value?.setOuterInsets(insets);
 	}
 
 	/**

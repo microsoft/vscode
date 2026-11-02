@@ -8,6 +8,7 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { IGridEdgeInsets } from '../../../browser/parts/partGrid/partGridGap.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { DeepPartial } from '../../../../base/common/types.js';
 import { IEditorGroupViewOptions } from '../../../browser/parts/editor/editor.js';
@@ -100,6 +101,8 @@ export interface IChatWindowChrome {
 export interface IChatWindowLook {
 	/** The gap between the parts of the window, in pixels. */
 	readonly gap: IObservable<number>;
+	/** The room the parts keep to the edges of the window, in pixels. */
+	readonly outerInsets?: IObservable<IGridEdgeInsets>;
 	/** A class name on the window's container, through which the provider styles it, such as the cards of its parts. */
 	readonly className?: string;
 	/** Paints a background behind the chat part's element, such as a wallpaper. */

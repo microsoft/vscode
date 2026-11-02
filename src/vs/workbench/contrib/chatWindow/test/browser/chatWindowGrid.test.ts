@@ -80,6 +80,22 @@ suite('Chat window grid', () => {
 		});
 	});
 
+	test('keeps the outer insets to the edges of the window, also after a change of arrangement, and the parts share what is inside them', () => {
+		const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.SideBySide);
+		const grid = disposables.add(new ChatWindowGrid($('div'), { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34) }, mode, constObservable(0), undefined));
+		grid.setOuterInsets({ top: 0, right: 10, bottom: 10, left: 10 });
+		grid.layout(1000, 800);
+		const width = (cell: ChatWindowGridCell) => grid.partGrid!.getCellSize(cell).width;
+		const sideBySide = { chat: width(ChatWindowGridCell.Chat), main: width(ChatWindowGridCell.Main) };
+		mode.set(ChatWindowLayoutMode.Stacked, undefined);
+		const stacked = { chatAndMain: width(ChatWindowGridCell.Main), strip: width(ChatWindowGridCell.Strip), chatHeight: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).height + grid.partGrid!.getCellSize(ChatWindowGridCell.Main).height };
+
+		assert.deepStrictEqual({ sideBySide, stacked }, {
+			sideBySide: { chat: 392, main: 588 },
+			stacked: { chatAndMain: 946, strip: 34, chatHeight: 760 },
+		});
+	});
+
 	test('a part keeps the size the user gave it in each arrangement, and the sizes come back for the chat in a new window', () => {
 		const { mode, grid } = setup();
 		grid.partGrid!.resizeCell(ChatWindowGridCell.Chat, { width: 300, height: 770 });

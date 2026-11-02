@@ -302,6 +302,11 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		this.look = {
 			// The parts are cards, as the main window's are, unless Layout Density is compact, which keeps them flush.
 			gap: derived(reader => density.read(reader) === ModernUIDensity.Compact ? 0 : AGENTS_FLOATING_PANEL_GAP),
+			// The cards keep the gap to the edges of the window as the main window's do; the title row is at the top.
+			outerInsets: derived(reader => {
+				const gap = density.read(reader) === ModernUIDensity.Compact ? 0 : AGENTS_FLOATING_PANEL_GAP;
+				return { top: 0, right: gap, bottom: gap, left: gap };
+			}),
 			className: 'agents-chat-window',
 			paintChatBackground: element => this._instantiationService.createInstance(SessionsChatSurface, element),
 			mainPartOptions: derived(reader => getChatWindowMainPartOptions(showTabs.read(reader))),
