@@ -33,7 +33,11 @@ import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { CustomViewVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionTaskRunnerRegistry } from '../../chat/browser/sessionTaskRunner.js';
 import { AgentHostSessionTaskRunner } from './agentHostSessionTaskRunner.js';
-import { ChatWindowTerminals } from './chatWindowTerminals.js';
+import { ChatWindowTerminals, IChatWindowTerminalsService } from './chatWindowTerminals.js';
+import './chatWindowTerminalActions.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 
 interface ISessionTerminalInfo {
 	/** The cwd to use for terminal matching/creation. For agent host sessions this is the unwrapped file URI. */
@@ -963,19 +967,25 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 registerWorkbenchContribution2(SessionsTerminalContribution.ID, SessionsTerminalContribution, WorkbenchPhase.AfterRestored);
 
-/** Shows the terminals of the sessions of chat windows in the windows; see {@link ChatWindowTerminals}. */
-export class ChatWindowTerminalsContribution extends Disposable implements IWorkbenchContribution {
+/** The terminals of chat windows, showing the terminals of the sessions that {@link SessionsTerminalContribution} tracks. */
+class SessionsChatWindowTerminals extends ChatWindowTerminals {
+	constructor(
+		@ITerminalService terminalService: ITerminalService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
+		@IChatWindowService chatWindowService: IChatWindowService,
+	) {
+		super(getWorkbenchContribution<SessionsTerminalContribution>(SessionsTerminalContribution.ID), terminalService, editorGroupsService, chatWindowService);
+	}
+}
+
+registerSingleton(IChatWindowTerminalsService, SessionsChatWindowTerminals, InstantiationType.Delayed);
+
+/** Shows the terminals of the sessions of chat windows in the windows, from the start: such as the terminals of restored windows. */
+class ChatWindowTerminalsContribution implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionsChatWindowTerminals';
 
-	readonly terminals: ChatWindowTerminals;
-
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		super();
-		this.terminals = this._register(instantiationService.createInstance(ChatWindowTerminals, getWorkbenchContribution<SessionsTerminalContribution>(SessionsTerminalContribution.ID)));
-	}
+	constructor(@IChatWindowTerminalsService _chatWindowTerminalsService: IChatWindowTerminalsService) { }
 }
 
 registerWorkbenchContribution2(ChatWindowTerminalsContribution.ID, ChatWindowTerminalsContribution, WorkbenchPhase.AfterRestored);

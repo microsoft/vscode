@@ -149,11 +149,8 @@ suite('Chat window terminals', () => {
 			override getGroups() { return [...otherGroups, terminalsGroup]; }
 			override getScopedInstantiationService(part: IEditorPart) {
 				assert.strictEqual(part, mainPart);
-				return new class extends mock<IInstantiationService>() {
-					override invokeFunction<R>(fn: (accessor: ServicesAccessor) => R): R {
-						return fn({ get: () => sessionScope } as unknown as ServicesAccessor);
-					}
-				}();
+				const accessor = upcastPartial<ServicesAccessor>({ get: <T>() => sessionScope as T });
+				return upcastPartial<IInstantiationService>({ invokeFunction: (fn => fn(accessor)) as IInstantiationService['invokeFunction'] });
 			}
 		}());
 		instantiationService.stub(IChatWindowService, new class extends mock<IChatWindowService>() {

@@ -14,7 +14,7 @@ import { InMemoryStorageService } from '../../../../../platform/storage/common/s
 import { IsSessionsWindowContext, LayoutModeContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatWindow, IChatWindowService } from '../../browser/chatWindow.js';
-import { ChatWindowLayoutCommandsContext, chatWindowLayoutModeChoices, TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CONVERSATION_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID } from '../../browser/chatWindowLayoutActions.js';
+import { ChatWindowLayoutCommandsContext, chatWindowLayoutModeChoices, TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CONVERSATION_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_BY_KEY_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID } from '../../browser/chatWindowLayoutActions.js';
 import { ChatWindowLayoutMode, ChatWindowSplitLayout } from '../../common/chatWindowLayout.js';
 import { ChatWindowDefaults, ChatWindowState } from '../../common/chatWindowState.js';
 
@@ -31,6 +31,11 @@ suite('Chat window layout actions', () => {
 			override readonly inputOnly = state.inputOnly;
 			override setLayoutMode(mode: ChatWindowLayoutMode) { state.setLayoutMode(mode); }
 			override setSplitLayout(splitLayout: ChatWindowSplitLayout) { state.setSplitLayout(splitLayout); }
+			override showEditor() {
+				if (state.layoutMode.get() === ChatWindowLayoutMode.ChatOnly) {
+					state.showBoth();
+				}
+			}
 			override toggleConversation() {
 				if (state.layoutMode.get() === ChatWindowLayoutMode.Stacked) {
 					state.setInputOnly(!state.inputOnly.get());
@@ -107,6 +112,23 @@ suite('Chat window layout actions', () => {
 			whileChatOnly: [ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.SideBySide],
 			shownAgain: ChatWindowLayoutMode.SideBySide,
 		});
+	});
+
+	test('the side panel key hides the main part, leaving the chat, and shows it again as it showed with the chat, from any layout', () => {
+		const { a, run } = createEnvironment();
+		const steps: ChatWindowLayoutMode[] = [];
+		for (const mode of [ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.EditorOnly]) {
+			a.state.setLayoutMode(mode);
+			run(TOGGLE_CHAT_WINDOW_EDITOR_BY_KEY_COMMAND_ID);
+			steps.push(a.state.layoutMode.get());
+			run(TOGGLE_CHAT_WINDOW_EDITOR_BY_KEY_COMMAND_ID);
+			steps.push(a.state.layoutMode.get());
+		}
+		assert.deepStrictEqual(steps, [
+			ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.SideBySide,
+			ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.Stacked,
+			ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.Stacked,
+		]);
 	});
 
 	test('the layout commands apply only in a window with layout modes of the Agents window, while AI features are enabled', () => {

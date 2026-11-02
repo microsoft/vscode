@@ -8,6 +8,7 @@ import { timeout } from '../../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
 import { GroupModelChangeKind } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
@@ -30,6 +31,23 @@ export interface IChatWindowTerminalsSource {
 	setShownInChatWindow(instance: ITerminalInstance, shown: boolean): void;
 }
 
+export const IChatWindowTerminalsService = createDecorator<IChatWindowTerminalsService>('chatWindowTerminalsService');
+
+/** Shows the terminals of the sessions of chat windows in the part of each window that holds its terminals. */
+export interface IChatWindowTerminalsService {
+	readonly _serviceBrand: undefined;
+	/** Shows the terminals of `window`, or hides them while they show. */
+	toggle(window: IChatWindow): Promise<void>;
+	/** Shows the terminals of `window`; resolves to whether it had a terminal to show. */
+	show(window: IChatWindow, focus: boolean): Promise<boolean>;
+	/** Hides the terminals of `window`, which keep running to show again. */
+	hide(window: IChatWindow): void;
+	/** Adds a terminal to the terminals of `window` while they show one, else shows them. */
+	addTerminal(window: IChatWindow): Promise<void>;
+	/** Shows the terminal `instanceId`, such as the terminal of a task, in the terminals of `window`; resolves to whether it did. */
+	showTerminal(window: IChatWindow, instanceId: number, focus: boolean): Promise<boolean>;
+}
+
 /** Whether `editor` is a terminal. */
 function isTerminalEditor(editor: EditorInput | undefined): boolean {
 	return editor?.typeId === TerminalEditorInput.ID;
@@ -44,7 +62,9 @@ function isTerminalEditor(editor: EditorInput | undefined): boolean {
  * - A terminal opened in the window's main part moves to the part that holds its terminals.
  * - Terminals the window showed as it closed show again as it is restored.
  */
-export class ChatWindowTerminals extends Disposable {
+export class ChatWindowTerminals extends Disposable implements IChatWindowTerminalsService {
+
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _terminals = new Map<IChatWindow, Set<ITerminalInstance>>();
 	/** Bumped as the terminals of a window hide, so that a show that waited for a terminal does not show it after all. */

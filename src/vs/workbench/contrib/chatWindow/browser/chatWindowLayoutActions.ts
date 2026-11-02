@@ -5,13 +5,16 @@
 
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IsSessionsWindowContext, LayoutModeContext, SplitLayoutContext } from '../../../common/contextkeys.js';
+import { isEditorCommandsContext } from '../../../common/editor.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { ChatWindowLayoutMode } from '../common/chatWindowLayout.js';
 import { IChatWindow, IChatWindowService } from './chatWindow.js';
@@ -60,6 +63,23 @@ export const TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID = 'workbench.action.chatWindow.t
 export const TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID = 'workbench.action.chatWindow.toggleEditor';
 export const TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID = 'workbench.action.chatWindow.toggleArrangement';
 export const TOGGLE_CHAT_WINDOW_CONVERSATION_COMMAND_ID = 'workbench.action.chatWindow.toggleConversation';
+export const TOGGLE_CHAT_WINDOW_EDITOR_BY_KEY_COMMAND_ID = 'workbench.action.chatWindow.toggleEditorByKey';
+
+/**
+ * The chat window a command acts on: the window of the editor group its arguments name, such as when it runs from the
+ * title of a group of the window, else the chat window that has focus.
+ */
+export function resolveChatWindow(accessor: ServicesAccessor, args: readonly unknown[]): IChatWindow | undefined {
+	const chatWindowService = accessor.get(IChatWindowService);
+	const context = args.find(isEditorCommandsContext);
+	if (context) {
+		const window = chatWindowService.windows.get().find(candidate => [candidate.mainPart, candidate.chatPart, candidate.terminalsPart.get()].some(part => part?.groups.some(group => group.id === context.groupId)));
+		if (window) {
+			return window;
+		}
+	}
+	return chatWindowService.activeWindow;
+}
 
 /** In a window with layout modes, in the Agents window, while AI features are enabled: where the layout commands apply. */
 export const ChatWindowLayoutCommandsContext = ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, LayoutModeContext)!;
@@ -199,5 +219,36 @@ registerAction2(class ToggleChatWindowConversationAction extends Action2 {
 
 	override run(accessor: ServicesAccessor): void {
 		accessor.get(IChatWindowService).activeWindow?.toggleConversation();
+	}
+});
+
+// The key of the side panel, which toggles the side panel of the main window, toggles the main part of a chat window:
+// hiding it leaves the chat, so that the window is never empty, and showing it brings back how it showed with the chat.
+registerAction2(class ToggleChatWindowEditorByKeyAction extends Action2 {
+	constructor() {
+		super({
+			id: TOGGLE_CHAT_WINDOW_EDITOR_BY_KEY_COMMAND_ID,
+			title: localize2('chatWindowToggleEditorByKey', "Toggle Editor in Chat Window"),
+			category: ChatWindowCategory,
+			f1: false,
+			precondition: ChatWindowLayoutCommandsContext,
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyB,
+				weight: KeybindingWeight.SessionsContrib + 10,
+				when: ChatWindowLayoutCommandsContext,
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const window = accessor.get(IChatWindowService).activeWindow;
+		if (!window) {
+			return;
+		}
+		if (window.layoutMode.get() === ChatWindowLayoutMode.ChatOnly) {
+			window.showEditor();
+		} else {
+			showChatWindowLayout(window, ChatWindowLayoutMode.ChatOnly);
+		}
 	}
 });

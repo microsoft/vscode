@@ -38,7 +38,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { SESSIONS_LAYOUT_SCOPE_SETTING } from '../../../../common/chatLayout.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { ActivePanelContext, IsAuxiliaryWindowContext, PanelVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActivePanelContext, IsAuxiliaryWindowContext, LayoutModeContext, PanelVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { TerminalContextKeys } from '../../../../../workbench/contrib/terminal/common/terminalContextKey.js';
 import { Menus, SessionActivityBarGroup } from '../../../../browser/menus.js';
 import '../../../../browser/layoutActions.js';
@@ -2357,6 +2357,8 @@ suite('Sessions Terminal - Session Activity Bar', () => {
 	test('shows the terminal before the panel toggle in the panel group of the session activity bar', () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBar).filter(isIMenuItem)
 			.filter(item => item.group === SessionActivityBarGroup.Panel)
+			// The entries of chat windows show only in windows with layout modes.
+			.filter(item => !item.when?.keys().includes(LayoutModeContext.key))
 			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 		const terminal = items.find(item => item.command.id === TerminalCommandId.Focus);
 		const evaluate = (expression: ContextKeyExpression | undefined, values: Record<string, ContextKeyValue>) => expression?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext) !== false;
