@@ -150,9 +150,6 @@
 		".build/typings/electron.d.ts",
 		"product.overrides.json"
 	],
-	"git.worktreeSymlinkFolders": [
-		"node_modules/"
-	],
 	// --- GitHub ---
 	"githubPullRequests.experimental.createView": true,
 	"githubPullRequests.assignCreated": "${user}",
