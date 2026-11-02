@@ -99,7 +99,16 @@ function calculatePackageDeps(binaryPath: string, arch: DebianArchString, chromi
 	cmd.push(`-L${vscodeSysroot}/debian/libxkbfile1/DEBIAN/shlibs`);
 	cmd.push('-O', '-e', path.resolve(binaryPath));
 
-	const dpkgShlibdepsResult = spawnSync('perl', cmd, { cwd: chromiumSysroot });
+	let dpkgShlibdepsResult = spawnSync('perl', cmd, { cwd: chromiumSysroot });
+	if (dpkgShlibdepsResult.status !== 0 && /Can't use an undefined value as a HASH reference at .*Dpkg\/Shlibs\/SymbolFile\.pm line/.test(dpkgShlibdepsResult.stderr.toString('utf-8'))) {
+		// The Chromium-pinned helper can be incompatible with newer host libdpkg-perl
+		// versions. Fall back to the host dpkg-shlibdeps, which uses the matching
+		// installed Perl modules. The host helper does not support Chromium's
+		// --ignore-weak-undefined option; the generated package dependencies are
+		// still checked against the repository's reference list before packaging.
+		const hostArgs = cmd.slice(1).filter(arg => arg !== '--ignore-weak-undefined');
+		dpkgShlibdepsResult = spawnSync('dpkg-shlibdeps', hostArgs, { cwd: chromiumSysroot });
+	}
 	if (dpkgShlibdepsResult.status !== 0) {
 		throw new Error(`dpkg-shlibdeps failed with exit code ${dpkgShlibdepsResult.status}. stderr:\n${dpkgShlibdepsResult.stderr} `);
 	}

@@ -143,9 +143,12 @@ export function configureProductForBuild<T extends Record<string, unknown>>(prod
 	if (!features.copilotChat) {
 		delete configured['defaultChatAgent'];
 		delete configured['trustedExtensionAuthAccess'];
-		delete configured['builtInExtensionsEnabledWithAutoUpdates'];
 		delete configured['voiceWsUrl'];
 	}
+	const autoUpdateExtensions = configured['builtInExtensionsEnabledWithAutoUpdates'];
+	configured['builtInExtensionsEnabledWithAutoUpdates'] = Array.isArray(autoUpdateExtensions)
+		? autoUpdateExtensions.filter(extensionId => typeof extensionId === 'string' && isExtensionBundledForFeatures(extensionId, features))
+		: [];
 	for (const key of ['builtInExtensions', 'webBuiltInExtensions']) {
 		const extensions = configured[key];
 		if (Array.isArray(extensions)) {

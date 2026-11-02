@@ -812,8 +812,9 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		}
 	}
 
-	protected warn(message: string, watcher?: ParcelWatcherInstance) {
-		this._onDidLogMessage.fire({ type: 'warn', message: this.toMessage(message, watcher?.request) });
+	protected warn(message: string, watcherOrRequest?: ParcelWatcherInstance | IRecursiveWatchRequest) {
+		const request = watcherOrRequest instanceof ParcelWatcherInstance ? watcherOrRequest.request : watcherOrRequest;
+		this._onDidLogMessage.fire({ type: 'warn', message: this.toMessage(message, request) });
 	}
 
 	private error(message: string, request?: IRecursiveWatchRequest) {

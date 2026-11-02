@@ -751,8 +751,8 @@ export class AgentSessionsWelcomePage extends EditorPane {
 				{ key: 'tosDescription', comment: ['{Locked="]({1})"}', '{Locked="]({2})"}'] },
 				"By continuing, you agree to {0}'s [Terms]({1}) and [Privacy Statement]({2}).",
 				providers.default.name,
-				this.productService.defaultChatAgent.termsStatementUrl,
-				this.productService.defaultChatAgent.privacyStatementUrl
+				this.productService.defaultChatAgent?.termsStatementUrl ?? '',
+				this.productService.defaultChatAgent?.privacyStatementUrl ?? ''
 			),
 			{ isTrusted: true }
 		);

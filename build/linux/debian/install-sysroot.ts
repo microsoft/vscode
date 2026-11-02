@@ -74,6 +74,9 @@ async function fetchUrl(options: IFetchOptions): Promise<void> {
 	const releaseUrl = `https://api.github.com/repos/Microsoft/vscode-linux-build-agent/releases/tags/v${version}`;
 	const downloadOptions = {
 		attempts: 11,
+		// The GitHub release asset is a large toolchain archive; the default 30s
+		// timeout is too short on slower or proxied connections.
+		timeout: 5 * 60_000,
 		onRetry: (error: Error) => console.log(`Fetching failed: ${error}`)
 	};
 	const releaseContents = await download(releaseUrl, { ...downloadOptions, headers: ghApiHeaders });
