@@ -1013,7 +1013,11 @@ suite('ChatPetWidget', () => {
 		const firstSprite = button.querySelector('.chat-pet-sprite:not(.hidden)')!;
 		const firstAnimation = pose.getAnimations()[0];
 		assert.ok(firstAnimation);
-		await timeout(120);
+		// The animation only starts on the next rendering frame, which a loaded machine can delay past any fixed wait.
+		await firstAnimation.ready;
+		while (!(Number(firstAnimation.currentTime) > 0)) {
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		}
 		const firstAnimationTime = Number(firstAnimation.currentTime);
 		click();
 		await waitForPetAnimation(() => button.dataset.state === 'yapping' && button.querySelector('.chat-pet-sprite:not(.hidden)') !== firstSprite);
