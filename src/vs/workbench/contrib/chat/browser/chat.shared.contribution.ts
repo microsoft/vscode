@@ -756,6 +756,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.DefaultPermissionLevel]: {
 			type: 'string',
+			restricted: true,
 			tags: ['chatPermissions'],
 			enum: [ChatPermissionLevel.Default, ChatPermissionLevel.AutoApprove, ChatPermissionLevel.Autopilot],
 			enumItemLabels: [

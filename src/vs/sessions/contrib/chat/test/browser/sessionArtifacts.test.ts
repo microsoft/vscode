@@ -48,7 +48,9 @@ import { type IChat, type IGitHubInfo, type ISessionArtifact, type ISessionWorks
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
 import { IGitHubService as ISessionsGitHubService } from '../../../github/browser/githubService.js';
+import { OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../../github/common/types.js';
 import { getSessionGitHubReferences } from '../../../github/common/sessionGitHubReferences.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 
 suite('Session Artifacts', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -60,6 +62,7 @@ suite('Session Artifacts', () => {
 		openImages() { },
 		async downloadImage() { },
 		copy() { },
+		openPullRequestChanges() { },
 	};
 
 	/** Stands in for the label service: a path without its scheme, tildified and relative to the mounted `~/repo` folder. */
@@ -103,6 +106,7 @@ suite('Session Artifacts', () => {
 		const downloadedResources: URI[] = [];
 		const savedImages: { resource: URI; data: string }[] = [];
 		const executedCommands: { id: string; args: unknown[] }[] = [];
+		const activatedSessions: (IActiveSession | undefined)[] = [];
 		const resourceDownloads: { resource: URI; name: string; isDirectory: boolean }[][] = [];
 		let cancelDownload = false;
 		let downloadError: Error | undefined;
@@ -223,9 +227,10 @@ suite('Session Artifacts', () => {
 					return undefined;
 				}
 			}(),
+			upcastPartial<ISessionsService>({ setActive: session => { activatedSessions.push(session); } }),
 		));
 		return {
-			presentation, session, chat, chatModels, openedImages, openedResources, configurationService, artifacts, loading, workspace, gitHubInfo, gitHubReferences, browserUrls, removed, errors, telemetryEvents, downloadedResources, savedImages, executedCommands, resourceDownloads,
+			presentation, session, chat, chatModels, openedImages, openedResources, configurationService, artifacts, loading, workspace, gitHubInfo, gitHubReferences, browserUrls, removed, errors, telemetryEvents, downloadedResources, savedImages, executedCommands, activatedSessions, resourceDownloads,
 			setRemovalError: (error: Error | undefined) => { removalError = error; },
 			setCancelDownload: () => { cancelDownload = true; },
 			setDownloadError: (error: Error) => { downloadError = error; },
@@ -686,6 +691,47 @@ suite('Session Artifacts', () => {
 		]);
 	});
 
+	test('uses a URL-only label once while preserving its generic location preview', () => {
+		const website = URI.parse('https://example.com/untitled');
+		const resource = URI.parse('myapp://team/item/42');
+		const artifacts: readonly ISessionArtifact[] = [
+			{ id: 'website', kind: SessionArtifactKind.Website, label: website.toString(true), isArtifact: false, link: website },
+			{ id: 'resource', kind: SessionArtifactKind.Resource, label: resource.toString(true), isArtifact: false, uri: resource },
+		];
+
+		const entries = buildSessionArtifactSections(artifacts, actions, labelService, true, new Set())
+			.flatMap(section => section.entries)
+			.map(entry => ({
+				label: entry.label,
+				ariaLabel: entry.ariaLabel,
+				ariaDescription: entry.ariaDescription,
+				hover: entry.hover?.content instanceof HTMLElement ? entry.hover.content.textContent : undefined,
+			}));
+
+		assert.deepStrictEqual(entries, [
+			{ label: website.toString(true), ariaLabel: `Open ${website.toString(true)}`, ariaDescription: undefined, hover: website.toString(true) },
+			{ label: resource.toString(true), ariaLabel: `Open ${resource.toString(true)}`, ariaDescription: undefined, hover: resource.toString(true) },
+		]);
+	});
+
+	test('keeps raw URL descriptions only for links without GitHub reference semantics', () => {
+		const artifacts: readonly ISessionArtifact[] = [
+			{ id: 'pull-request', kind: SessionArtifactKind.PullRequest, label: 'Pull request', isArtifact: false, isGitHub: true, link: URI.parse('https://github.com/microsoft/vscode/pull/12') },
+			{ id: 'issue', kind: SessionArtifactKind.Issue, label: 'Issue', isArtifact: false, isGitHub: true, link: URI.parse('https://github.com/microsoft/vscode/issues/34') },
+			{ id: 'invalid-issue', kind: SessionArtifactKind.Issue, label: 'Invalid issue', isArtifact: false, isGitHub: true, link: URI.parse('https://github.com/microsoft/vscode/issues/0') },
+		];
+
+		const entries = buildSessionArtifactSections(artifacts, actions, labelService, true, new Set())
+			.flatMap(section => section.entries)
+			.map(entry => ({ id: entry.id, ariaLabel: entry.ariaLabel, ariaDescription: entry.ariaDescription }));
+
+		assert.deepStrictEqual(entries, [
+			{ id: 'pull-request', ariaLabel: 'Open Pull Request #12: Pull request', ariaDescription: undefined },
+			{ id: 'issue', ariaLabel: 'Open Issue #34: Issue', ariaDescription: undefined },
+			{ id: 'invalid-issue', ariaLabel: 'Open Invalid issue', ariaDescription: 'https://github.com/microsoft/vscode/issues/0' },
+		]);
+	});
+
 	test('logs artifact and reference entry opens', () => {
 		const { presentation, telemetryEvents } = createPresentation([
 			{ id: 'file', kind: SessionArtifactKind.File, label: 'Report', isArtifact: true, uri: URI.file('/repo/report.md') },
@@ -1117,6 +1163,34 @@ suite('Session Artifacts', () => {
 			recordedFile: { artifacts: ['file'], references },
 			unmounted: { artifacts: ['file'], references },
 			noSession: { artifacts: [], references: [] },
+		});
+	});
+
+	test('offers Open Pull Request Changes for GitHub pull request references, like the pull requests pill', async () => {
+		const pullRequest = URI.parse('https://github.com/Owner/Repo/pull/60');
+		const harness = createPresentation([
+			{ id: 'pr', kind: SessionArtifactKind.PullRequest, label: 'Referenced PR', isArtifact: false, isGitHub: true, link: pullRequest },
+			{ id: 'enterprise', kind: SessionArtifactKind.PullRequest, label: 'Enterprise PR', isArtifact: false, isGitHub: true, link: URI.parse('https://github.example.com/owner/repo/pull/61') },
+			{ id: 'issue', kind: SessionArtifactKind.Issue, label: 'Issue', isArtifact: false, isGitHub: true, link: URI.parse('https://github.com/owner/repo/issues/7') },
+		]);
+		const entries = harness.presentation.referenceSections.get().flatMap(section => section.entries);
+		await entries[0].toolbarActions?.[0].run();
+
+		assert.deepStrictEqual({
+			rowActions: entries.map(entry => [entry.id, entry.toolbarActions?.map(action => [action.label, action.hoverLabel])]),
+			activated: harness.activatedSessions.map(session => session?.sessionId),
+			commands: harness.executedCommands,
+		}, {
+			rowActions: [
+				['pr', [['Open Pull Request Changes', 'Open Changes'], ['Copy Pull Request Link', 'Copy URL']]],
+				['enterprise', [['Copy Pull Request Link', 'Copy URL']]],
+				['issue', [['Copy Issue Link', 'Copy URL']]],
+			],
+			activated: ['provider:session'],
+			commands: [{
+				id: OPEN_PULL_REQUEST_CHANGES_ACTION_ID,
+				args: [{ pullRequest: { owner: 'Owner', repo: 'Repo', number: 60, uri: pullRequest, title: 'Referenced PR', recordedReferenceId: 'pr' } }],
+			}],
 		});
 	});
 

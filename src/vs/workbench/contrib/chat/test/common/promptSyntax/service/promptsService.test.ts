@@ -10,6 +10,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../..
 import { CancellationError } from '../../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { match } from '../../../../../../../base/common/glob.js';
+import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
@@ -298,7 +299,7 @@ suite('PromptsService', () => {
 		});
 
 		test('cancels in-flight voice instruction reads', async () => {
-			const cts = new CancellationTokenSource();
+			const cts = disposables.add(new CancellationTokenSource());
 			const readStarted = new DeferredPromise<void>();
 			const readFileStub = sinon.stub(fileService, 'readFile').callsFake(async (_resource, _options, token) => {
 				readStarted.complete();
@@ -311,15 +312,11 @@ suite('PromptsService', () => {
 				throw new CancellationError();
 			});
 
-			try {
-				const instructions = service.getVoiceInstructions(cts.token);
-				await readStarted.p;
-				cts.cancel();
-				assert.strictEqual(await instructions, undefined);
-			} finally {
-				readFileStub.restore();
-				cts.dispose();
-			}
+			disposables.add(toDisposable(() => readFileStub.restore()));
+			const instructions = service.getVoiceInstructions(cts.token);
+			await readStarted.p;
+			cts.cancel();
+			assert.strictEqual(await instructions, undefined);
 		});
 	});
 
@@ -2739,17 +2736,13 @@ suite('PromptsService', () => {
 				enabledApiProposals: ['chatParticipantPrivate']
 			} as unknown as IExtensionDescription;
 			const logErrorSpy = sinon.spy(logService, 'error');
-			const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, {
+			disposables.add(service.registerPromptFileProvider(extension, PromptsType.instructions, {
 				providePromptFiles: async () => { throw new CancellationError(); }
-			});
+			}));
 
-			try {
-				const files = await service.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.extension, CancellationToken.None);
-				assert.deepStrictEqual({ files, errorCalls: logErrorSpy.callCount }, { files: [], errorCalls: 0 });
-			} finally {
-				registered.dispose();
-				logErrorSpy.restore();
-			}
+			disposables.add(toDisposable(() => logErrorSpy.restore()));
+			const files = await service.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.extension, CancellationToken.None);
+			assert.deepStrictEqual({ files, errorCalls: logErrorSpy.callCount }, { files: [], errorCalls: 0 });
 		});
 
 		test('Prompt file provider error is logged and skipped', async () => {
@@ -2758,17 +2751,13 @@ suite('PromptsService', () => {
 				enabledApiProposals: ['chatParticipantPrivate']
 			} as unknown as IExtensionDescription;
 			const logErrorSpy = sinon.spy(logService, 'error');
-			const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, {
+			disposables.add(service.registerPromptFileProvider(extension, PromptsType.instructions, {
 				providePromptFiles: async () => { throw new Error('provider failed'); }
-			});
+			}));
 
-			try {
-				const files = await service.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.extension, CancellationToken.None);
-				assert.deepStrictEqual({ files, errorCalls: logErrorSpy.callCount }, { files: [], errorCalls: 1 });
-			} finally {
-				registered.dispose();
-				logErrorSpy.restore();
-			}
+			disposables.add(toDisposable(() => logErrorSpy.restore()));
+			const files = await service.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.extension, CancellationToken.None);
+			assert.deepStrictEqual({ files, errorCalls: logErrorSpy.callCount }, { files: [], errorCalls: 1 });
 		});
 
 		test('Canceled provider listing stops without logging an error', async () => {
@@ -2792,24 +2781,21 @@ suite('PromptsService', () => {
 			}));
 			const errorSpy = sinon.spy(logService, 'error');
 
-			try {
-				// Cancellation must surface as an error rather than an empty result,
-				// otherwise it gets cached as "no prompt files".
-				await assert.rejects(
-					service.listPromptFiles(PromptsType.agent, cancellationTokenSource.token),
-					CancellationError,
-				);
+			disposables.add(toDisposable(() => errorSpy.restore()));
+			// Cancellation must surface as an error rather than an empty result,
+			// otherwise it gets cached as "no prompt files".
+			await assert.rejects(
+				service.listPromptFiles(PromptsType.agent, cancellationTokenSource.token),
+				CancellationError,
+			);
 
-				assert.deepStrictEqual({
-					secondProviderCalled,
-					errorCount: errorSpy.callCount,
-				}, {
-					secondProviderCalled: false,
-					errorCount: 0,
-				});
-			} finally {
-				errorSpy.restore();
-			}
+			assert.deepStrictEqual({
+				secondProviderCalled,
+				errorCount: errorSpy.callCount,
+			}, {
+				secondProviderCalled: false,
+				errorCount: 0,
+			});
 		});
 
 		test('does not cache a partial result when a provider swallows cancellation', async () => {
@@ -3055,21 +3041,20 @@ suite('PromptsService', () => {
 				service.registerContributedFile(PromptsType.skill, skillUri, extension, undefined, undefined, undefined, sessionTypes),
 			];
 
-			try {
-				const agent = (await service.getCustomAgents(CancellationToken.None)).find(item => item.uri.toString() === agentUri.toString());
-				const instruction = (await service.getInstructionFiles(CancellationToken.None)).find(item => item.uri.toString() === instructionUri.toString());
-				const prompt = (await service.getPromptSlashCommands(CancellationToken.None)).find(item => item.uri.toString() === promptUri.toString());
-				const skill = (await service.findAgentSkills(CancellationToken.None))?.find(item => item.uri.toString() === skillUri.toString());
-
-				assert.deepStrictEqual(agent?.sessionTypes, sessionTypes);
-				assert.deepStrictEqual(instruction?.sessionTypes, sessionTypes);
-				assert.deepStrictEqual(prompt?.sessionTypes, sessionTypes);
-				assert.deepStrictEqual(skill?.sessionTypes, sessionTypes);
-			} finally {
+			disposables.add(toDisposable(() => {
 				for (const registration of registrations) {
 					registration.dispose();
 				}
-			}
+			}));
+			const agent = (await service.getCustomAgents(CancellationToken.None)).find(item => item.uri.toString() === agentUri.toString());
+			const instruction = (await service.getInstructionFiles(CancellationToken.None)).find(item => item.uri.toString() === instructionUri.toString());
+			const prompt = (await service.getPromptSlashCommands(CancellationToken.None)).find(item => item.uri.toString() === promptUri.toString());
+			const skill = (await service.findAgentSkills(CancellationToken.None))?.find(item => item.uri.toString() === skillUri.toString());
+
+			assert.deepStrictEqual(agent?.sessionTypes, sessionTypes);
+			assert.deepStrictEqual(instruction?.sessionTypes, sessionTypes);
+			assert.deepStrictEqual(prompt?.sessionTypes, sessionTypes);
+			assert.deepStrictEqual(skill?.sessionTypes, sessionTypes);
 		});
 	});
 
@@ -3159,47 +3144,44 @@ suite('PromptsService', () => {
 					await writeContribution(description, filePath);
 				}
 				const register = sinon.spy(service, 'registerContributedFile');
+				disposables.add(toDisposable(() => register.restore()));
+				acceptContributions(name, description, [
+					{ path },
+					{ path: removedPath },
+					{ path: changedPath, sessionTypes: ['old'] },
+				]);
+				await service.listPromptFilesForStorage(type, PromptsStorage.extension, CancellationToken.None);
+				const unchangedDispose = sinon.spy(register.getCall(0).returnValue, 'dispose');
+				const removedDispose = sinon.spy(register.getCall(1).returnValue, 'dispose');
+				const changedDispose = sinon.spy(register.getCall(2).returnValue, 'dispose');
 				try {
-					acceptContributions(name, description, [
-						{ path },
-						{ path: removedPath },
-						{ path: changedPath, sessionTypes: ['old'] },
+					register.resetHistory();
+					acceptContributions(name, { ...description }, [
+						{ path: `./${path}` },
+						{ path: addedPath },
+						{ path: changedPath, sessionTypes: ['new'] },
 					]);
-					await service.listPromptFilesForStorage(type, PromptsStorage.extension, CancellationToken.None);
-					const unchangedDispose = sinon.spy(register.getCall(0).returnValue, 'dispose');
-					const removedDispose = sinon.spy(register.getCall(1).returnValue, 'dispose');
-					const changedDispose = sinon.spy(register.getCall(2).returnValue, 'dispose');
-					try {
-						register.resetHistory();
-						acceptContributions(name, { ...description }, [
-							{ path: `./${path}` },
-							{ path: addedPath },
-							{ path: changedPath, sessionTypes: ['new'] },
-						]);
-						const files = await service.listPromptFilesForStorage(type, PromptsStorage.extension, CancellationToken.None);
-						assert.deepStrictEqual({
-							registered: register.args.map(([, uri]) => uri.path),
-							disposed: [unchangedDispose.callCount, removedDispose.callCount, changedDispose.callCount],
-							files: files.map(file => ({ uri: file.uri.path, sessionTypes: file.sessionTypes })),
-						}, {
-							registered: [
-								URI.joinPath(description.extensionLocation, addedPath).path,
-								URI.joinPath(description.extensionLocation, changedPath).path,
-							],
-							disposed: [0, 1, 1],
-							files: [
-								{ uri: URI.joinPath(description.extensionLocation, path).path, sessionTypes: undefined },
-								{ uri: URI.joinPath(description.extensionLocation, addedPath).path, sessionTypes: undefined },
-								{ uri: URI.joinPath(description.extensionLocation, changedPath).path, sessionTypes: ['new'] },
-							],
-						});
-					} finally {
-						unchangedDispose.restore();
-						removedDispose.restore();
-						changedDispose.restore();
-					}
+					const files = await service.listPromptFilesForStorage(type, PromptsStorage.extension, CancellationToken.None);
+					assert.deepStrictEqual({
+						registered: register.args.map(([, uri]) => uri.path),
+						disposed: [unchangedDispose.callCount, removedDispose.callCount, changedDispose.callCount],
+						files: files.map(file => ({ uri: file.uri.path, sessionTypes: file.sessionTypes })),
+					}, {
+						registered: [
+							URI.joinPath(description.extensionLocation, addedPath).path,
+							URI.joinPath(description.extensionLocation, changedPath).path,
+						],
+						disposed: [0, 1, 1],
+						files: [
+							{ uri: URI.joinPath(description.extensionLocation, path).path, sessionTypes: undefined },
+							{ uri: URI.joinPath(description.extensionLocation, addedPath).path, sessionTypes: undefined },
+							{ uri: URI.joinPath(description.extensionLocation, changedPath).path, sessionTypes: ['new'] },
+						],
+					});
 				} finally {
-					register.restore();
+					unchangedDispose.restore();
+					removedDispose.restore();
+					changedDispose.restore();
 				}
 			});
 		}
@@ -3262,20 +3244,17 @@ suite('PromptsService', () => {
 			acceptContribution('chatSkills', description, path);
 			await service.findAgentSkills(CancellationToken.None);
 			const register = sinon.spy(service, 'registerContributedFile');
-			try {
-				acceptContribution('chatSkills', {
-					...description,
-					identifier: new ExtensionIdentifier('TEST.extension'),
-					description: 'Updated extension description',
-				}, path);
-				ExtensionsRegistry.getExtensionPoints().find(point => point.name === 'chatSkills')!.acceptUsers([]);
-				assert.deepStrictEqual({
-					registrations: register.callCount,
-					skills: await service.findAgentSkills(CancellationToken.None),
-				}, { registrations: 0, skills: [] });
-			} finally {
-				register.restore();
-			}
+			disposables.add(toDisposable(() => register.restore()));
+			acceptContribution('chatSkills', {
+				...description,
+				identifier: new ExtensionIdentifier('TEST.extension'),
+				description: 'Updated extension description',
+			}, path);
+			ExtensionsRegistry.getExtensionPoints().find(point => point.name === 'chatSkills')!.acceptUsers([]);
+			assert.deepStrictEqual({
+				registrations: register.callCount,
+				skills: await service.findAgentSkills(CancellationToken.None),
+			}, { registrations: 0, skills: [] });
 		});
 	});
 
@@ -3552,21 +3531,20 @@ suite('PromptsService', () => {
 			}),
 		];
 
-		try {
-			const agent = (await service.getCustomAgents(CancellationToken.None)).find(item => item.uri.toString() === agentUri.toString());
-			const instruction = (await service.getInstructionFiles(CancellationToken.None)).find(item => item.uri.toString() === instructionUri.toString());
-			const prompt = (await service.getPromptSlashCommands(CancellationToken.None)).find(item => item.uri.toString() === promptUri.toString());
-			const skill = (await service.findAgentSkills(CancellationToken.None))?.find(item => item.uri.toString() === skillUri.toString());
-
-			assert.deepStrictEqual(agent?.sessionTypes, sessionTypes);
-			assert.deepStrictEqual(instruction?.sessionTypes, sessionTypes);
-			assert.deepStrictEqual(prompt?.sessionTypes, sessionTypes);
-			assert.deepStrictEqual(skill?.sessionTypes, sessionTypes);
-		} finally {
+		disposables.add(toDisposable(() => {
 			for (const registration of registrations) {
 				registration.dispose();
 			}
-		}
+		}));
+		const agent = (await service.getCustomAgents(CancellationToken.None)).find(item => item.uri.toString() === agentUri.toString());
+		const instruction = (await service.getInstructionFiles(CancellationToken.None)).find(item => item.uri.toString() === instructionUri.toString());
+		const prompt = (await service.getPromptSlashCommands(CancellationToken.None)).find(item => item.uri.toString() === promptUri.toString());
+		const skill = (await service.findAgentSkills(CancellationToken.None))?.find(item => item.uri.toString() === skillUri.toString());
+
+		assert.deepStrictEqual(agent?.sessionTypes, sessionTypes);
+		assert.deepStrictEqual(instruction?.sessionTypes, sessionTypes);
+		assert.deepStrictEqual(prompt?.sessionTypes, sessionTypes);
+		assert.deepStrictEqual(skill?.sessionTypes, sessionTypes);
 	});
 
 	test('Prompt file provider', async () => {

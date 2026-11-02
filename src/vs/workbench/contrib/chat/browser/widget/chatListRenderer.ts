@@ -655,6 +655,15 @@ export function shouldCreateGroupedThinkingPart(collapsedToolsMode: CollapsedToo
 	return collapsedToolsMode === CollapsedToolsDisplayMode.Always || separatedFromReasoning;
 }
 
+function isTimedThinkingPart(part: IChatRendererContent | undefined): part is IChatThinkingPart {
+	return part?.kind === 'thinking' && (part.reasoningStartedAt !== undefined || part.reasoningDurationMs !== undefined);
+}
+
+function isReasoningTimingBoundary(part: IChatRendererContent | undefined): boolean {
+	return !!part && !isNestedSubagentContent(part)
+		&& (part.kind === 'markdownContent' || part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized');
+}
+
 export function shouldShowFileChangesSummaryForSettings(isComplete: boolean, isLocalSession: boolean, showFileChanges: boolean): boolean {
 	return isComplete && isLocalSession && showFileChanges;
 }
@@ -1439,7 +1448,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const responses = observableFromEvent(this, viewModel.onDidChange, () => viewModel.getItems().filter(isResponseVM));
 		const editing = observableFromEvent(this, viewModel.onDidChangeEditing, () => !!viewModel.editing);
 		const enabled = observableFromEvent(this, this.configService.onDidChangeConfiguration, () => this.configService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel));
-		const widget = observableFromEvent(this, Event.any(this.chatWidgetService.onDidAddWidget, this.chatWidgetService.onDidRemoveWidget), () => this.chatWidgetService.getWidgetBySessionResource(viewModel.sessionResource));
+		const widget = observableFromEvent(this, Event.any(this.chatWidgetService.onDidAddWidget, this.chatWidgetService.onDidRemoveWidget), () => this.chatWidgetService.getWidgetBySessionResource(viewModel.sessionResource, { preferInputRequests: true }));
 
 		store.add(autorunPerKeyedItem(responses, response => response.id, (_id, response$, responseStore) => {
 			const response = response$.get();
@@ -2452,7 +2461,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Subagent approvals are surfaced by their pill and the input carousel, including out-of-band requests.
 		if (isResponseVM(element)) {
-			const widget = this.chatWidgetService.getWidgetBySessionResource(element.sessionResource);
+			const widget = this.chatWidgetService.getWidgetBySessionResource(element.sessionResource, { preferInputRequests: true });
 			if (widget?.inputPart.hasActiveToolConfirmationCarousel) {
 				const nonSubagentConfirmationCount = this.getPendingToolConfirmationCount(partsToRender, false);
 				if (nonSubagentConfirmationCount > 0) {
@@ -2544,7 +2553,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const state = part.state.get().type;
 			return state === IChatToolInvocation.StateKind.WaitingForConfirmation || state === IChatToolInvocation.StateKind.WaitingForPostApproval;
 		}).length;
-		const widget = this.chatWidgetService.getWidgetBySessionResource(element.sessionResource);
+		const widget = this.chatWidgetService.getWidgetBySessionResource(element.sessionResource, { preferInputRequests: true });
 		const state = getPersistentProgressState(partsToRender, pendingConfirmationCount, !!widget?.inputPart.hasActiveToolConfirmationCarousel);
 		switch (state) {
 			case 'planReview':
@@ -4452,6 +4461,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		for (let i = 0; i < contentToRender.length; i++) {
 			const content = contentToRender[i];
 			const renderedPart = renderedParts[i];
+			if (content.kind === 'thinking') {
+				this.getThinkingPartOwner(renderedPart)?.updateReasoningTiming(content);
+			}
 			const promotesStandaloneTool = (content.kind === 'toolInvocation' || content.kind === 'toolInvocationSerialized')
 				&& (isParentSubagentTool(content) || isImageGenerationToolInvocation(content)) && !!this.getThinkingPartOwner(renderedPart);
 			const groupsStandaloneTool = renderedPart instanceof ChatToolInvocationPart
@@ -4642,6 +4654,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private getLastThinkingPartForGroupedItem(context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): { part: ChatThinkingContentPart | undefined; separatedFromReasoning: boolean } {
 		const lastThinking = this.getLastThinkingPart(templateData.renderedParts, context.contentIndex);
+		if (lastThinking?.hasActiveReasoningTiming() && !isReasoningTimingBoundary(context.content[context.contentIndex])) {
+			return { part: lastThinking, separatedFromReasoning: false };
+		}
 		const displayMode = getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService, context.readOnly);
 		// Conversation sections keep tool calls with the reasoning around them.
 		if (lastThinking && !context.isConversation && (this.isPersistentProgressEnabled() ? !lastThinking.isToolChain : lastThinking.hasReasoningContent() && shouldStartNewCollapsedThinkingGroup(displayMode, 'reasoning', 'items'))) {
@@ -4672,6 +4687,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// Nested subagent content is grouped into its own block, so it says nothing about
 			// whether the parent's thinking has ended.
 			if (isNestedSubagentContent(nextPart)) {
+				continue;
+			}
+			const currentPart = context.content[context.contentIndex];
+			if (isTimedThinkingPart(currentPart) && currentPart.reasoningDurationMs === undefined && !isReasoningTimingBoundary(nextPart)) {
 				continue;
 			}
 			if (context.suppressProgressShimmer && !context.isConversation && nextPart.kind !== 'undoStop'
@@ -4833,7 +4852,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
-		const widget = this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource);
+		const widget = this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource, { preferInputRequests: true });
 		if (!widget) {
 			return;
 		}
@@ -4890,6 +4909,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private finalizeCurrentThinkingPart(context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): void {
 		const lastThinking = this.getLastThinkingPart(templateData.renderedParts, context.contentIndex);
 		if (lastThinking) {
+			if (lastThinking.hasActiveReasoningTiming() && !isReasoningTimingBoundary(context.content[context.contentIndex])
+				&& !(isResponseVM(context.element) && context.element.isComplete)) {
+				return;
+			}
 			this.finalizeThinkingPart(lastThinking, context, templateData);
 		}
 	}
@@ -5032,13 +5055,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (content.kind === 'mcpAuthenticationRequired') {
 				return this.instantiationService.createInstance(ChatMcpAuthenticationContentPart, content, context, {
 					onDidAuthenticate: () => this.refreshProgressAfterInteraction(context, templateData),
-					onDidRemoveFocusedAction: () => this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource)?.focusInput(),
+					onDidRemoveFocusedAction: () => this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource, { preferInputRequests: true })?.focusInput(),
 				});
 			} else if (content.kind === 'mcpServersStartingSlow') {
 				return this.instantiationService.createInstance(ChatMcpServersStartingContentPart, content, {
 					showSpinner: !context.suppressProgressShimmer,
 					onDidFinishStarting: () => this.showWorkingProgressAfterMcp(context, templateData),
-					onDidRemoveFocusedAction: () => this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource)?.focusInput(),
+					onDidRemoveFocusedAction: () => this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource, { preferInputRequests: true })?.focusInput(),
 				});
 			} else if (content.kind === 'disabledClaudeHooks') {
 				return this.renderDisabledClaudeHooks(content, context);
@@ -5370,7 +5393,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (context.renderInputRequests !== false && this.configService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel) &&
 			toolInvocation.kind === 'toolInvocation' && isResponseVM(context.element) &&
 			!isMcpToolInvocation(toolInvocation)) {
-			const widget = this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource);
+			const widget = this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource, { preferInputRequests: true });
 			if (widget) {
 				const factory = this.createCarouselToolPartFactory(context, codeBlockStartIndex);
 				part.addDisposable(autorun(reader => {
@@ -5445,7 +5468,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return false;
 			}
 
-			const widget = this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource);
+			const widget = this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource, { preferInputRequests: true });
 			if (!widget) {
 				return false;
 			}
@@ -5630,7 +5653,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-		const widget = isResponseVM(context.element) ? this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource) : undefined;
+		const widget = isResponseVM(context.element) ? this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource, { preferInputRequests: true }) : undefined;
 		// Only auto-focus if the chat input is empty AND focus is already within the chat widget
 		// This prevents stealing focus from other VS Code UI (editor, terminal, etc.)
 		const shouldAutoFocus = !!widget && dom.isAncestorOfActiveElement(widget.domNode) && widget.getInput() === '';
@@ -5796,7 +5819,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderPlanReview(context: IChatContentPartRenderContext, review: IChatPlanReview, templateData: IChatListItemTemplate): IChatContentPart {
-		const widget = isResponseVM(context.element) ? this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource) : undefined;
+		const widget = isResponseVM(context.element) ? this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource, { preferInputRequests: true }) : undefined;
 		const responseId = isResponseVM(context.element) ? context.element.requestId : undefined;
 		const reviewKey = review.resolveId ?? `${responseId ?? ''}_${context.contentIndex}`;
 

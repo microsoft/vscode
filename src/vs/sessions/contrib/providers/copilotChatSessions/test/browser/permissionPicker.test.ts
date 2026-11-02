@@ -300,9 +300,7 @@ suite('Copilot PermissionPicker', () => {
 			new class extends mock<IOpenerService>() { }(),
 			store.add(new TestStorageService()),
 			NullTelemetryService,
-			new class extends mock<IHoverService>() {
-				override setupDelayedHover() { return { dispose: () => { } }; }
-			}(),
+			{ ...NullHoverService },
 			unmanagedEnablementService,
 		));
 		const container = document.createElement('div');

@@ -20,7 +20,7 @@ import { IConfigurationService } from '../../../../../../../platform/configurati
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ConfirmResult, IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { IAgentConnection } from '../../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, AgentHostClaudeAgentEnabledSettingId } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -414,7 +414,7 @@ suite('ChatEditorInput', () => {
 				events: [{
 					name: 'agentHost.legacyCopilotCliMigrationOpen', error: throws,
 					data: {
-						source: 'restore', surfaced: false,
+						source: 'restore', entry: 'legacyRow', surfaced: false,
 						migrationSessionId: '6a27283bcdda2b8d8ca87884c1ae452dcded34fc',
 						reason: throws ? 'resolveFailed' : 'sessionNotSurfaced',
 						errorCode: undefined, errorMessage: throws ? 'load failed' : undefined,
@@ -530,7 +530,7 @@ suite('ChatEditorInput', () => {
 			},
 		} as Partial<IChatService> as IChatService;
 
-		const input = new ChatEditorInput(
+		const input = disposables.add(new ChatEditorInput(
 			ChatEditorInput.getNewEditorUri(),
 			{ explicitSessionType: localChatSessionType },
 			chatService,
@@ -547,29 +547,25 @@ suite('ChatEditorInput', () => {
 			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
 			new NullManagedSettingsService(),
 			settledPolicyGate,
-		);
+		));
 
-		try {
-			const resolved = await input.resolve();
+		const resolved = await input.resolve();
 
-			assert.deepStrictEqual({
-				model: resolved?.model,
-				sessionResource: input.sessionResource,
-				startLocation: startCall?.location,
-				debugOwner: startCall?.options?.debugOwner,
-				selectionReason: startCall?.options?.sessionTypeSelectionReason,
-				didTryDefaultLoad,
-			}, {
-				model,
-				sessionResource,
-				startLocation: ChatAgentLocation.Chat,
-				debugOwner: 'ChatEditorInput#resolveExplicitLocal',
-				selectionReason: 'explicitOverride',
-				didTryDefaultLoad: false,
-			});
-		} finally {
-			input.dispose();
-		}
+		assert.deepStrictEqual({
+			model: resolved?.model,
+			sessionResource: input.sessionResource,
+			startLocation: startCall?.location,
+			debugOwner: startCall?.options?.debugOwner,
+			selectionReason: startCall?.options?.sessionTypeSelectionReason,
+			didTryDefaultLoad,
+		}, {
+			model,
+			sessionResource,
+			startLocation: ChatAgentLocation.Chat,
+			debugOwner: 'ChatEditorInput#resolveExplicitLocal',
+			selectionReason: 'explicitOverride',
+			didTryDefaultLoad: false,
+		});
 	});
 
 	test('resolved local creation metadata reaches the model and is not serialized', async () => {
@@ -595,7 +591,7 @@ suite('ChatEditorInput', () => {
 			getSessionTitle: () => undefined,
 		} as Partial<IChatService> as IChatService;
 
-		const input = new ChatEditorInput(
+		const input = disposables.add(new ChatEditorInput(
 			sessionResource,
 			{ sessionTypeSelectionReason: 'currentSession' },
 			chatService,
@@ -612,28 +608,24 @@ suite('ChatEditorInput', () => {
 			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
 			new NullManagedSettingsService(),
 			settledPolicyGate,
-		);
+		));
 
-		try {
-			const resolved = await input.resolve();
-			const serialized = new ChatEditorInputSerializer().serialize(input);
-			assert.ok(serialized);
-			const serializedOptions = (JSON.parse(serialized) as { options: IChatEditorOptions }).options;
+		const resolved = await input.resolve();
+		const serialized = new ChatEditorInputSerializer().serialize(input);
+		assert.ok(serialized);
+		const serializedOptions = (JSON.parse(serialized) as { options: IChatEditorOptions }).options;
 
-			assert.deepStrictEqual({
-				model: resolved?.model,
-				acquiredReason,
-				startedReason,
-				serializedOptions,
-			}, {
-				model,
-				acquiredReason: 'currentSession',
-				startedReason: 'currentSession',
-				serializedOptions: {},
-			});
-		} finally {
-			input.dispose();
-		}
+		assert.deepStrictEqual({
+			model: resolved?.model,
+			acquiredReason,
+			startedReason,
+			serializedOptions,
+		}, {
+			model,
+			acquiredReason: 'currentSession',
+			startedReason: 'currentSession',
+			serializedOptions: {},
+		});
 	});
 
 	test('resolved remote creation metadata reaches model acquisition', async () => {
@@ -652,7 +644,7 @@ suite('ChatEditorInput', () => {
 			},
 		} as Partial<IChatService> as IChatService;
 
-		const input = new ChatEditorInput(
+		const input = disposables.add(new ChatEditorInput(
 			sessionResource,
 			{ sessionTypeSelectionReason: 'copilotPreference' },
 			chatService,
@@ -669,15 +661,11 @@ suite('ChatEditorInput', () => {
 			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
 			new NullManagedSettingsService(),
 			settledPolicyGate,
-		);
+		));
 
-		try {
-			const resolved = await input.resolve();
+		const resolved = await input.resolve();
 
-			assert.deepStrictEqual({ model: resolved?.model, acquiredReason }, { model, acquiredReason: 'copilotPreference' });
-		} finally {
-			input.dispose();
-		}
+		assert.deepStrictEqual({ model: resolved?.model, acquiredReason }, { model, acquiredReason: 'copilotPreference' });
 	});
 
 	test('unavailable Agent Host session falls back to Local with its selection reason', async () => {
@@ -700,7 +688,7 @@ suite('ChatEditorInput', () => {
 			},
 		} as Partial<IChatService> as IChatService;
 
-		const input = new ChatEditorInput(
+		const input = disposables.add(new ChatEditorInput(
 			unavailableResource,
 			{ sessionTypeSelectionReason: 'explicitOverride' },
 			chatService,
@@ -717,27 +705,88 @@ suite('ChatEditorInput', () => {
 			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
 			new NullManagedSettingsService(),
 			settledPolicyGate,
-		);
+		));
 
-		try {
-			const resolved = await input.resolve();
+		const resolved = await input.resolve();
 
-			assert.deepStrictEqual({
-				model: resolved?.model,
-				sessionResource: input.sessionResource,
-				startLocation: startCall?.location,
-				debugOwner: startCall?.options?.debugOwner,
-				selectionReason: startCall?.options?.sessionTypeSelectionReason,
-			}, {
-				model,
-				sessionResource: localResource,
-				startLocation: ChatAgentLocation.Chat,
-				debugOwner: 'ChatEditorInput#resolveUntitledFallback',
-				selectionReason: 'agentHostUnavailable',
-			});
-		} finally {
-			input.dispose();
-		}
+		assert.deepStrictEqual({
+			model: resolved?.model,
+			sessionResource: input.sessionResource,
+			startLocation: startCall?.location,
+			debugOwner: startCall?.options?.debugOwner,
+			selectionReason: startCall?.options?.sessionTypeSelectionReason,
+		}, {
+			model,
+			sessionResource: localResource,
+			startLocation: ChatAgentLocation.Chat,
+			debugOwner: 'ChatEditorInput#resolveUntitledFallback',
+			selectionReason: 'agentHostUnavailable',
+		});
+	});
+
+	test('restored empty draft of a harness disabled by policy opens the default new chat', async () => {
+		const draftResource = URI.from({ scheme: SessionType.AgentHostClaude, path: '/untitled-disabled' });
+		const localResource = LocalChatSessionUri.forSession('disabled-draft-replacement');
+		const model = {
+			hasRequests: false,
+			onDidDispose: Event.None,
+			onDidChange: Event.None,
+			sessionResource: localResource,
+		} as Partial<IChatModel> as IChatModel;
+
+		const configurationService = new TestConfigurationService();
+		const inspect = configurationService.inspect.bind(configurationService);
+		configurationService.inspect = <T>(key: string) => {
+			const value = inspect<T>(key);
+			return key === AgentHostClaudeAgentEnabledSettingId ? { ...value, policyValue: false as T } : value;
+		};
+		const loadedResources: string[] = [];
+		let startCall: IChatSessionStartOptions | undefined;
+		const chatService = {
+			async acquireOrLoadSession(resource: URI) {
+				loadedResources.push(resource.toString());
+				return undefined;
+			},
+			startNewLocalSession(_location: ChatAgentLocation, options?: IChatSessionStartOptions) {
+				startCall = options;
+				return { object: model, dispose: () => { } };
+			},
+		} as Partial<IChatService> as IChatService;
+
+		const input = disposables.add(new ChatEditorInput(
+			draftResource,
+			{},
+			chatService,
+			{} as IDialogService,
+			configurationService,
+			new MockChatSessionsService(),
+			{} as IInstantiationService,
+			disposables.add(new TestStorageService()),
+			new NullLogService(),
+			new TestContextService(),
+			{ _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
+			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
+			NullTelemetryService,
+			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
+			new NullManagedSettingsService(),
+			settledPolicyGate,
+		));
+
+		const resolved = await input.resolve();
+
+		assert.deepStrictEqual({
+			model: resolved?.model,
+			sessionResource: input.sessionResource,
+			loadedResources,
+			debugOwner: startCall?.debugOwner,
+			selectionReason: startCall?.sessionTypeSelectionReason,
+		}, {
+			model,
+			sessionResource: localResource,
+			loadedResources: [],
+			debugOwner: 'ChatEditorInput#resolveUntitled',
+			selectionReason: 'computedDefault',
+		});
 	});
 
 	test('explicit local session type preserves empty local session resource', async () => {
@@ -760,7 +809,7 @@ suite('ChatEditorInput', () => {
 			},
 		} as Partial<IChatService> as IChatService;
 
-		const input = new ChatEditorInput(
+		const input = disposables.add(new ChatEditorInput(
 			sessionResource,
 			{ explicitSessionType: localChatSessionType },
 			chatService,
@@ -777,23 +826,19 @@ suite('ChatEditorInput', () => {
 			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
 			new NullManagedSettingsService(),
 			settledPolicyGate,
-		);
+		));
 
-		try {
-			const resolved = await input.resolve();
+		const resolved = await input.resolve();
 
-			assert.deepStrictEqual({
-				model: resolved?.model,
-				sessionResource: input.sessionResource,
-				loadedResources,
-			}, {
-				model,
-				sessionResource,
-				loadedResources: [sessionResource.toString()],
-			});
-		} finally {
-			input.dispose();
-		}
+		assert.deepStrictEqual({
+			model: resolved?.model,
+			sessionResource: input.sessionResource,
+			loadedResources,
+		}, {
+			model,
+			sessionResource,
+			loadedResources: [sessionResource.toString()],
+		});
 	});
 
 	test('new chat replaces a current extension host Copilot CLI harness', async () => {
@@ -840,21 +885,17 @@ suite('ChatEditorInput', () => {
 			},
 		});
 
-		try {
-			await instantiationService.invokeFunction(clearChatEditor, input);
+		await instantiationService.invokeFunction(clearChatEditor, input);
 
-			assert.deepStrictEqual({
-				currentSessionType: input.sessionResource ? getChatSessionType(input.sessionResource) : undefined,
-				replacementSessionType: replacementResource ? getChatSessionType(replacementResource) : undefined,
-				replacementSelectionReason,
-			}, {
-				currentSessionType: SessionType.CopilotCLI,
-				replacementSessionType: localChatSessionType,
-				replacementSelectionReason: 'computedDefault',
-			});
-		} finally {
-			store.dispose();
-		}
+		assert.deepStrictEqual({
+			currentSessionType: input.sessionResource ? getChatSessionType(input.sessionResource) : undefined,
+			replacementSessionType: replacementResource ? getChatSessionType(replacementResource) : undefined,
+			replacementSelectionReason,
+		}, {
+			currentSessionType: SessionType.CopilotCLI,
+			replacementSessionType: localChatSessionType,
+			replacementSelectionReason: 'computedDefault',
+		});
 	});
 
 	function createInputForCopy(store: DisposableStore, resource: URI, agentHostEnabled: boolean): ChatEditorInput {

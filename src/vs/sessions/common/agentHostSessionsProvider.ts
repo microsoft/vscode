@@ -349,6 +349,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getRootConfig(): RootConfigState | undefined;
 	getRootState(): RootState | undefined;
 	mapAgentHostResource(uri: URI): URI;
+	/** This window's client identity on the provider's connection. */
+	getClientId?(): string | undefined;
 	/**
 	 * Sets one root configuration property.
 	 *

@@ -4,17 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 import fse from 'fs-extra';
 import path from 'path';
+import { resolvePackageDirectory } from '../esbuild-common.mts';
 import { run } from '../esbuild-webview-common.mts';
 
 const srcDir = path.join(import.meta.dirname, 'notebook');
 const outDir = path.join(import.meta.dirname, 'notebook-out');
 
 function postBuild(outDir: string) {
+	const katexDir = resolvePackageDirectory(import.meta.dirname, 'katex');
 	fse.copySync(
-		path.join(import.meta.dirname, 'node_modules', 'katex', 'dist', 'katex.min.css'),
+		path.join(katexDir, 'dist', 'katex.min.css'),
 		path.join(outDir, 'katex.min.css'));
 
-	const fontsDir = path.join(import.meta.dirname, 'node_modules', 'katex', 'dist', 'fonts');
+	const fontsDir = path.join(katexDir, 'dist', 'fonts');
 	const fontsOutDir = path.join(outDir, 'fonts/');
 
 	fse.mkdirSync(fontsOutDir, { recursive: true });

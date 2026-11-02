@@ -50,12 +50,12 @@ export class AutomationCronInput extends Disposable {
 	) {
 		super();
 		const label = DOM.append(container, DOM.$('.automation-cron-label'));
-		DOM.append(label, DOM.$('span.automation-form-label', undefined, localize('cron.expression', "CRON expression")));
+		DOM.append(label, DOM.$('span.automation-form-label', undefined, localize('cron.expression', "Cron expression")));
 		this.hint = DOM.append(label, DOM.$('span.automation-cron-hint', { id: 'automation-cron-hint' }));
 		this.hint.textContent = timeZone === Intl.DateTimeFormat().resolvedOptions().timeZone
 			? localize('cron.localTime', "Evaluated in local time.")
 			: localize('cron.timeZone', "Evaluated in {0}.", timeZone);
-		this.group = DOM.append(container, DOM.$('.automation-cron-segments', { role: 'group', 'aria-label': localize('cron.expression', "CRON expression") }));
+		this.group = DOM.append(container, DOM.$('.automation-cron-segments', { role: 'group', 'aria-label': localize('cron.expression', "Cron expression") }));
 		this._register(DOM.addDisposableListener(DOM.getWindow(this.group).document, 'focusin', (event: FocusEvent) => {
 			if (this.allSelected && DOM.isHTMLElement(event.target) && !this.group.contains(event.target) && !isContextMenuTarget(event.target)) {
 				this.setAllSelected(false);

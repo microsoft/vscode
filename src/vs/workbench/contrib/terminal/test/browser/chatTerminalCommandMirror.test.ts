@@ -838,15 +838,12 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			const mirror = createSnapshotMirror({ text: 'hello' });
 			const container = document.createElement('div');
 			document.body.appendChild(container);
-			try {
-				fakes[0].raw.open(container);
-				fakes[0].raw.element!.style.paddingLeft = '4px';
-				fakes[0].raw.element!.style.paddingRight = '0px';
-				await mirror.layout(1224);
-				strictEqual(fakes[0].raw.cols, 122); // floor((1224 - 4) / 10)
-			} finally {
-				container.remove();
-			}
+			store.add(toDisposable(() => container.remove()));
+			fakes[0].raw.open(container);
+			fakes[0].raw.element!.style.paddingLeft = '4px';
+			fakes[0].raw.element!.style.paddingRight = '0px';
+			await mirror.layout(1224);
+			strictEqual(fakes[0].raw.cols, 122); // floor((1224 - 4) / 10)
 		});
 	});
 

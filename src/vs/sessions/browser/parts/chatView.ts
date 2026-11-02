@@ -34,6 +34,8 @@ export interface IChatViewOptions {
 	readonly hostVisible?: IObservable<boolean>;
 	/** Keep the custom view hosting this composer visible while preparing its draft. */
 	readonly preserveCustomView?: boolean;
+	/** Send new-session requests without navigating away from the hosting view. */
+	readonly backgroundSend?: boolean;
 	readonly renderChatPet?: boolean;
 	/** Host only the composer, without transcript content, input interactions, or transcript view-state persistence. */
 	readonly inputOnly?: boolean;
@@ -128,6 +130,14 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	}
 
 	openModelComparison(): void { }
+
+	/**
+	 * Intrinsic composer content for input-only hosts to measure and observe.
+	 * Includes new-session pickers where present; ownership stays with the view.
+	 */
+	get inputContentElement(): HTMLElement | undefined {
+		return undefined;
+	}
 
 	/**
 	 * Whether the view has a visible transcript turn to retain when a remote

@@ -162,6 +162,7 @@ import { handleTerminalCommandPaste, isTerminalCommandInput, isTerminalCommandPa
 import { ChatDynamicVariableModel } from '../../attachments/chatDynamicVariables.js';
 import { IDynamicVariable } from '../../../common/attachments/chatVariables.js';
 import { ChatInlineAttachments } from './editor/chatInlineAttachments.js';
+import { bindChatInputInlineSuggestions } from './editor/chatInputInlineSuggestions.js';
 import { isInlineAttachmentCandidate } from '../../../common/attachments/chatInlineAttachments.js';
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
 import { getChatPetStackPlatform, IChatPetPlatform } from '../chatPetWidget.js';
@@ -2781,17 +2782,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	/** Disable draft editing during session preparation without disabling the Stop toolbar. */
-	setInputEnabled(enabled: boolean): void {
+	/** Disable draft editing without disabling Stop; in-place composers can retain focus in the read-only editor. */
+	setInputEnabled(enabled: boolean, preserveFocus = false): void {
 		const hadFocus = this.hasFocus();
 		this.inputEnabled = enabled;
 		this._inputEditor.updateOptions({ readOnly: !enabled });
-		this._inputEditorElement.inert = !enabled;
+		this._inputEditorElement.inert = !enabled && !preserveFocus;
 		this.attachmentsContainer.inert = !enabled;
 		this.inputActionsToolbar.getElement().inert = !enabled;
 		this.secondaryToolbarContainer.inert = !enabled;
 		this.dnd.setDisabledOverlay(!enabled);
-		if (hadFocus) {
+		if (hadFocus && !preserveFocus) {
 			this.focus();
 		}
 	}
@@ -3886,6 +3887,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
 		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, DropIntoEditorController.ID, CopyPasteController.ID, LinkDetector.ID, InlineCompletionsController.ID, PlaceholderTextContribution.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
+		this._register(bindChatInputInlineSuggestions(this._inputEditor, this.configurationService));
 		this.updateInputEditorFontFamily();
 		this._register(addDisposableListener(this._inputEditorElement, dom.EventType.PASTE, e => this.handleTerminalCommandPaste(e), true));
 
