@@ -102,6 +102,7 @@ suite('SCM structural diff model', () => {
 	let modified: ITextModel;
 	let resource: ISCMResource;
 	let group: ISCMResourceGroup;
+	let groupResources: ISCMResource[];
 	let resolver: TestResolver;
 	let provider: TestProvider;
 	let features: LanguageFeaturesService;
@@ -122,11 +123,14 @@ suite('SCM structural diff model', () => {
 		const scmProvider = new class extends mock<ISCMProvider>() {
 			override readonly id = 'test';
 		};
+		groupResources = [];
 		group = new class extends mock<ISCMResourceGroup>() {
 			override readonly provider = scmProvider;
 			override readonly id = 'workingTree';
+			override readonly resources = groupResources;
 		};
 		resource = new TestResource(group, modified.uri, original.uri, modified.uri);
+		groupResources.push(resource);
 		resolver = new TestResolver(original, modified);
 		features = new LanguageFeaturesService();
 		provider = new TestProvider();
@@ -201,6 +205,14 @@ suite('SCM structural diff model', () => {
 			override readonly id = 'index';
 		};
 		return { staged: new TestResource(stagedGroup, modified.uri, head.uri, original.uri), head };
+	}
+
+	function createWorkingTreeResource(name: string): ISCMResource {
+		const fileUri = URI.file(name);
+		const index = store.add(createTextModel(original.getValue(), undefined, undefined, fileUri.with({ scheme: 'git', query: JSON.stringify({ path: fileUri.fsPath, ref: '' }) })));
+		const working = store.add(createTextModel(modified.getValue(), undefined, undefined, fileUri));
+		resolver.additionalModels.push(index, working);
+		return new TestResource(group, fileUri, index.uri, working.uri);
 	}
 
 	test('checks eligibility without loading models or invoking providers', () => {
@@ -386,6 +398,39 @@ suite('SCM structural diff model', () => {
 			}, { previousIsCurrent: false, differentId: true, current: true, released: [original.uri, modified.uri], calls: 2 });
 		});
 	}
+
+	test('keeps the results of resources that remain in a changed group and releases the others', async () => {
+		const other = createWorkingTreeResource('other.ts');
+		groupResources.push(other);
+		const { staged } = createStagedResource();
+		const kept = await model.getChildren(resource);
+		const removed = await model.getChildren(other);
+		const stagedChildren = await model.getChildren(staged);
+		groupResources.splice(groupResources.indexOf(other), 1);
+		model.releaseRemovedResources(group);
+		assert.deepStrictEqual({
+			kept: model.isCurrent(kept[0]),
+			cached: await model.getChildren(resource) === kept,
+			removed: model.isCurrent(removed[0]),
+			otherGroup: model.isCurrent(stagedChildren[0]),
+			released: resolver.released,
+			calls: provider.calls,
+		}, {
+			kept: true, cached: true, removed: false, otherGroup: true,
+			released: [other.multiDiffEditorOriginalUri, other.multiDiffEditorModifiedUri], calls: 3,
+		});
+	});
+
+	test('releases a resource that its group replaced with a new object for the same file', async () => {
+		const previous = await model.getChildren(resource);
+		const replacement = new TestResource(group, resource.sourceUri, resource.multiDiffEditorOriginalUri, resource.multiDiffEditorModifiedUri);
+		groupResources.splice(groupResources.indexOf(resource), 1, replacement);
+		model.releaseRemovedResources(group);
+		const next = await model.getChildren(replacement);
+		assert.deepStrictEqual({
+			previous: model.isCurrent(previous[0]), next: model.isCurrent(next[0]), released: resolver.released, calls: provider.calls,
+		}, { previous: false, next: true, released: [original.uri, modified.uri], calls: 2 });
+	});
 
 	test('updates availability when providers are removed and registered', async () => {
 		const children = await model.getChildren(resource);

@@ -284,10 +284,28 @@ export class SCMStructuralDiffModel extends Disposable {
 		this._onDidChange.fire(resource);
 	}
 
+	/** Releases the cached results of all resources in the group, for example because the group was removed. */
 	invalidateGroup(group: ISCMResourceGroup): void {
 		for (const [resource] of this.entries) {
 			if (resource.resourceGroup === group) {
 				this.entries.deleteAndDispose(resource);
+			}
+		}
+	}
+
+	/**
+	 * Releases the cached results of resources that are no longer in the group, for example because
+	 * their status changed. Results of the remaining resources are kept, because content changes
+	 * already invalidate them.
+	 */
+	releaseRemovedResources(group: ISCMResourceGroup): void {
+		let resources: Set<ISCMResource> | undefined;
+		for (const [resource] of this.entries) {
+			if (resource.resourceGroup === group) {
+				resources ??= new Set(group.resources);
+				if (!resources.has(resource)) {
+					this.entries.deleteAndDispose(resource);
+				}
 			}
 		}
 	}

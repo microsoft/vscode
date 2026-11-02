@@ -1919,7 +1919,7 @@ export class SCMViewPane extends ViewPane {
 
 						disposableStore.add(resourceGroup.onDidChange(() => this.updateChildren(repository)));
 						disposableStore.add(resourceGroup.onDidChangeResources(() => {
-							this.structuralDiff.invalidateGroup(resourceGroup);
+							this.structuralDiff.releaseRemovedResources(resourceGroup);
 							this.updateChildren(repository);
 						}));
 						resourceGroupDisposables.set(resourceGroup, disposableStore);
