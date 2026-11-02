@@ -1,0 +1,21 @@
+{
+	"name": "@fork/model-router",
+	"version": "0.1.0",
+	"description": "Fork's model router: one streaming interface over OpenAI-compatible, Anthropic and Gemini endpoints.",
+	"license": "MIT",
+	"private": true,
+	"type": "module",
+	"main": "src/index.ts",
+	"engines": {
+		"node": ">=22.18.0"
+	},
+	"scripts": {
+		"test": "node --test test/*.test.ts",
+		"typecheck": "tsc -p .",
+		"try": "node scripts/try-model.ts"
+	},
+	"devDependencies": {
+		"@types/node": "^22.10.0",
+		"typescript": "^5.9.0"
+	}
+}
