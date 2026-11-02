@@ -19,7 +19,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { createBreakpointDecorations } from '../../browser/breakpointEditorContribution.js';
 import { getBreakpointMessageAndIcon, getExpandedBodySize } from '../../browser/breakpointsView.js';
-import { DataBreakpointSetType, IBreakpointData, IBreakpointUpdateData, IDebugService, State } from '../../common/debug.js';
+import { DataBreakpointSetType, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IDebugService, State } from '../../common/debug.js';
 import { Breakpoint, DebugModel } from '../../common/debugModel.js';
 import { createTestSession } from './callStack.test.js';
 import { createMockDebugModel, mockUriIdentityService } from './mockDebugModel.js';
@@ -79,6 +79,72 @@ suite('Debug - Breakpoints', () => {
 		model.removeBreakpoints(model.getBreakpoints());
 		assert.strictEqual(eventCount, 1);
 		assert.strictEqual(model.getBreakpoints().length, 0);
+	});
+
+	test('updateBreakpoints dedupes collisions and fires removed event (issue #276096)', () => {
+		const modelUri = uri.file('/myfolder/myfile.js');
+
+		// Put two breakpoints on adjacent lines; deleting the line between them forces
+		// the lower breakpoint to shift onto the same line as the upper one.
+		const bps = addBreakpointsAndCheckEvents(model, modelUri, [{ lineNumber: 20, enabled: true }, { lineNumber: 21, enabled: true }]);
+		assert.strictEqual(model.getBreakpoints().length, 2);
+
+		const removedEvents: IBreakpoint[][] = [];
+		const changedEvents: IBreakpoint[][] = [];
+		disposables.add(model.onDidChangeBreakpoints(e => {
+			if (e?.removed) {
+				removedEvents.push(e.removed as IBreakpoint[]);
+			}
+			if (e?.changed) {
+				changedEvents.push(e.changed as IBreakpoint[]);
+			}
+		}));
+
+		// Simulate the editor contribution pushing updated positions after a content
+		// change that collapsed line 21 onto line 20.
+		const update = new Map<string, IBreakpointUpdateData>();
+		update.set(bps[0].getId(), { lineNumber: 20 });
+		update.set(bps[1].getId(), { lineNumber: 20 });
+		model.updateBreakpoints(update);
+
+		// The model itself must keep only one breakpoint per (uri, line, column).
+		assert.strictEqual(model.getBreakpoints().length, 1, 'internal model should dedupe colliding breakpoints');
+
+		// And the `onDidChangeBreakpoints` event must announce the dropped duplicate
+		// so that consumers (notably the extension host's `vscode.debug.breakpoints`)
+		// can drop their stale reference instead of keeping a ghost entry.
+		const totalRemoved = removedEvents.reduce((n, list) => n + list.length, 0);
+		assert.strictEqual(totalRemoved, 1, 'should fire removed event for deduped breakpoint');
+
+		// The duplicate must not leak into the `changed` array either.
+		const totalChanged = changedEvents.reduce((n, list) => n + list.length, 0);
+		assert.strictEqual(totalChanged, 1, 'should only report the surviving breakpoint as changed');
+	});
+
+	test('addBreakpoints dedupes collisions and fires removed event (issue #276096)', () => {
+		const modelUri = uri.file('/myfolder/myfile.js');
+
+		addBreakpointsAndCheckEvents(model, modelUri, [{ lineNumber: 5, enabled: true }]);
+		assert.strictEqual(model.getBreakpoints().length, 1);
+
+		let addedCount = 0;
+		let removedCount = 0;
+		disposables.add(model.onDidChangeBreakpoints(e => {
+			if (e?.added) {
+				addedCount += e.added.length;
+			}
+			if (e?.removed) {
+				removedCount += e.removed.length;
+			}
+		}));
+
+		// Adding a second breakpoint at the same location must not grow the model
+		// and must surface the dedupe as a `removed` event.
+		model.addBreakpoints(modelUri, [{ lineNumber: 5, enabled: true }]);
+
+		assert.strictEqual(model.getBreakpoints().length, 1, 'internal model should dedupe colliding breakpoints');
+		assert.strictEqual(removedCount, 1, 'should fire removed event for the deduped duplicate');
+		assert.strictEqual(addedCount, 0, 'duplicate must not be reported as added');
 	});
 
 	test('toggling', () => {
