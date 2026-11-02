@@ -1013,8 +1013,9 @@ suite('ChatPetWidget', () => {
 		const firstSprite = button.querySelector('.chat-pet-sprite:not(.hidden)')!;
 		const firstAnimation = pose.getAnimations()[0];
 		assert.ok(firstAnimation);
-		await timeout(120);
-		const firstAnimationTime = Number(firstAnimation.currentTime);
+		// Seek rather than wait: an animation's time does not advance until the browser renders a frame.
+		const firstAnimationTime = 240;
+		firstAnimation.currentTime = firstAnimationTime;
 		click();
 		await waitForPetAnimation(() => button.dataset.state === 'yapping' && button.querySelector('.chat-pet-sprite:not(.hidden)') !== firstSprite);
 		const restartedAnimationTime = Number(pose.getAnimations()[0]?.currentTime);
@@ -1030,14 +1031,12 @@ suite('ChatPetWidget', () => {
 		const leftFacingTransforms = readFacingTransforms('left');
 		random.restore();
 		assert.deepStrictEqual({
-			firstAnimationTimePassed: firstAnimationTime > 0,
 			animationRestarted: restartedAnimationTime < firstAnimationTime,
 			rightFacingTransforms,
 			leftFacingTransformsMatch: leftFacingTransforms[0] === leftFacingTransforms[1],
 			facingChangesTransform: leftFacingTransforms[0] !== rightFacingTransforms[0],
 			poseWrapsFacingLayer: propeller.parentElement === pose,
 		}, {
-			firstAnimationTimePassed: true,
 			animationRestarted: true,
 			rightFacingTransforms: ['none', 'none'],
 			leftFacingTransformsMatch: true,
