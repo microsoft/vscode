@@ -102,11 +102,16 @@ export function pushGlobalTimeApi(api: TimeApi): IDisposable {
 					Reflect.deleteProperty(globalThis.performance, 'timeOrigin');
 				}
 			}
+			// Node has no animation frame globals: remove fakes installed there rather than leave them behind.
 			if (previousGlobals.requestAnimationFrame) {
 				globalThis.requestAnimationFrame = previousGlobals.requestAnimationFrame;
+			} else {
+				Reflect.deleteProperty(globalThis, 'requestAnimationFrame');
 			}
 			if (previousGlobals.cancelAnimationFrame) {
 				globalThis.cancelAnimationFrame = previousGlobals.cancelAnimationFrame;
+			} else {
+				Reflect.deleteProperty(globalThis, 'cancelAnimationFrame');
 			}
 		},
 	};
