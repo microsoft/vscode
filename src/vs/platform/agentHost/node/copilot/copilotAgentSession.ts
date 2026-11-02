@@ -9383,9 +9383,9 @@ export class CopilotAgentSession extends Disposable {
 			// describe a subagent's model call, so subagent messages (mapped or dropped) are skipped.
 			if (!e.agentId && isModelResponse) {
 				const clientType = this._currentTurn.value?.clientType ?? AgentHostClientType.Unknown;
-				void this._telemetryReporter.assistantMessageReceived(this.resourceUri.toString(), this._chatChannelUri.toString(), clientType, e.data.clientRequestId, this._appliedSnapshot.tools).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
+				void this._telemetryReporter.assistantMessageReceived(this.resourceUri.toString(), this._chatChannelUri.toString(), clientType, e.data.clientRequestId, this._appliedSnapshot.tools, wrapper.sessionId).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
 				// Restricted `conversation.messageText` (source=model): the model's raw response text.
-				void this._telemetryReporter.modelMessageText(this.resourceUri.toString(), this._chatChannelUri.toString(), clientType, e.data.content, this._turnOrdinal, e.data.clientRequestId).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
+				void this._telemetryReporter.modelMessageText(this.resourceUri.toString(), this._chatChannelUri.toString(), clientType, e.data.content, this._turnOrdinal, e.data.clientRequestId, wrapper.sessionId).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
 				// Accumulate the per-turn tool-call aggregate for the restricted `toolCallDetails` event.
 				// Every main-agent `assistant.message` is one model-call round (matches the extension's
 				// `numRequests = toolCallRounds.length`, which counts the final tool-free response round
@@ -12315,7 +12315,7 @@ export class CopilotAgentSession extends Disposable {
 			// matching `isSyntheticUserMessage`) and provider-initiated root requests so generated
 			// extension prompts are not reported as the user's text.
 			if (!e.agentId && !this._currentTurn.value?.providerInitiated && (!e.data.source || e.data.source.toLowerCase() === 'user')) {
-				void this._telemetryReporter.userMessageText(this.resourceUri.toString(), this._chatChannelUri.toString(), this._currentTurn.value?.clientType ?? AgentHostClientType.Unknown, e.data.content, this._turnOrdinal).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
+				void this._telemetryReporter.userMessageText(this.resourceUri.toString(), this._chatChannelUri.toString(), this._currentTurn.value?.clientType ?? AgentHostClientType.Unknown, e.data.content, this._turnOrdinal, wrapper.sessionId).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
 			}
 		}));
 
