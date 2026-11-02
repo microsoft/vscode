@@ -17,7 +17,7 @@ import * as os from 'os';
 import { writeSync } from 'fs';
 import * as inspector from 'inspector';
 import { AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
-import { buildFeatures } from '../../product/common/buildFeatures.js';
+import { buildFeatureClaude, buildFeatureCodex, buildFeatureCopilotChat } from '../../product/common/buildFeatures.js';
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentService } from './agentService.js';
@@ -187,7 +187,7 @@ async function startAgentHost(): Promise<void> {
 		const agentSdkDownloader = runtimeServices.agentSdkDownloader;
 		const providerService = runtimeServices.providerService;
 		sdkDownloadProgress = runtime.sdkDownloadProgress;
-		if (buildFeatures.copilotChat) {
+		if (buildFeatureCopilotChat) {
 			const { CopilotAgent } = await import('./copilot/copilotAgent.js');
 			providerService.registerProvider(instantiationService.createInstance(CopilotAgent));
 		}
@@ -205,13 +205,13 @@ async function startAgentHost(): Promise<void> {
 		//     env-var override or a `product.agentSdks.codex` entry.
 		// If either gate fails, the provider is not registered and never appears
 		// in the agent picker (matches the pre-CDN UX exactly).
-		if (buildFeatures.agents.claude && isAgentEnabled(process.env[AgentHostClaudeAgentEnabledEnvVar], true) && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(ClaudeSdkPackage))) {
+		if (buildFeatureClaude && isAgentEnabled(process.env[AgentHostClaudeAgentEnabledEnvVar], true) && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(ClaudeSdkPackage))) {
 			providerService.registerProvider(instantiationService.createInstance(ClaudeAgent));
 		}
 		// Codex registration is one-way (register-on-enable): the env-var toggle
 		// or the renderer-forwarded `codexAgentEnabled` root config enables it.
 		// Disabling requires an agent host restart.
-		if (buildFeatures.agents.codex && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(CodexSdkPackage))) {
+		if (buildFeatureCodex && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(CodexSdkPackage))) {
 			let codexRegistered = false;
 			const registerCodexIfEnabled = () => {
 				if (codexRegistered) {

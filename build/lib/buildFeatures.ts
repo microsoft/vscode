@@ -11,7 +11,6 @@ export type BuildFeatureProfile = 'default' | 'minimal';
 export interface IBuildFeatures {
 	readonly copilotChat: boolean;
 	readonly chatPanel: boolean;
-	readonly agentSessionsUI: true;
 	readonly git: boolean;
 	readonly sourceControlUI: boolean;
 	readonly scmService: boolean;
@@ -38,7 +37,7 @@ interface IBuildFeatureConfiguration {
 const buildFeatureConfiguration = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../features.json'), 'utf8')) as IBuildFeatureConfiguration;
 let loggedProfile: BuildFeatureProfile | undefined;
 
-const booleanFeatureKeys: readonly (keyof Omit<IBuildFeatures, 'terminal' | 'agentSessionsUI' | 'agents'>)[] = [
+const booleanFeatureKeys: readonly (keyof Omit<IBuildFeatures, 'terminal' | 'agents'>)[] = [
 	'copilotChat', 'chatPanel', 'git', 'sourceControlUI', 'scmService', 'debugUI', 'debugService', 'tasks', 'notebooks', 'testing',
 	'remote', 'extensionsUI', 'welcome', 'review', 'sync', 'productServices'
 ];
@@ -52,13 +51,13 @@ function validateBuildFeatureConfiguration(): void {
 
 	for (const profileName of expectedProfiles as BuildFeatureProfile[]) {
 		const profile = buildFeatureConfiguration.profiles[profileName] as IBuildFeatures & Record<string, unknown>;
-		for (const key of [...booleanFeatureKeys, 'terminal', 'agentSessionsUI'] as const) {
+		for (const key of [...booleanFeatureKeys, 'terminal'] as const) {
 			if (typeof profile[key] !== 'boolean') {
 				throw new Error(`Invalid build/features.json: '${profileName}.${key}' must be boolean.`);
 			}
 		}
-		if (profile.terminal !== true || profile.agentSessionsUI !== true) {
-			throw new Error(`Invalid build/features.json: '${profileName}' must keep terminal and generic agent sessions enabled.`);
+		if (profile.terminal !== true) {
+			throw new Error(`Invalid build/features.json: '${profileName}' must keep the terminal enabled.`);
 		}
 		if (profile.sourceControlUI && !profile.scmService) {
 			throw new Error(`Invalid build/features.json: '${profileName}.sourceControlUI' requires 'scmService'.`);
@@ -74,7 +73,7 @@ function validateBuildFeatureConfiguration(): void {
 				throw new Error(`Invalid build/features.json: '${profileName}.bundledExtensions' must be '*' or a unique list of extension identifiers.`);
 			}
 		}
-		const expectedKeys = [...booleanFeatureKeys, 'agents', 'terminal', 'agentSessionsUI', 'bundledExtensions'].sort();
+		const expectedKeys = [...booleanFeatureKeys, 'agents', 'terminal', 'bundledExtensions'].sort();
 		if (JSON.stringify(Object.keys(profile).sort()) !== JSON.stringify(expectedKeys)) {
 			throw new Error(`Invalid build/features.json keys for '${profileName}'.`);
 		}
@@ -104,9 +103,38 @@ export function getBuildFeatures(): IBuildFeatures {
 	return features;
 }
 
+export function getBuildFeatureDefines(): Record<string, string> {
+	const features = getBuildFeatures();
+	const names: Record<string, string> = {
+		copilotChat: 'COPILOT_CHAT',
+		chatPanel: 'CHAT_PANEL',
+		git: 'GIT',
+		sourceControlUI: 'SOURCE_CONTROL_UI',
+		scmService: 'SCM_SERVICE',
+		debugUI: 'DEBUG_UI',
+		debugService: 'DEBUG_SERVICE',
+		tasks: 'TASKS',
+		notebooks: 'NOTEBOOKS',
+		testing: 'TESTING',
+		remote: 'REMOTE',
+		extensionsUI: 'EXTENSIONS_UI',
+		welcome: 'WELCOME',
+		review: 'REVIEW',
+		sync: 'SYNC',
+		productServices: 'PRODUCT_SERVICES',
+		terminal: 'TERMINAL',
+	};
+	const defines = Object.fromEntries(Object.entries(names).map(([key, name]) => [`__VSCODE_BUILD_FEATURE_${name}__`, JSON.stringify(features[key as keyof IBuildFeatures])]));
+	defines['__VSCODE_BUILD_FEATURE_CODEX__'] = JSON.stringify(features.agents.codex);
+	defines['__VSCODE_BUILD_FEATURE_CLAUDE__'] = JSON.stringify(features.agents.claude);
+	return defines;
+}
+
 export function configureProductForBuild<T extends Record<string, unknown>>(product: T): T {
 	const features = getBuildFeatures();
-	const configured = { ...product };
+	const configured: Record<string, unknown> = { ...product };
+	configured['buildProfile'] = getBuildFeatureProfile();
+	configured['buildFeatures'] = features;
 	if (!features.copilotChat) {
 		delete configured['defaultChatAgent'];
 		delete configured['trustedExtensionAuthAccess'];
@@ -119,7 +147,7 @@ export function configureProductForBuild<T extends Record<string, unknown>>(prod
 			configured[key] = extensions.filter(extension => typeof extension === 'object' && extension !== null && 'name' in extension && isBuildFeatureEnabledForExtension(String(extension.name), features) && isExtensionBundledForFeatures(String(extension.name), features));
 		}
 	}
-	return configured;
+	return configured as T;
 }
 
 export function filterBuiltInExtensions<T extends { name: string }>(extensions: T[]): T[] {
@@ -129,6 +157,39 @@ export function filterBuiltInExtensions<T extends { name: string }>(extensions: 
 
 export function isExtensionBundled(extensionId: string): boolean {
 	return isExtensionBundledForFeatures(extensionId, getBuildFeatures());
+}
+
+export function isBuildFeatureStylesheetIncluded(filePath: string, features = getBuildFeatures()): boolean {
+	const normalizedPath = filePath.replaceAll('\\', '/');
+	const excludedRoots: [boolean, string[]][] = [
+		[!features.debugUI, ['/src/vs/workbench/contrib/debug/']],
+		[!features.notebooks, ['/src/vs/workbench/contrib/notebook/', '/src/vs/workbench/contrib/interactive/', '/src/vs/workbench/contrib/replNotebook/']],
+		[!features.testing, ['/src/vs/workbench/contrib/testing/']],
+		[!features.tasks, ['/src/vs/workbench/contrib/tasks/']],
+		[!features.remote, ['/src/vs/workbench/contrib/remote/', '/src/vs/workbench/contrib/remoteExplorer/']],
+		[!features.welcome, ['/src/vs/workbench/contrib/welcome/', '/src/vs/workbench/contrib/welcomeAgentSessions/', '/src/vs/workbench/contrib/welcomeWalkthrough/', '/src/vs/workbench/contrib/walkthrough/']],
+		[!features.review, ['/src/vs/workbench/contrib/comments/']],
+		[!features.sourceControlUI, ['/src/vs/workbench/contrib/scm/']],
+		[!features.sync, ['/src/vs/workbench/contrib/userDataSync/', '/src/vs/workbench/contrib/editSessions/']],
+		[!features.copilotChat, ['/src/vs/workbench/contrib/agentsVoice/']],
+	];
+	return !excludedRoots.some(([excluded, roots]) => excluded && roots.some(root => normalizedPath.includes(root)));
+}
+
+/** Returns false for source trees that are loaded only by disabled, standalone contributions. */
+export function isBuildFeatureSourceIncluded(filePath: string, features = getBuildFeatures()): boolean {
+	const normalizedPath = filePath.replaceAll('\\', '/');
+	const excludedRoots: [boolean, string[]][] = [
+		[!features.copilotChat, ['/src/vs/workbench/contrib/agentsVoice/']],
+		[!features.welcome, [
+			'/src/vs/workbench/contrib/welcomeGettingStarted/',
+			'/src/vs/workbench/contrib/welcomeAgentSessions/',
+			'/src/vs/workbench/contrib/welcomeWalkthrough/',
+			'/src/vs/workbench/contrib/walkthrough/',
+		]],
+		[!features.review, ['/src/vs/workbench/contrib/comments/']],
+	];
+	return !excludedRoots.some(([excluded, roots]) => excluded && roots.some(root => normalizedPath.includes(root)));
 }
 
 function isExtensionBundledForFeatures(extensionId: string, features: IBuildFeatures): boolean {

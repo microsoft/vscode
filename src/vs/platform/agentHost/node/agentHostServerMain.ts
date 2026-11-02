@@ -47,7 +47,7 @@ import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
-import { buildFeatures } from '../../product/common/buildFeatures.js';
+import { buildFeatureClaude, buildFeatureCodex, buildFeatureCopilotChat } from '../../product/common/buildFeatures.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
@@ -232,7 +232,7 @@ async function main(): Promise<void> {
 	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
 	if (!options.quiet) {
 		sdkDownloadProgress = runtime.sdkDownloadProgress;
-		if (buildFeatures.copilotChat) {
+		if (buildFeatureCopilotChat) {
 			const { CopilotAgent } = await import('./copilot/copilotAgent.js');
 			providerService.registerProvider(instantiationService.createInstance(CopilotAgent));
 			log('CopilotAgent registered');
@@ -250,11 +250,11 @@ async function main(): Promise<void> {
 		//     devDependency, so `CodexAgent._resolveSdkRoot` resolves it from
 		//     `node_modules` in dev; built/shipped installs use the env-var
 		//     override or `product.agentSdks.codex`.
-		if (buildFeatures.agents.claude && isAgentEnabled(process.env[AgentHostClaudeAgentEnabledEnvVar], true) && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(ClaudeSdkPackage))) {
+		if (buildFeatureClaude && isAgentEnabled(process.env[AgentHostClaudeAgentEnabledEnvVar], true) && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(ClaudeSdkPackage))) {
 			providerService.registerProvider(instantiationService.createInstance(ClaudeAgent));
 			log('ClaudeAgent registered');
 		}
-		if (buildFeatures.agents.codex && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(CodexSdkPackage))) {
+		if (buildFeatureCodex && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(CodexSdkPackage))) {
 			let codexRegistered = false;
 			const registerCodexIfEnabled = () => {
 				if (codexRegistered) {

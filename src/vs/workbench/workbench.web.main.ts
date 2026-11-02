@@ -14,7 +14,7 @@
 //#region --- workbench common
 
 import './workbench.common.main.js';
-import { buildFeatures } from '../platform/product/common/buildFeatures.js';
+import { buildFeatureDebugService, buildFeatureExtensionsUI, buildFeatureProductServices, buildFeatureRemote, buildFeatureSync, buildFeatureTasks, buildFeatureWelcome } from '../platform/product/common/buildFeatures.js';
 
 //#endregion
 
@@ -119,7 +119,7 @@ registerSingleton(IUserDataSyncLocalStoreService, UserDataSyncLocalStoreService,
 registerSingleton(IUserDataSyncAccountService, UserDataSyncAccountService, InstantiationType.Delayed);
 registerSingleton(IUserDataSyncService, UserDataSyncService, InstantiationType.Delayed);
 registerSingleton(IUserDataSyncResourceProviderService, UserDataSyncResourceProviderService, InstantiationType.Delayed);
-registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService, buildFeatures.sync ? InstantiationType.Eager /* Eager to start auto sync */ : InstantiationType.Delayed);
+registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService, buildFeatureSync ? InstantiationType.Eager /* Eager to start auto sync */ : InstantiationType.Delayed);
 registerSingleton(ITitleService, BrowserTitleService, InstantiationType.Eager);
 registerSingleton(IExtensionTipsService, ExtensionTipsService, InstantiationType.Delayed);
 registerSingleton(ITimerService, TimerService, InstantiationType.Delayed);
@@ -151,12 +151,12 @@ import './contrib/performance/browser/performance.web.contribution.js';
 import './contrib/preferences/browser/keyboardLayoutPicker.js';
 
 // Debug
-if (buildFeatures.debugService) {
+if (buildFeatureDebugService) {
 	await import('./contrib/debug/browser/extensionHostDebugService.js');
 }
 
 // Welcome Banner
-if (buildFeatures.welcome) {
+if (buildFeatureWelcome) {
 	await import('./contrib/welcomeBanner/browser/welcomeBanner.contribution.js');
 }
 
@@ -164,7 +164,7 @@ if (buildFeatures.welcome) {
 import './contrib/webview/browser/webview.web.contribution.js';
 
 // Extensions Management
-if (buildFeatures.extensionsUI) {
+if (buildFeatureExtensionsUI) {
 	await import('./contrib/extensions/browser/extensions.web.contribution.js');
 }
 
@@ -174,7 +174,7 @@ import './contrib/externalTerminal/browser/externalTerminal.contribution.js';
 import './contrib/terminal/browser/terminalInstanceService.js';
 
 // Tasks
-if (buildFeatures.tasks) {
+if (buildFeatureTasks) {
 	await import('./contrib/tasks/browser/taskService.js');
 }
 
@@ -182,12 +182,12 @@ if (buildFeatures.tasks) {
 import './contrib/tags/browser/workspaceTagsService.js';
 
 // Issues
-if (buildFeatures.productServices) {
+if (buildFeatureProductServices) {
 	await import('./contrib/issue/browser/issue.contribution.js');
 }
 
 // Surveys
-if (buildFeatures.productServices) {
+if (buildFeatureProductServices) {
 	await import('./contrib/surveys/browser/survey.contribution.js');
 }
 
@@ -195,7 +195,7 @@ if (buildFeatures.productServices) {
 import './contrib/splash/browser/splash.contribution.js';
 
 // Remote Start Entry for the Web
-if (buildFeatures.remote) {
+if (buildFeatureRemote) {
 	await import('./contrib/remote/browser/remoteStartEntry.contribution.js');
 }
 

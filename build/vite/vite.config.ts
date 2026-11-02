@@ -9,7 +9,22 @@ import { componentExplorer } from '@vscode/component-explorer-vite-plugin';
 import { statSync } from 'fs';
 import { pathToFileURL } from 'url';
 import { rollupEsmUrlPlugin } from '@vscode/rollup-plugin-esm-url';
-import { getBuildFeatures } from '../lib/buildFeatures.ts';
+import { getBuildFeatureDefines, getBuildFeatures, isBuildFeatureStylesheetIncluded } from '../lib/buildFeatures.ts';
+
+function optionalFeatureStylesPlugin(): Plugin {
+	const features = getBuildFeatures();
+	return {
+		name: 'optional-feature-styles',
+		enforce: 'pre',
+		load(id) {
+			const filePath = id.split('?')[0];
+			if (filePath.endsWith('.css') && !isBuildFeatureStylesheetIncluded(filePath, features)) {
+				return '';
+			}
+			return null;
+		},
+	};
+}
 
 function injectBuiltinExtensionsPlugin(): Plugin {
 	let builtinExtensionsCache: unknown[] | null = null;
@@ -164,9 +179,11 @@ logger.warn = (msg, options) => {
 export default defineConfig({
 	base: './',
 	define: {
+		...getBuildFeatureDefines(),
 		'__VSCODE_BUILD_FEATURES__': JSON.stringify(getBuildFeatures()),
 	},
 	plugins: [
+		optionalFeatureStylesPlugin(),
 		rollupEsmUrlPlugin({}),
 		injectBuiltinExtensionsPlugin(),
 		createHotClassSupport(),

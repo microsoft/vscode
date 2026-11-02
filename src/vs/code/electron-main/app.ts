@@ -91,7 +91,7 @@ import { NullUpdateService } from '../../platform/update/common/nullUpdateServic
 import { UpdateChannel } from '../../platform/update/common/updateIpc.js';
 import { NotAvailableUpdateDialog } from '../../platform/update/electron-main/notAvailableUpdateDialog.js';
 import { isInnoSetupInstall } from '../../platform/update/electron-main/win32UpdateType.js';
-import { buildFeatures } from '../../platform/product/common/buildFeatures.js';
+import { buildFeatureProductServices } from '../../platform/product/common/buildFeatures.js';
 import { IOpenURLOptions, IURLService } from '../../platform/url/common/url.js';
 import { URLHandlerChannelClient, URLHandlerRouter } from '../../platform/url/common/urlIpc.js';
 import { NativeURLService } from '../../platform/url/common/urlService.js';
@@ -1219,7 +1219,7 @@ export class CodeApplication extends Disposable {
 		const services = new ServiceCollection();
 
 		// Update
-		if (!buildFeatures.productServices) {
+		if (!buildFeatureProductServices) {
 			services.set(IUpdateService, new NullUpdateService());
 		} else {
 			switch (process.platform) {
@@ -1419,7 +1419,7 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('update', updateChannel);
 
 		// Show a native "no updates available" dialog from the main process only in windowless macOS case.
-		if (buildFeatures.productServices) {
+		if (buildFeatureProductServices) {
 			this._register(new NotAvailableUpdateDialog(updateService, accessor.get(IDialogMainService), accessor.get(IWindowsMainService)));
 		}
 

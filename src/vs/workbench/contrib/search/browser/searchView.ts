@@ -73,7 +73,7 @@ import { SemanticSearchBehavior, IPatternInfo, ISearchComplete, ISearchConfigura
 import { AISearchKeyword, TextSearchCompleteMessage } from '../../../services/search/common/searchExtTypes.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
-import { buildFeatures } from '../../../../platform/product/common/buildFeatures.js';
+import { buildFeatureNotebooks } from '../../../../platform/product/common/buildFeatures.js';
 import { ISCMRepository, ISCMService } from '../../scm/common/scm.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
@@ -2222,7 +2222,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private async shouldOpenInNotebookEditor(match: ISearchTreeMatch, uri: URI): Promise<boolean> {
-		if (!buildFeatures.notebooks) {
+		if (!buildFeatureNotebooks) {
 			return false;
 		}
 		const { isIMatchInNotebook } = await import('./notebookSearch/notebookSearchModelBase.js');
@@ -2274,7 +2274,7 @@ export class SearchView extends ViewPane {
 			return;
 		}
 
-		if (buildFeatures.notebooks) {
+		if (buildFeatureNotebooks) {
 			const { NotebookEditor } = await import('../../notebook/browser/notebookEditor.js');
 			const { isIMatchInNotebook } = await import('./notebookSearch/notebookSearchModelBase.js');
 			if (editor instanceof NotebookEditor) {

@@ -1,6 +1,6 @@
 # Focused Code OSS build specifications
 
-These specifications describe a build profile for a coding IDE focused on editing, code navigation, diagnostics, linting, formatting, an integrated terminal, and explicitly selected Codex or Claude agents. They are analysis and design documents; they do not imply that features have already been removed.
+These specifications describe the focused Code OSS build profile and its Trinoris integrations. The build profile is implemented in source; build and runtime validation remain tracked separately in [04-implementation-plan.md](04-implementation-plan.md).
 
 ## Spec list
 
@@ -13,6 +13,7 @@ These specifications describe a build profile for a coding IDE focused on editin
 | 05 | [Trinoris coordination panel](05-trinoris-coordination-panel.md) | Designs the in-editor coordination screens, metrics, data sources, CLI adapter, refresh model, and safety boundaries. |
 | 06 | [Trinoris platform device login](06-trinoris-platform-device-login.md) | Specifies a Trinoris authentication provider and device flow for product-owned sign-in surfaces while preserving unrelated VS Code providers. |
 | 07 | [Trinoris Code OSS branding](07-trinoris-branding.md) | Records the source artwork, replaced app/title-bar asset paths, and maintenance requirements. |
+| 08 | [Trinoris voice control](08-trinoris-voice-control.md) | Specifies safe, push-to-talk voice commands for the coordination panel, reusing generic speech/UI components without enabling Copilot Voice. |
 
 The original broad analysis remains in [minimal-build-features.md](minimal-build-features.md) as background. The numbered specs are the maintained, reviewable design set.
 
@@ -25,9 +26,9 @@ The original broad analysis remains in [minimal-build-features.md](minimal-build
 - Keep the repository's existing default build behavior until a custom profile is selected.
 - Codex/Claude integrations must be selectable independently of Copilot Chat.
 
-## Open product decisions
+## Resolved product decisions
 
-1. Does “remove Source Control” mean remove built-in Git while preserving the SCM API for third-party providers, or remove the SCM framework itself?
-2. Should the minimal build retain marketplace installation of explicitly declared extensions?
-3. Should Codex/Claude use a built-in agent session UI, or integrate through separately installed extensions/CLI tools?
+1. Minimal disables built-in Git and Source Control UI while retaining the generic SCM service for remaining workbench consumers and third-party providers.
+2. Minimal keeps the Extensions UI for deliberate marketplace installs. The built-in extension set is declared through `bundledExtensions`; no extension is installed automatically.
+3. Codex and Claude are selected through explicit provider flags and use the shared agent session UI. Copilot Chat remains independently disabled.
 

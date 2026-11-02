@@ -10,7 +10,7 @@ import { promisify } from 'util';
 
 import glob from 'glob';
 import gulpWatch from '../lib/watch/index.ts';
-import { configureProductForBuild, getBuildFeatures } from '../lib/buildFeatures.ts';
+import { configureProductForBuild, getBuildFeatureDefines, getBuildFeatureProfile, getBuildFeatures, isBuildFeatureSourceIncluded, isBuildFeatureStylesheetIncluded } from '../lib/buildFeatures.ts';
 import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from './nls-plugin.ts';
 import { convertPrivateFields, adjustSourceMap, type ConvertPrivateFieldsResult } from './private-to-property.ts';
 import { rewriteSourceMappingURL } from './source-map-url.ts';
@@ -285,7 +285,7 @@ async function copyAllNonTsFiles(outDir: string, excludeTests: boolean): Promise
 		'**/*.ts',
 	];
 	if (excludeTests) {
-		ignorePatterns.push('**/test/**');
+		ignorePatterns.push('**/test/**', '**/*.test.*', '**/*.integration.*', '**/*.perf.*');
 	}
 
 	const files = await globAsync('**/*', {
@@ -297,10 +297,10 @@ async function copyAllNonTsFiles(outDir: string, excludeTests: boolean): Promise
 	// Re-include .d.ts files that were excluded by the *.ts ignore
 	const dtsFiles = await globAsync('**/*.d.ts', {
 		cwd: path.join(REPO_ROOT, SRC_DIR),
-		ignore: excludeTests ? ['**/test/**'] : [],
+		ignore: excludeTests ? ['**/test/**', '**/*.test.*', '**/*.integration.*', '**/*.perf.*'] : [],
 	});
 
-	const allFiles = [...new Set([...files, ...dtsFiles])];
+	const allFiles = [...new Set([...files, ...dtsFiles])].filter(file => isBuildFeatureSourceIncluded(path.join(REPO_ROOT, SRC_DIR, file)));
 
 	await mapWithConcurrency(allFiles, MAX_CONCURRENT_FILE_OPERATIONS, file => {
 		const srcPath = path.join(REPO_ROOT, SRC_DIR, file);
@@ -337,6 +337,20 @@ function cssExternalPlugin(): esbuild.Plugin {
 				path: args.path,
 				external: true,
 			}));
+		},
+	};
+}
+
+function optionalFeatureStylesPlugin(): esbuild.Plugin {
+	const features = getBuildFeatures();
+	return {
+		name: 'optional-feature-styles',
+		setup(build) {
+			build.onLoad({ filter: /\.css$/ }, args => {
+				if (!isBuildFeatureStylesheetIncluded(args.path, features)) {
+					return { contents: '', loader: 'css' };
+				}
+			});
 		},
 	};
 }
@@ -434,17 +448,18 @@ async function transpile(outDir: string, excludeTests: boolean): Promise<void> {
 	// Find all .ts files
 	const ignorePatterns = ['**/*.d.ts'];
 	if (excludeTests) {
-		ignorePatterns.push('**/test/**');
+		ignorePatterns.push('**/test/**', '**/*.test.*', '**/*.integration.*', '**/*.perf.*');
 	}
 
 	const files = await globAsync('**/*.ts', {
 		cwd: path.join(REPO_ROOT, SRC_DIR),
 		ignore: ignorePatterns,
 	});
+	const includedFiles = files.filter(file => isBuildFeatureSourceIncluded(path.join(REPO_ROOT, SRC_DIR, file)));
 
-	console.log(`[transpile] Found ${files.length} files`);
+	console.log(`[transpile] Found ${includedFiles.length} files${includedFiles.length < files.length ? ` (${files.length - includedFiles.length} disabled-feature files skipped)` : ''}`);
 
-	await mapWithConcurrency(files, MAX_CONCURRENT_FILE_OPERATIONS, file => {
+	await mapWithConcurrency(includedFiles, MAX_CONCURRENT_FILE_OPERATIONS, file => {
 		const srcPath = path.join(REPO_ROOT, SRC_DIR, file);
 		const destPath = path.join(REPO_ROOT, outDir, file.replace(/\.ts$/, '.js'));
 		return transpileFile(srcPath, destPath);
@@ -496,7 +511,10 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 		const outPath = path.join(REPO_ROOT, outDir, `${entryPoint}.js`);
 
 		// Use CSS external plugin for entry points that don't need bundled CSS
-		const plugins: esbuild.Plugin[] = bundleCssEntryPoints.has(entryPoint) ? [] : [cssExternalPlugin()];
+		const plugins: esbuild.Plugin[] = [optionalFeatureStylesPlugin()];
+		if (!bundleCssEntryPoints.has(entryPoint)) {
+			plugins.push(cssExternalPlugin());
+		}
 		// Add content mapper plugin to inject product config and builtin extensions
 		plugins.push(contentMapperPlugin);
 		if (doNls) {
@@ -513,6 +531,7 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 		const buildOptions: esbuild.BuildOptions = {
 			...getBundleOptions(doMinify, 'neutral'),
 			define: {
+				...getBuildFeatureDefines(),
 				'__VSCODE_BUILD_FEATURES__': JSON.stringify(getBuildFeatures()),
 			},
 			entryPoints: needsCssBundling
@@ -708,7 +727,7 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 		});
 	}
 
-	if (allEntryPoints.includes(sessionsWebEntryPoint)) {
+	if (allEntryPoints.includes(sessionsWebEntryPoint) && getBuildFeatures().remote) {
 		await bundleDevTunnelsWeb({
 			minify: doMinify,
 			outDir: path.join(outDir, devTunnelsWebOutDir),
@@ -726,7 +745,7 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 // Watch Mode
 // ============================================================================
 
-async function watch(): Promise<void> {
+async function watch(excludeTests: boolean): Promise<void> {
 	console.log('Starting transpilation...');
 
 	const outDir = OUT_DIR;
@@ -738,8 +757,8 @@ async function watch(): Promise<void> {
 	// Initial full build
 	const t1 = Date.now();
 	try {
-		await transpile(outDir, false);
-		await copyAllNonTsFiles(outDir, false);
+		await transpile(outDir, excludeTests);
+		await copyAllNonTsFiles(outDir, excludeTests);
 		await bundleAgentHostCrypto({ outDir: path.join(outDir, agentHostCryptoOutDir) });
 		console.log(`Finished transpilation with 0 errors after ${Date.now() - t1} ms`);
 	} catch (err) {
@@ -804,6 +823,10 @@ async function watch(): Promise<void> {
 	const watchStream = gulpWatch('src/**', { base: srcDir, readDelay: 200 });
 
 	watchStream.on('data', (file: { path: string }) => {
+		const relativePath = path.relative(srcDir, file.path).replaceAll('\\', '/');
+		if (!isBuildFeatureSourceIncluded(file.path) || (excludeTests && isTestSourceFile(relativePath))) {
+			return;
+		}
 		if (file.path.endsWith('.ts') && !file.path.endsWith('.d.ts')) {
 			pendingTsFiles.add(file.path);
 		} else {
@@ -825,6 +848,10 @@ async function watch(): Promise<void> {
 		watchStream.end();
 		process.exit(0);
 	});
+}
+
+function isTestSourceFile(relativePath: string): boolean {
+	return /(^|\/)test\//.test(relativePath) || /\.(test|integration|perf)\.[^/]+$/.test(relativePath);
 }
 
 // ============================================================================
@@ -882,7 +909,7 @@ async function main(): Promise<void> {
 				break;
 			case 'transpile':
 				if (options.watch) {
-					await watch();
+					await watch(options.excludeTests || getBuildFeatureProfile() === 'minimal');
 				} else {
 					const outDir = options.out ?? OUT_DIR;
 					await cleanDir(outDir);

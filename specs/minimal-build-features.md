@@ -14,11 +14,10 @@ The feature graph is not flat. Chat uses shared services for agent host, authent
 
 ## Candidate build groups
 
-The build schema includes **17 optional feature controls**, plus a separate `bundledExtensions` package allowlist, the always-on editor core, mandatory terminal, and separately selected Codex/Claude providers. The controls are not independent: dependencies below constrain combinations, and Codex/Claude require the generic session UI when panel sessions are selected.
+The build schema includes **16 optional feature controls**, plus a separate `bundledExtensions` package allowlist, the always-on editor core, mandatory terminal, and separately selected Codex/Claude providers. The controls are not independent: dependencies below constrain combinations. The shared agent session UI remains available for selected providers.
 
 | Build flag | Main areas | Initial recommendation | Constraints |
 | --- | --- | --- | --- |
-| `agentSessionsUI` | Generic Chat/Agents session surface used by selected agent harnesses | On when Codex/Claude panel sessions are selected | Shared UI is distinct from Copilot branding and services; inspect imports before exclusion. |
 | `copilotChat` | Built-in Copilot Chat extension, Copilot sign-in/setup, Copilot CLI discovery, Copilot notifications and UI integrations | Off in minimal profile | Shared Chat entitlement/configuration modules remain until their contracts are split from Codex/Claude session code. |
 | `chatPanel` | Chat sidebar view | Off in minimal profile | Separate from the generic agent sessions UI used by selected providers. |
 | `sourceControlUI` | Source Control view, SCM commands, quick diff UI | Off in minimal profile | Git is separately disabled; the SCM provider service stays registered for enabled workbench consumers. |
@@ -66,7 +65,7 @@ Alignment is judged against the stated purpose: a focused coding IDE with code e
 | Profiles and Settings Sync | Low alignment | Off | Low | Broad account, authentication and persistence dependencies. |
 | Updates and feedback surfaces | Low alignment | Off or product-specific | Low | Distribution and product policy need review before exclusion. |
 
-The minimal profile disables 13 of the 17 feature controls: Copilot Chat, Chat panel, Git, Source Control UI, Debug UI, tasks, notebooks, testing, remote workbench, welcome, review, Settings Sync, and product services. `agentSessionsUI`, SCM and Debug service APIs, and extension management UI remain on. Terminal is a mandatory-on invariant. Provider selection is recorded separately for Codex and Claude.
+The minimal profile disables 13 of the 16 feature controls: Copilot Chat, Chat panel, Git, Source Control UI, Debug UI, tasks, notebooks, testing, remote workbench, welcome, review, Settings Sync, and product services. SCM and Debug service APIs and extension management UI remain on. The shared agent session UI is retained for Codex/Claude. Terminal is a mandatory-on invariant. Provider selection is recorded separately for Codex and Claude.
 
 ## Core that stays enabled
 
@@ -78,22 +77,21 @@ Add a validated build profile, preferably a checked-in `build/features.json` wit
 
 The registry should group imports by feature and define required services separately from optional UI. Keep the default profile all-on for compatibility. Minimal can disable the candidate groups listed above according to validated dependencies. Build output should print the selected profile and flags, and package metadata should record the resolved configuration. Unknown flags and invalid combinations should fail early with actionable errors.
 
-## Dependency and removal analysis required before coding
+## Dependency boundaries and remaining validation
 
-For each group, trace direct imports from all entry points, static imports from its contribution modules, service identifiers injected elsewhere, command/context references, extension API contracts, CSS/assets, and build/package tasks. Classify dependencies as required core, optional UI, optional provider, or extension-owned. Then test at least: default profile parity; minimal desktop bundle; minimal web bundle; and a third-party extension contribution against disabled UI groups where relevant. Search for residual imports in emitted bundle metadata to confirm disabled modules are absent.
+The profile implementation traces and gates the major workbench entry points, service contracts, extension bridges, and packaging paths. Remaining validation should compare default behavior, build minimal desktop and web bundles, inspect disabled module/assets in outputs, and exercise a third-party extension against disabled UI groups where relevant.
 
 The minimal profile removes the built-in Git provider and Source Control UI, but retains the generic SCM API/service because enabled workbench features still consume it. Removing the service requires gating or redesigning those consumers and is a separate compatibility change.
 
-Chat likewise needs a product decision: removing Copilot Chat is not equivalent to removing all chat/agent support. Keep generic agent entry points only when the selected Codex/Claude integration uses them; otherwise remove Chat, agent sessions, MCP UI and associated shared services as a coherent set. Keep provider CLI integrations separately declared and optional.
+The selected product keeps shared Chat/Agents session support for Codex/Claude while disabling Copilot-specific chat independently. Provider flags remain explicit, and neither provider selection nor the shared session UI installs an extension.
 
-## Rollout
+## Validation follow-up
 
-1. Confirm the intended SCM boundary and whether Codex/Claude must use built-in agent session UI.
-2. Produce an import and service dependency matrix for the 10 candidate groups; split or merge groups based on actual dependency edges.
-3. Implement the profile resolver and generated compile-time constants without changing the default build.
-4. Gate registrations across common, desktop, web, server and package lanes; remove extension/package artifacts only when the chosen profile excludes them.
-5. Validate default parity and minimal desktop/web outputs, then document supported profile combinations.
+1. Build default and minimal desktop/web targets and verify default parity.
+2. Inspect emitted bundles and packages for disabled feature modules, built-in extensions, and Copilot runtime assets.
+3. Smoke-check editor, terminal, search, extension installation, formatting/lint providers, and selected agents.
+4. Decide whether the development watch path needs a profile-selectable fallback; it currently always uses minimal.
 
 ## Current workspace state
 
-The workspace already has local edits in `.vscode/extensions.json`, `.vscode/settings.json`, `AGENTS.md`, and `package-lock.json`. This specification does not change or revert those files. No dependencies were installed and no build was run for this analysis.
+No dependencies were installed for this work. The client TypeScript typecheck passed; package builds and runtime smoke checks remain outstanding.

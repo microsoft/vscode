@@ -9,7 +9,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { IHostService } from '../../host/browser/host.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { buildFeatures } from '../../../../platform/product/common/buildFeatures.js';
+import { buildFeatureProductServices } from '../../../../platform/product/common/buildFeatures.js';
 
 export interface IUpdate {
 	version: string;
@@ -45,7 +45,7 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 	) {
 		super();
 
-		if (buildFeatures.productServices) {
+		if (buildFeatureProductServices) {
 			this.checkForUpdates(false);
 		} else {
 			this.state = State.Idle(UpdateType.Archive);
@@ -53,7 +53,7 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 	}
 
 	async isLatestVersion(): Promise<boolean | undefined> {
-		if (!buildFeatures.productServices) {
+		if (!buildFeatureProductServices) {
 			return undefined;
 		}
 		const update = await this.doCheckForUpdates(false);
@@ -65,7 +65,7 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 	}
 
 	async checkForUpdates(explicit: boolean): Promise<void> {
-		if (!buildFeatures.productServices) {
+		if (!buildFeatureProductServices) {
 			return;
 		}
 		await this.doCheckForUpdates(explicit);
@@ -98,13 +98,13 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 	}
 
 	async applyUpdate(): Promise<void> {
-		if (buildFeatures.productServices) {
+		if (buildFeatureProductServices) {
 			this.hostService.reload();
 		}
 	}
 
 	async quitAndInstall(): Promise<void> {
-		if (buildFeatures.productServices) {
+		if (buildFeatureProductServices) {
 			this.hostService.reload();
 		}
 	}
@@ -118,4 +118,4 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 	}
 }
 
-registerSingleton(IUpdateService, BrowserUpdateService, buildFeatures.productServices ? InstantiationType.Eager : InstantiationType.Delayed);
+registerSingleton(IUpdateService, BrowserUpdateService, buildFeatureProductServices ? InstantiationType.Eager : InstantiationType.Delayed);

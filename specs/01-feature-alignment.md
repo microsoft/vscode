@@ -15,7 +15,7 @@ This matrix maps the requested focused IDE to workbench feature areas. “Minima
 | Settings, commands, keybindings, quick access | Essential | On | Core | High | Shared workbench infrastructure. |
 | Integrated terminal | Mandatory by user | On | `terminal` (locked on) | High | Must remain enabled in every profile. Also supports shell-based agent workflows. |
 | Codex / Claude integration | Essential by selection | Explicit opt-in | `agents.codex`, `agents.claude` | Medium | Provider integrations are independent choices. Their UI/runtime requirements require separate tracing. |
-| Generic Chat/Agents UI and session management | Required for selected in-editor agents | On when Codex/Claude panel sessions are selected | `agentSessionsUI` | Medium | Keep the shared panel and only required common services; this is not the Copilot product integration. |
+| Generic Chat/Agents UI and session management | Required for selected in-editor agents | On | Core agent capability | Medium | Keep the shared session UI and required common services; this is not the Copilot product integration. |
 | Copilot Chat harness, sign-in, and Copilot-specific UI/services | Out of scope | Off | `copilotChat` | Medium | Packaging and workbench registrations are filtered independently from shared Chat/Agents surfaces used by Codex/Claude; shared entitlement/configuration modules remain for now. |
 | Built-in Git | Out of scope per request | Off | `git` | Medium | Git integration is separable conceptually from the generic SCM provider API, but dependencies need confirmation. |
 | Source Control UI | Out of scope per request | Off | `sourceControlUI` | Low | The view, commands, and quick diff UI are omitted; the shared provider service remains available to enabled workbench consumers. |
@@ -34,7 +34,7 @@ This matrix maps the requested focused IDE to workbench feature areas. “Minima
 
 ## Flag count
 
-The current schema has **17 optional feature controls**: `agentSessionsUI`, `copilotChat`, `chatPanel`, `git`, `sourceControlUI`, `scmService`, `debugUI`, `debugService`, `tasks`, `notebooks`, `testing`, `remote`, `extensionsUI`, `welcome`, `review`, `sync`, and `productServices`. `bundledExtensions` is a separate explicit package allowlist, not a runtime feature flag. `terminal` is a required-on invariant, not a toggle. Codex and Claude are explicit provider selections. The controls have dependencies and do not all remove every shared service from output.
+The current schema has **16 optional feature controls**: `copilotChat`, `chatPanel`, `git`, `sourceControlUI`, `scmService`, `debugUI`, `debugService`, `tasks`, `notebooks`, `testing`, `remote`, `extensionsUI`, `welcome`, `review`, `sync`, and `productServices`. `bundledExtensions` is a separate explicit package allowlist, not a runtime feature flag. `terminal` is a required-on invariant, not a toggle. Codex and Claude are explicit provider selections; their shared agent session UI remains part of the selected agent capability. The controls have dependencies and do not all remove every shared service from output.
 
 Keep built-in Git, the Source Control UI, and the shared SCM service separate. The minimal profile omits Git and the UI while retaining the service for remaining consumers. Do not combine `terminal` and `tasks`; the user's terminal requirement makes that distinction material.
 

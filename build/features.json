@@ -3,7 +3,6 @@
 		"default": {
 			"copilotChat": true,
 			"chatPanel": true,
-			"agentSessionsUI": true,
 			"git": true,
 			"sourceControlUI": true,
 			"scmService": true,
@@ -28,7 +27,6 @@
 		"minimal": {
 			"copilotChat": false,
 			"chatPanel": false,
-			"agentSessionsUI": true,
 			"git": false,
 			"sourceControlUI": false,
 			"scmService": true,

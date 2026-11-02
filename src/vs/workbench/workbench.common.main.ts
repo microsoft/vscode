@@ -6,7 +6,7 @@
 //#region --- editor/workbench core
 
 import '../editor/editor.all.js';
-import { buildFeatures } from '../platform/product/common/buildFeatures.js';
+import { buildFeatureChatPanel, buildFeatureCopilotChat, buildFeatureDebugService, buildFeatureDebugUI, buildFeatureExtensionsUI, buildFeatureGit, buildFeatureNotebooks, buildFeatureProductServices, buildFeatureRemote, buildFeatureReview, buildFeatureScmService, buildFeatureSourceControlUI, buildFeatureSync, buildFeatureTasks, buildFeatureTesting, buildFeatureWelcome } from '../platform/product/common/buildFeatures.js';
 
 import './api/browser/extensionHost.contribution.js';
 import './browser/workbench.contribution.js';
@@ -297,7 +297,7 @@ import './contrib/preferences/browser/preferencesSearch.js';
 import './contrib/performance/browser/performance.contribution.js';
 
 // Notebook
-if (buildFeatures.notebooks) {
+if (buildFeatureNotebooks) {
 	await import('./contrib/notebook/browser/notebook.contribution.js');
 } else {
 	await import('./contrib/notebook/browser/disabledNotebookService.contribution.js');
@@ -310,17 +310,17 @@ import './contrib/speech/browser/speech.contribution.js';
 import './contrib/chat/browser/chat.shared.contribution.js';
 import './contrib/chat/browser/chat.contribution.js';
 import './contrib/chat/browser/agentSessions/agentHost/agentHost.contribution.js';
-if (buildFeatures.chatPanel) {
+if (buildFeatureChatPanel) {
 	await import('./contrib/chat/browser/chatPanel.contribution.js');
 }
-if (buildFeatures.remote) {
+if (buildFeatureRemote) {
 	await import('./contrib/chat/browser/remoteAgentHost/remoteAgentHost.contribution.js');
 }
 import './contrib/chat/browser/chat.view.contribution.js';
 import './contrib/inlineChat/browser/inlineChat.contribution.js';
 
 // Copilot Voice
-if (buildFeatures.copilotChat) {
+if (buildFeatureCopilotChat) {
 	await import('./contrib/agentsVoice/browser/agentsVoice.contribution.js');
 }
 import './contrib/mcp/browser/mcp.contribution.js';
@@ -330,13 +330,13 @@ import './contrib/chat/browser/contextContrib/chatContext.contribution.js';
 import './contrib/imageCarousel/browser/imageCarousel.contribution.js';
 
 // Interactive and REPL depend on notebook editors and execution services.
-if (buildFeatures.notebooks) {
+if (buildFeatureNotebooks) {
 	await import('./contrib/interactive/browser/interactive.contribution.js');
 	await import('./contrib/replNotebook/browser/repl.contribution.js');
 }
 
 // Testing
-if (buildFeatures.testing) {
+if (buildFeatureTesting) {
 	await import('./contrib/testing/browser/testing.contribution.js');
 }
 
@@ -369,27 +369,27 @@ import './contrib/searchEditor/browser/searchEditor.contribution.js';
 import './contrib/sash/browser/sash.contribution.js';
 
 // Git
-if (buildFeatures.git) {
+if (buildFeatureGit) {
 	await import('./contrib/git/browser/git.contributions.js');
 }
 
-if (buildFeatures.review) {
+if (buildFeatureReview) {
 	await import('./contrib/github/browser/githubLinkPresentation.contribution.js');
 }
 
 // Source Control UI
-if (buildFeatures.sourceControlUI) {
+if (buildFeatureSourceControlUI) {
 	await import('./contrib/scm/browser/scm.contribution.js');
 	await import('./contrib/scm/browser/quickDiff.contribution.js');
 }
 
 // SCM service is retained for workbench features that consume the provider API.
-if (buildFeatures.scmService) {
+if (buildFeatureScmService) {
 	await import('./contrib/scm/browser/scm.service.contribution.js');
 }
 
 // Debug
-if (buildFeatures.debugUI) {
+if (buildFeatureDebugUI) {
 	await import('./contrib/debug/browser/debug.contribution.js');
 	await import('./contrib/debug/browser/debugEditorContribution.js');
 	await import('./contrib/debug/browser/breakpointEditorContribution.js');
@@ -398,7 +398,7 @@ if (buildFeatures.debugUI) {
 	await import('./contrib/debug/browser/debugViewlet.js');
 }
 
-if (buildFeatures.debugService && !buildFeatures.debugUI) {
+if (buildFeatureDebugService && !buildFeatureDebugUI) {
 	await import('./contrib/debug/browser/debug.service.contribution.js');
 }
 
@@ -418,7 +418,7 @@ import './contrib/multiDiffEditor/browser/multiDiffEditor.contribution.js';
 import './contrib/commands/common/commands.contribution.js';
 
 // Comments
-if (buildFeatures.review) {
+if (buildFeatureReview) {
 	await import('./contrib/comments/browser/comments.contribution.js');
 }
 
@@ -438,7 +438,7 @@ import './contrib/mediaPreview/browser/mediaPreview.contribution.js';
 import './contrib/externalUriOpener/common/externalUriOpener.contribution.js';
 
 // Extensions Management
-if (buildFeatures.extensionsUI) {
+if (buildFeatureExtensionsUI) {
 	await import('./contrib/extensions/browser/extensions.contribution.js');
 	await import('./contrib/extensions/browser/extensionsViewlet.js');
 }
@@ -449,7 +449,7 @@ import './contrib/output/browser/outputView.js';
 
 // Terminal
 import './contrib/terminal/terminal.all.js';
-if (buildFeatures.tasks) {
+if (buildFeatureTasks) {
 	await import('./contrib/terminalContrib/chatAgentTools/browser/terminalTaskAgentTools.contribution.js');
 }
 
@@ -463,14 +463,14 @@ import './contrib/relauncher/browser/relauncher.contribution.js';
 import './contrib/modernUI/browser/modernUI.contribution.js';
 
 // Tasks
-if (buildFeatures.tasks) {
+if (buildFeatureTasks) {
 	await import('./contrib/tasks/browser/task.contribution.js');
 } else {
 	await import('./contrib/tasks/browser/disabledTaskService.contribution.js');
 }
 
 // Remote
-if (buildFeatures.remote) {
+if (buildFeatureRemote) {
 	await import('./contrib/remote/common/remote.contribution.js');
 	await import('./contrib/remote/browser/remote.contribution.js');
 }
@@ -506,18 +506,18 @@ import './contrib/inlayHints/browser/inlayHintsAccessibilty.js';
 import './contrib/themes/browser/themes.contribution.js';
 
 // Update
-if (buildFeatures.productServices) {
+if (buildFeatureProductServices) {
 	await import('./contrib/update/browser/update.contribution.js');
 }
 
 // Surveys
-if (buildFeatures.productServices) {
+if (buildFeatureProductServices) {
 	await import('./contrib/surveys/browser/nps.contribution.js');
 	await import('./contrib/surveys/browser/languageSurveys.contribution.js');
 }
 
 // Welcome
-if (buildFeatures.welcome) {
+if (buildFeatureWelcome) {
 	await import('./contrib/welcomeGettingStarted/browser/gettingStarted.contribution.js');
 	await import('./contrib/welcomeAgentSessions/browser/agentSessionsWelcome.contribution.js');
 	await import('./contrib/welcomeWalkthrough/browser/walkThrough.contribution.js');
@@ -529,12 +529,12 @@ if (buildFeatures.welcome) {
 }
 
 // Onboarding (scenario engine)
-if (buildFeatures.welcome) {
+if (buildFeatureWelcome) {
 	await import('./contrib/onboarding/browser/onboarding.contribution.js');
 	await import('./contrib/chat/browser/onboarding/modelPickerTryout.contribution.js');
 	await import('./contrib/chat/browser/onboarding/chatInputSpotlightTour.js');
 }
-if (buildFeatures.welcome) {
+if (buildFeatureWelcome) {
 	await import('./contrib/codeEditor/browser/diffEditorTryout.contribution.js');
 }
 
@@ -558,22 +558,22 @@ import './contrib/languageStatus/browser/languageStatus.contribution.js';
 import './contrib/authentication/browser/authentication.contribution.js';
 
 // User Data Sync
-if (buildFeatures.sync) {
+if (buildFeatureSync) {
 	await import('./contrib/userDataSync/browser/userDataSync.contribution.js');
 }
 
 // User Data Profiles
-if (buildFeatures.sync) {
+if (buildFeatureSync) {
 	await import('./contrib/userDataProfile/browser/userDataProfile.contribution.js');
 }
 
 // Continue Edit Session
-if (buildFeatures.sync) {
+if (buildFeatureSync) {
 	await import('./contrib/editSessions/browser/editSessions.contribution.js');
 }
 
 // Remote Coding Agents
-if (buildFeatures.remote) {
+if (buildFeatureRemote) {
 	await import('./contrib/remoteCodingAgents/browser/remoteCodingAgents.contribution.js');
 }
 

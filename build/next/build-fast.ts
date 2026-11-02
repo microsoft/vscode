@@ -9,6 +9,7 @@ import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import * as path from 'path';
 import { getGitCommitDate } from '../lib/date.ts';
+import { getBuildFeatureProfile } from '../lib/buildFeatures.ts';
 import { applyIncrementalClientChanges, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS } from './transpile.ts';
 
 const STATE_SCHEMA = 2;
@@ -18,7 +19,7 @@ const BUILD_SCOPES = ['src', 'extensions', '.vscode/extensions', 'build', 'gulpf
 const API_PROPOSALS_OUTPUT = 'src/vs/platform/extensions/common/extensionsApiProposals.ts';
 const EXTENSION_POINTS_OUTPUT = 'src/vs/workbench/services/extensions/common/extensionPoints.json';
 const EXTENSION_BUILD_ARGS = ['run', 'gulp', 'transpile-extensions', 'compile-extension-media'];
-const COPILOT_BUILD_ARGS = ['--prefix', 'extensions/copilot', 'run', 'compile'];
+const COPILOT_BUILD_ARGS = ['run', 'compile-copilot'];
 
 type Fingerprint = string | null;
 type LaneMode = 'skip' | 'incremental' | 'full';
@@ -75,10 +76,11 @@ export async function runBuildFast(repoRoot: string, force: boolean, clientOnly 
 	const lock = await acquireLock(path.join(stateDir, 'lock'));
 
 	try {
+		const copilotDisabled = getBuildFeatureProfile() === 'minimal';
 		const environment = readEnvironment(repoRoot);
 		const statePath = path.join(stateDir, 'state.json');
 		const saved = await readState(statePath);
-		const selectedLanes: readonly BuildLane[] = clientOnly ? ['client'] : buildLanes;
+		const selectedLanes: readonly BuildLane[] = clientOnly ? ['client'] : copilotDisabled ? ['client', 'extensions'] : buildLanes;
 
 		let before: BuildFastSnapshot;
 		const changes: Record<BuildLane, readonly string[]> = { client: [], extensions: [], copilot: [] };
@@ -95,12 +97,12 @@ export async function runBuildFast(repoRoot: string, force: boolean, clientOnly 
 		} catch (error) {
 			console.warn(`[build-fast] Git discovery failed; running a full build without updating incremental state: ${getErrorMessage(error)}`);
 			await fs.promises.rm(statePath, { force: true });
-			await runAllFull(repoRoot, clientOnly);
+			await runAllFull(repoRoot, clientOnly, copilotDisabled);
 			return;
 		}
 
 		const outputs = await getOutputStatus(repoRoot);
-		const plan = createBuildPlan(saved, environment, changes, outputs, force, clientOnly);
+		const plan = createBuildPlan(saved, environment, changes, outputs, force, clientOnly, copilotDisabled);
 		logPlan(plan);
 
 		const hasBuildWork = plan.client !== 'skip' || plan.extensions !== 'skip' || plan.copilot !== 'skip';
@@ -159,7 +161,7 @@ export async function runBuildFast(repoRoot: string, force: boolean, clientOnly 
 			await fs.promises.writeFile(path.join(repoRoot, 'out', 'date'), getGitCommitDate(), 'utf8');
 		}
 
-		await writeState(statePath, createBuildFastState(saved.state, environment, builtSnapshot, clientOnly));
+		await writeState(statePath, createBuildFastState(saved.state, environment, builtSnapshot, clientOnly, copilotDisabled));
 	} finally {
 		await lock.dispose();
 	}
@@ -208,7 +210,7 @@ export function selectBuiltSnapshot(before: BuildFastSnapshot, after: BuildFastS
 	return { snapshot: inputsChanged ? before : after, inputsChanged };
 }
 
-export function createBuildFastState(saved: BuildFastState | undefined, environment: string, snapshot: BuildFastSnapshot, clientOnly: boolean): BuildFastState {
+export function createBuildFastState(saved: BuildFastState | undefined, environment: string, snapshot: BuildFastSnapshot, clientOnly: boolean, copilotDisabled = false): BuildFastState {
 	const compatible = saved?.schema === STATE_SCHEMA && saved.recipe === BUILD_RECIPE && saved.environment === environment;
 	return {
 		schema: STATE_SCHEMA,
@@ -216,24 +218,25 @@ export function createBuildFastState(saved: BuildFastState | undefined, environm
 		environment,
 		client: snapshot,
 		extensions: clientOnly ? (compatible ? saved.extensions : undefined) : snapshot,
-		copilot: clientOnly ? (compatible ? saved.copilot : undefined) : snapshot,
+		copilot: clientOnly || copilotDisabled ? (compatible ? saved.copilot : undefined) : snapshot,
 	};
 }
 
-export function createBuildPlan(saved: StateReadResult, environment: string, changes: BuildFastChanges, outputs: OutputStatus, force: boolean, clientOnly = false): BuildFastPlan {
-	const selectedLanes: readonly BuildLane[] = clientOnly ? ['client'] : buildLanes;
+
+export function createBuildPlan(saved: StateReadResult, environment: string, changes: BuildFastChanges, outputs: OutputStatus, force: boolean, clientOnly = false, copilotDisabled = false): BuildFastPlan {
+	const selectedLanes: readonly BuildLane[] = clientOnly ? ['client'] : copilotDisabled ? ['client', 'extensions'] : buildLanes;
 	const changedPaths = [...new Set(selectedLanes.flatMap(lane => changes[lane].filter(filePath => affectsLane(filePath, lane))))].sort();
 	if (force) {
-		return fullPlan('forced by --force', changedPaths, clientOnly);
+		return fullPlan('forced by --force', changedPaths, clientOnly, copilotDisabled);
 	}
 	if (!saved.state) {
-		return fullPlan(saved.reason ?? 'incremental state is unavailable', changedPaths, clientOnly);
+		return fullPlan(saved.reason ?? 'incremental state is unavailable', changedPaths, clientOnly, copilotDisabled);
 	}
 	if (saved.state.schema !== STATE_SCHEMA || saved.state.recipe !== BUILD_RECIPE) {
-		return fullPlan('incremental state schema or recipe changed', changedPaths, clientOnly);
+		return fullPlan('incremental state schema or recipe changed', changedPaths, clientOnly, copilotDisabled);
 	}
 	if (saved.state.environment !== environment) {
-		return fullPlan('build environment changed', changedPaths, clientOnly);
+		return fullPlan('build environment changed', changedPaths, clientOnly, copilotDisabled);
 	}
 
 	const modes: Record<BuildLane, LaneMode> = { client: 'skip', extensions: 'skip', copilot: 'skip' };
@@ -380,8 +383,8 @@ function affectsLane(filePath: string, lane: BuildLane): boolean {
 	}
 }
 
-function fullPlan(reason: string, changedPaths: readonly string[], clientOnly: boolean): BuildFastPlan {
-	return { reason, changedPaths, client: 'full', extensions: clientOnly ? 'skip' : 'full', copilot: clientOnly ? 'skip' : 'full' };
+function fullPlan(reason: string, changedPaths: readonly string[], clientOnly: boolean, copilotDisabled = false): BuildFastPlan {
+	return { reason, changedPaths, client: 'full', extensions: clientOnly ? 'skip' : 'full', copilot: clientOnly || copilotDisabled ? 'skip' : 'full' };
 }
 
 async function getOutputStatus(repoRoot: string): Promise<OutputStatus> {
@@ -405,7 +408,7 @@ function validateSelectedOutputs(plan: BuildFastPlan, outputs: OutputStatus): vo
 	}
 }
 
-async function runAllFull(repoRoot: string, clientOnly: boolean): Promise<void> {
+async function runAllFull(repoRoot: string, clientOnly: boolean, copilotDisabled = false): Promise<void> {
 	await runCommand(repoRoot, npmCommand(), [
 		'run',
 		'gulp',
@@ -417,7 +420,7 @@ async function runAllFull(repoRoot: string, clientOnly: boolean): Promise<void> 
 		runCommand(repoRoot, process.execPath, [path.join(repoRoot, 'build', 'next', 'index.ts'), 'transpile'], 'client'),
 		...(!clientOnly ? [
 			runCommand(repoRoot, npmCommand(), EXTENSION_BUILD_ARGS, 'extensions'),
-			runCommand(repoRoot, npmCommand(), COPILOT_BUILD_ARGS, 'copilot'),
+			...(!copilotDisabled ? [runCommand(repoRoot, npmCommand(), COPILOT_BUILD_ARGS, 'copilot')] : []),
 		] : []),
 	]);
 }
@@ -457,16 +460,22 @@ function logPlan(plan: BuildFastPlan): void {
 }
 
 function readEnvironment(repoRoot: string): string {
-	const copilotPackage = JSON.parse(fs.readFileSync(path.join(repoRoot, 'extensions', 'copilot', 'package.json'), 'utf8')) as {
-		readonly devDependencies?: Readonly<Record<string, string>>;
-	};
+	const profile = getBuildFeatureProfile();
+	let copilotEsbuild = '';
+	if (profile !== 'minimal') {
+		const copilotPackage = JSON.parse(fs.readFileSync(path.join(repoRoot, 'extensions', 'copilot', 'package.json'), 'utf8')) as {
+			readonly devDependencies?: Readonly<Record<string, string>>;
+		};
+		copilotEsbuild = copilotPackage.devDependencies?.esbuild ?? '';
+	}
 	return [
 		`recipe=${BUILD_RECIPE}`,
+		`profile=${profile}`,
 		`platform=${process.platform}`,
 		`arch=${process.arch}`,
 		`node=${process.version}`,
 		`esbuild=${esbuild.version}`,
-		`copilot-esbuild=${copilotPackage.devDependencies?.esbuild ?? ''}`,
+		`copilot-esbuild=${copilotEsbuild}`,
 	].join(';');
 }
 

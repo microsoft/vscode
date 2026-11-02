@@ -15,7 +15,7 @@ import { ExtensionIdentifier, IExtensionManifest } from '../../../../platform/ex
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { buildFeatures } from '../../../../platform/product/common/buildFeatures.js';
+import { buildFeatureChatPanel } from '../../../../platform/product/common/buildFeatures.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewsRegistry, Extensions as ViewExtensions } from '../../../common/views.js';
 import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer, IRenderedData, IRowData, ITableData } from '../../../services/extensionManagement/common/extensionFeatures.js';
@@ -299,7 +299,7 @@ export class ChatCompatibilityNotifier extends Disposable implements IWorkbenchC
 	}
 
 	private registerWelcomeView(chatExtension: IExtension) {
-		if (!buildFeatures.chatPanel || this.registeredWelcomeView) {
+		if (!buildFeatureChatPanel || this.registeredWelcomeView) {
 			return;
 		}
 

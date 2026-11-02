@@ -29,13 +29,12 @@ The common entry point imports shared chat, chat contributions, agent sessions, 
 
 Treat these separately until dependencies are known:
 
-- `agentSessionsUI`: generic Chat/Agents session surface required when Codex/Claude are selected for in-editor sessions.
-- `copilotChat`: the built-in Copilot Chat extension is filtered from packaging; workbench Copilot sign-in/setup, Copilot CLI discovery and launch commands, harness introduction, quota/promo notifications, Chat entitlement UI, and Copilot voice/canvas features are disabled. Shared entitlement and configuration modules remain where generic Chat code still imports their contracts; removing those modules needs a separate dependency split.
+- `copilotChat`: the built-in Copilot Chat extension is filtered from packaging; workbench Copilot sign-in/setup, Copilot CLI discovery and launch commands, harness introduction, quota/promo notifications, Chat entitlement UI, and Copilot voice/canvas features are disabled. Shared entitlement and configuration modules remain where generic Chat code still imports their contracts; removing those modules needs a separate dependency split. Trinoris voice commands are a separate proposed capability and must not re-enable Copilot Voice; see [spec 08](08-trinoris-voice-control.md).
 - `agentHost`: generic agent session/runtime integration, only if Codex/Claude need it.
 - `mcp`: shared MCP platform and UI; provider-specific MCP use may survive without chat UI.
 - `agents.codex` and `agents.claude`: provider/runtime selections, explicitly opt-in.
 
-Trace service tokens and imports from Codex and Claude implementations before removing agent-host, auth, or MCP services. Never make `agentSessionsUI` implicitly enable Copilot extensions, sign-in, or install any provider extension. Disable Copilot-only imports while retaining shared session infrastructure that selected agents actually consume.
+Trace service tokens and imports from Codex and Claude implementations before removing agent-host, auth, or MCP services. The shared agent session UI remains available for the selected providers; it must not implicitly enable Copilot extensions, sign-in, or install any provider extension. Disable Copilot-only imports while retaining shared session infrastructure that selected agents actually consume.
 
 ## Terminal and tasks
 

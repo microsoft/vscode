@@ -5,7 +5,7 @@
 
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../common/contributions.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { buildFeatures } from '../../../platform/product/common/buildFeatures.js';
+import { buildFeatureNotebooks, buildFeatureRemote, buildFeatureReview, buildFeatureTesting } from '../../../platform/product/common/buildFeatures.js';
 
 // --- other interested parties
 import { JSONValidationExtensionPoint } from '../common/jsonValidationExtensionPoint.js';
@@ -50,7 +50,7 @@ import './mainThreadLanguageFeatures.js';
 import './mainThreadLanguages.js';
 import './mainThreadLogService.js';
 import './mainThreadMessageService.js';
-if (buildFeatures.remote) {
+if (buildFeatureRemote) {
 	await import('./mainThreadManagedSockets.js');
 }
 import './mainThreadBrowserTunnelProxy.js';
@@ -59,7 +59,7 @@ import './mainThreadProgress.js';
 import './mainThreadQuickDiff.js';
 import './mainThreadDocumentDiff.js';
 import './mainThreadQuickOpen.js';
-if (buildFeatures.remote) {
+if (buildFeatureRemote) {
 	await import('./mainThreadRemoteConnectionData.js');
 }
 import './mainThreadSaveParticipant.js';
@@ -82,10 +82,10 @@ import './mainThreadPower.js';
 import './mainThreadGitHub.js';
 import './mainThreadWebviewManager.js';
 import './mainThreadWorkspace.js';
-if (buildFeatures.review) {
+if (buildFeatureReview) {
 	await import('./mainThreadComments.js');
 }
-if (buildFeatures.notebooks) {
+if (buildFeatureNotebooks) {
 	await import('./mainThreadNotebook.js');
 	await import('./mainThreadNotebookKernels.js');
 	await import('./mainThreadNotebookDocumentsAndEditors.js');
@@ -95,12 +95,12 @@ if (buildFeatures.notebooks) {
 }
 import './mainThreadTask.js';
 import './mainThreadLabelService.js';
-if (buildFeatures.remote) {
+if (buildFeatureRemote) {
 	await import('./mainThreadTunnelService.js');
 }
 import './mainThreadAuthentication.js';
 import './mainThreadTimeline.js';
-if (buildFeatures.testing) {
+if (buildFeatureTesting) {
 	await import('./mainThreadTesting.js');
 }
 import './mainThreadSecretState.js';
