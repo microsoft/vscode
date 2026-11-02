@@ -809,7 +809,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 	}
 
 	private getToolLabel(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, state: IChatToolInvocation.State | undefined): string | undefined {
-		if (state?.type === IChatToolInvocation.StateKind.Streaming) {
+		if (state?.type === IChatToolInvocation.StateKind.Streaming || IChatToolInvocation.isEffectivelyHidden(toolInvocation)) {
 			return undefined;
 		}
 		const subagent = this.getNestedSubagentActivity(toolInvocation);
@@ -1498,7 +1498,8 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 				const state = toolInvocation.state.read(r);
 				const isVisible = part.isVisible.read(r);
 				const hasConfirmation = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ||
-					state.type === IChatToolInvocation.StateKind.WaitingForPostApproval;
+					state.type === IChatToolInvocation.StateKind.WaitingForPostApproval ||
+					state.type === IChatToolInvocation.StateKind.WaitingForAuthentication;
 				const shouldHideInline = shouldUseCarouselForTool?.(toolInvocation, state) === true;
 				if (hasConfirmation) {
 					iconElement.remove();

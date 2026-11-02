@@ -2547,7 +2547,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private getPersistentWorkingProgress(element: IChatResponseViewModel, partsToRender: readonly IChatRendererContent[]): IChatWorkingProgress {
 		const pendingConfirmationCount = partsToRender.filter(part => {
-			if (part.kind !== 'toolInvocation' || part.presentation === 'hidden') {
+			if (part.kind !== 'toolInvocation' || IChatToolInvocation.isEffectivelyHidden(part)) {
 				return false;
 			}
 			const state = part.state.get().type;
@@ -4848,7 +4848,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (toolInvocation.kind !== 'toolInvocation' || !isResponseVM(context.element)) {
 			return;
 		}
-		if (isParentSubagentTool(toolInvocation) || toolInvocation.presentation === 'hidden' || isMcpToolInvocation(toolInvocation)) {
+		if (isParentSubagentTool(toolInvocation) || isMcpToolInvocation(toolInvocation)) {
 			return;
 		}
 
@@ -5317,11 +5317,25 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Factory that creates the tool invocation part with all necessary setup
 		const retainedPart = retainedToolParts?.get(toolInvocation.toolCallId);
-		const partToReuse = retainedPart instanceof ChatToolInvocationPart ? retainedPart : undefined;
+		let partToReuse = retainedPart instanceof ChatToolInvocationPart ? retainedPart : undefined;
 		let lazilyCreatedPart: ChatToolInvocationPart | undefined = partToReuse;
+		const trackPartDisposal = (part: ChatToolInvocationPart) => {
+			part.addDisposable(toDisposable(() => {
+				if (lazilyCreatedPart === part) {
+					lazilyCreatedPart = undefined;
+				}
+				if (partToReuse === part) {
+					partToReuse = undefined;
+				}
+			}));
+		};
+		if (partToReuse) {
+			trackPartDisposal(partToReuse);
+		}
 		const createToolPart = () => {
 			lazilyCreatedPart = partToReuse ?? this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.chatContentMarkdownRenderer, this._contentReferencesListPool, this._toolEditorPool, () => this._currentLayoutWidth.get(), this._announcedToolProgressKeys, codeBlockStartIndex);
 			if (!partToReuse) {
+				trackPartDisposal(lazilyCreatedPart);
 				lazilyCreatedPart.addDisposable(lazilyCreatedPart.onDidChangeHeight(() => this.fireItemHeightChange(templateData)));
 				if (context.suppressProgressShimmer && toolInvocation.kind === 'toolInvocation') {
 					let wasPending = false;
@@ -5501,7 +5515,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 			return;
 		}
-		if (currentState.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+		if (currentState.type === IChatToolInvocation.StateKind.WaitingForPostApproval || currentState.type === IChatToolInvocation.StateKind.WaitingForAuthentication) {
 			moveConfirmationWidgetOutOfThinking();
 			return;
 		}
@@ -5523,7 +5537,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				moveConfirmationWidgetOutOfThinking();
 				return;
 			}
-			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+			if (isBlockingToolState(state.type)) {
 				if (didMoveToolOut) {
 					return;
 				}

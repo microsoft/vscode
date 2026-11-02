@@ -7,15 +7,55 @@ import assert from 'assert';
 import { useFakeTimers } from 'sinon';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind, ToolDeniedReason } from '../../../common/chatService/chatService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { IToolData, IToolResultInputOutputDetails, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { IToolData, IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 
 suite('ChatToolInvocation permission provenance', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const tool: IToolData = { id: 'tool', displayName: 'Tool', modelDescription: 'Tool', source: ToolDataSource.Internal };
 	const prepared = { invocationMessage: 'Run tool', confirmationMessages: { title: 'Allow tool?', message: 'Run tool?' } };
+
+	for (const presentation of [ToolInvocationPresentation.Hidden, ToolInvocationPresentation.HiddenAfterComplete]) {
+		for (const outcome of [ToolConfirmKind.UserAction, ToolConfirmKind.Denied, ToolConfirmKind.Skipped] as const) {
+			test(`required action overrides ${presentation} until ${outcome}`, async () => {
+				const invocation = new ChatToolInvocation({ presentation }, tool, 'hidden', undefined, {});
+				const hiddenStates: boolean[] = [];
+				disposables.add(autorun(reader => hiddenStates.push(IChatToolInvocation.isEffectivelyHidden(invocation, reader))));
+				invocation.requestConfirmation({ ...prepared, presentation });
+				const confirmation = IChatToolInvocation.awaitConfirmation(invocation);
+				const reason: ConfirmedReason = { type: outcome };
+				const first = IChatToolInvocation.confirmWith(invocation, reason);
+				const second = IChatToolInvocation.confirmWith(invocation, reason);
+				await invocation.didExecuteTool(undefined);
+				assert.deepStrictEqual({
+					hiddenStates, first, second, reason: await confirmation,
+					restoredHidden: IChatToolInvocation.isEffectivelyHidden(invocation.toJSON()),
+				}, {
+					hiddenStates: [presentation === ToolInvocationPresentation.Hidden, false, presentation === ToolInvocationPresentation.Hidden || outcome !== ToolConfirmKind.UserAction, true]
+						.slice(0, outcome === ToolConfirmKind.UserAction ? 4 : 3),
+					first: true, second: false, reason, restoredHidden: true,
+				});
+			});
+		}
+
+		test(`post-approval and authentication override ${presentation}`, async () => {
+			const invocation = new ChatToolInvocation({ presentation, confirmationMessages: { confirmResults: true } }, tool, 'hidden', undefined, {});
+			invocation.setAuthenticationRequired({ id: 'mcp', name: 'MCP', resource: 'https://example.com' });
+			const authenticationHidden = IChatToolInvocation.isEffectivelyHidden(invocation);
+			invocation.setAuthenticationResolved();
+			await invocation.didExecuteTool({ content: [] });
+			const postApprovalHidden = IChatToolInvocation.isEffectivelyHidden(invocation);
+			const confirmation = IChatToolInvocation.awaitPostConfirmation(invocation);
+			const reason: ConfirmedReason = { type: ToolConfirmKind.UserAction };
+			IChatToolInvocation.confirmWith(invocation, reason);
+			assert.deepStrictEqual({
+				authenticationHidden, postApprovalHidden, settledHidden: IChatToolInvocation.isEffectivelyHidden(invocation), reason: await confirmation,
+			}, { authenticationHidden: false, postApprovalHidden: false, settledHidden: true, reason });
+		});
+	}
 
 	for (const initialState of ['executing', 'streaming', 'confirmation']) {
 		test(`records image generation duration after execution begins and persists it (${initialState})`, async () => {

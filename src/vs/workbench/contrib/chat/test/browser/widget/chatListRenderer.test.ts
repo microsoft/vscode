@@ -14563,6 +14563,323 @@ suite('ChatListRenderer', () => {
 			return { toolParts: parts.length, confirmations: parts.filter(part => part.classList.contains('has-confirmation')).length };
 		}
 
+		for (const carousel of [false, true]) {
+			test(`retained hidden tool remains actionable after a lazy group rebuild (carousel=${carousel})`, async () => {
+				const context = createConfirmationRenderer();
+				context.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, carousel);
+				context.configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, ThinkingDisplayMode.Collapsed);
+				context.configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
+				context.setViewModel(context.viewModel);
+				const launch = new ChatToolInvocation(
+					{ invocationMessage: 'Delegating work' },
+					{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+					'launch', undefined, { mode: 'background' },
+				);
+				const tool = ChatToolInvocation.createStreaming({
+					toolCallId: 'retained-hidden', toolId: 'copilot_fetchWebPage',
+					toolData: { id: 'copilot_fetchWebPage', displayName: 'Fetch Webpage', modelDescription: 'Fetch', source: ToolDataSource.Internal },
+				});
+				context.model.acceptResponseProgress(context.request, launch);
+				await launch.didExecuteTool(undefined);
+				context.model.acceptResponseProgress(context.request, tool);
+				context.render();
+				const thinking = context.template.renderedParts?.find(part => part instanceof ChatThinkingContentPart);
+				assert.ok(thinking);
+				thinking.expandContent();
+				const originalToolNode = thinking.domNode.querySelector('.chat-tool-invocation-part');
+				assert.ok(originalToolNode);
+				thinking.collapseContent();
+				launch.toolSpecificData = { kind: 'subagent', description: 'Review changes', hasStarted: true, isActive: true };
+				launch.notifyToolSpecificDataChanged();
+				context.render();
+				const regrouped = context.template.renderedParts?.find(part => part instanceof ChatThinkingContentPart);
+				assert.ok(regrouped && regrouped !== thinking && !regrouped.expanded.get());
+				assert.strictEqual(regrouped.domNode.contains(originalToolNode), false);
+				tool.transitionFromStreaming({ presentation: ToolInvocationPresentation.Hidden }, {}, undefined);
+				await new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve()));
+				tool.requestConfirmation({ presentation: ToolInvocationPresentation.Hidden, confirmationMessages: { title: 'test', message: 'Fetch this page?' } });
+				await new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve()));
+				const host = carousel ? context.confirmationContainer : context.template.value;
+				const buttons = [...host.querySelectorAll<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button')];
+				assert.deepStrictEqual({
+					buttons: buttons.length, visible: buttons.every(button => button.getBoundingClientRect().height > 0),
+					inline: countVisibleToolParts(context.template).confirmations, carousel: context.carousel?.pendingCount ?? 0,
+				}, { buttons: 2, visible: true, inline: carousel ? 0 : 1, carousel: carousel ? 1 : 0 });
+				buttons[0].click();
+				assert.strictEqual(tool.state.get().type, IChatToolInvocation.StateKind.Executing);
+				await tool.didExecuteTool(undefined);
+				context.render();
+				assert.strictEqual(context.template.value.querySelectorAll('.has-confirmation').length, 0);
+			});
+
+			for (const waitForFrame of [false, true]) {
+				for (const blockingState of ['confirmation', 'postApproval', 'authentication']) {
+					test(`streamed hidden tool remains actionable after executing (carousel=${carousel}, frame=${waitForFrame}, ${blockingState})`, async () => {
+						const context = createConfirmationRenderer();
+						context.instantiationService.stub(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() {
+							override getMcpServers() { return []; }
+						}());
+						context.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, carousel);
+						context.configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, ThinkingDisplayMode.CollapsedPreview);
+						context.configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
+						context.setViewModel(context.viewModel);
+						const tool = ChatToolInvocation.createStreaming({
+							toolCallId: 'late-hidden', toolId: 'copilot_fetchWebPage',
+							toolData: { id: 'copilot_fetchWebPage', displayName: 'Fetch Webpage', modelDescription: 'Fetch', source: ToolDataSource.Internal },
+						});
+						context.model.acceptResponseProgress(context.request, { kind: 'thinking', id: 'fetching', value: 'Fetching the page' });
+						context.model.acceptResponseProgress(context.request, tool);
+						context.render();
+						const thinking = context.template.renderedParts?.find(part => part instanceof ChatThinkingContentPart);
+						assert.ok(thinking);
+						thinking.expandContent();
+						tool.transitionFromStreaming({
+							presentation: ToolInvocationPresentation.Hidden,
+							confirmationMessages: { confirmResults: blockingState === 'postApproval' },
+						}, {}, undefined);
+						if (waitForFrame) {
+							await new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve()));
+						}
+						if (blockingState === 'confirmation') {
+							tool.requestConfirmation({ presentation: ToolInvocationPresentation.Hidden, confirmationMessages: { title: 'test', message: 'Fetch this page?' } });
+						} else if (blockingState === 'postApproval') {
+							await tool.didExecuteTool({ content: [] });
+						} else {
+							tool.setAuthenticationRequired({ id: 'test', name: 'Test', resource: 'https://example.com' });
+						}
+						await new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve()));
+						const inCarousel = carousel && blockingState === 'confirmation';
+						const host = inCarousel ? context.confirmationContainer : context.template.value;
+						const buttons = [...host.querySelectorAll<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button')];
+						assert.deepStrictEqual({
+							buttons: buttons.length, visible: buttons.every(button => button.getBoundingClientRect().height > 0),
+							inline: countVisibleToolParts(context.template).confirmations, carousel: context.carousel?.pendingCount ?? 0,
+						}, { buttons: 2, visible: true, inline: inCarousel ? 0 : 1, carousel: inCarousel ? 1 : 0 });
+						tool.didCancelTool({ type: ToolConfirmKind.Skipped });
+						context.render();
+						assert.strictEqual(context.template.value.querySelectorAll('.has-confirmation').length, 0);
+					});
+				}
+			}
+
+			for (const subagent of [false, true]) {
+				test(`streaming hidden approval leaves collapsed thinking (carousel=${carousel}, subagent=${subagent})`, async () => {
+					const context = createConfirmationRenderer();
+					context.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, carousel);
+					context.configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
+					context.setViewModel(context.viewModel);
+					const tool = ChatToolInvocation.createStreaming({
+						toolCallId: 'streamed-hidden', toolId: 'copilot_fetchWebPage', subagentInvocationId: subagent ? 'retained' : undefined,
+						toolData: { id: 'copilot_fetchWebPage', displayName: 'Fetch Webpage', modelDescription: 'Fetch', source: ToolDataSource.Internal },
+					});
+					context.model.acceptResponseProgress(context.request, { kind: 'thinking', id: 'fetching', value: 'Fetching the page' });
+					if (subagent) {
+						const parent = createSubagentTool('retained', { kind: 'subagent', description: 'Fetch the page', hasStarted: true, isActive: true });
+						context.model.acceptResponseProgress(context.request, parent);
+					}
+					context.model.acceptResponseProgress(context.request, tool);
+					context.render();
+					tool.transitionFromStreaming({
+						presentation: ToolInvocationPresentation.Hidden,
+						confirmationMessages: { title: 'test', message: 'Fetch this page?', allowAutoConfirm: false },
+					}, {}, undefined);
+					await timeout(0);
+					context.render();
+					const host = carousel ? context.confirmationContainer : context.template.value;
+					const button = host.querySelector<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button');
+					assert.ok(button);
+					const before = {
+						inline: countVisibleToolParts(context.template).confirmations,
+						carousel: context.carousel?.pendingCount ?? 0,
+						visible: button.getBoundingClientRect().height > 0,
+					};
+					button.click();
+					await tool.didExecuteTool(undefined);
+					context.render();
+					assert.strictEqual(context.template.value.textContent?.includes('Fetch Webpage'), false);
+					assert.deepStrictEqual({ before, settled: countVisibleToolParts(context.template), pending: context.carousel?.pendingCount ?? 0 }, {
+						before: { inline: carousel ? 0 : 1, carousel: carousel ? 1 : 0, visible: true },
+						settled: { toolParts: 0, confirmations: 0 }, pending: 0,
+					});
+				});
+			}
+
+			for (const collapsedTools of [CollapsedToolsDisplayMode.Off, CollapsedToolsDisplayMode.Always]) {
+				for (const outcome of ['allow', 'deny', 'cancel']) {
+					test(`hidden hook approval is actionable once (carousel=${carousel}, grouping=${collapsedTools}, ${outcome})`, async () => {
+						const context = createConfirmationRenderer();
+						context.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, carousel);
+						context.configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', collapsedTools);
+						context.setViewModel(context.viewModel);
+						context.instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+							override isScreenReaderOptimized(): boolean { return true; }
+						}());
+						const tool = new ChatToolInvocation(
+							{ presentation: ToolInvocationPresentation.Hidden },
+							{ id: 'copilot_fetchWebPage', displayName: 'Fetch Webpage', modelDescription: 'Fetch a page', source: ToolDataSource.Internal },
+							'hidden-fetch', undefined, {},
+						);
+						context.model.acceptResponseProgress(context.request, tool);
+						context.render();
+						const initiallyVisible = countVisibleToolParts(context.template).toolParts;
+						tool.requestConfirmation({
+							presentation: ToolInvocationPresentation.Hidden,
+							confirmationMessages: { title: 'test', message: new MarkdownString('Fetch this page?'), allowAutoConfirm: false },
+						});
+						context.render();
+						await timeout(0);
+						const host = carousel ? context.confirmationContainer : context.template.value;
+						const buttons = [...host.querySelectorAll<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button')];
+						const before = {
+							initiallyVisible,
+							inline: countVisibleToolParts(context.template).confirmations,
+							carousel: context.carousel?.pendingCount ?? 0,
+							title: host.querySelector('.chat-confirmation-widget-title')?.textContent?.trim(),
+							labels: buttons.map(button => button.textContent?.replaceAll('\u00a0', ' ')),
+							keyboard: buttons.every(button => button.tabIndex === 0 && button.getAttribute('role') === 'button'),
+						};
+						assert.strictEqual(buttons.length, 2);
+						const confirmation = IChatToolInvocation.awaitConfirmation(tool);
+						if (outcome === 'cancel') {
+							tool.didCancelTool({ type: ToolConfirmKind.Skipped });
+						} else {
+							const button = buttons[outcome === 'allow' ? 0 : 1];
+							button.focus();
+							assert.strictEqual(mainWindow.document.activeElement, button);
+							button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+						}
+						const reason = await confirmation;
+						await tool.didExecuteTool(undefined);
+						context.render();
+						await timeout(0);
+						assert.deepStrictEqual({
+							before, reason: reason.type,
+							after: { ...countVisibleToolParts(context.template), pending: context.carousel?.pendingCount ?? 0 },
+							hidden: IChatToolInvocation.isEffectivelyHidden(tool),
+							duplicate: IChatToolInvocation.confirmWith(tool, { type: ToolConfirmKind.UserAction }),
+						}, {
+							before: { initiallyVisible: 0, inline: carousel ? 0 : 1, carousel: carousel ? 1 : 0, title: 'test', labels: ['Allow Once', 'Skip'], keyboard: true },
+							reason: outcome === 'allow' ? ToolConfirmKind.UserAction : ToolConfirmKind.Skipped,
+							after: { toolParts: 0, confirmations: 0, pending: 0 }, hidden: true, duplicate: false,
+						});
+					});
+				}
+			}
+
+			test(`hidden authentication is actionable outside collapsed thinking and clears on cancellation (carousel=${carousel})`, async () => {
+				const context = createConfirmationRenderer();
+				context.configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
+				context.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, carousel);
+				context.setViewModel(context.viewModel);
+				let authentications = 0;
+				context.instantiationService.stub(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() {
+					override readonly onDidChangeCustomizations = Event.None;
+					override getMcpServers() { return []; }
+					override async authenticateMcpServer() { authentications++; return true; }
+				}());
+				const tool = new ChatToolInvocation(
+					{ presentation: ToolInvocationPresentation.Hidden },
+					{ id: 'mcp__test__fetch', displayName: 'Fetch', modelDescription: 'Fetch', source: ToolDataSource.Internal },
+					'hidden-auth', undefined, {},
+				);
+				context.model.acceptResponseProgress(context.request, tool);
+				context.render();
+				const snapshots = [];
+				for (let attempt = 0; attempt < 2; attempt++) {
+					tool.setAuthenticationRequired({ id: 'test', name: 'Test', resource: 'https://example.com' }, () => tool.didCancelTool({ type: ToolConfirmKind.Skipped }));
+					context.render();
+					const buttons = [...context.template.value.querySelectorAll<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button')];
+					snapshots.push({ visible: buttons.every(button => button.getBoundingClientRect().height > 0), labels: buttons.map(button => button.textContent), carousel: context.carousel?.pendingCount ?? 0 });
+					assert.strictEqual(buttons.length, 2);
+					buttons[attempt].click();
+					await timeout(0);
+					if (attempt === 0) {
+						tool.setAuthenticationResolved();
+					}
+					context.render();
+				}
+				assert.deepStrictEqual({ snapshots, authentications, settled: countVisibleToolParts(context.template) }, {
+					snapshots: [
+						{ visible: true, labels: ['Authenticate', 'Cancel'], carousel: 0 },
+						{ visible: true, labels: ['Authenticate', 'Cancel'], carousel: 0 },
+					],
+					authentications: 1, settled: { toolParts: 0, confirmations: 0 },
+				});
+			});
+
+			test(`hidden approval survives detach without auto-approval (carousel=${carousel})`, () => {
+				const context = createConfirmationRenderer();
+				context.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, carousel);
+				context.setViewModel(context.viewModel);
+				const tool = createPendingTool('hidden-detach', undefined, { presentation: ToolInvocationPresentation.Hidden });
+				context.model.acceptResponseProgress(context.request, tool);
+				context.render();
+				context.setViewModel(undefined);
+				const detachedCount = context.carousel?.pendingCount ?? 0;
+				context.setViewModel(context.viewModel);
+				context.render();
+				const rebound = carousel ? context.carousel?.pendingCount : countVisibleToolParts(context.template).confirmations;
+				context.renderer.dispose();
+				assert.deepStrictEqual({
+					detachedCount, rebound, afterDisposal: context.carousel?.pendingCount ?? 0, state: tool.state.get().type,
+				}, { detachedCount: 0, rebound: 1, afterDisposal: 0, state: IChatToolInvocation.StateKind.WaitingForConfirmation });
+				tool.didCancelTool({ type: ToolConfirmKind.Skipped });
+			});
+
+			for (const presentation of [ToolInvocationPresentation.Hidden, ToolInvocationPresentation.HiddenAfterComplete]) {
+				test(`${presentation} keeps post-approval inline until settled (carousel=${carousel})`, async () => {
+					const context = createConfirmationRenderer();
+					context.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, carousel);
+					context.setViewModel(context.viewModel);
+					const tool = createPendingTool('review-result', undefined, {
+						presentation,
+						confirmationMessages: { title: 'Review result', message: 'test', confirmResults: true },
+					});
+					context.model.acceptResponseProgress(context.request, tool);
+					context.render();
+					const pending = { inline: countVisibleToolParts(context.template).confirmations, carousel: context.carousel?.pendingCount ?? 0 };
+					IChatToolInvocation.confirmWith(tool, { type: ToolConfirmKind.UserAction });
+					await tool.didExecuteTool({ content: [] });
+					context.render();
+					const postApproval = { inline: countVisibleToolParts(context.template).confirmations, carousel: context.carousel?.pendingCount ?? 0 };
+					const button = context.template.value.querySelector<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button');
+					assert.ok(button);
+					button.click();
+					context.render();
+					assert.deepStrictEqual({
+						pending, postApproval, settled: countVisibleToolParts(context.template), restoredHidden: IChatToolInvocation.isEffectivelyHidden(tool.toJSON()),
+					}, {
+						pending: { inline: carousel ? 0 : 1, carousel: carousel ? 1 : 0 }, postApproval: { inline: 1, carousel: 0 },
+						settled: { toolParts: 0, confirmations: 0 }, restoredHidden: true,
+					});
+				});
+			}
+		}
+
+		for (const agentHost of [false, true]) {
+			test(`hidden MCP approval stays inline (agentHost=${agentHost})`, async () => {
+				const context = createConfirmationRenderer();
+				const tool = new ChatToolInvocation(
+					{ presentation: ToolInvocationPresentation.Hidden, confirmationMessages: { title: 'Approve MCP', message: 'test', allowAutoConfirm: false } },
+					{
+						id: agentHost ? 'mcp__test__fetch' : 'mcp_fetch', displayName: 'Fetch', modelDescription: 'Fetch',
+						source: agentHost ? ToolDataSource.Internal : { type: 'mcp', label: 'MCP', serverLabel: 'Test', instructions: undefined, collectionId: 'test', definitionId: 'test' },
+					}, 'mcp-fetch', undefined, {},
+				);
+				context.model.acceptResponseProgress(context.request, tool);
+				context.render();
+				const pending = { ...countVisibleToolParts(context.template), carousel: context.carousel?.pendingCount ?? 0 };
+				const button = context.template.value.querySelector<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button');
+				assert.ok(button);
+				button.click();
+				await tool.didExecuteTool(undefined);
+				context.render();
+				assert.deepStrictEqual({ pending, settled: countVisibleToolParts(context.template) }, {
+					pending: { toolParts: 1, confirmations: 1, carousel: 0 }, settled: { toolParts: 0, confirmations: 0 },
+				});
+			});
+		}
+
 		test('disposes pending confirmations after the widget input part has been cleared', () => {
 			const context = createConfirmationRenderer();
 			const tool = createPendingTool('pending-at-disposal');
@@ -15227,7 +15544,7 @@ suite('ChatListRenderer', () => {
 			});
 			context.model.acceptResponseProgress(context.request, tool);
 			context.model.addRequest({ text: 'Continue', parts: [] }, { variables: [] }, 0);
-			const preparation = { confirmationMessages: { title: 'Run the check?', message: new MarkdownString('Confirm the check.') } };
+			const preparation = { presentation: ToolInvocationPresentation.Hidden, confirmationMessages: { title: 'Run the check?', message: new MarkdownString('Confirm the check.') } };
 			tool.requestConfirmation(preparation);
 			const firstCount = context.carousel?.pendingCount;
 			for (let i = 0; i < 20; i++) {
@@ -15447,7 +15764,7 @@ suite('ChatListRenderer', () => {
 			assert.deepStrictEqual({
 				readOnlyCount, editableCount, disabledCount, hiddenCount: context.carousel?.pendingCount ?? 0, toolState: tool.state.get().type,
 			}, {
-				readOnlyCount: 0, editableCount: 1, disabledCount: 0, hiddenCount: 0, toolState: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				readOnlyCount: 0, editableCount: 1, disabledCount: 0, hiddenCount: 1, toolState: IChatToolInvocation.StateKind.WaitingForConfirmation,
 			});
 		});
 	});

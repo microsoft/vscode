@@ -2164,6 +2164,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	}
 
 	public removeMaterializedItem(toolCallId: string): void {
+		this.pendingRemovals = this.pendingRemovals.filter(id => id !== toolCallId);
 		this.toolDisposables.deleteAndDispose(toolCallId);
 		this.ownedToolParts.delete(toolCallId);
 		this.hiddenToolCallIds.delete(toolCallId);
@@ -2254,6 +2255,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 			removedItem.toolInvocationOrMarkdown.isAttachedToThinking = false;
 
 			const toolCallId = removedToolCallId = removedItem.toolInvocationOrMarkdown.toolCallId;
+			this.pendingRemovals = this.pendingRemovals.filter(id => id !== toolCallId);
 			this.toolDisposables.deleteAndDispose(toolCallId);
 			this.hiddenToolCallIds.delete(toolCallId);
 			this._pendingExternalResources.delete(toolCallId);
@@ -2447,7 +2449,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 							setThinkingIcon(iconElement, getToolInvocationIcon(toolInvocationOrMarkdown.toolId, toolInvocationOrMarkdown));
 						}
 
-						if (toolInvocationOrMarkdown.presentation === 'hidden') {
+						if (IChatToolInvocation.isEffectivelyHidden(toolInvocationOrMarkdown)) {
 							this.pendingRemovals.push(toolInvocationOrMarkdown.toolCallId);
 							this.schedulePendingRemovalsFlush();
 							isComplete = true;

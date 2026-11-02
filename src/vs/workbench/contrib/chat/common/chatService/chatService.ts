@@ -1162,7 +1162,14 @@ export namespace IChatToolInvocation {
 		return state.type === StateKind.Completed || state.type === StateKind.Cancelled;
 	}
 
+	/** Required user action temporarily overrides presentation; settled tools retain their normal visibility. */
 	export function isEffectivelyHidden(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): boolean {
+		if (invocation.kind === 'toolInvocation') {
+			const state = invocation.state.read(reader);
+			if (state.type === StateKind.WaitingForConfirmation || state.type === StateKind.WaitingForPostApproval || state.type === StateKind.WaitingForAuthentication) {
+				return false;
+			}
+		}
 		if (invocation.presentation === 'hidden') {
 			return true;
 		}

@@ -30,7 +30,7 @@ import { IChatToolRiskAssessmentService, IToolRiskAssessment, ToolRiskLevel, Too
 import { ChatModel, IChatModel } from '../../../common/model/chatModel.js';
 import { IChatService, IChatProgress, IChatInfoMessage, IChatToolInputInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
-import { SpecedToolAliases, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, IToolResultTextPart, ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
+import { SpecedToolAliases, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, IToolResultTextPart, ToolAndToolSetEnablementMap, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -5349,6 +5349,49 @@ suite('LanguageModelToolsService', () => {
 
 			assert.strictEqual(invokeCompleted, true, 'Tool should complete after confirmation');
 		});
+
+		for (const outcome of ['allow', 'deny', 'cancel']) {
+			test(`hook ask exposes a hidden tool and waits for ${outcome}`, async () => {
+				let executions = 0;
+				const tool = registerToolForTest(hookService, store, 'hookHiddenAskTool', {
+					invoke: async () => {
+						executions++;
+						return { content: [{ kind: 'text', value: 'success' }] };
+					},
+					prepareToolInvocation: async () => ({ presentation: ToolInvocationPresentation.Hidden }),
+				});
+				const capture: { invocation?: ChatToolInvocation } = {};
+				stubGetSession(hookChatService, 'hidden-hook-ask', { requestId: 'req1', capture });
+				const dto = tool.makeDto({}, { sessionId: 'hidden-hook-ask' });
+				dto.preToolUseResult = { permissionDecision: 'ask', permissionDecisionReason: 'test' };
+				const token = store.add(new CancellationTokenSource());
+				const result = hookService.invokeTool(dto, async () => 0, token.token);
+				const invocation = await waitForPublishedInvocation(capture);
+				assert.ok(invocation);
+				const state = invocation.state.get();
+				assert.ok(state.type === IChatToolInvocation.StateKind.WaitingForConfirmation);
+				const message = state.confirmationMessages?.message;
+				assert.deepStrictEqual({
+					hidden: IChatToolInvocation.isEffectivelyHidden(invocation), executions,
+					autoConfirm: state.confirmationMessages?.allowAutoConfirm, title: state.confirmationMessages?.title,
+					reason: typeof message === 'string' ? message : message?.value,
+					trusted: typeof message === 'string' ? undefined : message?.isTrusted,
+				}, { hidden: false, executions: 0, autoConfirm: false, title: 'Use the \'Test Tool\' tool?', reason: '_PreToolUse hook required confirmation: test_', trusted: false });
+				if (outcome === 'cancel') {
+					token.cancel();
+				} else {
+					IChatToolInvocation.confirmWith(invocation, { type: outcome === 'allow' ? ToolConfirmKind.UserAction : ToolConfirmKind.Denied });
+				}
+				if (outcome === 'allow') {
+					await result;
+				} else {
+					await assert.rejects(result, isCancellationError);
+				}
+				assert.deepStrictEqual({
+					executions, hidden: IChatToolInvocation.isEffectivelyHidden(invocation), complete: IChatToolInvocation.isComplete(invocation),
+				}, { executions: outcome === 'allow' ? 1 : 0, hidden: true, complete: true });
+			});
+		}
 
 		test('when hook returns allow, tool is auto-approved', async () => {
 			let invokeCompleted = false;
