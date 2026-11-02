@@ -14,6 +14,7 @@ declare class URL {
 
 const openApiCommand = 'simpleBrowser.api.open';
 const showCommand = 'simpleBrowser.show';
+const focusContentCommand = 'simpleBrowser.focusContent';
 const integratedBrowserCommand = 'workbench.action.browser.open';
 
 const enabledHosts = new Set<string>([
@@ -73,6 +74,10 @@ export function activate(context: vscode.ExtensionContext) {
 		if (url) {
 			manager.show(url);
 		}
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand(focusContentCommand, () => {
+		manager.focusContent();
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand(openApiCommand, async (url: vscode.Uri, showOptions?: {
