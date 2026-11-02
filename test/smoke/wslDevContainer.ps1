@@ -270,7 +270,12 @@ retry() {
 	done
 	return 1
 }
+# PROOF ONLY: fail the first index update and throttle the start of the package download.
+echo 'Acquire::http::Proxy "http://127.0.0.1:9";' > /etc/apt/apt.conf.d/99-proof-refuse
+(sleep 5; rm -f /etc/apt/apt.conf.d/99-proof-refuse) &
 retry timeout --kill-after=10 45 apt-get update --error-on=any
+echo 'Acquire::http::Dl-Limit "256";' > /etc/apt/apt.conf.d/99-proof-throttle
+(sleep 150; rm -f /etc/apt/apt.conf.d/99-proof-throttle) &
 retry apt-get install -y --download-only --no-install-recommends $aptPackages
 apt-get install -y --no-install-recommends $aptPackages
 mkdir -p /opt/vscode-smoke-server
