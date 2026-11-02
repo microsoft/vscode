@@ -3669,7 +3669,6 @@ suite('Sessions - Workbench', () => {
 			},
 			mainContainer: { classList: { toggle: (name, force) => classToggles.push({ name, force }) } },
 			getMaximumEditorDimensions: () => ({ width: 1200, height: 500 }),
-			isEditorPaneVisible: () => true,
 			storageService: { store: (key, value, scope, target) => stores.push({ key, value, scope, target }) },
 			_onDidChangePanelAlignment: { fire: alignment => events.push(alignment) },
 			_runWithEditorResizeSyncSuspended: fn => {
@@ -4041,7 +4040,6 @@ suite('Sessions - Workbench', () => {
 			},
 			mainContainer: root,
 			getMaximumEditorDimensions: () => ({ width: 1200, height: 500 }),
-			isEditorPaneVisible: () => true,
 			storageService: { store: () => { } },
 			_onDidChangePanelAlignment: { fire: () => { } },
 			_runWithEditorResizeSyncSuspended: fn => fn(),
@@ -4204,7 +4202,6 @@ suite('Sessions - Workbench', () => {
 				},
 				mainContainer: { classList: { toggle: () => { } } },
 				getMaximumEditorDimensions: () => ({ width: 1200, height: 500 }),
-				isEditorPaneVisible: () => true,
 				storageService: { store: () => { } },
 				_onDidChangePanelAlignment: { fire: () => { } },
 				_runWithEditorResizeSyncSuspended: fn => fn(),

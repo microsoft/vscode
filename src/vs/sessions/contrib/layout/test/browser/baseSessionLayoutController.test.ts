@@ -65,8 +65,8 @@ suite('BaseLayoutController', () => {
 	}
 
 	test('leaves the side panel toggle to the title bar where the main window has no Layout menu, whose Show Editor replaces it', () => {
-		const registration = BaseLayoutController.registerSidePaneToggleAction();
-		try {
+		disposables.add(BaseLayoutController.registerSidePaneToggleAction());
+		{
 			const find = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem).filter(item => item.command.id === 'workbench.action.agentToggleSidePanel');
 			const titleBar = find(Menus.TitleBarSessionMenu)[0];
 			const activityBar = find(Menus.SessionActivityBar)[0];
@@ -102,8 +102,6 @@ suite('BaseLayoutController', () => {
 					notDesktop: ['titleBar'],
 				},
 			});
-		} finally {
-			registration.dispose();
 		}
 	});
 

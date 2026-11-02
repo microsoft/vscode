@@ -105,7 +105,6 @@ export const Menus = {
 	/** Context menu of a custom or comparison group header in the Sessions list. The list merges its own group actions into these groups. */
 	SessionGroupContext: new MenuId('SessionsSessionGroupContext'),
 	SessionsEditorHeaderPrimary: new MenuId('SessionsEditorHeaderPrimary'),
-	SessionsEditorHeaderSecondary: new MenuId('SessionsEditorHeaderSecondary'),
 	SessionsEditorHeaderLayout: new MenuId('SessionsEditorHeaderLayout'),
 	/** The actions at the right of the header row of an editor in the editor area of a chat window, such as of the Changes editor. */
 	SessionsEditorHeaderSecondary: new MenuId('SessionsEditorHeaderSecondary'),

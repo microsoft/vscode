@@ -1161,6 +1161,8 @@ suite('SessionCanvasService', () => {
 			new SessionEditorWorkingSetService(),
 			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
 			upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }),
+			upcastPartial<ICustomViewService>({ activeCustomView: constObservable(undefined) }),
+			createPinnedCanvases().service,
 			upcastPartial<IChatWindowService>({ windows: constObservable([chatWindow]) }),
 		));
 		const otherChat = { ...owner, chat: URI.parse('agent-host-chat:/session/main') };
@@ -1205,6 +1207,8 @@ suite('SessionCanvasService', () => {
 			new SessionEditorWorkingSetService(),
 			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
 			upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }),
+			upcastPartial<ICustomViewService>({ activeCustomView: constObservable(undefined) }),
+			createPinnedCanvases().service,
 			upcastPartial<IChatWindowService>({ windows: constObservable(windows.map(window => window.chatWindow)) }),
 		));
 
@@ -1230,6 +1234,8 @@ suite('SessionCanvasService', () => {
 			new SessionEditorWorkingSetService(),
 			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
 			upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }),
+			upcastPartial<ICustomViewService>({ activeCustomView: constObservable(undefined) }),
+			createPinnedCanvases().service,
 			upcastPartial<IChatWindowService>({ windows }),
 		));
 		const results: boolean[] = [];
@@ -1260,6 +1266,8 @@ suite('SessionCanvasService', () => {
 			new SessionEditorWorkingSetService(),
 			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
 			upcastPartial<IChatService>({ chatModels, getSession: () => undefined }),
+			upcastPartial<ICustomViewService>({ activeCustomView: constObservable(undefined) }),
+			createPinnedCanvases().service,
 			upcastPartial<IChatWindowService>({ windows: constObservable([]) }),
 		));
 		const sources = [contextService.contexts.get()[0].canvases];
@@ -1298,6 +1306,8 @@ suite('SessionCanvasService', () => {
 			new SessionEditorWorkingSetService(),
 			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
 			upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }),
+			upcastPartial<ICustomViewService>({ activeCustomView: constObservable(undefined) }),
+			createPinnedCanvases().service,
 			upcastPartial<IChatWindowService>({ windows: constObservable([chatWindow]) }),
 		));
 
@@ -1322,6 +1332,8 @@ suite('SessionCanvasService', () => {
 			new SessionEditorWorkingSetService(),
 			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
 			upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }),
+			upcastPartial<ICustomViewService>({ activeCustomView: constObservable(undefined) }),
+			createPinnedCanvases().service,
 			upcastPartial<IChatWindowService>({ windows: constObservable([chatWindow]) }),
 		));
 
