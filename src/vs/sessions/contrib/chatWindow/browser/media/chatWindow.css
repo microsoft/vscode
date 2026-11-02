@@ -33,3 +33,17 @@
 	--part-grid-card-border-width: 0;
 	--part-grid-card-radius: 0;
 }
+
+/*
+ * Side by side and chat only, the title row is the header of the chat's card: the chat and its title row are one surface,
+ * with no edge between them. The title bar shows the card through it, and the card draws the frame around both; the
+ * session view, whose header is the title row, none.
+ */
+.monaco-workbench .agents-chat-window .chat-window-title-over-chat .chat-window-chat-cell > .part.titlebar,
+.monaco-workbench .agents-chat-window .chat-window-title-over-chat .chat-window-chat-cell > .part.titlebar > .titlebar-container {
+	background-color: transparent !important;
+}
+
+.monaco-workbench .agents-chat-window .chat-window-title-over-chat .chat-window-chat-cell .session-view::after {
+	content: none;
+}

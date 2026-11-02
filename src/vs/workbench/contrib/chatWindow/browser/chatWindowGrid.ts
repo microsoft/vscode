@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { $ } from '../../../../base/browser/dom.js';
 import { Direction, ISerializedGrid, ISerializedNode, IViewSize, Orientation } from '../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -82,7 +83,8 @@ export function getChatWindowTopology(mode: ChatWindowLayoutMode, cells: { reado
 	const chat: TopologyNode = { cell: ChatWindowGridCell.Chat };
 	const main: TopologyNode = { cell: ChatWindowGridCell.Main };
 	if (mode === ChatWindowLayoutMode.SideBySide || mode === ChatWindowLayoutMode.ChatOnly) {
-		const left = branch(Orientation.VERTICAL, ...titleRow, chat);
+		// The title row is the header of the chat's card, in the chat's cell: see TitledChatView.
+		const left = chat;
 		if (cells.terminals === undefined) {
 			return branch(Orientation.HORIZONTAL, left, main);
 		}
@@ -125,6 +127,50 @@ function getShare(node: TopologyNode, orientation: Orientation): number {
 		case ChatWindowGridCell.Main: return orientation === Orientation.HORIZONTAL ? 0.6 : 0.55;
 		case ChatWindowGridCell.Chat: return orientation === Orientation.HORIZONTAL ? 0.4 : 0.45;
 		default: return 0;
+	}
+}
+
+/**
+ * The chat's cell: the chat part, and above it the title row while the title row is the header of the chat's card (side
+ * by side and chat only), so that they are one card, one surface, with no edge between them.
+ */
+class ChatCellView implements IPartGridView {
+
+	readonly element = $('.chat-window-chat-cell');
+	readonly onDidChange: Event<IViewSize | undefined>;
+	private _title: ChromeView | undefined;
+
+	constructor(private readonly _titleRow: ChromeView | undefined, private readonly _chat: IContentPart) {
+		this.element.appendChild(_chat.element as HTMLElement);
+		this.onDidChange = _titleRow ? Event.any(_titleRow.onDidChange, Event.map(_chat.onDidChange, () => undefined)) : Event.map(_chat.onDidChange, () => undefined);
+	}
+
+	/** Shows the title row above the chat, in the chat's card; without it, the title row is a cell of its own. */
+	setTitleShown(shown: boolean): void {
+		this._title = shown ? this._titleRow : undefined;
+		if (this._title) {
+			this.element.insertBefore(this._title.element, this.element.firstChild);
+		}
+	}
+
+	private get _titleHeight(): number { return this._title?.minimumHeight ?? 0; }
+
+	get minimumWidth(): number { return this._chat.minimumWidth; }
+	get maximumWidth(): number { return this._chat.maximumWidth; }
+	get minimumHeight(): number { return this._chat.minimumHeight + this._titleHeight; }
+	get maximumHeight(): number { return this._chat.maximumHeight + this._titleHeight; }
+
+	layout(width: number, height: number, top: number, left: number): void {
+		const titleHeight = Math.min(this._titleHeight, height);
+		if (this._title) {
+			this._title.element.style.height = `${titleHeight}px`;
+			this._title.layout(width, titleHeight);
+		}
+		this._chat.layout(width, height - titleHeight, top + titleHeight, left);
+	}
+
+	setVisible(visible: boolean): void {
+		this._chat.setVisible(visible);
 	}
 }
 
@@ -180,6 +226,8 @@ export class ChatWindowGrid extends Disposable {
 	private _terminalsInGrid = false;
 	private _dimension: IViewSize | undefined;
 	private _outerInsets: IGridEdgeInsets = NO_GRID_EDGE_INSETS;
+	/** Whether the title row is the header of the chat's card, in the chat's cell: side by side and chat only. */
+	private _titleInChat = false;
 	private _sizes: ChatWindowPartSizes = {};
 
 	private readonly _terminalsVisible = observableValue<boolean>(this, false);
@@ -187,6 +235,7 @@ export class ChatWindowGrid extends Disposable {
 	readonly terminalsVisible: IObservable<boolean> = this._terminalsVisible;
 
 	private readonly _titleRow: ChromeView | undefined;
+	private readonly _chatCell: ChatCellView;
 	private readonly _strip: ChromeView | undefined;
 
 	constructor(
@@ -201,6 +250,7 @@ export class ChatWindowGrid extends Disposable {
 		this._sizes = { ...sizes };
 		this._titleRow = _cells.titleRow && this._register(new ChromeView(_cells.titleRow, 'row'));
 		this._strip = _cells.strip && this._register(new ChromeView(_cells.strip, 'column'));
+		this._chatCell = new ChatCellView(this._titleRow, _cells.chat);
 
 		this._register(autorun(reader => {
 			this._layoutMode.read(reader);
@@ -211,6 +261,11 @@ export class ChatWindowGrid extends Disposable {
 			this._update();
 		}));
 		this._register(autorun(reader => this._grid.value?.setGap(this._gap.read(reader))));
+	}
+
+	/** The element of the chat's cell: the chat, and its title row while that is the header of the chat's card. */
+	get chatElement(): HTMLElement {
+		return this._chatCell.element;
 	}
 
 	/** The part grid of the window, for what acts on its cells, such as moving a part. */
@@ -257,7 +312,7 @@ export class ChatWindowGrid extends Disposable {
 		const grid = this._grid.value!;
 		grid.setCellVisible(ChatWindowGridCell.Chat, mode !== ChatWindowLayoutMode.EditorOnly);
 		grid.setCellVisible(ChatWindowGridCell.Main, mode !== ChatWindowLayoutMode.ChatOnly);
-		if (this._titleRow) {
+		if (this._titleRow && !this._titleInChat) {
 			grid.setCellVisible(ChatWindowGridCell.TitleRow, !!this._cells.titleRow?.visible.get());
 		}
 		if (this._strip && (mode === ChatWindowLayoutMode.Stacked || mode === ChatWindowLayoutMode.EditorOnly)) {
@@ -336,6 +391,9 @@ export class ChatWindowGrid extends Disposable {
 		const serializedRoot: ISerializedNode = { type: 'branch', data: root.type === 'branch' ? root.data : [root], size: orientation === Orientation.HORIZONTAL ? height : width };
 		const serializedGrid: ISerializedGrid = { root: serializedRoot, orientation, width, height };
 		const state = { grid: serializedGrid, hidden: [], parts: {} };
+		this._titleInChat = !!this._titleRow && (mode === ChatWindowLayoutMode.SideBySide || mode === ChatWindowLayoutMode.ChatOnly);
+		this._container.classList.toggle('chat-window-title-over-chat', this._titleInChat);
+		this._chatCell.setTitleShown(this._titleInChat);
 		const partGrid = this._grid.value = PartGrid.restore(this._container, state, id => this._contentOf(id));
 		this._gridListener.value = partGrid.onDidChangePartEmpty(() => this._updateTerminalsVisible());
 		partGrid.setGap(this._gap.get());
@@ -370,7 +428,7 @@ export class ChatWindowGrid extends Disposable {
 	private _contentOf(id: string): PartGridCellContent {
 		switch (id) {
 			case ChatWindowGridCell.Main: return { part: this._cells.main };
-			case ChatWindowGridCell.Chat: return { part: this._cells.chat };
+			case ChatWindowGridCell.Chat: return { view: this._chatCell };
 			case ChatWindowGridCell.TitleRow: return { view: this._titleRow! };
 			case ChatWindowGridCell.Terminals: return { part: this._cells.terminals!.get()! };
 			default: return { view: this._strip! };

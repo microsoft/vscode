@@ -419,7 +419,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		disposables.add(this._storageService.onWillSaveState(saveSizes));
 		disposables.add(auxiliaryWindow.onBeforeUnload(saveSizes));
 		if (look.paintChatBackground) {
-			disposables.add(look.paintChatBackground(chatPartElement));
+			// Behind the chat's whole card, its title row too while that is the header of the card.
+			disposables.add(look.paintChatBackground(grid.chatElement));
 		}
 		const outerInsets = look.outerInsets;
 		if (outerInsets) {
