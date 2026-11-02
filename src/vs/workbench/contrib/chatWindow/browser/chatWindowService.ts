@@ -5,7 +5,7 @@
 
 import { $, append, getActiveWindow } from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -14,6 +14,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IsAuxiliaryWindowContext } from '../../../common/contextkeys.js';
 import { EditorCloseContext } from '../../../common/editor.js';
 import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { bindEditorPartsToWindow } from '../../../services/editor/browser/editorPartWindowBinding.js';
@@ -261,6 +262,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		// focus resolve in it, and never in the main window's.
 		const windowContextKeyService = disposables.add(this._contextKeyService.createScoped(auxiliaryWindow.window.document.body));
 		disposables.add(bindWindowLayoutContext(windowContextKeyService, state));
+		// An auxiliary window: what applies to the main window only, such as its panel and side panel toggles, does not apply here.
+		IsAuxiliaryWindowContext.bindTo(windowContextKeyService).set(true);
 
 		// The content's services are the window's own: its parts take the window's context too.
 		const services = content.services ?? new ServiceCollection();
@@ -270,7 +273,13 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		const host = append(container, $('.chat-window-parts'));
 		const mainPartElement = append(host, $('.chat-window-main-part'));
 		const chatPartElement = append(host, $('.chat-window-chat-part'));
-		const mainPart = this._editorGroupsService.createEditorPart({ container: mainPartElement, label: localize('chatWindow.mainPart', "Editor"), services });
+		const look = provider.look;
+		const mainPart = this._editorGroupsService.createEditorPart({ container: mainPartElement, label: localize('chatWindow.mainPart', "Editor"), services, groupViewOptions: look.mainPartGroupViewOptions });
+		if (look.mainPartOptions) {
+			const mainPartOptions = look.mainPartOptions;
+			const enforced = disposables.add(new MutableDisposable());
+			disposables.add(autorun(reader => enforced.value = mainPart.enforcePartOptions(mainPartOptions.read(reader))));
+		}
 		const chatPart = this._editorGroupsService.createEditorPart({ container: chatPartElement, label: localize('chatWindow.chatPart', "Chat"), services });
 		chatPartElement.setAttribute('role', 'main');
 		disposables.add(bindMainPartVisible(windowContextKeyService, state.layoutMode));
@@ -294,6 +303,9 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 
 		// The provider's chrome, with the window's services: its title row first in the window, its strip last.
 		const windowInstantiationService = disposables.add(this._instantiationService.createChild(services));
+		if (content.bind) {
+			disposables.add(content.bind(window, windowInstantiationService));
+		}
 		const titleRowElement = host.insertBefore($('.chat-window-title-row'), host.firstChild);
 		const stripElement = append(host, $('.chat-window-strip'));
 		const titleRow = provider.chrome?.createTitleRow?.(window, titleRowElement, windowInstantiationService);
@@ -306,7 +318,6 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			}
 		}
 
-		const look = provider.look;
 		const partsLayout = disposables.add(new ChatWindowPartsLayout(new Map([
 			[ChatWindowLayoutCell.SidePane, { element: mainPartElement, layout: (width, height, top, left) => mainPart.layout(width, height, top, left) }],
 			[ChatWindowLayoutCell.Chat, {

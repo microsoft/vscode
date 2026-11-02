@@ -9,6 +9,9 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { DeepPartial } from '../../../../base/common/types.js';
+import { IEditorGroupViewOptions } from '../../../browser/parts/editor/editor.js';
+import { IEditorPartOptions } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { ChatWindowLayoutMode, ChatWindowSplitLayout } from '../common/chatWindowLayout.js';
@@ -53,6 +56,12 @@ export interface IChatWindowContent extends IDisposable {
 	readonly services?: ServiceCollection;
 	/** Fires when the chat is gone, such as deleted or archived: the window closes. */
 	readonly onDidEnd: Event<void>;
+	/**
+	 * Called once the window's services exist, before its parts show anything: `instantiationService` has the window's
+	 * services, those of its content and the window's context, such as to bind what the window shows on that context.
+	 * Unbound with what it returns, as the window closes.
+	 */
+	bind?(window: IChatWindow, instantiationService: IInstantiationService): IDisposable;
 	/** Called once the window shows the content, focused unless opened with {@link IChatWindowOpenOptions.preserveFocus}. */
 	didShow?(window: IChatWindow, focused: boolean): void;
 }
@@ -92,6 +101,10 @@ export interface IChatWindowLook {
 	readonly cards: boolean;
 	/** Paints a background behind the chat part's element, such as a wallpaper. */
 	paintChatBackground?(element: HTMLElement): IDisposable;
+	/** Options of the main part of the window, such as how its tabs show, that override the user's settings there. */
+	readonly mainPartOptions?: IObservable<DeepPartial<IEditorPartOptions>>;
+	/** Options of the groups of the main part of the window, such as the menus of their title areas. */
+	readonly mainPartGroupViewOptions?: IEditorGroupViewOptions;
 }
 
 /** Shows chats in chat windows: the content, chrome and look of the windows, and where their chats go back to. */
