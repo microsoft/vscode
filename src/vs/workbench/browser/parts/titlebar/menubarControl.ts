@@ -478,7 +478,7 @@ export class CustomMenubarControl extends MenubarControl {
 			return undefined;
 		}
 
-		// Menu bar lives in the title bar when the activity bar is at the top
+		// Menu bar lives in the title bar when the activity bar is at the top or bottom
 		if (isCompactMenuInTitlebar(this.configurationService)) {
 			return { horizontal: HorizontalDirection.Right, vertical: VerticalDirection.Below };
 		}

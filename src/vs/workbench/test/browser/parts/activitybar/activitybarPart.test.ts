@@ -903,7 +903,7 @@ suite('ActivitybarPart', () => {
 		assert.deepStrictEqual(observed, [
 			{ location: 'default', activityBarMenubars: 1, titlebarOwns: false },
 			{ location: 'top', activityBarMenubars: 0, titlebarOwns: true },
-			{ location: 'bottom', activityBarMenubars: 1, titlebarOwns: false },
+			{ location: 'bottom', activityBarMenubars: 0, titlebarOwns: true },
 			{ location: 'default', activityBarMenubars: 1, titlebarOwns: false },
 			{ location: 'top', activityBarMenubars: 0, titlebarOwns: true },
 			{ location: 'default', activityBarMenubars: 1, titlebarOwns: false },
@@ -963,17 +963,19 @@ suite('ActivitybarPart', () => {
 		]);
 	});
 
-	test('activity bar does not install the compact menu when created with the activity bar at the top', function () {
-		if (!compactSupported) {
-			this.skip();
-		}
-		const harness = createActivityBarCompositeBar('compact', 'top');
-		const atTop = harness.menubars();
-		harness.setLocation('default');
-		const afterMovingToSide = harness.menubars();
+	for (const location of ['top', 'bottom']) {
+		test(`activity bar does not install the compact menu when created with the activity bar at the ${location}`, function () {
+			if (!compactSupported) {
+				this.skip();
+			}
+			const harness = createActivityBarCompositeBar('compact', location);
+			const atCreation = harness.menubars();
+			harness.setLocation('default');
+			const afterMovingToSide = harness.menubars();
 
-		assert.deepStrictEqual({ atTop, afterMovingToSide }, { atTop: 0, afterMovingToSide: 1 });
-	});
+			assert.deepStrictEqual({ atCreation, afterMovingToSide }, { atCreation: 0, afterMovingToSide: 1 });
+		});
+	}
 
 	test('activity bar does not install the compact menu for non-compact menu bar visibility', function () {
 		if (!compactSupported) {

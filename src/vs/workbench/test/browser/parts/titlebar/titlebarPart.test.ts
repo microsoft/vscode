@@ -274,7 +274,7 @@ suite('Workbench - Titlebar Part', () => {
 		});
 	});
 
-	test('compact menu is owned by the titlebar only when the activity bar is at the top', () => {
+	test('compact menu is owned by the titlebar only when the activity bar is at the top or bottom', () => {
 		const config = (menuBarVisibility: string, location: string) => new TestConfigurationService({
 			window: { menuBarVisibility },
 			workbench: { activityBar: { location } }
@@ -287,12 +287,16 @@ suite('Workbench - Titlebar Part', () => {
 			compactTop: owner('compact', ActivityBarPosition.TOP),
 			compactDefault: owner('compact', ActivityBarPosition.DEFAULT),
 			compactBottom: owner('compact', ActivityBarPosition.BOTTOM),
+			compactHidden: owner('compact', ActivityBarPosition.HIDDEN),
 			classicTop: owner('classic', ActivityBarPosition.TOP),
+			classicBottom: owner('classic', ActivityBarPosition.BOTTOM),
 		}, {
 			compactTop: compactSupported,
 			compactDefault: false,
-			compactBottom: false,
+			compactBottom: compactSupported,
+			compactHidden: false,
 			classicTop: false,
+			classicBottom: false,
 		});
 	});
 
@@ -428,6 +432,10 @@ suite('Workbench - Titlebar Part', () => {
 		states.classicAgain = menubarState(container);
 		setConfiguration(configurationService, 'compact', ActivityBarPosition.TOP);
 		states.compactTopThird = menubarState(container);
+		setConfiguration(configurationService, 'compact', ActivityBarPosition.BOTTOM);
+		states.compactBottom = menubarState(container);
+		setConfiguration(configurationService, 'compact', ActivityBarPosition.DEFAULT);
+		states.compactDefaultAgain = menubarState(container);
 		part.dispose();
 
 		const none = { count: 0, compact: false };
@@ -440,6 +448,8 @@ suite('Workbench - Titlebar Part', () => {
 			compactTopAgain: titlebarCompact,
 			classicAgain: classic,
 			compactTopThird: titlebarCompact,
+			compactBottom: titlebarCompact,
+			compactDefaultAgain: compactSupported ? none : classic,
 		});
 	});
 
@@ -464,26 +474,38 @@ suite('Workbench - Titlebar Part', () => {
 		});
 	});
 
-	test('titlebar-owned compact menu opens rightward even when the sidebar is on the right', function () {
-		const compactSupported = getMenuBarVisibility(new TestConfigurationService({ window: { menuBarVisibility: 'compact' } })) === 'compact';
-		const customSupported = !hasNativeMenu(new TestConfigurationService({ window: { menuBarVisibility: 'classic' } })) && (!isMacintosh || isWeb);
-		if (!compactSupported || !customSupported) {
-			this.skip();
-		}
-		const configurationService = new TestConfigurationService({
-			window: { menuBarVisibility: 'compact' },
-			workbench: { activityBar: { location: ActivityBarPosition.TOP }, sideBar: { location: 'right' } }
+	for (const location of [ActivityBarPosition.TOP, ActivityBarPosition.BOTTOM]) {
+		test(`titlebar-owned compact menu opens rightward and downward with the activity bar at the ${location} and the sidebar on the right`, function () {
+			const compactSupported = getMenuBarVisibility(new TestConfigurationService({ window: { menuBarVisibility: 'compact' } })) === 'compact';
+			const customSupported = !hasNativeMenu(new TestConfigurationService({ window: { menuBarVisibility: 'classic' } })) && (!isMacintosh || isWeb);
+			if (!compactSupported || !customSupported) {
+				this.skip();
+			}
+			const configurationService = new TestConfigurationService({
+				window: { menuBarVisibility: 'compact' },
+				workbench: { activityBar: { location }, sideBar: { location: 'right' } }
+			});
+			const { part, container } = createTitlebar(configurationService);
+			mainWindow.document.body.appendChild(container);
+
+			try {
+				const button = container.querySelector<HTMLElement>('.menubar.compact .menubar-menu-button');
+				const title = button?.querySelector<HTMLElement>('.menubar-menu-title');
+				button?.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+				const holder = container.querySelector<HTMLElement>('.menubar-menu-items-holder');
+				const result = {
+					opened: !!holder,
+					opensLeftward: holder?.style.left === 'auto',
+					opensDownward: holder?.style.top === `${title?.getBoundingClientRect().top}px`,
+				};
+
+				assert.deepStrictEqual(result, { opened: true, opensLeftward: false, opensDownward: true });
+			} finally {
+				container.remove();
+				part.dispose();
+			}
 		});
-		const { part, container } = createTitlebar(configurationService);
-
-		const button = container.querySelector<HTMLElement>('.menubar .menubar-menu-button');
-		button?.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
-		const holder = container.querySelector<HTMLElement>('.menubar-menu-items-holder');
-		const result = { opened: !!holder, opensLeftward: holder?.style.left === 'auto' };
-		part.dispose();
-
-		assert.deepStrictEqual(result, { opened: true, opensLeftward: false });
-	});
+	}
 });
 
 function createMeasuredElement(clientWidth: () => number, scrollWidth: () => number): HTMLElement {
