@@ -283,6 +283,10 @@ async function loadTests(opts) {
 	// The animation frame probe changes when queued runners run, so only reporting runs use it.
 	const isolationProbes = process.env.VSCODE_TEST_ISOLATION_REPORT ? [animationFrameQueueDetector] : [];
 	installIsolationCheck(mocha.suite, [...defaultIsolationDetectors, menuChangeListenerDetector, ...isolationProbes]);
+	if (process.env.VSCODE_TEST_ISOLATION_RESET) {
+		const { installIsolationReset } = await loadFn('vs/base/test/browser/isolationReset');
+		installIsolationReset(mocha.suite, { resetPointer: () => ipcRenderer.invoke('vscode:test-pointer-leave') });
+	}
 
 	suite('Tests are using suiteSetup and setup correctly', () => {
 		test('assertCleanState - check that registries are clean at the start of test running', () => {
@@ -428,6 +432,10 @@ function writeIsolationFindings() {
 			// The report is optional: never keep the run from finishing.
 			console.error(`Failed to write isolation findings to ${reportPath}: ${error}`);
 		}
+	}
+	const resetStats = globalThis.__vscodeTestIsolationResetStats;
+	if (reportPath && resetStats) {
+		fs.appendFileSync(reportPath, JSON.stringify({ runner: 'electron', kind: 'resetStats', ...resetStats }) + '\n');
 	}
 }
 

@@ -385,7 +385,7 @@
 	</script>
 
 	<script type="text" id="bootstrap">
-		const {data: {modules, grep, rerunTargets, claimTestFiles, isolationProbes}, manual} = await globalThis._VSCODE_TEST_RUN
+		const {data: {modules, grep, rerunTargets, claimTestFiles, isolationProbes, isolationReset}, manual} = await globalThis._VSCODE_TEST_RUN
 
 		try {
 			// load
@@ -396,6 +396,10 @@
 			const { menuChangeListenerDetector } = await import(`../../../${out}/vs/platform/actions/test/common/menuChangeListenerDetector.js`);
 			// The animation frame probe changes when queued runners run, so only reporting runs use it.
 			installIsolationCheck(mocha.suite, [...defaultIsolationDetectors, menuChangeListenerDetector, ...(isolationProbes ? [animationFrameQueueDetector] : [])]);
+			if (isolationReset) {
+				const { installIsolationReset } = await import(`../../../${out}/vs/base/test/browser/isolationReset.js`);
+				installIsolationReset(mocha.suite);
+			}
 			await loadModules(modules);
 			prepareTestsForRerun(rerunTargets);
 			if (testFiles) {

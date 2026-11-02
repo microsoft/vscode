@@ -332,6 +332,10 @@ async function writeIsolationFindings(page, browserType) {
 			console.error(`Failed to write isolation findings to ${reportPath}: ${error}`);
 		}
 	}
+	const resetStats = await page.evaluate(() => globalThis.__vscodeTestIsolationResetStats);
+	if (resetStats) {
+		await fs.promises.appendFile(reportPath, JSON.stringify({ runner: browserType, kind: 'resetStats', ...resetStats }) + '\n');
+	}
 }
 /**
  * Runs the test modules once in a newly launched browser. Returns the failure message
@@ -439,6 +443,7 @@ async function runTestsInBrowser(testModules, browserType, browserChannel, grep,
 			rerunTargets,
 			claimTestFiles: !!claims,
 			isolationProbes: !!process.env.VSCODE_TEST_ISOLATION_REPORT,
+			isolationReset: !!process.env.VSCODE_TEST_ISOLATION_RESET,
 		});
 		await writeIsolationFindings(page, browserType);
 	} finally {
