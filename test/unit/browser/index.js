@@ -313,17 +313,6 @@ async function createServer(claims) {
 }
 
 /**
- * Runs the test modules once in a newly launched browser. Returns the failure message
- * for the console, if any test failed, and which tests passed and failed.
- * @param {string[]} testModules
- * @param browserType the Playwright browser: chromium, firefox or webkit
- * @param {string | undefined} browserChannel
- * @param {string | undefined} grep
- * @param {number} attempt
- * @param {IRerunTarget[] | undefined} rerunTargets
- * @returns {Promise<{ message: string | undefined; failures: IFailure[]; passed: IPassed[]; unattributedFailures: string[] }>}
- */
-/**
  * Appends what the isolation checks found (see isolationCheck.ts) to the JSON lines file in
  * VSCODE_TEST_ISOLATION_REPORT, one line per finding, so the findings of several runs end up in one file.
  * @param {import('playwright').Page} page
@@ -339,6 +328,17 @@ async function writeIsolationFindings(page, browserType) {
 		await fs.promises.appendFile(reportPath, findings.map(finding => JSON.stringify({ runner: browserType, ...finding }) + '\n').join(''));
 	}
 }
+/**
+ * Runs the test modules once in a newly launched browser. Returns the failure message
+ * for the console, if any test failed, and which tests passed and failed.
+ * @param {string[]} testModules
+ * @param browserType the Playwright browser: chromium, firefox or webkit
+ * @param {string | undefined} browserChannel
+ * @param {string | undefined} grep
+ * @param {number} attempt
+ * @param {IRerunTarget[] | undefined} rerunTargets
+ * @returns {Promise<{ message: string | undefined; failures: IFailure[]; passed: IPassed[]; unattributedFailures: string[] }>}
+ */
 async function runTestsInBrowser(testModules, browserType, browserChannel, grep, attempt, rerunTargets) {
 	// a worker of a parallel run (see parallel.ts) only runs the test files it claims
 	const claims = worker ? createTestFileClaims(worker) : undefined;
