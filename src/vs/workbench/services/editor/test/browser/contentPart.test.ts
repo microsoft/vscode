@@ -209,6 +209,32 @@ suite('Content Part', () => {
 		}, { closed: true, listedWhenNotified: true, merged: true, listed: false });
 	});
 
+	test('close merges editors that must stay into the main part of its window; the window\'s main part into the main part', async () => {
+		const parts = await createServices();
+		const iframe = mainWindow.document.body.appendChild(mainWindow.document.createElement('iframe'));
+		disposables.add({ dispose: () => iframe.remove() });
+		const otherWindow = iframe.contentWindow!;
+		ensureCodeWindow(otherWindow, 4545);
+		disposables.add(registerWindow(otherWindow));
+		const containerIn = () => otherWindow.document.body.appendChild(otherWindow.document.createElement('div'));
+
+		const windowMain = parts.createEditorPart({ container: containerIn() });
+		const other = parts.createEditorPart({ container: containerIn() });
+		const fromOther = createInput('/content/from-other.txt');
+		fromOther.setDirty();
+		await other.activeGroup.openEditor(fromOther);
+		const fromWindowMain = createInput('/content/from-window-main.txt');
+		fromWindowMain.setDirty();
+		await windowMain.activeGroup.openEditor(fromWindowMain);
+
+		other.close();
+		const afterOther = { inWindowMain: windowMain.groups.some(group => group.contains(fromOther)), inMain: parts.mainPart.groups.some(group => group.contains(fromOther)) };
+		windowMain.close();
+		const afterWindowMain = { inMain: parts.mainPart.groups.some(group => group.contains(fromWindowMain)) && parts.mainPart.groups.some(group => group.contains(fromOther)) };
+
+		assert.deepStrictEqual({ afterOther, afterWindowMain }, { afterOther: { inWindowMain: true, inMain: false }, afterWindowMain: { inMain: true } });
+	});
+
 	test('its last group stays, also as closing all editors closes empty groups: its owner closes it', async () => {
 		const parts = await createServices();
 

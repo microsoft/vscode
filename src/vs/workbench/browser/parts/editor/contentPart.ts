@@ -89,8 +89,10 @@ export class ContentPart extends EditorPart implements IContentPart {
 			group.closeAllEditors({ excludeConfirming: true, force: true });
 		}
 
-		// Then merge remaining to main part
-		if (!this.mergeGroupsToMainPart()) {
+		// Then merge remaining into the main part of its window, unless
+		// this is that part: then into the main part
+		const windowMainPart = this.editorPartsView.getWindowMainPart(this.windowId);
+		if (!this.mergeGroupsToMainPart(windowMainPart === this ? this.editorPartsView.mainPart : windowMainPart)) {
 			return false; // do not close when editors could not be merged back
 		}
 

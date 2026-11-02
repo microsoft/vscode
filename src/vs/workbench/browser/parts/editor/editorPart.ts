@@ -1020,17 +1020,17 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 	/**
 	 * Merges all editors of this part into the most recently active
-	 * unlocked group of the main part, without changing the editors
-	 * that are already there.
+	 * unlocked group of `targetPart` (by default, the main part),
+	 * without changing the editors that are already there.
 	 */
-	protected mergeGroupsToMainPart(): boolean {
+	protected mergeGroupsToMainPart(targetPart: IEditorGroupsView = this.editorPartsView.mainPart): boolean {
 		if (!this.groups.some(group => group.count > 0)) {
 			return true; // skip if we have no editors opened
 		}
 
 		// Find the most recent group that is not locked
 		let targetGroup: IEditorGroupView | undefined = undefined;
-		for (const group of this.editorPartsView.mainPart.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+		for (const group of targetPart.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
 			if (!group.isLocked) {
 				targetGroup = group;
 				break;
@@ -1038,7 +1038,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		}
 
 		if (!targetGroup) {
-			targetGroup = this.editorPartsView.mainPart.addGroup(this.editorPartsView.mainPart.activeGroup, this.partOptions.openSideBySideDirection === 'right' ? GroupDirection.RIGHT : GroupDirection.DOWN);
+			targetGroup = targetPart.addGroup(targetPart.activeGroup, this.partOptions.openSideBySideDirection === 'right' ? GroupDirection.RIGHT : GroupDirection.DOWN);
 		}
 
 		const result = this.mergeAllGroups(targetGroup, {

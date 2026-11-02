@@ -185,6 +185,10 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 
 	//#region Content Parts
 
+	getWindowMainPart(windowId: number): EditorPart {
+		return this.parts.find(part => part.windowId === windowId) ?? this.mainPart;
+	}
+
 	createEditorPart(options: ICreateEditorPartOptions): IContentPart {
 		const disposables = new DisposableStore();
 		const container = options.container as HTMLElement;
