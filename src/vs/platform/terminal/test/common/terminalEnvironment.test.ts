@@ -41,6 +41,9 @@ suite('terminalEnvironment', () => {
 			strictEqual(collapseTildePath('/foo/bar/baz', '/foo', '/'), '~/bar/baz');
 			strictEqual(collapseTildePath('/foo/bar/baz', '/foo/', '/'), '~/bar/baz');
 		});
+		test('should not collapse differently cased Posix paths', () => {
+			strictEqual(collapseTildePath('/home/alice/project', '/home/Alice', '/'), '/home/alice/project');
+		});
 	});
 	suite('sanitizeCwd', () => {
 		if (OS === OperatingSystem.Windows) {
