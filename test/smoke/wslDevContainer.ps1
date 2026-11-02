@@ -252,29 +252,26 @@ if ($wslPath.ExitCode -ne 0 -or $linuxArchive -notmatch '^/mnt/[a-z]/[a-zA-Z0-9/
 # From the Azure-hosted agents, archive.ubuntu.com and security.ubuntu.com are at times so slow that apt runs past this
 # command's timeout, so apt uses the Azure Ubuntu mirror, and retries downloads that fail.
 # The Azure mirror usually serves the 80 MB of packages in 2-17 seconds, but its package files can come at only about
-# 250 KB/s for minutes (its index files stay fast), and the mirror is at times unreachable. apt has no minimum transfer
-# speed and only warns about index files it could not fetch, so the index update fails on any fetch error, and each
-# step is bounded and retried. A retried download keeps the packages it completed and resumes the partial one, so a
-# slow mirror still makes progress across attempts.
+# 250 KB/s for minutes on every connection (its index files stay fast), and the mirror is at times unreachable. A slow
+# but progressing download therefore gets the whole budget of this command rather than a per-attempt wall clock, while
+# a connection that stops sending data fails after 30 seconds and apt retries it. apt only warns about index files it
+# could not fetch, so the index update fails on any fetch error and is retried.
 $aptPackages = 'ca-certificates curl git iproute2 procps docker.io libatomic1 libkrb5-3'
 Invoke-Wsl @"
 export DEBIAN_FRONTEND=noninteractive
 sed -i -e 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' -e 's|http://security.ubuntu.com|http://azure.archive.ubuntu.com|g' /etc/apt/sources.list
-echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries
-apt_bounded() {
-	attempts=`$1
-	seconds=`$2
-	shift 2
-	for attempt in `$(seq 1 "`$attempts"); do
-		if timeout --kill-after=10 "`$seconds" "`$@"; then
+printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\n' > /etc/apt/apt.conf.d/80-retries
+retry() {
+	for attempt in 1 2 3; do
+		if "`$@"; then
 			return 0
 		fi
-		echo "Attempt `$attempt of `$attempts failed or ran past `$seconds seconds: `$*" >&2
+		echo "Attempt `$attempt of 3 failed: `$*" >&2
 	done
 	return 1
 }
-apt_bounded 3 45 apt-get update --error-on=any
-apt_bounded 5 90 apt-get install -y --download-only --no-install-recommends $aptPackages
+retry timeout --kill-after=10 45 apt-get update --error-on=any
+retry apt-get install -y --download-only --no-install-recommends $aptPackages
 apt-get install -y --no-install-recommends $aptPackages
 mkdir -p /opt/vscode-smoke-server
 tar -xzf '$linuxArchive' --strip-components=1 -C /opt/vscode-smoke-server
