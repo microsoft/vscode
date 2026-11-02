@@ -26,8 +26,10 @@ const allowedImporterRoots = [
 	resolvePackageFolder('@microsoft/dev-tunnels-management'),
 	resolvePackageFolder('@microsoft/dev-tunnels-contracts'),
 ];
-const readableStreamBrowserPath = path.join(resolvePackageFolder('readable-stream'), 'readable-browser.js');
+const READABLE_STREAM_ROOT = resolvePackageFolder('readable-stream');
+const readableStreamBrowserPath = path.join(READABLE_STREAM_ROOT, 'readable-browser.js');
 const bufferPath = path.join(resolvePackageFolder('buffer'), 'index.js');
+const eventsPath = path.join(resolvePackageFolder('events'), 'events.js');
 const nodeBuiltinNames = ['net', 'os', 'path', 'crypto', 'child_process', 'fs', 'http', 'https', 'tls', 'dns', 'zlib'];
 const nodeBuiltinFilter = new RegExp(`^(?:node:)?(?:${nodeBuiltinNames.join('|')}|stream|buffer)$`);
 const vscodeJsonrpcEventsPath = resolveDevTunnelsJsonRpcModule('events');
@@ -100,6 +102,14 @@ export function devTunnelsBrowserShimPlugin(): esbuild.Plugin {
 				return specifier === 'buffer'
 					? { path: bufferPath }
 					: { path: path.join(SHIMS_ROOT, 'empty.cjs') };
+			});
+
+			build.onResolve({ filter: /^events$/ }, args => {
+				// The stream polyfill requires Node's `events`; give it the browser polyfill that the root declares.
+				if (!isPathWithin(READABLE_STREAM_ROOT, args.importer)) {
+					return;
+				}
+				return { path: eventsPath };
 			});
 
 			build.onResolve({ filter: /^node-rsa$/ }, args => {

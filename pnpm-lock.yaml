@@ -414,6 +414,9 @@ importers:
       event-stream:
         specifier: 3.3.4
         version: 3.3.4
+      events:
+        specifier: ^3.3.0
+        version: 3.3.0
       fancy-log:
         specifier: ^1.3.3
         version: 1.3.3
