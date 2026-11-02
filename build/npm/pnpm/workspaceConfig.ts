@@ -71,8 +71,9 @@ export const minimumReleaseAgeExclusions: readonly string[] = [
  * gets the patterns that match a package it installs (see {@link getPatternsOfInstalledPackages}).
  *
  * `@parcel/watcher` loads its prebuilt `@parcel/watcher-<platform>` package before the binary that
- * `build_from_source` in `.npmrc` builds, and the product would ship the prebuilt one, which isn't
- * built with VS Code's toolchain (the Linux armhf one needs a newer glibc than VS Code supports).
+ * `buildFromSource` in the `nativeBuild` field of `package.json` builds, and the product would ship
+ * the prebuilt one, which isn't built with VS Code's toolchain (the Linux armhf one needs a newer
+ * glibc than VS Code supports).
  * Deleting the prebuilds after the install doesn't last: every later install restores them.
  */
 export const ignoredOptionalDependencyPatterns: readonly string[] = [

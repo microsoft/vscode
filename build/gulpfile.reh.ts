@@ -32,6 +32,7 @@ import { fetchUrls } from './lib/fetch.ts';
 import { downloadFeedPackage } from './lib/azureFeed.ts';
 import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
 import { readAgentSdkResults } from './agent-sdk/common.ts';
+import { getServerNodeVersion } from './lib/node.ts';
 
 
 const rcedit = promisify(rceditCallback);
@@ -55,13 +56,6 @@ const BUILD_TARGETS = [
 	// multiple alpine images and moved to a better model (alpine as the platform)
 	{ platform: 'linux', arch: 'alpine' },
 ];
-
-function getNodeVersion() {
-	const npmrc = fs.readFileSync(path.join(REPO_ROOT, 'remote', '.npmrc'), 'utf8');
-	const nodeVersion = /^target="(.*)"$/m.exec(npmrc)![1];
-	const internalNodeVersion = /^ms_build_id="(.*)"$/m.exec(npmrc)![1];
-	return { nodeVersion, internalNodeVersion };
-}
 
 function getNodeChecksum(expectedName: string): string | undefined {
 	const nodeJsChecksums = fs.readFileSync(path.join(REPO_ROOT, 'build', 'checksums', 'nodejs.txt'), 'utf8');
@@ -124,7 +118,7 @@ function patchElfLoadAlign(): NodeJS.ReadWriteStream {
 	});
 }
 
-const { nodeVersion, internalNodeVersion } = getNodeVersion();
+const { nodeVersion, internalNodeVersion } = getServerNodeVersion(REPO_ROOT);
 
 // In product builds, the server (reh) Node.js binaries are fetched on demand
 // from our Azure Artifacts feed named by `product.nodejsArtifactFeed` using the
@@ -318,7 +312,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 
 		let packageJsonContents = '';
 		const packageJsonStream = gulp.src(['remote/package.json'], { base: 'remote' })
-			.pipe(jsonEditor({ name, version, dependencies: undefined, optionalDependencies: undefined, type: 'module' }))
+			.pipe(jsonEditor({ name, version, dependencies: undefined, optionalDependencies: undefined, nativeBuild: undefined, type: 'module' }))
 			.pipe(es.through(function (file) {
 				packageJsonContents = file.contents.toString();
 				this.emit('data', file);

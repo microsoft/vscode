@@ -27,7 +27,9 @@ function fixture(t: TestContext): string {
 	const directory = fs.mkdtempSync(path.join(parent, 'cloud-sandbox-test-'));
 	t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
 	fs.writeFileSync(path.join(directory, '.nvmrc'), '24.18.0\n');
-	fs.writeFileSync(path.join(directory, '.npmrc'), 'target="43.7.7"\nms_build_id="15553055"\n');
+	fs.writeFileSync(path.join(directory, 'package.json'), JSON.stringify({
+		nativeBuild: { runtime: 'electron', target: '43.7.7', disturl: 'https://electronjs.org/headers', msBuildId: '15553055' },
+	}));
 	fs.mkdirSync(path.join(directory, 'host-bin'));
 	for (const executable of ['node', 'npm', 'npx']) {
 		fs.writeFileSync(path.join(directory, 'host-bin', executable), '', { mode: 0o755 });
@@ -686,9 +688,8 @@ suite('Cloud Sandbox install setup', () => {
 			fs.writeFileSync('node_modules/.bin/node-gyp', '');
 			fs.appendFileSync(${JSON.stringify(path.join(root, 'calls'))}, 'headers\\n');
 		`);
-		fs.writeFileSync(path.join(root, '.npmrc'), '');
 		fs.mkdirSync(path.join(root, 'remote'));
-		fs.writeFileSync(path.join(root, 'remote', '.npmrc'), '');
+		fs.writeFileSync(path.join(root, 'remote', 'package.json'), '{}');
 		fs.mkdirSync(path.join(root, '.github'));
 		fs.writeFileSync(path.join(root, '.github', 'copilot-instructions.md'), '');
 		fs.mkdirSync(path.join(root, '.agents', 'skills'), { recursive: true });
@@ -809,7 +810,7 @@ suite('Cloud Sandbox install setup', () => {
 		const npmDirectory = path.join(root, 'build/npm');
 		fs.mkdirSync(path.join(npmDirectory, 'gyp'), { recursive: true });
 		fs.mkdirSync(path.join(root, 'remote'));
-		fs.writeFileSync(path.join(root, 'remote/.npmrc'), '');
+		fs.writeFileSync(path.join(root, 'remote/package.json'), '{}');
 		for (const file of ['package.json', 'pnpm-lock.yaml']) {
 			fs.writeFileSync(path.join(npmDirectory, 'gyp', file), '{}');
 		}
@@ -857,7 +858,7 @@ exec ${quote(process.execPath)} "$@"
 			const npmDirectory = path.join(root, 'build/npm');
 			fs.mkdirSync(path.join(npmDirectory, 'gyp'), { recursive: true });
 			fs.mkdirSync(path.join(root, 'remote'));
-			fs.writeFileSync(path.join(root, 'remote/.npmrc'), '');
+			fs.writeFileSync(path.join(root, 'remote/package.json'), '{}');
 			for (const file of ['package.json', 'pnpm-lock.yaml']) {
 				fs.writeFileSync(path.join(npmDirectory, 'gyp', file), '{}');
 			}
