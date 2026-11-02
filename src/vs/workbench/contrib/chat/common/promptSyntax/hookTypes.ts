@@ -46,6 +46,8 @@ export const HOOKS_BY_TARGET: Record<Target, Record<string, HookType>> = {
 		'userPromptSubmitted': HookType.UserPromptSubmit,
 		'preToolUse': HookType.PreToolUse,
 		'postToolUse': HookType.PostToolUse,
+		'preCompact': HookType.PreCompact,
+		'subagentStart': HookType.SubagentStart,
 		'agentStop': HookType.Stop,
 		'subagentStop': HookType.SubagentStop,
 		'errorOccurred': HookType.ErrorOccurred,
