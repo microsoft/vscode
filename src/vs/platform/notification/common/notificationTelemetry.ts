@@ -47,6 +47,7 @@ export enum NotificationTelemetryId {
 	FileSaveParticipants = 'files.saveParticipants',
 	WorkingCopySaveParticipants = 'files.workingCopySaveParticipants',
 	FileOperationParticipants = 'files.operationParticipants',
+	UpdateOutdatedBuildReminder = 'update.outdatedBuildReminder',
 }
 
 export enum NotificationActionTelemetryId {

@@ -63,6 +63,8 @@
 
 .chat-confirmation-widget-container {
 	position: relative;
+	/* The container is the focusable element; match the card's radius so its focus outline follows the card's corners. */
+	border-radius: var(--vscode-cornerRadius-medium);
 
 	> .monaco-progress-container.active {
 		position: absolute;

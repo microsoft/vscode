@@ -27,7 +27,7 @@ import { observableConfigValue } from '../../../../../../platform/observable/com
 import { logSettingExperimentTrigger } from '../../../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatMode, IChatMode, IChatModes } from '../../../common/chatModes.js';
+import { ChatMode, getChatModeSourceLabel, IChatMode, IChatModes } from '../../../common/chatModes.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { isOrganizationPromptFile } from '../../../common/promptSyntax/utils/promptsServiceUtils.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
@@ -180,11 +180,15 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 			};
 		};
 
-		const makeActionFromCustomMode = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => {
+		const makeActionFromCustomMode = (mode: IChatMode, currentMode: IChatMode, offeredModes: readonly IChatMode[]): IActionWidgetDropdownAction => {
+			const source = getChatModeSourceLabel(mode, offeredModes);
+			const description = mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip;
 			return {
 				...makeAction(mode, currentMode),
 				tooltip: '',
-				hover: { content: mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip },
+				description: source,
+				ariaDescription: source && description ? localize('modeSourceDescription', "{0}, {1}", source, description) : source,
+				hover: { content: description },
 				icon: mode.icon.get() ?? (isModeConsideredBuiltIn(mode, this._productService) ? builtinDefaultIcon(mode) : undefined),
 				category: mode.kind === ChatModeKind.Agent && agentModeDisabledViaPolicy ? policyDisabledCategory : customCategory
 			};
@@ -203,17 +207,18 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 			const customModes = groupBy(
 				filteredCustomModes,
 				mode => isModeConsideredBuiltIn(mode, this._productService) ? 'builtin' : 'custom');
+			const offeredModes = [ChatMode.Agent, ...filteredCustomModes];
 			// Always include the default "Agent" option first
 			const checked = currentMode.id === ChatMode.Agent.id;
 			const defaultAction = { ...makeAction(ChatMode.Agent, ChatMode.Agent), checked };
 			defaultAction.category = builtInCategory;
 			const builtInActions = customModes.builtin?.map(mode => {
-				const action = makeActionFromCustomMode(mode, currentMode);
+				const action = makeActionFromCustomMode(mode, currentMode, offeredModes);
 				action.category = builtInCategory;
 				return action;
 			}) ?? [];
 			// Add filtered custom modes
-			const customActions = customModes.custom?.map(mode => makeActionFromCustomMode(mode, currentMode)) ?? [];
+			const customActions = customModes.custom?.map(mode => makeActionFromCustomMode(mode, currentMode, offeredModes)) ?? [];
 			return [
 				...(configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled) !== false || agentModeDisabledViaPolicy ? [defaultAction] : []),
 				...builtInActions, ...customActions
@@ -238,19 +243,20 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 					}
 					return true;
 				});
+				const offeredModes = [...(agentMode ? [agentMode] : []), ...otherBuiltinModes, ...filteredCustomModes];
 				// Filter out 'implement' mode from the dropdown - it's available for handoffs but not user-selectable
 				const customModes = groupBy(
 					filteredCustomModes,
 					mode => isModeConsideredBuiltIn(mode, this._productService) ? 'builtin' : 'custom');
 
 				const customBuiltinModeActions = customModes.builtin?.map(mode => {
-					const action = makeActionFromCustomMode(mode, currentMode);
+					const action = makeActionFromCustomMode(mode, currentMode, offeredModes);
 					action.category = mode.kind === ChatModeKind.Agent && agentModeDisabledViaPolicy ? policyDisabledCategory : builtInCategory;
 					return action;
 				}) ?? [];
 				customBuiltinModeActions.sort((a, b) => a.label.localeCompare(b.label));
 
-				const customModeActions = customModes.custom?.map(mode => makeActionFromCustomMode(mode, currentMode)) ?? [];
+				const customModeActions = customModes.custom?.map(mode => makeActionFromCustomMode(mode, currentMode, offeredModes)) ?? [];
 				customModeActions.sort((a, b) => a.label.localeCompare(b.label));
 
 				const orderedModes = coalesce([

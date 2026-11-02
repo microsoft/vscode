@@ -521,6 +521,18 @@ suite('Agent host _meta readers', () => {
 	});
 
 	suite('readAgentCustomizationMeta', () => {
+		test('round-trips absolute source URIs and ignores malformed optional provenance', () => {
+			const sourceUri = 'client-customizations:/bundle/agents/reviewer.agent.md';
+			assert.deepStrictEqual([
+				readAgentCustomizationMeta(agentCustomization(toAgentCustomizationMeta({ 'vscode.sourceUri': sourceUri, userInvocable: false }))),
+				...[undefined, null, false, 42, {}, '', 'relative/agent.md', '/agent.md'].map(value =>
+					readAgentCustomizationMeta(agentCustomization({ 'vscode.sourceUri': value, userInvocable: true }))),
+			], [
+				{ 'vscode.sourceUri': sourceUri, userInvocable: false },
+				...Array.from({ length: 8 }, () => ({ userInvocable: true })),
+			]);
+		});
+
 		test('reads only explicit, bounded Ask metadata', () => {
 			assert.deepStrictEqual([
 				readAgentCustomizationMeta(agentCustomization(toAgentCustomizationMeta({ 'vscode.chatMode': 'ask' }))),

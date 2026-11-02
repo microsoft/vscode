@@ -20,8 +20,7 @@ import { IEnvironmentService } from '../../../environment/common/environment.js'
 import { TargetPlatform } from '../../../extensions/common/extensions.js';
 import { resolveMarketplaceHeaders } from '../../../externalServices/common/marketplace.js';
 import { IFileService } from '../../../files/common/files.js';
-import { FileService } from '../../../files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -173,9 +172,7 @@ suite('Extension Gallery Service', () => {
 	setup(() => {
 		const serviceMachineIdResource = joinPath(URI.file('tests').with({ scheme: 'vscode-tests' }), 'machineid');
 		environmentService = new EnvironmentServiceMock(serviceMachineIdResource);
-		fileService = disposables.add(new FileService(new NullLogService()));
-		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider(serviceMachineIdResource.scheme, fileSystemProvider));
+		fileService = createInMemoryFileService(disposables, serviceMachineIdResource.scheme);
 		storageService = disposables.add(new InMemoryStorageService());
 		configurationService = new TestConfigurationService({ [TELEMETRY_SETTING_ID]: TelemetryConfiguration.ON });
 		configurationService.updateValue(TELEMETRY_SETTING_ID, TelemetryConfiguration.ON);

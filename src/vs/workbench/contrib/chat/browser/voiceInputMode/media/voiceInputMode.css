@@ -18,6 +18,7 @@
 	--segmented-icon-toggle-height: 22px;
 	--segmented-icon-toggle-radius: var(--vscode-cornerRadius-circle);
 	--segmented-icon-toggle-cell-radius: var(--vscode-cornerRadius-circle);
+	border-radius: var(--segmented-icon-toggle-radius);
 }
 
 .monaco-segmented-icon-toggle-cell.chat-voice-input-mode-cell:focus-visible {

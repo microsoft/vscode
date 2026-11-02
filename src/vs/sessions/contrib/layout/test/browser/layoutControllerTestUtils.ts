@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IDimension } from '../../../../../base/browser/dom.js';
-import { constObservable, derived, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -150,7 +150,7 @@ export function makeSession(resource: URI, opts?: {
 	};
 }
 
-export function addPeerChat(session: IActiveSession, resource: URI, opts?: { readonly title?: string }): IChat {
+export function addPeerChat(session: IActiveSession, resource: URI, opts?: { readonly title?: string; readonly status?: IObservable<SessionStatus> }): IChat {
 	const mainChat = session.mainChat.get();
 	const chat: IChat = {
 		resource,
@@ -158,7 +158,7 @@ export function addPeerChat(session: IActiveSession, resource: URI, opts?: { rea
 		workspace: mainChat.workspace,
 		title: observableValue('title', opts?.title ?? 'Peer'),
 		updatedAt: observableValue('updatedAt', new Date()),
-		status: observableValue('status', SessionStatus.Completed),
+		status: opts?.status ?? observableValue('status', SessionStatus.Completed),
 		checkpoints: observableValue('checkpoints', undefined),
 		changes: observableValue('changes', []),
 		changesets: constObservable([]),

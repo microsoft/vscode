@@ -43,7 +43,6 @@
     "tabInputMultiDiff",
     "tabInputTextMerge",
     "textEditorDiffInformation",
-    "timeline",
     "workspaceTrust"
   ],
   "categories": [
@@ -4396,7 +4395,6 @@
     "byline": "^5.0.0",
     "file-type": "21.3.2",
     "picomatch": "2.3.2",
-    "vscode-uri": "^2.0.0",
     "which": "4.0.0"
   },
   "devDependencies": {
@@ -4409,8 +4407,5 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/microsoft/vscode.git"
-  },
-  "allowScripts": {
-    "@vscode/fs-copyfile@2.0.0": true
   }
 }

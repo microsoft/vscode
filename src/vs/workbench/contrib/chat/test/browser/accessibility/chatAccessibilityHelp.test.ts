@@ -29,6 +29,15 @@ suite('Chat Accessibility Help', () => {
 			&& help.includes('Closing the dialog returns focus to the chat input')), [true, true, true, true, true, true]);
 	});
 
+	test('explains source labels for same-named Agent Host agents', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true),
+			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true),
+		].map(help => help.includes('each entry includes its source') && help.includes('file name or location')), [true, true, false, false]);
+	});
+
 	test('documents optional Agent placement in Add Context only on editor chat surfaces', () => {
 		assert.deepStrictEqual([
 			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),

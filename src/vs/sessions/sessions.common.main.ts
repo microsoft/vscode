@@ -489,6 +489,7 @@ import './contrib/providers/agentHost/browser/agentHostForkActions.js';
 import './contrib/chat/browser/customizationsDebugLog.contribution.js';
 import './contrib/providers/copilotChatSessions/browser/copilotChatSessions.contribution.js';
 import './contrib/sessions/browser/sessions.contribution.js';
+import './contrib/canvases/browser/pinnedCanvases.contribution.js';
 import './services/sessions/browser/sessionsListModelService.js';
 import './services/sessions/browser/sessionGroupsService.js';
 import './services/sessions/browser/sessionComparisonService.js';
@@ -513,6 +514,8 @@ import './contrib/aquarium/browser/aquarium.contribution.js';
 import './contrib/policyBlocked/browser/policyBlocked.contribution.js';
 import '../workbench/services/policies/browser/managedSettingsUpdate.contribution.js';
 import './contrib/automations/browser/automations.contribution.js';
+import './contrib/canvases/browser/windowCanvases.contribution.js';
+import './contrib/inboxOne/browser/inboxOne.contribution.js';
 import './contrib/remoteSessions/browser/remoteSessions.contribution.js';
 import './contrib/customViewTest/browser/customViewTest.contribution.js';
 

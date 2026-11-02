@@ -32,7 +32,6 @@ import { IGalleryMcpServer, mcpGalleryServiceUrlConfig } from '../../../../../..
 import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
@@ -50,6 +49,7 @@ import { IPluginInstallService } from '../../../common/plugins/pluginInstallServ
 import { IMarketplaceInstalledPlugin, IMarketplaceReference, IPluginMarketplaceService, IMarketplacePlugin, IPluginSourceDescriptor, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { SKILL_FILENAME } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { TestDataTelemetryService } from '../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 
 const skillDestination = URI.file('/workspace/.github/skills/demo-skill');
 const connectorInstallationTarget = { kind: 'copilotConnector', name: 'mail' } as const;
@@ -62,16 +62,6 @@ const sources = [
 	CustomizationMarketplaceSources.PluginMarketplaces,
 	{ ...CustomizationMarketplaceSources.McpGallery, enablementSetting: mcpGalleryTestSetting },
 ];
-
-class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
-
-	override publicLog2(eventName?: string, data?: Record<string, unknown>): void {
-		if (eventName && data) {
-			this.events.push({ name: eventName, data });
-		}
-	}
-}
 
 function resource(overrides: Partial<ICustomizationMarketplaceResource> = {}): ICustomizationMarketplaceResource {
 	return {
@@ -415,7 +405,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ILogService, logService);
-		const telemetryService = new TestTelemetryService();
+		const telemetryService = new TestDataTelemetryService();
 		instantiationService.stub(ITelemetryService, telemetryService);
 		instantiationService.stub(IStorageService, storageService);
 		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceInstallService));

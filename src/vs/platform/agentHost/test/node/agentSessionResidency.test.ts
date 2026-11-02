@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
@@ -18,14 +17,15 @@ import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { buildBranchChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, type SessionSummary } from '../../common/state/sessionState.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
+import { SessionStatus, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentSessionResidency, type IAgentSessionReleaseDelegate } from '../../node/agentSessionResidency.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 suite('AgentSessionResidency', () => {
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const logService = new NullLogService();
 	let stateManager: AgentHostStateManager;
 	let releaseHold: Emitter<string>;
@@ -60,8 +60,6 @@ suite('AgentSessionResidency', () => {
 		residency = createResidency(10);
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createResidency(limit: number, releaseRetryMs = 30_000): AgentSessionResidency {
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
@@ -94,9 +92,9 @@ suite('AgentSessionResidency', () => {
 		};
 		stateManager.createSession(summary);
 		const chat = buildDefaultChatUri(session);
-		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: `turn-${id}`, startedAt: '2025-01-01T00:00:00.000Z', message: { text: id, origin: { kind: MessageKind.User } } });
+		stateManager.dispatchServerAction(chat, chatTurnStarted(`turn-${id}`, id, '2025-01-01T00:00:00.000Z'));
 		if (complete) {
-			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: `turn-${id}`, duration: 1 });
+			stateManager.dispatchServerAction(chat, chatTurnComplete(`turn-${id}`, 1));
 		}
 		residency.touch(session);
 		return session;
@@ -185,7 +183,7 @@ suite('AgentSessionResidency', () => {
 
 		await residency.reconcile();
 		const residentWhileRunning = [first, second, third].map(session => stateManager.getSessionState(session.toString()) !== undefined);
-		stateManager.dispatchServerAction(buildDefaultChatUri(first), { type: ActionType.ChatTurnComplete, turnId: 'turn-first', duration: 1 });
+		stateManager.dispatchServerAction(buildDefaultChatUri(first), chatTurnComplete('turn-first', 1));
 		await waitForEviction(first);
 
 		assert.deepStrictEqual({

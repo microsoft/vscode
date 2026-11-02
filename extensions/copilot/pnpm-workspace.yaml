@@ -1,0 +1,37 @@
+# Generated from the npm configuration by build/npm/pnpm/convert.ts during the npm to pnpm migration.
+# Setting names must be in knownSettingNames in build/npm/pnpm/workspaceConfig.ts.
+nodeLinker: hoisted
+strictPeerDependencies: false
+autoInstallPeers: false
+dedupePeerDependents: false
+fetchTimeout: 180000
+engineStrict: false
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - '@anthropic-ai/*'
+  - '@github/copilot*'
+  - '@playwright/*'
+  - '@typescript/*'
+  - '@vscode/*'
+  - '@xterm/*'
+  - electron
+  - playwright*
+  - typescript
+strictDepBuilds: true
+sideEffectsCache: false
+verifyDepsBeforeRun: false
+pmOnFail: ignore
+skills:
+  dirs: []
+allowBuilds:
+  '@playwright/browser-chromium@1.61.1': true
+  '@vscode/vsce-sign@2.1.0': true
+  esbuild@0.28.1: true
+  fsevents@2.3.2: true
+  fsevents@2.3.3: true
+  keytar@7.9.0: true
+  protobufjs: false
+overrides:
+  string_decoder: npm:string_decoder@1.2.0
+  yauzl: ^3.3.1
+  zod: 3.25.76

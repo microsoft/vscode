@@ -23,6 +23,7 @@ import { AgentSession } from '../../common/agent.js';
 import type { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { AgentHostWorkspaceSnapshotEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { chatTurnComplete } from '../common/chatActionBuilders.js';
 import { buildChatUri, buildDefaultChatUri, ChatOriginKind, MessageKind, ROOT_STATE_URI, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
@@ -164,7 +165,7 @@ suite('WorkspaceContextContribution', () => {
 				return;
 			}
 			activeTurns.delete(channel);
-			const action = reason === 'cancelled' ? { type: ActionType.ChatTurnCancelled, turnId, duration: 0 } as const : { type: ActionType.ChatTurnComplete, turnId, duration: 0 } as const;
+			const action = reason === 'cancelled' ? { type: ActionType.ChatTurnCancelled, turnId, duration: 0 } as const : chatTurnComplete(turnId, 0);
 			state.dispatchServerAction(channel, action);
 			service.didDispatchAction({ channel, session, action });
 			service.turnEnd({ session, channel, turnId, reason: { kind: reason } });

@@ -49,8 +49,10 @@ import { ICustomizationMigrationTelemetryService } from '../../common/promptSynt
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatWidgetService } from '../chat.js';
 import { AgentPluginItemKind } from '../agentPluginEditor/agentPluginItems.js';
+import { getPluginManagedByOrganizationMessage, isPluginRequiredByPolicy } from '../agentPluginActions.js';
 import {
 	AI_CUSTOMIZATION_ITEM_DISABLED_KEY,
+	AI_CUSTOMIZATION_ITEM_PLUGIN_REQUIRED_KEY,
 	AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY,
 	AI_CUSTOMIZATION_ITEM_STORAGE_KEY,
 	AI_CUSTOMIZATION_ITEM_TYPE_KEY,
@@ -340,7 +342,9 @@ registerAction2(class extends Action2 {
 		if (source === AICustomizationSources.plugin) {
 			const agentPluginService = accessor.get(IAgentPluginService);
 			const plugin = agentPluginService.plugins.get().find(p => isEqualOrParent(uri, p.uri));
-			if (plugin) {
+			if (plugin && isPluginRequiredByPolicy(plugin)) {
+				await dialogService.info(getPluginManagedByOrganizationMessage());
+			} else if (plugin) {
 				const result = await dialogService.confirm({
 					message: localize('cannotDeletePluginItem', "This item is provided by the plugin '{0}'", plugin.label),
 					detail: localize('cannotDeletePluginItemDetail', "Individual components from a plugin cannot be removed separately. Would you like to uninstall the entire plugin?"),
@@ -577,6 +581,10 @@ registerAction2(class extends Action2 {
 		if (!plugin) {
 			return;
 		}
+		if (isPluginRequiredByPolicy(plugin)) {
+			await dialogService.info(getPluginManagedByOrganizationMessage());
+			return;
+		}
 
 		const result = await dialogService.confirm({
 			message: localize('confirmUninstallPlugin', "This item is provided by the plugin '{0}'", plugin.label),
@@ -590,18 +598,35 @@ registerAction2(class extends Action2 {
 	}
 });
 
+const WHEN_ITEM_PLUGIN_IS_REQUIRED = ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_PLUGIN_REQUIRED_KEY, true);
+
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: UNINSTALL_PLUGIN_AI_CUSTOMIZATION_ID, title: localize('uninstallPlugin', "Uninstall Plugin"), icon: Codicon.trash },
 	group: 'inline',
 	order: 10,
-	when: WHEN_ITEM_IS_PLUGIN,
+	when: ContextKeyExpr.and(WHEN_ITEM_IS_PLUGIN, WHEN_ITEM_PLUGIN_IS_REQUIRED.negate()),
 });
 
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: UNINSTALL_PLUGIN_AI_CUSTOMIZATION_ID, title: localize('uninstallPlugin', "Uninstall Plugin") },
 	group: '4_modify',
 	order: 1,
-	when: WHEN_ITEM_IS_PLUGIN,
+	when: ContextKeyExpr.and(WHEN_ITEM_IS_PLUGIN, WHEN_ITEM_PLUGIN_IS_REQUIRED.negate()),
+});
+
+// A plugin the organization requires keeps a visible, disabled Uninstall Plugin action that explains why.
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: UNINSTALL_PLUGIN_AI_CUSTOMIZATION_ID, title: localize('uninstallPlugin', "Uninstall Plugin"), tooltip: getPluginManagedByOrganizationMessage(), icon: Codicon.trash, precondition: ContextKeyExpr.false() },
+	group: 'inline',
+	order: 10,
+	when: ContextKeyExpr.and(WHEN_ITEM_IS_PLUGIN, WHEN_ITEM_PLUGIN_IS_REQUIRED),
+});
+
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: UNINSTALL_PLUGIN_AI_CUSTOMIZATION_ID, title: localize('uninstallPlugin', "Uninstall Plugin"), precondition: ContextKeyExpr.false() },
+	group: '4_modify',
+	order: 1,
+	when: ContextKeyExpr.and(WHEN_ITEM_IS_PLUGIN, WHEN_ITEM_PLUGIN_IS_REQUIRED),
 });
 
 // Show Plugin action - navigates to the parent plugin detail page
@@ -789,10 +814,7 @@ registerAction2(class extends Action2 {
 		if (migration && pane instanceof AICustomizationManagementEditor) {
 			await pane.startCustomizationMigration(migrationCategory, migrationHint?.migrationFlowId);
 		} else if (showDiscover && pane instanceof AICustomizationManagementEditor) {
-			pane.showWelcomePage();
-			if (searchQuery !== undefined) {
-				pane.setSearchQuery(searchQuery);
-			}
+			pane.showDiscover(searchQuery);
 		} else if (section && pane instanceof AICustomizationManagementEditor) {
 			if (pane.selectSectionById(section)) {
 				if (searchQuery !== undefined) {

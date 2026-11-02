@@ -106,6 +106,9 @@ const maxCapturedLogFileBytes = 2 * 1024 * 1024;
 /** How many bytes of logs {@link TestContext.captureLogs} copies at most per capture. */
 const maxCapturedLogBytes = 10 * 1024 * 1024;
 
+/** The experiment service (ExP) that assigns treatments to the workbench. */
+const experimentsUrlPattern = /^https:\/\/[^/]*exp-tas\.com\//i;
+
 /**
  * Provides context and utilities for VS Code sanity tests.
  */
@@ -1378,13 +1381,17 @@ export class TestContext {
 	}
 
 	/**
-	 * Awaits a page promise and sets the default timeout.
+	 * Awaits a page promise, sets the default timeout and blocks experiment assignments.
+	 * Sanity tests check the build itself, so they run without the experiment treatments (ExP)
+	 * that are live for users at the time, which change without a build. Desktop apps also get
+	 * `--disable-experiments`, which a browser workbench has no equivalent for.
 	 * @param pagePromise The promise that resolves to a Page.
 	 * @returns The page with the timeout configured.
 	 */
 	public async getPage(pagePromise: Promise<Page>): Promise<Page> {
 		const page = await pagePromise;
 		page.setDefaultTimeout(3 * 60 * 1000);
+		await page.route(experimentsUrlPattern, route => route.abort('blockedbyclient'));
 		return page;
 	}
 
@@ -1534,6 +1541,27 @@ export class TestContext {
 			}
 		} catch (e) {
 			this.warn(`Failed to capture logs: ${e instanceof Error ? e.message : String(e)}`);
+		}
+	}
+
+	/**
+	 * Writes a diagnostics file for the current test into the screenshots directory, as
+	 * `<test>-<fileName>`, so it is uploaded with the screenshots.
+	 */
+	public writeDiagnostics(fileName: string, content: string | Buffer) {
+		if (!this.currentTestName) {
+			return;
+		}
+
+		try {
+			const screenshotDir = this.options.screenshotsDir ?? path.join(this.osTempDir, 'vscode-sanity-screenshots');
+			fs.mkdirSync(screenshotDir, { recursive: true });
+			const sanitizedName = this.currentTestName.replace(/[^a-zA-Z0-9_-]/g, '_');
+			const target = path.join(screenshotDir, `${sanitizedName}-${fileName}`);
+			fs.writeFileSync(target, content);
+			this.log(`Diagnostics saved to: ${target}`);
+		} catch (e) {
+			this.warn(`Failed to write diagnostics ${fileName}: ${e instanceof Error ? e.message : String(e)}`);
 		}
 	}
 

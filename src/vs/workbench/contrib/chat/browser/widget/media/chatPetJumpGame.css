@@ -160,6 +160,11 @@
 	text-wrap: balance;
 }
 
+.chat-pet-jump-hint .monaco-keybinding {
+	display: inline-flex;
+	vertical-align: middle;
+}
+
 .hc-black .chat-pet-jump-charge-cell,
 .hc-light .chat-pet-jump-charge-cell {
 	opacity: 1;

@@ -2640,7 +2640,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		};
 	}
 
-	resolveWorkspace(uri: URI): ISessionWorkspace | undefined {
+	resolveWorkspace(uri: URI, options?: { readonly resolveMetadata?: boolean }): ISessionWorkspace | undefined {
 		if (this.providerMode === 'sandbox' && (uri.scheme !== GITHUB_REMOTE_FILE_SCHEME || uri.authority !== 'github' || !/^\/[^/]+\/[^/]+\/HEAD$/.test(uri.path) || uri.query || uri.fragment)) {
 			return undefined;
 		}
@@ -2652,7 +2652,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			workingDirectory: uri,
 			name: basename(uri),
 			description: undefined,
-			gitRepository: uri.scheme === Schemas.file ? this._getLocalGitRepository(uri) : undefined,
+			gitRepository: uri.scheme === Schemas.file && (options?.resolveMetadata !== false || this._localGitRepositoryState.has(this.uriIdentityService.extUri.getComparisonKey(uri)))
+				? this._getLocalGitRepository(uri) : undefined,
 		};
 		return {
 			uri: uri,

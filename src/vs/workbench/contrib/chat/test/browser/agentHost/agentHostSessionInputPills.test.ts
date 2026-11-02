@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { IAction, SubmenuAction } from '../../../../../../base/common/actions.js';
@@ -1338,78 +1339,86 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	test('reveals remote host customizations without remapping client or synced resources', async () => {
-		const chatResource = 'vendor-chat:/conversations/main';
-		const hostUri = URI.file('/repo/.github/skills/host/SKILL.md');
-		const clientUri = URI.file('/client/skills/client/SKILL.md');
-		const syncedUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/bundle/skills/synced/SKILL.md' });
-		const skills = [
-			{ id: 'host', uri: hostUri, clientId: undefined },
-			{ id: 'client', uri: clientUri, clientId: 'test-client' },
-			{ id: 'synced', uri: syncedUri, clientId: undefined },
-		];
-		const session = upcastPartial<SessionState>({
-			defaultChat: chatResource,
-			chats: [],
-			workingDirectories: [URI.file('/repo').toString()],
-			customizations: skills.map(skill => ({
-				id: `${skill.id}-container`,
-				type: CustomizationType.Directory,
-				name: skill.id,
-				uri: dirname(skill.uri).toString(),
-				clientId: skill.clientId,
-				enabled: true,
-				contents: CustomizationType.Skill,
-				writable: false,
-				children: [{ id: skill.id, type: CustomizationType.Skill, name: skill.id, uri: skill.uri.toString() }],
-			})),
-		});
-		const chat = upcastPartial<ChatState>({
-			resource: chatResource,
-			turns: [upcastPartial<Turn>({
-				id: 'turn',
-				responseParts: skills.map(skill => ({
-					kind: ResponsePartKind.ToolCall,
-					toolCall: {
-						toolCallId: skill.id,
-						toolName: skill.id === 'host' ? 'view' : 'skill',
-						displayName: skill.id,
-						status: ToolCallStatus.Completed,
-						confirmed: ToolCallConfirmationReason.NotNeeded,
-						invocationMessage: skill.id,
-						pastTenseMessage: skill.id,
-						success: true,
-						toolInput: JSON.stringify(skill.id === 'host' ? { path: '.github/skills/host/SKILL.md' } : { skill: skill.id }),
-					},
+	for (const kind of agentHostConnectionKinds) {
+		test(`reveals host-authored children of host, client and synced customizations through the connection (${kind.name})`, async () => {
+			const chatResource = 'vendor-chat:/conversations/main';
+			const hostUri = URI.file('/repo/.github/skills/host/SKILL.md');
+			const clientUri = URI.file('/cache/client-plugin/skills/client/SKILL.md');
+			const syncedUri = URI.file('/cache/synced-bundle/skills/synced/SKILL.md');
+			const skills = [
+				{ id: 'host', uri: hostUri, pluginUri: undefined },
+				{ id: 'client', uri: clientUri, pluginUri: URI.file('/client/plugin') },
+				{ id: 'synced', uri: syncedUri, pluginUri: URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/bundle' }) },
+			];
+			const session = upcastPartial<SessionState>({
+				defaultChat: chatResource,
+				chats: [],
+				workingDirectories: [URI.file('/repo').toString()],
+				customizations: skills.map((skill): Customization => ({
+					id: `${skill.id}-container`,
+					name: skill.id,
+					...(skill.pluginUri ? {
+						type: CustomizationType.Plugin,
+						uri: skill.pluginUri.toString(),
+						clientId: 'test-client',
+					} : {
+						type: CustomizationType.Directory,
+						uri: dirname(skill.uri).toString(),
+						enabled: true,
+						contents: CustomizationType.Skill,
+						writable: false,
+					}),
+					children: [{ id: skill.id, type: CustomizationType.Skill, name: skill.id, uri: skill.uri.toString() }],
 				})),
-			})],
-		});
-		const harness = createActivityPills(session, chat, undefined, 'remote-server');
-		harness.visibility.toggle(SessionChatPillKind.Customizations);
-		// Selecting the chat only schedules customization resolution; nothing is resolved until it runs.
-		const beforeFlush = { pending: harness.customizationScheduler.pendingCount > 0, pill: harness.persistentContent.textContent?.includes('Customizations') };
-		assert.deepStrictEqual(beforeFlush, { pending: true, pill: false });
-		const entries = harness.dropdown('3 Customizations').filter(item => item.description !== undefined);
-		for (const entry of entries) {
-			entry.select();
-		}
-		await timeout(0);
+			});
+			const chat = upcastPartial<ChatState>({
+				resource: chatResource,
+				turns: [upcastPartial<Turn>({
+					id: 'turn',
+					responseParts: skills.map(skill => ({
+						kind: ResponsePartKind.ToolCall,
+						toolCall: {
+							toolCallId: skill.id,
+							toolName: skill.id === 'host' ? 'view' : 'skill',
+							displayName: skill.id,
+							status: ToolCallStatus.Completed,
+							confirmed: ToolCallConfirmationReason.NotNeeded,
+							invocationMessage: skill.id,
+							pastTenseMessage: skill.id,
+							success: true,
+							toolInput: JSON.stringify(skill.id === 'host' ? { path: '.github/skills/host/SKILL.md' } : { skill: skill.id }),
+						},
+					})),
+				})],
+			});
+			const harness = createActivityPills(session, chat, undefined, 'remote-server', undefined, undefined, { resourceUris: kind.resourceUris });
+			harness.visibility.toggle(SessionChatPillKind.Customizations);
+			// Selecting the chat only schedules customization resolution; nothing is resolved until it runs.
+			const beforeFlush = { pending: harness.customizationScheduler.pendingCount > 0, pill: harness.persistentContent.textContent?.includes('Customizations') };
+			const entries = harness.dropdown('3 Customizations').filter(item => item.description !== undefined);
+			for (const entry of entries) {
+				entry.select();
+			}
+			await timeout(0);
 
-		assert.deepStrictEqual({
-			entries: entries.map(entry => ({ label: entry.label, description: entry.description })),
-			commands: harness.commands,
-		}, {
-			entries: [
-				{ label: 'host', description: '.github/skills/host/SKILL.md' },
-				{ label: 'client', description: clientUri.fsPath },
-				{ label: 'synced', description: syncedUri.toString(true) },
-			],
-			commands: [toAgentHostUri(hostUri, 'remote-server'), clientUri, syncedUri].map(uri => ({
-				id: AICustomizationManagementCommands.OpenEditor,
-				args: [{ section: AICustomizationManagementSection.Skills, revealUri: uri.toString() }],
-			})),
+			assert.deepStrictEqual({
+				beforeFlush,
+				entries: entries.map(entry => ({ label: entry.label, description: entry.description })),
+				commands: harness.commands,
+			}, {
+				beforeFlush: { pending: true, pill: false },
+				entries: [
+					{ label: 'host', description: '.github/skills/host/SKILL.md' },
+					{ label: 'client', description: kind.name === 'local' ? clientUri.fsPath : kind.toClient(clientUri).toString(true) },
+					{ label: 'synced', description: kind.name === 'local' ? syncedUri.fsPath : kind.toClient(syncedUri).toString(true) },
+				],
+				commands: [hostUri, clientUri, syncedUri].map(uri => ({
+					id: AICustomizationManagementCommands.OpenEditor,
+					args: [{ section: AICustomizationManagementSection.Skills, revealUri: kind.toClient(uri).toString() }],
+				})),
+			});
 		});
-	});
+	}
 
 	test('matches the Agents Window aggregate issue status icon', async () => {
 		const harness = createActivityPills(upcastPartial<SessionState>({
@@ -1602,7 +1611,13 @@ suite('AgentHostSessionInputPills', () => {
 			_meta: withSessionArtifacts(undefined, artifacts),
 		}), undefined, undefined, 'local', createRichGitHubService([]));
 		await timeout(0);
-		const row = (entry: ReturnType<typeof activity.dropdownItems>[number]) => ({ label: entry.label, badge: entry.badge, leading: entry.leading });
+		const row = (entry: ReturnType<typeof activity.dropdownItems>[number]) => ({
+			label: entry.label,
+			badge: entry.badge,
+			leading: entry.leading,
+			description: entry.description,
+			expandable: entry.hover?.expandable,
+		});
 		const pr = activity.dropdown('Pull Requests').find(entry => entry.badge === '#2')!;
 		activity.instantiationService.get(IActionWidgetService).hide();
 		const issue = activity.dropdown('Issues').find(entry => entry.badge === '#4')!;
@@ -1614,8 +1629,14 @@ suite('AgentHostSessionInputPills', () => {
 			pullRequest: [pr, references.find(entry => entry.badge === '#2')!].map(row),
 			issue: [issue, references.find(entry => entry.badge === '#4')!].map(row),
 		}, {
-			pullRequest: Array.from({ length: 2 }, () => ({ label: 'Live pull request 2', badge: '#2', leading: true })),
-			issue: Array.from({ length: 2 }, () => ({ label: 'Live issue title', badge: '#4', leading: true })),
+			pullRequest: [
+				{ label: 'Live pull request 2', badge: '#2', leading: true, description: 'Open. https://github.com/microsoft/vscode/pull/2', expandable: true },
+				{ label: 'Live pull request 2', badge: '#2', leading: true, description: undefined, expandable: true },
+			],
+			issue: [
+				{ label: 'Live issue title', badge: '#4', leading: true, description: 'Closed. https://github.com/microsoft/vscode/issues/4', expandable: true },
+				{ label: 'Live issue title', badge: '#4', leading: true, description: undefined, expandable: true },
+			],
 		});
 	});
 
@@ -1753,8 +1774,37 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
+	test('keeps destinations in unavailable dedicated issue and pull request rows', async () => {
+		const pullRequests = ['https://github.com/microsoft/vscode/pull/1', 'https://github.com/microsoft/monaco-editor/pull/1'];
+		const issues = ['https://github.com/microsoft/vscode/issues/1', 'https://github.com/microsoft/monaco-editor/issues/1'];
+		const artifacts: ISessionArtifact[] = [...pullRequests, ...issues].map((link, index) => ({
+			id: `artifact-${index}`,
+			type: index < pullRequests.length ? SessionArtifactType.PullRequest : SessionArtifactType.Issue,
+			label: 'Related item', link, isGitHub: true, isArtifact: true,
+		}));
+		const activity = createActivityPills(upcastPartial<SessionState>({
+			defaultChat: 'vendor:/sessions/42/chats/main', chats: [],
+			_meta: withSessionArtifacts(undefined, artifacts),
+		}), undefined, undefined, 'local', createRichGitHubService([], { credentialState: { fail: true, calls: 0 } }));
+		await timeout(0);
+		const descriptions = (title: string) => {
+			activity.dropdown(title);
+			const result = activity.dropdownItems().filter(item => item.badge).map(item => item.description).sort();
+			activity.instantiationService.get(IActionWidgetService).hide();
+			return result;
+		};
+		assert.deepStrictEqual({
+			pullRequests: descriptions('Pull Requests'),
+			issues: descriptions('Issues'),
+		}, {
+			pullRequests: [...pullRequests].sort(),
+			issues: [...issues].sort(),
+		});
+	});
+
 	test('keeps recorded reference labels when GitHub metadata fails', async () => {
 		const links = ['https://github.com/microsoft/vscode/pull/1', 'https://github.com/microsoft/vscode/issues/2'];
+		const credentialState = { fail: true, calls: 0 };
 		const activity = createActivityPills(upcastPartial<SessionState>({
 			defaultChat: 'vendor:/sessions/42/chats/main',
 			chats: [],
@@ -1762,12 +1812,23 @@ suite('AgentHostSessionInputPills', () => {
 				id: `reference-${index}`, type: index === 0 ? SessionArtifactType.PullRequest : SessionArtifactType.Issue,
 				label: 'Related item', link, isGitHub: true, isArtifact: false,
 			}))),
-		}), undefined, undefined, 'local', createRichGitHubService([], { credentialState: { fail: true, calls: 0 } }));
+		}), undefined, undefined, 'local', createRichGitHubService([], { credentialState }));
 		activity.dropdown('Reference');
 		await timeout(0);
 		assert.deepStrictEqual(activity.dropdownItems().filter(item => item.label === 'Related item').map(item => ({
-			label: item.label, description: item.description,
-		})), links.map(description => ({ label: 'Related item', description })));
+			label: item.label, description: item.description, expandable: item.hover?.expandable,
+		})), links.map(description => ({ label: 'Related item', description, expandable: undefined })));
+
+		credentialState.fail = false;
+		activity.instantiationService.get(IActionWidgetService).hide();
+		activity.dropdown('Reference');
+		await timeout(0);
+		assert.deepStrictEqual(activity.dropdownItems().filter(item => item.badge).map(item => ({
+			label: item.label, description: item.description, expandable: item.hover?.expandable,
+		})), [
+			{ label: 'Live pull request 1', description: undefined, expandable: true },
+			{ label: 'Live issue title', description: undefined, expandable: true },
+		]);
 	});
 
 	test('warms new reference titles before dropdown or hover intent', async () => {
@@ -2893,7 +2954,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	function createSessionWorkingSetPills() {
+	function createSessionWorkingSetPills(options?: { connectionAuthority?: string; resourceUris?: IAgentHostResourceUriMapper }) {
 		const errors: string[] = [];
 		const confirmations: Pick<IConfirmation, 'title' | 'message' | 'primaryButton' | 'type'>[] = [];
 		let confirmed = false;
@@ -2909,8 +2970,9 @@ suite('AgentHostSessionInputPills', () => {
 		const harness = createActivityPills(session, upcastPartial<ChatState>({
 			changesets: [{ label: 'Branch Changes', uriTemplate: 'vendor-diff:/opaque/branch-changes', changeKind: ChangesetKind.Branch }],
 			turns: [],
-		}), undefined, 'remote-test', undefined, undefined, {
+		}), undefined, options?.connectionAuthority ?? 'remote-test', undefined, undefined, {
 			getUriLabel: labelService.getUriLabel,
+			resourceUris: options?.resourceUris,
 			dialogService: upcastPartial<IDialogService>({
 				confirm: async ({ title, message, primaryButton, type }) => {
 					confirmations.push({ title, message, primaryButton, type });
@@ -3057,6 +3119,33 @@ suite('AgentHostSessionInputPills', () => {
 			whileTurnRuns: { changeset: 'vendor-diff:/opaque/working-set', files: ['file.ts'], keep: false, undo: false },
 			withoutAcceptChanges: { changeset: 'vendor-diff:/opaque/working-set', files: ['file.ts'], keep: false, undo: true },
 			withoutWorkingSet: { changeset: 'vendor-diff:/opaque/session-changes', files: ['file.ts'], keep: undefined, undo: undefined },
+			errors: [],
+		});
+	});
+
+	test('opens, keeps and undoes Working Set files through the ambient host of a remote window', async () => {
+		// The ambient host of a remote window resolves as `local` but runs on the remote, so its files aren't on this machine
+		const { harness, errors, setOperations, readInvoked } = createSessionWorkingSetPills({ connectionAuthority: 'local', resourceUris: createAgentHostResourceUriMapper('ambient-remote') });
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
+		await harness.setWorkingSetEnabled(true);
+		const keep = harness.workingSetKeep();
+		const undo = harness.workingSetUndo();
+		const [diff] = harness.workingSetChanges() ?? [];
+		assert.ok(keep && undo && diff);
+		const results = [await keep.keep([diff], false), await undo.undo([diff], false)];
+
+		assert.deepStrictEqual({
+			resources: [diff.originalURI, diff.modifiedURI, diff.modifiedSnapshotURI].map(uri => `${uri?.scheme}://${uri?.authority}${uri?.path}`),
+			results,
+			invoked: readInvoked(),
+			errors,
+		}, {
+			resources: Array.from({ length: 3 }, () => 'vscode-agent-host://ambient-remote/repo/file.ts'),
+			results: [true, true],
+			invoked: [
+				'accept-changes vendor-diff:/opaque/working-set file:///repo/file.ts',
+				'discard-changes vendor-diff:/opaque/working-set file:///repo/file.ts',
+			],
 			errors: [],
 		});
 	});

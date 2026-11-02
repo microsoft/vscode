@@ -22,7 +22,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
-import { ArtifactDetails, ArtifactRun, ArtifactSnapshot, artifactBindingId, IArtifactDetailsModel, IArtifactModel } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactDetails, ArtifactJsonValue, ArtifactRun, ArtifactSnapshot, artifactBindingId, IArtifactDetailsModel, IArtifactModel } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -279,7 +279,7 @@ suite('Artifact Integration Presentation', () => {
 			const details = Object.fromEntries(Object.entries(detailValues).map(([id, value]) => [id, observableValue(id, value)]));
 			const acquired: string[] = [];
 			const released: string[] = [];
-			const invoked: { integrationId: string; actionId: string; chat: string }[] = [];
+			const invoked: { integrationId: string; actionId: string; chat: string; input?: ArtifactJsonValue }[] = [];
 			const itemActions: { detailsId: string; itemId: string; actionId: string }[] = [];
 			let itemActionResult: Promise<void> | undefined;
 			const configured: { integrationId: string; revision: number; values: Readonly<Record<string, boolean | string>> }[] = [];
@@ -313,12 +313,13 @@ suite('Artifact Integration Presentation', () => {
 						} : contribution)
 					}, undefined);
 				},
-				invoke: async (integrationId, actionId, chat, requestId) => {
+				invoke: async (integrationId, actionId, chat, requestId, _actor, input) => {
 					onInvoke?.();
-					invoked.push({ integrationId, actionId, chat });
+					invoked.push({ integrationId, actionId, chat, ...input === undefined ? {} : { input } });
 					const run: ArtifactRun = {
 						id: requestId, requestId, bindingId: artifactBindingId('client', 'session', id, integrationId), integrationId, actionId, actionKind: 'prompt', actionConsent: 'consent',
 						source: 'manual', state: 'queued', createdAt: 0, updatedAt: 0, reason: actionId, chat, dispatched: false,
+						...input === undefined ? {} : { input },
 					};
 					snapshot.set({ ...snapshot.get(), runs: [...snapshot.get().runs, run] }, undefined);
 					return run;
@@ -1568,6 +1569,33 @@ suite('Artifact Integration Presentation', () => {
 			focusKept: true,
 			calls: [{ detailsId: 'checks', itemId: 'lint', actionId: 'rerun' }], invoked: [], opened: [], open: true,
 			accessible: ['Lint: Failed (actions: Rerun Check)'],
+		});
+	});
+
+	test('row actions can run a registered action for their item, and follow its availability', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		a.details.checks.set({
+			...a.details.checks.get(), itemActions: [{ id: 'fixCheck', label: 'Fix Check', iconId: 'tools', actionId: 'fix' }, { id: 'mergeCheck', label: 'Merge', iconId: 'git-merge', actionId: 'merge' }],
+			items: a.details.checks.get().items.map(item => ({ ...item, actions: ['fixCheck', 'mergeCheck'] })),
+		}, undefined);
+		const panel = await open(f, a, 0);
+		const actions = (label: string) => [...itemRow(panel, label).querySelectorAll<HTMLElement>('.action-label')].map(action => [action.getAttribute('aria-label'), action.classList.contains('disabled')]);
+		const before = actions('Lint');
+		itemRow(panel, 'Lint').querySelector<HTMLElement>('.action-label')!.click();
+		await settle(f);
+		itemRow(panel, 'Lint').querySelector<HTMLElement>('.action-label')!.click();
+		await settle(f);
+		assert.deepStrictEqual({
+			before, queued: actions('Lint'), other: actions('Build'),
+			invoked: a.invoked, itemActions: a.itemActions, open: f.controller.selected.get() === a.presentation,
+		}, {
+			before: [['Fix Check', false], ['Merge. Checks must pass.', true]],
+			// The item stays busy until its run settles, while the same action remains available on other items.
+			queued: [['Fix Check. Running', true], ['Merge. Checks must pass.', true]],
+			other: [['Fix Check', false], ['Merge. Checks must pass.', true]],
+			invoked: [{ integrationId: 'test', actionId: 'fix', chat: 'invoking-chat', input: { detailsId: 'checks', itemId: 'lint' } }],
+			itemActions: [], open: true,
 		});
 	});
 
