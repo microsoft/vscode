@@ -194,6 +194,17 @@ export const PanelMaximizedContext = new RawContextKey<boolean>('panelMaximized'
 //#endregion
 
 
+//#region < --- Window Layout --- >
+
+/** How the window shows its chat and its editor parts. Unset in windows without layout modes. */
+export const LayoutModeContext = new RawContextKey<string | undefined>('layoutMode', undefined, { type: 'string', description: localize('layoutMode', "How the window shows its chat and its editor parts, either 'chatOnly', 'editorOnly', 'stacked' or 'sideBySide'. Unset in windows without layout modes.") });
+
+/** How the window arranges its chat and its editor parts while both show, or will next show. Unset in windows without layout modes. */
+export const SplitLayoutContext = new RawContextKey<string | undefined>('splitLayout', undefined, { type: 'string', description: localize('splitLayout', "How the window arranges its chat and its editor parts while both show, or as they will next show together, either 'stacked' or 'sideBySide'. Unset in windows without layout modes.") });
+
+//#endregion
+
+
 //#region < --- Views --- >
 
 export const FocusedViewContext = new RawContextKey<string>('focusedView', '', localize('focusedView', "The identifier of the view that has keyboard focus"));

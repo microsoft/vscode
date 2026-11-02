@@ -201,3 +201,14 @@ export function getPanelAlignmentOfTerminalPosition(position: ChatWindowTerminal
 export function resolveChatWindowLayoutMode(requested: ChatWindowLayoutMode, hasEditor: boolean): ChatWindowLayoutMode {
 	return hasEditor ? requested : ChatWindowLayoutMode.ChatOnly;
 }
+
+/** The layout modes in which a chat window shows its chat and its editor together: the values of the `splitLayout` context key. */
+export type ChatWindowSplitLayout = ChatWindowLayoutMode.Stacked | ChatWindowLayoutMode.SideBySide;
+
+export function isChatWindowLayoutMode(value: unknown): value is ChatWindowLayoutMode {
+	return value === ChatWindowLayoutMode.Stacked || value === ChatWindowLayoutMode.SideBySide || value === ChatWindowLayoutMode.EditorOnly || value === ChatWindowLayoutMode.ChatOnly;
+}
+
+export function isChatWindowSplitLayout(value: unknown): value is ChatWindowSplitLayout {
+	return value === ChatWindowLayoutMode.Stacked || value === ChatWindowLayoutMode.SideBySide;
+}
