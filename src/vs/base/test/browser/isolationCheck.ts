@@ -64,7 +64,8 @@ export const leftoverDomDetector: IIsolationDetector<ReadonlySet<Element>> = {
 	kind: 'dom',
 	snapshot: () => new Set(Array.from(mainWindow.document.body.children)),
 	check: before => Array.from(mainWindow.document.body.children)
-		.filter(child => !before.has(child) && child.tagName !== 'SCRIPT')
+		// aria.ts adds one container for screen reader announcements to the page the first time it is used, by design.
+		.filter(child => !before.has(child) && child.tagName !== 'SCRIPT' && !child.classList.contains('monaco-aria-container'))
 		.map(child => `left ${describeElement(child)} in body`),
 };
 
