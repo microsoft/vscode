@@ -5,7 +5,7 @@
 
 import { localize } from '../../nls.js';
 import { ContextKeyExpr, RawContextKey } from '../../platform/contextkey/common/contextkey.js';
-import { AuxiliaryBarFocusContext, EditorAreaFocusContext, IsAuxiliaryWindowContext } from '../../workbench/common/contextkeys.js';
+import { AuxiliaryBarFocusContext, EditorAreaFocusContext } from '../../workbench/common/contextkeys.js';
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from './sessionConfig.js';
 
 export function sessionActivityBarChatActionContext(commandId: string): RawContextKey<boolean> {
@@ -66,9 +66,6 @@ export const SessionWorktreeCleanupEditorFocusedContext = new RawContextKey<bool
 export const SessionsChatBackgroundConfiguredContext = new RawContextKey<boolean>('sessionsChatBackgroundConfigured', false, localize('sessionsChatBackgroundConfigured', "Whether a chat background is configured for the current color theme"));
 export const SessionsChatBackgroundImageConfiguredContext = new RawContextKey<boolean>('sessionsChatBackgroundImageConfigured', false, localize('sessionsChatBackgroundImageConfigured', "Whether a chat background image is configured for the current color theme"));
 export const IsQuickChatSessionContext = new RawContextKey<boolean>('isQuickChatSession', false, localize('isQuickChatSession', "Whether the session in scope is a workspace-less quick chat"));
-
-/** Where the session commands of the title bar show: in the main window, and in a window that shows a session with a workspace, such as a chat window. */
-export const SessionTitleBarActionsShownContext = ContextKeyExpr.or(IsAuxiliaryWindowContext.toNegated(), ContextKeyExpr.and(SessionHasWorkspaceContext, IsQuickChatSessionContext.negate()))!;
 
 //#endregion
 
