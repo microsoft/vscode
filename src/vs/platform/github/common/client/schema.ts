@@ -255,8 +255,11 @@ export namespace parse {
 	}
 
 	/** Allows an omitted property without collapsing an explicit null. */
-	export function optional<T>(parser: Parser<T>): Parser<T | undefined> {
-		return value => value === undefined ? undefined : parser(value);
+	export function optional<T>(parser: Parser<T>): Parser<T | undefined>;
+	/** Uses the supplied default only for an omitted property. */
+	export function optional<T>(parser: Parser<T>, defaultValue: NoInfer<T>): Parser<T>;
+	export function optional<T>(parser: Parser<T>, defaultValue?: T): Parser<T | undefined> {
+		return value => value === undefined ? defaultValue : parser(value);
 	}
 
 	/** Allows an explicit null without accepting a missing property. */

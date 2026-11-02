@@ -54,6 +54,24 @@ suite('Copilot managed model configuration', () => {
 		}, new NullLogService()).configSchema), [model.configSchema, model.configSchema, model.configSchema]);
 	});
 
+	test('a managed Copilot Fusion model marks Auto as the managed default', () => {
+		const auto: IAgentModelInfo = {
+			provider: 'copilotcli', id: 'auto', name: 'Auto', supportsVision: false,
+			configSchema: { type: 'object', properties: { tier: { type: 'string', title: 'Effort Level', enum: ['balance', 'hydrafusion'], default: 'balance' } } },
+		};
+		const policy: CopilotManagedModelPolicy = { layers: [{ source: 'device', settings: { model: 'Fusion', fusionTier: 'high' } }], values: { model: 'Fusion', fusionTier: 'high' } };
+		const projected = projectCopilotManagedModelConfiguration(auto, policy, new NullLogService());
+		assert.deepStrictEqual({
+			defaults: readAgentManagedModelDefaults(projected),
+			tier: projected.configSchema?.properties.tier.default,
+			concreteModel: readAgentManagedModelDefaults(projectCopilotManagedModelConfiguration(model, policy, new NullLogService())),
+		}, {
+			defaults: { model: true, keys: ['tier'] },
+			tier: 'hydrafusion',
+			concreteModel: undefined,
+		});
+	});
+
 	test('unsupported efforts do not replace an offered picker default and are diagnosed', () => {
 		const warnings: string[] = [];
 		const log = new class extends NullLogService {

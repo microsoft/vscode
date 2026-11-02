@@ -151,6 +151,7 @@ export function setup(context: TestContext) {
 		const test = new WslUITest(context, dataDir, wslWorkspaceDir, wslExtensionsDir);
 
 		const args = [
+			'--disable-experiments',
 			'--extensions-dir', context.createTempDir(),
 			'--user-data-dir', test.userDataDir,
 			'--folder-uri', `vscode-remote://wsl+${wslDistro}${wslWorkspaceDir}`,

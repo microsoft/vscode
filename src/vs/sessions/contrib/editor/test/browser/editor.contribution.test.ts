@@ -26,7 +26,6 @@ import { MenuService } from '../../../../../platform/actions/common/menuService.
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyExpression, ContextKeyValue, IContext, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -37,7 +36,6 @@ import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/c
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../../../../platform/files/common/files.js';
-import product from '../../../../../platform/product/common/product.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem, QuickInputType } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -63,7 +61,6 @@ import { openNewSearchEditor } from '../../../../../workbench/contrib/searchEdit
 import { IFileQuery, ISearchComplete, ISearchService } from '../../../../../workbench/services/search/common/search.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { Menus } from '../../../../browser/menus.js';
-import { SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { NEW_FILE_TAB_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -72,7 +69,7 @@ import { ISessionChangesService } from '../../../changes/browser/sessionChangesS
 import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
 import { NEW_BROWSER_TAB_COMMAND_ID, NEW_CHANGES_TAB_COMMAND_ID, NEW_SEARCH_TAB_COMMAND_ID, NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction, OPEN_BROWSER_COMMAND_ID, OpenBrowserAction, registerSessionActivityBarTabEntries } from '../../browser/addTabActions.js';
 import { EmptyFileEditor, EmptyFileEditorFocusedContext, OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID } from '../../browser/emptyFileEditor.js';
-import { emptyFileEditorConfiguration } from '../../browser/emptyFileEditor.contribution.js';
+import '../../browser/emptyFileEditor.contribution.js';
 import { EmptyFileEditorSearch, EmptyFileEditorSearchPickerFocusedContext } from '../../browser/emptyFileEditorSearch.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
@@ -282,38 +279,35 @@ suite('Sessions - Editor Contribution', () => {
 		workbench.style.setProperty('--vscode-contrastBorder', '#888888');
 		const editor = appendElement(appendElement(workbench, 'monaco-grid-view'), 'part editor editor-tabs-multiple');
 		const group = appendElement(appendElement(editor, 'content'), 'editor-group-container active');
-		try {
-			const getBorders = () => {
-				const frame = mainWindow.getComputedStyle(group, '::after');
-				return {
-					outerBorder: mainWindow.getComputedStyle(editor).borderColor,
-					frameWidth: frame.borderWidth,
-					frameColor: frame.borderColor,
-					frameRadius: frame.borderRadius,
-				};
+		store.add(toDisposable(() => workbench.remove()));
+		const getBorders = () => {
+			const frame = mainWindow.getComputedStyle(group, '::after');
+			return {
+				outerBorder: mainWindow.getComputedStyle(editor).borderColor,
+				frameWidth: frame.borderWidth,
+				frameColor: frame.borderColor,
+				frameRadius: frame.borderRadius,
 			};
-			const borders = [];
-			const themes = ['vs-dark', 'vs', 'hc-black', 'hc-light'];
-			for (const theme of themes) {
-				workbench.classList.add(theme);
-				workbench.classList.remove('noauxiliarybar');
-				const docked = getBorders();
-				workbench.classList.add('noauxiliarybar');
-				borders.push({ theme, docked, editorOnly: getBorders() });
-				workbench.classList.remove(theme);
-			}
-			assert.deepStrictEqual(borders, themes.map(theme => {
-				const expected = {
-					outerBorder: 'rgba(0, 0, 0, 0)',
-					frameWidth: '1px',
-					frameColor: theme.startsWith('hc-') ? 'rgb(136, 136, 136)' : 'rgb(68, 85, 102)',
-					frameRadius: '7px',
-				};
-				return { theme, docked: expected, editorOnly: expected };
-			}));
-		} finally {
-			workbench.remove();
+		};
+		const borders = [];
+		const themes = ['vs-dark', 'vs', 'hc-black', 'hc-light'];
+		for (const theme of themes) {
+			workbench.classList.add(theme);
+			workbench.classList.remove('noauxiliarybar');
+			const docked = getBorders();
+			workbench.classList.add('noauxiliarybar');
+			borders.push({ theme, docked, editorOnly: getBorders() });
+			workbench.classList.remove(theme);
 		}
+		assert.deepStrictEqual(borders, themes.map(theme => {
+			const expected = {
+				outerBorder: 'rgba(0, 0, 0, 0)',
+				frameWidth: '1px',
+				frameColor: theme.startsWith('hc-') ? 'rgb(136, 136, 136)' : 'rgb(68, 85, 102)',
+				frameRadius: '7px',
+			};
+			return { theme, docked: expected, editorOnly: expected };
+		}));
 	});
 
 	test('matches the chat separator with and without the theme border class', () => {
@@ -345,87 +339,84 @@ suite('Sessions - Editor Contribution', () => {
 		const expectedColorReference = appendElement(workbench, 'expected-color-reference');
 		expectedColorReference.style.color = 'color-mix(in srgb, rgb(100, 100, 100) 12%, transparent)';
 
-		try {
-			const getSidePanelSeparatorStyles = () => {
-				const style = mainWindow.getComputedStyle(tabsAndActionsContainer, '::after');
-				return {
-					color: style.backgroundColor,
-					leftInset: style.left,
-					rightInset: style.right,
-					width: style.height,
-				};
+		store.add(toDisposable(() => workbench.remove()));
+		const getSidePanelSeparatorStyles = () => {
+			const style = mainWindow.getComputedStyle(tabsAndActionsContainer, '::after');
+			return {
+				color: style.backgroundColor,
+				leftInset: style.left,
+				rightInset: style.right,
+				width: style.height,
 			};
-			const chatBarStyle = mainWindow.getComputedStyle(chatBar);
-			const chatTabsRowStyle = mainWindow.getComputedStyle(chatTabsRow);
-			const chatSeparatorStyles = {
-				color: chatTabsRowStyle.borderBottomColor,
-				leftInset: chatBarStyle.paddingLeft,
-				rightInset: chatBarStyle.paddingRight,
-				width: chatTabsRowStyle.borderBottomWidth,
-			};
-			const expectedColor = mainWindow.getComputedStyle(expectedColorReference).color;
-			const withoutThemeBorderClass = getSidePanelSeparatorStyles();
+		};
+		const chatBarStyle = mainWindow.getComputedStyle(chatBar);
+		const chatTabsRowStyle = mainWindow.getComputedStyle(chatTabsRow);
+		const chatSeparatorStyles = {
+			color: chatTabsRowStyle.borderBottomColor,
+			leftInset: chatBarStyle.paddingLeft,
+			rightInset: chatBarStyle.paddingRight,
+			width: chatTabsRowStyle.borderBottomWidth,
+		};
+		const expectedColor = mainWindow.getComputedStyle(expectedColorReference).color;
+		const withoutThemeBorderClass = getSidePanelSeparatorStyles();
 
-			tabsAndActionsContainer.classList.add('tabs-border-bottom');
-			tabsAndActionsContainer.style.setProperty('--tabs-border-bottom-color', 'rgb(200, 0, 0)');
-			const withThemeBorderClass = getSidePanelSeparatorStyles();
+		tabsAndActionsContainer.classList.add('tabs-border-bottom');
+		tabsAndActionsContainer.style.setProperty('--tabs-border-bottom-color', 'rgb(200, 0, 0)');
+		const withThemeBorderClass = getSidePanelSeparatorStyles();
 
-			workbench.classList.add('hc-black');
-			const highContrast = getSidePanelSeparatorStyles();
-			const highContrastChatColor = mainWindow.getComputedStyle(chatTabsRow).borderBottomColor;
-			const modalTitleStyle = mainWindow.getComputedStyle(modalTitle);
-			const modalSeparatorStyle = mainWindow.getComputedStyle(modalTabsAndActionsContainer, '::after');
+		workbench.classList.add('hc-black');
+		const highContrast = getSidePanelSeparatorStyles();
+		const highContrastChatColor = mainWindow.getComputedStyle(chatTabsRow).borderBottomColor;
+		const modalTitleStyle = mainWindow.getComputedStyle(modalTitle);
+		const modalSeparatorStyle = mainWindow.getComputedStyle(modalTabsAndActionsContainer, '::after');
 
-			assert.deepStrictEqual({
-				expectedColorIsTransparent: expectedColor === 'rgba(0, 0, 0, 0)',
-				withoutThemeBorderClass,
-				withThemeBorderClass,
-				chatSeparatorStyles,
-				highContrast,
-				highContrastChatColor,
-				hasDuplicateTitleSeparator: mainWindow.getComputedStyle(title, '::after').content !== 'none',
-				modal: {
-					borderColor: modalTitleStyle.getPropertyValue('--modern-ui-editor-tabs-border'),
-					leftInset: modalSeparatorStyle.left,
-					rightInset: modalSeparatorStyle.right,
-				},
-			}, {
-				expectedColorIsTransparent: false,
-				withoutThemeBorderClass: {
-					color: expectedColor,
-					leftInset: '2px',
-					rightInset: '2px',
-					width: '1px',
-				},
-				withThemeBorderClass: {
-					color: expectedColor,
-					leftInset: '2px',
-					rightInset: '2px',
-					width: '1px',
-				},
-				chatSeparatorStyles: {
-					color: expectedColor,
-					leftInset: '2px',
-					rightInset: '2px',
-					width: '1px',
-				},
-				highContrast: {
-					color: 'rgb(255, 255, 255)',
-					leftInset: '2px',
-					rightInset: '2px',
-					width: '1px',
-				},
-				highContrastChatColor: 'rgb(255, 255, 255)',
-				hasDuplicateTitleSeparator: false,
-				modal: {
-					borderColor: 'transparent',
-					leftInset: '0px',
-					rightInset: '0px',
-				},
-			});
-		} finally {
-			workbench.remove();
-		}
+		assert.deepStrictEqual({
+			expectedColorIsTransparent: expectedColor === 'rgba(0, 0, 0, 0)',
+			withoutThemeBorderClass,
+			withThemeBorderClass,
+			chatSeparatorStyles,
+			highContrast,
+			highContrastChatColor,
+			hasDuplicateTitleSeparator: mainWindow.getComputedStyle(title, '::after').content !== 'none',
+			modal: {
+				borderColor: modalTitleStyle.getPropertyValue('--modern-ui-editor-tabs-border'),
+				leftInset: modalSeparatorStyle.left,
+				rightInset: modalSeparatorStyle.right,
+			},
+		}, {
+			expectedColorIsTransparent: false,
+			withoutThemeBorderClass: {
+				color: expectedColor,
+				leftInset: '2px',
+				rightInset: '2px',
+				width: '1px',
+			},
+			withThemeBorderClass: {
+				color: expectedColor,
+				leftInset: '2px',
+				rightInset: '2px',
+				width: '1px',
+			},
+			chatSeparatorStyles: {
+				color: expectedColor,
+				leftInset: '2px',
+				rightInset: '2px',
+				width: '1px',
+			},
+			highContrast: {
+				color: 'rgb(255, 255, 255)',
+				leftInset: '2px',
+				rightInset: '2px',
+				width: '1px',
+			},
+			highContrastChatColor: 'rgb(255, 255, 255)',
+			hasDuplicateTitleSeparator: false,
+			modal: {
+				borderColor: 'transparent',
+				leftInset: '0px',
+				rightInset: '0px',
+			},
+		});
 	});
 
 	for (const connected of [false, true]) {
@@ -460,39 +451,36 @@ suite('Sessions - Editor Contribution', () => {
 				return style.content !== 'none' && style.display !== 'none';
 			};
 
-			try {
-				for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
-					workbench.classList.add(theme);
-					const capBorder = mainWindow.getComputedStyle(fill).borderTop;
-					const states = [false, true, false].map(compact => {
-						workbench.classList.toggle('modern-ui-compact', compact);
-						const detailsFrame = mainWindow.getComputedStyle(details, '::after');
-						return {
-							separator: hasSeparator(row),
-							pinnedSeparator: hasSeparator(pinnedRow),
-							unpinnedSeparator: hasSeparator(unpinnedRow),
-							singleSeparator: hasSeparator(singleRow),
-							modalSeparator: hasSeparator(modalRow),
-							capBorder: mainWindow.getComputedStyle(fill).borderTop,
-							detailsTopBorder: detailsFrame.borderTopWidth,
-							detailsSideBorder: detailsFrame.borderLeftWidth,
-						};
-					});
+			store.add(toDisposable(() => workbench.remove()));
+			for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+				workbench.classList.add(theme);
+				const capBorder = mainWindow.getComputedStyle(fill).borderTop;
+				const states = [false, true, false].map(compact => {
+					workbench.classList.toggle('modern-ui-compact', compact);
+					const detailsFrame = mainWindow.getComputedStyle(details, '::after');
+					return {
+						separator: hasSeparator(row),
+						pinnedSeparator: hasSeparator(pinnedRow),
+						unpinnedSeparator: hasSeparator(unpinnedRow),
+						singleSeparator: hasSeparator(singleRow),
+						modalSeparator: hasSeparator(modalRow),
+						capBorder: mainWindow.getComputedStyle(fill).borderTop,
+						detailsTopBorder: detailsFrame.borderTopWidth,
+						detailsSideBorder: detailsFrame.borderLeftWidth,
+					};
+				});
 
-					assert.deepStrictEqual(states, [false, true, false].map(compact => ({
-						separator: true,
-						pinnedSeparator: false,
-						unpinnedSeparator: true,
-						singleSeparator: true,
-						modalSeparator: true,
-						capBorder,
-						detailsTopBorder: '0px',
-						detailsSideBorder: compact ? '1px' : '0px',
-					})), theme);
-					workbench.classList.remove(theme);
-				}
-			} finally {
-				workbench.remove();
+				assert.deepStrictEqual(states, [false, true, false].map(compact => ({
+					separator: true,
+					pinnedSeparator: false,
+					unpinnedSeparator: true,
+					singleSeparator: true,
+					modalSeparator: true,
+					capBorder,
+					detailsTopBorder: '0px',
+					detailsSideBorder: compact ? '1px' : '0px',
+				})), theme);
+				workbench.classList.remove(theme);
 			}
 		});
 	}
@@ -607,84 +595,10 @@ suite('Sessions - Editor Contribution', () => {
 		}]);
 	});
 
-	test('registers empty file editor actions as an Insiders-default experiment-controlled setting', () => {
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-		if (!configurationRegistry.getConfigurationProperties()[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]) {
-			configurationRegistry.registerConfiguration(emptyFileEditorConfiguration);
-			store.add(toDisposable(() => configurationRegistry.deregisterConfigurations([emptyFileEditorConfiguration])));
-		}
-		const property = configurationRegistry.getConfigurationProperties()[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING];
-		assert.deepStrictEqual({
-			id: SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING,
-			type: property.type,
-			default: property.default,
-			scope: property.scope,
-			tags: property.tags,
-			experiment: property.experiment,
-		}, {
-			id: 'sessions.experimental.emptyFileEditorActions',
-			type: 'boolean',
-			default: product.quality === 'insider',
-			scope: ConfigurationScope.WINDOW,
-			tags: ['experimental', 'onExP'],
-			experiment: { mode: 'auto' },
-		});
-	});
-
-	test('empty file editor gates experimental actions and responds to setting changes', async () => {
-		const instantiationService = workbenchInstantiationService(undefined, store);
-		store.add(registerEmptyFileEditorActions());
-		instantiationService.stub(IContextKeyService, new class extends MockContextKeyService {
-			override contextMatchesRules(): boolean {
-				return true;
-			}
-		});
-		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
-		const configurationService = new TestConfigurationService({
-			[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]: false,
-		});
-		store.add(configurationService.onDidChangeConfigurationEmitter);
-		instantiationService.stub(IConfigurationService, configurationService);
-		const telemetryService = new TestExperimentTriggerTelemetryService();
-		instantiationService.stub(ITelemetryService, telemetryService);
-		const editor = store.add(instantiationService.createInstance(EmptyFileEditor, new class extends mock<IEditorGroup>() {
-			override windowId = mainWindow.vscodeWindowId;
-		}()));
-		const container = appendElement(mainWindow.document.body, 'empty-file-editor-test');
-		store.add({ dispose: () => container.remove() });
-
-		editor.create(container);
-		const disabledContent = Array.from(container.querySelector('.empty-file-editor-content')?.children ?? []).map(element => element.className);
-		await configurationService.setUserConfiguration(SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING, true);
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: setting => setting === SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING,
-			source: ConfigurationTarget.USER,
-			affectedKeys: new Set([SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]),
-			change: { keys: [SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING], overrides: [] },
-		});
-
-		assert.deepStrictEqual({
-			disabledContent,
-			enabledContent: Array.from(container.querySelector('.empty-file-editor-content')?.children ?? []).map(element => element.className),
-			description: container.querySelector('.sessions-empty-state-description')?.textContent,
-			triggers: telemetryService.triggers,
-		}, {
-			disabledContent: ['sessions-empty-state'],
-			enabledContent: ['empty-file-editor-search', 'empty-file-editor-actions sessions-watermark-actions'],
-			description: undefined,
-			triggers: [`config.${SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING}`],
-		});
-	});
-
-	test('empty file editor opens an untitled file on double-click in empty space', async () => {
+	test('empty file editor opens an untitled file on double-click in empty space by default', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		store.add(registerEmptyFileEditorActions());
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
-		const configurationService = new TestConfigurationService({
-			[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]: false,
-		});
-		store.add(configurationService.onDidChangeConfigurationEmitter);
-		instantiationService.stub(IConfigurationService, configurationService);
 		const commands: string[] = [];
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override executeCommand<T>(id: string): Promise<T | undefined> {
@@ -703,23 +617,12 @@ suite('Sessions - Editor Contribution', () => {
 			return commands.splice(0);
 		};
 
-		const disabled = doubleClick('.empty-file-editor');
-		await configurationService.setUserConfiguration(SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING, true);
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: setting => setting === SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING,
-			source: ConfigurationTarget.USER,
-			affectedKeys: new Set([SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]),
-			change: { keys: [SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING], overrides: [] },
-		});
-
 		assert.deepStrictEqual({
-			disabled,
 			emptySpace: doubleClick('.empty-file-editor'),
 			searchInput: doubleClick('.empty-file-editor-search input'),
 			actionLabel: doubleClick('.sessions-add-tab-watermark-label'),
 			actions: doubleClick('.empty-file-editor-actions'),
 		}, {
-			disabled: [],
 			emptySpace: ['workbench.action.files.newUntitledFile'],
 			searchInput: [],
 			actionLabel: [],
@@ -727,7 +630,7 @@ suite('Sessions - Editor Contribution', () => {
 		});
 	});
 
-	test('empty file editor shows quiet open and new file action rows without repeated copy', () => {
+	test('empty file editor shows search and action rows by default without repeated copy or experiment triggers', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		store.add(registerEmptyFileEditorActions());
 		instantiationService.stub(IContextKeyService, new class extends MockContextKeyService {
@@ -735,11 +638,6 @@ suite('Sessions - Editor Contribution', () => {
 				return true;
 			}
 		});
-		const configurationService = new TestConfigurationService({
-			[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]: true,
-		});
-		store.add(configurationService.onDidChangeConfigurationEmitter);
-		instantiationService.stub(IConfigurationService, configurationService);
 		const telemetryService = new TestExperimentTriggerTelemetryService();
 		instantiationService.stub(ITelemetryService, telemetryService);
 		const commands: { id: string; args: unknown[] }[] = [];
@@ -802,18 +700,13 @@ suite('Sessions - Editor Contribution', () => {
 				{ id: OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID, editorContext: true },
 				{ id: 'workbench.action.files.newUntitledFile', editorContext: true },
 			],
-			triggers: [`config.${SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING}`],
+			triggers: [],
 		});
 	});
 
 	test('empty file editor focuses its container without opening the file picker', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		store.add(registerEmptyFileEditorActions());
-		const configurationService = new TestConfigurationService({
-			[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]: true,
-		});
-		store.add(configurationService.onDidChangeConfigurationEmitter);
-		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 		const editor = store.add(instantiationService.createInstance(EmptyFileEditor, new class extends mock<IEditorGroup>() {
 			override windowId = mainWindow.vscodeWindowId;
@@ -847,11 +740,6 @@ suite('Sessions - Editor Contribution', () => {
 		instantiationService.stub(IContextKeyService, new class extends MockContextKeyService {
 			override contextMatchesRules(): boolean { return true; }
 		});
-		const configurationService = new TestConfigurationService({
-			[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]: true,
-		});
-		store.add(configurationService.onDidChangeConfigurationEmitter);
-		instantiationService.stub(IConfigurationService, configurationService);
 		const onDidUpdateKeybindings = store.add(new Emitter<void>());
 		let keybinding: ResolvedKeybinding | undefined = USLayoutResolvedKeybinding.resolveKeybinding(decodeKeybinding(KeyMod.CtrlCmd | KeyCode.KeyP, OS)!, OS)[0];
 		instantiationService.stub(IKeybindingService, new class extends MockKeybindingService {
@@ -898,11 +786,6 @@ suite('Sessions - Editor Contribution', () => {
 
 	test('empty file editor Open File command searches its own session workspace', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		const configurationService = new TestConfigurationService({
-			[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]: true,
-		});
-		store.add(configurationService.onDidChangeConfigurationEmitter);
-		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 		const queries: IFileQuery[] = [];
 		const onDidSearch = store.add(new Emitter<void>());
@@ -948,27 +831,23 @@ suite('Sessions - Editor Contribution', () => {
 		});
 	});
 
-	test('empty file editor gates Open File and its shortcut on the experimental actions setting', () => {
+	test('empty file editor always offers Open File and scopes its shortcut to editor focus', () => {
 		const ctrlCmdP = decodeKeybinding(KeyMod.CtrlCmd | KeyCode.KeyP, OS)!.getHashCode();
 		const rule = KeybindingsRegistry.getDefaultKeybindings()
 			.find(item => item.command === OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID && item.keybinding?.getHashCode() === ctrlCmdP);
 		const menuItem = MenuRegistry.getMenuItems(Menus.EmptyFileEditorActions)
 			.find(item => isIMenuItem(item) && item.command.id === OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID);
 		assert.ok(menuItem && isIMenuItem(menuItem));
-		const states = [undefined, false, true, false].map(enabled => {
+		const states = [true, false, undefined].map(focused => {
 			const values: Record<string, boolean | undefined> = {
-				[`config.${SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING}`]: enabled,
-				[EmptyFileEditorFocusedContext.key]: true,
+				[EmptyFileEditorFocusedContext.key]: focused,
 			};
 			const context = { getValue: <T>(key: string) => values[key] as T | undefined };
-			const focused = rule?.when?.evaluate(context);
-			delete values[EmptyFileEditorFocusedContext.key];
 			return {
-				enabled,
 				focused,
-				elsewhere: rule?.when?.evaluate(context),
-				menuVisible: menuItem.when?.evaluate(context),
-				actionEnabled: menuItem.command.precondition?.evaluate(context),
+				shortcutEnabled: rule?.when?.evaluate(context),
+				menuVisible: menuItem.when?.evaluate(context) ?? true,
+				actionEnabled: menuItem.command.precondition?.evaluate(context) ?? true,
 			};
 		});
 		assert.deepStrictEqual({
@@ -976,12 +855,11 @@ suite('Sessions - Editor Contribution', () => {
 			states,
 		}, {
 			registered: true,
-			states: [undefined, false, true, false].map(enabled => ({
-				enabled,
-				focused: enabled === true,
-				elsewhere: false,
-				menuVisible: enabled === true,
-				actionEnabled: enabled === true,
+			states: [true, false, undefined].map(focused => ({
+				focused,
+				shortcutEnabled: focused === true,
+				menuVisible: true,
+				actionEnabled: true,
 			})),
 		});
 	});

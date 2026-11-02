@@ -71,6 +71,7 @@ export class ModelPicker extends Disposable {
 
 		this._delegate = {
 			comparison: this._selectionModel.comparison,
+			comparisonBusy: this._selectionModel.comparisonBusy,
 			currentModel,
 			modelConfiguration: this._selectionModel.modelConfiguration,
 			focusInput: () => this._newChatModelPickerService.focusInput(),
@@ -302,4 +303,4 @@ export class ModelPickerToolbarsContribution extends Disposable implements IWork
 	}
 }
 
-registerWorkbenchContribution2(ModelPickerToolbarsContribution.ID, ModelPickerToolbarsContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ModelPickerToolbarsContribution.ID, ModelPickerToolbarsContribution, WorkbenchPhase.BlockRestore);

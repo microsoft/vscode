@@ -8,6 +8,7 @@ import { TimeoutTimer } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { supportedVideoFormats } from '../../../../base/common/media.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -96,19 +97,10 @@ export class NativeRecordingService extends Disposable implements IRecordingServ
 	}
 
 	getSupportedFormats(): { mimeType: string; label: string; extension: string }[] {
-		const formats: { mimeType: string; label: string; extension: string }[] = [];
 		const MediaRecorder = this.getMediaRecorderConstructor();
-		if (MediaRecorder) {
-			if (this.isFormatSupported(MediaRecorder, 'video/mp4')) {
-				formats.push({ mimeType: 'video/mp4', label: 'MP4', extension: 'mp4' });
-			}
-			if (this.isFormatSupported(MediaRecorder, 'video/webm;codecs=vp9')) {
-				formats.push({ mimeType: 'video/webm;codecs=vp9', label: 'WebM', extension: 'webm' });
-			} else if (this.isFormatSupported(MediaRecorder, 'video/webm')) {
-				formats.push({ mimeType: 'video/webm', label: 'WebM', extension: 'webm' });
-			}
-		}
-		return formats;
+		return MediaRecorder
+			? supportedVideoFormats.filter(format => this.isFormatSupported(MediaRecorder, format.mimeType))
+			: [];
 	}
 
 	async startRecording(preferredMimeType?: string): Promise<void> {
@@ -142,7 +134,8 @@ export class NativeRecordingService extends Disposable implements IRecordingServ
 				throw new Error(localize('recordingNoLiveTrack', "No live screen capture source is available. Try recording again."));
 			}
 
-			const mimeType = preferredMimeType && this.isFormatSupported(MediaRecorder, preferredMimeType) ? preferredMimeType : supportedFormats[0].mimeType;
+			const mimeType = supportedFormats.find(format => format.mimeType === preferredMimeType || format.mimeType.split(';')[0] === preferredMimeType)?.mimeType
+				?? supportedFormats[0].mimeType;
 			const recorder = this.mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 2_500_000 });
 
 			recorder.ondataavailable = e => {

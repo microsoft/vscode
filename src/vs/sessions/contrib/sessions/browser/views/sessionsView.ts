@@ -57,11 +57,12 @@ import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js'
 import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../common/contextkeys.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { logSessionsListCompactViewState } from '../../../../common/sessionsTelemetry.js';
+import { IPinnedCanvasService } from '../../../canvases/browser/pinnedCanvases.js';
 import { SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../../../common/sessionConfig.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { CustomizationsNavigationState } from '../customizationsNavigationState.js';
-import { createSessionsListNotices } from './sessionsListNotice.js';
+import { createSessionsListNotices, ISessionsListNoticeHost } from './sessionsListNotice.js';
 import { SessionStorageCleanupNotice } from './sessionStorageCleanupNotice.js';
 import { SessionsListNotification } from './sessionsListNotification.js';
 
@@ -198,6 +199,7 @@ export class SessionsView extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IMenuService private readonly menuService: IMenuService,
+		@IPinnedCanvasService private readonly pinnedCanvasService: IPinnedCanvasService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.separateNavigation = observableConfigValue(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, false, configurationService);
@@ -282,6 +284,7 @@ export class SessionsView extends ViewPane {
 		const navigationContainer = DOM.append(sessionsContent, $('.agent-sessions-navigation-container'));
 		const sessionsHeaderContainer = DOM.append(sessionsContent, $('.agent-sessions-header-container'));
 		const header = this.createSessionsHeader(sessionsHeaderContainer, phoneLayout, this._register(new DisposableStore()));
+		const topNoticesContainer = DOM.append(sessionsContent, $('.agent-sessions-top-notices'));
 
 		// Container for the tree's find widget (toggled by the toolbar's Find action)
 		const findWidgetContainer = this.findWidgetContainer = DOM.append(header.row, $('.agent-sessions-find-widget-container'));
@@ -306,6 +309,7 @@ export class SessionsView extends ViewPane {
 			customizationExtensionSuggestionsAvailable: this.customizationsNavigationState.extensionSuggestionsAvailable,
 			navigationContainer,
 			onDidChangeNavigationHeight: () => this.layoutSidebarSplitView(),
+			pinnedCanvases: this.pinnedCanvasService,
 			focusNewSessionInput: () => this.sessionsPartService.focusSession(this.sessionsService.activeSession.get()),
 			findWidgetContainer,
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
@@ -322,7 +326,6 @@ export class SessionsView extends ViewPane {
 				return this.sessionsService.openSession(session.resource, { preserveFocus, source: 'sessionsList', forceMainChat: true }).then(onOpened).catch(onUnexpectedError);
 			},
 			canOpenSession: session => this.sessionsService.canOpenSession(session),
-			getMoveNotice: () => this.isBodyVisible() ? this.listNotification : undefined,
 			onChatOpen: (session, chat, preserveFocus, sideBySide) => {
 				const onOpened = () => {
 					if (isWeb && isPhoneLayout(this.layoutService)) {
@@ -337,8 +340,9 @@ export class SessionsView extends ViewPane {
 		}));
 		const storageCleanupNotice = this._register(this.instantiationService.createInstance(SessionStorageCleanupNotice, () => sessionsControl.focus(), status));
 		sessionsContent.appendChild(storageCleanupNotice.domNode);
-		for (const notice of createSessionsListNotices(this.instantiationService, {
-			container: sessionsContent,
+		const createNoticeHost = (container: HTMLElement): ISessionsListNoticeHost => ({
+			container,
+			relayout: () => this.layoutSidebarSplitView(),
 			onDidChangeVisibility: this.onDidChangeBodyVisibility,
 			isVisible: () => this.isBodyVisible(),
 			focusSessionsList: () => sessionsControl.focus(),
@@ -358,6 +362,10 @@ export class SessionsView extends ViewPane {
 				};
 			},
 			announce: status,
+		});
+		for (const notice of createSessionsListNotices(this.instantiationService, {
+			top: createNoticeHost(topNoticesContainer),
+			bottom: createNoticeHost(sessionsContent),
 		})) { this._register(notice); }
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
 		this.listNotification = this._register(this.instantiationService.createInstance(SessionsListNotification, sessionsContent, () => sessionsControl.focus()));
@@ -641,6 +649,7 @@ export class SessionsView extends ViewPane {
 			const options = getSessionFilterOptions(
 				this.sessionsManagementService.getSessions(),
 				environments,
+				(session, reader) => sessionsControl.isSessionListed(session, reader),
 				reader,
 			);
 			const environmentLabels = new Map(options

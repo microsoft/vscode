@@ -37,10 +37,10 @@ export class SessionPullRequestPresentationModel extends Disposable {
 
 		this.pullRequests = derived(this, reader => pullRequestRefs.read(reader).map((ref, index) => {
 			const pullRequest = isGitHubReferenceSupported(ref.uri, gitHubService.enterpriseHost)
-				? reader.store.add(gitHubService.createPullRequestModelReference(ref.owner, ref.repo, ref.number)).object.pullRequest.read(reader)
+				? reader.delayedStore.add(gitHubService.createPullRequestModelReference(ref.owner, ref.repo, ref.number)).object.pullRequest.read(reader)
 				: undefined;
 			const ciStatus = pullRequest?.state === GitHubPullRequestState.Open
-				? reader.store.add(gitHubService.createPullRequestCIModelReference(ref.owner, ref.repo, pullRequest.number, pullRequest.headSha)).object.overallStatus.read(reader)
+				? reader.delayedStore.add(gitHubService.createPullRequestCIModelReference(ref.owner, ref.repo, pullRequest.number, pullRequest.headSha)).object.overallStatus.read(reader)
 				: undefined;
 			const status = pullRequest ? computePullRequestIconStatus(reader, gitHubService, ref.owner, ref.repo, pullRequest, ciStatus) : {};
 			const icon = pullRequest
@@ -72,10 +72,10 @@ export function computePullRequestIconStatus(reader: IReaderWithStore, gitHubSer
 		return {};
 	}
 
-	const resolvedCIStatus = ciStatus ?? reader.store.add(gitHubService.createPullRequestCIModelReference(owner, repo, livePR.number, livePR.headSha)).object.overallStatus.read(reader);
+	const resolvedCIStatus = ciStatus ?? reader.delayedStore.add(gitHubService.createPullRequestCIModelReference(owner, repo, livePR.number, livePR.headSha)).object.overallStatus.read(reader);
 	const hasFailingChecks = resolvedCIStatus === GitHubCIOverallStatus.Failure;
 
-	const reviewThreadsRef = reader.store.add(gitHubService.createPullRequestReviewThreadsModelReference(owner, repo, livePR.number));
+	const reviewThreadsRef = reader.delayedStore.add(gitHubService.createPullRequestReviewThreadsModelReference(owner, repo, livePR.number));
 	const hasUnresolvedComments = reviewThreadsRef.object.reviewThreads.read(reader).some(thread => !thread.isResolved);
 
 	return { hasFailingChecks, hasUnresolvedComments };
@@ -97,7 +97,8 @@ export function computePullRequestRefPresentation(reader: IReaderWithStore, gitH
 		return { icon: pullRequest.icon ?? fallbackIcon, title: pullRequest.title, liveState: undefined };
 	}
 	const prLink = pullRequest.uri.toString();
-	const prModelRef = reader.store.add(gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
+	// Acquire the next reference before releasing the previous one so shared models survive recomputation.
+	const prModelRef = reader.delayedStore.add(gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
 	const livePullRequest = prModelRef.object.pullRequest.read(reader);
 	if (!livePullRequest) {
 		const cached = iconCache.getEntry(prLink);

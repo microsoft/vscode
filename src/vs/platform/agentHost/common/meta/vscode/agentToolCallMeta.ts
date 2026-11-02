@@ -60,8 +60,6 @@ export interface IToolCallMeta {
 	 * explicit user action), so the client can render it as setting-driven.
 	 */
 	readonly autoApproveBySetting?: boolean;
-	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this confirmation. */
-	readonly autoApproveRuleResolvable?: boolean;
 	/** Transient runtime corpus for the local client tool-search invocation. */
 	readonly toolSearchCandidates?: readonly IToolSearchCandidate[];
 	/** Latest progress message from a running tool; transient, meaningful only while Running. */
@@ -81,7 +79,7 @@ const toolCallMetaKeys = [
 	'vscode.copilotSandboxNetworkRestrictions',
 	'vscode.sandboxPathGrant',
 	'agentHost.sandboxBypass', 'toolKind', 'language', 'subagentDescription', 'subagentAgentName', 'subagentChatUri',
-	'mcpServerName', 'mcpToolName', 'autoApproveBySetting', 'autoApproveRuleResolvable', 'toolSearchCandidates', 'progressMessage', 'fusionPhase',
+	'mcpServerName', 'mcpToolName', 'autoApproveBySetting', 'toolSearchCandidates', 'progressMessage', 'fusionPhase',
 ] as const;
 
 export function hasVSCodeToolCallMeta(source: IHasToolCallMeta): boolean {
@@ -211,7 +209,6 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	const fusionPhase = readFusionPhase(meta.fusionPhase);
 	if (fusionPhase) { result.fusionPhase = fusionPhase; }
 	if (typeof meta.autoApproveBySetting === 'boolean') { result.autoApproveBySetting = meta.autoApproveBySetting; }
-	if (typeof meta.autoApproveRuleResolvable === 'boolean') { result.autoApproveRuleResolvable = meta.autoApproveRuleResolvable; }
 	const toolSearchCandidates = readToolSearchCandidates(meta.toolSearchCandidates);
 	if (toolSearchCandidates) { result.toolSearchCandidates = toolSearchCandidates; }
 	const ui = readToolCallUiMeta(meta.ui);

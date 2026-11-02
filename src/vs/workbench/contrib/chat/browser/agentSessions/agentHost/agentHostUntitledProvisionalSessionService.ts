@@ -78,8 +78,7 @@ import { IUriIdentityService } from '../../../../../../platform/uriIdentity/comm
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { ChatConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
-import { getAgentHostApprovalDefault, resolveInitialAgentHostApprovalConfig } from '../../../common/agentHostConfigPolicy.js';
+import { getAgentHostApprovalDefault, getChatDefaultConfiguration, resolveInitialAgentHostApprovalConfig } from '../../../common/agentHostConfigPolicy.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IAgentHostNewSessionFolderService, computeDesiredWorkingDirectories, computeWorkingDirectories, hasImmutablePrimaryWorkingDirectory, supportsMultipleWorkingDirectories } from './agentHostNewSessionFolderService.js';
@@ -219,7 +218,7 @@ class ActiveClientBinding extends Disposable {
 	constructor(
 		readonly roots: readonly URI[],
 		readonly scope: IAgentCustomizationScope,
-		clientId: string,
+		connection: IAgentHostService,
 		publish: () => void,
 	) {
 		super();
@@ -228,7 +227,7 @@ class ActiveClientBinding extends Disposable {
 			if (!scope.isResolved.read(reader)) {
 				return;
 			}
-			scope.activeClient(clientId).read(reader);
+			scope.activeClient(connection.clientId, connection.resourceUris).read(reader);
 			publish();
 		}));
 	}
@@ -441,7 +440,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		}
 
 		const scope = this._activeClientService.acquireScope(`agent-host-${entry.provider}`, roots);
-		entry.activeClientBinding.value = new ActiveClientBinding(roots, scope, this._agentHostService.clientId, () => this._publishActiveClient(entry));
+		entry.activeClientBinding.value = new ActiveClientBinding(roots, scope, this._agentHostService, () => this._publishActiveClient(entry));
 	}
 
 	/**
@@ -603,7 +602,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		if (!scope || !scope.isResolved.get()) {
 			return;
 		}
-		const activeClient = scope.activeClient(this._agentHostService.clientId).get();
+		const activeClient = scope.activeClient(this._agentHostService.clientId, this._agentHostService.resourceUris).get();
 		this._agentHostService.dispatch(entry.generation.backendSession.toString(), {
 			type: ActionType.SessionActiveClientSet,
 			activeClient,
@@ -1231,7 +1230,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		}
 		const config: Record<string, unknown> = { [SessionConfigKey.Isolation]: 'folder' };
 
-		const configuredDefaults = this._configurationService.getValue<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
+		const configuredDefaults = getChatDefaultConfiguration(this._configurationService);
 		const configuredApprovals = getAgentHostApprovalDefault(this._configurationService);
 		if (configuredApprovals) {
 			config[SessionConfigKey.AutoApprove] = configuredApprovals;

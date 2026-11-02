@@ -26,6 +26,7 @@ import { ICustomizationHarnessService } from '../../customizationHarnessService.
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { getAgentFileModelReasoningEfforts, resolveAgentFileModelIdentifiers, resolveAgentFileModels } from './promptModelResolver.js';
 import { getEffectiveAgentFileToolAvailability, resolveAgentFileTools, type IAgentFileTool } from './promptToolResolver.js';
+import { getAgentFileSkillDetails, getEffectiveAgentFileSkillAvailability, resolveAgentFileSkills, type IAgentFileSkill } from './promptSkillResolver.js';
 
 export class PromptHeaderAutocompletion implements CompletionItemProvider {
 	/**
@@ -274,6 +275,27 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 					};
 					return this.provideArrayCompletions(model, position, value, getValues);
 				}
+			}
+			if (attribute.key === PromptHeaderAttributes.skills && target === Target.GitHubCopilot && attribute.value.type === 'sequence') {
+				return this.provideArrayCompletions(model, position, attribute.value, async () => {
+					const catalogue = await resolveAgentFileSkills(target, this.customizationHarnessService, this.logService, token);
+					const skillsByName = new Map<string, IAgentFileSkill[]>();
+					for (const skill of catalogue.skills) {
+						const matches = skillsByName.get(skill.name) ?? [];
+						matches.push(skill);
+						skillsByName.set(skill.name, matches);
+					}
+					return [...skillsByName].map(([name, matches]) => {
+						const availability = getEffectiveAgentFileSkillAvailability(matches);
+						const availabilityLabel = availability === 'disabled'
+							? localize('promptHeaderAutocompletion.skillDisabled', "Disabled")
+							: availability === 'unavailable'
+								? localize('promptHeaderAutocompletion.skillUnavailable', "Unavailable")
+								: undefined;
+						const description = [...getAgentFileSkillDetails(matches), availabilityLabel].filter(Boolean).join(' — ');
+						return { name, ...(description ? { description } : {}) };
+					});
+				});
 			}
 		}
 		if (attribute.key === PromptHeaderAttributes.agents) {

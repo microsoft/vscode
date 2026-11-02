@@ -13,6 +13,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
 import { AgentHostLanguageModelProvider } from '../agentSessions/agentHost/agentHostLanguageModelProvider.js';
+import { withCloudSandboxDraftModelConfig } from './cloudSandboxSessionConfig.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 
@@ -110,7 +111,7 @@ export class CloudSandboxModels extends Disposable {
 	constructor(
 		sessionType: string,
 		vendor: string,
-		modelProvider: AgentHostLanguageModelProvider | undefined,
+		private readonly modelProvider: AgentHostLanguageModelProvider | undefined,
 		@ICloudSandboxModelCatalogService private readonly _catalogService: ICloudSandboxModelCatalogService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -146,7 +147,7 @@ export class CloudSandboxModels extends Disposable {
 			this._onDidChange.fire();
 			return;
 		}
-		this._provider.updateAdditionalModels(catalog.models);
+		this._provider.updateAdditionalModels(this.modelProvider ? catalog.models : catalog.models.map(withCloudSandboxDraftModelConfig));
 		const models = await this._provider.provideLanguageModelChatInfo({}, this._token);
 		if (this._store.isDisposed || generation !== this._generation) {
 			return;

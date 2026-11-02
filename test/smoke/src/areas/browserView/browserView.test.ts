@@ -262,13 +262,16 @@ export function setup(logger: Logger): void {
 			await browserPage.keyboard.type(comment);
 			await browserPage.keyboard.press('Enter');
 			assert.strictEqual(await browserPage.locator('#comment-keydown-count').textContent(), '0');
-			await app.workbench.chat.waitForInputText('@button#comment-target');
+			const chatInput = workbenchPage.locator('div[id="workbench.panel.chat"] .interactive-input-part .monaco-editor[role="code"]');
+			// The input mentions the element as text, or as a pill when attachments are shown inline.
+			await chatInput.filter({ hasText: 'button#comment-target' }).waitFor();
 			await app.workbench.chat.waitForInputText(comment);
 
 			await browserPage.keyboard.press('Escape');
 			await browserPage.locator('[data-vscode-pick-host]').waitFor({ state: 'attached' });
-			const chatInput = workbenchPage.locator('div[id="workbench.panel.chat"] .interactive-input-part .monaco-editor[role="code"]');
-			await chatInput.click();
+			// Click past the comment at the end of the input, as a click on an inline attachment pill would open its attachment.
+			const { width, height } = (await chatInput.boundingBox())!;
+			await chatInput.click({ position: { x: width - 30, y: height - 5 } });
 			await workbenchPage.keyboard.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a');
 			await workbenchPage.keyboard.press('Backspace');
 			await browserPage.locator('[data-vscode-pick-host]').waitFor({ state: 'detached' });

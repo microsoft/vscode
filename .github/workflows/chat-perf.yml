@@ -57,7 +57,7 @@ env:
   SCENARIOS_INPUT: ${{ inputs.scenarios || '' }}
   TEST_SETTINGS_INPUT: ${{ inputs.test_settings || '' }}
   BASELINE_SETTINGS_INPUT: ${{ inputs.baseline_settings || '' }}
-  # Skip binary downloads during `npm ci` (they hang intermittently on hosted
+  # Skip binary downloads during `pnpm install` (they hang intermittently on hosted
   # runners inside the nested postinstall installs). Electron and Playwright are
   # fetched explicitly later via `Download Electron` and `Install Playwright
   # Chromium`, which ignore these flags. Mirrors pr-node-modules.yml.
@@ -98,10 +98,12 @@ jobs:
           ref: ${{ steps.resolve.outputs.is_version != 'true' && inputs.test_build || github.ref }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
-          cache: npm
+
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
 
       - name: Install system dependencies
         run: |
@@ -122,12 +124,12 @@ jobs:
           # Retry with a per-attempt timeout to survive transient npm registry
           # hangs/failures on hosted runners (mirrors pr-node-modules.yml).
           for i in {1..5}; do
-            timeout 900 npm ci && break
+            timeout 900 pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
-              echo "npm ci failed/hung too many times" >&2
+              echo "pnpm install failed/hung too many times" >&2
               exit 1
             fi
-            echo "npm ci attempt $i failed or timed out, retrying..."
+            echo "pnpm install attempt $i failed or timed out, retrying..."
           done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -137,19 +139,19 @@ jobs:
         run: |
           set -e
           for i in {1..5}; do
-            timeout 900 npm ci && break
+            timeout 900 pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
-              echo "npm ci failed/hung too many times" >&2
+              echo "pnpm install failed/hung too many times" >&2
               exit 1
             fi
-            echo "npm ci attempt $i failed or timed out, retrying..."
+            echo "pnpm install attempt $i failed or timed out, retrying..."
           done
 
       - name: Transpile source
-        run: npm run transpile-client
+        run: pnpm run transpile-client
 
       - name: Build copilot extension
-        run: npm run compile
+        run: pnpm run compile
         working-directory: extensions/copilot
 
       - name: Download Electron
@@ -162,7 +164,7 @@ jobs:
           key: electron-${{ runner.os }}-${{ hashFiles('.nvmrc', 'package.json') }}
 
       - name: Install Playwright Chromium
-        run: npx playwright install chromium
+        run: pnpm exec playwright install chromium
 
       - name: Cache Playwright
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -193,7 +195,7 @@ jobs:
           "
 
       - name: Upload build output
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: build-output
           path: |
@@ -217,10 +219,12 @@ jobs:
           ref: ${{ needs.setup.outputs.test_is_version != 'true' && inputs.test_build || github.ref }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
-          cache: npm
+
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
 
       - name: Install system dependencies
         run: |
@@ -239,18 +243,18 @@ jobs:
         run: |
           set -e
           for i in {1..5}; do
-            timeout 900 npm ci && break
+            timeout 900 pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
-              echo "npm ci failed/hung too many times" >&2
+              echo "pnpm install failed/hung too many times" >&2
               exit 1
             fi
-            echo "npm ci attempt $i failed or timed out, retrying..."
+            echo "pnpm install attempt $i failed or timed out, retrying..."
           done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download build output
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: build-output
 
@@ -270,7 +274,7 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('package.json') }}
 
       - name: Install Playwright Chromium
-        run: npx playwright install chromium
+        run: pnpm exec playwright install chromium
 
       - name: Resolve scenario group
         id: scenarios
@@ -356,7 +360,7 @@ jobs:
 
       - name: Upload perf results
         if: always() && steps.scenarios.outputs.skip != 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: perf-results-${{ matrix.group }}
           include-hidden-files: true
@@ -367,7 +371,7 @@ jobs:
 
       - name: Upload perf summary data
         if: always() && steps.scenarios.outputs.skip != 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: perf-summary-${{ matrix.group }}
           include-hidden-files: true
@@ -399,10 +403,12 @@ jobs:
           ref: ${{ needs.setup.outputs.test_is_version != 'true' && inputs.test_build || github.ref }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
-          cache: npm
+
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
 
       - name: Install system dependencies
         run: |
@@ -421,18 +427,18 @@ jobs:
         run: |
           set -e
           for i in {1..5}; do
-            timeout 900 npm ci && break
+            timeout 900 pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
-              echo "npm ci failed/hung too many times" >&2
+              echo "pnpm install failed/hung too many times" >&2
               exit 1
             fi
-            echo "npm ci attempt $i failed or timed out, retrying..."
+            echo "pnpm install attempt $i failed or timed out, retrying..."
           done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download build output
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: build-output
 
@@ -452,7 +458,7 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('package.json') }}
 
       - name: Install Playwright Chromium
-        run: npx playwright install chromium
+        run: pnpm exec playwright install chromium
 
       - name: Run memory leak check
         id: leak
@@ -476,7 +482,7 @@ jobs:
 
       - name: Upload leak results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: leak-results
           include-hidden-files: true
@@ -507,19 +513,19 @@ jobs:
           ref: ${{ needs.setup.outputs.test_is_version != 'true' && inputs.test_build || github.ref }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
 
       - name: Download perf summary data
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: perf-summary-*
           path: perf-results
 
       - name: Download leak results
         if: inputs.skip_leak_check != true && needs.leak-check.result != 'skipped'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: leak-results
           path: leak-results
@@ -543,7 +549,7 @@ jobs:
 
       - name: Upload CI summary
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: chat-perf-summary
           path: ci-summary.md

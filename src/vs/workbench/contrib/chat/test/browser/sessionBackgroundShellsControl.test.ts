@@ -18,6 +18,8 @@ import { runWithFakedTimers } from '../../../../../base/test/common/virtualSched
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import type { IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH } from '../../../../../platform/agentHost/common/terminalConstants.js';
@@ -320,6 +322,7 @@ suite('SessionBackgroundShellsControl', () => {
 		instantiationService.stub(ILanguageService, {});
 		instantiationService.stub(IModelService, {});
 		instantiationService.stub(IFileService, {});
+		instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
 		const shells = constObservable<readonly IChatBackgroundShell[]>([{
 			id: 'stream', description: 'Stream', command: 'stream.sh', startedAt: new Date(0).toISOString(),
 			output: constObservable<ChatBackgroundShellOutput>({ status: 'running', text: 'step 1\n' }),

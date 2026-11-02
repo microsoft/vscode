@@ -4,17 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
+import { IRenderedMarkdown, renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { appendEscapedMarkdownInlineCode, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../../agentSessions/agentHost/agentHostCustomizationService.js';
@@ -22,14 +23,16 @@ import { IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer } 
 import { ChatTreeItem } from '../../chat.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { getCompactCodicon } from '../../chatIcons.js';
-import { IChatContentPart } from './chatContentParts.js';
+import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { ChatCustomConfirmationWidget } from './chatConfirmationWidget.js';
 import './media/chatMcpServersInteractionContent.css';
 
 export class ChatMcpAuthenticationContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 
 	private readonly rendered = this._register(new MutableDisposable<IRenderedMarkdown>());
-	private authenticateAction: HTMLAnchorElement | undefined;
+	private readonly confirmation = this._register(new MutableDisposable<DisposableStore>());
+	private authenticateAction: HTMLElement | undefined;
 
 	/**
 	 * Whether this part was ever shown. Used to distinguish the initial empty
@@ -51,7 +54,9 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 
 	constructor(
 		private readonly data: IChatMcpAuthenticationRequired,
+		private readonly context: IChatContentPartRenderContext,
 		private readonly options: { onDidAuthenticate?: () => void; onDidRemoveFocusedAction?: () => void } = {},
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -98,6 +103,7 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		this.authenticateAction = undefined;
 		dom.clearNode(this.domNode);
 		this.rendered.clear();
+		this.confirmation.clear();
 
 		if (authenticating) {
 			this._renderMessage(
@@ -121,55 +127,39 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 			.map(server => appendEscapedMarkdownInlineCode(server.name))
 			.join(', ');
 		const content = servers.length === 1
-			? localize('mcp.auth.single', 'The MCP server {0} requires authentication. [Authenticate](#authenticate)?', links)
-			: localize('mcp.auth.multiple', 'The MCP servers {0} require authentication. [Authenticate](#authenticate)?', links);
-		this.authenticateAction = this._renderMessage(Codicon.mcp, content, { href: '#authenticate', run: () => void this.authenticate() });
-		if (this.configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
-			const message = this.domNode.textContent?.trim();
-			if (message) {
-				alert(message);
-			}
+			? localize('mcp.auth.single', "The MCP server {0} requires authentication.", links)
+			: localize('mcp.auth.multiple', "The MCP servers {0} require authentication.", links);
+		const store = this.confirmation.value = new DisposableStore();
+		const widget = store.add(this.instantiationService.createInstance(ChatCustomConfirmationWidget<void>, this.context, {
+			title: localize('mcp.auth.title', "MCP authentication required"),
+			icon: Codicon.mcp,
+			message: new MarkdownString(content),
+			buttons: [{ label: localize('mcp.auth.authenticate', "Authenticate"), data: undefined }],
+		}));
+		store.add(widget.onDidClick(() => void this.authenticate()));
+		this.domNode.appendChild(widget.domNode);
+		// eslint-disable-next-line no-restricted-syntax
+		this.authenticateAction = widget.domNode.querySelector<HTMLElement>('.monaco-button') ?? undefined;
+		if (!this._renderedAuthenticatingServerId && this.configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
+			alert(localize('mcp.auth.announcement', "{0} Use the Authenticate button to continue.", renderAsPlaintext(new MarkdownString(content))));
 		}
 		if (actionHadFocus) {
 			this.authenticateAction?.focus();
 		}
 	}
 
-	private _renderMessage(icon: ThemeIcon, content: string, action?: { href: string; run: () => void }): HTMLAnchorElement | undefined {
+	private _renderMessage(icon: ThemeIcon, content: string): void {
 		const container = dom.$('.chat-mcp-servers-interaction-hint');
 		const messageContainer = dom.$('.chat-mcp-servers-message');
 		const iconElement = dom.$('.chat-mcp-servers-icon');
 		iconElement.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
 
-		const rendered = this.rendered.value = this.markdownRendererService.render(new MarkdownString(content, { isTrusted: true }), action ? {
-			actionHandler: (href: string) => {
-				// Only the dedicated authenticate link triggers auth; ignore any
-				// other link target so the handler stays scoped to this control.
-				if (href !== action.href) {
-					return Promise.resolve(false);
-				}
-				action.run();
-				return Promise.resolve(true);
-			},
-		} : undefined);
+		const rendered = this.rendered.value = this.markdownRendererService.render(new MarkdownString(content));
 
 		messageContainer.appendChild(iconElement);
 		messageContainer.appendChild(rendered.element);
 		container.appendChild(messageContainer);
 		this.domNode.appendChild(container);
-
-		if (action) {
-			// Present the authenticate link as a button for assistive technology
-			// and clear its href so it doesn't behave like a navigable link.
-			// eslint-disable-next-line no-restricted-syntax
-			const actionLink = rendered.element.querySelector<HTMLAnchorElement>(`a[data-href="${action.href}"]`);
-			if (actionLink) {
-				actionLink.setAttribute('role', 'button');
-				actionLink.href = '';
-				return actionLink;
-			}
-		}
-		return undefined;
 	}
 
 	private async authenticate(): Promise<void> {

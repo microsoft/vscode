@@ -22,8 +22,10 @@ import { noSessionPickerVisibility, SessionInputPickerVisibility, SessionPickerV
 suite('New chat picker keybindings', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('repository and environment shortcuts require new-session input focus and an available control', () => {
+	test('picker shortcuts work from the input or picker row but not outside the new-session composer', () => {
 		const rules = [
+			[FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN, 'sessionWorkspacePickerVisible'],
+			[FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, 'sessionHarnessPickerVisible'],
 			[FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN, 'sessionEnvironmentPickerVisible'],
 			[FOCUS_NEW_SESSION_BRANCH_PICKER_WHEN, 'sessionBranchPickerVisible'],
 			[FOCUS_NEW_SESSION_WORKTREE_PICKER_WHEN, 'sessionWorktreePickerVisible'],
@@ -37,7 +39,8 @@ suite('New chat picker keybindings', () => {
 			const enabled = rule.evaluate(context);
 			context.setValue('chatInputHasFocus', false);
 			const outsideInput = rule.evaluate(context);
-			context.setValue('chatInputHasFocus', true);
+			context.setValue('newSessionComposerFocus', true);
+			const pickerFocused = rule.evaluate(context);
 			context.setValue('isNewChatSession', false);
 			const existingSession = rule.evaluate(context);
 			context.setValue('isNewChatSession', true);
@@ -45,9 +48,9 @@ suite('New chat picker keybindings', () => {
 			const disabledAI = rule.evaluate(context);
 			context.setValue('chatIsEnabled', true);
 			context.setValue(key, false);
-			return [enabled, outsideInput, existingSession, disabledAI, rule.evaluate(context)];
+			return [enabled, outsideInput, pickerFocused, existingSession, disabledAI, rule.evaluate(context)];
 		});
-		assert.deepStrictEqual(results, Array.from({ length: 4 }, () => [true, false, false, false, false]));
+		assert.deepStrictEqual(results, Array.from({ length: 6 }, () => [true, false, true, false, false, false]));
 	});
 
 	test('registers repository controls per composer and clears visibility with their lifetime', () => {
@@ -80,13 +83,13 @@ suite('New chat picker keybindings', () => {
 		});
 	});
 
-	test('only enable picker shortcuts with the unified workspace picker', () => {
+	test('only enable picker shortcuts for visible pickers in a focused new-session composer', () => {
 		assert.deepStrictEqual({
 			workspace: FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN.serialize(),
 			harness: FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN.serialize(),
 		}, {
-			workspace: 'chatInputHasFocus && chatIsEnabled && config.sessions.chat.unifiedWorkspacePicker.enabled && isNewChatSession && isSessionsWindow && sessionWorkspacePickerVisible',
-			harness: 'chatInputHasFocus && chatIsEnabled && config.sessions.chat.unifiedWorkspacePicker.enabled && isNewChatSession && isSessionsWindow && sessionHarnessPickerVisible',
+			workspace: 'chatInputHasFocus && chatIsEnabled && isNewChatSession && isSessionsWindow && sessionWorkspacePickerVisible || chatIsEnabled && isNewChatSession && isSessionsWindow && newSessionComposerFocus && sessionWorkspacePickerVisible',
+			harness: 'chatInputHasFocus && chatIsEnabled && isNewChatSession && isSessionsWindow && sessionHarnessPickerVisible || chatIsEnabled && isNewChatSession && isSessionsWindow && newSessionComposerFocus && sessionHarnessPickerVisible',
 		});
 	});
 

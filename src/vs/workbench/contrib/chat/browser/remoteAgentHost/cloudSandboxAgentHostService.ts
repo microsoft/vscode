@@ -149,7 +149,11 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		let telemetry = this._connectionTelemetry.get(address);
 		if (!telemetry) {
 			// A new tracker for retained credentials is a new attachment, not the original provisioning flow.
-			telemetry = this._telemetryService.trackConnection('connection', this._surface, 'existing', { environmentKind: staged?.options.environmentKind });
+			telemetry = this._telemetryService.trackConnection('connection', this._surface, 'existing', {
+				environmentKind: staged?.options.environmentKind,
+				environmentId: staged?.options.environmentId,
+				sessionId: staged?.options.sessionId,
+			});
 			this._connectionTelemetry.set(address, telemetry);
 		}
 		const connectionTelemetry = telemetry;
@@ -262,11 +266,13 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 			store.add(toDisposable(() => lifetime.dispose(true)));
 			staged.authenticationLifetime = lifetime;
 			const telemetry = this._connectionTelemetry.get(address);
-			const diagnosticObserver = (event: IConnectionDiagnosticEvent) => telemetry?.recordConnectionDiagnostic(event);
+			telemetry?.setConnectionId(staged.clientId);
+			let protocolClient: AgentHostProtocolClient | undefined = undefined;
+			const diagnosticObserver = (event: IConnectionDiagnosticEvent) => telemetry?.recordConnectionDiagnostic({ ...event, ...protocolClient?.getConnectionDiagnosticState() });
 			const refresher = store.add(this._instantiationService.createInstance(
 				CloudSandboxCredentialRefresher,
 				address,
-				{ environmentId: staged.options.environmentId, sessionId: staged.options.sessionId, onRequest: telemetry?.createRequestObserver() },
+				{ environmentId: staged.options.environmentId, sessionId: staged.options.sessionId, ...(staged.options.environmentKind ? { environmentKind: staged.options.environmentKind } : {}), onRequest: telemetry?.createRequestObserver() },
 				staged.clientId,
 				staged.creds,
 				staged.refreshState,
@@ -358,7 +364,9 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 					} : undefined,
 				},
 			);
+			protocolClient = client;
 			store.add(client.onDidConnectionDiagnostic(diagnosticObserver));
+			store.add(client.onDidAction(envelope => telemetry?.recordSessionAction(envelope, client.getConnectionDiagnosticState())));
 			return { connection: client, transportDisposable: store, reconnectManagedByClient: true };
 		} catch (error) {
 			store.dispose();
@@ -584,7 +592,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 			}
 			let result: CloudSandboxConnectResult;
 			try {
-				result = await this._apiService.connect({ environmentId: options.environmentId, sessionId: options.sessionId, onRequest: telemetry?.createRequestObserver() }, token);
+				result = await this._apiService.connect({ environmentId: options.environmentId, sessionId: options.sessionId, ...(options.environmentKind ? { environmentKind: options.environmentKind } : {}), onRequest: telemetry?.createRequestObserver() }, token);
 			} catch (error) {
 				if (error instanceof CloudSandboxRequestError && isRetryableCloudSandboxError(error)
 					&& (error.code === 'rate_limit_exceeded' || error.statusCode === 429) && !token.isCancellationRequested) {
@@ -642,7 +650,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 
 			let result: CloudSandboxConnectResult;
 			try {
-				result = await this._apiService.reconnect({ environmentId: options.environmentId, sessionId: options.sessionId, onRequest: telemetry?.createRequestObserver() }, minted.client_id, token);
+				result = await this._apiService.reconnect({ environmentId: options.environmentId, sessionId: options.sessionId, ...(options.environmentKind ? { environmentKind: options.environmentKind } : {}), onRequest: telemetry?.createRequestObserver() }, minted.client_id, token);
 			} catch (err) {
 				if (isCancellationError(err) || token.isCancellationRequested) {
 					throw err;

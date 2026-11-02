@@ -16,6 +16,7 @@ import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEditorIdentifier } from '../../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
@@ -63,6 +64,7 @@ suite('BtwSlashCommandContribution', () => {
 		const warnings: string[] = [];
 		const errors: string[] = [];
 		const participants: string[] = [];
+		const telemetryEvents: string[] = [];
 		const activeGroup = upcastPartial<IEditorGroup>({ id: 1 });
 		const sourceGroup = upcastPartial<IEditorGroup>({ id: options?.sourceGroupId ?? 1 });
 		const splitGroup = upcastPartial<IEditorGroup>({ id: 3 });
@@ -151,10 +153,13 @@ suite('BtwSlashCommandContribution', () => {
 				warn: message => warnings.push(String(message)),
 				error: message => errors.push(String(message)),
 			}),
+			upcastPartial<ITelemetryService>({
+				publicLog2: eventName => telemetryEvents.push(eventName),
+			}),
 		));
 
 		return {
-			registration, calls, selections, warnings, errors, participants, sourceGroup, splitGroup, sideChatService,
+			registration, calls, selections, warnings, errors, participants, telemetryEvents, sourceGroup, splitGroup, sideChatService,
 			run: async (prompt = 'question', requestOptions?: IChatSendRequestOptions, input = `/btw ${prompt}`) => {
 				assert.ok(registration);
 				await registration.callback(prompt, { report: () => { } }, [], ChatAgentLocation.Chat, source, CancellationToken.None, requestOptions, { input });
@@ -188,6 +193,19 @@ suite('BtwSlashCommandContribution', () => {
 		assert.strictEqual(harness.sideChatService.canAskInSideChat(source), false);
 	});
 
+	test('reports each successful /btw submission once', async () => {
+		const harness = setup();
+		await harness.run('first question');
+		await harness.run('second question');
+		assert.deepStrictEqual(harness.telemetryEvents, ['chatBtwUsed', 'chatBtwUsed']);
+	});
+
+	test('does not attribute side chats started without /btw to the command', async () => {
+		const harness = setup();
+		await harness.sideChatService.askInSideChat(source, 'question');
+		assert.deepStrictEqual(harness.telemetryEvents, []);
+	});
+
 	test('uses the same command to forward prepared attachments to an Agents-window provider', async () => {
 		const harness = setup({ isSessionsWindow: true });
 		const requests: { resource: URI; query: string; options?: IChatSideChatRequestOptions }[] = [];
@@ -201,7 +219,7 @@ suite('BtwSlashCommandContribution', () => {
 			attachedContext: [{ id: 'inline', name: 'inline', kind: 'generic', value: 'context', range: { start: 7, endExclusive: 15 } }],
 			resolvedVariables: [{ id: 'resolved', name: 'resolved', kind: 'generic', value: 'resolved context' }],
 		}, '/btw   question  ');
-		assert.deepStrictEqual({ requests, editorCalls: harness.calls, errors: harness.errors }, {
+		assert.deepStrictEqual({ requests, editorCalls: harness.calls, errors: harness.errors, telemetryEvents: harness.telemetryEvents }, {
 			requests: [{
 				resource: source,
 				query: 'question',
@@ -215,6 +233,7 @@ suite('BtwSlashCommandContribution', () => {
 			}],
 			editorCalls: [],
 			errors: [],
+			telemetryEvents: ['chatBtwUsed'],
 		});
 	});
 
@@ -365,7 +384,7 @@ suite('BtwSlashCommandContribution', () => {
 		test(`warns without mutating either chat for ${name}`, async () => {
 			const harness = setup(options);
 			await harness.run(prompt);
-			assert.deepStrictEqual({ calls: harness.calls, warnings: harness.warnings, errors: harness.errors }, { calls: [], warnings: [warning], errors: [] });
+			assert.deepStrictEqual({ calls: harness.calls, warnings: harness.warnings, errors: harness.errors, telemetryEvents: harness.telemetryEvents }, { calls: [], warnings: [warning], errors: [], telemetryEvents: [] });
 		});
 	}
 
@@ -378,7 +397,8 @@ suite('BtwSlashCommandContribution', () => {
 				warnings: harness.warnings,
 				errors: harness.errors.length,
 				focused: harness.calls.some(call => hasKey(call, { focus: true })),
-			}, { calls: fail === 'create' ? 1 : fail === 'open' ? 2 : 3, warnings: [], errors: 1, focused: false });
+				telemetryEvents: harness.telemetryEvents,
+			}, { calls: fail === 'create' ? 1 : fail === 'open' ? 2 : 3, warnings: [], errors: 1, focused: false, telemetryEvents: [] });
 		});
 	}
 

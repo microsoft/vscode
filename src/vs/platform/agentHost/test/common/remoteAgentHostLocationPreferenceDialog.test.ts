@@ -20,6 +20,7 @@ import {
 /** Captures the last `prompt()` call so tests can assert its exact shape without a real dialog UI. */
 class CapturingDialogService implements IDialogService {
 	declare readonly _serviceBrand: undefined;
+	readonly hasDialog = false;
 	readonly onWillShowDialog = Event.None;
 	readonly onDidShowDialog = Event.None;
 
@@ -52,7 +53,7 @@ class CapturingDialogService implements IDialogService {
 }
 
 suite('promptRemoteAgentHostLocationPreference', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const productName = 'Test Product';
 
@@ -144,13 +145,9 @@ suite('promptRemoteAgentHostLocationPreference', () => {
 
 	test('forwards the provided cancellation token to the dialog prompt', async () => {
 		const dialogService = new CapturingDialogService(0);
-		const cts = new CancellationTokenSource();
-		try {
-			await promptRemoteAgentHostLocationPreference(dialogService, 'host', productName, undefined, cts.token);
-			assert.strictEqual(dialogService.lastPrompt?.token, cts.token);
-		} finally {
-			cts.dispose();
-		}
+		const cts = store.add(new CancellationTokenSource());
+		await promptRemoteAgentHostLocationPreference(dialogService, 'host', productName, undefined, cts.token);
+		assert.strictEqual(dialogService.lastPrompt?.token, cts.token);
 	});
 
 	test('omits the token when none is provided', async () => {

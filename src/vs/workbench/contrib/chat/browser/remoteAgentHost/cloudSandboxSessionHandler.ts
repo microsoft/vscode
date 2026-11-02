@@ -386,6 +386,7 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 		entry.hasHistory = kind !== 'historyError' && source.history.length > 0;
 		entry.historyFailed = false;
 		if (live) {
+			entry.liveFailed = false;
 			entry.historyStore.dispose();
 		}
 		this._updateHistoryStatus(entry);
@@ -407,20 +408,26 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 			entry.liveProviderTimeout.clear();
 		}
 		const pending = connection === 'connecting' || connection === 'reconnecting' || waitingForProvider || entry.liveRequested;
-		const kind = !entry.live && !pending
+		const loading = !entry.live && entry.liveRequested && entry.liveFailed;
+		const kind = loading ? 'live' : !entry.live && !pending
 			? entry.hasHistory && entry.historyFailed ? 'history' : entry.liveFailed ? 'live' : undefined
 			: undefined;
 		const session = entry.session;
-		if (!session || session.historyStatus.get()?.kind === kind) {
+		const current = session?.historyStatus.get();
+		if (!session || (current?.kind === kind && !!current?.isLoading === loading)) {
 			return;
 		}
-		session.historyStatus.set(kind === 'history' ? {
+		session.historyStatus.set(loading ? {
+			kind: 'live',
+			isLoading: true,
+			message: localize('cloudSandbox.liveHistoryLoading', "Reopening conversation..."),
+		} : kind === 'history' ? {
 			kind,
 			message: localize('cloudSandbox.historyRefreshFailed', "Couldn't refresh this conversation. Recent messages may be missing."),
 			action: { label: localize('cloudSandbox.refreshHistory', "Refresh"), run: () => this._loadHistory(entry) },
 		} : kind === 'live' ? {
 			kind,
-			message: localize('cloudSandbox.liveHistoryFailed', "Couldn't load the live conversation. Try again to continue."),
+			message: localize('cloudSandbox.liveHistoryFailed', "Couldn't reopen this conversation."),
 			action: { label: localize('cloudSandbox.retryLiveHistory', "Retry"), run: () => this._loadLive(entry) },
 		} : undefined, undefined);
 	}
@@ -484,7 +491,6 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 			return;
 		}
 		entry.liveRequested = true;
-		entry.liveFailed = false;
 		entry.liveProviderTimeout.clear();
 		this._updateHistoryStatus(entry);
 		const watch = StopWatch.create(false);
@@ -548,7 +554,12 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 	}
 
 	resolveChatResponseUri(resource: URI, href: string, kind: 'link' | 'image'): string {
-		return this._liveProvider?.resolveChatResponseUri?.(resource, href, kind) ?? this._readOnlyHandler.resolveChatResponseUri(resource, href, kind);
+		const live = this._liveProvider?.resolveChatResponseUri?.(resource, href, kind);
+		if (live !== undefined && (kind === 'link' ? live !== href : live.startsWith('data:image/'))) {
+			return live;
+		}
+		const recorded = this._readOnlyHandler.resolveChatResponseUri(resource, href, kind);
+		return kind === 'link' || recorded.startsWith('data:image/') ? recorded : live ?? recorded;
 	}
 
 	provideChatInputCompletions: NonNullable<IChatSessionContentProvider['provideChatInputCompletions']> =

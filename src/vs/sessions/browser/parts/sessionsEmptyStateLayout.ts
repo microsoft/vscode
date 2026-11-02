@@ -52,6 +52,10 @@ export class SessionsEmptyStateLayout extends Disposable {
 		}
 		const available = this.container.getBoundingClientRect();
 		const reference = this.reference.getBoundingClientRect();
+		// Editors can render before the containing grid has committed its dimensions.
+		if (available.height === 0 || reference.height === 0) {
+			return;
+		}
 		let availableTop = available.top;
 		for (let sibling = this.elements[0].previousElementSibling; sibling; sibling = sibling.previousElementSibling) {
 			const bounds = sibling.getBoundingClientRect();

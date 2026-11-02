@@ -122,7 +122,7 @@ export interface ITabBarAction {
 	readonly useManagedHover?: boolean;
 	/** When true, the button renders in its pressed state. */
 	readonly checked?: boolean;
-	/** When set, the button is disabled and its hover explains why instead of showing {@link tooltip}. */
+	/** When set, the button is disabled and its managed hover explains why instead of showing {@link tooltip}. */
 	readonly disabledReason?: string;
 	run(): void;
 }
@@ -417,7 +417,8 @@ export class TabbedActionListWidget extends Disposable {
 						button.setAttribute('aria-description', disabledReason);
 					}
 					const hover = disabledReason ?? tabAction.tooltip;
-					if (tabAction.useManagedHover) {
+					// A disabled reason always uses a managed hover: a native title is easy to miss and never shows on keyboard focus.
+					if (tabAction.useManagedHover || disabledReason) {
 						renderDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, hover));
 					} else {
 						button.title = hover;
