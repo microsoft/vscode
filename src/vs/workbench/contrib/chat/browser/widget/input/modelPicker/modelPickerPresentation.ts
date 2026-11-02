@@ -45,6 +45,18 @@ export function getFusionTierLabel(auto: ILanguageModelChatMetadata | undefined,
 }
 
 /**
+ * The label of an effort level Copilot Fusion offers, such as Standard, named as its picker names it.
+ * Undefined for a model that is not Fusion, or a level Fusion does not offer.
+ */
+export function getFusionEffortLevelLabel(auto: ILanguageModelChatMetadata | undefined, tier: unknown): string | undefined {
+	const property = auto?.autoModelFusion ? auto.configurationSchema?.properties?.tier : undefined;
+	if (typeof tier !== 'string' || !property?.enum?.includes(tier)) {
+		return undefined;
+	}
+	return property.enumItemLabels?.[property.enum.indexOf(tier)] ?? getFusionAutoModeTierLabel(tier);
+}
+
+/**
  * The badge of a routing model at the given effort level. Copilot Fusion's names that
  * level's discount, if any, so it shows which levels a promotion covers.
  * Other routing models keep their own detail.

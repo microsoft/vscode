@@ -166,10 +166,10 @@ import { ICopilotHomeService } from '../../../../../services/environment/common/
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, chatUsageToSessionCost, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, reasoningPartToThinking, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, turnToResultMetadata, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, chatUsageToSessionCost, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, reasoningPartToThinking, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, turnToResultMetadata, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type ITurnResponseModel, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getFusionAutoModeTierLabel } from '../../../../../../platform/agentHost/common/autoModeTiers.js';
-import { getFusionTierLabel } from '../../widget/input/modelPicker/modelPickerPresentation.js';
+import { getFusionEffortLevelLabel, getFusionTierLabel } from '../../widget/input/modelPicker/modelPickerPresentation.js';
 import { autoAuthenticateMcpServer, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
 import { AgentHostSubagentProgress, isUnstartedSubagent } from './agentHostSubagentProgress.js';
 export { toolDataToDefinition };
@@ -7522,6 +7522,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Model ids are provider-scoped, so another provider's model of the same name keeps its own id.
 		const isCopilotFusionTier = (rawModelId: string | undefined) => this._config.provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(rawModelId);
 		const fusionModelName = (rawModelId: string) => localize({ key: 'agentHost.fusionTierResponseModelFallback', comment: ['{0} is an effort level of Copilot Fusion, e.g. Max'] }, "Copilot Fusion {0}", getFusionAutoModeTierLabel(rawModelId));
+		const fusionTierName = (fusion: { identifier: string; model: ILanguageModelChatMetadata }, tierLabel: string) => localize({ key: 'agentHost.fusionTierResponseModel', comment: ['{0} is the routing model, e.g. Copilot Fusion, and {1} its tier, e.g. Max'] }, "{0} {1}", displayName(fusion), tierLabel);
+		// Fusion's levels that Auto routes, such as Standard, read as Fusion like its HydraFusion levels; the routing row names the model it picked.
+		const autoRoutedFusionModel = (selectedModel: ModelSelection | undefined): ITurnResponseModel | undefined => {
+			if ((selectedModel?.id ?? fallbackRawModelId) !== AUTO_RAW_MODEL_ID) {
+				return undefined;
+			}
+			const fusion = lookupRawModel(AUTO_RAW_MODEL_ID);
+			if (!fusion?.model.autoModelFusion) {
+				return undefined;
+			}
+			const tierLabel = getFusionEffortLevelLabel(fusion.model, selectedModel?.config?.tier);
+			return {
+				name: tierLabel ? fusionTierName(fusion, tierLabel) : displayName(fusion),
+				pricing: fusion.model.multiplierNumeric !== undefined ? fusion.model.pricing : undefined,
+			};
+		};
 		// On-device attribution: what actually ran, from the turn's usage, named from host status.
 		const localTurn = (usage: UsageInfo | undefined) => this._localModels.getTurnPresentation(usage, fallbackRawModelId, rawModelId => {
 			const resolved = lookupRawModel(rawModelId);
@@ -7532,10 +7548,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			isFusionModel: rawModelId => this._config.provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(rawModelId),
 			toActualModelId: rawModelId => lookupRawModel(rawModelId)?.identifier ?? this._toLanguageModelId(sessionResource, rawModelId),
 			toModelDisplayName: rawModelId => lookupRawModel(rawModelId)?.model.name ?? this._localModels.getDisplayName(rawModelId) ?? (isCopilotFusionTier(rawModelId) ? fusionModelName(rawModelId) : undefined),
-			toResponseDetails: (rawModelId, usage, responseModelId) => {
+			toResponseDetails: (rawModelId, usage, responseModelId, selectedModel) => {
 				const local = responseModelId ? undefined : localTurn(usage);
 				if (local) {
 					return formatTurnResponseDetails({ name: local.name, pricing: local.pricing }, undefined, usage);
+				}
+				const fusionModel = responseModelId ? undefined : autoRoutedFusionModel(selectedModel);
+				if (fusionModel) {
+					return formatTurnResponseDetails(fusionModel, undefined, usage);
 				}
 				const { billedId, resolved } = resolveBilledModel(rawModelId, usage, responseModelId);
 				// resolvedFromRaw=false means we fell back to the picked model; surface billedModelId so
@@ -7547,7 +7567,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// Token prices are model rates, not the credits consumed by this turn.
 				const pricing = resolved?.model.multiplierNumeric !== undefined ? resolved.model.pricing : undefined;
 				const responseModel = fusion && fusionTier ? {
-					name: localize({ key: 'agentHost.fusionTierResponseModel', comment: ['{0} is the routing model, e.g. Copilot Fusion, and {1} its tier, e.g. Max'] }, "{0} {1}", displayName(fusion), fusionTier),
+					name: fusionTierName(fusion, fusionTier),
 					pricing,
 				} : resolved ? {
 					name: displayName(resolved),
