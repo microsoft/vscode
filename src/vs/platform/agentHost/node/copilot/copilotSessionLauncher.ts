@@ -793,6 +793,11 @@ export function resolveCopilotAutoTier(model: ModelSelection | undefined, config
 	if (forced !== undefined) {
 		return forced ?? undefined;
 	}
+	// Inline chat pins Fusion's fast tier, which needs the provider's tiers; until they are known, it runs at the runtime's
+	// default rather than at a deeper saved preference.
+	if (isInlineChat && !support.tiers) {
+		return undefined;
+	}
 	const tier = getCopilotAutoTier(model, support);
 	if (tier === undefined) {
 		return undefined;

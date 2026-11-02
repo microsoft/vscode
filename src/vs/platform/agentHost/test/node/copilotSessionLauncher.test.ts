@@ -3483,7 +3483,10 @@ suite('getCopilotAutoTier', () => {
 			setAdvertisedAutoModeTiers(['balance', 'hydrafusion'], true);
 			const fastNotAccepted = resolve(fusion, true);
 			setAdvertisedAutoModeTiers(['efficiency', 'balance', 'fast']);
-			result = { ...fusionTiers, fastNotAccepted, inlineNotFusion: resolve({ id: 'auto', config: { tier: 'efficiency' } }, true) };
+			const inlineNotFusion = resolve({ id: 'auto', config: { tier: 'efficiency' } }, true);
+			// Until the provider's tiers are known, inline chat runs at the runtime's default rather than at a deeper preference.
+			setAdvertisedAutoModeTiers(undefined);
+			result = { ...fusionTiers, fastNotAccepted, inlineNotFusion, inlineTiersUnknown: resolve(fusion, true), panelTiersUnknown: resolve(fusion, false) };
 		} finally {
 			setAdvertisedAutoModeTiers(undefined);
 		}
@@ -3495,6 +3498,8 @@ suite('getCopilotAutoTier', () => {
 			panel: 'hydrafusion',
 			fastNotAccepted: 'hydrafusion',
 			inlineNotFusion: 'efficiency',
+			inlineTiersUnknown: undefined,
+			panelTiersUnknown: 'hydrafusion',
 		});
 	});
 

@@ -7454,6 +7454,66 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		for (const rotate of [false, true]) {
+			test(`prewarming uses the caller credential and ${rotate ? 'replaces a rotated sponsor' : 'keeps the runtime'} on first send`, async () => {
+				const { agent, clients, options, launches } = setup();
+				const session = AgentSession.uri('copilotcli', `scoped-prewarm-${rotate}`);
+				const chat = defaultChatUri(session);
+				const directory = URI.file(process.cwd());
+				let token = 'sponsor-a';
+				const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token, expiresAt: undefined, revision: 1 }) };
+				const context = { ...exactChatContext(session, chat, session), credentials };
+				afterTest(() => disposeAgent(agent));
+				await provisionSession(agent, { session, credentials, model: { id: 'gpt-4o' }, workingDirectories: [directory] });
+				const warmed = await agent.chats.warmChat!(chat, context);
+				const afterWarm = { warmed, tokens: options.filter(option => option.gitHubToken !== undefined).map(option => option.gitHubToken), launches: launches.map(launch => launch.kind) };
+				if (rotate) {
+					token = 'sponsor-b';
+				}
+
+				await agent.chats.sendMessage(chat, 'first', [directory], undefined, 'first', undefined, context);
+
+				assert.deepStrictEqual({
+					afterWarm,
+					tokens: options.filter(option => option.gitHubToken !== undefined).map(option => option.gitHubToken),
+					stops: clients.filter((_client, index) => options[index].gitHubToken !== undefined).map(client => client.stopCallCount),
+					launches: launches.map(launch => launch.kind),
+					sends: launches.map(launch => launch.runtime.sendCalls),
+				}, {
+					afterWarm: { warmed: true, tokens: ['sponsor-a'], launches: ['create'] },
+					tokens: rotate ? ['sponsor-a', 'sponsor-b'] : ['sponsor-a'],
+					stops: rotate ? [1, 0] : [0],
+					launches: rotate ? ['create', 'create'] : ['create'],
+					sends: rotate ? [0, 1] : [1],
+				});
+			});
+		}
+
+		test('drops an Auto tier once model discovery completes without Auto tiers', async () => {
+			const { agent, launches } = setup();
+			afterTest(() => disposeAgent(agent));
+			const directory = URI.file(process.cwd());
+			const intelligence: ModelSelection = { id: 'auto', config: { tier: 'intelligence' } };
+			const hostSession = AgentSession.uri('copilotcli', 'host-discovered-without-tiers');
+			const hostChat = defaultChatUri(hostSession);
+			await agent.authenticate('https://api.github.com', 'host-token');
+			await agent.refreshModels();
+			await provisionSession(agent, { session: hostSession, model: intelligence, workingDirectories: [directory] });
+			await agent.chats.sendMessage(hostChat, 'first', [directory], undefined, 'first', undefined, exactChatContext(hostSession, hostChat, hostSession));
+			const scopedSession = AgentSession.uri('copilotcli', 'scoped-discovered-without-tiers');
+			const scopedChat = defaultChatUri(scopedSession);
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'caller-token', expiresAt: undefined, revision: 1 }) };
+			await agent.getModelsForCredentials(credentials);
+			await provisionSession(agent, { session: scopedSession, credentials, model: intelligence, workingDirectories: [directory] });
+			await agent.chats.sendMessage(scopedChat, 'first', [directory], undefined, 'first', undefined, { ...exactChatContext(scopedSession, scopedChat, scopedSession), credentials });
+
+			// Both catalogs are known to offer no Auto tiers, so the requested tier is not left to the runtime.
+			assert.deepStrictEqual(launches.map(launch => ({ kind: launch.kind, capi: launch.config.capi })), [
+				{ kind: 'create', capi: undefined },
+				{ kind: 'create', capi: undefined },
+			]);
+		});
+
 		test('prewarming does not borrow a host token when the caller credential is unavailable', async () => {
 			const { agent, options, launches } = setup();
 			const session = AgentSession.uri('copilotcli', 'scoped-prewarm-unavailable');
@@ -15290,7 +15350,7 @@ suite('CopilotAgent', () => {
 					advertisedTiers: getAdvertisedAutoModeTierSupport(),
 				}, {
 					models: ['replacement'],
-					advertisedTiers: { tiers: undefined, fusion: false },
+					advertisedTiers: { tiers: new Set(), fusion: false },
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -24239,6 +24299,11 @@ suite('CopilotAgent', () => {
 		// A provider that advertises the classic Auto tiers, so the tier routing these tests check is accepted.
 		setup(() => setAdvertisedAutoModeTiers(autoModeTiers));
 		teardown(() => setAdvertisedAutoModeTiers(undefined));
+		// The same tiers served by a client whose catalog the agent publishes.
+		const classicAutoTierMetadata: TestCopilotClient['autoTierMetadata'] = {
+			defaultTier: 'balance',
+			tiers: autoModeTiers.map(id => ({ id, displayName: id, description: '', type: 'auto', status: { enabled: true } })),
+		};
 
 		/** Internal surface these chat-routing tests reach into to stub the SDK/agent-session seam. */
 		type ChatInternals = {
@@ -25692,6 +25757,7 @@ suite('CopilotAgent', () => {
 		test('changeModel forwards and persists Auto routing preferences and resets', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+			client.autoTierMetadata = classicAutoTierMetadata;
 			const sdkSession = new MockCopilotSession();
 			client.createSession = async () => sdkSession as unknown as CopilotSession;
 			const { agent } = createTestAgentContext(disposables, {
@@ -25794,6 +25860,7 @@ suite('CopilotAgent', () => {
 		test('applies a provisional Auto routing preference on the first send without opting in', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+			client.autoTierMetadata = classicAutoTierMetadata;
 			const capiCalls: SessionConfig['capi'][] = [];
 			client.createSession = async config => {
 				capiCalls.push(config.capi);
@@ -25827,6 +25894,7 @@ suite('CopilotAgent', () => {
 			test(`explicit ${selectedTier} selected during Auto initialization wins after the captured send`, async () => {
 				const sessionDataService = disposables.add(new TestSessionDataService());
 				const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+				client.autoTierMetadata = classicAutoTierMetadata;
 				const launchStarted = new DeferredPromise<void>();
 				const launchGate = new DeferredPromise<void>();
 				let initialTier: SessionConfig['capi'];
