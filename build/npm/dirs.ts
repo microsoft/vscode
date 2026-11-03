@@ -74,17 +74,19 @@ export const workspaceMembers = [
 export const separateRoots = [
 	'build',
 	'remote',
-	'remote/web',
 	'extensions/copilot',
 ];
 
 /**
  * Members of the workspaces of separate roots, by root: they share the root's `pnpm-lock.yaml` and
- * are installed by its `pnpm install`. `build/rspack` and `build/vite` are inside `build`: pnpm uses
- * the nearest `pnpm-workspace.yaml` above a folder, so they can't be members of the main workspace.
+ * are installed by its `pnpm install`. pnpm uses the nearest `pnpm-workspace.yaml` above a folder,
+ * so folders inside `build` or `remote` can't be members of the main workspace. `remote/web` holds
+ * the dependencies of the web build; with the hoisted layout, most of them are installed in
+ * `remote/node_modules`.
  */
 export const separateRootMembers: Readonly<Record<string, readonly string[]>> = {
 	'build': ['build/rspack', 'build/vite'],
+	'remote': ['remote/web'],
 };
 
 /**

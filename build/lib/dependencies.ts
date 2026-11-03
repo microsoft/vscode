@@ -119,6 +119,52 @@ export function getProductionDependencies(folderPath: string): string[] {
 	return [...new Set(result)];
 }
 
+/**
+ * A production dependency and the place it takes in the packaged project.
+ */
+export interface IPackagedDependency {
+	/** The folder of the installed package. */
+	readonly folder: string;
+	/** The folder whose `node_modules` holds the package: the project, or a parent up to the install root. */
+	readonly base: string;
+	/** The path of the package relative to `base`, with `/` separators, for example `node_modules/@xterm/xterm`. */
+	readonly path: string;
+}
+
+/**
+ * Returns the production dependencies of the project in `folderPath` (see
+ * {@link getProductionDependencies}) with the path that each one has in the packaged project's
+ * `node_modules`. pnpm's hoisted linker installs a dependency of a workspace member in the
+ * `node_modules` of a parent folder (up to the install root) when it can; such a package keeps its
+ * path relative to that `node_modules`. Throws when two installed folders would be packaged at the
+ * same path.
+ */
+export function getPackagedProductionDependencies(folderPath: string): IPackagedDependency[] {
+	const realFolderPath = fs.realpathSync(folderPath);
+	const installRoot = getInstallRoot(realFolderPath);
+	const bases: string[] = [];
+	for (let current = realFolderPath; ; current = path.dirname(current)) {
+		bases.push(current);
+		if (current === installRoot || path.dirname(current) === current) {
+			break;
+		}
+	}
+	const result = new Map<string, IPackagedDependency>();
+	for (const folder of getProductionDependencies(folderPath)) {
+		const base = bases.find(candidate => folder.startsWith(path.join(candidate, 'node_modules') + path.sep));
+		if (!base) {
+			throw new Error(`Unexpected location of a production dependency of ${folderPath}: ${folder}`);
+		}
+		const packagedPath = path.relative(base, folder).split(path.sep).join('/');
+		const existing = result.get(packagedPath);
+		if (existing && existing.folder !== folder) {
+			throw new Error(`Production dependencies ${existing.folder} and ${folder} would both be packaged at ${packagedPath}`);
+		}
+		result.set(packagedPath, { folder, base, path: packagedPath });
+	}
+	return [...result.values()];
+}
+
 if (import.meta.main) {
 	console.log(JSON.stringify(getProductionDependencies(root), null, '  '));
 }

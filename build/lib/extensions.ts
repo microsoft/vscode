@@ -17,7 +17,7 @@ import * as util2 from './util.ts';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import * as jsoncParser from 'jsonc-parser';
-import { getProductionDependencies } from './dependencies.ts';
+import { getPackagedProductionDependencies, getProductionDependencies } from './dependencies.ts';
 import { type IExtensionDefinition, getExtensionStream } from './builtInExtensions.ts';
 import { fetchUrls, fetchGithub } from './fetch.ts';
 import { createTsgoStream, spawnTsgo } from './tsgo.ts';
@@ -525,22 +525,10 @@ export function isPackagedTypeScriptFile(relativePath: string): boolean {
  * folder keeps its path relative to that `node_modules`.
  */
 function getSharedExtensionDependencyFolders(): { folder: string; destination: string }[] {
-	const extensionsNodeModules = path.join(root, 'extensions', 'node_modules');
-	const rootNodeModules = path.join(root, 'node_modules');
-	const result = new Map<string, string>();
-	for (const folder of getProductionDependencies('extensions/')) {
-		const relative = folder.startsWith(extensionsNodeModules + path.sep) ? path.relative(extensionsNodeModules, folder) : path.relative(rootNodeModules, folder);
-		if (relative.startsWith('..')) {
-			throw new Error(`Unexpected location of a shared extension dependency: ${folder}`);
-		}
-		const destination = path.posix.join('extensions', 'node_modules', relative.split(path.sep).join('/'));
-		const existing = result.get(destination);
-		if (existing && existing !== folder) {
-			throw new Error(`Shared extension dependencies ${existing} and ${folder} would both be packaged at ${destination}`);
-		}
-		result.set(destination, folder);
-	}
-	return [...result].map(([destination, folder]) => ({ folder: path.relative(root, folder).split(path.sep).join('/'), destination }));
+	return getPackagedProductionDependencies('extensions/').map(dependency => ({
+		folder: path.relative(root, dependency.folder).split(path.sep).join('/'),
+		destination: path.posix.join('extensions', dependency.path),
+	}));
 }
 
 /**

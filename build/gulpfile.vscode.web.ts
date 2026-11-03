@@ -11,7 +11,7 @@ import { getVersion } from './lib/getVersion.ts';
 import * as task from './lib/gulp/task.ts';
 import { writeISODate } from './lib/date.ts';
 import product from '../product.json' with { type: 'json' };
-import { getProductionDependencies } from './lib/dependencies.ts';
+import { getPackagedProductionDependencies } from './lib/dependencies.ts';
 import vfs from 'vinyl-fs';
 import packageJson from '../package.json' with { type: 'json' };
 import { compileApiProposalNamesTask, copyCodiconsTask } from './lib/compilation.ts';
@@ -48,10 +48,17 @@ function packageTask(sourceFolderName: string, destinationFolderName: string) {
 
 		const license = gulp.src(['remote/LICENSE'], { base: 'remote', allowEmpty: true });
 
-		const productionDependencies = getProductionDependencies(WEB_FOLDER);
-		const dependenciesSrc = productionDependencies.map(d => path.relative(REPO_ROOT, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]).flat();
+		// `remote/web` is a member of the `remote` workspace, so most of its dependencies are installed
+		// in `remote/node_modules`. Each one keeps its path relative to the `node_modules` that holds it.
+		const dependenciesByBase = new Map<string, string[]>();
+		for (const { folder, base } of getPackagedProductionDependencies(WEB_FOLDER)) {
+			const d = path.relative(REPO_ROOT, folder);
+			const globs = dependenciesByBase.get(base) ?? [];
+			globs.push(`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`);
+			dependenciesByBase.set(base, globs);
+		}
 
-		const deps = gulp.src(dependenciesSrc, { base: 'remote/web', dot: true })
+		const deps = es.merge(...[...dependenciesByBase].map(([base, dependenciesSrc]) => gulp.src(dependenciesSrc, { base: path.relative(REPO_ROOT, base), dot: true })))
 			.pipe(filter(['**', '!**/package-lock.json']))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.webignore')));
 
