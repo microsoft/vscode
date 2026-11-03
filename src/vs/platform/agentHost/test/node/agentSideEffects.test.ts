@@ -24,7 +24,7 @@ import { createInMemoryFileService } from '../../../files/test/common/inMemoryFi
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentPermissionKind, AgentSession, AgentSignal, IAgent, resolveAgentHostInstructions, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
+import { AgentPermissionKind, AgentSession, AgentSignal, IAgent, resolveAgentHostInstructions, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext, type IAgentPermissionResponseContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
@@ -5795,6 +5795,34 @@ suite('AgentSideEffects', () => {
 				permissions: agent.respondToPermissionCalls,
 			}, { status: ToolCallStatus.PendingConfirmation, permissions: [] });
 		});
+
+		for (const autoApproved of [false, true]) {
+			test(`unattended permission requests are never shown as confirmations (autoApproved=${autoApproved})`, async () => {
+				setupSession();
+				if (autoApproved) {
+					stateManager.setSessionConfig(sessionUri.toString(), {
+						schema: { type: 'object', properties: {} }, values: { autoApprove: 'autoApprove' },
+					});
+				}
+				startTurn('turn-1');
+				disposables.add(sideEffects.registerProgressListener(agent));
+				const response = new DeferredPromise<{ approved: boolean; context: IAgentPermissionResponseContext | undefined }>();
+				agent.respondToPermissionRequest = (_requestId: string, approved: boolean, context?: IAgentPermissionResponseContext) => { void response.complete({ approved, context }); };
+				agent.fireProgress({
+					kind: 'pending_confirmation', chat: URI.parse(defaultChatUri), unattended: true,
+					state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'unattended-tool', toolName: 'host_tool', displayName: 'Host Tool', invocationMessage: 'Run the host tool', confirmationTitle: 'Run the host tool?' },
+				});
+				assert.deepStrictEqual({
+					response: await response.p,
+					pendingConfirmations: stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts.filter(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.PendingConfirmation).length,
+				}, {
+					response: autoApproved
+						? { approved: true, context: { decisionSource: 'host_policy' } }
+						: { approved: false, context: { decisionSource: 'unattended_fallback', userNotAvailable: true } },
+					pendingConfirmations: 0,
+				});
+			});
+		}
 
 		test('tool_ready for a non-permission tool dispatches ChatToolCallReady and advances state from Streaming to Running', async () => {
 			setupSession();

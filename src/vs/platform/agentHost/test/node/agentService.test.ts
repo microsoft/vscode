@@ -33656,6 +33656,44 @@ suite('AgentService (node dispatcher)', () => {
 			await assert.rejects(service.subscribe(URI.parse(subagentUri), 'client-race'), /Cannot subscribe to unknown resource/);
 		});
 
+		test('permission feedback reaches only the provider, never protocol state or envelopes', async () => {
+			registerTestAgentProvider(service, copilotAgent);
+			const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const parentChat = buildDefaultChatUri(session.toString());
+			startParentTurn(session, 'turn-1');
+			const responses: Parameters<IAgent['respondToPermissionRequest']>[] = [];
+			copilotAgent.respondToPermissionRequest = (...args) => { responses.push(args); };
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(getStateManager(service).onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+			copilotAgent.fireProgress({
+				kind: 'action', resource: URI.parse(parentChat),
+				action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'bash', displayName: 'Bash', contributor: undefined, _meta: { toolKind: 'terminal', language: 'bash' } },
+			});
+			copilotAgent.fireProgress({
+				kind: 'pending_confirmation', chat: URI.parse(parentChat),
+				state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tc-1', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Run a command', confirmationTitle: 'Run command?' },
+				permissionKind: AgentPermissionKind.Shell, permissionPath: undefined,
+			});
+			await timeout(0);
+
+			service.dispatchAction(parentChat, {
+				type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'tc-1', approved: true, confirmed: ToolCallConfirmationReason.UserAction,
+				_meta: { toolKind: 'terminal', 'agentHost.permissionDecisionSource': 'human_response', 'vscode.assistedApprovalFeedback': 'Private note' },
+			}, 'client-1', 2);
+			await timeout(0);
+
+			const toolCall = getStateManager(service).getChatState(parentChat)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'tc-1');
+			assert.deepStrictEqual({
+				responses,
+				stateMeta: toolCall?.kind === ResponsePartKind.ToolCall ? toolCall.toolCall._meta : undefined,
+				leakedToEnvelopes: JSON.stringify(envelopes).includes('Private note'),
+			}, {
+				responses: [['tc-1', true, { decisionSource: 'human_response', userFeedback: 'Private note', selectedOptionId: undefined, origin: { clientId: 'client-1', clientSeq: 2 } }]],
+				stateMeta: { toolKind: 'terminal', 'agentHost.permissionDecisionSource': 'human_response' },
+				leakedToEnvelopes: false,
+			});
+		});
+
 		test('subscribe to a subagent chat announced via _meta.subagentChatUri waits for the resource instead of failing immediately', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 			const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });

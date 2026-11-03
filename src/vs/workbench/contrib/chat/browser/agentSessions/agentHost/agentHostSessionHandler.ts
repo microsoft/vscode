@@ -3971,7 +3971,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				sandboxPathGrantSaved = true;
 			}
 
-			const responseMeta = toAgentPermissionResponseMeta({ decisionSource: confirmedReasonToDecisionSource(reason, cancellationToken), sandboxPathGrantSaved });
+			const decisionSource = confirmedReasonToDecisionSource(reason, cancellationToken);
+			// Feedback goes only with a person's answer, and only to a host that offered to take it.
+			const userFeedback = decisionSource === 'human_response' && readToolCallMeta(pendingCall)['vscode.assistedApprovalFeedbackAccepted']
+				? invocation.confirmationFeedback?.trim() || undefined
+				: undefined;
+			invocation.confirmationFeedback = undefined;
+			const responseMeta = toAgentPermissionResponseMeta({ decisionSource, sandboxPathGrantSaved, userFeedback });
 			this._logService.info(`[AgentHost] Tool confirmation: toolCallId=${toolCallId}, approved=${approved}, selectedOptionId=${selectedOption?.id}`);
 			const target = this._requireChatURI(chatURI, ActionType.ChatToolCallConfirmed);
 			this._resolveToolCall(target, turnId, toolCallId, approved

@@ -7315,6 +7315,28 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('a rejected confirmation does not broadcast Assisted permissions feedback', async () => {
+		stateManager.createSession(makeSessionSummary());
+		const observer = connectClient('observer', [sessionUri]);
+		const passive = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'passive-relay', true));
+		passive.relayAuthenticated = true;
+		server.simulateConnection(passive);
+		passive.simulateMessage(request(1, 'initialize', { clientId: 'passive-relay', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [sessionUri] }));
+		observer.sent.length = 0;
+		passive.sent.length = 0;
+		passive.simulateMessage(notification('dispatchAction', {
+			channel: sessionUri, clientSeq: 1,
+			action: { type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'tc-1', approved: true, confirmed: ToolCallConfirmationReason.UserAction, _meta: { 'vscode.assistedApprovalFeedback': 'Private note' } },
+		}));
+		await handler.whenIdle();
+		const envelopes = [...findNotifications(observer.sent, 'action'), ...findNotifications(passive.sent, 'action')].map(message => message.params as ActionEnvelope);
+		assert.deepStrictEqual({
+			rejected: envelopes.length > 0 && envelopes.every(envelope => envelope.rejectionReason !== undefined),
+			leaked: JSON.stringify([observer.sent, passive.sent]).includes('Private note'),
+			dispatched: agentService.handledActions,
+		}, { rejected: true, leaked: false, dispatched: [] });
+	});
+
 	test('request-form dispatch validates params and returns a missing-resource sentinel', async () => {
 		const transport = connectClient('client-1');
 		transport.simulateMessage(request(2, 'dispatchAction', {

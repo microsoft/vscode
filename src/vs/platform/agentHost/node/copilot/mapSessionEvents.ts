@@ -18,7 +18,7 @@ import { getToolCallDurationMs, readToolCallMeta, toToolCallMeta, type IToolCall
 import { IFileEditRecord, ISessionDatabase, IToolResultResource, MAX_TOOL_RESULT_RESOURCE_BYTES } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type ContentRef, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
-import { CopilotToolName, getInvocationMessage, getPastTenseMessage, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type ToolAgentNameResolver } from './copilotToolDisplay.js';
+import { CopilotToolName, getInvocationMessage, getPastTenseMessage, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type TaskCompletionReview, type ToolAgentNameResolver } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
@@ -493,6 +493,9 @@ export async function mapSessionEvents(
 	const toolInfoByCallId = new Map<string, IToolStartInfo>();
 	const editToolCallIds: string[] = [];
 	const completionsByCallId = new Map<string, ToolExecutionCompleteData>();
+	// `session.task_complete` reviews the root `task_complete` call that completed right before it.
+	const taskCompletionReviewsByCallId = new Map<string, TaskCompletionReview>();
+	let unreviewedTaskCompleteCallId: string | undefined;
 	const binaryAssets = new Map<string, BinaryAssetData>();
 	const subagentInfoByToolCallId = new Map<string, ISubagentInfo>();
 	const subagentTaskPrompts = new Map<string, string>();
@@ -569,6 +572,19 @@ export async function mapSessionEvents(
 		}
 		if (e.type === 'tool.execution_complete') {
 			completionsByCallId.set(e.data.toolCallId, e.data);
+			if (!e.agentId) {
+				const info = toolInfoByCallId.get(e.data.toolCallId);
+				// A Fusion phase's call is a root call, reviewed once the phase commits.
+				const isRootCall = !resolveParentToolCallId(e.agentId, e.data.parentToolCallId) && (!info?.parentToolCallId || !!e.data.fusion);
+				unreviewedTaskCompleteCallId = info && isRootCall && isTaskCompleteTool(info.toolName) ? e.data.toolCallId : undefined;
+			}
+		} else if (e.type === 'session.task_complete' && !e.agentId) {
+			if (unreviewedTaskCompleteCallId) {
+				taskCompletionReviewsByCallId.set(unreviewedTaskCompleteCallId, e.data);
+			}
+			unreviewedTaskCompleteCallId = undefined;
+		} else if ((e.type === 'assistant.turn_end' || e.type === 'session.idle') && !e.agentId) {
+			unreviewedTaskCompleteCallId = undefined;
 		}
 		if (e.type === 'tool.execution_start') {
 			const d = e.data;
@@ -1052,7 +1068,8 @@ export async function mapSessionEvents(
 					break;
 				}
 				if (isTaskCompleteTool(info.toolName)) {
-					const summary = getTaskCompleteMarkdown(info.parameters, d.error?.message ?? d.result?.content);
+					const review = subagentParentToolCallId ? undefined : taskCompletionReviewsByCallId.get(d.toolCallId);
+					const summary = getTaskCompleteMarkdown(info.parameters, d.error?.message ?? d.result?.content, review);
 					const phaseBuilder = parentToolCallId !== subagentParentToolCallId ? targetBuilderFor(parentToolCallId) : undefined;
 					if (summary && phaseBuilder) {
 						phaseBuilder.responseParts.push({ kind: ResponsePartKind.Markdown, id: generateUuid(), content: summary });
@@ -1071,7 +1088,7 @@ export async function mapSessionEvents(
 							content: summary,
 						});
 					}
-					if (!subagentParentToolCallId && d.success && builder === parentBuilder && !parentTurnTerminated) {
+					if (!subagentParentToolCallId && d.success && review?.outcome !== 'continue' && builder === parentBuilder && !parentTurnTerminated) {
 						parentTurnState = TurnState.Complete;
 						rootRequestActive = false;
 					}
