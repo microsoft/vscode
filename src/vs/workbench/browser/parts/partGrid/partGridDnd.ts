@@ -290,8 +290,13 @@ export class PartGridDropTarget extends Disposable {
 		// Capture: editors where they go into a new part are the grid's, also over a part
 		this._register(addDisposableListener(container, EventType.DRAG_OVER, e => this.onDragOver(e), true));
 		this._register(addDisposableListener(container, EventType.DROP, e => this.onDrop(e), true));
+		// Only once the pointer is out of the grid: Chromium tells no related target as what is under the pointer changes, as the cards make way
 		this._register(addDisposableListener(container, EventType.DRAG_LEAVE, e => {
-			if (!e.relatedTarget || !isAncestor(e.relatedTarget as Node, container)) {
+			if (e.relatedTarget && isAncestor(e.relatedTarget as Node, container)) {
+				return;
+			}
+			const bounds = container.getBoundingClientRect();
+			if (e.clientX <= bounds.left || e.clientX >= bounds.right || e.clientY <= bounds.top || e.clientY >= bounds.bottom) {
 				this.reset();
 			}
 		}));
