@@ -81,10 +81,8 @@ registerAction2(class extends ForkConversationAction {
 				return super._openForkedSession(instantiationService, parentSessionResource, forkedSessionResource);
 			}
 
-			// Inspect a prompt fork's peer directly instead of waiting for a top-level session row.
-			const forkedChat = options?.initialMessage
-				? sessionsManagementService.getSessionForChatResource(forkedSessionResource)
-				: undefined;
+			// A contributed fork can be a peer chat even without an initial prompt.
+			const forkedChat = sessionsManagementService.getSessionForChatResource(forkedSessionResource);
 			if (forkedChat?.session === parentSession) {
 				if (options?.toSide) {
 					await sessionsService.openChatToSide(parentSession, forkedSessionResource, { referenceChatResource: parentSessionResource });
