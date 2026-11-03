@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { realpath as fsRealpath } from 'fs';
+import { lstat as fsLstat, realpath as fsRealpath } from 'fs';
 import { homedir } from 'os';
 import { promisify } from 'util';
 import { firstParallel } from '../../../base/common/async.js';
@@ -100,6 +100,7 @@ const PLATFORM_RESTRICTED_DIRS: readonly string[] = (
 ).filter(isDefined);
 
 const realpath = promisify(fsRealpath);
+const lstat = promisify(fsLstat);
 
 /**
  * Validates that a path doesn't contain suspicious characters that could be
@@ -166,29 +167,37 @@ function assertPathIsSafe(fsPath: string, _isWindows = isWindows): void {
  * ancestor is followed even for files that are about to be created.
  */
 async function resolveRealPathForNonexistent(resource: URI, realpath: (fsPath: string) => Promise<string>): Promise<URI> {
-	const fsPath = resource.fsPath;
-	try {
-		return URI.file(await realpath(fsPath));
-	} catch (e) {
-		if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
-			throw e;
-		}
-	}
-
-	const tail: string[] = [path.basename(fsPath)];
-	let current = path.dirname(fsPath);
+	const tail: string[] = [];
+	let current = resource.fsPath;
 	while (true) {
 		try {
 			const resolved = await realpath(current);
 			return URI.file(path.join(resolved, ...tail));
 		} catch (e) {
-			if ((e as NodeJS.ErrnoException).code !== 'ENOENT' || path.dirname(current) === current) {
+			if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
+				throw e;
+			}
+			await assertPathDoesNotExist(current);
+			if (path.dirname(current) === current) {
 				throw e;
 			}
 		}
 		tail.unshift(path.basename(current));
 		current = path.dirname(current);
 	}
+}
+
+/** An existing entry whose real path is missing may be a dangling symlink, not a creatable suffix. */
+async function assertPathDoesNotExist(fsPath: string): Promise<void> {
+	try {
+		await lstat(fsPath);
+	} catch (e) {
+		if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
+			return;
+		}
+		throw e;
+	}
+	throw new Error(`Cannot resolve existing path for approval: ${fsPath}`);
 }
 
 /**
