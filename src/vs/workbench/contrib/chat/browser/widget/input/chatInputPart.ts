@@ -201,6 +201,8 @@ import { SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING } from '../chatOptions.js';
 const $ = dom.$;
 
 const INPUT_EDITOR_MAX_HEIGHT = 250;
+// Keep enough vertical space for inline attachment pills.
+const INPUT_EDITOR_MIN_LINE_HEIGHT = 20;
 const INPUT_EDITOR_PADDING = { compact: { top: 2, bottom: 2 }, default: { top: 12, bottom: 12 } };
 const CachedLanguageModelsKey = 'chat.cachedLanguageModels.v2';
 const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
@@ -3043,9 +3045,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private bindInputEditorFontSize(): IDisposable {
 		return autorun(reader => {
+			const fontSize = this.chatLayoutService.fontSize.read(reader);
 			this._inputEditor.updateOptions({
-				fontSize: this.chatLayoutService.fontSize.read(reader),
-				lineHeight: 1.5,
+				fontSize,
+				lineHeight: Math.max(INPUT_EDITOR_MIN_LINE_HEIGHT, fontSize * 1.5),
 			});
 		});
 	}

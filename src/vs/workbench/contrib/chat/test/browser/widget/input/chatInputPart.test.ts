@@ -994,7 +994,7 @@ suite('ChatInputPart', () => {
 				};
 
 				const states = [getState()];
-				for (const fontSize of [18, 100, 6, undefined]) {
+				for (const fontSize of [18, 100, 10, 6, undefined]) {
 					await setConfiguration('chat.fontSize', fontSize);
 					states.push(getState());
 				}
@@ -1009,7 +1009,8 @@ suite('ChatInputPart', () => {
 					{ fontSize: 24, lineHeight: 36 },
 					{ fontSize: 18, lineHeight: 27 },
 					{ fontSize: 100, lineHeight: 150 },
-					{ fontSize: 6, lineHeight: 9 },
+					{ fontSize: 10, lineHeight: 20 },
+					{ fontSize: 6, lineHeight: 20 },
 					{ fontSize: 13, lineHeight: 20 },
 					{ fontSize: 13, lineHeight: 20 },
 					{ fontSize: 13, lineHeight: 20 },
