@@ -91,10 +91,10 @@ export class MarkdownString implements IMarkdownString {
 	/**
 	 * Appends a link.
 	 *
-	 * @param target The link target. It is used literally: no part of it can end the link or
-	 * add Markdown, so it is safe to pass untrusted values.
+	 * @param target The link target, used literally: it cannot end the link or add Markdown.
+	 * It is not validated, so check the scheme of untrusted targets before using them in trusted Markdown.
 	 * @param label The link text as Markdown. Use {@link escapeMarkdownLinkLabel} for plain text.
-	 * @param title The link title. It is used literally.
+	 * @param title The link title, used literally.
 	 */
 	appendLink(target: URI | string, label: string, title?: string): MarkdownString {
 		this.value += '[';
