@@ -3787,7 +3787,8 @@ export class CopilotAgentSession extends Disposable {
 
 	/**
 	 * A background subagent can outlive or straddle root turns, so its invocation is attributed to its own chat,
-	 * the root turn that owns it, and the account captured at its start, never to an unrelated current turn.
+	 * the root turn it (or its spawning subagent) was invoked in, and the account captured at its start, never to
+	 * an unrelated current turn.
 	 */
 	private _reportSkillInvoked(e: SessionEventPayload<'skill.invoked'>): void {
 		const turn = this._currentTurn.value;
@@ -3803,7 +3804,7 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		const childToolCallId = this._parentToolCallIdForSubagentEvent(e);
-		const owningTurnId = childToolCallId ? this._subagents.getRootTurnId(childToolCallId) : undefined;
+		const owningTurnId = childToolCallId ? this._subagents.getInvocationTurnId(childToolCallId) : undefined;
 		this._telemetryReporter.skillInvoked({
 			...base,
 			session: childToolCallId ? this._subagentChatUri(childToolCallId) : this._chatChannelUri.toString(),

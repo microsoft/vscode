@@ -1111,7 +1111,7 @@ export interface IAgentHostSkillInvokedReport extends IAgentHostTurnAttributedRe
 	session: string;
 	/** Owning session, recorded when the turn or request started. */
 	owner: string;
-	/** The root turn that owns the invocation; undefined for a background subagent whose root turn has ended. */
+	/** The root turn the invocation belongs to; for a subagent, the turn it (or its spawning subagent) was invoked in. */
 	turnId: string | undefined;
 	/** The SDK `skill.invoked` event id; equals `event_id` on the forwarded `copilotSdk/skill_invoked`. */
 	sdkEventId: string;
@@ -1135,7 +1135,7 @@ type IAgentHostSkillInvokedClassification = IAgentHostEventClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host provider that invoked the skill.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the agent host session; the subagent chat for subagent invocations.' };
-	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The root turn that owns the invocation; absent for a background subagent whose root turn has ended.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The root turn the invocation belongs to; for a subagent, the turn it or its spawning subagent was invoked in, even after that turn ends.' };
 	sdkEventId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The SDK skill invocation event identifier; equals event_id on copilotSdk/skill_invoked.' };
 	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What triggered the invocation: agent-invoked (the model chose the skill), user-invoked (slash command or UI), context-load (preloaded by a custom agent or subagent), or unknown.' };
 	isSubagentInvocation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a subagent, rather than the main agent, invoked the skill.' };

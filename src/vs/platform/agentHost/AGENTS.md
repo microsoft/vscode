@@ -646,7 +646,7 @@ A HydraFusion phase that renders in its own child chat (judge, critic, repair, r
 
 #### Skill invocation trigger telemetry
 
-`agentHost.skillInvoked` records what triggered each SDK `skill.invoked`, for the main agent and subagents. The trigger is `agent-invoked`, `user-invoked` or `context-load`, and anything else becomes `unknown`. The event deliberately carries no skill identity. Join it to the forwarded `copilotSdk/skill_invoked` on `sdkEventId` = `event_id` to get the hashed skill and plugin names. A subagent invocation is reported against the subagent chat, the root turn that owns the subagent, and the account captured when it started. It never takes these from whatever turn is current, because a background subagent can outlive or straddle root turns.
+`agentHost.skillInvoked` records what triggered each SDK `skill.invoked`, for the main agent and subagents. The trigger is `agent-invoked`, `user-invoked` or `context-load`, and anything else becomes `unknown`. The event deliberately carries no skill identity. Join it to the forwarded `copilotSdk/skill_invoked` on `sdkEventId` = `event_id` to get the hashed skill and plugin names. A subagent invocation is reported against the subagent chat, the root turn it was invoked in (nested subagents inherit it from their spawning subagent), and the account captured when it started. It never takes these from whatever turn is current, because a background subagent can outlive or straddle root turns.
 
 #### Session pre-warming
 
