@@ -34,6 +34,17 @@ export interface IAgentPermissionResponseContext {
 	readonly origin?: ActionOrigin;
 	readonly decisionSource?: AgentPermissionDecisionSource;
 	readonly sandboxPathGrantSaved?: true;
+	/**
+	 * The request reached a point where only a person could decide, but none can be asked. Providers
+	 * report this to their runtime instead of a denial, so it can recover without a person.
+	 */
+	readonly userNotAvailable?: true;
+	/**
+	 * Optional feedback the user wrote with their decision on an Assisted permissions prompt.
+	 * Providers may record it only as restricted telemetry; it must not be logged, persisted,
+	 * or sent to the agent or the permissions judge.
+	 */
+	readonly userFeedback?: string;
 }
 
 /** Error returned when the Agent Host process cannot be started. */
@@ -1519,6 +1530,12 @@ export interface IAgentToolPendingConfirmationSignal {
 	 * Host-only flag indicating that the runtime requested sandbox escalation.
 	 */
 	readonly requestSandboxBypass?: boolean;
+	/**
+	 * Host-only flag: no person can answer this request, as in Copilot's Assisted Autopilot.
+	 * Host policy may still approve or deny it; otherwise it is reported as user-not-available
+	 * instead of showing a confirmation.
+	 */
+	readonly unattended?: true;
 	/**
 	 * Host-only flag indicating that the sandbox escalation keeps the sandbox attached
 	 * while file and process restrictions record instead of block.

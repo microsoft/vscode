@@ -4719,6 +4719,32 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('explains a request Assisted permissions did not review in the confirmation disclaimer', () => {
+			const confirmationMessages = (meta: Record<string, unknown> | undefined) => {
+				const state = toolCallStateToInvocation({
+					toolCallId: 'tc-unreviewed',
+					toolName: 'bash',
+					displayName: 'Bash',
+					invocationMessage: 'Run command',
+					status: ToolCallStatus.PendingConfirmation,
+					confirmationTitle: 'Run command',
+					toolInput: 'echo hello',
+					...(meta ? { _meta: meta } : {}),
+				}).state.get();
+				return state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.confirmationMessages : undefined;
+			};
+
+			assert.deepStrictEqual({
+				notice: confirmationMessages({ 'vscode.assistedApprovalNotice': 'Assisted permissions couldn\'t review this request in time.' })?.disclaimer,
+				blank: confirmationMessages({ 'vscode.assistedApprovalNotice': ' ' })?.disclaimer,
+				absent: confirmationMessages(undefined)?.disclaimer,
+			}, {
+				notice: 'Assisted permissions couldn\'t review this request in time.',
+				blank: undefined,
+				absent: undefined,
+			});
+		});
+
 		test('preserves create metadata and proposed content for pending file confirmations', () => {
 			const fileUri = URI.file('/workspace/package.json');
 			const invocation = toolCallStateToInvocation({

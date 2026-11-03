@@ -13,6 +13,7 @@ import { Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
+import { OffsetRange } from '../../../../../../../editor/common/core/ranges/offsetRange.js';
 import { resolvePath } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
@@ -53,6 +54,7 @@ import { IChatRequestViewModel, IChatResponseViewModel } from '../../../../commo
 import { IChatContentInlineReference } from '../../../../common/chatService/chatService.js';
 import { getChatMarkdownImageId } from '../../../../common/chatImageExtraction.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
+import { ChatRequestSlashPromptPart } from '../../../../common/requestParser/chatParserTypes.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { rewriteAgentHostLinkTarget } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { IAiEditTelemetryService } from '../../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
@@ -256,6 +258,39 @@ suite('ChatMarkdownContentPart', () => {
 
 	teardown(() => {
 		disposables.dispose();
+	});
+
+	test('preserves Unicode prompt names and Markdown delimiters in request decorations', () => {
+		const decorationsRenderer = disposables.add(instantiationService.createInstance(ChatMarkdownDecorationsRenderer));
+		const names = [
+			// allow-any-unicode-next-line
+			'龩胤𬭳獫㰜〒６0D狛龫龨截茎疄盷㓝㏄ΩFe佨勵)エ㈱㑺惊龬㈨γ8傐𬨎',
+			'prompt)',
+			'prompt(',
+			'prompt[link]',
+			'prompt[',
+			'prompt\\]',
+			'prompt*bold*',
+			'prompt_code_',
+			'prompt`code`',
+			'prompt<tag>',
+			'prompt&copy;',
+		];
+		const actual = names.map(name => {
+			const text = `/${name}`;
+			const part = new ChatRequestSlashPromptPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), name);
+			const markdown = decorationsRenderer.convertParsedRequestToMarkdown(URI.parse('chat-session://test/session1'), { text, parts: [part] });
+			const rendered = disposables.add(renderer.render(new MarkdownString(markdown)));
+			const anchor = rendered.element.querySelector('a');
+			const href = anchor?.getAttribute('data-href');
+			disposables.add(decorationsRenderer.walkTreeAndAnnotateReferenceLinks({ kind: 'markdownContent', content: new MarkdownString(markdown) }, rendered.element));
+			return {
+				text: rendered.element.textContent,
+				decorationCount: rendered.element.querySelectorAll('.chat-resource-widget').length,
+				href: href && decodeURIComponent(href),
+			};
+		});
+		assert.deepStrictEqual(actual, names.map(name => ({ text: `/${name}`, decorationCount: 1, href: `http://_vscodedecoration_?${JSON.stringify({ title: name })}` })));
 	});
 
 	test('decorates a response with 1000 ordinary links and one preview link in a single anchor scan', () => {

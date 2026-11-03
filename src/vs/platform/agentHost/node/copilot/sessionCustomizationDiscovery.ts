@@ -607,7 +607,8 @@ export class SessionCustomizationDiscovery extends Disposable {
 					continue;
 				}
 				// Older runtimes omit effort from discovery even though session creation reads it.
-				const reasoningEffort = agent.reasoningEffort ?? (await parseAgentFile(uri, this._fileService)).reasoningEffort;
+				const parsed = await parseAgentFile(uri, this._fileService);
+				const reasoningEffort = agent.reasoningEffort ?? parsed.reasoningEffort;
 				agents.push({
 					type: CustomizationType.Agent, uri: uri.toString(), id: agent.id, name: agent.name, description: agent.description,
 					...(agent.model ? { model: agent.model } : {}),
@@ -615,6 +616,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 						userInvocable: agent.userInvocable,
 						'vscode.models': agent.models,
 						'vscode.reasoningEffort': reasoningEffort,
+						'vscode.modelPolicy': parsed.modelPolicy,
 					}),
 				});
 			}

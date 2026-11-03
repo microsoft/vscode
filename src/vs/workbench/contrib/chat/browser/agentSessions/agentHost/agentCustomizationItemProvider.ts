@@ -314,6 +314,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				hooks: undefined,
 				model: meta['vscode.models'] ?? (agent.model ? [agent.model] : undefined),
 				reasoningEffort: meta['vscode.reasoningEffort'],
+				modelPolicy: meta['vscode.modelPolicy'],
 				agentInstructions: { content: '', toolReferences: [] },
 				visibility: {
 					agentInvocable: true,

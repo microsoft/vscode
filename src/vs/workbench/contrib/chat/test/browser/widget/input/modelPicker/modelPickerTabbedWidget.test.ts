@@ -19,6 +19,7 @@ import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../../..
 import { MutableDisposable, toDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../../../base/common/themables.js';
+import { URI } from '../../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../../../../platform/accessibility/common/accessibility.js';
@@ -40,6 +41,8 @@ import { NullOpenerService } from '../../../../../../../../platform/opener/test/
 import { InMemoryStorageService, IStorageService } from '../../../../../../../../platform/storage/common/storage.js';
 import { StateType } from '../../../../../../../../platform/update/common/update.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../services/chat/common/chatEntitlementService.js';
+import { IEditorService } from '../../../../../../../services/editor/common/editorService.js';
+import { IResourceEditorInput } from '../../../../../../../../platform/editor/common/editor.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../../browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelConfigurationAccess, IModelControlEntry, IModelsControlManifest } from '../../../../../common/languageModels.js';
 import { withoutFusionEffortLevel, type IModelConfigPropertySchema } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
@@ -148,6 +151,7 @@ suite('TabbedModelPicker', () => {
 	const models = [model('First'), model('Second'), model('Fixed', false)];
 
 	function createPicker(options: {
+		agentModelPreferences?: ITabbedModelPickerContext['agentModelPreferences'];
 		models?: ILanguageModelChatMetadataAndIdentifier[];
 		access?: IModelConfigurationAccess;
 		details?: string;
@@ -228,6 +232,11 @@ suite('TabbedModelPicker', () => {
 		instantiationService.set(IContextViewService, contextView);
 		instantiationService.set(IHoverService, NullHoverService);
 		instantiationService.set(IOpenerService, NullOpenerService);
+		const openedEditors: IResourceEditorInput[] = [];
+		instantiationService.stub(IEditorService, {}, 'openEditor', async (input: IResourceEditorInput) => {
+			openedEditors.push(input);
+			return undefined;
+		});
 		const keybindingService = new MockKeybindingService();
 		if (options.comparisonKeybinding) {
 			const binding = decodeKeybinding(options.comparisonKeybinding, OS)!;
@@ -279,6 +288,7 @@ suite('TabbedModelPicker', () => {
 		let hintDismissed = false;
 		const availableModels = options.models ?? models;
 		const context: ITabbedModelPickerContext = {
+			agentModelPreferences: options.agentModelPreferences,
 			comparison: options.comparison,
 			localModels: options.localModels,
 			models: availableModels, selectedModelId: options.selectedModelId ?? availableModels[0]?.identifier,
@@ -300,7 +310,7 @@ suite('TabbedModelPicker', () => {
 		const picker = disposables.add(instantiationService.createInstance(TabbedModelPicker));
 		picker.show(anchor, context, options.details, false, options.contextViewLayer);
 		return {
-			picker, popup, anchor, context, selections, pins, values, changed, configurationService, configurationChanges, contextKeyService,
+			picker, popup, anchor, context, selections, pins, values, changed, configurationService, configurationChanges, contextKeyService, openedEditors,
 			dismiss: () => contextView.hideContextView(),
 			setEntitlement: (value: ChatEntitlement) => {
 				entitlement = value;
@@ -1278,6 +1288,69 @@ suite('TabbedModelPicker', () => {
 		const input = popup.querySelector<HTMLInputElement>('input');
 		assert.deepStrictEqual({ visible: picker.isVisible, query: input?.value, selections }, { visible: true, query: 'same', selections: [] });
 		assert.ok(popup.querySelector('.monaco-list-row.focused'));
+	});
+
+	for (const required of [false, true]) {
+		test(`agent ${required ? 'required' : 'preferred'} badges preserve exact-ID precedence over aliases`, () => {
+			const sonnet = model('sonnet');
+			const exact = { ...sonnet, identifier: 'sonnet', metadata: { ...sonnet.metadata, name: 'Exact Sonnet' } };
+			const alias = model('alias');
+			const { popup } = createPicker({
+				models: [exact, { ...alias, metadata: { ...alias.metadata, name: 'sonnet' } }],
+				agentModelPreferences: { models: ['sonnet'], required },
+			});
+			const rows = Array.from(popup.querySelectorAll('.monaco-list-row'));
+			assert.deepStrictEqual({
+				visible: rows.filter(row => row.textContent?.includes('Agent ')).map(row => row.querySelector('.title')?.textContent),
+				accessible: rows.filter(row => row.getAttribute('aria-label')?.includes(required ? 'Agent Required' : 'Agent Preferred')).map(row => row.getAttribute('aria-label')?.includes('Exact Sonnet')),
+			}, { visible: ['Exact Sonnet'], accessible: [true] });
+		});
+
+		test(`announces authored models as agent ${required ? 'required' : 'preferred'} after an override`, () => {
+			const { popup } = createPicker({
+				agentModelPreferences: { models: ['First'], required },
+				selectedModelId: models[1].identifier,
+			});
+			const rows = Array.from(popup.querySelectorAll('.monaco-list-row'));
+			assert.deepStrictEqual(rows.filter(row => row.textContent?.includes('Agent ')).map(row => ({
+				preferred: row.textContent?.includes('First'),
+				label: row.getAttribute('aria-label')?.includes(required ? 'Agent Required' : 'Agent Preferred'),
+			})), [{ preferred: true, label: true }]);
+		});
+	}
+
+	for (const activation of ['click', 'Enter', 'Space'] as const) {
+		test(`required models link opens the agent definition with ${activation}`, () => {
+			const uri = URI.file('/agents/review.agent.md');
+			const { popup, picker, openedEditors, selections } = createPicker({
+				agentModelPreferences: { models: ['First'], required: true, source: { name: 'Review', uri } },
+				cacheWarm: true,
+			});
+			const link = element(popup, '.chat-model-picker-agent-notice a');
+			const label = link.textContent;
+			const cacheHint = popup.textContent?.includes('Changing options resets the prompt cache.');
+			if (activation === 'click') {
+				link.click();
+			} else {
+				link.dispatchEvent(new KeyboardEvent('keydown', { key: activation === 'Enter' ? 'Enter' : ' ', keyCode: activation === 'Enter' ? 13 : 32, bubbles: true }));
+			}
+			assert.deepStrictEqual({ label, cacheHint, visible: picker.isVisible, opened: openedEditors, selections }, {
+				label: 'Models defined by Review', cacheHint: true, visible: false, opened: [{ resource: uri, options: { override: 'default' } }], selections: [],
+			});
+		});
+	}
+
+	test('required models without a source still explain the restriction', () => {
+		const { popup } = createPicker({ agentModelPreferences: { models: ['First'], required: true } });
+		const notice = element(popup, '.chat-model-picker-agent-notice');
+		assert.deepStrictEqual({ text: notice.textContent, link: !!notice.querySelector('a') }, {
+			text: 'Models defined by the current agent', link: false,
+		});
+	});
+
+	test('preferred models do not show a required-model explanation', () => {
+		const { popup } = createPicker({ agentModelPreferences: { models: ['First'], required: false } });
+		assert.strictEqual(popup.querySelector('.chat-model-picker-agent-notice'), null);
 	});
 
 	for (const initiallyAuto of [false, true]) {

@@ -45,6 +45,8 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 
 	static readonly ID = 'workbench.contrib.pluginUrlHandler';
 
+	protected readonly webEnvironment: boolean = isWeb;
+
 	constructor(
 		@IURLService urlService: IURLService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
@@ -87,7 +89,7 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 			}
 
 			await this.hostService.focus(mainWindow);
-			if (isWeb || this.environmentService.remoteAuthority) {
+			if (this.webEnvironment || this.environmentService.remoteAuthority) {
 				throw new Error(localize('pluginLinkLocalOnly', "Plugin links can only change installations on this machine. Open the link in a local VS Code window."));
 			}
 			const target = await this.selectTarget();

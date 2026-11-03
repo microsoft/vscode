@@ -20,7 +20,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IListService, ListService, WorkbenchTable } from '../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -35,8 +38,11 @@ import '../../../../../workbench/browser/actions/listCommands.js';
 suite('SessionWorktreeCleanupEditor', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createEditor(cleanupService: Partial<ISessionWorktreeCleanupService> = {}) {
+	function createEditor(cleanupService: Partial<ISessionWorktreeCleanupService> = {}, contextKeyService?: IContextKeyService) {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		if (contextKeyService) {
+			instantiationService.stub(IContextKeyService, contextKeyService);
+		}
 		instantiationService.stub(IListService, disposables.add(new ListService()));
 		const configuration = new TestConfigurationService({
 			[ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays]: 0,
@@ -149,6 +155,24 @@ suite('SessionWorktreeCleanupEditor', () => {
 		});
 	});
 
+	for (const prefix of ['user/', 'agents/team/']) {
+		test(`requires explicit selection of an unlinked ${prefix} prefixed worktree`, async () => {
+			const original = createUnlinkedWorktree('recovered');
+			const unlinked = { ...original, unlinkedWorktree: { ...original.unlinkedWorktree, branch: `${prefix}agents/recovered` } };
+			const { container, cleaned } = await openEditor([unlinked]);
+			const checkbox = container.querySelector<HTMLElement>('.session-worktree-cleanup-row [role="checkbox"]')!;
+			const button = container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!;
+			const initiallySelected = checkbox.getAttribute('aria-checked');
+			const initiallyDisabled = button.getAttribute('aria-disabled');
+			checkbox.click();
+			button.click();
+			await timeout(0);
+			assert.deepStrictEqual({ initiallySelected, initiallyDisabled, cleaned }, {
+				initiallySelected: 'false', initiallyDisabled: 'true', cleaned: [[getWorktreeCleanupId(unlinked)]],
+			});
+		});
+	}
+
 	test('select all toggles unlinked worktrees and active sessions without selecting unavailable worktrees', async () => {
 		const unlinked: ISessionWorktree = {
 			unlinkedWorktree: { providerId: 'test', repository: URI.file('/repos/app').toString(), worktree: URI.file('/repos/app.worktrees/unlinked').toString(), branch: 'agents/unlinked', cleanupStatus: { state: 'unknown' } },
@@ -181,7 +205,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ states, cleaned }, {
 			states: [
-				{ all: 'false', rows: ['false', 'true'] },
+				{ all: 'mixed', rows: ['false', 'true'] },
 				{ all: 'true', rows: ['true', 'true'] },
 				{ all: 'false', rows: ['false', 'false'] },
 				{ all: 'true', rows: ['true', 'true'] },
@@ -189,6 +213,63 @@ suite('SessionWorktreeCleanupEditor', () => {
 			cleaned: [[getWorktreeCleanupId(unlinked), 'active']],
 		});
 	});
+
+	for (const force of [false, true]) {
+		test(`${force ? 'forced removal' : 'cleanup'} header checkbox reflects partial selection and supports keyboard toggling`, async () => {
+			const worktrees = ['first', 'second'].map(id => ({
+				...createWorktree(id, '/repos/app', force ? 'archived' : 'active'),
+				...(force ? { cleanupStatus: { state: 'failed' as const } } : {}),
+			}));
+			const { editor, container } = createEditor({
+				getWorktrees: async () => worktrees,
+				canForceCleanup: () => force,
+			});
+			await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+			await timeout(0);
+			const table = container.querySelector(force ? '.session-worktree-cleanup-unavailable-list' : '.session-worktree-cleanup-content > .session-worktree-cleanup-list')!;
+			const selectAll = table.querySelector<HTMLElement>('.monaco-table-th[data-col-index="0"] [role="checkbox"]')!;
+			const rows = [...table.querySelectorAll<HTMLElement>('.session-worktree-cleanup-row [role="checkbox"]')];
+			const selection = () => ({
+				all: selectAll.getAttribute('aria-checked'),
+				dash: selectAll.classList.contains('codicon-dash'),
+				rows: rows.map(checkbox => checkbox.getAttribute('aria-checked')),
+			});
+			const pressSpace = () => {
+				focusElement(selectAll);
+				selectAll.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
+			};
+			const states = [selection()];
+			rows[0].click();
+			states.push(selection());
+			pressSpace();
+			states.push(selection());
+			rows[1].click();
+			states.push(selection());
+			selectAll.click();
+			states.push(selection());
+			pressSpace();
+			states.push(selection());
+
+			assert.deepStrictEqual({
+				states,
+				focused: dom.getActiveElement() === selectAll,
+				outsideHeaders: container.querySelectorAll('.session-worktree-cleanup-summary-row [role="checkbox"]').length,
+				progressHeaderCheckboxes: container.querySelectorAll('.session-worktree-cleanup-progress .monaco-table-th [role="checkbox"]').length,
+			}, {
+				states: [
+					{ all: 'false', dash: false, rows: ['false', 'false'] },
+					{ all: 'mixed', dash: true, rows: ['true', 'false'] },
+					{ all: 'true', dash: false, rows: ['true', 'true'] },
+					{ all: 'mixed', dash: true, rows: ['true', 'false'] },
+					{ all: 'true', dash: false, rows: ['true', 'true'] },
+					{ all: 'false', dash: false, rows: ['false', 'false'] },
+				],
+				focused: true,
+				outsideHeaders: 0,
+				progressHeaderCheckboxes: 0,
+			});
+		});
+	}
 
 	test('excludes non-agent branches from every cleanup table and selection', async () => {
 		const eligible = createUnlinkedWorktree('eligible');
@@ -495,11 +576,13 @@ suite('SessionWorktreeCleanupEditor', () => {
 		assert.deepStrictEqual({
 			unavailable: section.querySelector('summary')?.textContent,
 			reason: section.querySelector('.session-worktree-cleanup-reason')?.textContent,
-			selectable: section.querySelectorAll('[role="checkbox"]').length,
+			selectable: section.querySelectorAll('.session-worktree-cleanup-row [role="checkbox"]').length,
+			selectAllDisabled: section.querySelector('.monaco-table-th [role="checkbox"]')?.getAttribute('aria-disabled'),
 		}, {
 			unavailable: 'Needs attention (1)',
 			reason: 'Couldn\'t check whether the worktree still exists: Host disconnected - /repos/app.worktrees/unlinked',
 			selectable: 0,
+			selectAllDisabled: 'true',
 		});
 	});
 
@@ -616,13 +699,15 @@ suite('SessionWorktreeCleanupEditor', () => {
 			unavailable: section.querySelector('summary')?.textContent,
 			titles: [...section.querySelectorAll('.session-worktree-cleanup-session-link')].map(element => element.textContent),
 			reason: section.querySelector('.session-worktree-cleanup-reason')?.textContent,
-			selectable: section.querySelectorAll('[role="checkbox"]').length,
+			selectable: section.querySelectorAll('.session-worktree-cleanup-row [role="checkbox"]').length,
+			selectAllDisabled: section.querySelector('.monaco-table-th [role="checkbox"]')?.getAttribute('aria-disabled'),
 			sessionlessReason: [...container.querySelectorAll('.session-worktree-cleanup-reason')].some(element => element.textContent?.startsWith('Cleanup failed; retry scheduled: git add exited with code 128')),
 		}, {
 			unavailable: 'Needs attention (1)',
 			titles: ['retryable'],
 			reason: 'Cleanup failed; retry scheduled: git timed out',
 			selectable: 0,
+			selectAllDisabled: 'true',
 			sessionlessReason: false,
 		});
 		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
@@ -888,12 +973,14 @@ suite('SessionWorktreeCleanupEditor', () => {
 		assert.deepStrictEqual({
 			bounded: count > 0 && count <= 20,
 			summary: section.querySelector('summary')?.textContent,
-			selectable: section.querySelectorAll('[role="checkbox"]').length,
+			selectable: section.querySelectorAll('.session-worktree-cleanup-row [role="checkbox"]').length,
+			selectAllDisabled: section.querySelector('.monaco-table-th [role="checkbox"]')?.getAttribute('aria-disabled'),
 			cleanupDisabled: container.querySelector('.session-worktree-cleanup-action')?.getAttribute('aria-disabled'),
 		}, {
 			bounded: true,
 			summary: 'Needs attention (2000)',
 			selectable: 0,
+			selectAllDisabled: 'true',
 			cleanupDisabled: 'true',
 		});
 	});
@@ -997,6 +1084,48 @@ suite('SessionWorktreeCleanupEditor', () => {
 			checked: 'true',
 			opened: ['test:/second', 'test:/second', 'test:/second'],
 		});
+	});
+
+	test('header checkboxes do not inherit navigation commands for the previously focused table', async () => {
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const { editor, container, instantiationService } = createEditor({
+			getWorktrees: async () => [
+				createWorktree('available', '/repos/app', 'active'),
+				{ ...createWorktree('failed', '/repos/app', 'archived'), cleanupStatus: { state: 'failed' } },
+			],
+			canForceCleanup: worktree => worktree.cleanupStatus?.state === 'failed',
+		}, contextKeyService);
+		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+		await timeout(0);
+		const tables = [
+			container.querySelector('.session-worktree-cleanup-content > .session-worktree-cleanup-list')!,
+			container.querySelector('.session-worktree-cleanup-unavailable-list')!,
+		];
+		const navigationRules = KeybindingsRegistry.getDefaultKeybindings().filter(rule =>
+			rule.command !== null && ['list.focusDown', 'list.focusUp', 'list.focusPageDown', 'list.focusPageUp', 'list.focusFirst', 'list.focusLast'].includes(rule.command)
+		);
+		assert.ok(navigationRules.length > 0);
+		const navigationEnabled = (element: HTMLElement) => navigationRules.some(rule => rule.when!.evaluate(contextKeyService.getContext(element)));
+		const states = [];
+		for (const [index, table] of tables.entries()) {
+			const previousList = tables[1 - index].querySelector<HTMLElement>('.monaco-list')!;
+			focusElement(previousList);
+			const lastFocusedList = instantiationService.get(IListService).lastFocusedList;
+			const checkbox = table.querySelector<HTMLElement>('.monaco-table-th [role="checkbox"]')!;
+			focusElement(checkbox);
+			checkbox.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
+			states.push({
+				bodyNavigation: navigationEnabled(previousList),
+				headerNavigation: navigationEnabled(checkbox),
+				headerFocused: dom.getActiveElement() === checkbox,
+				previousListUnchanged: instantiationService.get(IListService).lastFocusedList === lastFocusedList,
+				selected: checkbox.getAttribute('aria-checked'),
+			});
+		}
+		assert.deepStrictEqual(states, [
+			{ bodyNavigation: true, headerNavigation: false, headerFocused: true, previousListUnchanged: true, selected: 'true' },
+			{ bodyNavigation: true, headerNavigation: false, headerFocused: true, previousListUnchanged: true, selected: 'true' },
+		]);
 	});
 
 	test('preserves logical table focus through reordering and moves to the unavailable table', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -2206,17 +2335,30 @@ suite('SessionWorktreeCleanupEditor', () => {
 		});
 	}));
 
-	test('select all uses the group gap without an additional checkbox margin', async () => {
+	test('select all is centered above the row checkboxes in the selection column', async () => {
 		const { container } = await openEditor([createWorktree('available', '/repos/app')]);
 		container.style.setProperty('--vscode-spacing-size80', '8px');
 		const checkbox = container.querySelector<HTMLElement>('.session-worktree-cleanup-select-all > .monaco-checkbox')!;
-		const label = checkbox.nextElementSibling!;
+		const header = checkbox.parentElement!;
+		const rowCheckbox = container.querySelector<HTMLElement>('.session-worktree-cleanup-row .selection > .monaco-checkbox')!;
 		const checkboxBounds = checkbox.getBoundingClientRect();
-		const labelBounds = label.getBoundingClientRect();
+		const headerBounds = header.getBoundingClientRect();
+		const rowBounds = rowCheckbox.getBoundingClientRect();
 		assert.deepStrictEqual({
-			marginRight: mainWindow.getComputedStyle(checkbox).marginRight,
-			gap: labelBounds.left - checkboxBounds.right,
-		}, { marginRight: '0px', gap: 8 });
+			inSelectionHeader: header.matches('.monaco-table-th[data-col-index="0"]'),
+			headerHasNoLabel: header.textContent,
+			visible: checkboxBounds.width > 0 && checkboxBounds.height > 0,
+			horizontallyCentered: Math.abs(checkboxBounds.left + checkboxBounds.width / 2 - headerBounds.left - headerBounds.width / 2) < 1,
+			verticallyCentered: Math.abs(checkboxBounds.top + checkboxBounds.height / 2 - headerBounds.top - headerBounds.height / 2) < 1,
+			alignedWithRows: Math.abs(checkboxBounds.left - rowBounds.left) < 1,
+		}, {
+			inSelectionHeader: true,
+			headerHasNoLabel: '',
+			visible: true,
+			horizontallyCentered: true,
+			verticallyCentered: true,
+			alignedWithRows: true,
+		});
 	});
 
 	for (const count of [1, 200]) {
@@ -2394,7 +2536,8 @@ suite('SessionWorktreeCleanupEditor', () => {
 			summary: container.querySelector('.session-worktree-cleanup-summary')?.textContent,
 			unavailable: container.querySelector('summary')?.textContent,
 			expanded: container.querySelector<HTMLDetailsElement>('details')?.open,
-			unavailableCheckboxes: container.querySelectorAll('details [role="checkbox"]').length,
+			unavailableCheckboxes: container.querySelectorAll('details .session-worktree-cleanup-row [role="checkbox"]').length,
+			selectAllDisabled: container.querySelector('details .monaco-table-th [role="checkbox"]')?.getAttribute('aria-disabled'),
 			cleanupDisabled: container.querySelector('.session-worktree-cleanup-action')?.getAttribute('aria-disabled'),
 		}, {
 			tableHidden: true,
@@ -2403,6 +2546,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 			unavailable: 'Needs attention (1)',
 			expanded: false,
 			unavailableCheckboxes: 0,
+			selectAllDisabled: 'true',
 			cleanupDisabled: 'true',
 		});
 	});

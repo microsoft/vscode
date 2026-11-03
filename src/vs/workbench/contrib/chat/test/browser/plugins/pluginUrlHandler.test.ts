@@ -63,6 +63,7 @@ suite('PluginUrlHandler', () => {
 		cancelled?: boolean;
 		target?: 'vscode' | 'copilot' | 'cancel';
 		remoteAuthority?: string;
+		webEnvironment?: boolean;
 		trusted?: boolean;
 		legacyInstallResult?: IInstallPluginFromSourceResult;
 		userMarketplaces?: readonly string[];
@@ -201,7 +202,10 @@ suite('PluginUrlHandler', () => {
 		instantiationService.stub(IHostService, { focus: async () => { } });
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(INotificationService, { error: message => { errors.push(String(message)); }, info: () => { } });
-		return { handler: store.add(instantiationService.createInstance(PluginUrlHandler)), calls, dialogs, errors, commands, picks, configurationService, activeSessionResource };
+		class TestPluginUrlHandler extends PluginUrlHandler {
+			protected override readonly webEnvironment = options.webEnvironment ?? false;
+		}
+		return { handler: store.add(instantiationService.createInstance(TestPluginUrlHandler)), calls, dialogs, errors, commands, picks, configurationService, activeSessionResource };
 	}
 
 	function uri(path = '/add-marketplace', query = 'ref=acme/plugins'): URI {
@@ -452,13 +456,15 @@ suite('PluginUrlHandler', () => {
 		});
 	});
 
-	test('does not offer or mutate a remote-workspace installation', async () => {
-		const fixture = createHandler({ remoteAuthority: 'ssh-remote+host' });
-		await fixture.handler.handleURL(uri());
-		assert.deepStrictEqual({ picks: fixture.picks, dialogs: fixture.dialogs, calls: fixture.calls, errors: fixture.errors.length }, {
-			picks: [], dialogs: [], calls: [], errors: 1,
+	for (const environment of [{ remoteAuthority: 'ssh-remote+host' }, { webEnvironment: true }]) {
+		test(`does not offer or mutate an installation in ${JSON.stringify(environment)}`, async () => {
+			const fixture = createHandler(environment);
+			await fixture.handler.handleURL(uri());
+			assert.deepStrictEqual({ picks: fixture.picks, dialogs: fixture.dialogs, calls: fixture.calls, errors: fixture.errors.length }, {
+				picks: [], dialogs: [], calls: [], errors: 1,
+			});
 		});
-	});
+	}
 
 	test('keeps the selected Copilot target when the active session changes during consent', async () => {
 		const confirmation = new DeferredPromise<boolean>();
