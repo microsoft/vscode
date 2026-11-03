@@ -807,6 +807,7 @@ suite('Chat window grid', () => {
 			override get activeGroup() { return this.groups[0]; }
 			override readonly onDidAddGroup = Event.None;
 			override readonly onDidRemoveGroup = Event.None;
+			override readonly onDidMoveGroup = Event.None;
 			override readonly onWillClose = onWillClose.event;
 			override layout() { }
 		}();
