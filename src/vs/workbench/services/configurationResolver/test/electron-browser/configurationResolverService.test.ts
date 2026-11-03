@@ -809,6 +809,9 @@ class MockCommandService implements ICommandService {
 
 class MockLabelService implements ILabelService {
 	_serviceBrand: undefined;
+	getUriHome(): undefined {
+		return undefined;
+	}
 	getUriLabel(resource: URI, options?: { relative?: boolean | undefined; noPrefix?: boolean | undefined }): string {
 		return normalize(resource.fsPath);
 	}
@@ -855,6 +858,15 @@ class MockPathService implements IPathService {
 	hasValidBasename(resource: URI, os: platform.OperatingSystem, basename?: string): boolean;
 	hasValidBasename(resource: URI, arg2?: string | platform.OperatingSystem, name?: string): boolean | Promise<boolean> {
 		throw new Error('Method not implemented.');
+	}
+	getOperatingSystem(_resource: URI): Promise<platform.OperatingSystem | undefined> {
+		throw new Error('Method not implemented.');
+	}
+	getPath(_resource: URI): Promise<IPath | undefined> {
+		throw new Error('Method not implemented.');
+	}
+	registerPathProvider(): IDisposable {
+		return Disposable.None;
 	}
 	resolvedUserHome: URI | undefined;
 }

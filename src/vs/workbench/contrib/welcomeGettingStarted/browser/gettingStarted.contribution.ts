@@ -259,14 +259,6 @@ registerAction2(class extends Action2 {
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: 'welcome.newWorkspaceChat',
-	handler: (accessor, stepID: string) => {
-		const commandService = accessor.get(ICommandService);
-		commandService.executeCommand('workbench.action.chat.open', { mode: 'agent', query: '#new ', isPartialQuery: true });
-	}
-});
-
 export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | 'webworker' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote or serverless contexts may be different from the platform of the UI"));
 class WorkspacePlatformContribution {
 
@@ -329,7 +321,8 @@ configurationRegistry.registerConfiguration({
 			],
 			'default': 'welcomePage',
 			'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session."),
-			'experiment': { mode: 'auto' }
+			'experiment': { mode: 'auto' },
+			agentsWindow: { default: 'none', readOnly: true },
 		},
 		'workbench.welcomePage.preferReducedMotion': {
 			scope: ConfigurationScope.APPLICATION,
@@ -337,6 +330,16 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			deprecationMessage: localize('deprecationMessage', "Deprecated, use the global `workbench.reduceMotion`."),
 			description: localize('workbench.welcomePage.preferReducedMotion', "When enabled, reduce motion in welcome page.")
+		},
+		'workbench.welcomePage.experimentalOnboarding': {
+			scope: ConfigurationScope.APPLICATION,
+			type: 'boolean',
+			default: true,
+			tags: ['experimental'],
+			description: localize('workbench.welcomePage.experimentalOnboarding', "When enabled, show the new onboarding experience instead of the classic walkthrough on first launch."),
+			experiment: {
+				mode: 'auto'
+			}
 		}
 	}
 });
@@ -346,4 +349,3 @@ registerWorkbenchContribution2(StartupPageEditorResolverContribution.ID, Startup
 registerWorkbenchContribution2(StartupPageRunnerContribution.ID, StartupPageRunnerContribution, WorkbenchPhase.AfterRestored);
 
 AccessibleViewRegistry.register(new GettingStartedAccessibleView());
-

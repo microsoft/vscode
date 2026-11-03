@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { suite, test, beforeEach, afterEach } from 'node:test';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -104,11 +105,11 @@ suite('checkCyclicDependencies', () => {
 
 		let tmpDir: string;
 
-		setup(() => {
+		beforeEach(() => {
 			tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cyclic-test-'));
 		});
 
-		teardown(() => {
+		afterEach(() => {
 			fs.rmSync(tmpDir, { recursive: true, force: true });
 		});
 

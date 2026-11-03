@@ -2,23 +2,36 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { AccountInfo, AuthenticationResult, AuthError, ClientAuthError, ClientAuthErrorCodes, ServerError } from '@azure/msal-node';
+import { AccountInfo, AuthenticationResult, AuthError, ClientAuthError, ClientAuthErrorCodes, PublicClientApplication, ServerError } from '@azure/msal-node';
 import { AuthenticationChallenge, AuthenticationConstraint, AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationProviderSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, env, EventEmitter, ExtensionContext, ExtensionKind, l10n, LogOutputChannel, Uri, window } from 'vscode';
 import { Environment } from '@azure/ms-rest-azure-env';
 import { CachedPublicClientApplicationManager } from './publicClientCache';
+import { getNativeBrokerOptions } from './cachedPublicClientApplication';
 import { UriEventHandler } from '../UriEventHandler';
 import { ICachedPublicClientApplication, ICachedPublicClientApplicationManager } from '../common/publicClientCache';
 import { MicrosoftAccountType, MicrosoftAuthenticationTelemetryReporter } from '../common/telemetryReporter';
 import { ScopeData } from '../common/scopeData';
 import { EventBufferer } from '../common/event';
+import { acquireTokensSilently, ISilentTokenClient, MSA_PASSTHRU_TID, MSA_TID, selectWorkAccountsToProbe } from '../common/workAccounts';
 import { BetterTokenStorage } from '../betterSecretStorage';
 import { ExtensionHost, getMsalFlows } from './flows';
 import { base64Decode } from './buffer';
 import { Config } from '../common/config';
 import { isSupportedClient } from '../common/env';
 
-const MSA_TID = '9188040d-6c67-4c5b-b112-36a304b66dad';
-const MSA_PASSTHRU_TID = 'f8cdef31-a31e-4b4a-93e4-5f571e91255a';
+/**
+ * A session option only the workbench can set: VS Code strips every `_workbench` option from
+ * extension requests before they reach a provider. When it is set, silent tokens are returned for
+ * the work or school accounts the native broker knows about, including accounts the user has not
+ * yet allowed VS Code to use. The workbench uses it to decide which sign-in options to offer
+ * without asking the user first. Must match `INCLUDE_UNAPPROVED_ACCOUNTS_OPTION` in
+ * `chatSetupMicrosoftProbe.ts`.
+ */
+const WORKBENCH_INCLUDE_UNAPPROVED_ACCOUNTS = '_workbenchIncludeUnapprovedAccounts';
+
+interface IWorkbenchProbeOptions {
+	readonly [WORKBENCH_INCLUDE_UNAPPROVED_ACCOUNTS]?: unknown;
+}
 
 /**
  * Interface for sessions stored from the old authentication flow.
@@ -170,9 +183,13 @@ export class MsalAuthProvider implements AuthenticationProvider {
 
 	async getSessions(scopes: string[] | undefined, options: AuthenticationGetSessionOptions = {}): Promise<AuthenticationSession[]> {
 		const askingForAll = scopes === undefined;
-		const scopeData = new ScopeData(scopes, undefined, options?.authorizationServer);
+		const scopeData = new ScopeData(scopes, undefined, options?.authorizationServer, options?.clientId);
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 		this._logger.info('[getSessions]', askingForAll ? '[all]' : `[${scopeData.scopeStr}]`, 'starting');
+
+		if (!askingForAll && (options as IWorkbenchProbeOptions)[WORKBENCH_INCLUDE_UNAPPROVED_ACCOUNTS] === true) {
+			return this.getSessionsIncludingUnapprovedAccounts(scopeData);
+		}
 
 		// This branch only gets called by Core for sign out purposes and initial population of the account menu. Since we are
 		// living in a world where a "session" from Core's perspective is an account, we return 1 session per account.
@@ -192,19 +209,21 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			return allSessions;
 		}
 
+		const resource = options?.resource;
 		const cachedPca = await this._publicClientManager.getOrCreate(scopeData.clientId);
-		const sessions = await this.getAllSessionsForPca(cachedPca, scopeData, options?.account);
+		const sessions = await this.getAllSessionsForPca(cachedPca, scopeData, options?.account, resource);
 		this._logger.info(`[getSessions] [${scopeData.scopeStr}] returned ${sessions.length} session(s)`);
 		return sessions;
 
 	}
 
 	async createSession(scopes: readonly string[], options: AuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
-		const scopeData = new ScopeData(scopes, undefined, options.authorizationServer);
+		const scopeData = new ScopeData(scopes, undefined, options.authorizationServer, options.clientId);
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 
 		this._logger.info('[createSession]', `[${scopeData.scopeStr}]`, 'starting');
 		const cachedPca = await this._publicClientManager.getOrCreate(scopeData.clientId);
+		const resource = options.resource;
 
 		// Used for showing a friendlier message to the user when the explicitly cancel a flow.
 		let userCancelled: boolean | undefined;
@@ -251,6 +270,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 					windowHandle: window.nativeHandle ? Buffer.from(window.nativeHandle) : undefined,
 					logger: this._logger,
 					uriHandler: this._uriHandler,
+					resource,
 					callbackUri
 				});
 
@@ -315,7 +335,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		if (!claims) {
 			throw new Error('No claims found in authentication challenges');
 		}
-		const scopeData = new ScopeData(scopes, claims, options?.authorizationServer);
+		const scopeData = new ScopeData(scopes, claims, options?.authorizationServer, options?.clientId);
 		this._logger.info('[getSessionsFromChallenges]', `[${scopeData.scopeStr}]`, 'with claims:', scopeData.claims);
 
 		const cachedPca = await this._publicClientManager.getOrCreate(scopeData.clientId);
@@ -338,7 +358,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		// Use scopes if available, otherwise fall back to default scopes
 		const effectiveScopes = scopes.length > 0 ? scopes : ['https://graph.microsoft.com/User.Read'];
 
-		const scopeData = new ScopeData(effectiveScopes, claims, options.authorizationServer);
+		const scopeData = new ScopeData(effectiveScopes, claims, options.authorizationServer, options.clientId);
 		this._logger.info('[createSessionFromChallenges]', `[${scopeData.scopeStr}]`, 'starting with claims:', claims);
 
 		const cachedPca = await this._publicClientManager.getOrCreate(scopeData.clientId);
@@ -448,7 +468,8 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	private async getAllSessionsForPca(
 		cachedPca: ICachedPublicClientApplication,
 		scopeData: ScopeData,
-		accountFilter?: AuthenticationSessionAccountInformation
+		accountFilter?: AuthenticationSessionAccountInformation,
+		resource?: string
 	): Promise<AuthenticationSession[]> {
 		let filteredAccounts = accountFilter
 			? cachedPca.accounts.filter(a => a.homeAccountId === accountFilter.id)
@@ -512,12 +533,13 @@ export class MsalAuthProvider implements AuthenticationProvider {
 					if (cachedPca.isBrokerAvailable && process.platform === 'darwin') {
 						redirectUri = Config.macOSBrokerRedirectUri;
 					}
-					this._logger.trace(`[getAllSessionsForPca] [${scopeData.scopeStr}] [${account.environment}] [${account.username}] acquiring token silently with${forceRefresh ? ' ' : 'out '}force refresh${claims ? ' and claims' : ''}...`);
+					this._logger.trace(`[getAllSessionsForPca] [${scopeData.scopeStr}] [${account.environment}] [${account.username}] acquiring token silently with${forceRefresh ? ' ' : 'out '}force refresh${claims ? ' and claims' : ''}${resource ? ' and resource' : ''}...`);
 					const result = await cachedPca.acquireTokenSilent({
 						account,
 						authority,
 						scopes: scopeData.scopesToSend,
 						claims,
+						resource,
 						redirectUri,
 						forceRefresh
 					});
@@ -538,7 +560,52 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		});
 	}
 
+	/**
+	 * Answers a `getSessions` call from the workbench that set
+	 * {@link WORKBENCH_INCLUDE_UNAPPROVED_ACCOUNTS}.
+	 *
+	 * With the native broker, a separate in-memory client lists every account the broker knows,
+	 * approved or not, so nothing is approved, cached, persisted or announced, and the provider's own
+	 * clients are not held up. Without the broker, the only accounts to ask about are the ones already
+	 * approved here. Either way, the sessions returned carry no id token.
+	 */
+	private async getSessionsIncludingUnapprovedAccounts(scopeData: ScopeData): Promise<AuthenticationSession[]> {
+		const broker = getNativeBrokerOptions(scopeData.clientId, this._logger);
+		const client = broker
+			? new PublicClientApplication({ auth: { clientId: scopeData.clientId }, broker })
+			: this.approvedAccountsClient(scopeData.clientId);
+		if (!client) {
+			return [];
+		}
+		const accounts = selectWorkAccountsToProbe(await client.getAllAccounts());
+		const { results, failures } = await acquireTokensSilently(client, accounts, {
+			authority: new URL(scopeData.tenant, this._env.activeDirectoryEndpointUrl).toString(),
+			scopes: scopeData.scopesToSend,
+			// The macOS broker requires the redirect URI; MSAL rejects it when the broker is not in use.
+			redirectUri: broker && process.platform === 'darwin' ? Config.macOSBrokerRedirectUri : undefined
+		});
+		// Expected whenever an account cannot get this token without the user.
+		for (const failure of failures) {
+			this._logger.info(`[getSessionsIncludingUnapprovedAccounts] [${scopeData.scopeStr}] no silent token for an account: ${failure instanceof AuthError ? failure.errorCode : failure}`);
+		}
+		this._logger.info(`[getSessionsIncludingUnapprovedAccounts] [${scopeData.scopeStr}] returned ${results.length} of ${accounts.length} session(s)`);
+		return results.map(result => {
+			const { idToken: _idToken, ...session } = this.sessionFromAuthenticationResult(result, scopeData.originalScopes);
+			return session;
+		});
+	}
+
+	/** The accounts already approved for `clientId`, without creating or persisting a client. */
+	private approvedAccountsClient(clientId: string): ISilentTokenClient | undefined {
+		const cachedPca = this._publicClientManager.getAll().find(pca => pca.clientId === clientId);
+		return cachedPca && {
+			getAllAccounts: async () => cachedPca.accounts,
+			acquireTokenSilent: request => cachedPca.acquireTokenSilent(request)
+		};
+	}
+
 	private sessionFromAuthenticationResult(result: AuthenticationResult, scopes: readonly string[]): AuthenticationSession & { idToken: string } {
+		const expiresAfter = result.expiresOn ? result.expiresOn.getTime() - Date.now() : undefined;
 		return {
 			accessToken: result.accessToken,
 			idToken: result.idToken,
@@ -547,7 +614,8 @@ export class MsalAuthProvider implements AuthenticationProvider {
 				id: result.account?.homeAccountId ?? result.uniqueId,
 				label: result.account?.username.toLowerCase() ?? 'Unknown',
 			},
-			scopes
+			scopes,
+			...(expiresAfter !== undefined && Number.isInteger(expiresAfter) && expiresAfter > 0 ? { expiresAfter } : {})
 		};
 	}
 

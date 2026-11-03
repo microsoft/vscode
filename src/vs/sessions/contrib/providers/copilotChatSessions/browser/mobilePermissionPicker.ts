@@ -1,0 +1,104 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { URI } from '../../../../../base/common/uri.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { localize } from '../../../../../nls.js';
+import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { getPermissionLevelBadge } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
+import { IPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
+import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
+import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
+
+const LEARN_MORE_ID = 'learn-more';
+
+/**
+ * Phone variant of {@link PermissionPicker} that surfaces the available
+ * approval levels (provided by the delegate, defaulting to
+ * Default/Bypass/Autopilot) as a {@link showMobilePickerSheet} bottom sheet
+ * rather than the desktop action-widget popup.
+ *
+ * Falls back to the inherited dropdown when the viewport is not phone
+ * (e.g. user resized past the breakpoint after the picker rendered).
+ */
+export class MobilePermissionPicker extends PermissionPicker {
+
+	constructor(
+		_delegate: IPermissionPickerDelegate,
+		@IActionWidgetService actionWidgetService: IActionWidgetService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IDialogService dialogService: IDialogService,
+		@IOpenerService openerService: IOpenerService,
+		@IStorageService storageService: IStorageService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
+	) {
+		super(_delegate, actionWidgetService, configurationService, dialogService, openerService, storageService, telemetryService, hoverService, agentHostEnablementService);
+	}
+
+	override showPicker(): void {
+		this._showPicker();
+	}
+
+	protected override _showPicker(): void {
+		if (!this._triggerElement || this.actionWidgetService.isVisible || this._isResolving()) {
+			return;
+		}
+		if (!isPhoneLayout(this._layoutService)) {
+			super._showPicker();
+			return;
+		}
+
+		const items: IMobilePickerSheetItem[] = this._getOfferedLevels().map(level => {
+			const meta = this._getPermissionLevelMeta(level);
+			const unavailable = this._getUnavailablePresentation(level);
+			return {
+				id: level,
+				label: meta.label,
+				badge: getPermissionLevelBadge(level, !!unavailable).badge,
+				description: unavailable ? unavailable.plainText : meta.detail,
+				icon: meta.icon,
+				checked: this._currentLevel === level,
+				...(unavailable ? { disabled: true } : {}),
+			} satisfies IMobilePickerSheetItem;
+		});
+		items.push({
+			id: LEARN_MORE_ID,
+			label: localize('permissions.learnMore', "Learn more about permissions"),
+			icon: Codicon.linkExternal,
+			sectionTitle: '',
+		});
+
+		const trigger = this._triggerElement;
+		trigger.setAttribute('aria-expanded', 'true');
+		showMobilePickerSheet(
+			this._layoutService.mainContainer,
+			localize('permissionPicker.title', "Approvals"),
+			items,
+		).then(async id => {
+			trigger.setAttribute('aria-expanded', 'false');
+			trigger.focus();
+			if (!id) {
+				return;
+			}
+			if (id === LEARN_MORE_ID) {
+				await this.openerService.open(URI.parse('https://aka.ms/vscode/docs/permissions'));
+				return;
+			}
+			await this._selectLevel(id as ChatPermissionLevel);
+		});
+	}
+}

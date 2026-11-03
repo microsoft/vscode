@@ -18,13 +18,13 @@ function exists(file: string): Promise<boolean> {
 	});
 }
 
-function exec(command: string, args: string[], options: cp.ExecFileOptions): Promise<{ stdout: string; stderr: string }> {
+function exec(command: string, options: cp.ExecOptions): Promise<{ stdout: string; stderr: string }> {
 	return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
-		cp.execFile(command, args, options, (error, stdout, stderr) => {
+		cp.exec(command, options, (error, stdout, stderr) => {
 			if (error) {
 				reject({ error, stdout, stderr });
 			}
-			resolve({ stdout, stderr });
+			resolve({ stdout: stdout.toString(), stderr: stderr.toString() });
 		});
 	});
 }
@@ -143,9 +143,9 @@ class FolderDetector {
 			return emptyTasks;
 		}
 
-		const gruntCommand = await this._gruntCommand;
+		const commandLine = `${await this._gruntCommand} --help --no-color`;
 		try {
-			const { stdout, stderr } = await exec(gruntCommand, ['--help', '--no-color'], { cwd: rootPath });
+			const { stdout, stderr } = await exec(commandLine, { cwd: rootPath });
 			if (stderr) {
 				getOutputChannel().appendLine(stderr);
 				showError();
@@ -213,7 +213,7 @@ class FolderDetector {
 			if (err.stdout) {
 				channel.appendLine(err.stdout);
 			}
-			channel.appendLine(vscode.l10n.t("Auto detecting Grunt for folder {0} failed with error: {1}', this.workspaceFolder.name, err.error ? err.error.toString() : 'unknown"));
+			channel.appendLine(vscode.l10n.t("Auto detecting Grunt for folder {0} failed with error: {1}", this.workspaceFolder.name, err.error ? err.error.toString() : 'unknown'));
 			showError();
 			return emptyTasks;
 		}

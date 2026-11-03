@@ -46,6 +46,9 @@ export interface ICommandLineAnalyzerOptions {
 	terminalToolSessionId: string;
 	chatSessionResource: URI | undefined;
 	requiresUnsandboxConfirmation?: boolean;
+	requiresAllowNetworkConfirmation?: boolean;
+	// User has opted into "Allow All Commands in this Session"
+	hasSessionAutoApproval?: boolean;
 }
 
 export interface ICommandLineAnalyzerResult {

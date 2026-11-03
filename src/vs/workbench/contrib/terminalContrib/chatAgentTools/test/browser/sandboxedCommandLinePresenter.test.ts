@@ -20,7 +20,11 @@ suite('SandboxedCommandLinePresenter', () => {
 		instantiationService.stub(ITerminalSandboxService, {
 			_serviceBrand: undefined,
 			isEnabled: async () => enabled,
-			wrapCommand: command => command,
+			isSandboxAllowNetworkEnabled: async () => false,
+			wrapCommand: async command => ({
+				command,
+				isSandboxWrapped: false,
+			}),
 			getSandboxConfigPath: async () => '/tmp/sandbox.json',
 			getTempDir: () => undefined,
 			setNeedsForceUpdateConfigFile: () => { },

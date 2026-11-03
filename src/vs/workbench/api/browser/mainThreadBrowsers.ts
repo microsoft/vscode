@@ -7,7 +7,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { BrowserTabDto, ExtHostBrowsersShape, ExtHostContext, MainContext, MainThreadBrowsersShape } from '../common/extHost.protocol.js';
-import { IBrowserViewCDPService } from '../../contrib/browserView/common/browserView.js';
+import { IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../../contrib/browserView/common/browserView.js';
 import { BrowserViewUri } from '../../../platform/browserView/common/browserViewUri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { EditorGroupColumn, columnToEditorGroup } from '../../services/editor/common/editorGroupColumn.js';
@@ -29,25 +29,24 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 		extHostContext: IExtHostContext,
 		@IEditorService private readonly editorService: IEditorService,
 		@IBrowserViewCDPService private readonly cdpService: IBrowserViewCDPService,
+		@IBrowserViewWorkbenchService private readonly browserViewService: IBrowserViewWorkbenchService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostBrowsers);
 
-		// Track open browser editors
-		this._register(this.editorService.onWillOpenEditor((e) => {
-			if (e.editor instanceof BrowserEditorInput) {
-				this._track(e.editor);
+		// Track open browser editors via the workbench service
+		this._register(this.browserViewService.onDidChangeBrowserViews(() => {
+			for (const editor of this.browserViewService.getKnownBrowserViews().values()) {
+				this._track(editor);
 			}
 		}));
 		this._register(this.editorService.onDidActiveEditorChange(() => this._syncActiveBrowserTab()));
 
 		// Initial sync
-		for (const input of this.editorService.editors) {
-			if (input instanceof BrowserEditorInput) {
-				this._track(input);
-			}
+		for (const editor of this.browserViewService.getKnownBrowserViews().values()) {
+			this._track(editor);
 		}
 		this._syncActiveBrowserTab();
 	}
@@ -132,10 +131,22 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 		}
 
 		// Before starting a session, resolve the input to ensure the underlying web contents exist and can be attached.
-		await known.input.resolve();
+		const model = await known.input.resolve();
 
-		const groupId = await this.cdpService.createSessionGroup(browserId);
+		// Targets created through the session share the browser's network, whose proxy the session holds.
+		const network = model.network;
+		const networkHold = network ? await this.browserViewService.acquireNetwork(network) : undefined;
+		let groupId: string;
+		try {
+			groupId = await this.cdpService.createSessionGroup(browserId, network);
+		} catch (error) {
+			networkHold?.dispose();
+			throw error;
+		}
 		const disposables = new DisposableStore();
+		if (networkHold) {
+			disposables.add(networkHold);
+		}
 
 		// Wire CDP messages from main process back to ext host
 		disposables.add(this.cdpService.onCDPMessage(groupId)(message => {

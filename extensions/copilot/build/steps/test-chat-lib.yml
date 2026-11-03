@@ -1,0 +1,29 @@
+parameters:
+  - name: NPM_REGISTRY
+    type: string
+
+steps:
+  - template: setup-npm.yml
+    parameters:
+      NPM_REGISTRY: ${{ parameters.NPM_REGISTRY }}
+
+  - template: ../../../../build/azure-pipelines/common/install-pnpm.yml@self
+
+  # extensions/copilot and chat-lib are separate pnpm install roots with their own lockfiles.
+  - bash: pnpm install --frozen-lockfile && pnpm run extract-chat-lib && rm -rf node_modules
+    displayName: 📂 Extract chat-lib
+    workingDirectory: extensions/copilot
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+
+  - script: pnpm install --frozen-lockfile
+    displayName: 📦 Install chat-lib dependencies
+    workingDirectory: extensions/copilot/chat-lib
+
+  - script: pnpm run build
+    displayName: 🔨 Build chat-lib
+    workingDirectory: extensions/copilot/chat-lib
+
+  - script: pnpm test
+    displayName: 🧪 Run chat-lib tests
+    workingDirectory: extensions/copilot/chat-lib

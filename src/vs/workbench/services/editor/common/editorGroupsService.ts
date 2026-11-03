@@ -130,6 +130,11 @@ export interface IMergeGroupOptions {
 
 export interface ICloseEditorOptions {
 	readonly preserveFocus?: boolean;
+
+	/**
+	 * Forces editors to close even when they declare `EditorInputCapabilities.CannotClose`.
+	 */
+	readonly force?: boolean;
 }
 
 export type ICloseEditorsFilter = {
@@ -142,6 +147,7 @@ export type ICloseEditorsFilter = {
 export interface ICloseAllEditorsOptions {
 	readonly excludeSticky?: boolean;
 	readonly excludeConfirming?: boolean;
+	readonly force?: boolean;
 }
 
 export interface IEditorReplacement {
@@ -197,6 +203,11 @@ export interface IEditorDropTargetDelegate {
 	 * A helper to figure out if the drop target contains the provided group.
 	 */
 	containsGroup?(groupView: IEditorGroup): boolean;
+
+	/**
+	 * Whether the drop target supports creating editor groups.
+	 */
+	readonly supportsSplitting?: boolean;
 }
 
 /**
@@ -469,6 +480,11 @@ export interface IEditorGroupsContainer {
 export interface IEditorPart extends IEditorGroupsContainer {
 
 	/**
+	 * An event for when the editor part receives focus.
+	 */
+	readonly onDidFocus: Event<void>;
+
+	/**
 	 * An event for when the editor part is layed out.
 	 */
 	readonly onDidLayout: Event<IDimension>;
@@ -552,6 +568,26 @@ export interface IModalEditorPart extends IEditorPart {
 	 * Position set by the user via dragging, if any.
 	 */
 	readonly position: { left: number; top: number } | undefined;
+
+	/**
+	 * Whether the modal editor part has a sidebar.
+	 */
+	readonly hasSidebar: boolean;
+
+	/**
+	 * Sidebar width set by the user via resizing, if any.
+	 */
+	readonly sidebarWidth: number | undefined;
+
+	/**
+	 * Whether the sidebar is hidden.
+	 */
+	readonly sidebarHidden: boolean;
+
+	/**
+	 * Toggle sidebar visibility.
+	 */
+	toggleSidebar(): void;
 
 	/**
 	 * The current navigation context, if any.
@@ -992,7 +1028,7 @@ export interface IEditorGroup {
 	 *
 	 * @returns a promise if confirmation is needed when all editors are closed.
 	 */
-	closeAllEditors(options: { excludeConfirming: true }): boolean;
+	closeAllEditors(options: { excludeConfirming: true; force?: boolean }): boolean;
 	closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean>;
 
 	/**

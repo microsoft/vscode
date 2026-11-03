@@ -17,6 +17,7 @@ export class MarkdownPreviewConfiguration {
 	public readonly previewLineBreaks: boolean;
 	public readonly previewLinkify: boolean;
 	public readonly previewTypographer: boolean;
+	public readonly previewFrontMatter: string;
 
 	public readonly doubleClickToSwitchToEditor: boolean;
 	public readonly scrollEditorWithPreview: boolean;
@@ -46,6 +47,7 @@ export class MarkdownPreviewConfiguration {
 		this.previewLineBreaks = !!markdownConfig.get<boolean>('preview.breaks', false);
 		this.previewLinkify = !!markdownConfig.get<boolean>('preview.linkify', true);
 		this.previewTypographer = !!markdownConfig.get<boolean>('preview.typographer', false);
+		this.previewFrontMatter = markdownConfig.get<string>('preview.frontMatter', 'table');
 
 		this.doubleClickToSwitchToEditor = !!markdownConfig.get<boolean>('preview.doubleClickToSwitchToEditor', true);
 		this.markEditorSelection = !!markdownConfig.get<boolean>('preview.markEditorSelection', true);

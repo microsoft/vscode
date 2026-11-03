@@ -4,16 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { fromNow } from '../../../../../base/common/date.js';
+import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { isUriComponents, URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { localize2 } from '../../../../../nls.js';
+import { localize, localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { IChatWidgetService } from '../chat.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { AUTOPILOT_DONT_SHOW_AGAIN_KEY, AUTO_APPROVE_DONT_SHOW_AGAIN_KEY } from '../../common/chatPermissionStorageKeys.js';
+import { resetShownWarnings } from '../../common/chatPermissionWarnings.js';
+import { OpenAgentHostStateFileAction } from './openAgentHostStateFileAction.js';
+import { IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { type AgentSandboxCertificateOperation, COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
+import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 
 function uriReplacer(_key: string, value: unknown): unknown {
 	if (URI.isUri(value)) {
@@ -32,7 +50,228 @@ export function registerChatDeveloperActions() {
 	registerAction2(LogChatInputHistoryAction);
 	registerAction2(LogChatIndexAction);
 	registerAction2(InspectChatModelAction);
+	registerAction2(InspectChatModelReferencesAction);
+	registerAction2(InspectAgentHostSubscriptionsAction);
 	registerAction2(ClearRecentlyUsedLanguageModelsAction);
+	registerAction2(ResetChatPermissionWarningDialogsAction);
+	registerAction2(OpenAgentHostStateFileAction);
+	registerAction2(ManageTrustedCAAction);
+	registerAction2(InstallTrustedCAAction);
+	registerAction2(RotateTrustedCAAction);
+	registerAction2(RemoveTrustedCAAction);
+}
+
+export class InstallTrustedCAAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.installTrustedCA',
+			title: localize2('workbench.action.chat.installTrustedCA.label', "Install Trusted CA"),
+			category: localize2('sandbox', "Sandbox"),
+			f1: false,
+			precondition: AGENT_HOST_ENABLED_CONTEXT_KEY,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await runSandboxCertificateCommand(accessor, 'install');
+	}
+}
+
+export class RemoveTrustedCAAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.removeTrustedCA',
+			title: localize2('workbench.action.chat.removeTrustedCA.label', "Remove Trusted CA"),
+			category: localize2('sandbox', "Sandbox"),
+			f1: false,
+			precondition: AGENT_HOST_ENABLED_CONTEXT_KEY,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await runSandboxCertificateCommand(accessor, 'remove');
+	}
+}
+
+export class RotateTrustedCAAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.rotateTrustedCA',
+			title: localize2('workbench.action.chat.rotateTrustedCA.label', "Rotate Trusted CA"),
+			category: localize2('sandbox', "Sandbox"),
+			f1: false,
+			precondition: AGENT_HOST_ENABLED_CONTEXT_KEY,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await runSandboxCertificateCommand(accessor, 'rotate');
+	}
+}
+
+export class ManageTrustedCAAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.manageTrustedCA',
+			title: localize2('workbench.action.chat.manageTrustedCA.label', "Manage Trusted CA"),
+			category: localize2('sandbox', "Sandbox"),
+			f1: true,
+			precondition: AGENT_HOST_ENABLED_CONTEXT_KEY,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await runSandboxCertificateCommand(accessor);
+	}
+}
+
+const hostCertificateOperations = new WeakMap<IAgentHostService, { operation: AgentSandboxCertificateOperation; promise: Promise<void> }>();
+
+async function runSandboxCertificateCommand(accessor: ServicesAccessor, operation?: AgentSandboxCertificateOperation): Promise<void> {
+	const dialogService = accessor.get(IDialogService);
+	const agentHostService = accessor.get(IAgentHostService);
+	const environmentService = accessor.get(IWorkbenchEnvironmentService);
+	const entitlementService = accessor.get(IChatEntitlementService);
+	const progressService = accessor.get(IProgressService);
+	if (!operation) {
+		const selected = await accessor.get(IQuickInputService).pick<IQuickPickItem & { operation: AgentSandboxCertificateOperation }>([
+			{ label: localize('agentHost.sandboxCertificate.installChoice', "Install"), description: localize('agentHost.sandboxCertificate.installDescription', "Trust the sandbox CA"), operation: 'install' },
+			{ label: localize('agentHost.sandboxCertificate.rotateChoice', "Rotate"), description: localize('agentHost.sandboxCertificate.rotateDescription', "Replace and trust the sandbox CA"), operation: 'rotate' },
+			{ label: localize('agentHost.sandboxCertificate.removeChoice', "Remove"), description: localize('agentHost.sandboxCertificate.removeDescription', "Remove OS trust; keep the certificate"), operation: 'remove' },
+		], {
+			title: localize('agentHost.sandboxCertificate.manageTitle', "Manage Trusted CA"),
+			placeHolder: localize('agentHost.sandboxCertificate.manageLocalPlaceholder', "Select a certificate action for this computer"),
+		});
+		if (!selected) {
+			return;
+		}
+		operation = selected.operation;
+	}
+	if (entitlementService.sentiment.hidden) {
+		await dialogService.info(localize('agentHost.sandboxCertificate.managementAiDisabled', "Sandbox certificate management is unavailable while AI features are disabled."));
+		return;
+	}
+	if (environmentService.remoteAuthority || !agentHostService.manageHostSandboxCertificate) {
+		await dialogService.info(localize('agentHost.sandboxCertificate.localManagementUnavailable', "Local sandbox certificate management is unavailable in this window. Open a local desktop window of VS Code on the computer whose certificate you want to manage."));
+		return;
+	}
+	const pending = hostCertificateOperations.get(agentHostService);
+	if (pending) {
+		if (pending.operation === operation) {
+			await pending.promise;
+		} else {
+			await dialogService.info(localize('agentHost.sandboxCertificate.operationPending', "A sandbox certificate operation is already in progress on this computer. Wait for it to finish, then try again."));
+		}
+		return;
+	}
+	const selectedOperation = operation;
+	const promise = (async () => {
+		try {
+			const confirmation = await dialogService.confirm({
+				type: 'warning',
+				message: selectedOperation === 'install'
+					? localize('agentHost.sandboxCertificate.confirmLocal', "Install the sandbox certificate?")
+					: selectedOperation === 'rotate'
+						? localize('agentHost.sandboxCertificate.confirmRotateLocal', "Rotate the sandbox certificate?")
+						: localize('agentHost.sandboxCertificate.confirmRemoveLocal', "Remove sandbox certificate trust?"),
+				detail: selectedOperation === 'install'
+					? localize('agentHost.sandboxCertificate.confirmLocalDetail', "Adds the sandbox CA to this host's OS trust store, replacing it if needed. Running tools may need to restart.")
+					: selectedOperation === 'rotate'
+						? localize('agentHost.sandboxCertificate.confirmRotateLocalDetail', "Replaces the shared sandbox CA and private key and trusts the new CA. Running tools may need to restart.")
+						: localize('agentHost.sandboxCertificate.confirmRemoveLocalDetail', "Removes OS trust for the shared sandbox CA but keeps its certificate and private key. Tools relying on OS trust may stop working."),
+				primaryButton: selectedOperation === 'install'
+					? localize('agentHost.sandboxCertificate.confirmInstall', "&&Install")
+					: selectedOperation === 'rotate'
+						? localize('agentHost.sandboxCertificate.confirmRotate', "&&Rotate")
+						: localize('agentHost.sandboxCertificate.confirmRemove', "&&Remove"),
+			});
+			if (!confirmation.confirmed) {
+				return;
+			}
+			if (entitlementService.sentiment.hidden) {
+				throw new Error(localize('agentHost.sandboxCertificate.managementAiDisabled', "Sandbox certificate management is unavailable while AI features are disabled."));
+			}
+			await progressService.withProgress({
+				location: ProgressLocation.Notification,
+				title: selectedOperation === 'install'
+					? localize('agentHost.sandboxCertificate.installingLocal', "Installing the sandbox certificate on this computer")
+					: selectedOperation === 'rotate'
+						? localize('agentHost.sandboxCertificate.rotatingLocal', "Rotating the sandbox certificate on this computer")
+						: localize('agentHost.sandboxCertificate.removingLocal', "Removing sandbox certificate trust on this computer"),
+			}, () => agentHostService.manageHostSandboxCertificate!(COPILOT_CLI_AGENT_PROVIDER_ID, selectedOperation));
+			await dialogService.info(selectedOperation === 'install'
+				? localize('agentHost.sandboxCertificate.installedLocal', "The sandbox certificate is trusted on this computer. Running tools may need to restart.")
+				: selectedOperation === 'rotate'
+					? localize('agentHost.sandboxCertificate.rotatedLocal', "The sandbox certificate was rotated and trusted on this computer. Running tools may need to restart.")
+					: localize('agentHost.sandboxCertificate.removedLocal', "The sandbox certificate was removed from OS trust on this computer. The stored certificate authority was kept."));
+		} catch (error) {
+			await dialogService.error(selectedOperation === 'install'
+				? localize('agentHost.sandboxCertificate.installFailed', "Could not install the sandbox certificate")
+				: selectedOperation === 'rotate'
+					? localize('agentHost.sandboxCertificate.rotateFailed', "Could not rotate the sandbox certificate")
+					: localize('agentHost.sandboxCertificate.removeFailed', "Could not remove sandbox certificate trust"), getErrorMessage(error));
+		}
+	})();
+	hostCertificateOperations.set(agentHostService, { operation: selectedOperation, promise });
+	try {
+		await promise;
+	} finally {
+		hostCertificateOperations.delete(agentHostService);
+	}
+}
+
+function formatChatModelReferenceInspection(accessor: ServicesAccessor): string {
+	const chatService = accessor.get(IChatService);
+	const agentSessionsService = accessor.get(IAgentSessionsService);
+	const debugInfo = chatService.getChatModelReferenceDebugInfo();
+	const referencedModels = debugInfo.models.filter(model => model.referenceCount > 0);
+	const pendingEditModels = debugInfo.models.filter(model => model.hasPendingEdits);
+	const pendingDisposalModels = debugInfo.models.filter(model => model.pendingDisposal);
+
+	let output = '# Chat Model References\n\n';
+	output += `- Live models: ${debugInfo.totalModels}\n`;
+	output += `- Live references: ${debugInfo.totalReferences}\n`;
+	output += `- Models with active references: ${referencedModels.length}\n`;
+	output += `- Models with pending edits: ${pendingEditModels.length}\n`;
+	output += `- Models pending disposal: ${pendingDisposalModels.length}\n\n`;
+	output += 'Created by shows who loaded or created the model. Holders shows who currently keeps the model alive.\n\n';
+
+	if (!debugInfo.models.length) {
+		output += 'No live chat models.\n';
+		return output;
+	}
+
+	for (const model of debugInfo.models) {
+		const liveModel = chatService.getSession(model.sessionResource);
+		const agentSession = agentSessionsService.getSession(model.sessionResource);
+		const archived = agentSession ? agentSession.isArchived() : 'unknown';
+		const age = liveModel ? fromNow(liveModel.timing.created, true, true, true) : 'unknown';
+
+		output += `## ${model.title || '(untitled)'}\n\n`;
+		output += `- Session: ${model.sessionResource.toString()}\n`;
+		output += `- Created by: ${model.createdBy}\n`;
+		output += `- Archived: ${archived}\n`;
+		output += `- Age: ${age}\n`;
+		output += `- Initial location: ${model.initialLocation}\n`;
+		output += `- Imported: ${model.isImported}\n`;
+		output += `- Pending edits: ${model.hasPendingEdits}\n`;
+		output += `- Background keep-alive enabled: ${model.willKeepAlive}\n`;
+		output += `- Pending disposal: ${model.pendingDisposal}\n`;
+		output += `- Reference count: ${model.referenceCount}\n`;
+
+		if (model.holders.length) {
+			output += '- Holders:\n';
+			for (const holder of model.holders) {
+				output += `  - ${holder.holder}: ${holder.count}\n`;
+			}
+		} else {
+			output += '- Holders: none\n';
+		}
+
+		output += '\n';
+	}
+
+	return output;
 }
 
 class LogChatInputHistoryAction extends Action2 {
@@ -129,6 +368,146 @@ class InspectChatModelAction extends Action2 {
 	}
 }
 
+class InspectChatModelReferencesAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.inspectChatModelReferences';
+
+	constructor() {
+		super({
+			id: InspectChatModelReferencesAction.ID,
+			title: localize2('workbench.action.chat.inspectChatModelReferences.label', "Inspect Chat Model References"),
+			icon: Codicon.inspect,
+			category: Categories.Developer,
+			f1: true,
+			precondition: ChatContextKeys.enabled
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const instantiationService = accessor.get(IInstantiationService);
+		const editorService = accessor.get(IEditorService);
+
+		await editorService.openEditor({
+			resource: undefined,
+			contents: instantiationService.invokeFunction(formatChatModelReferenceInspection),
+			languageId: 'markdown',
+			options: {
+				pinned: true
+			}
+		});
+	}
+}
+
+function subscriptionKindLabel(kind: StateComponents): string {
+	switch (kind) {
+		case StateComponents.Root: return 'root';
+		case StateComponents.Session: return 'session';
+		case StateComponents.Terminal: return 'terminal';
+		case StateComponents.Changeset: return 'changeset';
+		default: return `unknown(${kind})`;
+	}
+}
+
+/** Escape a value so it is safe to embed in a markdown table cell. */
+function escapeMarkdownTableCell(value: string): string {
+	return value.replace(/\r?\n/g, '<br>').replace(/\|/g, '\\|');
+}
+
+function formatConnectionSubscriptions(label: string, details: string, connection: IAgentConnection | undefined): string {
+	let output = `## ${label}\n\n`;
+	output += `- ${details}\n`;
+
+	if (!connection) {
+		output += '- Not connected.\n\n';
+		return output;
+	}
+
+	const root = connection.rootState.value;
+	if (root === undefined) {
+		output += '- Root state: pending (no snapshot yet)\n';
+	} else if (root instanceof Error) {
+		output += `- Root state: error (${root.message})\n`;
+	} else {
+		const agents = root.agents?.map(a => a.displayName).join(', ') || 'none';
+		output += `- Root state: agents=[${agents}], activeSessions=${root.activeSessions ?? 0}, terminals=${root.terminals?.length ?? 0}\n`;
+	}
+
+	const subscriptions = connection.getActiveSubscriptions();
+	output += `- Active subscriptions: ${subscriptions.length}\n\n`;
+
+	if (subscriptions.length) {
+		const sorted = [...subscriptions].sort((a, b) => a.resource.toString().localeCompare(b.resource.toString()));
+		output += '| Resource | Kind | Refs | Holders | Status |\n';
+		output += '| --- | --- | --- | --- | --- |\n';
+		for (const subscription of sorted) {
+			const holders = subscription.holders.length
+				? subscription.holders.map(h => h.count > 1 ? `${h.owner} (${h.count})` : h.owner).join(', ')
+				: '(none)';
+			const cells = [
+				subscription.resource.toString(),
+				subscriptionKindLabel(subscription.kind),
+				String(subscription.refCount),
+				holders,
+				subscription.status,
+			].map(escapeMarkdownTableCell);
+			output += `| ${cells.join(' | ')} |\n`;
+		}
+		output += '\n';
+	}
+
+	return output;
+}
+
+function formatAgentHostSubscriptionsInspection(accessor: ServicesAccessor): string {
+	const connectionsService = accessor.get(IAgentHostConnectionsService);
+
+	const connections = connectionsService.connections;
+	const remoteCount = connections.filter(c => !c.isAmbient).length;
+
+	let output = '# Agent Host Subscriptions\n\n';
+	output += `- Connections: ${connections.length} (1 ambient, ${remoteCount} remote)\n`;
+	output += 'Lists every resource each connected agent host is currently subscribed to. The always-live root state is summarized separately from the per-resource subscription table.\n\n';
+
+	for (const info of connections) {
+		const heading = info.isAmbient ? 'Ambient agent host' : `Remote: ${info.name}`;
+		const details = [
+			...(info.address ? [`address: ${info.address}`] : []),
+			`clientId: ${info.connection?.clientId || '(none)'}`,
+		].join(' · ');
+		output += formatConnectionSubscriptions(heading, details, info.connection);
+	}
+
+	return output;
+}
+
+class InspectAgentHostSubscriptionsAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.inspectAgentHostSubscriptions';
+
+	constructor() {
+		super({
+			id: InspectAgentHostSubscriptionsAction.ID,
+			title: localize2('workbench.action.chat.inspectAgentHostSubscriptions.label', "Inspect Agent Host Subscriptions"),
+			icon: Codicon.inspect,
+			category: Categories.Developer,
+			f1: true,
+			precondition: ChatContextKeys.enabled
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const instantiationService = accessor.get(IInstantiationService);
+		const editorService = accessor.get(IEditorService);
+
+		await editorService.openEditor({
+			resource: undefined,
+			contents: instantiationService.invokeFunction(formatAgentHostSubscriptionsInspection),
+			languageId: 'markdown',
+			options: {
+				pinned: true
+			}
+		});
+	}
+}
+
 class ClearRecentlyUsedLanguageModelsAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.clearRecentlyUsedLanguageModels';
 
@@ -144,5 +523,26 @@ class ClearRecentlyUsedLanguageModelsAction extends Action2 {
 
 	override run(accessor: ServicesAccessor): void {
 		accessor.get(ILanguageModelsService).clearRecentlyUsedList();
+	}
+}
+
+class ResetChatPermissionWarningDialogsAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.resetPermissionWarningDialogs';
+
+	constructor() {
+		super({
+			id: ResetChatPermissionWarningDialogsAction.ID,
+			title: localize2('workbench.action.chat.resetPermissionWarningDialogs.label', "Reset Permission Warning Dialogs (Autopilot, Bypass Approvals)"),
+			category: Categories.Developer,
+			f1: true,
+			precondition: ChatContextKeys.enabled
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const storageService = accessor.get(IStorageService);
+		storageService.remove(AUTOPILOT_DONT_SHOW_AGAIN_KEY, StorageScope.PROFILE);
+		storageService.remove(AUTO_APPROVE_DONT_SHOW_AGAIN_KEY, StorageScope.PROFILE);
+		resetShownWarnings();
 	}
 }

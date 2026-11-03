@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 3
-
 declare module 'vscode' {
 
 	export interface ChatParticipant {
@@ -51,10 +49,15 @@ declare module 'vscode' {
 		ranges: Range[];
 	}
 
+	/** The Auto routing tier a request was resolved with. */
+	export type ChatAutoModeTier = 'efficiency' | 'balance' | 'intelligence' | 'fast';
+
 	export class ChatResponseTextEditPart {
 		uri: Uri;
 		edits: TextEdit[];
 		isDone?: boolean;
+		/** The Auto routing tier that produced these edits, for edit attribution. */
+		autoTier?: ChatAutoModeTier;
 		constructor(uri: Uri, done: true);
 		constructor(uri: Uri, edits: TextEdit | TextEdit[]);
 	}
@@ -63,6 +66,8 @@ declare module 'vscode' {
 		uri: Uri;
 		edits: NotebookEdit[];
 		isDone?: boolean;
+		/** The Auto routing tier that produced these edits, for edit attribution. */
+		autoTier?: ChatAutoModeTier;
 		constructor(uri: Uri, done: true);
 		constructor(uri: Uri, edits: NotebookEdit | NotebookEdit[]);
 	}
@@ -333,6 +338,11 @@ declare module 'vscode' {
 		 */
 		result?: string;
 
+		/**
+		 * The display name of the model used by the subagent.
+		 */
+		modelName?: string;
+
 		constructor(description?: string, agentName?: string, prompt?: string, result?: string);
 	}
 
@@ -444,11 +454,17 @@ declare module 'vscode' {
 		ChatResponseThinkingProgressPart: ChatResponseThinkingProgressPart;
 		ChatResponseExternalEditPart: ChatResponseExternalEditPart;
 		ChatResponseQuestionCarouselPart: ChatResponseQuestionCarouselPart;
+		ChatResponseAutoModeResolutionPart: ChatResponseAutoModeResolutionPart;
 	}
 
 	export type ExtendedChatResponsePart = ExtendedChatResponseParts[keyof ExtendedChatResponseParts];
 
 	export class ChatResponseWarningPart {
+		value: MarkdownString;
+		constructor(value: string | MarkdownString);
+	}
+
+	export class ChatResponseInfoPart {
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);
 	}
@@ -563,6 +579,17 @@ declare module 'vscode' {
 		constructor(uriOrCommand: Uri | Command, title: string, description: string, author: string, linkTag: string);
 	}
 
+	/**
+	 * Explains what the "Auto" model routed a turn to, as a single status line.
+	 * Push a part without a model for the in-flight state, then a resolved one.
+	 * Auto may route several times in a turn; each route gets its own row.
+	 */
+	export class ChatResponseAutoModeResolutionPart {
+		/** The model the router picked, or `undefined` while routing is in flight. */
+		resolvedModel: { id: string; name: string } | undefined;
+		constructor(resolvedModel?: { id: string; name: string });
+	}
+
 	export interface ChatResponseStream {
 
 		/**
@@ -632,6 +659,15 @@ declare module 'vscode' {
 		 * @returns This stream.
 		 */
 		warning(message: string | MarkdownString): void;
+
+		/**
+		 * Push an info banner to this stream. Short-hand for
+		 * `push(new ChatResponseInfoPart(message))`.
+		 *
+		 * @param message An informational message
+		 * @returns This stream.
+		 */
+		info(message: string | MarkdownString): void;
 
 		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }): void;
 
@@ -846,6 +882,11 @@ declare module 'vscode' {
 		readonly outputBuffer?: number;
 
 		/**
+		 * The number of copilot credits consumed by this request.
+		 */
+		readonly copilotCredits?: number;
+
+		/**
 		 * Optional breakdown of prompt token usage by category and label.
 		 * If the percentages do not sum to 100%, the remaining will be shown as "Uncategorized".
 		 */
@@ -990,10 +1031,6 @@ declare module 'vscode' {
 		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
 	}
 
-	export interface ChatResultFeedback {
-		readonly unhelpfulReason?: string;
-	}
-
 	export namespace lm {
 		export function fileIsIgnored(uri: Uri, token?: CancellationToken): Thenable<boolean>;
 	}
@@ -1025,6 +1062,10 @@ declare module 'vscode' {
 	}
 
 	export interface LanguageModelToolInvocationOptions<T> {
+		/**
+		 * The selected model. Access throws if an explicit selection cannot be resolved through the language model API.
+		 * Tools that do not use a model can run without accessing this property.
+		 */
 		model?: LanguageModelChat;
 		chatStreamToolCallId?: string;
 	}
@@ -1070,6 +1111,7 @@ declare module 'vscode' {
 		readonly name: string;
 		readonly content: string;
 		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
+		readonly allowedSubagents?: readonly string[];
 		readonly metadata?: Record<string, boolean | string | number>;
 		/**
 		 * Whether the mode is a builtin mode (e.g. Ask, Edit, Agent) rather than a user or extension-defined custom mode.

@@ -53,10 +53,9 @@ export default class FileConfigurationManager extends Disposable {
 		document: vscode.TextDocument,
 		token: vscode.CancellationToken
 	): Promise<void> {
-		const formattingOptions = this.getFormattingOptions(document);
-		if (formattingOptions) {
-			return this.ensureConfigurationOptions(document, formattingOptions, token);
-		}
+		const formattingOptions = this.getFormattingOptions(document)
+			?? { tabSize: undefined, insertSpaces: undefined };
+		return this.ensureConfigurationOptions(document, formattingOptions, token);
 	}
 
 	private getFormattingOptions(document: vscode.TextDocument): FormattingOptions | undefined {

@@ -106,6 +106,15 @@ if [ "${VSCODE_PREVENT_SHELL_HISTORY:-}" = "1" ]; then
 	builtin unset VSCODE_PREVENT_SHELL_HISTORY
 fi
 
+# Agent terminal zsh fixups: disable bang history expansion so ! in double
+# quotes does not hang on dquote>, and enable inline # comments so the
+# agent can annotate commands.
+if [ "${VSCODE_AGENT_ZSH_FIXUPS:-}" = "1" ]; then
+	builtin setopt NO_BANG_HIST
+	builtin setopt INTERACTIVE_COMMENTS
+	builtin unset VSCODE_AGENT_ZSH_FIXUPS
+fi
+
 # The property (P) and command (E) codes embed values which require escaping.
 # Backslashes are doubled. Non-alphanumeric characters are converted to escaped hex.
 __vsc_escape_value() {
@@ -179,6 +188,7 @@ __update_env_cache_aa() {
 __update_env_cache() {
 	local key="$1"
 	local value="$2"
+	local i
 
 	for (( i=1; i <= $#__vsc_env_keys; i++ )); do
 		if [[ "${__vsc_env_keys[$i]}" == "$key" ]]; then
@@ -197,6 +207,8 @@ __update_env_cache() {
 }
 
 __vsc_update_env() {
+	local key var value
+
 	if [[ ${#envVarsToReport[@]} -gt 0 ]]; then
 		builtin printf '\e]633;EnvSingleStart;%s;%s;\a' 0 $__vsc_nonce
 		if [ $__vsc_use_aa -eq 1 ]; then

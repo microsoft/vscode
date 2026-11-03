@@ -5,8 +5,6 @@
 
 use std::path::{Path, PathBuf};
 
-use async_trait::async_trait;
-
 use crate::log;
 use crate::state::LauncherPaths;
 use crate::util::errors::{wrap, AnyError};
@@ -14,7 +12,6 @@ use crate::util::io::{tailf, TailEvent};
 
 pub const SERVICE_LOG_FILE_NAME: &str = "tunnel-service.log";
 
-#[async_trait]
 pub trait ServiceContainer: Send {
 	async fn run_service(
 		&mut self,
@@ -23,7 +20,6 @@ pub trait ServiceContainer: Send {
 	) -> Result<(), AnyError>;
 }
 
-#[async_trait]
 pub trait ServiceManager {
 	/// Registers the current executable as a service to run with the given set
 	/// of arguments.

@@ -3,14 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use async_trait::async_trait;
 use shell_escape::windows::escape as shell_escape;
-use std::os::windows::process::CommandExt;
 use std::{path::PathBuf, process::Stdio};
-use winapi::um::winbase::{CREATE_NEW_PROCESS_GROUP, DETACHED_PROCESS};
 use winreg::{enums::HKEY_CURRENT_USER, RegKey};
 
-use crate::util::command::new_std_command;
+use crate::util::command::{new_std_command, DetachFromParent};
 use crate::{
 	constants::TUNNEL_ACTIVITY_NAME,
 	log,
@@ -46,7 +43,6 @@ impl WindowsService {
 	}
 }
 
-#[async_trait]
 impl CliServiceManager for WindowsService {
 	async fn register(&self, exe: std::path::PathBuf, args: &[&str]) -> Result<(), AnyError> {
 		let key = WindowsService::open_key()?;
@@ -76,7 +72,7 @@ impl CliServiceManager for WindowsService {
 		cmd.stderr(Stdio::null());
 		cmd.stdout(Stdio::null());
 		cmd.stdin(Stdio::null());
-		cmd.creation_flags(CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS);
+		cmd.detach_from_parent();
 		cmd.spawn()
 			.map_err(|e| wrapdbg(e, "error starting service"))?;
 
@@ -106,7 +102,7 @@ impl CliServiceManager for WindowsService {
 			.stderr(Stdio::null())
 			.stdout(Stdio::null())
 			.stdin(Stdio::null())
-			.creation_flags(CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS)
+			.detach_from_parent()
 			.spawn()
 			.map_err(|e| wrap(e, "error starting nested process"))?;
 

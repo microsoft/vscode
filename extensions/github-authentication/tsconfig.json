@@ -3,11 +3,13 @@
 	"compilerOptions": {
 		"rootDir": "./src",
 		"outDir": "./out",
-		"typeRoots": [
-			"./node_modules/@types"
+		"types": [
+			"node",
+			"mocha"
 		],
 		"lib": [
-			"WebWorker"
+			"WebWorker",
+			"ES2024"
 		]
 	},
 	"include": [
@@ -15,6 +17,8 @@
 		"../../src/vscode-dts/vscode.d.ts",
 		"../../src/vscode-dts/vscode.proposed.authIssuers.d.ts",
 		"../../src/vscode-dts/vscode.proposed.authProviderSpecific.d.ts",
-		"../../src/vscode-dts/vscode.proposed.agentSessionsWorkspace.d.ts"
+		"../../src/vscode-dts/vscode.proposed.authSessionAccountIcon.d.ts",
+		"../../src/vscode-dts/vscode.proposed.authSessionExpiration.d.ts",
+		"../../src/vscode-dts/vscode.proposed.notificationTelemetry.d.ts"
 	]
 }

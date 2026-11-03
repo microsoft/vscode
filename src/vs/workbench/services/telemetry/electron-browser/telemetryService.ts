@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITelemetryService, ITelemetryData, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
-import { supportsTelemetry, NullTelemetryService, getPiiPathsFromEnvironment, isInternalTelemetry } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { supportsTelemetry, NullTelemetryService, getPiiPathsFromEnvironment, getUserContentPathsFromEnvironment, isInternalTelemetry } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { INativeWorkbenchEnvironmentService } from '../../environment/electron-browser/environmentService.js';
@@ -52,6 +52,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 				commonProperties: resolveWorkbenchCommonProperties(
 					storageService,
 					productService,
+					environmentService,
 					environmentService.os.release,
 					environmentService.os.hostname,
 					environmentService.machineId,
@@ -59,9 +60,9 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 					environmentService.devDeviceId,
 					isInternal,
 					process,
-					environmentService.remoteAuthority
 				),
 				piiPaths: getPiiPathsFromEnvironment(environmentService),
+				userContentPaths: getUserContentPathsFromEnvironment(environmentService),
 				sendErrorTelemetry: true,
 				waitForExperimentProperties: experimentsEnabled(configurationService, productService, environmentService),
 			};
@@ -99,6 +100,10 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 
 	setExperimentProperty(name: string, value: string): void {
 		return this.impl.setExperimentProperty(name, value);
+	}
+
+	setCommonProperty(name: string, value: string | boolean | undefined): void {
+		this.impl.setCommonProperty(name, value);
 	}
 
 	get telemetryLevel(): TelemetryLevel {

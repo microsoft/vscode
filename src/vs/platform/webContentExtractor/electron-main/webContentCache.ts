@@ -61,6 +61,13 @@ export class WebContentCache {
 		return entry.result;
 	}
 
+	/**
+	 * Clear all cached entries.
+	 */
+	public clear() {
+		this._cache.clear();
+	}
+
 	private static getKey(uri: URI, options: IWebContentExtractorOptions | undefined): string {
 		return `${!!options?.followRedirects}${extUriIgnorePathCase.getComparisonKey(uri)}`;
 	}

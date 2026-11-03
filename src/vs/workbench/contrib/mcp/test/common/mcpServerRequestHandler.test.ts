@@ -28,6 +28,7 @@ class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 	private readonly _transport: TestMcpMessageTransport;
 
 	priority = 0;
+	resolvePolicyVariables = async () => ({});
 
 	constructor() {
 		super();
@@ -36,6 +37,10 @@ class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 
 
 	substituteVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch> {
+		return Promise.resolve(launch);
+	}
+
+	expandEnvironmentVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch> {
 		return Promise.resolve(launch);
 	}
 
@@ -380,6 +385,34 @@ suite('Workbench - MCP - ServerRequestHandler', () => {
 		} catch (e) {
 			assert.strictEqual(e.name, 'Canceled');
 		}
+	});
+
+	test('callTool forwards _meta.traceparent to the JSON-RPC payload (MCP SEP-414)', async () => {
+		const traceparent = '00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01';
+		const tracestate = 'rojo=00f067aa0ba902b7';
+
+		const callPromise = handler.callTool({
+			name: 'echo',
+			arguments: { hello: 'world' },
+			_meta: { traceparent, tracestate, progressToken: 'tok-1' },
+		});
+
+		const sentMessages = transport.getSentMessages();
+		const callRequest = sentMessages[2] as MCP.JSONRPCRequest & MCP.CallToolRequest;
+		assert.strictEqual(callRequest.method, 'tools/call');
+		assert.deepStrictEqual(callRequest.params._meta, {
+			traceparent,
+			tracestate,
+			progressToken: 'tok-1',
+		});
+
+		transport.simulateReceiveMessage({
+			jsonrpc: MCP.JSONRPC_VERSION,
+			id: callRequest.id,
+			result: { content: [] },
+		});
+
+		await callPromise;
 	});
 });
 

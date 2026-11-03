@@ -7,6 +7,9 @@ import * as fs from 'fs';
 import * as child_process from 'child_process';
 import * as os from 'os';
 import { isUpToDate, forceInstallMessage } from './installStateHash.ts';
+import { isCloudSandbox } from './cloudSandbox.ts';
+import { checkPackageManager, getPinnedPnpmVersion, getPnpmCommand } from '../lib/pnpm.ts';
+import { installNodeGypHeaders } from './nodeGypHeaders.ts';
 
 if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	// Get the running Node.js version
@@ -37,13 +40,14 @@ if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	}
 }
 
-if (process.env.npm_execpath?.includes('yarn')) {
-	console.error('\x1b[1;31m*** Seems like you are using `yarn` which is not supported in this repo any more, please use `npm i` instead. ***\x1b[0;0m');
+const packageManagerError = checkPackageManager(process.env.npm_config_user_agent, getPinnedPnpmVersion(path.join(import.meta.dirname, '..', '..')));
+if (packageManagerError) {
+	console.error(`\x1b[1;31m*** ${packageManagerError} ***\x1b[0;0m`);
 	throw new Error();
 }
 
 // Fast path: if nothing changed since last successful install, skip everything.
-// This makes `npm i` near-instant when dependencies haven't changed.
+// This makes `pnpm install` near-instant when dependencies haven't changed.
 if (!process.env['VSCODE_FORCE_INSTALL'] && isUpToDate()) {
 	console.log(`\x1b[32mAll dependencies up to date.\x1b[0m ${forceInstallMessage}`);
 	process.exit(0);
@@ -53,12 +57,12 @@ if (process.platform === 'win32') {
 	if (!hasSupportedVisualStudioVersion()) {
 		console.error('\x1b[1;31m*** Invalid C/C++ Compiler Toolchain. Please check https://github.com/microsoft/vscode/wiki/How-to-Contribute#prerequisites.\x1b[0;0m');
 		console.error('\x1b[1;31m*** If you have Visual Studio installed in a custom location, you can specify it via the environment variable:\x1b[0;0m');
-		console.error('\x1b[1;31m*** set vs2022_install=<path> (or vs2019_install for older versions)\x1b[0;0m');
+		console.error('\x1b[1;31m*** set vs2026_install=<path> (or vs2022_install / vs2019_install for older versions)\x1b[0;0m');
 		throw new Error();
 	}
 }
 
-installHeaders();
+await installHeaders();
 
 if (process.arch !== os.arch()) {
 	console.error(`\x1b[1;31m*** ARCHITECTURE MISMATCH: The node.js process is ${process.arch}, but your OS architecture is ${os.arch()}. ***\x1b[0;0m`);
@@ -68,14 +72,19 @@ if (process.arch !== os.arch()) {
 function hasSupportedVisualStudioVersion() {
 	// Translated over from
 	// https://source.chromium.org/chromium/chromium/src/+/master:build/vs_toolchain.py;l=140-175
-	const supportedVersions = ['2022', '2019'];
+	// Visual Studio 2026 installs into a folder named after its major version instead of its year.
+	const supportedVersions = [
+		{ year: '2026', folder: '18' },
+		{ year: '2022', folder: '2022' },
+		{ year: '2019', folder: '2019' },
+	];
 
 	const availableVersions = [];
-	for (const version of supportedVersions) {
+	for (const { year, folder } of supportedVersions) {
 		// Check environment variable first (explicit override)
-		let vsPath = process.env[`vs${version}_install`];
+		let vsPath = process.env[`vs${year}_install`];
 		if (vsPath && fs.existsSync(vsPath)) {
-			availableVersions.push(version);
+			availableVersions.push(year);
 			break;
 		}
 
@@ -85,17 +94,17 @@ function hasSupportedVisualStudioVersion() {
 
 		const vsTypes = ['Enterprise', 'Professional', 'Community', 'Preview', 'BuildTools', 'IntPreview'];
 		if (programFiles64Path) {
-			vsPath = `${programFiles64Path}/Microsoft Visual Studio/${version}`;
+			vsPath = `${programFiles64Path}/Microsoft Visual Studio/${folder}`;
 			if (vsTypes.some(vsType => fs.existsSync(path.join(vsPath!, vsType)))) {
-				availableVersions.push(version);
+				availableVersions.push(year);
 				break;
 			}
 		}
 
 		if (programFiles86Path) {
-			vsPath = `${programFiles86Path}/Microsoft Visual Studio/${version}`;
+			vsPath = `${programFiles86Path}/Microsoft Visual Studio/${folder}`;
 			if (vsTypes.some(vsType => fs.existsSync(path.join(vsPath!, vsType)))) {
-				availableVersions.push(version);
+				availableVersions.push(year);
 				break;
 			}
 		}
@@ -104,53 +113,77 @@ function hasSupportedVisualStudioVersion() {
 	return availableVersions.length;
 }
 
-function installHeaders() {
-	const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-	child_process.execSync(`${npm} ${process.env.npm_command || 'ci'}`, {
+async function installHeaders() {
+	// build/npm/gyp is a separate pnpm install root with the pinned node-gyp, which installs the
+	// headers. Install scripts build with the node-gyp bundled with pnpm.
+	const pnpm = getPnpmCommand();
+	child_process.execFileSync(pnpm.command, [...pnpm.args, 'install', '--frozen-lockfile'], {
 		env: process.env,
 		cwd: path.join(import.meta.dirname, 'gyp'),
-		stdio: 'inherit'
+		stdio: 'inherit',
+		shell: pnpm.shell
 	});
 
-	// The node gyp package got installed using the above npm command using the gyp/package.json
-	// file checked into our repository. So from that point it is safe to construct the path
-	// to that executable
-	const node_gyp = process.platform === 'win32'
-		? path.join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd')
-		: path.join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp');
+	// The node gyp package got installed using the above pnpm command using the gyp/package.json
+	// and gyp/pnpm-lock.yaml files checked into our repository. So from that point it is safe to
+	// construct the path to its entry point
+	const nodeGypScript = path.join(import.meta.dirname, 'gyp', 'node_modules', 'node-gyp', 'bin', 'node-gyp.js');
 
 	const local = getHeaderInfo(path.join(import.meta.dirname, '..', '..', '.npmrc'));
 	const remote = getHeaderInfo(path.join(import.meta.dirname, '..', '..', 'remote', '.npmrc'));
 
 	if (local !== undefined) {
 		// Both disturl and target come from a file checked into our repository
-		child_process.execFileSync(node_gyp, ['install', '--dist-url', local.disturl, local.target], { shell: true });
+		await installNodeGypHeaders(nodeGypScript, local.disturl, local.target);
 	}
 
 	if (remote !== undefined) {
 		// Both disturl and target come from a file checked into our repository
-		child_process.execFileSync(node_gyp, ['install', '--dist-url', remote.disturl, remote.target], { shell: true });
+		await installNodeGypHeaders(nodeGypScript, remote.disturl, remote.target);
 	}
 
-	// On Linux, apply a patch to the downloaded headers
-	// Remove dependency on std::source_location to avoid bumping the required GCC version to 11+
-	// Refs https://chromium-review.googlesource.com/c/v8/v8/+/6879784
-	if (process.platform === 'linux') {
-		const homedir = os.homedir();
-		const cachePath = process.env.XDG_CACHE_HOME || path.join(homedir, '.cache');
-		const nodeGypCache = path.join(cachePath, 'node-gyp');
-		const localHeaderPath = path.join(nodeGypCache, local!.target, 'include', 'node');
-		if (fs.existsSync(localHeaderPath)) {
-			console.log('Applying v8-source-location.patch to', localHeaderPath);
-			try {
-				child_process.execFileSync('patch', ['-p0', '-i', path.join(import.meta.dirname, 'gyp', 'custom-headers', 'v8-source-location.patch')], {
-					cwd: localHeaderPath
-				});
-			} catch (error) {
-				throw new Error(`Error applying v8-source-location.patch: ${(error as Error).message}`);
-			}
+	// Overlay any custom headers shipped in build/npm/gyp/custom-headers on top of
+	// the downloaded Electron headers. This is used to work around upstream issues:
+	//   - v8-source-location.h: remove dependency on std::source_location (GCC 11+ requirement)
+	//     Refs https://chromium-review.googlesource.com/c/v8/v8/+/6879784
+	//   - v8config.h: use compatible deprecation attribute syntax with GCC < 13
+	//     Refs https://gcc.gnu.org/bugzilla/show_bug.cgi?id=69585
+	if (local !== undefined) {
+		const localHeaderPath = getLocalHeaderPath(local.target);
+		if (localHeaderPath && fs.existsSync(localHeaderPath)) {
+			copyCustomHeaders(path.join(import.meta.dirname, 'gyp', 'custom-headers'), localHeaderPath);
 		}
 	}
+}
+
+function copyCustomHeaders(sourceDir: string, targetDir: string): void {
+	for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
+		const sourcePath = path.join(sourceDir, entry.name);
+		const targetPath = path.join(targetDir, entry.name);
+		if (entry.isDirectory()) {
+			fs.mkdirSync(targetPath, { recursive: true });
+			copyCustomHeaders(sourcePath, targetPath);
+		} else if (entry.isFile()) {
+			console.log('Overlaying custom header', targetPath);
+			fs.copyFileSync(sourcePath, targetPath);
+		}
+	}
+}
+
+function getLocalHeaderPath(target: string): string | undefined {
+	if (process.platform === 'win32') {
+		const localAppData = process.env.LOCALAPPDATA;
+		if (!localAppData) {
+			return undefined;
+		}
+		return path.join(localAppData, 'node-gyp', 'Cache', target, 'include', 'node');
+	}
+	if (process.platform === 'darwin') {
+		return path.join(os.homedir(), 'Library', 'Caches', 'node-gyp', target, 'include', 'node');
+	}
+	const homedir = os.homedir();
+	const cachePath = process.env.XDG_CACHE_HOME || path.join(homedir, '.cache');
+	return path.join(cachePath, 'node-gyp', target, 'include', 'node');
 }
 
 function getHeaderInfo(rcFile: string): { disturl: string; target: string } | undefined {
@@ -161,6 +194,9 @@ function getHeaderInfo(rcFile: string): { disturl: string; target: string } | un
 		let match = line.match(/\s*disturl=*\"(.*)\"\s*$/);
 		if (match !== null && match.length >= 1) {
 			disturl = match[1];
+			if (isCloudSandbox() && disturl === 'https://electronjs.org/headers') {
+				disturl = 'https://artifacts.electronjs.org/headers/dist';
+			}
 		}
 		match = line.match(/\s*target=*\"(.*)\"\s*$/);
 		if (match !== null && match.length >= 1) {

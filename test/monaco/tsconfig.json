@@ -10,7 +10,8 @@
 		"skipLibCheck": true,
 		"declaration": true,
 		"types": [
-			"mocha"
+			"mocha",
+			"node"
 		],
 		"lib": [
 			"esnext", // for #201187

@@ -136,9 +136,11 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	public async $disposeTree(treeViewId: string): Promise<void> {
 		const viewer = this.getTreeView(treeViewId);
 		if (viewer) {
+			viewer.dragAndDropController = undefined;
 			viewer.dataProvider = undefined;
 		}
 
+		this._dndControllers.delete(treeViewId);
 		this._dataProviders.deleteAndDispose(treeViewId);
 	}
 
@@ -218,6 +220,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		for (const dataprovider of this._dataProviders) {
 			const treeView = this.getTreeView(dataprovider[0]);
 			if (treeView) {
+				treeView.dragAndDropController = undefined;
 				treeView.dataProvider = undefined;
 			}
 		}
@@ -278,6 +281,10 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 	public resolveDropFileData(requestId: number, dataItemId: string): Promise<VSBuffer> {
 		return this.dataTransfersCache.resolveFileData(requestId, dataItemId);
 	}
+
+	handleDragEnd(operationUuid: string): void {
+		this._proxy.$releaseDragOperation(operationUuid);
+	}
 }
 
 class TreeViewDataProvider implements ITreeViewDataProvider {
@@ -292,12 +299,12 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		this.hasResolve = this._proxy.$hasResolve(this.treeViewId);
 	}
 
-	async getChildren(treeItem?: ITreeItem): Promise<ITreeItem[] | undefined> {
+	async getChildren(treeItem?: ITreeItem): Promise<readonly ITreeItem[] | undefined> {
 		const batches = await this.getChildrenBatch(treeItem ? [treeItem] : undefined);
 		return batches?.[0];
 	}
 
-	getChildrenBatch(treeItems?: ITreeItem[]): Promise<ITreeItem[][] | undefined> {
+	getChildrenBatch(treeItems?: ITreeItem[]): Promise<(readonly ITreeItem[])[] | undefined> {
 		if (!treeItems) {
 			this.itemsMap.clear();
 		}
@@ -317,12 +324,12 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 				});
 	}
 
-	private convertTransferChildren(parents: ITreeItem[], children: (number | ITreeItem)[][] | undefined) {
-		const convertedChildren: (ITreeItem[] | undefined)[] = Array(parents.length);
+	private convertTransferChildren(parents: ITreeItem[], children: (readonly (number | ITreeItem)[])[] | undefined) {
+		const convertedChildren: (readonly ITreeItem[] | undefined)[] = Array(parents.length);
 		if (children) {
 			for (const childGroup of children) {
 				const childGroupIndex = childGroup[0] as number;
-				convertedChildren[childGroupIndex] = childGroup.slice(1) as ITreeItem[];
+				convertedChildren[childGroupIndex] = childGroup.slice(1) as readonly ITreeItem[];
 			}
 		}
 		return convertedChildren;
@@ -366,7 +373,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		return this.itemsMap.size === 0;
 	}
 
-	private async postGetChildren(elementGroups: (ITreeItem[] | undefined)[] | undefined): Promise<ResolvableTreeItem[][] | undefined> {
+	private async postGetChildren(elementGroups: (readonly ITreeItem[] | undefined)[] | undefined): Promise<ResolvableTreeItem[][] | undefined> {
 		if (elementGroups === undefined) {
 			return undefined;
 		}

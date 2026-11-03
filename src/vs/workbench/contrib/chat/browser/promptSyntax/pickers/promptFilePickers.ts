@@ -7,7 +7,7 @@ import { localize } from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { AgentFileType, IExtensionPromptPath, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { AgentInstructionFileType, IExtensionPromptPath, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { basename, dirname, extUri, joinPath } from '../../../../../../base/common/resources.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -15,7 +15,7 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { getCleanPromptName, getSkillFolderName } from '../../../common/promptSyntax/config/promptFileLocations.js';
-import { PromptsType, INSTRUCTIONS_DOCUMENTATION_URL, AGENT_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL, SKILL_DOCUMENTATION_URL, HOOK_DOCUMENTATION_URL } from '../../../common/promptSyntax/promptTypes.js';
+import { getDocumentationUrl, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_AGENT_COMMAND_ID, NEW_SKILL_COMMAND_ID } from '../newPromptFileActions.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID, GENERATE_PROMPT_COMMAND_ID, GENERATE_SKILL_COMMAND_ID, GENERATE_AGENT_COMMAND_ID } from '../../actions/chatActions.js';
 import { IKeyMods, IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from '../../../../../../platform/quickinput/common/quickInput.js';
@@ -74,35 +74,36 @@ export interface ISelectPromptResult {
  */
 function newHelpButton(type: PromptsType): IQuickInputButton & { helpURI: URI } {
 	const iconClass = ThemeIcon.asClassName(Codicon.question);
+	const helpURI = URI.parse(getDocumentationUrl(type));
 	switch (type) {
 		case PromptsType.prompt:
 			return {
 				tooltip: localize('help.prompt', "Show help on prompt files"),
-				helpURI: URI.parse(PROMPT_DOCUMENTATION_URL),
+				helpURI,
 				iconClass
 			};
 		case PromptsType.instructions:
 			return {
 				tooltip: localize('help.instructions', "Show help on instruction files"),
-				helpURI: URI.parse(INSTRUCTIONS_DOCUMENTATION_URL),
+				helpURI,
 				iconClass
 			};
 		case PromptsType.agent:
 			return {
 				tooltip: localize('help.agent', "Show help on custom agent files"),
-				helpURI: URI.parse(AGENT_DOCUMENTATION_URL),
+				helpURI,
 				iconClass
 			};
 		case PromptsType.skill:
 			return {
 				tooltip: localize('help.skill', "Show help on skill files"),
-				helpURI: URI.parse(SKILL_DOCUMENTATION_URL),
+				helpURI,
 				iconClass
 			};
 		case PromptsType.hook:
 			return {
 				tooltip: localize('help.hook', "Show help on hook files"),
-				helpURI: URI.parse(HOOK_DOCUMENTATION_URL),
+				helpURI,
 				iconClass
 			};
 	}
@@ -475,7 +476,7 @@ export class PromptFilePickers {
 				// Don't show the folder path for files under .github folder (namely, copilot-instructions.md) since that is only defined once per repo.
 				return {
 					uri: agentInstructionFile.uri,
-					description: agentInstructionFile.type !== AgentFileType.copilotInstructionsMd ? folderName : undefined,
+					description: agentInstructionFile.type !== AgentInstructionFileType.copilotInstructionsMd ? folderName : undefined,
 					storage: PromptsStorage.local,
 					type: options.type
 				} satisfies IPromptPath;
@@ -532,13 +533,6 @@ export class PromptFilePickers {
 			result.push(...sortByLabel(await Promise.all(plugins.map(p => this._createPromptPickItem(p, pluginButtons, getVisibility(p), token)))));
 		}
 
-		// Internal built-in files are read-only
-		const internals = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.internal, token);
-		if (internals.length) {
-			const internalButtons: IQuickInputButton[] = [];
-			result.push({ type: 'separator', label: localize('separator.builtin', "Built-in") });
-			result.push(...sortByLabel(await Promise.all(internals.map(p => this._createPromptPickItem(p, internalButtons, getVisibility(p), token)))));
-		}
 		return result;
 	}
 
@@ -587,7 +581,7 @@ export class PromptFilePickers {
 			case PromptsStorage.plugin:
 				tooltip = promptFile.name;
 				break;
-			case PromptsStorage.internal:
+			case PromptsStorage.builtIn:
 				tooltip = undefined;
 				break;
 			default:

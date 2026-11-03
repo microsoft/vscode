@@ -3,36 +3,54 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../nls.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Queue } from '../../../../base/common/async.js';
+import { Promises, Queue } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { JSONPath, ParseError, parse } from '../../../../base/common/json.js';
 import { applyEdits, setProperty } from '../../../../base/common/jsonEdit.js';
 import { Edit, FormattingOptions } from '../../../../base/common/jsonFormatter.js';
-import { equals } from '../../../../base/common/objects.js';
+import { deepClone, equals } from '../../../../base/common/objects.js';
 import { distinct, equals as arrayEquals } from '../../../../base/common/arrays.js';
 import { OS, OperatingSystem } from '../../../../base/common/platform.js';
-import { IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationUpdateOptions, IConfigurationUpdateOverrides, IConfigurationValue, ConfigurationTarget, isConfigurationOverrides, isConfigurationUpdateOverrides } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOptions, IConfigurationUpdateOverrides, IConfigurationValue, ConfigurationTarget, isConfigurationOverrides, isConfigurationUpdateOverrides } from '../../../../platform/configuration/common/configuration.js';
+import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { ConfigurationChangeEvent, ConfigurationModel } from '../../../../platform/configuration/common/configurationModels.js';
-import { DefaultConfiguration, IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from '../../../../platform/configuration/common/configurations.js';
-import { Extensions, IConfigurationRegistry, keyFromOverrideIdentifiers } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from '../../../../platform/configuration/common/configurations.js';
+import { Extensions, IConfigurationRegistry, IRegisteredConfigurationPropertySchema, keyFromOverrideIdentifiers } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IFileService, FileOperationError, FileOperationResult } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IPolicyService, NullPolicyService } from '../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, IWorkspaceFolder, WorkbenchState, Workspace } from '../../../../platform/workspace/common/workspace.js';
-import { FolderConfiguration, UserConfiguration } from '../../../../workbench/services/configuration/browser/configuration.js';
-import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, FOLDER_CONFIG_FOLDER_NAME, FOLDER_SETTINGS_PATH, IWorkbenchConfigurationService, RestrictedSettings } from '../../../../workbench/services/configuration/common/configuration.js';
+import { DefaultConfiguration, FolderConfiguration, UserConfiguration, WorkspaceConfiguration } from '../../../../workbench/services/configuration/browser/configuration.js';
+import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, FOLDER_CONFIG_FOLDER_NAME, FOLDER_SETTINGS_PATH, IConfigurationCache, IWorkbenchConfigurationService, RestrictedSettings } from '../../../../workbench/services/configuration/common/configuration.js';
 import { Configuration } from '../../../../workbench/services/configuration/common/configurationModels.js';
+import { ConfigurationEditingError, ConfigurationEditingErrorCode } from '../../../../workbench/services/configuration/common/configurationEditing.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IUserDataProfileService } from '../../../../workbench/services/userDataProfile/common/userDataProfile.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../../../workbench/services/environment/browser/environmentService.js';
 
 // Import to register configuration contributions
 import '../../../../workbench/services/configuration/browser/configurationService.js';
+
+class SessionsDefaultConfiguration extends DefaultConfiguration {
+
+	protected override getDefaultValue(_key: string, propertySchema: IRegisteredConfigurationPropertySchema): unknown {
+		if (propertySchema.agentsWindow && propertySchema.defaultValueSource !== 'experiments') {
+			return deepClone(propertySchema.agentsWindow.default);
+		}
+		return super.getDefaultValue(_key, propertySchema);
+	}
+
+}
 
 export class ConfigurationService extends Disposable implements IWorkbenchConfigurationService {
 
@@ -42,7 +60,9 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 	private readonly defaultConfiguration: DefaultConfiguration;
 	private readonly policyConfiguration: IPolicyConfiguration;
 	private readonly userConfiguration: UserConfiguration;
+	private readonly workspaceConfiguration: WorkspaceConfiguration;
 	private readonly cachedFolderConfigs = this._register(new DisposableMap<URI, FolderConfiguration>(new ResourceMap()));
+	private readonly agentsWindowReadOnlyKeys = new Set<string>();
 
 	private readonly _onDidChangeConfiguration = this._register(new Emitter<IConfigurationChangeEvent>());
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
@@ -53,7 +73,8 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 
 	private readonly settingsResource: URI;
-	private readonly configurationEditing: ConfigurationEditing;
+	private instantiationService: IInstantiationService | undefined;
+	private configurationEditing: ConfigurationEditing | undefined;
 
 	constructor(
 		userDataProfileService: IUserDataProfileService,
@@ -62,14 +83,17 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		private readonly fileService: IFileService,
 		policyService: IPolicyService,
 		private readonly logService: ILogService,
+		configurationCache: IConfigurationCache,
+		environmentService: IBrowserWorkbenchEnvironmentService,
 	) {
 		super();
 
 		this.settingsResource = userDataProfileService.currentProfile.settingsResource;
-		this.defaultConfiguration = this._register(new DefaultConfiguration(logService));
+		this.defaultConfiguration = this._register(new SessionsDefaultConfiguration(userDataProfileService.currentProfile.id, configurationCache, environmentService, logService));
 		this.policyConfiguration = policyService instanceof NullPolicyService ? new NullPolicyConfiguration() : this._register(new PolicyConfiguration(this.defaultConfiguration, policyService, logService));
-		this.userConfiguration = this._register(new UserConfiguration(userDataProfileService.currentProfile.settingsResource, userDataProfileService.currentProfile.tasksResource, userDataProfileService.currentProfile.mcpResource, {}, fileService, uriIdentityService, logService));
-		this.configurationEditing = new ConfigurationEditing(fileService, this);
+		this.initAgentsWindowReadOnlyKeys();
+		this.userConfiguration = this._register(new UserConfiguration(userDataProfileService.currentProfile.settingsResource, userDataProfileService.currentProfile.tasksResource, userDataProfileService.currentProfile.mcpResource, { exclude: [...this.agentsWindowReadOnlyKeys] }, fileService, uriIdentityService, logService));
+		this.workspaceConfiguration = this._register(new WorkspaceConfiguration({ needsCaching: () => false, read: async () => '', write: async () => { }, remove: async () => { } }, fileService, uriIdentityService, logService));
 
 		this._configuration = new Configuration(
 			ConfigurationModel.createEmptyModel(logService),
@@ -88,24 +112,36 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		this._register(this.defaultConfiguration.onDidChangeConfiguration(({ defaults, properties }) => this.onDefaultConfigurationChanged(defaults, properties)));
 		this._register(this.policyConfiguration.onDidChangeConfiguration(configurationModel => this.onPolicyConfigurationChanged(configurationModel)));
 		this._register(this.userConfiguration.onDidChangeConfiguration(userConfiguration => this.onUserConfigurationChanged(userConfiguration)));
+		this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => this.onWorkspaceConfigurationChanged()));
 		this._register(this.workspaceService.onWillChangeWorkspaceFolders(e => e.join(this.loadFolderConfigurations(e.changes.added))));
 		this._register(this.workspaceService.onDidChangeWorkspaceFolders(e => this.onWorkspaceFoldersChanged(e)));
 	}
 
 	async initialize(): Promise<void> {
-		const [defaultModel, policyModel, userModel] = await Promise.all([
-			this.defaultConfiguration.initialize(),
-			this.policyConfiguration.initialize(),
-			this.userConfiguration.initialize()
-		]);
 		const workspace = this.workspaceService.getWorkspace() as Workspace;
+		const workspaceIdentifier = { id: workspace.id, configPath: workspace.configuration! };
+		// Policy definitions depend on the initialized default configuration.
+		await this.defaultConfiguration.initialize();
+		const [, userModel] = await Promise.all([
+			this.policyConfiguration.initialize(),
+			this.userConfiguration.initialize(),
+			this.workspaceConfiguration.initialize(workspaceIdentifier, true),
+		]);
+		this.workspaceConfiguration.reparseWorkspaceSettings({ exclude: [...this.agentsWindowReadOnlyKeys] });
+
+		// Capture models after file loading so policy updates during initialization are preserved.
+		const [defaultModel, policyModel, workspaceModel] = [
+			this.defaultConfiguration.configurationModel,
+			this.policyConfiguration.configurationModel,
+			this.workspaceConfiguration.getConfiguration(),
+		];
 		this._configuration = new Configuration(
 			defaultModel,
 			policyModel,
 			ConfigurationModel.createEmptyModel(this.logService),
 			userModel,
 			ConfigurationModel.createEmptyModel(this.logService),
-			ConfigurationModel.createEmptyModel(this.logService),
+			workspaceModel,
 			new ResourceMap(),
 			ConfigurationModel.createEmptyModel(this.logService),
 			new ResourceMap<ConfigurationModel>(),
@@ -113,6 +149,14 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 			this.logService
 		);
 		await this.loadFolderConfigurations(workspace.folders);
+	}
+
+	/**
+	 * This service is created before the workbench services, so it acquires
+	 * the instantiation service later to create its {@link ConfigurationEditing}.
+	 */
+	acquireInstantiationService(instantiationService: IInstantiationService): void {
+		this.instantiationService = instantiationService;
 	}
 
 	// #region IWorkbenchConfigurationService
@@ -135,10 +179,17 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 	updateValue(key: string, value: unknown, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
 	updateValue(key: string, value: unknown, target: ConfigurationTarget): Promise<void>;
 	updateValue(key: string, value: unknown, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, options?: IConfigurationUpdateOptions): Promise<void>;
-	async updateValue(key: string, value: unknown, arg3?: unknown, arg4?: unknown, _options?: IConfigurationUpdateOptions): Promise<void> {
+	async updateValue(key: string, value: unknown, arg3?: unknown, arg4?: unknown, options?: IConfigurationUpdateOptions): Promise<void> {
 		const overrides: IConfigurationUpdateOverrides | undefined = isConfigurationUpdateOverrides(arg3) ? arg3
 			: isConfigurationOverrides(arg3) ? { resource: arg3.resource, overrideIdentifiers: arg3.overrideIdentifier ? [arg3.overrideIdentifier] : undefined } : undefined;
-		const target: ConfigurationTarget | undefined = (overrides ? arg4 : arg3) as ConfigurationTarget | undefined;
+		let target: ConfigurationTarget | undefined = (overrides ? arg4 : arg3) as ConfigurationTarget | undefined;
+
+		// Always update chat.disableAIFeatures at workspace scope in the agents window
+		if (key === ChatAIDisabledSettingId) {
+			target = ConfigurationTarget.WORKSPACE;
+		}
+
+		const targets: ConfigurationTarget[] = target ? [target] : [];
 
 		if (overrides?.overrideIdentifiers) {
 			overrides.overrideIdentifiers = distinct(overrides.overrideIdentifiers);
@@ -150,9 +201,17 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 			throw new Error(`Unable to write ${key} because it is configured in system policy.`);
 		}
 
-		// Remove the setting, if the value is same as default value
-		if (equals(value, inspect.defaultValue)) {
-			value = undefined;
+		if (this.agentsWindowReadOnlyKeys.has(key)) {
+			throw new Error(`Unable to write ${key} because it is read-only in the Agents window.`);
+		}
+
+		if (!targets.length) {
+			targets.push(...this.deriveConfigurationTargets(key, value, inspect));
+
+			// Remove the setting, if the value is same as default value and is updated only in user target
+			if (equals(value, inspect.defaultValue) && targets.length === 1 && targets[0] === ConfigurationTarget.USER) {
+				value = undefined;
+			}
 		}
 
 		if (overrides?.overrideIdentifiers?.length && overrides.overrideIdentifiers.length > 1) {
@@ -163,20 +222,71 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 			}
 		}
 
-		const path = overrides?.overrideIdentifiers?.length ? [keyFromOverrideIdentifiers(overrides.overrideIdentifiers), key] : [key];
+		await Promises.settled(targets.map(t => this.writeConfigurationValue(key, value, t, overrides, options)));
+	}
+
+	private async writeConfigurationValue(key: string, value: unknown, target: ConfigurationTarget, overrides: IConfigurationUpdateOverrides | undefined, options: IConfigurationUpdateOptions | undefined): Promise<void> {
+		if (!this.instantiationService) {
+			throw new Error('Cannot write configuration because the configuration service is not yet ready to accept writes.');
+		}
+
+		let path = overrides?.overrideIdentifiers?.length ? [keyFromOverrideIdentifiers(overrides.overrideIdentifiers), key] : [key];
 
 		const settingsResource = this.getSettingsResource(target, overrides?.resource ?? undefined);
-		await this.configurationEditing.write(settingsResource, path, value);
-		await this.reloadConfiguration();
+
+		// When writing to the workspace configuration file, settings go under the "settings" key
+		if (this.isWorkspaceConfigurationResource(settingsResource)) {
+			path = ['settings', ...path];
+		}
+
+		// Use same instance of ConfigurationEditing to make sure all writes go through the same queue
+		this.configurationEditing ??= this.instantiationService.createInstance(ConfigurationEditing);
+		await this.configurationEditing.write(settingsResource, path, value, options);
+		await this.reloadConfiguration(target);
+	}
+
+	private deriveConfigurationTargets(_key: string, value: unknown, inspect: IConfigurationValue<unknown>): ConfigurationTarget[] {
+		if (equals(value, inspect.value)) {
+			return [];
+		}
+
+		const definedTargets: ConfigurationTarget[] = [];
+		if (inspect.workspaceFolderValue !== undefined) {
+			definedTargets.push(ConfigurationTarget.WORKSPACE_FOLDER);
+		}
+		if (inspect.workspaceValue !== undefined) {
+			definedTargets.push(ConfigurationTarget.WORKSPACE);
+		}
+		if (inspect.userValue !== undefined) {
+			definedTargets.push(ConfigurationTarget.USER);
+		}
+
+		if (value === undefined) {
+			// Remove the setting in all defined targets
+			return definedTargets;
+		}
+
+		return [definedTargets[0] || ConfigurationTarget.USER];
+	}
+
+	private isWorkspaceConfigurationResource(resource: URI): boolean {
+		const workspace = this.workspaceService.getWorkspace();
+		return !!(workspace.configuration && this.uriIdentityService.extUri.isEqual(workspace.configuration, resource));
 	}
 
 	private getSettingsResource(target: ConfigurationTarget | undefined, resource: URI | undefined): URI {
-		if (target === ConfigurationTarget.WORKSPACE_FOLDER || target === ConfigurationTarget.WORKSPACE) {
+		if (target === ConfigurationTarget.WORKSPACE_FOLDER) {
 			if (resource) {
 				const folder = this.workspaceService.getWorkspaceFolder(resource);
 				if (folder) {
 					return this.uriIdentityService.extUri.joinPath(folder.uri, FOLDER_SETTINGS_PATH);
 				}
+			}
+		}
+		if (target === ConfigurationTarget.WORKSPACE) {
+			const workspace = this.workspaceService.getWorkspace();
+			if (workspace.configuration) {
+				return workspace.configuration;
 			}
 		}
 		return this.settingsResource;
@@ -191,9 +301,21 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 	}
 
 	async reloadConfiguration(_target?: ConfigurationTarget | IWorkspaceFolder): Promise<void> {
+		if (_target === undefined || _target === ConfigurationTarget.DEFAULT) {
+			this.reloadDefaultConfiguration();
+		}
+		if (_target === ConfigurationTarget.DEFAULT) {
+			return;
+		}
+
 		const userModel = await this.userConfiguration.initialize();
 		const previousData = this._configuration.toData();
 		const change = this._configuration.compareAndUpdateLocalUserConfiguration(userModel);
+
+		// Reload workspace configuration
+		const workspaceChange = await this.loadWorkspaceConfiguration();
+		change.keys.push(...workspaceChange.keys);
+		change.overrides.push(...workspaceChange.overrides);
 
 		// Reload folder configurations
 		for (const folder of this.workspaceService.getWorkspace().folders) {
@@ -209,8 +331,12 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		this.triggerConfigurationChange(change, previousData, ConfigurationTarget.USER);
 	}
 
+	private reloadDefaultConfiguration(): void {
+		this.onDefaultConfigurationChanged(this.defaultConfiguration.reload());
+	}
+
 	hasCachedConfigurationDefaultsOverrides(): boolean {
-		return false;
+		return this.defaultConfiguration.hasCachedConfigurationDefaultsOverrides();
 	}
 
 	async whenRemoteConfigurationLoaded(): Promise<void> { }
@@ -226,12 +352,36 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 
 	// #endregion
 
+	private initAgentsWindowReadOnlyKeys(): void {
+		const properties = this.configurationRegistry.getConfigurationProperties();
+		for (const key in properties) {
+			if (properties[key].agentsWindow?.readOnly) {
+				this.agentsWindowReadOnlyKeys.add(key);
+			}
+		}
+	}
+
+	private updateAgentsWindowReadOnlyKeys(changedProperties: string[]): void {
+		const properties = this.configurationRegistry.getConfigurationProperties();
+		for (const key of changedProperties) {
+			if (properties[key]?.agentsWindow?.readOnly) {
+				this.agentsWindowReadOnlyKeys.add(key);
+			} else {
+				this.agentsWindowReadOnlyKeys.delete(key);
+			}
+		}
+	}
+
 	// #region Configuration change handlers
 
 	private onDefaultConfigurationChanged(defaults: ConfigurationModel, properties?: string[]): void {
+		if (properties) {
+			this.updateAgentsWindowReadOnlyKeys(properties);
+		}
 		const previousData = this._configuration.toData();
 		const change = this._configuration.compareAndUpdateDefaultConfiguration(defaults, properties);
-		this._configuration.updateLocalUserConfiguration(this.userConfiguration.reparse());
+		this._configuration.updateLocalUserConfiguration(this.userConfiguration.reparse({ exclude: [...this.agentsWindowReadOnlyKeys] }));
+		this._configuration.updateWorkspaceConfiguration(this.workspaceConfiguration.reparseWorkspaceSettings({ exclude: [...this.agentsWindowReadOnlyKeys] }));
 		for (const folder of this.workspaceService.getWorkspace().folders) {
 			const folderConfiguration = this.cachedFolderConfigs.get(folder.uri);
 			if (folderConfiguration) {
@@ -251,6 +401,18 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		const previousData = this._configuration.toData();
 		const change = this._configuration.compareAndUpdateLocalUserConfiguration(userConfiguration);
 		this.triggerConfigurationChange(change, previousData, ConfigurationTarget.USER);
+	}
+
+	private async onWorkspaceConfigurationChanged(): Promise<void> {
+		const previousData = this._configuration.toData();
+		const change = await this.loadWorkspaceConfiguration();
+		this.triggerConfigurationChange(change, previousData, ConfigurationTarget.WORKSPACE);
+	}
+
+	private async loadWorkspaceConfiguration(): Promise<IConfigurationChange> {
+		await this.workspaceConfiguration.reload();
+		this.workspaceConfiguration.reparseWorkspaceSettings({ exclude: [...this.agentsWindowReadOnlyKeys] });
+		return this._configuration.compareAndUpdateWorkspaceConfiguration(this.workspaceConfiguration.getConfiguration());
 	}
 
 	private onWorkspaceFoldersChanged(e: IWorkspaceFoldersChangeEvent): void {
@@ -305,17 +467,48 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 	// #endregion
 }
 
+/**
+ * Writes settings files and, like the workbench's `ConfigurationEditing`,
+ * reports failed writes to the user unless the caller handles them.
+ */
 class ConfigurationEditing {
 
 	private readonly queue = new Queue<void>();
 
 	constructor(
-		private readonly fileService: IFileService,
-		private readonly configurationService: ConfigurationService,
+		@IFileService private readonly fileService: IFileService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IEditorService private readonly editorService: IEditorService,
 	) { }
 
-	write(settingsResource: URI, path: JSONPath, value: unknown): Promise<void> {
-		return this.queue.queue(() => this.doWriteConfiguration(settingsResource, path, value));
+	write(settingsResource: URI, path: JSONPath, value: unknown, options: IConfigurationUpdateOptions | undefined): Promise<void> {
+		// queue up writes to prevent race conditions
+		return this.queue.queue(async () => {
+			try {
+				await this.doWriteConfiguration(settingsResource, path, value);
+			} catch (error) {
+				if (options?.donotNotifyError) {
+					throw error;
+				}
+				this.onError(error, settingsResource);
+			}
+		});
+	}
+
+	private onError(error: unknown, settingsResource: URI): void {
+		if (error instanceof ConfigurationEditingError && error.code === ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION) {
+			this.onInvalidConfigurationError(error, settingsResource);
+		} else {
+			this.notificationService.error(error instanceof Error ? error : String(error));
+		}
+	}
+
+	private onInvalidConfigurationError(error: ConfigurationEditingError, settingsResource: URI): void {
+		this.notificationService.prompt(Severity.Error, error.message, [{
+			label: localize('openSettings', "Open Settings"),
+			run: () => this.editorService.openEditor({ resource: settingsResource, options: { pinned: true } })
+		}]);
 	}
 
 	private async doWriteConfiguration(settingsResource: URI, path: JSONPath, value: unknown): Promise<void> {
@@ -334,7 +527,7 @@ class ConfigurationEditing {
 		const parseErrors: ParseError[] = [];
 		parse(content, parseErrors, { allowTrailingComma: true, allowEmptyContent: true });
 		if (parseErrors.length > 0) {
-			throw new Error('Unable to write into the settings file. Please open the file to correct errors/warnings in the file and try again.');
+			throw new ConfigurationEditingError(localize('errorInvalidConfiguration', "Unable to write into the settings file. Please open the file to correct errors/warnings in the file and try again."), ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION);
 		}
 
 		const edits = this.getEdits(content, path, value);

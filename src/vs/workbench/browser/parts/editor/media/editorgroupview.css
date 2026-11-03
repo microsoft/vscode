@@ -80,17 +80,35 @@
 
 /* Watermark & shortcuts */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark  {
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper {
+	position: relative;
+	width: 100%;
+	height: 100%;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper > .editor-group-watermark-toolbar-container {
+	position: absolute;
+	top: 0;
+	right: 0;
+	height: 35px;
+	display: flex;
+	align-items: center;
+	padding: 0 8px;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper > .editor-group-watermark  {
 	display: flex;
 	height: 100%;
-	max-width: 272px;
+	width: calc(100% - var(--vscode-spacing-size240) - var(--vscode-spacing-size240));
+	max-width: 320px;
 	margin: auto;
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .watermark-container {
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper > .editor-group-watermark > .watermark-container {
 	display: flex;
 	width: 100%;
 	flex-direction: column;
@@ -99,17 +117,17 @@
 	gap: 24px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container:not(.empty) > .editor-group-watermark {
+.monaco-workbench .part.editor > .content .editor-group-container:not(.empty) > .editor-group-watermark-wrapper {
 	display: none;
 }
 
-.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container.empty > .editor-group-watermark,
-.monaco-workbench .part.editor > .content.auxiliary .editor-group-container.empty > .editor-group-watermark {
+.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container.empty > .editor-group-watermark-wrapper > .editor-group-watermark,
+.monaco-workbench .part.editor > .content.auxiliary .editor-group-container.empty > .editor-group-watermark-wrapper > .editor-group-watermark {
 	max-width: 200px;
 	height: calc(100% - 70px);
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .letterpress {
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper .editor-group-watermark .letterpress {
 	width: 100%;
 	max-height: 100%;
 	aspect-ratio: 1/1;
@@ -132,44 +150,68 @@
 	background-image: url('./letterpress-hcDark.svg');
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts {
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper .editor-group-watermark .shortcuts {
 	width: 100%;
 }
 
-.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container > .editor-group-watermark .shortcuts,
-.monaco-workbench .part.editor > .content.auxiliary .editor-group-container > .editor-group-watermark .shortcuts,
-.monaco-workbench .part.editor > .content .editor-group-container.max-height-478px > .editor-group-watermark .shortcuts {
+.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container > .editor-group-watermark-wrapper .editor-group-watermark .shortcuts,
+.monaco-workbench .part.editor > .content.auxiliary .editor-group-container > .editor-group-watermark-wrapper .editor-group-watermark .shortcuts,
+.monaco-workbench .part.editor > .content .editor-group-container.max-height-478px > .editor-group-watermark-wrapper .editor-group-watermark .shortcuts {
 	display: none;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts > .watermark-box {
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper .editor-group-watermark .shortcuts > .watermark-box {
 	display: flex;
 	flex-direction: column;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts dl {
+.monaco-workbench .editor-group-watermark .watermark-box .monaco-action-bar.vertical .actions-container {
+	display: block;
+}
+
+.monaco-workbench .editor-group-watermark .watermark-entry {
 	display: flex;
-	justify-content: space-between;
-	margin: 4px 0;
-	cursor: default;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	height: var(--vscode-spacing-size280);
+	padding: 0 var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-regular);
+	text-decoration: none;
+}
+
+.monaco-workbench .editor-group-watermark .watermark-entry:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.monaco-workbench .editor-group-watermark .watermark-entry:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.monaco-workbench .editor-group-watermark .watermark-entry > .watermark-icon {
+	flex: 0 0 auto;
+	width: var(--vscode-codiconFontSize);
+	font-size: var(--vscode-codiconFontSize);
 	color: var(--vscode-descriptionForeground);
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts dl:first-of-type {
-	margin-top: 0;
+.monaco-workbench .editor-group-watermark .watermark-label {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts dl:last-of-type {
-	margin-bottom: 0;
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts dt {
-	letter-spacing: 0.04em;
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts dd {
-	text-align: left;
-	margin-inline-start: 24px;
+.monaco-workbench .editor-group-watermark .watermark-keybinding {
+	flex: 0 0 auto;
+	color: var(--vscode-descriptionForeground);
 }
 
 /* Title */
@@ -193,12 +235,21 @@
 	z-index: 9;
 	pointer-events: none;
 	background-color: var(--title-border-bottom-color);
-	width: 100%;
+	width: var(--title-border-bottom-width, 100%);
 	height: 1px;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container.empty > .title {
 	display: none;
+}
+
+/* Optional full-width header rendered in flow between the tab bar and the editor
+ * pane (used by the Agents window single-pane layout). Height is set inline. */
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-header {
+	position: relative;
+	box-sizing: border-box;
+	width: 100%;
+	overflow: hidden;
 }
 
 /* Toolbar */

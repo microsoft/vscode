@@ -9,9 +9,10 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IEditorSerializer } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { CustomEditorInput } from './customEditorInput.js';
-import { ICustomEditorService } from '../common/customEditor.js';
+import { CustomEditorDiffInput, CustomEditorSideBySideDiffInput, CustomEditorSideBySideDiffSide } from './customEditorDiffInput.js';
 import { NotebookEditorInput } from '../../notebook/common/notebookEditorInput.js';
 import { IWebviewService, WebviewContentOptions, WebviewContentPurpose, WebviewExtensionDescription, WebviewOptions } from '../../webview/browser/webview.js';
 import { DeserializedWebview, restoreWebviewContentOptions, restoreWebviewOptions, reviveWebviewExtensionDescription, reviveWebviewIconPath, SerializedWebview, SerializedWebviewOptions, WebviewEditorInputSerializer } from '../../webviewPanel/browser/webviewEditorInputSerializer.js';
@@ -101,12 +102,113 @@ export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 			resource: data.editorResource,
 			viewType: data.viewType,
 			webviewTitle: data.title,
+			preferredName: undefined,
 			iconPath: data.iconPath,
 		}, webview, { startsDirty: data.dirty, backupId: data.backupId });
 		if (typeof data.group === 'number') {
 			customInput.updateGroup(data.group);
 		}
 		return customInput;
+	}
+}
+
+interface SerializedCustomEditorDiff {
+	readonly originalResource: UriComponents;
+	readonly modifiedResource: UriComponents;
+	readonly viewType: string;
+	readonly label: string | undefined;
+	readonly description: string | undefined;
+	readonly dirty: boolean;
+}
+
+export class CustomEditorDiffInputSerializer implements IEditorSerializer {
+
+	public static readonly ID = CustomEditorDiffInput.typeId;
+
+	public constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+	) { }
+
+	canSerialize(input: EditorInput): boolean {
+		return input instanceof CustomEditorDiffInput;
+	}
+
+	serialize(input: CustomEditorDiffInput): string | undefined {
+		const data: SerializedCustomEditorDiff = {
+			originalResource: input.originalResource.toJSON(),
+			modifiedResource: input.modifiedResource.toJSON(),
+			viewType: input.viewType,
+			label: input.getName(),
+			description: input.getDescription(),
+			dirty: input.isDirty(),
+		};
+		try {
+			return JSON.stringify(data);
+		} catch {
+			return undefined;
+		}
+	}
+
+	deserialize(_instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
+		const data: SerializedCustomEditorDiff = JSON.parse(serializedEditorInput);
+		return CustomEditorDiffInput.create(this._instantiationService, {
+			originalResource: URI.revive(data.originalResource),
+			modifiedResource: URI.revive(data.modifiedResource),
+			viewType: data.viewType,
+			label: data.label,
+			description: data.description,
+			iconPath: undefined,
+		}, undefined);
+	}
+}
+
+interface SerializedCustomEditorSideBySideDiff extends SerializedCustomEditorDiff {
+	readonly diffId: string;
+	readonly side: CustomEditorSideBySideDiffSide;
+}
+
+export class CustomEditorSideBySideDiffInputSerializer implements IEditorSerializer {
+
+	public static readonly ID = CustomEditorSideBySideDiffInput.typeId;
+
+	public constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+	) { }
+
+	canSerialize(input: EditorInput): boolean {
+		return input instanceof CustomEditorSideBySideDiffInput;
+	}
+
+	serialize(input: CustomEditorSideBySideDiffInput): string | undefined {
+		const data: SerializedCustomEditorSideBySideDiff = {
+			originalResource: input.originalResource.toJSON(),
+			modifiedResource: input.modifiedResource.toJSON(),
+			viewType: input.viewType,
+			label: input.getName(),
+			description: input.getDescription(),
+			dirty: input.isDirty(),
+			diffId: input.diffId,
+			side: input.side,
+		};
+		try {
+			return JSON.stringify(data);
+		} catch {
+			return undefined;
+		}
+	}
+
+	deserialize(_instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
+		const data: SerializedCustomEditorSideBySideDiff = JSON.parse(serializedEditorInput);
+		return CustomEditorSideBySideDiffInput.create(this._instantiationService, {
+			originalResource: URI.revive(data.originalResource),
+			modifiedResource: URI.revive(data.modifiedResource),
+			viewType: data.viewType,
+			label: data.label,
+			description: data.description,
+			iconPath: undefined,
+			diffId: data.diffId,
+			side: data.side,
+		}, undefined);
 	}
 }
 
@@ -136,7 +238,6 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 		@IWorkingCopyEditorService _workingCopyEditorService: IWorkingCopyEditorService,
 		@IWorkingCopyBackupService private readonly _workingCopyBackupService: IWorkingCopyBackupService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
-		@ICustomEditorService _customEditorService: ICustomEditorService // DO NOT REMOVE (needed on startup to register overrides properly)
 	) {
 		super();
 
@@ -202,6 +303,7 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 			resource: URI.revive(backupData.editorResource),
 			viewType: backupData.viewType,
 			webviewTitle: backupData.customTitle,
+			preferredName: undefined,
 			iconPath: reviveWebviewIconPath(backupData.iconPath)
 		}, webview, { backupId: backupData.backupId });
 		editor.updateGroup(0);

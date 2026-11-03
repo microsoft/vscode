@@ -1,0 +1,12 @@
+diff --git a/01-basic b/01-basic-add-line
+index 30c5fc9cb..dccb43516 100644
+--- a/01-basic
++++ b/01-basic-add-line
+@@ -8,6 +8,7 @@ export function f(args_: string[], flags: any, child: any) {
+ 		child.stdout?.on('data', (data) => console.log(data.toString('utf8')));
+ 		child.stderr?.on('data', (data) => console.error(data.toString('utf8')));
+ 	}
++	// this is new line
+ 	if (flags.verbose) {
+ 		return new Promise((c) => child.once('exit', () => c(null)));
+ 	}

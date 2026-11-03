@@ -1,0 +1,35 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call the get_magic_word tool and then report whether it succeeded.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: get_magic_word
+          input: {}
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call the get_magic_word tool and then report whether it succeeded.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: get_magic_word
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Client copilot-client-tool-disconnect disconnected before completing get_magic_word
+    response:
+      content: The tool call failed — the client disconnected before `get_magic_word` could complete, so no magic word was returned.
+      stopReason: end_turn

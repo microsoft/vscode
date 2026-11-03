@@ -26,7 +26,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILifecycleService, BeforeShutdownEvent, ShutdownReason } from '../../lifecycle/common/lifecycle.js';
 import { BrowserLifecycleService } from '../../lifecycle/browser/lifecycleService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { getWorkspaceIdentifier } from '../../workspaces/browser/workspaces.js';
+import { getWorkspaceIdentifier } from '../../../../platform/workspaces/common/workspaceIdentifier.js';
 import { localize } from '../../../../nls.js';
 import Severity from '../../../../base/common/severity.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -403,7 +403,9 @@ export class BrowserHostService extends Disposable implements IHostService {
 						if (options.mergeMode) {
 							filesToWaitFor.push(fileOpenables[3].fileUri /* [3] is the resulting merge file */);
 						} else {
-							filesToWaitFor.push(...fileOpenables.map(fileOpenable => fileOpenable.fileUri));
+							// Support: --goto parameter where line/col got stripped from the opened editors
+							const stripLineAndColumn = options.gotoLineMode && !(options.diffMode && fileOpenables.length === 2);
+							filesToWaitFor.push(...fileOpenables.map(({ fileUri }) => stripLineAndColumn ? fileUri.with({ path: parseLineAndColumnAware(fileUri.path).path }) : fileUri));
 						}
 						await this.instantiationService.invokeFunction(accessor => whenEditorClosed(accessor, filesToWaitFor));
 
@@ -634,6 +636,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 		await this.handleExpectedShutdown(ShutdownReason.CLOSE);
 
 		mainWindow.close();
+	}
+
+	async shutdown(): Promise<void> {
+		return this.close();
 	}
 
 	async withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {

@@ -1,0 +1,283 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.survey-editor-pane {
+	height: 100%;
+	overflow-y: auto;
+	display: flex;
+	justify-content: center;
+	align-items: flex-start;
+}
+
+.survey-editor-pane .survey-form {
+	container-type: inline-size;
+	max-width: 720px;
+	width: 100%;
+	padding: 40px 20px 80px;
+}
+
+/* Header */
+
+.survey-editor-pane .survey-title {
+	font-size: 18px;
+	font-weight: 600;
+	margin-bottom: 4px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.survey-editor-pane .survey-title .survey-title-icon {
+	color: var(--vscode-focusBorder);
+}
+
+.survey-editor-pane .survey-description {
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 28px;
+}
+
+/* Questions */
+
+.survey-editor-pane .survey-question {
+	margin-bottom: 20px;
+}
+
+.survey-editor-pane .survey-question-label {
+	font-weight: 600;
+	margin-bottom: 8px;
+	display: block;
+}
+
+/* Segmented control — uses --vscode-radio-* tokens from the Radio widget palette */
+
+.survey-editor-pane .survey-segment-group {
+	position: relative;
+	display: flex;
+	flex-wrap: nowrap;
+	border: var(--vscode-strokeThickness) solid var(--vscode-radio-inactiveBorder, var(--vscode-input-border, transparent));
+	border-radius: var(--vscode-cornerRadius-small, 4px);
+}
+
+.survey-editor-pane .survey-segment-group .survey-segment-input {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+.survey-editor-pane .survey-segment-group .survey-segment-label {
+	flex: 1;
+	min-width: 0;
+	text-align: center;
+	padding: 8px 6px;
+	cursor: pointer;
+	border-right: var(--vscode-strokeThickness) solid var(--vscode-radio-inactiveBorder, var(--vscode-input-border, transparent));
+	color: var(--vscode-radio-inactiveForeground, inherit);
+	background-color: var(--vscode-radio-inactiveBackground, transparent);
+	transition: background-color 0.1s;
+	user-select: none;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.survey-editor-pane .survey-segment-group .survey-segment-label:first-of-type {
+	border-radius: var(--vscode-cornerRadius-small, 4px) 0 0 var(--vscode-cornerRadius-small, 4px);
+}
+
+.survey-editor-pane .survey-segment-group .survey-segment-label:last-of-type {
+	border-right: none;
+	border-radius: 0 var(--vscode-cornerRadius-small, 4px) var(--vscode-cornerRadius-small, 4px) 0;
+}
+
+.survey-editor-pane .survey-segment-group .survey-segment-label:hover {
+	background-color: var(--vscode-radio-inactiveHoverBackground, var(--vscode-list-hoverBackground));
+}
+
+.survey-editor-pane .survey-segment-group .survey-segment-input:checked + .survey-segment-label {
+	background-color: var(--vscode-radio-activeBackground, var(--vscode-list-activeSelectionBackground));
+	color: var(--vscode-radio-activeForeground, var(--vscode-list-activeSelectionForeground));
+	border-color: var(--vscode-radio-activeBorder, transparent);
+}
+
+.survey-editor-pane .survey-segment-group .survey-segment-input:focus-visible + .survey-segment-label {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: -2px;
+	z-index: 1;
+	position: relative;
+}
+
+/* HC: distinct border on selected segment */
+.hc-black .survey-editor-pane .survey-segment-group .survey-segment-input:checked + .survey-segment-label,
+.hc-light .survey-editor-pane .survey-segment-group .survey-segment-input:checked + .survey-segment-label {
+	outline: 1px solid var(--vscode-contrastActiveBorder, transparent);
+	outline-offset: -1px;
+}
+
+/* HC: focus must be visually distinct from checked */
+.hc-black .survey-editor-pane .survey-segment-group .survey-segment-input:focus-visible + .survey-segment-label,
+.hc-light .survey-editor-pane .survey-segment-group .survey-segment-input:focus-visible + .survey-segment-label {
+	outline: 2px dashed var(--vscode-focusBorder);
+	outline-offset: -2px;
+}
+
+/* List-row selection — full-width clickable rows with hidden native radios */
+
+.survey-editor-pane .survey-list-group {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: 2px;
+}
+
+.survey-editor-pane .survey-list-group.columns-2 {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.survey-editor-pane .survey-list-option {
+	display: block;
+	padding: 6px 10px;
+	border: var(--vscode-strokeThickness) solid transparent;
+	cursor: pointer;
+	transition: background-color 0.1s;
+	user-select: none;
+}
+
+.survey-editor-pane .survey-list-option .survey-list-input {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+.survey-editor-pane .survey-list-option:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.survey-editor-pane .survey-list-option:has(.survey-list-input:checked) {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+	border-color: var(--vscode-focusBorder);
+}
+
+.survey-editor-pane .survey-list-option:has(.survey-list-input:focus-visible) {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* HC: distinct border on selected list row */
+.hc-black .survey-editor-pane .survey-list-option:has(.survey-list-input:checked),
+.hc-light .survey-editor-pane .survey-list-option:has(.survey-list-input:checked) {
+	outline: 1px solid var(--vscode-contrastActiveBorder);
+	outline-offset: -1px;
+}
+
+/* HC: focus must be visually distinct from checked */
+.hc-black .survey-editor-pane .survey-list-option:has(.survey-list-input:focus-visible),
+.hc-light .survey-editor-pane .survey-list-option:has(.survey-list-input:focus-visible) {
+	outline: 2px dashed var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Submit */
+
+.survey-editor-pane .survey-submit-row {
+	margin-top: 20px;
+}
+
+.survey-editor-pane .survey-submit-hint {
+	margin-top: 8px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+}
+
+/* Success / "sent" state */
+
+.survey-editor-pane .survey-success {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+	padding: 60px 20px;
+	animation: survey-success-appear 0.3s ease-out;
+}
+
+.survey-editor-pane .survey-success .survey-success-icon {
+	font-size: var(--vscode-codiconFontSize, 16px);
+	transform: scale(2);
+	transform-origin: center;
+	color: var(--vscode-charts-green);
+	margin-bottom: 24px;
+}
+
+.survey-editor-pane .survey-success .survey-success-message {
+	font-size: 14px;
+	font-weight: 600;
+	margin-bottom: 4px;
+}
+
+.survey-editor-pane .survey-success .survey-success-detail {
+	color: var(--vscode-descriptionForeground);
+}
+
+@keyframes survey-success-appear {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	@keyframes survey-success-appear {
+		from { opacity: 0; }
+		to { opacity: 1; }
+	}
+}
+
+/* Responsive: segment stacks vertically on narrow editors */
+
+@container (max-width: 560px) {
+	.survey-editor-pane .survey-segment-group {
+		flex-direction: column;
+	}
+
+	.survey-editor-pane .survey-segment-group .survey-segment-label {
+		border-right: none;
+		border-bottom: var(--vscode-strokeThickness) solid var(--vscode-radio-inactiveBorder, var(--vscode-input-border, transparent));
+		text-align: left;
+		padding: 8px 12px;
+	}
+
+	.survey-editor-pane .survey-segment-group .survey-segment-label:first-of-type {
+		border-radius: var(--vscode-cornerRadius-small, 4px) var(--vscode-cornerRadius-small, 4px) 0 0;
+	}
+
+	.survey-editor-pane .survey-segment-group .survey-segment-label:last-of-type {
+		border-bottom: none;
+		border-radius: 0 0 var(--vscode-cornerRadius-small, 4px) var(--vscode-cornerRadius-small, 4px);
+	}
+}
+
+/* Responsive: list grid collapses to single column on very narrow editors */
+
+@container (max-width: 480px) {
+	.survey-editor-pane .survey-list-group.columns-2 {
+		grid-template-columns: 1fr;
+	}
+}

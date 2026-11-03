@@ -593,10 +593,17 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 						continue;
 					}
 
+					const model = this.editor.getModel();
+					if (model && (line < 1 || line > model.getLineCount())) {
+						// The message location was recorded against a previous document
+						// state; the referenced line no longer exists after edits.
+						continue;
+					}
+
 					seenLines.add(line);
 					let deco = this.errorContentWidgets.get(m);
 					if (!deco) {
-						const lineLength = this.editor.getModel()?.getLineLength(line) ?? 100;
+						const lineLength = model?.getLineLength(line) ?? 100;
 						deco = this.instantiationService.createInstance(
 							TestErrorContentWidget,
 							this.editor,
@@ -770,6 +777,7 @@ const createRunTestDecoration = (
 		glyphMarginClassName: `${ThemeIcon.asClassName(primaryIcon)} ${glyphMarginClassName}`,
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		zIndex: 10000,
+		overviewRuler: isFailedState(computedState) ? { color: themeColorFromId(overviewRulerError), position: OverviewRulerLane.Center } : undefined,
 	};
 
 	const alternateOptions: IModelDecorationOptions = {
@@ -1287,7 +1295,8 @@ class TestMessageDecoration implements ITestDecoration {
 		const message = testMessage.message;
 
 		const options = editorService.resolveDecorationOptions(TestMessageDecoration.decorationId, true);
-		options.hoverMessage = typeof message === 'string' ? new MarkdownString().appendText(message) : message;
+		const hoverText = renderTestMessageAsText(message);
+		options.hoverMessage = new MarkdownString().appendText(hoverText);
 		options.zIndex = 10; // todo: in spite of the z-index, this appears behind gitlens
 		options.className = `testing-inline-message-severity-${severity}`;
 		options.isWholeLine = true;

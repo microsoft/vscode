@@ -5,35 +5,40 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { isNumber } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
+import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { ILanguageModelToolsService } from '../../../chat/common/tools/languageModelToolsService.js';
+import { IToolResultCompressor } from '../../../chat/common/tools/toolResultCompressor.js';
 import { registerActiveInstanceAction, sharedWhenClause } from '../../../terminal/browser/terminalActions.js';
 import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenus.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalChatAgentToolsCommandId } from '../common/terminal.chatAgentTools.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
-import { AwaitTerminalTool, AwaitTerminalToolData } from './tools/awaitTerminalTool.js';
+import { AgentNetworkDomainSettingId } from '../../../../../platform/networkFilter/common/settings.js';
+import { AgentHostSandboxForwarder } from './agentHostSandboxForwarder.js';
 import { GetTerminalLastCommandTool, GetTerminalLastCommandToolData } from './tools/getTerminalLastCommandTool.js';
 import { KillTerminalTool, KillTerminalToolData } from './tools/killTerminalTool.js';
 import { GetTerminalOutputTool, GetTerminalOutputToolData } from './tools/getTerminalOutputTool.js';
+import { SendToTerminalTool, SendToTerminalToolData } from './tools/sendToTerminalTool.js';
 import { GetTerminalSelectionTool, GetTerminalSelectionToolData } from './tools/getTerminalSelectionTool.js';
 import { ConfirmTerminalCommandTool, ConfirmTerminalCommandToolData } from './tools/runInTerminalConfirmationTool.js';
 import { RunInTerminalTool, createRunInTerminalToolData } from './tools/runInTerminalTool.js';
 import { CreateAndRunTaskTool, CreateAndRunTaskToolData } from './tools/task/createAndRunTaskTool.js';
 import { GetTaskOutputTool, GetTaskOutputToolData } from './tools/task/getTaskOutputTool.js';
 import { RunTaskTool, RunTaskToolData } from './tools/task/runTaskTool.js';
+import { registerTerminalCompressors } from './tools/terminalOutputCompressor.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { ITrustedDomainService } from '../../../url/common/trustedDomainService.js';
 import { ITerminalSandboxService, TerminalSandboxService } from '../common/terminalSandboxService.js';
+import { isNumber } from '../../../../../base/common/types.js';
 
 // #region Services
 
@@ -48,13 +53,13 @@ class ShellIntegrationTimeoutMigrationContribution extends Disposable implements
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
-		const deprecatedSettingValue = configurationService.getValue<unknown>(TerminalChatAgentToolsSettingId.ShellIntegrationTimeout);
-		if (!isNumber(deprecatedSettingValue)) {
-			return;
+		const deprecated = configurationService.inspect<number>(TerminalChatAgentToolsSettingId.ShellIntegrationTimeout);
+		const target = configurationService.inspect<number>(TerminalSettingId.ShellIntegrationTimeout);
+		if (deprecated.userValue !== undefined && target.userValue === undefined && isNumber(deprecated.userValue)) {
+			configurationService.updateValue(TerminalSettingId.ShellIntegrationTimeout, deprecated.userValue, ConfigurationTarget.USER);
 		}
-		const newSettingValue = configurationService.getValue<unknown>(TerminalSettingId.ShellIntegrationTimeout);
-		if (!isNumber(newSettingValue)) {
-			configurationService.updateValue(TerminalSettingId.ShellIntegrationTimeout, deprecatedSettingValue);
+		if (deprecated.workspaceValue !== undefined && target.workspaceValue === undefined && isNumber(deprecated.workspaceValue)) {
+			configurationService.updateValue(TerminalSettingId.ShellIntegrationTimeout, deprecated.workspaceValue, ConfigurationTarget.WORKSPACE);
 		}
 	}
 }
@@ -87,9 +92,11 @@ export class ChatAgentToolsContribution extends Disposable implements IWorkbench
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
+		@IToolResultCompressor toolResultCompressor: IToolResultCompressor,
 	) {
 		super();
+
+		registerTerminalCompressors(toolResultCompressor);
 
 		// #region Terminal
 
@@ -99,13 +106,13 @@ export class ChatAgentToolsContribution extends Disposable implements IWorkbench
 		this._register(_toolsService.registerTool(GetTerminalOutputToolData, getTerminalOutputTool));
 		this._register(_toolsService.executeToolSet.addTool(GetTerminalOutputToolData));
 
-		const awaitTerminalTool = _instantiationService.createInstance(AwaitTerminalTool);
-		this._register(_toolsService.registerTool(AwaitTerminalToolData, awaitTerminalTool));
-		this._register(_toolsService.executeToolSet.addTool(AwaitTerminalToolData));
-
 		const killTerminalTool = _instantiationService.createInstance(KillTerminalTool);
 		this._register(_toolsService.registerTool(KillTerminalToolData, killTerminalTool));
 		this._register(_toolsService.executeToolSet.addTool(KillTerminalToolData));
+
+		const sendToTerminalTool = _instantiationService.createInstance(SendToTerminalTool);
+		this._register(_toolsService.registerTool(SendToTerminalToolData, sendToTerminalTool));
+		this._register(_toolsService.executeToolSet.addTool(SendToTerminalToolData));
 
 		this._registerRunInTerminalTool();
 
@@ -136,21 +143,22 @@ export class ChatAgentToolsContribution extends Disposable implements IWorkbench
 
 		// #endregion
 
-		// Re-register run_in_terminal tool when sandbox-related settings change,
-		// so the tool description and input schema stay in sync with the current
-		// sandbox state.
+		// Keep the tool description and input schema in sync with sandbox and approval settings.
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (
-				e.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled) ||
-				e.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains) ||
-				e.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkDeniedDomains) ||
-				e.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowTrustedDomains)
+				e.affectsConfiguration(ChatConfiguration.DefaultPermissionLevel) ||
+				e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.EnableAutoApprove) ||
+				e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxEnabled) ||
+				e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxAllowNetwork) ||
+				e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands) ||
+				e.affectsConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains) ||
+				e.affectsConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem)
 			) {
 				this._registerRunInTerminalTool();
 			}
-		}));
-		this._register(this._trustedDomainService.onDidChangeTrustedDomains(() => {
-			this._registerRunInTerminalTool();
 		}));
 	}
 
@@ -177,6 +185,7 @@ export class ChatAgentToolsContribution extends Disposable implements IWorkbench
 	}
 }
 registerWorkbenchContribution2(ChatAgentToolsContribution.ID, ChatAgentToolsContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentHostSandboxForwarder.ID, AgentHostSandboxForwarder, WorkbenchPhase.AfterRestored);
 
 // #endregion Contributions
 

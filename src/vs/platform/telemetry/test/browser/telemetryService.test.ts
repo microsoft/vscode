@@ -113,6 +113,11 @@ suite('TelemetryService', () => {
 
 	const TestProductService: IProductService = { _serviceBrand: undefined, ...product };
 
+	// Tests replace the global error handler, restore it so that later tests still report uncaught errors
+	let originalOnError: OnErrorEventHandler;
+	setup(() => originalOnError = mainWindow.onerror);
+	teardown(() => mainWindow.onerror = originalOnError);
+
 	test('Disposing', sinonTestFn(function () {
 		const testAppender = new TestTelemetryAppender();
 		const service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService(), TestProductService);
@@ -137,6 +142,21 @@ suite('TelemetryService', () => {
 		service.dispose();
 	}));
 
+	test('Fixed telemetry level does not require a configuration service', sinonTestFn(function () {
+		const testAppender = new TestTelemetryAppender();
+		const service = TelemetryService.createWithLevel({
+			appenders: [testAppender],
+			sendErrorTelemetry: true,
+			telemetryLevel: TelemetryLevel.ERROR,
+		}, TestProductService);
+
+		service.publicLog('usageEvent');
+		service.publicLogError('errorEvent');
+
+		assert.deepStrictEqual(testAppender.events.map(event => event.eventName), ['errorEvent']);
+		service.dispose();
+	}));
+
 	test('Event with data', sinonTestFn(function () {
 		const testAppender = new TestTelemetryAppender();
 		const service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService(), TestProductService);
@@ -157,6 +177,34 @@ suite('TelemetryService', () => {
 		assert.strictEqual(testAppender.events[0].data['numberProp'], 1);
 		assert.strictEqual(testAppender.events[0].data['booleanProp'], true);
 		assert.strictEqual(testAppender.events[0].data['complexProp'].value, 0);
+
+		service.dispose();
+	}));
+
+	test('Event data redacts file paths beneath user content paths', sinonTestFn(function () {
+		const testAppender = new TestTelemetryAppender();
+		const userHome = '/home/someone';
+		const appRoot = '/home/someone/.local/share/code/resources/app';
+		const extensionsPath = '/home/someone/.vscode/extensions';
+		const service = new TelemetryService({ appenders: [testAppender], piiPaths: [appRoot, extensionsPath, userHome], userContentPaths: [userHome] }, new TestConfigurationService(), TestProductService);
+
+		const data = {
+			userFile: `Failed to read ${userHome}/projects/sample/config.py`,
+			userNodeModulesFile: `at load (${userHome}/projects/sample/node_modules/@scope/pkg/index.js:1:2)`,
+			userExtensionsFile: `at activate (${userHome}/projects/sample/.vscode/extensions/sample.extension/out/main.js:1:2)`,
+			appNodeModulesFile: `at load (${appRoot}/node_modules/pkg/index.js:1:2)`,
+			extensionFile: `at activate (${extensionsPath}/publisher.extension-1.0.0/out/extension.js:1:2)`,
+		};
+		service.publicLog('testEvent', data);
+
+		const sent = testAppender.events[0].data;
+		assert.deepStrictEqual(Object.fromEntries(Object.keys(data).map(key => [key, sent[key]])), {
+			userFile: 'Failed to read <REDACTED: user-file-path>',
+			userNodeModulesFile: 'at load (<REDACTED: user-file-path>:1:2)',
+			userExtensionsFile: 'at activate (<REDACTED: user-file-path>:1:2)',
+			appNodeModulesFile: 'at load (/node_modules/pkg/index.js:1:2)',
+			extensionFile: 'at activate (/publisher.extension-1.0.0/out/extension.js:1:2)',
+		});
 
 		service.dispose();
 	}));
@@ -208,6 +256,40 @@ suite('TelemetryService', () => {
 
 		assert.strictEqual(service.sessionId, 'one');
 		assert.strictEqual(service.machineId, 'three');
+
+		service.dispose();
+	});
+
+	test('setCommonProperty adds and removes property from subsequent events', function () {
+		const testAppender = new TestTelemetryAppender();
+		const service = new TelemetryService({
+			appenders: [testAppender],
+		}, new TestConfigurationService(), TestProductService);
+
+		service.publicLog('eventBeforeSet');
+		service.setCommonProperty('common.copilotTrackingId', 'test-tracking-id');
+		service.publicLog('eventAfterSet');
+		service.setCommonProperty('common.copilotTrackingId', undefined);
+		service.publicLog('eventAfterClear');
+
+		assert.deepStrictEqual(testAppender.events.map(event => event.data['common.copilotTrackingId']), [
+			undefined,
+			'test-tracking-id',
+			undefined,
+		]);
+
+		service.dispose();
+	});
+
+	test('msftInternal reflects common properties set after construction', function () {
+		const service = new TelemetryService({
+			appenders: [NullAppender],
+		}, new TestConfigurationService(), TestProductService);
+
+		const beforeSet = service.msftInternal;
+		service.setCommonProperty('common.msftInternal', true);
+
+		assert.deepStrictEqual({ beforeSet, afterSet: service.msftInternal }, { beforeSet: undefined, afterSet: true });
 
 		service.dispose();
 	});
@@ -390,6 +472,84 @@ suite('TelemetryService', () => {
 			assert.strictEqual(testAppender.events[0].data.callstack.indexOf(settings.filePrefix), -1);
 			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf(settings.stack[4].replace(settings.randomUserFile, settings.anonymizedRandomUserFile)), -1);
 			assert.strictEqual(testAppender.events[0].data.callstack.split('\n').length, settings.stack.length);
+
+			errorTelemetry.dispose();
+			service.dispose();
+		}
+		finally {
+			Errors.setUnexpectedErrorHandler(origErrorHandler);
+		}
+	}));
+
+	test('Unexpected Error Telemetry redacts only offending frames and preserves the rest of the callstack', sinonTestFn(function (this: any) {
+		const origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
+		Errors.setUnexpectedErrorHandler(() => { });
+		try {
+			const testAppender = new TestTelemetryAppender();
+			const service = new TestErrorTelemetryService({ appenders: [testAppender] });
+			const errorTelemetry = new ErrorTelemetry(service);
+
+			// A frame whose function name matches the broad `Generic Secret` heuristic
+			// (`getStorageKey` contains `key(`) previously caused the entire callstack
+			// to be redacted. See https://github.com/microsoft/vscode/issues/301200.
+			const stack = [
+				'Error: Something failed',
+				'    at StorageService.getStorageKey (out/vs/platform/storage/storage.js:1:200)',
+				'    at Foo.run (out/vs/workbench/foo.js:3:40)',
+				'    at Bar.baz (out/vs/workbench/bar.js:5:60)',
+			];
+
+			const error: any = new Error('Something failed');
+			error.stack = stack.join('\n');
+			Errors.onUnexpectedError(error);
+			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+
+			assert.strictEqual(testAppender.getEventsCount(), 1);
+			const cs: string = testAppender.events[0].data.callstack;
+			// The whole stack must not collapse into a single redaction marker.
+			assert.notStrictEqual(cs, '<REDACTED: Generic Secret>', 'Entire callstack should not be redacted');
+			assert.strictEqual(cs.split('\n').length, stack.length, 'All frames should be preserved');
+			// Only the offending frame is redacted, the others remain intact.
+			assert.notStrictEqual(cs.indexOf('Foo.run'), -1, 'Non-offending frames should be preserved');
+			assert.notStrictEqual(cs.indexOf('Bar.baz'), -1, 'Non-offending frames should be preserved');
+			assert.strictEqual(cs.indexOf('getStorageKey'), -1, 'Offending frame should be redacted');
+
+			errorTelemetry.dispose();
+			service.dispose();
+		}
+		finally {
+			Errors.setUnexpectedErrorHandler(origErrorHandler);
+		}
+	}));
+
+	test('Unexpected Error Telemetry still redacts a frame whose trailing token relies on the newline delimiter', sinonTestFn(function (this: any) {
+		const origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
+		Errors.setUnexpectedErrorHandler(() => { });
+		try {
+			const testAppender = new TestTelemetryAppender();
+			const service = new TestErrorTelemetryService({ appenders: [testAppender] });
+			const errorTelemetry = new ErrorTelemetry(service);
+
+			// `getApiKey` ends the line, so the `Generic Secret` heuristic only
+			// matches because of the following newline. Per-line redaction must
+			// re-append that delimiter so this frame is still redacted, matching
+			// the previous whole-string behavior.
+			const stack = [
+				'Error: boom',
+				'    at Service.getApiKey',
+				'    at Foo.run (out/vs/workbench/foo.js:3:40)',
+			];
+
+			const error: any = new Error('boom');
+			error.stack = stack.join('\n');
+			Errors.onUnexpectedError(error);
+			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+
+			assert.strictEqual(testAppender.getEventsCount(), 1);
+			const cs: string = testAppender.events[0].data.callstack;
+			assert.strictEqual(cs.indexOf('getApiKey'), -1, 'Trailing-token frame should still be redacted');
+			assert.notStrictEqual(cs.indexOf('Foo.run'), -1, 'Other frames should be preserved');
+			assert.strictEqual(cs.split('\n').length, stack.length, 'All frames should be preserved');
 
 			errorTelemetry.dispose();
 			service.dispose();
@@ -780,12 +940,13 @@ suite('TelemetryService', () => {
 
 	test('Telemetry Service checks with config service', function () {
 
-		let telemetryLevel = TelemetryConfiguration.OFF;
+		let telemetryLevel: string = TelemetryConfiguration.OFF;
 		const emitter = new Emitter<any>();
 
 		const testAppender = new TestTelemetryAppender();
 		const service = new TelemetryService({
-			appenders: [testAppender]
+			appenders: [testAppender],
+			sendErrorTelemetry: true,
 		}, new class extends TestConfigurationService {
 			override onDidChangeConfiguration = emitter.event;
 			override getValue<T>(): T {
@@ -802,6 +963,18 @@ suite('TelemetryService', () => {
 		telemetryLevel = TelemetryConfiguration.ERROR;
 		emitter.fire({ affectsConfiguration: () => true });
 		assert.strictEqual(service.telemetryLevel, TelemetryLevel.ERROR);
+
+		telemetryLevel = 'invalid';
+		emitter.fire({ affectsConfiguration: () => true });
+		service.publicLog('invalidTelemetryLevel');
+		service.publicLogError('invalidTelemetryLevelError');
+		assert.deepStrictEqual({
+			telemetryLevel: service.telemetryLevel,
+			eventCount: testAppender.getEventsCount(),
+		}, {
+			telemetryLevel: TelemetryLevel.NONE,
+			eventCount: 0,
+		});
 
 		service.dispose();
 	});

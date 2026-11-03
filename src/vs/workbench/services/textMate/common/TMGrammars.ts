@@ -57,7 +57,7 @@ export const grammarsExtPoint: IExtensionPoint<ITMSyntaxExtensionPoint[]> = Exte
 					description: nls.localize('vscode.extension.contributes.grammars.tokenTypes', 'A map of scope name to token types.'),
 					type: 'object',
 					additionalProperties: {
-						enum: ['string', 'comment', 'other']
+						enum: ['string', 'comment', 'other', 'regex']
 					}
 				},
 				injectTo: {

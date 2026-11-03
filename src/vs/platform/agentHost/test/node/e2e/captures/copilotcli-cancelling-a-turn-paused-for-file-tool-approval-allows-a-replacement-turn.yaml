@@ -1,0 +1,41 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Create cancelled.txt containing exactly CANCELLED_CONTENT using your file creation tool, then reply exactly "created".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: create
+          input:
+            path: ${workdir}/cancelled.txt
+            file_text: CANCELLED_CONTENT
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Create cancelled.txt containing exactly CANCELLED_CONTENT using your file creation tool, then reply exactly "created".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: create
+              input:
+                path: ${workdir}/cancelled.txt
+                file_text: CANCELLED_CONTENT
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: The execution of this tool, or a previous tool was interrupted.
+        - role: user
+          content: Reply exactly "replacement".
+    response:
+      content: replacement
+      stopReason: end_turn

@@ -103,11 +103,19 @@ export class ChatExternalPathConfirmationContribution implements ILanguageModelT
 			return undefined;
 		}
 
-		// Check workspace-level allowlist
-		const workspaceFolders = this._getWorkspaceFolders();
-		for (const folderUri of workspaceFolders) {
-			if (extUriBiasedIgnorePathCase.isEqualOrParent(pathUri, folderUri)) {
-				return { type: ToolConfirmKind.UserAction };
+		// When a working directory is set (agents window), it is the source of truth
+		// for determining whether a path is workspace-internal. Only fall back to the
+		// workspace-level allowlist when no working directory is specified.
+		if (ref.workingDirectory) {
+			if (extUriBiasedIgnorePathCase.isEqualOrParent(pathUri, ref.workingDirectory)) {
+				return { type: ToolConfirmKind.ConfirmationNotNeeded };
+			}
+		} else {
+			const workspaceFolders = this._getWorkspaceFolders();
+			for (const folderUri of workspaceFolders) {
+				if (extUriBiasedIgnorePathCase.isEqualOrParent(pathUri, folderUri)) {
+					return { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' };
+				}
 			}
 		}
 
@@ -117,7 +125,7 @@ export class ChatExternalPathConfirmationContribution implements ILanguageModelT
 			if (sessionFolders) {
 				for (const folderUri of sessionFolders) {
 					if (extUriBiasedIgnorePathCase.isEqualOrParent(pathUri, folderUri)) {
-						return { type: ToolConfirmKind.UserAction };
+						return { type: ToolConfirmKind.LmServicePerTool, scope: 'session' };
 					}
 				}
 			}
@@ -193,15 +201,13 @@ export class ChatExternalPathConfirmationContribution implements ILanguageModelT
 					select: async () => {
 						const gitRootUri = await findGitRoot(pathUri);
 						gitRootCache.set(pathUri, gitRootUri ?? null);
-						if (!gitRootUri) {
-							return false;
-						}
 						let folders = allowlist.get(sessionResource);
 						if (!folders) {
 							folders = new ResourceSet();
 							allowlist.set(sessionResource, folders);
 						}
-						folders.add(gitRootUri);
+						// If we found the git root, allow the entire repo; otherwise fall back to just this folder
+						folders.add(gitRootUri ?? folderUri);
 						return true;
 					}
 				});

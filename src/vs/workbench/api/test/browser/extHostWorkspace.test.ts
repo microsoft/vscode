@@ -11,7 +11,7 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { MainThreadWorkspace } from '../../browser/mainThreadWorkspace.js';
-import { IMainContext, IWorkspaceData, MainContext, ITextSearchComplete } from '../../common/extHost.protocol.js';
+import { IMainContext, IWorkspaceData, MainContext, ITextSearchComplete, MainThreadTelemetryShape } from '../../common/extHost.protocol.js';
 import { RelativePattern } from '../../common/extHostTypes.js';
 import { ExtHostWorkspace } from '../../common/extHostWorkspace.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -29,6 +29,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ExcludeSettingOptions } from '../../../services/search/common/searchExtTypes.js';
 
 function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData, logService: ILogService): ExtHostWorkspace {
+	mainContext.set(MainContext.MainThreadTelemetry, new class extends mock<MainThreadTelemetryShape>() {
+		override $publicLog2(): void { }
+	});
 	const result = new ExtHostWorkspace(
 		new ExtHostRpcService(mainContext),
 		new class extends mock<IExtHostInitDataService>() { override workspace = data; },

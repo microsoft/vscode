@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProcessEnvironment, isLinux } from './platform.js';
+import { IProcessEnvironment } from './platform.js';
 
 /**
  * Options to be passed to the external program or shell.
@@ -136,13 +136,16 @@ export function removeDangerousEnvVariables(env: IProcessEnvironment | undefined
 		return;
 	}
 
-	// Unset `DEBUG`, as an invalid value might lead to process crashes
-	// See https://github.com/microsoft/vscode/issues/130072
-	delete env['DEBUG'];
-
-	if (isLinux) {
-		// Unset `LD_PRELOAD`, as it might lead to process crashes
-		// See https://github.com/microsoft/vscode/issues/134177
-		delete env['LD_PRELOAD'];
+	const dangerousEnvVariables = new Set([
+		'DEBUG',
+		'NODE_OPTIONS',
+		'VSCODE_NODE_OPTIONS',
+		'LD_PRELOAD',
+		'DYLD_INSERT_LIBRARIES'
+	]);
+	for (const key of Object.keys(env)) {
+		if (dangerousEnvVariables.has(key.toUpperCase())) {
+			delete env[key];
+		}
 	}
 }

@@ -8,12 +8,12 @@ import {
 } from 'vscode-languageserver';
 import { URI } from 'vscode-uri';
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, TextDocument, Position, CodeActionKind } from 'vscode-css-languageservice';
-import { getLanguageModelCache } from './languageModelCache';
-import { runSafeAsync } from './utils/runner';
-import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnosticsPushSupport } from './utils/validation';
-import { getDocumentContext } from './utils/documentContext';
-import { fetchDataProviders } from './customData';
-import { RequestService, getRequestService } from './requests';
+import { getLanguageModelCache } from './languageModelCache.js';
+import { runSafeAsync } from './utils/runner.js';
+import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnosticsPushSupport } from './utils/validation.js';
+import { getDocumentContext } from './utils/documentContext.js';
+import { fetchDataProviders } from './customData.js';
+import { RequestService, getRequestService } from './requests.js';
 
 namespace CustomDataChangedNotification {
 	export const type: NotificationType<string[]> = new NotificationType('css/customDataChanged');
@@ -142,7 +142,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		let service = languageServices[document.languageId];
 		if (!service) {
 			connection.console.log('Document type is ' + document.languageId + ', using css instead.');
-			service = languageServices['css'];
+			service = languageServices.css;
 		}
 		return service;
 	}

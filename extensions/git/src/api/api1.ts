@@ -80,6 +80,7 @@ export class ApiRepository implements Repository {
 	readonly kind: RepositoryKind;
 	readonly state: RepositoryState;
 	readonly ui: RepositoryUIState;
+	readonly isUsingVirtualFileSystem: boolean;
 
 	readonly onDidCommit: Event<void>;
 	readonly onDidCheckout: Event<void>;
@@ -92,6 +93,7 @@ export class ApiRepository implements Repository {
 		this.inputBox = new ApiInputBox(this.#repository.inputBox);
 		this.state = new ApiRepositoryState(this.#repository);
 		this.ui = new ApiRepositoryUIState(this.#repository.sourceControl);
+		this.isUsingVirtualFileSystem = this.#repository.isUsingVirtualFileSystem;
 
 		this.onDidCommit = mapEvent<OperationResult, void>(
 			filterEvent(this.#repository.onDidRunOperation, e => e.operation.kind === OperationKind.Commit), () => null);
@@ -156,6 +158,10 @@ export class ApiRepository implements Repository {
 
 	clean(paths: string[]) {
 		return this.#repository.clean(paths.map(p => Uri.file(p)));
+	}
+
+	restore(paths: string[], options?: { staged?: boolean; ref?: string }) {
+		return this.#repository.restore(paths.map(p => Uri.file(p)), options);
 	}
 
 	diff(cached?: boolean) {
@@ -256,6 +262,10 @@ export class ApiRepository implements Repository {
 		return this.#repository.getMergeBase(ref1, ref2);
 	}
 
+	getRemoteRefs(remote: string, opts?: { heads?: boolean; tags?: boolean }): Promise<Ref[]> {
+		return this.#repository.getRemoteRefs(remote, opts);
+	}
+
 	tag(name: string, message: string, ref?: string | undefined): Promise<void> {
 		return this.#repository.tag({ name, message, ref });
 	}
@@ -304,6 +314,10 @@ export class ApiRepository implements Repository {
 		return this.#repository.pushTo(remoteName, branchName, setUpstream, force);
 	}
 
+	pushRefWithLease(remote: string, branch: string, newSha: string, expectedSha: string): Promise<void> {
+		return this.#repository.pushRefWithLease(remote, branch, newSha, expectedSha);
+	}
+
 	blame(path: string): Promise<string> {
 		return this.#repository.blame(path);
 	}
@@ -324,8 +338,24 @@ export class ApiRepository implements Repository {
 		return this.#repository.mergeAbort();
 	}
 
-	rebase(branch: string): Promise<void> {
-		return this.#repository.rebase(branch);
+	rebase(branch: string, options?: { onto?: string; rebaseMerges?: boolean }): Promise<void> {
+		return this.#repository.rebase(branch, options);
+	}
+
+	rebaseAbort(): Promise<void> {
+		return this.#repository.rebaseAbort();
+	}
+
+	rebaseContinue(): Promise<void> {
+		return this.#repository.rebaseContinue();
+	}
+
+	updateRef(ref: string, newSha: string, oldSha: string): Promise<void> {
+		return this.#repository.updateRef(ref, newSha, oldSha);
+	}
+
+	resetKeep(ref: string): Promise<void> {
+		return this.#repository.resetKeep(ref);
 	}
 
 	createStash(options?: { message?: string; includeUntracked?: boolean; staged?: boolean }): Promise<void> {
@@ -344,11 +374,11 @@ export class ApiRepository implements Repository {
 		return this.#repository.dropStash(index);
 	}
 
-	createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string> {
+	createWorktree(options?: { path?: string; commitish?: string; branch?: string; noTrack?: boolean }): Promise<string> {
 		return this.#repository.createWorktree(options);
 	}
 
-	deleteWorktree(path: string, options?: { force?: boolean }): Promise<void> {
+	deleteWorktree(path: string, options?: { force?: boolean; label?: string }): Promise<void> {
 		return this.#repository.deleteWorktree(path, options);
 	}
 

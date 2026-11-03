@@ -104,9 +104,10 @@ export async function getTaskForTool(id: string | undefined, taskDefinition: { t
 	}
 
 	let tasksForWorkspace;
-	const workspaceFolderPath = URI.file(workspaceFolder).path;
+	const getPathForCompare = (uri: URI) => uri.path.replace(/\/$/, '').toLowerCase();
+	const workspaceFolderPath = getPathForCompare(URI.file(workspaceFolder));
 	for (const [folder, tasks] of workspaceFolderToTaskMap) {
-		if (URI.parse(folder).path === workspaceFolderPath) {
+		if (getPathForCompare(URI.parse(folder)) === workspaceFolderPath) {
 			tasksForWorkspace = tasks;
 			break;
 		}

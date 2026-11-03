@@ -9,10 +9,10 @@ import {
 	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, TextDocumentSyncKind, TextEdit, DocumentFormattingRequest, TextDocumentIdentifier, FormattingOptions, Diagnostic, CodeAction, CodeActionKind
 } from 'vscode-languageserver';
 
-import { runSafe, runSafeAsync } from './utils/runner';
-import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnosticsPushSupport } from './utils/validation';
+import { runSafe, runSafeAsync } from './utils/runner.js';
+import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnosticsPushSupport } from './utils/validation.js';
 import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, Range, Position, SortOptions, SeverityLevel } from 'vscode-json-languageservice';
-import { getLanguageModelCache } from './languageModelCache';
+import { getLanguageModelCache } from './languageModelCache.js';
 import { Utils, URI } from 'vscode-uri';
 import * as l10n from '@vscode/l10n';
 

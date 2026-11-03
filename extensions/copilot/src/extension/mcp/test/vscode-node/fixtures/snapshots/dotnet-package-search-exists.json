@@ -1,0 +1,17 @@
+{
+	"version": 2,
+	"problems": [],
+	"searchResult": [
+		{
+			"sourceName": "nuget.org",
+			"packages": [
+				{
+					"id": "BaseTestPackage.DotnetTool",
+					"latestVersion": "1.0.0",
+					"totalDownloads": 1214,
+					"owners": "NuGetTestData"
+				}
+			]
+		}
+	]
+}

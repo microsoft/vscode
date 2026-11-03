@@ -6,13 +6,15 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter, sessionDateFromNow, getRepositoryName, AgentSessionsSorter, groupAgentSessionsByDate } from '../../../browser/agentSessions/agentSessionsViewer.js';
-import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore } from '../../../browser/agentSessions/agentSessionsModel.js';
+import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter, sessionDateFromNow, getRepositoryName, AgentSessionsSorter, groupAgentSessionsByDate, getAgentSessionStatusIcon, AgentSessionsIdentityProvider } from '../../../browser/agentSessions/agentSessionsViewer.js';
+import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { ChatSessionStatus } from '../../../common/chatSessionsService.js';
 import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { AgentSessionsGrouping, AgentSessionsSorting } from '../../../browser/agentSessions/agentSessionsFilter.js';
+import { shouldShowSessionInPicker } from '../../../browser/agentSessions/agentSessionsPicker.js';
+import { themeColorFromId } from '../../../../../../base/common/themables.js';
 
 suite('sessionDateFromNow', () => {
 
@@ -84,6 +86,7 @@ suite('AgentSessionsDataSource', () => {
 
 	function createMockSession(overrides: Partial<{
 		id: string;
+		label: string;
 		status: ChatSessionStatus;
 		isArchived: boolean;
 		isPinned: boolean;
@@ -93,14 +96,17 @@ suite('AgentSessionsDataSource', () => {
 		endTime: number;
 		metadata: { [key: string]: unknown };
 		badge: string;
+		children: readonly IAgentSession[];
+		resource: URI;
+		parentSession: { readonly resource: URI; readonly label: string };
 	}> = {}): IAgentSession {
 		const now = Date.now();
 		return {
 			providerType: 'test',
 			providerLabel: 'Test',
-			resource: URI.parse(`test://session/${overrides.id ?? 'default'}`),
+			resource: overrides.resource ?? URI.parse(`test://session/${overrides.id ?? 'default'}`),
 			status: overrides.status ?? ChatSessionStatus.Completed,
-			label: `Session ${overrides.id ?? 'default'}`,
+			label: overrides.label ?? `Session ${overrides.id ?? 'default'}`,
 			icon: Codicon.terminal,
 			timing: {
 				created: overrides.startTime ?? now,
@@ -110,6 +116,8 @@ suite('AgentSessionsDataSource', () => {
 			changes: overrides.hasChanges ? { files: 1, insertions: 10, deletions: 5 } : undefined,
 			metadata: overrides.metadata,
 			badge: overrides.badge,
+			children: overrides.children,
+			parentSession: overrides.parentSession,
 			isArchived: () => overrides.isArchived ?? false,
 			setArchived: () => { },
 			isPinned: () => overrides.isPinned ?? false,
@@ -120,30 +128,55 @@ suite('AgentSessionsDataSource', () => {
 		};
 	}
 
+	suite('getAgentSessionStatusIcon', () => {
+
+		test('matches sessions window state icons', () => {
+			const cases = [
+				['read', createMockSession({ id: 'read' })],
+				['unread', createMockSession({ id: 'unread', isRead: false })],
+				['archived', createMockSession({ id: 'archived', isArchived: true, isRead: false })],
+				['in-progress', createMockSession({ id: 'in-progress', status: ChatSessionStatus.InProgress })],
+				['needs-input', createMockSession({ id: 'needs-input', status: ChatSessionStatus.NeedsInput })],
+				['failed', createMockSession({ id: 'failed', status: ChatSessionStatus.Failed })],
+			] as const;
+
+			assert.deepStrictEqual(cases.map(([name, session]) => [name, getAgentSessionStatusIcon(session)]), [
+				['read', { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') }],
+				['unread', { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') }],
+				['archived', { ...Codicon.passFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') }],
+				['in-progress', { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') }],
+				['needs-input', { ...Codicon.reportQuestion, color: themeColorFromId('list.warningForeground') }],
+				['failed', { ...Codicon.error, color: themeColorFromId('errorForeground') }],
+			]);
+		});
+	});
+
 	function createMockModel(sessions: IAgentSession[]): IAgentSessionsModel {
 		return {
 			sessions,
 			resolved: true,
 			getSession: () => undefined,
+			observeSession: () => { throw new Error('Not implemented'); },
 			onWillResolve: Event.None as Event<string>,
 			onDidResolve: Event.None as Event<string>,
 			onDidChangeSessions: Event.None,
 			onDidChangeSessionArchivedState: Event.None,
 			resolve: async () => { },
-		};
+		} satisfies IAgentSessionsModel;
 	}
 
 	function createMockFilter(options: {
 		groupBy?: AgentSessionsGrouping;
 		exclude?: (session: IAgentSession) => boolean;
 		excludeRead?: boolean;
+		excludeArchived?: boolean;
 		repositoryGroupCapped?: boolean;
 	}): IAgentSessionsFilter {
 		return {
 			onDidChange: Event.None,
 			groupResults: () => options.groupBy,
 			exclude: options.exclude ?? (() => false),
-			getExcludes: () => ({ providers: [], states: [], archived: false, read: options.excludeRead ?? false, repositoryGroupCapped: options.repositoryGroupCapped ?? true }),
+			getExcludes: () => ({ providers: [], states: [], archived: options.excludeArchived ?? false, read: options.excludeRead ?? false, repositoryGroupCapped: options.repositoryGroupCapped ?? true }),
 			isDefault: () => true,
 			reset: () => { },
 		};
@@ -165,6 +198,69 @@ suite('AgentSessionsDataSource', () => {
 	}
 
 	suite('groupSessionsIntoSections', () => {
+
+		test('returns a session chat hierarchy', () => {
+			const children = [
+				createMockSession({ id: 'default-chat' }),
+				createMockSession({ id: 'peer-chat' }),
+			];
+			const session = createMockSession({ id: 'parent', children });
+			const dataSource = disposables.add(new AgentSessionsDataSource(createMockFilter({ groupBy: undefined }), createMockSorter()));
+
+			assert.deepStrictEqual({
+				parentHasChildren: dataSource.hasChildren(session),
+				children: Array.from(dataSource.getChildren(session)).filter(isAgentSession).map(child => child.resource.toString()),
+				leafHasChildren: dataSource.hasChildren(children[0]),
+			}, {
+				parentHasChildren: true,
+				children: ['test://session/default-chat', 'test://session/peer-chat'],
+				leafHasChildren: false,
+			});
+		});
+
+		test('keeps session parents selectable when they have peer chats', () => {
+			const resource = URI.parse('test://session/parent');
+			const child = createMockSession({
+				label: 'Peer chat',
+				resource: resource.with({ fragment: 'peer' }),
+				parentSession: { resource, label: 'Parent session' },
+			});
+
+			const parent = createMockSession({ label: 'Parent session', resource, children: [child] });
+			const identityProvider = new AgentSessionsIdentityProvider();
+
+			assert.deepStrictEqual({
+				parentId: identityProvider.getId(parent),
+				childId: identityProvider.getId(child),
+				parentGroup: identityProvider.getGroupId(parent),
+				childGroup: identityProvider.getGroupId(child),
+			}, {
+				parentId: resource.toString(),
+				childId: `chat-${resource.with({ fragment: 'peer' }).toString()}`,
+				parentGroup: 1,
+				childGroup: 2,
+			});
+		});
+
+		test('hides completed side chats and their empty twistie until archived chats are included', () => {
+			const side = createMockSession({ id: 'side', isArchived: true });
+			const sibling = createMockSession({ id: 'sibling' });
+			const parent = createMockSession({ id: 'parent', children: [side, sibling] });
+			const onlySide = createMockSession({ id: 'only-side', children: [side] });
+			const active = disposables.add(new AgentSessionsDataSource(createMockFilter({ excludeArchived: true }), createMockSorter()));
+			const archived = disposables.add(new AgentSessionsDataSource(createMockFilter({ excludeArchived: false }), createMockSorter()));
+			assert.deepStrictEqual({
+				active: [...active.getChildren(parent)].filter(isAgentSession).map(chat => chat.label),
+				onlyCompletedHasChildren: active.hasChildren(onlySide),
+				included: [...archived.getChildren(parent)].filter(isAgentSession).map(chat => chat.label),
+				archivedParent: [...active.getChildren(createMockSession({ children: [side], isArchived: true }))].filter(isAgentSession).map(chat => chat.label),
+			}, {
+				active: ['Session sibling'],
+				onlyCompletedHasChildren: false,
+				included: ['Session side', 'Session sibling'],
+				archivedParent: ['Session side'],
+			});
+		});
 
 		test('returns flat list when groupResults is false', () => {
 			const now = Date.now();
@@ -983,6 +1079,33 @@ suite('AgentSessionsDataSource', () => {
 			// Archived must come after Other
 			assert.ok(archivedIndex > otherIndex, 'Archived section should come after Other');
 		});
+
+		test('pinned sessions are top-level items before alphabetized repository sections', () => {
+			const now = Date.now();
+			const pinnedSession = createMockSession({ id: 'pinned', isPinned: true, startTime: now + 10, metadata: { repositoryPath: '/path/zebra' } });
+			const sessions = [
+				createMockSession({ id: 'other', startTime: now + 9 }),
+				createMockSession({ id: 'zebra', startTime: now + 8, metadata: { repositoryPath: '/path/zebra' } }),
+				createMockSession({ id: 'alpha', startTime: now + 7, metadata: { repositoryPath: '/path/Alpha' } }),
+				createMockSession({ id: 'archived', isArchived: true, startTime: now + 6, metadata: { repositoryPath: '/path/middle' } }),
+				pinnedSession,
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = Array.from(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.ok(isAgentSession(result[0]), 'first item should be the pinned session');
+			assert.strictEqual(result[0].resource.toString(), pinnedSession.resource.toString());
+
+			const sections = result.filter((item): item is IAgentSessionSection => isAgentSessionSection(item));
+			assert.deepStrictEqual(sections.map(section => ({ label: section.label, section: section.section, count: section.sessions.length })), [
+				{ label: 'Alpha', section: AgentSessionSection.Repository, count: 1 },
+				{ label: 'zebra', section: AgentSessionSection.Repository, count: 1 },
+				{ label: 'Other', section: AgentSessionSection.Repository, count: 1 },
+				{ label: 'Archived', section: AgentSessionSection.Archived, count: 1 },
+			]);
+		});
 	});
 
 	suite('repositoryGroupLimit', () => {
@@ -1047,18 +1170,19 @@ suite('AgentSessionsDataSource', () => {
 		});
 
 		test('does not cap non-repository sections', () => {
-			const now = Date.now();
 			const sessions = Array.from({ length: 8 }, (_, i) =>
-				createMockSession({ id: `s${i}`, startTime: now - i * 1000 })
+				createMockSession({ id: `s${i}` })
 			);
 
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter(), 5));
-			const model = createMockModel(sessions);
-			const topLevel = Array.from(dataSource.getChildren(model));
-			const todaySection = topLevel.find(item => isAgentSessionSection(item) && item.section === AgentSessionSection.Today) as IAgentSessionSection;
+			const section: IAgentSessionSection = {
+				section: AgentSessionSection.Today,
+				label: 'Today',
+				sessions,
+			};
 
-			const children = Array.from(dataSource.getChildren(todaySection));
+			const children = Array.from(dataSource.getChildren(section));
 			assert.strictEqual(children.length, 8);
 			assert.ok(!children.some(isAgentSessionShowMore));
 		});
@@ -1256,13 +1380,22 @@ suite('AgentSessionsSorter', () => {
 		assert.deepStrictEqual(sorted.map(s => s.label), ['Session active', 'Session archived']);
 	});
 
-	test('prioritizeActive: uses lastRequestStarted for time sorting', () => {
-		const sorter = new AgentSessionsSorter();
+	test('prioritizeActive: uses lastRequestStarted for time sorting when sorted by updated', () => {
+		const sorter = new AgentSessionsSorter(() => AgentSessionsSorting.Updated);
 		const recentlyActive = createSession({ id: 'recent-active', created: 1000, lastRequestStarted: 5000 });
 		const recentlyCreated = createSession({ id: 'recent-created', created: 3000 });
 
 		const sorted = [recentlyCreated, recentlyActive].sort((a, b) => sorter.compare(a, b, true));
 		assert.deepStrictEqual(sorted.map(s => s.label), ['Session recent-active', 'Session recent-created']);
+	});
+
+	test('prioritizeActive: uses created time when sorted by created', () => {
+		const sorter = new AgentSessionsSorter(() => AgentSessionsSorting.Created);
+		const recentlyActive = createSession({ id: 'recent-active', created: 1000, lastRequestStarted: 5000 });
+		const recentlyCreated = createSession({ id: 'recent-created', created: 3000 });
+
+		const sorted = [recentlyCreated, recentlyActive].sort((a, b) => sorter.compare(a, b, true));
+		assert.deepStrictEqual(sorted.map(s => s.label), ['Session recent-created', 'Session recent-active']);
 	});
 
 	test('pinned sessions come before non-pinned sessions', () => {
@@ -1308,6 +1441,62 @@ suite('AgentSessionsSorter', () => {
 
 		const sorted = [withRequest, withoutRequest].sort((a, b) => sorter.compare(a, b));
 		assert.deepStrictEqual(sorted.map(s => s.label), ['Session no-request', 'Session with-request']);
+	});
+});
+
+suite('AgentSessionsPicker', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createSession(overrides: Partial<{
+		id: string;
+		status: ChatSessionStatus;
+		isArchived: boolean;
+	}>): IAgentSession {
+		return {
+			providerType: 'test',
+			providerLabel: 'Test',
+			resource: URI.parse(`test://session/${overrides.id ?? 'default'}`),
+			status: overrides.status ?? ChatSessionStatus.Completed,
+			label: `Session ${overrides.id ?? 'default'}`,
+			icon: Codicon.terminal,
+			timing: {
+				created: Date.now(),
+				lastRequestStarted: undefined,
+				lastRequestEnded: undefined,
+			},
+			changes: undefined,
+			metadata: undefined,
+			isArchived: () => overrides.isArchived ?? false,
+			setArchived: () => { },
+			isPinned: () => false,
+			setPinned: () => { },
+			isRead: () => true,
+			isMarkedUnread: () => false,
+			setRead: () => { },
+		};
+	}
+
+	const filter: IAgentSessionsFilter = {
+		onDidChange: Event.None,
+		exclude: () => false,
+		getExcludes: () => ({ providers: [], states: [], archived: true, read: false, repositoryGroupCapped: true }),
+		isDefault: () => true,
+		limitResults: () => undefined,
+		notifyResults: () => { },
+		reset: () => { },
+		sortResults: () => undefined,
+	};
+
+	test('keeps completed sessions but excludes archived sessions', () => {
+		const completed = createSession({ id: 'completed', status: ChatSessionStatus.Completed });
+		const inProgress = createSession({ id: 'in-progress', status: ChatSessionStatus.InProgress });
+		const archived = createSession({ id: 'archived', status: ChatSessionStatus.Completed, isArchived: true });
+
+		assert.deepStrictEqual(
+			[completed, inProgress, archived].filter(session => shouldShowSessionInPicker(session, filter)).map(session => session.label),
+			['Session completed', 'Session in-progress']
+		);
 	});
 });
 

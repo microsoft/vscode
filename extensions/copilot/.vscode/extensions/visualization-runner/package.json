@@ -1,0 +1,16 @@
+{
+	"publisher": "ms-vscode",
+	"name": "visualization-runner",
+	"version": "0.1.0",
+	"displayName": "Visualization Runner",
+	"engines": {
+		"vscode": "^1.85.0"
+	},
+	"main": "./entry.js",
+	"activationEvents": [
+		"onLanguage:typescript"
+	],
+	"extensionDependencies": [
+		"ms-vscode.debug-value-editor"
+	]
+}

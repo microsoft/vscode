@@ -1,0 +1,15 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .monaco-action-bar .action-label.has-avatar::before {
+	display: none;
+}
+
+.monaco-workbench .monaco-action-bar .action-label .accounts-avatar {
+	width: 1em;
+	height: 1em;
+	object-fit: cover;
+	border-radius: var(--vscode-cornerRadius-circle);
+}

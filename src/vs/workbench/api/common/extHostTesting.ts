@@ -7,7 +7,7 @@ import type * as vscode from 'vscode';
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { Emitter, Event } from '../../../base/common/event.js';
+import { Emitter, Event, Relay } from '../../../base/common/event.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
 import { hash } from '../../../base/common/hash.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
@@ -1176,11 +1176,15 @@ class TestObservers {
 
 		const current = this.current;
 		current.observers++;
+		const disposables = new DisposableStore();
+		const onDidChangeTest = disposables.add(new Relay<vscode.TestsChangeEvent>());
+		onDidChangeTest.input = current.tests.onDidChangeTests;
 
 		return {
-			onDidChangeTest: current.tests.onDidChangeTests,
+			onDidChangeTest: onDidChangeTest.event,
 			get tests() { return [...current.tests.rootTests].map(t => t.revived); },
 			dispose: createSingleCallFunction(() => {
+				disposables.dispose();
 				if (--current.observers === 0) {
 					this.proxy.$unsubscribeFromDiffs();
 					this.current = undefined;

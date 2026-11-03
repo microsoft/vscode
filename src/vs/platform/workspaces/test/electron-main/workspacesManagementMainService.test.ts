@@ -46,6 +46,7 @@ flakySuite('WorkspacesManagementMainService', () => {
 		showMessageBox(options: Electron.MessageBoxOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
 		showSaveDialog(options: Electron.SaveDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.SaveDialogReturnValue> { throw new Error('Method not implemented.'); }
 		showOpenDialog(options: Electron.OpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.OpenDialogReturnValue> { throw new Error('Method not implemented.'); }
+		hasOpenDialogs(): boolean { throw new Error('Method not implemented.'); }
 	}
 
 	class TestBackupMainService implements IBackupMainService {
@@ -110,7 +111,7 @@ flakySuite('WorkspacesManagementMainService', () => {
 
 		const logService = new NullLogService();
 		const fileService = new FileService(logService);
-		service = new WorkspacesManagementMainService(environmentMainService, logService, new UserDataProfilesMainService(new StateService(SaveStrategy.DELAYED, environmentMainService, logService, fileService), new UriIdentityService(fileService), environmentMainService, fileService, logService), new TestBackupMainService(), new TestDialogMainService());
+		service = new WorkspacesManagementMainService(environmentMainService, logService, new UserDataProfilesMainService(new StateService(SaveStrategy.DELAYED, environmentMainService, logService, fileService), new UriIdentityService(fileService), environmentMainService, fileService, logService, productService), new TestBackupMainService(), new TestDialogMainService());
 
 		return fs.promises.mkdir(untitledWorkspacesHomePath, { recursive: true });
 	});

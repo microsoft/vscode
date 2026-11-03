@@ -42,6 +42,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { UnmanagedProgress } from '../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
@@ -318,6 +319,8 @@ export class TestingExplorerView extends ViewPane {
 				return this.getRunGroupDropdown(TestRunProfileBitset.Run, action, options);
 			case TestCommandId.DebugSelectedAction:
 				return this.getRunGroupDropdown(TestRunProfileBitset.Debug, action, options);
+			case TestCommandId.CoverageSelectedAction:
+				return this.getRunGroupDropdown(TestRunProfileBitset.Coverage, action, options);
 			case TestCommandId.StartContinousRun:
 			case TestCommandId.StopContinousRun:
 				return this.getContinuousRunDropdown(action, options);
@@ -431,7 +434,9 @@ export class TestingExplorerView extends ViewPane {
 			title: defaultAction.label,
 			icon: group === TestRunProfileBitset.Run
 				? icons.testingRunAllIcon
-				: icons.testingDebugAllIcon,
+				: group === TestRunProfileBitset.Debug
+					? icons.testingDebugAllIcon
+					: icons.testingCoverageAllIcon,
 		}, undefined, undefined, undefined, undefined);
 
 		return this.instantiationService.createInstance(
@@ -759,6 +764,7 @@ class TestingExplorerViewModel extends Disposable {
 		@ITestProfileService private readonly testProfileService: ITestProfileService,
 		@ITestingContinuousRunService private readonly crService: ITestingContinuousRunService,
 		@ICommandService commandService: ICommandService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		super();
 
@@ -876,7 +882,8 @@ class TestingExplorerViewModel extends Disposable {
 		this._register(dom.addStandardDisposableListener(this.tree.getHTMLElement(), 'keydown', evt => {
 			if (evt.equals(KeyCode.Enter)) {
 				this.handleExecuteKeypress(evt);
-			} else if (DefaultKeyboardNavigationDelegate.mightProducePrintableCharacter(evt)) {
+			} else if (DefaultKeyboardNavigationDelegate.mightProducePrintableCharacter(evt)
+				&& keybindingService.softDispatch(evt, evt.target).kind === ResultKind.NoMatchingKb) {
 				filterState.text.value = evt.browserEvent.key;
 				filterState.focusInput();
 			}
