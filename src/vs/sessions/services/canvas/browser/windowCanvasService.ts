@@ -335,9 +335,30 @@ export class WindowCanvasService extends Disposable implements IWindowCanvasServ
 		let pane: IEditorPane | undefined;
 		try {
 			pane = await this.editorService.openEditor(input, {
-				pinned: true, revealIfOpened: true, preserveFocus, inactive: preserveFocus,
-				activation: preserveFocus ? EditorActivation.PRESERVE : undefined,
+				pinned: true, revealIfOpened: true, preserveFocus: true, inactive: preserveFocus,
+				activation: EditorActivation.PRESERVE,
 			}, this.editorGroupsService.mainPart.activeGroup);
+			if (!pane && !(preserveFocus && this.editorGroupsService.mainPart.groups.some(group => group.contains(entry.input)))) {
+				if (!isCurrent()) {
+					return false;
+				}
+				throw new Error(localize('windowCanvas.openFailed', "The canvas '{0}' could not be opened.", descriptor.title));
+			}
+			if (this.entries.get(id) !== entry || !this.descriptors.has(id)) {
+				await this.editorService.closeEditors(this.editorService.findEditors(entry.input.resource).filter(editor => editor.editor === entry.input));
+				entry.input.dispose();
+				return false;
+			}
+			this.restoredIds.add(id);
+			this.saveOpenCanvases();
+			// Editor creation is asynchronous; only the still-current navigation may take focus.
+			if (!preserveFocus && pane && isCurrent()) {
+				this.editorGroupsService.activateGroup(pane.group);
+				if (isCurrent()) {
+					pane.focus();
+				}
+			}
+			return isCurrent();
 		} finally {
 			const count = this.openingInputs.get(input)! - 1;
 			if (count) {
@@ -346,17 +367,6 @@ export class WindowCanvasService extends Disposable implements IWindowCanvasServ
 				this.openingInputs.delete(input);
 			}
 		}
-		if (!pane && !(preserveFocus && this.editorGroupsService.mainPart.groups.some(group => group.contains(entry.input)))) {
-			throw new Error(localize('windowCanvas.openFailed', "The canvas '{0}' could not be opened.", descriptor.title));
-		}
-		if (this.entries.get(id) !== entry || !this.descriptors.has(id)) {
-			await this.editorService.closeEditors(this.editorService.findEditors(entry.input.resource).filter(editor => editor.editor === entry.input));
-			entry.input.dispose();
-			return false;
-		}
-		this.restoredIds.add(id);
-		this.saveOpenCanvases();
-		return isCurrent();
 	}
 
 	getPresentation(input: WindowCanvasInput): IWindowCanvasPresentation {

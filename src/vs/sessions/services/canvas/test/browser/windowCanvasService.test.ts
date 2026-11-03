@@ -12,7 +12,7 @@ import { autorun, constObservable, observableValue } from '../../../../../base/c
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { EditorActivation, IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -49,6 +49,7 @@ suite('WindowCanvasService', () => {
 		const focused = store.add(new Emitter<void>());
 		const closed = store.add(new Emitter<IEditorCloseEvent>());
 		const didOpen = store.add(new Emitter<WindowCanvasInput>());
+		const willOpen = store.add(new Emitter<void>());
 		const workingSetState = observableValue<ICanvasWorkingSetState>('workingSet', { owner: undefined, restoring: false, applying: false });
 		const opened: { input: WindowCanvasInput; options: IEditorOptions | undefined }[] = [];
 		const editors = new Set<WindowCanvasInput>();
@@ -60,8 +61,20 @@ suite('WindowCanvasService', () => {
 		let hides = 0;
 		let suppressions = 0;
 		let willShutdown = false;
-		const pane = upcastPartial<ITextDiffEditorPane & IVisibleEditorPane>({ isVisible: () => paneVisible });
+		let activations = 0;
+		let focusCalls = 0;
+		let sessionsVisible = true;
 		const group = upcastPartial<IEditorGroup>({ id: 1, windowId: 1, contains: input => input instanceof WindowCanvasInput && editors.has(input) });
+		const pane = upcastPartial<ITextDiffEditorPane & IVisibleEditorPane>({
+			group,
+			get input() { return activeEditor; },
+			isVisible: () => paneVisible,
+			focus: () => {
+				focusCalls++;
+				sessionsVisible = false;
+				focused.fire();
+			},
+		});
 		const close = (input: WindowCanvasInput) => {
 			editors.delete(input);
 			closed.fire({ editor: input, groupId: 1, context: EditorCloseContext.UNKNOWN, index: 0, sticky: false });
@@ -75,6 +88,7 @@ suite('WindowCanvasService', () => {
 			whenReady,
 			mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ activeGroup: group, groups: [group], windowId: 1, onDidFocus: focused.event }),
 			getGroup: () => group,
+			activateGroup: () => { activations++; return group; },
 		});
 		instantiationService.stub(IEditorService, {
 			onDidActiveEditorChange: activeChanged.event,
@@ -83,6 +97,11 @@ suite('WindowCanvasService', () => {
 			activeEditorPane: pane,
 			openEditor: async (input, options) => {
 				assert.ok(input instanceof WindowCanvasInput);
+				const editorOptions = isPreferredGroup(options) ? undefined : options;
+				if (editorOptions?.activation !== EditorActivation.PRESERVE && !editorOptions?.preserveFocus) {
+					activations++;
+				}
+				willOpen.fire();
 				if (openGate) {
 					await openGate.p;
 				}
@@ -90,12 +109,18 @@ suite('WindowCanvasService', () => {
 					throw new Error('test open failure');
 				}
 				service.getPresentation(input);
+				const active = !editors.size || !editorOptions?.inactive;
 				editors.add(input);
-				activeEditor = input;
-				opened.push({ input, options: isPreferredGroup(options) ? undefined : options });
-				activeChanged.fire();
+				if (active) {
+					activeEditor = input;
+					activeChanged.fire();
+				}
+				opened.push({ input, options: editorOptions });
 				didOpen.fire(input);
-				return !isPreferredGroup(options) && options?.inactive ? undefined : pane;
+				if (active && !editorOptions?.preserveFocus) {
+					pane.focus();
+				}
+				return active ? pane : undefined;
 			},
 			findEditors: () => [...editors].map(editor => ({ editor, groupId: 1 })),
 			closeEditors: async inputs => { for (const { editor } of inputs) { assert.ok(editor instanceof WindowCanvasInput); close(editor); } },
@@ -112,9 +137,13 @@ suite('WindowCanvasService', () => {
 			suppressEditorPartAutoVisibility: () => { suppressions++; return Disposable.None; },
 		}));
 		return {
-			service, opened, editors, storage, close, workingSetState, didOpen, errors,
+			service, opened, editors, storage, close, workingSetState, didOpen, willOpen, errors,
 			get hides() { return hides; },
 			get suppressions() { return suppressions; },
+			get activations() { return activations; },
+			get focusCalls() { return focusCalls; },
+			get sessionsVisible() { return sessionsVisible; },
+			showSessions() { sessionsVisible = true; },
 			shutdown() { willShutdown = true; },
 			setOpenGate(gate: DeferredPromise<void>) { openGate = gate; },
 			setFailOpen(value: boolean) { failOpen = value; },
@@ -234,7 +263,49 @@ suite('WindowCanvasService', () => {
 		assert.deepStrictEqual({
 			whileRestoring, destination: h.service.activeCanvasOpen.get(),
 			options: h.opened.map(open => ({ preserveFocus: open.options?.preserveFocus, inactive: open.options?.inactive })),
-		}, { whileRestoring: 0, destination: { id: descriptor.id, source: 'history' }, options: [{ preserveFocus: false, inactive: false }] });
+		}, { whileRestoring: 0, destination: { id: descriptor.id, source: 'history' }, options: [{ preserveFocus: true, inactive: false }] });
+	});
+
+	test('canceling Back to Inbox after the editor open starts preserves Sessions focus and visibility', async () => {
+		const h = createHarness();
+		store.add(h.service.registerCanvas(descriptor));
+		await h.service.openCanvas(descriptor.id);
+		h.service.deactivateCanvas();
+		h.showSessions();
+		const focusCalls = h.focusCalls;
+		const activations = h.activations;
+		const gate = new DeferredPromise<void>();
+		h.setOpenGate(gate);
+		const started = Event.toPromise(h.willOpen.event);
+		const opening = h.service.openCanvas(descriptor.id, { source: 'history' });
+		await started;
+		h.service.cancelPendingOpen();
+		await gate.complete();
+		await opening;
+		assert.deepStrictEqual({
+			navigation: h.service.navigationRequest.get(),
+			destination: h.service.activeCanvasOpen.get(),
+			focusCalls: h.focusCalls - focusCalls,
+			activations: h.activations - activations,
+			sessionsVisible: h.sessionsVisible,
+		}, { navigation: undefined, destination: undefined, focusCalls: 0, activations: 0, sessionsVisible: true });
+	});
+
+	test('a current foreground open activates and focuses the canvas once the editor is ready', async () => {
+		const h = createHarness();
+		store.add(h.service.registerCanvas(descriptor));
+		const gate = new DeferredPromise<void>();
+		h.setOpenGate(gate);
+		const started = Event.toPromise(h.willOpen.event);
+		const opening = h.service.openCanvas(descriptor.id, { source: 'history' });
+		await started;
+		const pending = { activations: h.activations, focusCalls: h.focusCalls };
+		await gate.complete();
+		await opening;
+		assert.deepStrictEqual({
+			pending, activations: h.activations, focusCalls: h.focusCalls,
+			destination: h.service.activeCanvasOpen.get(),
+		}, { pending: { activations: 0, focusCalls: 0 }, activations: 1, focusCalls: 1, destination: { id: descriptor.id, source: 'history' } });
 	});
 
 	test('canceling an open stops waiting for background working-set restoration', async () => {

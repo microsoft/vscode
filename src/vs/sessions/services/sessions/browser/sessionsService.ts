@@ -536,7 +536,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}));
 		this._register(autorun(reader => {
 			if (this.windowCanvasService.navigationRequest.read(reader)) {
-				this._cancelRestore();
 				this._openSessionCts.value?.cancel();
 				this._recordNavigation();
 			}
@@ -590,12 +589,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const visible = this._visibility.gridSessions.read(reader);
 			const active = this._visibility.activeSession.read(reader);
 			const preserveFocus = this._visibility.activePreserveFocus.read(reader);
+			const canvasNavigation = this.windowCanvasService.navigationRequest.read(reader);
 			const request = this._gridRequest.read(reader);
 			this.sessionsPartService.updateVisibleSessions(visible, active, this._visibility.getRenderedGridSlots(), request);
 
 			if (active !== this._focusedActiveSession) {
 				this._focusedActiveSession = active;
-				if (!preserveFocus) {
+				// Startup restoration may populate the grid underneath an open or opening canvas.
+				if (!preserveFocus && !canvasNavigation) {
 					this.sessionsPartService.focusSession(active);
 				}
 			}

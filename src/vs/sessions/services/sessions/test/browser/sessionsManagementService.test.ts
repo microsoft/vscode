@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
+import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -57,6 +58,7 @@ import { SessionsManagementService } from '../../browser/sessionsManagementServi
 import { VisibleSessions } from '../../browser/visibleSessions.js';
 import { ISessionsManagementService, IActiveSession, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
 import { ISessionsService, SessionsService } from '../../browser/sessionsService.js';
+import { ISessionGridState } from '../../browser/sessionGridState.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../browser/sessionOpenTelemetryService.js';
 import { ISessionGridSlot, ISessionsPartService, SessionGridRequest } from '../../browser/sessionsPartService.js';
 import { AbstractCustomView } from '../../../customView/browser/customView.js';
@@ -4169,6 +4171,88 @@ suite('SessionsManagementService', () => {
 			await view.openPreviousSession();
 			assert.deepStrictEqual({ unchanged, canvas: canvasService.activeCanvasOpen.get()?.id }, { unchanged: true, canvas: 'inbox' });
 		});
+
+		for (const { pendingCanvas, savedGrid } of [
+			{ pendingCanvas: false, savedGrid: false }, { pendingCanvas: true, savedGrid: false },
+			{ pendingCanvas: false, savedGrid: true }, { pendingCanvas: true, savedGrid: true },
+		]) {
+			test(`startup restoration continues under ${pendingCanvas ? 'a pending' : 'an open'} canvas without taking focus (saved grid: ${savedGrid})`, async () => {
+				const first = stubSession({ sessionId: 'first', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+				const second = stubSession({ sessionId: 'second', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+				const sessionsChanged = disposables.add(new Emitter<ISessionChangeEvent>());
+				let sessions: ISession[] = [];
+				const provider = new class extends TestSessionsProvider {
+					override readonly onDidChangeSessions = sessionsChanged.event;
+					override getSessions(): ISession[] { return sessions; }
+				}(first);
+				const storage = disposables.add(new InMemoryStorageService());
+				storage.store('agentSessions.activeSessionStates', JSON.stringify([
+					{ sessionResource: first.resource.toString(), visibleOrder: 0, isSticky: true, isActive: true },
+					{ sessionResource: second.resource.toString(), visibleOrder: 1, isSticky: false, isActive: false },
+				]), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				if (savedGrid) {
+					const state: ISessionGridState = {
+						version: 1,
+						grid: {
+							orientation: Orientation.HORIZONTAL, width: 1000, height: 600,
+							root: {
+								type: 'branch', size: 600,
+								data: [
+									{ type: 'leaf', size: 400, data: { id: 'first-slot' } },
+									{ type: 'leaf', size: 600, data: { id: 'second-slot' } },
+								],
+							},
+						},
+						sessions: [
+							{ id: 'first-slot', resource: first.resource.toString(), sticky: true },
+							{ id: 'second-slot', resource: second.resource.toString(), sticky: false },
+						],
+						active: 'first-slot',
+					};
+					storage.store('agentSessions.gridState', JSON.stringify(state), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				}
+				const { view, canvasService, layoutService, sessionsPartService } = createSessionsManagementService(first, disposables, provider, undefined, undefined, undefined, undefined, storage);
+				disposables.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
+				const restoring = view.restoreVisibleSessions();
+				if (pendingCanvas) {
+					canvasService.navigationRequest.set({ id: 'inbox', source: 'explicit' }, undefined);
+				} else {
+					await canvasService.openCanvas('inbox');
+				}
+				layoutService.setPartHidden(true, Parts.SESSIONS_PART);
+				sessionsPartService.focusedSessions.length = 0;
+				const navigation = view.navigationRequest.get();
+
+				sessions = [first, second];
+				sessionsChanged.fire({ added: sessions, removed: [], changed: [] });
+				await restoring;
+				const covered = {
+					visible: layoutService.isVisible(Parts.SESSIONS_PART),
+					sessions: view.visibleSessions.get().map(session => ({ id: session?.sessionId, sticky: session?.sticky.get() })),
+					active: view.activeSession.get()?.sessionId,
+					focused: [...sessionsPartService.focusedSessions],
+					canvas: canvasService.navigationRequest.get()?.id,
+					sameNavigation: view.navigationRequest.get() === navigation,
+					restoreComplete: view.initialRestoreComplete.get(),
+				};
+				await view.openSession(first.resource, { source: 'sessionsList', preserveFocus: true });
+				assert.deepStrictEqual({
+					covered,
+					returned: {
+						visible: layoutService.isVisible(Parts.SESSIONS_PART),
+						sessions: view.visibleSessions.get().map(session => session?.sessionId),
+						focused: sessionsPartService.focusedSessions,
+						canvas: canvasService.activeCanvasOpen.get(),
+					},
+				}, {
+					covered: {
+						visible: false, sessions: [{ id: 'first', sticky: true }, { id: 'second', sticky: false }],
+						active: 'first', focused: [], canvas: 'inbox', sameNavigation: true, restoreComplete: true,
+					},
+					returned: { visible: true, sessions: ['first', 'second'], focused: [], canvas: undefined },
+				});
+			});
+		}
 
 		test('explicit side opening from a canvas preserves the session arrangement and preserve-focus option', async () => {
 			const first = stubSession({ sessionId: 'first', providerId: 'test', status: constObservable(SessionStatus.Completed) });
