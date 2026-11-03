@@ -92,6 +92,7 @@ import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } f
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
+import { copilotEntraClientId } from '../../common/copilotEntraAuthentication.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
@@ -1617,6 +1618,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	const authenticationService = disposables.add(new AgentHostAuthenticationService(logService));
 	const fileService = options?.fileService ?? disposables.add(new FileService(logService));
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
+	stateManager.rootState.config = { schema: { type: 'object', properties: {} }, values: { ...options?.rootConfig } };
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	configService.updateRootConfig(options?.rootConfig ?? {});
 	const managedSettingsService = disposables.add(new AgentHostManagedSettingsService());
@@ -1624,6 +1626,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(ILogService, logService);
 	services.set(IRequestService, new class extends mock<IRequestService>() { }());
 	services.set(IAgentHostAuthenticationService, authenticationService);
+	services.set(IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService()));
 	services.set(IFileService, fileService);
 	services.set(IAgentConfigurationService, configService);
 	services.set(IAgentHostManagedSettingsService, managedSettingsService);
@@ -5134,6 +5137,30 @@ suite('CopilotAgent', () => {
 			onGitHubTelemetry: 'function',
 		});
 	});
+
+	for (const enabled of [false, true]) {
+		test(`keeps the startup Microsoft bridge choice (${enabled}) across live configuration changes`, async () => {
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				rootConfig: { [CopilotCliConfigKey.M365Enabled]: enabled },
+			});
+			afterTest(() => disposeAgent(agent));
+			configurationService.updateRootConfig({ [CopilotCliConfigKey.M365Enabled]: !enabled });
+			await agent.listChatsToMigrate();
+			const options = getCreatedClientOptions(agent).at(-1);
+			assert.deepStrictEqual({
+				effective: configurationService.copilotM365EnabledAtStartup,
+				clientId: options?.entra?.clientId,
+				provider: typeof options?.entra?.tokenProvider,
+				loggedInUser: options?.useLoggedInUser,
+			}, {
+				effective: enabled,
+				clientId: enabled ? copilotEntraClientId : undefined,
+				provider: enabled ? 'function' : 'undefined',
+				loggedInUser: false,
+			});
+		});
+	}
 
 	test('uses injected Copilot homes for SDK startup and plan files despite an inherited override', async () => {
 		const previous = process.env.COPILOT_HOME;

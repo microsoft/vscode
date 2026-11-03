@@ -590,7 +590,7 @@ export class AgentSideEffects extends Disposable {
 	private _publishAgentInfos(agents: readonly IAgent[], reader?: IReader): void {
 		const infos: AgentInfo[] = agents.map(a => {
 			const d = a.getDescriptor();
-			const protectedResources = a.getProtectedResources();
+			const protectedResources = a.getProtectedResources(reader);
 			const models = reader ? a.models.read(reader) : a.models.get();
 			const customizations = a.getCustomizations?.();
 			return {

@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
+import { Emitter, type Event } from '../../../base/common/event.js';
+import { Disposable, DisposableStore, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentHostMcpAuthenticationRequest, IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
 
@@ -16,6 +17,7 @@ export interface IAgentHostClientConnectionCounts {
 }
 
 export interface IAgentHostClientConnectionSource {
+	readonly onDidChangeConnectionCount?: Event<number>;
 	hasSeenClient(clientId: string): boolean;
 	isClientConnected(clientId: string): boolean;
 	/** Whether an active connection is local and uses the server's MessagePort transport. */
@@ -34,6 +36,7 @@ export const IAgentHostClientConnectionService = createDecorator<IAgentHostClien
 
 export interface IAgentHostClientConnectionService {
 	readonly _serviceBrand: undefined;
+	readonly onDidChangeConnections: Event<void>;
 	registerSource(source: IAgentHostClientConnectionSource): IDisposable;
 	hasSeenClient(clientId: string): boolean;
 	isClientConnected(clientId: string): boolean;
@@ -50,6 +53,8 @@ export interface IAgentHostClientConnectionService {
 export class AgentHostClientConnectionService extends Disposable implements IAgentHostClientConnectionService {
 	declare readonly _serviceBrand: undefined;
 	private readonly _sources = new Set<IAgentHostClientConnectionSource>();
+	private readonly _onDidChangeConnections = this._register(new Emitter<void>());
+	readonly onDidChangeConnections = this._onDidChangeConnections.event;
 
 	constructor() {
 		super();
@@ -61,7 +66,16 @@ export class AgentHostClientConnectionService extends Disposable implements IAge
 			throw new Error('Agent Host client connection source is already registered');
 		}
 		this._sources.add(source);
-		return toDisposable(() => this._sources.delete(source));
+		const store = new DisposableStore();
+		store.add(toDisposable(() => {
+			this._sources.delete(source);
+			this._onDidChangeConnections.fire();
+		}));
+		if (source.onDidChangeConnectionCount) {
+			store.add(source.onDidChangeConnectionCount(() => this._onDidChangeConnections.fire()));
+		}
+		this._onDidChangeConnections.fire();
+		return store;
 	}
 
 	hasSeenClient(clientId: string): boolean {

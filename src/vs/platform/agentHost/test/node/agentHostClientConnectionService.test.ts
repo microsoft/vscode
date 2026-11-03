@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
@@ -12,6 +13,29 @@ import { AgentHostClientConnectionService } from '../../node/agentHostClientConn
 
 suite('AgentHostClientConnectionService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('forwards connection changes and releases the subscription when a source is removed', () => {
+		const service = store.add(new AgentHostClientConnectionService());
+		const changes = store.add(new Emitter<number>());
+		const counts = new Map<string, number>();
+		const observed: number[] = [];
+		store.add(service.onDidChangeConnections(() => observed.push(service.getConnectionCounts('').connectedClientCount)));
+		const registration = store.add(service.registerSource({
+			onDidChangeConnectionCount: changes.event,
+			hasSeenClient: () => false,
+			isClientConnected: id => counts.has(id),
+			isLocalClient: () => false,
+			usesLegacyChatUris: () => false,
+			getConnectedClientTransportCounts: () => counts,
+			requestWorkspaceTrust: async () => false,
+			requestMcpAuthentication: async () => false,
+		}));
+		counts.set('client', 1);
+		changes.fire(1);
+		registration.dispose();
+		changes.fire(1);
+		assert.deepStrictEqual(observed, [0, 1, 0]);
+	});
 
 	test('reports locality from registered sources and drops it when a source is removed', () => {
 		const service = store.add(new AgentHostClientConnectionService());

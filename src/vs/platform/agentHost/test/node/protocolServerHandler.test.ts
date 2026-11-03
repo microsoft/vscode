@@ -483,7 +483,7 @@ class MockAgentService extends Disposable implements IAgentService {
 		return { kind, resource: URI.file('/tmp/agent-host-debug.zip'), providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] };
 	}
 	async cancelDebugLogs(_progressToken: string): Promise<void> { }
-	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
+	async authenticate(..._args: Parameters<IAgentService['authenticate']>): Promise<AuthenticateResult> { return { authenticated: true }; }
 	async getModelsForCredentials(_provider: string, _credentials: IAgentHostCredentialSource, _token?: CancellationToken): Promise<readonly IAgentModelInfo[]> { return []; }
 	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return {}; }
 	async resourceList(uri: URI): Promise<ResourceListResult> {
@@ -12073,6 +12073,25 @@ suite('ProtocolServerHandler', () => {
 
 		assert.ok(!resp.error, `unexpected error: ${resp.error?.message}`);
 		assert.deepStrictEqual(resp.result, {});
+	});
+
+	test('authenticate supplies a host-owned lifetime and cancels it when the transport disconnects', async () => {
+		const authenticate = sinon.spy(agentService, 'authenticate');
+		disposables.add(toDisposable(() => authenticate.restore()));
+		const transport = connectClient('credential-owner');
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'authenticate', {
+			resource: 'https://api.github.com',
+			token: 'synthetic-credential',
+			connectionToken: { isCancellationRequested: false },
+		}));
+		await response;
+		const lifetime = authenticate.firstCall.args[2];
+		assert.ok(lifetime);
+		const cancelled = new Promise<void>(resolve => disposables.add(lifetime.onCancellationRequested(resolve)));
+		transport.simulateClose();
+		await cancelled;
+		assert.strictEqual(lifetime.isCancellationRequested, true);
 	});
 
 	test('getManagedSettingsDiagnostics returns provider SDK snapshots', async () => {
