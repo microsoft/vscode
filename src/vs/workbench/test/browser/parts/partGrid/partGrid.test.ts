@@ -592,6 +592,16 @@ suite('Part Grid', () => {
 		const fromTop = drag('top');
 		dispatch(fromTop.titleSpace, 'dragend');
 
+		// A tab drags its editor, and the drag handle the part, wherever the part is
+		const tab = cellOf('below').querySelector('.title .tab')!;
+		dispatch(tab, 'dragstart');
+		const fromTab = { part: partTransfer.hasData(DraggedPartIdentifier.prototype), editor: LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>().hasData(DraggedEditorIdentifier.prototype) };
+		dispatch(tab, 'dragend');
+		const handle = cellOf('top').querySelector('.part-grid-drag-handle')!;
+		dispatch(handle, 'dragstart');
+		const fromHandle = partTransfer.getData(DraggedPartIdentifier.prototype)?.[0]?.cellId;
+		dispatch(handle, 'dragend');
+
 		const fromBelow = drag('below');
 		const target = cellOf('top').getBoundingClientRect();
 		const point = [target.left + target.width * 0.1, target.top + target.height / 2] as const;
@@ -599,8 +609,10 @@ suite('Part Grid', () => {
 		dispatch(cellOf('top'), 'drop', ...point);
 		dispatch(fromBelow.titleSpace, 'dragend');
 
-		assert.deepStrictEqual({ fromTop: fromTop.dragged, fromBelow: fromBelow.dragged, shape: grid.describe(), afterEnd: partTransfer.hasData(DraggedPartIdentifier.prototype) || groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype) }, {
+		assert.deepStrictEqual({ fromTop: fromTop.dragged, fromTab, fromHandle, fromBelow: fromBelow.dragged, shape: grid.describe(), afterEnd: partTransfer.hasData(DraggedPartIdentifier.prototype) || groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype) }, {
 			fromTop: { part: undefined, group: true },
+			fromTab: { part: false, editor: true },
+			fromHandle: 'top',
 			fromBelow: { part: 'below', group: false },
 			shape: 'row(below, top)',
 			afterEnd: false
