@@ -250,6 +250,8 @@ export class PartGridDropTarget extends Disposable {
 		return undefined;
 	}
 
+	private preview: { readonly key: string; readonly slot: IPartGridRect | undefined } | undefined;
+
 	private getDrop(e: DragEvent, dragged: PartGridDragged): IPartGridDrop | undefined {
 		const bounds = this.host.container.getBoundingClientRect();
 		const cellId = hasKey(dragged, { cellId: true }) ? dragged.cellId : undefined;
@@ -263,7 +265,12 @@ export class PartGridDropTarget extends Disposable {
 		// A part shows where it goes as a whole: its slot after the move, the
 		// other cells shifted, or, merging, the whole part it merges into
 		if (cellId !== undefined && drop && hasKey(drop, { location: true })) {
-			const slot = this.host.previewMove(cellId, drop.location);
+			// The slot only changes with where the part goes: the dry run that finds it runs once for each place
+			const key = `${cellId}:${JSON.stringify(drop.location)}`;
+			if (this.preview?.key !== key) {
+				this.preview = { key, slot: this.host.previewMove(cellId, drop.location) };
+			}
+			const slot = this.preview.slot;
 			if (!slot) {
 				return undefined;
 			}
@@ -349,6 +356,7 @@ export class PartGridDropTarget extends Disposable {
 
 	private hideIndicator(): void {
 		hide(this.indicator);
+		this.preview = undefined;
 	}
 }
 
