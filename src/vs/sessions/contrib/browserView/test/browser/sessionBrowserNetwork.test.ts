@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -129,6 +129,7 @@ suite('SessionBrowserNetworkContribution', () => {
 			agentOnRemoteHost: resolve({ type: 'agent', sessionId: 'chat:/committed' }),
 			agentOnLocalHost: resolve({ type: 'agent', sessionId: 'chat:/local' }),
 			workspaceless: resolve({ type: 'agent', sessionId: 'chat:/quick' }),
+			unknownChat: resolve({ type: 'agent', sessionId: 'chat:/gone' }),
 		};
 		activeSession.set(upcastPartial<IActiveSession>(local), undefined);
 		const activeLocal = resolve({ type: 'user' });
@@ -139,6 +140,8 @@ suite('SessionBrowserNetworkContribution', () => {
 			agentOnRemoteHost: { network: { authority: 'ssh-host' }, storageAffinity: repo('ssh-host') },
 			agentOnLocalHost: localNetwork,
 			workspaceless: { network: { authority: 'ssh-host' }, storageAffinity: undefined },
+			// Not the local network: views that require their owner's network fail instead.
+			unknownChat: { network: null, storageAffinity: undefined },
 			activeLocal: localNetwork,
 		});
 	});
@@ -257,35 +260,34 @@ suite('SessionBrowserNetworkContribution', () => {
 		onDidReplaceSession.fire({ from: draftB, to: started });
 		await timeout(0);
 
-		try {
-			const moved = [
-				['http://page/', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostB, '/repo'), network: { authority: hostB } }],
-				// Global storage never uses a remote network, so the tab is not recreated.
-				['http://global/', { scope: BrowserViewStorageScope.Global }],
-				['http://ephemeral/', { scope: BrowserViewStorageScope.Ephemeral, network: { authority: hostB } }],
-				[file.toString(), { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostB, '/repo'), network: { authority: hostB } }],
-				['http://existing/', undefined],
-			];
-			assert.deepStrictEqual({ afterReplace, fileAssociation, afterStart: tabs.map(tab => [tab.url, tab.session]) }, {
-				afterReplace: moved,
-				// The recreated tab still belongs to its file.
-				fileAssociation: [false, file.toString()],
-				// Starting on the same host and folders changes nothing, and the new draft's tab stays with that draft.
-				afterStart: [...moved, ['http://next/', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostB, '/other'), network: { authority: hostB } }]],
-			});
-			assert.strictEqual(created.filter(input => !input.isDisposed()).length, tabs.length);
-		} finally {
+		store.add(toDisposable(() => {
 			for (const input of created) {
 				input.dispose(true);
 			}
-		}
+		}));
+		const moved = [
+			['http://page/', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostB, '/repo'), network: { authority: hostB } }],
+			// Global storage never uses a remote network, so the tab is not recreated.
+			['http://global/', { scope: BrowserViewStorageScope.Global }],
+			['http://ephemeral/', { scope: BrowserViewStorageScope.Ephemeral, network: { authority: hostB } }],
+			[file.toString(), { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostB, '/repo'), network: { authority: hostB } }],
+			['http://existing/', undefined],
+		];
+		assert.deepStrictEqual({ afterReplace, fileAssociation, afterStart: tabs.map(tab => [tab.url, tab.session]) }, {
+			afterReplace: moved,
+			// The recreated tab still belongs to its file.
+			fileAssociation: [false, file.toString()],
+			// Starting on the same host and folders changes nothing, and the new draft's tab stays with that draft.
+			afterStart: [...moved, ['http://next/', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostB, '/other'), network: { authority: hostB } }]],
+		});
+		assert.strictEqual(created.filter(input => !input.isDisposed()).length, tabs.length);
 	});
 
 	test('moves tabs with a draft replaced without an event, and leaves hidden tabs untouched', async () => {
 		const draft = session('draft', 'agenthost-a', '/repo');
 		const quickChat = session('quick', 'agenthost-b');
 		const started = session('started', 'agenthost-b', '/repo');
-		const composer = createComposer(draft);
+		const composer = store.add(createComposer(draft));
 		const shown = composer.open('shown', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostA, '/repo'), network: { authority: hostA } });
 		const hidden = composer.open('hidden', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostA, '/repo'), network: { authority: hostA } });
 		// Hidden with its session's other editors, as when the user switches to another session.
@@ -298,15 +300,11 @@ suite('SessionBrowserNetworkContribution', () => {
 		composer.onDidReplaceSession.fire({ from: quickChat, to: started });
 		await timeout(0);
 
-		try {
-			assert.deepStrictEqual({ afterQuickChat, shownReplaced: shown.isDisposed(), hidden: [hidden.isDisposed(), hidden.session] }, {
-				// A workspace-less quick chat has no storage partition.
-				afterQuickChat: [['http://shown/', { scope: BrowserViewStorageScope.Workspace, network: { authority: hostB } }]],
-				shownReplaced: true,
-				hidden: [false, { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostA, '/repo'), network: { authority: hostA } }],
-			});
-		} finally {
-			composer.dispose();
-		}
+		assert.deepStrictEqual({ afterQuickChat, shownReplaced: shown.isDisposed(), hidden: [hidden.isDisposed(), hidden.session] }, {
+			// A workspace-less quick chat has no storage partition.
+			afterQuickChat: [['http://shown/', { scope: BrowserViewStorageScope.Workspace, network: { authority: hostB } }]],
+			shownReplaced: true,
+			hidden: [false, { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostA, '/repo'), network: { authority: hostA } }],
+		});
 	});
 });

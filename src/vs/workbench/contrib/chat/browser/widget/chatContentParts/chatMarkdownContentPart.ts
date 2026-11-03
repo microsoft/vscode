@@ -64,7 +64,7 @@ import { IChatOutputRendererService, type RenderedOutputPart } from '../../chatO
 import { allowedChatMarkdownHtmlTags } from '../chatContentMarkdownRenderer.js';
 import { IMarkdownDiffBlockData, MarkdownDiffBlockPart, parseUnifiedDiff } from './chatDiffBlockPart.js';
 import { ChatEditingActionContext } from '../../chatEditing/chatEditingActions.js';
-import { ChatMarkdownDecorationsRenderer } from './chatMarkdownDecorationsRenderer.js';
+import { ChatInlineAttachmentRenderer, ChatMarkdownDecorationsRenderer } from './chatMarkdownDecorationsRenderer.js';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from './codeBlockPart.js';
 import './media/chatCodeBlockPill.css';
 import { IDisposableReference } from './chatCollections.js';
@@ -95,6 +95,8 @@ export interface IChatMarkdownContentPartOptions {
 	 * Defaults to the window's `ResizeObserver`; tests pass a fake to trigger resizes.
 	 */
 	readonly resizeObserverCtor?: typeof ResizeObserver;
+	/** Renders the attachments of a request that are shown as pills inline with its text. */
+	readonly renderInlineAttachment?: ChatInlineAttachmentRenderer;
 }
 
 interface IMarkdownPartCodeBlockInfo extends IChatCodeBlockInfo {
@@ -271,7 +273,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || codeblockHasClosingBackticks(raw);
 					const hasChatOutputRenderer = !!languageId
 						&& this.chatOutputRendererService.hasCodeBlockRenderer(languageId);
-					if ((!text || (text.startsWith('<vscode_codeblock_uri') && !text.includes('\n')))
+					if ((!text || (isResponseVM(element) && text.startsWith('<vscode_codeblock_uri') && !text.includes('\n')))
 						&& !isCodeBlockComplete
 						&& !hasChatOutputRenderer) {
 						const hideEmptyCodeblock = $('div');
@@ -317,11 +319,12 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 					let codemapperUri: URI | undefined;
 					let isEdit: boolean | undefined;
-					const codeblockUri = extractCodeblockUrisFromText(codeBlockText);
+					const inlineCodeblockUri = isResponseVM(element) && !this.markdown.codeblockUri ? extractCodeblockUrisFromText(codeBlockText) : undefined;
+					const codeblockUri = isResponseVM(element) ? this.markdown.codeblockUri ?? inlineCodeblockUri : undefined;
 					if (codeblockUri) {
 						codemapperUri = codeblockUri.uri;
 						isEdit = codeblockUri.isEdit;
-						codeBlockText = codeblockUri.textWithoutResult;
+						codeBlockText = inlineCodeblockUri?.textWithoutResult ?? codeBlockText;
 					}
 
 					const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
@@ -428,7 +431,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				}));
 			}
 
-			store.add(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(this.markdown, result.element));
+			store.add(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(this.markdown, result.element, this.rendererOptions.renderInlineAttachment));
 			store.add(this.hookUpImages(result.element, fileImages, element.sessionResource, element.id));
 
 			const layoutParticipants = new Lazy(() => {
@@ -619,7 +622,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	}
 
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
-		if (other.kind !== 'markdownContent') {
+		if (other.kind !== 'markdownContent' || other.codeblockUri !== this.markdown.codeblockUri) {
 			return false;
 		}
 
@@ -642,7 +645,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 	/** Attempts an append-only update, preserving rendered code blocks even when streaming animations are disabled. */
 	tryIncrementalUpdate(newMarkdown: IChatMarkdownContent): boolean {
-		if (!equalsInlineReferences(newMarkdown.inlineReferences, this.markdown.inlineReferences)) {
+		if (newMarkdown.codeblockUri !== this.markdown.codeblockUri || !equalsInlineReferences(newMarkdown.inlineReferences, this.markdown.inlineReferences)) {
 			return false;
 		}
 

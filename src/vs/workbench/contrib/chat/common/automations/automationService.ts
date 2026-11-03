@@ -219,6 +219,8 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 		prompt: automation.prompt,
 		schedule: {
 			interval: automation.schedule.interval,
+			cronExpression: automation.schedule.cronExpression,
+			cronTimeZone: automation.schedule.cronTimeZone,
 			scheduleHour: automation.schedule.scheduleHour,
 			scheduleMinute: automation.schedule.scheduleMinute,
 			scheduleDay: automation.schedule.scheduleDay,
@@ -259,7 +261,7 @@ export interface IDeleteAutomationOptions {
 	readonly deleteHistory: boolean;
 }
 
-export type AutomationHistoryState = 'retained' | 'deleting';
+export type AutomationHistoryState = 'retained' | 'deleting' | 'interrupted';
 
 /**
  * Provider-neutral catalogue and command contract shared by individual providers and the aggregate service.

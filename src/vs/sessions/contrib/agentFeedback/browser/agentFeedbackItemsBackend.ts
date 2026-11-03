@@ -176,6 +176,7 @@ interface IFeedbackMetaView {
 	readonly codeSelection?: string;
 	readonly diffHunks?: string;
 	readonly sourcePRReviewCommentId?: string;
+	readonly sourcePRReviewCommentAuthor?: string;
 	readonly sourcePullRequest?: IFeedbackPullRequest;
 	readonly pendingAgentReveal?: boolean;
 }
@@ -222,6 +223,7 @@ function readFeedbackMeta(annotation: Annotation): IFeedbackMetaView | undefined
 		codeSelection: base.codeSelection,
 		diffHunks: base.diffHunks,
 		sourcePRReviewCommentId: base.sourcePRReviewCommentId,
+		sourcePRReviewCommentAuthor: base.sourcePRReviewCommentAuthor,
 		sourcePullRequest: base.sourcePullRequest,
 		pendingAgentReveal: base.pendingAgentReveal,
 	};
@@ -268,6 +270,7 @@ function feedbackToAnnotation(feedback: IAgentFeedback, connection: IAgentConnec
 		codeSelection: feedback.codeSelection,
 		diffHunks: feedback.diffHunks,
 		sourcePRReviewCommentId: feedback.sourcePRReviewCommentId,
+		sourcePRReviewCommentAuthor: feedback.sourcePRReviewCommentAuthor,
 		sourcePullRequest: feedback.sourcePullRequest,
 		pendingAgentReveal: feedback.pendingAgentReveal,
 	};
@@ -307,6 +310,7 @@ function annotationToFeedback(annotation: Annotation, sessionResource: URI, conn
 		diffHunks: meta?.diffHunks,
 		kind: meta?.kind ?? AgentFeedbackKind.UserReview,
 		sourcePRReviewCommentId: meta?.sourcePRReviewCommentId,
+		sourcePRReviewCommentAuthor: meta?.sourcePRReviewCommentAuthor,
 		sourcePullRequest: meta?.sourcePullRequest,
 		replies: replies.length ? replies : undefined,
 		state: annotation.resolved ? AgentFeedbackState.Resolved : (meta?.state ?? AgentFeedbackState.Accepted),
@@ -571,6 +575,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 				item.diffHunks ?? null,
 				item.kind,
 				item.sourcePRReviewCommentId ?? null,
+				item.sourcePRReviewCommentAuthor ?? null,
 				item.sourcePullRequest ?? null,
 				item.replies ?? null,
 				item.state,

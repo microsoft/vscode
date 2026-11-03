@@ -15,6 +15,7 @@ export function sessionActivityBarChatActionContext(commandId: string): RawConte
 //#region < --- Active Session --- >
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
+export const NewSessionComposerFocusContext = new RawContextKey<boolean>('newSessionComposerFocus', false, localize('newSessionComposerFocus', "Whether focus is within the new-session composer or its pickers"));
 export const NewSessionOnboardingHandoffContext = new RawContextKey<boolean>('newSessionOnboardingHandoff', false);
 export const SessionIdContext = new RawContextKey<string>('sessionId', '', localize('sessionId', "The identifier of the session in scope (the active session globally, or a specific session within an isolated component such as the session view or a context menu overlay)"));
 export const SessionProviderIdContext = new RawContextKey<string>('sessionProviderId', '', localize('sessionProviderId', "The provider ID of the session in scope (the active session globally, or a specific session within an isolated component such as the session view or a context menu overlay)"));
@@ -39,6 +40,7 @@ export const SessionSupportsForkContext = new RawContextKey<boolean>('sessionSup
 export const SessionSupportsSideChatContext = new RawContextKey<boolean>('sessionSupportsSideChat', false, localize('sessionSupportsSideChat', "Whether the session view's session supports creating a side chat from a turn (via /btw)"));
 export const SessionHasMultipleCommittedChatsContext = new RawContextKey<boolean>('sessionHasMultipleCommittedChats', false, localize('sessionHasMultipleCommittedChats', "Whether the session view's session has more than one committed (non-draft) chat, which drives the Chats dropdown visibility"));
 export const SessionActiveChatResourceContext = new RawContextKey<string>('sessionActiveChatResource', '', localize('sessionActiveChatResource', "The resource of the chat represented by the session or chat header"));
+export const SessionActiveChatCanvasReferenceKeysContext = new RawContextKey<string[]>('sessionActiveChatCanvasReferenceKeys', [], localize('sessionActiveChatCanvasReferenceKeys', "The live Canvas references owned by the chat represented by the session view"));
 export const SessionActiveChatHasSideChatsContext = new RawContextKey<boolean>('sessionActiveChatHasSideChats', false, localize('sessionActiveChatHasSideChats', "Whether the chat represented by the session or chat header has side chats"));
 export const SessionShouldShowChatTabsContext = new RawContextKey<boolean>('sessionShouldShowChatTabs', false, localize('sessionShouldShowChatTabs', "Whether the session view's chat tab strip is shown, i.e. the session has more than one chat actually showing as a tab. A single visible tab always hides the strip"));
 export const SessionHasMultipleOpenChatsContext = new RawContextKey<boolean>('sessionHasMultipleOpenChats', false, localize('sessionHasMultipleOpenChats', "Whether the session view's session has more than one open chat (the tabs shown in the strip, including in-composer drafts). Used to scope chat-to-chat navigation (next/previous chat, the Ctrl+Tab chat switcher)"));
@@ -82,12 +84,14 @@ export const SessionsHasClosedItemContext = new RawContextKey<boolean>('sessions
  * commands defer to those commands while this holds.
  */
 export const SessionsEditorScopeContext = ContextKeyExpr.or(EditorAreaFocusContext, AuxiliaryBarFocusContext)!;
+export const ActiveSessionCanvasReferenceContext = new RawContextKey<string>('activeSessionCanvasReference', '', localize('activeSessionCanvasReference', "The reference key of the active session Canvas editor"));
 
 //#endregion
 
 //#region < --- Custom View Grid --- >
 
 export const CustomViewVisibleContext = new RawContextKey<boolean>('customViewVisible', false, localize('customViewVisible', "Whether a custom view is shown in place of the sessions grid. The side panel and the panel are hidden while it is."));
+export const InboxCanvasFocusContext = new RawContextKey<boolean>('inboxCanvasFocus', false, localize('inboxCanvasFocus', "Whether the Inbox canvas has keyboard focus"));
 export const AutomationsCustomViewFocusContext = new RawContextKey<boolean>('automationsCustomViewFocus', false, localize('automationsCustomViewFocus', "Whether the Automations custom view has keyboard focus"));
 export const AutomationsHasItemsContext = new RawContextKey<boolean>('automationsHasItems', false, localize('automationsHasItems', "Whether there is at least one automation"));
 

@@ -220,9 +220,10 @@ export class PluginInstallService implements IPluginInstallService {
 					};
 				}
 				await this.installPlugin(singlePlugin);
+				const installedUri = this.getPluginInstallUri(singlePlugin);
 				return options?.plugin
-					? { success: true, matchedPlugin: singlePlugin }
-					: { success: true };
+					? { success: true, matchedPlugin: singlePlugin, installedUri }
+					: { success: true, installedUri };
 			}
 
 			void this._pluginRepositoryService.cleanupPluginSource(tempPlugin);
@@ -242,7 +243,7 @@ export class PluginInstallService implements IPluginInstallService {
 		if (!this._pluginMarketplaceService.installedPlugins.get().some(installed => isEqual(installed.pluginUri, installedUri))) {
 			return { success: false, message: localize('pluginSourceInstallIncomplete', "The plugin could not be installed. Review the installation error and try again.") };
 		}
-		return { success: true, matchedPlugin: plugin };
+		return { success: true, matchedPlugin: plugin, installedUri };
 	}
 
 	/**
@@ -300,7 +301,7 @@ export class PluginInstallService implements IPluginInstallService {
 		// a standalone plugin location.
 		if (await this._pluginMarketplaceService.isPluginDirectory(repoDir)) {
 			await this._addPluginLocationToConfig(configPath);
-			return { success: true };
+			return { success: true, installedUri: repoDir };
 		}
 
 		return {
@@ -325,13 +326,13 @@ export class PluginInstallService implements IPluginInstallService {
 			}
 			await this._addMarketplaceToConfig(reference);
 			await this.installPlugin(matchedPlugin);
-			return { success: true, matchedPlugin };
+			return { success: true, matchedPlugin, installedUri: this.getPluginInstallUri(matchedPlugin) };
 		}
 
 		if (discoveredPlugins.length === 1) {
 			await this._addMarketplaceToConfig(reference);
 			await this.installPlugin(discoveredPlugins[0]);
-			return { success: true };
+			return { success: true, installedUri: this.getPluginInstallUri(discoveredPlugins[0]) };
 		}
 
 		// Multiple plugins — let the user choose.
@@ -353,7 +354,7 @@ export class PluginInstallService implements IPluginInstallService {
 		await this._addMarketplaceToConfig(reference);
 		await this.installPlugin(selected.plugin);
 
-		return { success: true };
+		return { success: true, installedUri: this.getPluginInstallUri(selected.plugin) };
 	}
 
 	private _addMarketplaceToConfig(reference: IMarketplaceReference) {

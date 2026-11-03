@@ -425,6 +425,9 @@ function stringifyAhpLogEntryTruncated(value: unknown, maxStringLength: number):
  */
 function _ahpReplacer(this: unknown, _key: string, value: unknown): unknown {
 	if (isRecord(value)) {
+		if (typeof value.authorization === 'string') {
+			return { ...value, authorization: '<redacted>' };
+		}
 		if ((value.method === 'channel/frame' || value.method === 'tcp/data') && isRecord(value.params)) {
 			return { ...value, params: { ...value.params, data: '<redacted channel payload>' } };
 		}

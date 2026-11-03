@@ -16,7 +16,7 @@ import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../configuration/common/configuration.js';
 import { FileService } from '../../../files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { McpResourceScannerService } from '../../common/mcpResourceScannerService.js';
 import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
@@ -124,6 +124,33 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('NPM Package Tests', () => {
+		test('required and secret environment variables without descriptions remain inputs', () => {
+			const manifest: IGalleryMcpServerConfiguration = {
+				packages: [{
+					registryType: RegistryType.NODE,
+					identifier: '@example/server',
+					transport: { type: TransportType.STDIO },
+					environmentVariables: [
+						{ name: 'REQUIRED', isRequired: true },
+						{ name: 'SECRET', isSecret: true },
+					],
+				}],
+			};
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+			assert.deepStrictEqual(result.mcpServerConfiguration, {
+				config: {
+					type: McpServerType.LOCAL,
+					command: 'npx',
+					args: ['@example/server'],
+					env: { REQUIRED: '${input:REQUIRED}', SECRET: '${input:SECRET}' },
+				},
+				inputs: [
+					{ id: 'REQUIRED', type: McpServerVariableType.PROMPT, description: '', password: false, default: undefined, options: undefined },
+					{ id: 'SECRET', type: McpServerVariableType.PROMPT, description: '', password: true, default: undefined, options: undefined },
+				],
+			});
+		});
+
 		test('basic NPM package configuration', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
@@ -1435,8 +1462,7 @@ suite('McpResourceManagementService', () => {
 	}
 
 	setup(async () => {
-		fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		uriIdentityService = disposables.add(new UriIdentityService(fileService));
 		scannerService = disposables.add(new McpResourceScannerService(fileService, uriIdentityService));
 		service = disposables.add(new TestMcpResourceManagementService(mcpResource, fileService, uriIdentityService, scannerService));
@@ -1633,8 +1659,7 @@ suite('McpResourceManagementService - install policy enforcement', () => {
 	}
 
 	setup(() => {
-		fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		uriIdentityService = disposables.add(new UriIdentityService(fileService));
 		scannerService = disposables.add(new McpResourceScannerService(fileService, uriIdentityService));
 	});

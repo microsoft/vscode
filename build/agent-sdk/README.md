@@ -90,10 +90,10 @@ Both steps are cross-target safe: `sdk.mjs` is platform-independent JS and impor
 1. Choose the requested exact version (normally the current npm `latest`; agent SDK updates are not subject to a package-age embargo), then edit the `dependencies` version in `build/agent-sdk/agents/<sdk>/package.json`.
 2. From that directory: `npm install --package-lock-only --ignore-scripts` to refresh `package-lock.json`.
 3. Also bump the matching `devDependencies` entry in repo-root `package.json` (the runtime imports types from that copy) so the shipped types and the build-time pin stay in lockstep.
-4. `npm install` at repo root to refresh the root lockfile.
+4. `pnpm install` at repo root to refresh the root `pnpm-lock.yaml`.
 5. Commit all four edits together.
 
-The `test/versionSync.test.ts` build test (run by `cd build && npm run
+The `test/versionSync.test.ts` build test (run by `cd build && pnpm run
 test` in PR CI) enforces step 3: it fails if an SDK's `agents/<sdk>` `package.json` pin, its `package-lock.json`, and the repo-root `devDependencies` pin ever fall out of lockstep.
 
 The next pipeline run rebuilds + uploads each platform tarball at the new content-addressed CDN path and re-stamps each `product.json` with the new `urlTemplate` pointing at the bumped version.

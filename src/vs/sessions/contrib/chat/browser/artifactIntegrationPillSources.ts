@@ -27,11 +27,19 @@ export interface IArtifactIntegrationPillItem {
 }
 
 /**
- * The group an integrated record can join: artifacts of the same pill kind and main integration share one. References
- * never join a group, nor do records without a main integration.
+ * The group ID the main integration assigns an integrated record, which gives the record a pill of its own instead of
+ * listing it in the pill for its kind. Records without a main integration have none.
  */
-export function getArtifactIntegrationGroupKey(kind: SessionChatPillKind, isArtifact: boolean, mainIntegrationId: string | undefined): string | undefined {
-	return isArtifact && mainIntegrationId !== undefined ? JSON.stringify([kind, mainIntegrationId]) : undefined;
+export function getArtifactIntegrationGroupId(snapshot: ArtifactSnapshot): string | undefined {
+	return getArtifactMainContribution(snapshot)?.view.groupId;
+}
+
+/**
+ * The group an integrated record can join: artifacts of the same pill kind whose main integration assigns them the same
+ * group ID share one, even across integrations. References never join a group, nor do records without a group ID.
+ */
+export function getArtifactIntegrationGroupKey(kind: SessionChatPillKind, isArtifact: boolean, groupId: string | undefined): string | undefined {
+	return isArtifact && groupId !== undefined ? JSON.stringify([kind, groupId]) : undefined;
 }
 
 /**
@@ -53,6 +61,14 @@ export interface IArtifactIntegrationAliasCandidate {
 	 * consent and runs stay per record, so such a record is never hidden behind another.
 	 */
 	readonly hasOwnState?: boolean;
+}
+
+/** Describes an integrated record's snapshot for {@link collapseArtifactIntegrationAliases}. */
+export function getArtifactIntegrationAliasCandidate(snapshot: ArtifactSnapshot): Pick<IArtifactIntegrationAliasCandidate, 'aliasKey' | 'hasOwnState'> {
+	return {
+		aliasKey: getArtifactIntegrationAliasKey(snapshot),
+		hasOwnState: countEnabledArtifactAutomations(snapshot) > 0 || snapshot.runs.length > 0,
+	};
 }
 
 /**
@@ -87,7 +103,7 @@ export function collapseArtifactIntegrationAliases<T extends IArtifactIntegratio
 	});
 }
 
-/** An artifact that can be listed in a group of artifacts sharing its main integration. */
+/** An artifact that can be listed in a group of artifacts sharing its group ID. */
 export interface IArtifactIntegrationPillCandidate {
 	/** Identifies the group the artifact can join; artifacts without a key never join a group. */
 	readonly groupKey?: string;
@@ -133,9 +149,9 @@ interface IArtifactIntegrationPillPlacement extends IArtifactIntegrationPillItem
 }
 
 /**
- * Places integrated artifacts in the chat input pill row: artifacts sharing an integration collapse into a group
- * pill with a dropdown, while artifacts the user pinned out of their group, and those without company, keep pills
- * of their own. Pinning uses the same storage as other pill dropdowns.
+ * Places integrated artifacts that have a group ID in the chat input pill row: artifacts sharing a group ID collapse
+ * into a group pill with a dropdown, while artifacts the user pinned out of their group, and those without company,
+ * keep pills of their own. Pinning uses the same storage as other pill dropdowns.
  */
 export class ArtifactIntegrationPillSources extends Disposable {
 	readonly sources: IObservable<readonly IChatInputPillSource[]>;
@@ -155,9 +171,8 @@ export class ArtifactIntegrationPillSources extends Disposable {
 				const pinned = pins.getPinned(scope, item.kind, reader).has(item.entry.id);
 				const placement: IArtifactIntegrationPillPlacement = {
 					...item,
-					groupKey: getArtifactIntegrationGroupKey(item.kind, item.isArtifact, snapshot.mainIntegrationId),
-					aliasKey: getArtifactIntegrationAliasKey(snapshot),
-					hasOwnState: countEnabledArtifactAutomations(snapshot) > 0 || snapshot.runs.length > 0,
+					groupKey: getArtifactIntegrationGroupKey(item.kind, item.isArtifact, getArtifactIntegrationGroupId(snapshot)),
+					...getArtifactIntegrationAliasCandidate(snapshot),
 					pinned,
 					pins: [],
 				};

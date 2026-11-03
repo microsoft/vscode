@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
@@ -23,7 +24,10 @@ suite('Voice input decorations', () => {
 	test('keeps the blue glow connected without listening or barge-in hints', async () => {
 		const connected = observableValue('connected', true);
 		const active = observableValue('active', true);
-		const owner = observableValue('owner', true);
+		const resource = URI.parse('chat-session:/a');
+		const otherResource = URI.parse('chat-session:/b');
+		const owner = observableValue<URI | undefined>('owner', resource);
+		const currentResource = observableValue<URI | undefined>('currentResource', resource);
 		const state = observableValue<VoiceState>('state', 'idle');
 		const muted = observableValue('muted', false);
 		const configurationService = new TestConfigurationService({ 'agents.voice.showTranscript': false });
@@ -45,7 +49,12 @@ suite('Voice input decorations', () => {
 			keybindingService: new MockKeybindingService(),
 			themeService: new TestThemeService(),
 			accessibilityService: new TestAccessibilityService(),
-		}, { inputContainer: input, isActive: active, isOwner: owner }));
+		}, {
+			inputContainer: input,
+			isActive: active,
+			getCurrentResource: reader => currentResource.read(reader),
+			currentVoiceInputResource: owner,
+		}));
 
 		const nextFrame = () => new Promise<void>(resolve => dom.getWindow(input).requestAnimationFrame(() => resolve()));
 		const overlay = input.querySelector<HTMLElement>('.voice-transcript-overlay-scrollable')!;
@@ -75,16 +84,25 @@ suite('Voice input decorations', () => {
 			active: input.classList.contains('voice-active'),
 			hint: overlay.textContent,
 		};
-		owner.set(false, undefined);
+		owner.set(undefined, undefined);
 		await nextFrame();
 		const nonOwnerActive = input.classList.contains('voice-active');
-		owner.set(true, undefined);
+		owner.set(resource, undefined);
 		await nextFrame();
 		active.set(false, undefined);
 		await nextFrame();
 		const inactiveActive = input.classList.contains('voice-active');
 		active.set(true, undefined);
 		await nextFrame();
+		const reboundSnapshots = [];
+		for (const target of [otherResource, resource]) {
+			owner.set(target, undefined);
+			await nextFrame();
+			const beforeBinding = input.classList.contains('voice-active');
+			currentResource.set(target, undefined);
+			await nextFrame();
+			reboundSnapshots.push({ beforeBinding, afterBinding: input.classList.contains('voice-active') });
+		}
 		connected.set(false, undefined);
 		await nextFrame();
 
@@ -95,6 +113,7 @@ suite('Voice input decorations', () => {
 			mutedSnapshot,
 			nonOwnerActive,
 			inactiveActive,
+			reboundSnapshots,
 			disconnectedActive: input.classList.contains('voice-active'),
 		}, {
 			snapshots: ['idle', 'listening', 'processing', 'speaking', 'error'].map(state => ({
@@ -105,6 +124,10 @@ suite('Voice input decorations', () => {
 			mutedSnapshot: { active: true, hint: 'Unmute to speak...' },
 			nonOwnerActive: false,
 			inactiveActive: false,
+			reboundSnapshots: [
+				{ beforeBinding: false, afterBinding: true },
+				{ beforeBinding: false, afterBinding: true },
+			],
 			disconnectedActive: false,
 		});
 	});

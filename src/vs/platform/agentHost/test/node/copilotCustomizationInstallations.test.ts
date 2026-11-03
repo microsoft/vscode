@@ -5,10 +5,14 @@
 
 import type { CopilotClient, InstallationConfirmationRequest, McpInstallationReview } from '@github/copilot-sdk';
 import assert from 'assert';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { createHash } from 'crypto';
+import { bufferToStream, VSBuffer } from '../../../../base/common/buffer.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { stableStringify } from '../../../../base/common/objects.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
+import { IRequestService } from '../../../request/common/request.js';
 import { CopilotCustomizationInstallations } from '../../node/copilot/customizations/copilotCustomizationInstallations.js';
 
 type CatalogSearchSucceeded = Extract<Awaited<ReturnType<CopilotClient['rpc']['catalog']['search']>>, { readonly kind: 'succeeded' }>;
@@ -26,6 +30,11 @@ type CustomizationClient = Awaited<ReturnType<ConstructorParameters<typeof Copil
 type GetSavedFeed = CopilotClient['rpc']['catalog']['getSavedFeed'];
 
 type PolicySessionFactory = ConstructorParameters<typeof CopilotCustomizationInstallations>[1];
+
+const cancellationToken: Parameters<CopilotCustomizationInstallations['confirmationHandler']>[1] = {
+	isCancellationRequested: false,
+	onCancellationRequested: () => Disposable.None,
+};
 
 /**
  * Records the hidden policy sessions a {@link CopilotCustomizationInstallations}
@@ -270,7 +279,7 @@ suite('CopilotCustomizationInstallations', () => {
 						expiresAt,
 						reviewFingerprint: `fingerprint-${decisions.length}`,
 						review: { resource: 'plugin', review },
-					}, CancellationToken.None));
+					}, cancellationToken));
 				}
 				return {
 					kind: 'outcome',
@@ -613,7 +622,7 @@ suite('CopilotCustomizationInstallations', () => {
 				`skills.list:${hidden}`,
 				`mcp.list:${hidden}`,
 			],
-			uninstall: 'The SDK no longer owns this customization installation.',
+			uninstall: 'This customization installation is no longer available.',
 		});
 	});
 
@@ -1184,7 +1193,7 @@ suite('CopilotCustomizationInstallations', () => {
 					['valid', sdkReview.effectiveConfiguration!],
 				];
 				for (const [id, effectiveConfiguration] of configurations) {
-					decisions.push(await serviceRef.value!.confirmationHandler(confirmation(id, effectiveConfiguration), CancellationToken.None));
+					decisions.push(await serviceRef.value!.confirmationHandler(confirmation(id, effectiveConfiguration), cancellationToken));
 				}
 				installed = true;
 				return {
@@ -1235,7 +1244,7 @@ suite('CopilotCustomizationInstallations', () => {
 						},
 					},
 				};
-				const decision = await serviceRef.value!.confirmationHandler(request, CancellationToken.None);
+				const decision = await serviceRef.value!.confirmationHandler(request, cancellationToken);
 				uninstallDecisions.push(decision);
 				installed = decision !== 'confirm';
 				return {
@@ -1387,7 +1396,6 @@ suite('CopilotCustomizationInstallations', () => {
 					protocolVersion: 3,
 					requiredCapabilities: [
 						'catalog-search-credential-required',
-						'catalog-search-session-bound',
 						'catalog-selection',
 						'mcp-install-planning',
 						'multiple-transport-choice',
@@ -1546,6 +1554,204 @@ suite('CopilotCustomizationInstallations', () => {
 		});
 	});
 
+	function createLocalMcpCardFixture() {
+		const document = {
+			_meta: {},
+			server: {
+				name: 'microsoft/markitdown',
+				description: 'Convert documents to Markdown.',
+				version: '1.0.0',
+				packages: [{
+					registryType: 'pypi',
+					identifier: 'markitdown-mcp',
+					version: '0.0.1a4',
+					transport: { type: 'stdio' },
+					packageArguments: [{ type: 'positional', value: '--verbose' }],
+					environmentVariables: [{ name: 'MODE', value: 'stdio' }],
+				}],
+			},
+		};
+		const plan: McpInstallPlan = {
+			planHandle: 'local-plan',
+			planHandleExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+			identity: { canonicalName: document.server.name, serverName: document.server.name, version: document.server.version },
+			provenance: {
+				authority: 'api.mcp.github.com',
+				validatedAt: new Date().toISOString(),
+				cardDigest: { algorithm: 'sha256-rfc8785', value: createHash('sha256').update(stableStringify(document)).digest('hex') },
+				mediaType: 'application/mcp-server+json',
+			},
+			transportChoices: [{
+				choiceId: 'package:0',
+				transport: 'stdio',
+				installMethod: 'package',
+				packageType: 'pypi',
+				packageIdentifier: 'markitdown-mcp',
+				requiredValues: [],
+				secretPlaceholders: [],
+			}],
+			target: { scope: 'user', configKey: document.server.name },
+			policy: { decision: 'allowed', source: 'none' },
+			configurationChanges: [{
+				operation: 'add',
+				scope: 'user',
+				configKey: document.server.name,
+				changedFields: ['args', 'command', 'env', 'tools', 'type'],
+				secretReferences: [],
+			}],
+			reloadRequired: true,
+			requiresInteractiveConfiguration: false,
+		};
+		const added: Parameters<CopilotClient['rpc']['mcp']['config']['add']>[0][] = [];
+		const requests: { url: string | undefined; followRedirects: number | undefined }[] = [];
+		const response = { statusCode: 200, text: JSON.stringify(document) };
+		const client = {
+			rpc: {
+				catalog: new class extends mock<CopilotClient['rpc']['catalog']>() { }(),
+				skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() {
+					override readonly planInstall: CopilotClient['rpc']['mcp']['planInstall'] = async () => ({
+						kind: 'planned', plan, negotiated: { runtimeProtocolVersion: 3, grantedCapabilities: [] },
+					});
+					override readonly config = new class extends mock<CopilotClient['rpc']['mcp']['config']>() {
+						override readonly add: CopilotClient['rpc']['mcp']['config']['add'] = async request => { added.push(request); };
+					}();
+				}(),
+			},
+		};
+		const requestService = new class extends mock<IRequestService>() {
+			override readonly request: IRequestService['request'] = async options => {
+				requests.push({ url: options.url, followRedirects: options.followRedirects });
+				return {
+					res: { statusCode: response.statusCode, headers: {} },
+					stream: bufferToStream(VSBuffer.fromString(response.text)),
+				};
+			};
+		}();
+		const policySessions = new TestPolicySessions();
+		const service = store.add(new CopilotCustomizationInstallations(async () => client, policySessions.create, requestService));
+		const request = {
+			mediaType: 'application/mcp-server+json',
+			identifier: 'default:microsoft/markitdown',
+			displayName: 'Markitdown',
+			description: document.server.description,
+			installation: {
+				kind: 'mcp' as const,
+				source: {
+					kind: 'url' as const,
+					mediaType: 'application/mcp-server+json' as const,
+					url: 'https://api.mcp.github.com/v0.1/servers/microsoft%2Fmarkitdown/versions/latest',
+				},
+			},
+		};
+		return { service, request, document, plan, added, requests, response };
+	}
+
+	test('parses the SDK-validated local MCP card in the host and writes only after review', async () => {
+		const { service, request, added, requests } = createLocalMcpCardFixture();
+		const review = await service.prepare(request);
+		assert.deepStrictEqual(added, []);
+		await service.apply(review.operationId);
+		await assert.rejects(service.apply(review.operationId), /review expired/);
+		assert.deepStrictEqual({ review, added, requests }, {
+			review: {
+				operationId: review.operationId, action: 'install', kind: 'mcp', displayName: 'Markitdown',
+				serverName: 'microsoft/markitdown', target: 'microsoft/markitdown',
+				command: 'uvx', args: ['markitdown-mcp@0.0.1a4', '--verbose'], env: { MODE: 'stdio' },
+				configurationFields: ['args', 'command', 'env', 'tools', 'type'],
+			},
+			added: [{
+				name: 'microsoft/markitdown',
+				config: { type: 'stdio', command: 'uvx', args: ['markitdown-mcp@0.0.1a4', '--verbose'], env: { MODE: 'stdio' }, tools: ['*'] },
+			}],
+			requests: [{ url: request.installation.source.url, followRedirects: 0 }],
+		});
+	});
+
+	test('refuses changed local cards, redirects, invalid JSON, and mismatched planned fields without writing', async () => {
+		for (const scenario of ['digest', 'redirect', 'json', 'fields', 'identity', 'update'] as const) {
+			const { service, request, plan, added, response } = createLocalMcpCardFixture();
+			switch (scenario) {
+				case 'digest': response.text = response.text.replace('Convert documents', 'Changed documents'); break;
+				case 'redirect': response.statusCode = 302; break;
+				case 'json': response.text = '{'; break;
+				case 'fields': plan.configurationChanges[0].changedFields = ['args', 'command', 'tools', 'type']; break;
+				case 'identity': plan.identity.canonicalName = 'another/server'; break;
+				case 'update': plan.configurationChanges[0].operation = 'update'; break;
+			}
+			await assert.rejects(service.prepare(request), /changed|HTTP 302|invalid JSON|does not match|cannot preserve/, scenario);
+			assert.deepStrictEqual(added, [], scenario);
+		}
+	});
+
+	test('uses an input-free local package when the recommended remote card requires values', async () => {
+		const { service, request, plan, added } = createLocalMcpCardFixture();
+		plan.transportChoices.push({
+			choiceId: 'remote:0',
+			transport: 'streamable-http',
+			installMethod: 'remote',
+			endpoint: 'https://example.com/mcp',
+			requiredValues: [{ kind: 'scalar', key: 'region', category: 'header', valueType: 'string', required: true, isRepeated: false }],
+			secretPlaceholders: [],
+		});
+		plan.recommendedTransportChoiceId = 'remote:0';
+		const review = await service.prepare(request);
+		await service.apply(review.operationId);
+		assert.deepStrictEqual(added, [{
+			name: 'microsoft/markitdown',
+			config: { type: 'stdio', command: 'uvx', args: ['markitdown-mcp@0.0.1a4', '--verbose'], env: { MODE: 'stdio' }, tools: ['*'] },
+		}]);
+	});
+
+	test('refuses blocked local plans and package inputs before fetching a card', async () => {
+		for (const scenario of ['policy', 'secret', 'input'] as const) {
+			const { service, request, plan, added, requests } = createLocalMcpCardFixture();
+			if (scenario === 'policy') {
+				plan.policy = { decision: 'blocked', source: 'enterprise-allowlist', reason: 'Blocked by test policy' };
+			} else {
+				const choice = plan.transportChoices[0];
+				if (scenario === 'secret') {
+					choice.secretPlaceholders.push({ key: 'token', placeholder: '${secret:token}', title: 'Token' });
+				} else {
+					choice.requiredValues.push({ kind: 'scalar', key: 'mode', category: 'environment-variable', valueType: 'string', required: true, isRepeated: false });
+				}
+			}
+			await assert.rejects(service.prepare(request), /Blocked by test policy|additional values/);
+			assert.deepStrictEqual({ added, requests }, { added: [], requests: [] });
+		}
+	});
+
+	test('bounds local MCP card reads at five mebibytes', async () => {
+		for (const excess of [0, 1]) {
+			const { service, request, added, response } = createLocalMcpCardFixture();
+			response.text = response.text.padEnd(5 * 1024 * 1024 + excess, ' ');
+			if (excess) {
+				await assert.rejects(service.prepare(request), /too large/);
+			} else {
+				await service.prepare(request);
+			}
+			assert.deepStrictEqual(added, []);
+		}
+	});
+
+	test('refuses local parser inputs even when the SDK advertises an input-free choice', async () => {
+		const { service, request, document, plan, added, response } = createLocalMcpCardFixture();
+		const inputDocument = {
+			...document,
+			server: {
+				...document.server,
+				packages: [{
+					...document.server.packages[0],
+					environmentVariables: [{ name: 'TOKEN', isRequired: true, isSecret: true }],
+				}],
+			},
+		};
+		response.text = JSON.stringify(inputDocument);
+		plan.provenance.cardDigest.value = createHash('sha256').update(stableStringify(inputDocument)).digest('hex');
+		await assert.rejects(service.prepare(request), /additional configuration/);
+		assert.deepStrictEqual(added, []);
+	});
+
 	test('uses receipt inventory and confirms only the reviewed pending Skill operation', async () => {
 		const expiresAt = new Date(Date.now() + 60_000).toISOString();
 		const catalogue = {
@@ -1631,7 +1837,7 @@ suite('CopilotCustomizationInstallations', () => {
 					reviewFingerprint: 'fingerprint',
 					review: { resource: 'skill', review: sdkReview },
 				};
-				const decision = await serviceRef.value!.confirmationHandler(request, CancellationToken.None);
+				const decision = await serviceRef.value!.confirmationHandler(request, cancellationToken);
 				decisions.push(decision);
 				return {
 					kind: 'outcome' as const,
@@ -1715,7 +1921,7 @@ suite('CopilotCustomizationInstallations', () => {
 			expiresAt,
 			reviewFingerprint: 'premature-fingerprint',
 			review: { resource: 'skill', review: sdkReview },
-		}, CancellationToken.None);
+		}, cancellationToken);
 		await service.apply(review.operationId);
 
 		assert.deepStrictEqual({
@@ -1757,7 +1963,7 @@ suite('CopilotCustomizationInstallations', () => {
 				fileCount: 1,
 				totalBytes: 12,
 			},
-			versionMismatch: 'The SDK catalog version changed after discovery. Refresh Browse and try again.',
+			versionMismatch: 'The catalog version changed after discovery. Refresh Browse and try again.',
 			prematureDecision: 'cancel',
 			decisions: ['confirm'],
 		});
@@ -1806,7 +2012,7 @@ suite('CopilotCustomizationInstallations', () => {
 			const error = await service.list().then(() => undefined, error => error instanceof Error ? error.message : String(error));
 
 			assert.deepStrictEqual({ error, calls: calls.sort() }, {
-				error: 'The SDK could not list installed MCP servers. (refused: lifecycle-unavailable)',
+				error: 'Could not list installed MCP servers. (refused: lifecycle-unavailable)',
 				calls: ['mcp.list', 'skills.list'],
 			});
 		});
@@ -1847,7 +2053,7 @@ suite('CopilotCustomizationInstallations', () => {
 			const error = await service.list().then(() => undefined, error => error instanceof Error ? error.message : String(error));
 
 			assert.deepStrictEqual({ error, calls: calls.sort() }, {
-				error: 'The SDK could not list installed MCP servers. (recovery-required)',
+				error: 'Could not list installed MCP servers. (recovery-required)',
 				calls: ['mcp.list', 'mcp.recover', 'skills.list'],
 			});
 		});

@@ -17,8 +17,8 @@
     "terminalQuickFixProvider"
   ],
   "scripts": {
-    "compile": "npx gulp compile-extension:npm",
-    "watch": "npx gulp watch-extension:npm",
+    "compile": "pnpm exec gulp compile-extension:npm",
+    "watch": "pnpm exec gulp watch-extension:npm",
     "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
     "bundle-web": "node ./esbuild.browser.mts",
     "typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.browser.json --noEmit",

@@ -144,6 +144,37 @@ suite('VoiceLiveInputRouter', () => {
 		}), [true, true, true, true, true, true, true, true, true]);
 	});
 
+	test('treats the displayed Skip action as rejection in English and Chinese without guessing qualified replies', () => {
+		assert.deepStrictEqual(['en-US', 'zh-CN'].map(locale => ['Skip', 'skip.', 'skip skip', 'skip?', 'skip, but approve'].map(text => {
+			const router = new VoiceLiveInputRouter();
+			router.updateContext(context('chat-session:/a', approval, locale));
+			const result = router.resolve(text, text, router.captureTarget());
+			return result.toolCall?.args.response ?? { clarification: result.clarification !== undefined };
+		})), ['en-US', 'zh-CN'].map(() => [
+			{ type: 'reject' }, { type: 'reject' }, { type: 'reject' }, { clarification: true }, { clarification: true },
+		]));
+	});
+
+	test('uses supported spoken phrases from the current voice language in approval guidance', () => {
+		const router = new VoiceLiveInputRouter();
+		assert.deepStrictEqual(['es-ES', 'de-DE', 'en-US'].map(locale => {
+			router.updateContext(context('chat-session:/a', approval, locale));
+			const guidance = router.getApprovalReplyGuidance();
+			const phrases = [...guidance.matchAll(/"(?<phrase>[^"]+)"/g)].map(match => match.groups!.phrase);
+			return {
+				guidance, responses: phrases.map(phrase => {
+					const result = router.resolve(phrase, phrase, router.captureTarget());
+					router.handleResult(phrase, { ok: false, reason: 'stale_pending' });
+					return result.toolCall?.args.response;
+				})
+			};
+		}), [
+			{ guidance: 'Please say "sí" to approve or "no" to reject, or use the controls in chat.', responses: [{ type: 'approve' }, { type: 'reject' }] },
+			{ guidance: 'Please say "ja" to approve or "nein" to reject, or use the controls in chat.', responses: [{ type: 'approve' }, { type: 'reject' }] },
+			{ guidance: '', responses: [] },
+		]);
+	});
+
 	test('accepts complete natural approval phrases without guessing or changing the prompt owner', () => {
 		assert.deepStrictEqual(['approve', 'approved.', 'accept', 'accepted!', 'allow', 'yes', 'I approve', 'I  accept.'].map(text => {
 			const router = new VoiceLiveInputRouter();
@@ -362,7 +393,7 @@ suite('VoiceLiveInputRouter', () => {
 		}), [
 			{ type: 'approve' }, { type: 'reject' }, { type: 'approve' }, { type: 'reject' },
 			{ type: 'approve' }, { type: 'reject' },
-			'Please approve or reject by voice, or use the controls in chat.',
+			'Please say "ja" to approve or "nein" to reject, or use the controls in chat.',
 		]);
 	});
 

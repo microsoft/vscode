@@ -78,6 +78,9 @@ export interface IWorktreeSuggestionService {
 	/** The presentation selected by {@link WORKTREE_SUGGESTION_SETTING}, or by a developer preview. */
 	readonly variant: IObservable<WorktreeSuggestionVariant>;
 
+	/** Whether a developer preview of a presentation is active in this window. */
+	readonly isPreviewing: IObservable<boolean>;
+
 	/**
 	 * The suggestion every arm would make for `session`: a new session with Branch isolation in a folder
 	 * with uncommitted changes, for someone who already started a few sessions, where New Worktree is
@@ -145,7 +148,8 @@ export interface IWorktreeSuggestionService {
 
 	/**
 	 * Previews `variant` in this window regardless of usage and earlier responses, which the preview neither
-	 * reads nor changes. `undefined` ends the preview.
+	 * reads nor changes. The inline hint shows in a preview even before the user started enough sessions for
+	 * the banners below the input. `undefined` ends the preview.
 	 */
 	setPreview(variant: WorktreeSuggestionVariant | undefined): void;
 
@@ -184,6 +188,7 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _preview = observableValue<WorktreeSuggestionVariant | undefined>(this, undefined);
+	readonly isPreviewing = derived(this, reader => this._preview.read(reader) !== undefined);
 	readonly variant: IObservable<WorktreeSuggestionVariant>;
 
 	private readonly _experienced: IObservable<boolean>;

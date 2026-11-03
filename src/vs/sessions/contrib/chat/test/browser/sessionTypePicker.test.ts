@@ -621,8 +621,8 @@ suite('SessionTypePicker', () => {
 		}, {
 			copilotFree: false,
 			providerAuthenticated: false,
-			signedOut: true,
-			unresolved: true,
+			signedOut: false,
+			unresolved: false,
 		});
 	});
 

@@ -477,10 +477,10 @@ suite('Agent Host Session Config Picker', () => {
 		assert.deepStrictEqual({ properties, targetItems, targetIcon, writes: services.provider.setSessionConfigValueArguments, checkouts: services.checkoutInvocations }, {
 			properties: ['target', 'baseBranch', 'branch'],
 			targetItems: [
-				{ value: 'workspace', icon: Codicon.folder.id },
+				{ value: 'workspace', icon: Codicon.gitBranchCheckout.id },
 				{ value: 'worktree', icon: Codicon.worktree.id },
 			],
-			targetIcon: 'codicon codicon-folder',
+			targetIcon: 'codicon codicon-git-branch-checkout',
 			writes: [
 				{ sessionId: SESSION_ID, property: 'target', value: 'workspace' },
 				{ sessionId: SESSION_ID, property: 'baseBranch', value: 'main' },
@@ -567,6 +567,7 @@ suite('Agent Host Session Config Picker', () => {
 		const services = setupServices(store);
 		const { container } = renderPicker(store, services);
 		const snapshots = [];
+		const triggerIcons = [];
 		for (const value of ['folder', 'worktree']) {
 			isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 			await new Promise(resolve => setTimeout(resolve));
@@ -579,17 +580,20 @@ suite('Agent Host Session Config Picker', () => {
 			})));
 			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.value === value)!.item!);
 			await new Promise(resolve => setTimeout(resolve));
+			triggerIcons.push(isolationSlot(container)?.querySelector('.codicon')?.className);
 		}
 		assert.deepStrictEqual({
 			snapshots,
+			triggerIcons,
 			selections: services.provider.setSessionConfigValueArguments,
 			finalLabel: isolationSlot(container)?.textContent,
 			checkbox: container.querySelector('.monaco-checkbox'),
 		}, {
 			snapshots: [true, false].map(worktreeSelected => [
-				{ label: 'Branch', value: 'folder', checked: !worktreeSelected, detail: 'Works in the repository already on this computer', icon: Codicon.folder.id },
+				{ label: 'Branch', value: 'folder', checked: !worktreeSelected, detail: 'Works in the repository already on this computer', icon: Codicon.gitBranchCheckout.id },
 				{ label: 'New Worktree', value: 'worktree', checked: worktreeSelected, detail: 'Creates a separate copy for this session', icon: Codicon.worktree.id },
 			]),
+			triggerIcons: ['codicon codicon-git-branch-checkout', 'codicon codicon-worktree'],
 			selections: ['folder', 'worktree'].map(value => ({ sessionId: SESSION_ID, property: SessionConfigKey.Isolation, value })),
 			finalLabel: 'New Worktree',
 			checkbox: null,

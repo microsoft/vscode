@@ -13,6 +13,7 @@ import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import type { IAgentHostChatContributionHost, IAgentHostChatContributions, ISendTurnMessageOptions, ITurnEnd } from '../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { chatTurnStarted } from '../common/chatActionBuilders.js';
 import { buildDefaultChatUri, MessageKind, SessionStatus, TurnState } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostTurnService } from '../../node/agentHostTurnService.js';
@@ -167,12 +168,7 @@ suite('AgentHostTurnService', () => {
 			defaultChat: chat.toString(),
 		});
 
-		const result = service.startClientTurn(chat, {
-			type: ActionType.ChatTurnStarted,
-			turnId: 'prepared-turn',
-			startedAt: new Date(0).toISOString(),
-			message: { text: 'Start from the fork', origin: { kind: MessageKind.User } },
-		}, 'submitting-client', {
+		const result = service.startClientTurn(chat, chatTurnStarted('prepared-turn', 'Start from the fork', new Date(0).toISOString()), 'submitting-client', {
 			...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow),
 			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
 		});

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -607,6 +608,22 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		});
 	});
 
+	test('a terminal or the output shown as an editor is in no session\'s scope, even when visible: only files fall back to the active session', () => {
+		setActiveSession(sessions.get(sessionS1.toString())!);
+		const terminal = URI.from({ scheme: Schemas.vscodeTerminal, path: '/1' });
+		const output = URI.from({ scheme: Schemas.outputChannel, path: '/tasks' });
+		setVisibleEditors([pane(terminal), pane(output)]);
+
+		assert.deepStrictEqual([fileA, terminal, output].map(resource => ({
+			session: service.getSessionForFile(resource)?.resource.toString(),
+			scope: service.getFeedbackSessionResource(resource)?.toString(),
+		})), [
+			{ session: sessionS1.toString(), scope: sessionS1.toString() },
+			{ session: undefined, scope: undefined },
+			{ session: undefined, scope: undefined },
+		]);
+	});
+
 	test('untracked file falls back to the active session', () => {
 		setActiveSession(sessions.get(sessionS1.toString())!);
 		assert.strictEqual(service.getSessionForFile(fileA)?.resource.toString(), sessionS1.toString());
@@ -849,6 +866,26 @@ suite('AgentFeedbackService - State', () => {
 		service.updateFeedbackSourcePullRequest(session, created.id, { owner: 'owner', repo: 'repo', number: 43 });
 
 		assert.deepStrictEqual(service.getFeedback(session)[0].sourcePullRequest, sourcePullRequest);
+	});
+
+	test('retains the PR author through acceptance and source backfilling', () => {
+		const sourcePullRequest = { owner: 'owner', repo: 'repo', number: 42 };
+		const created = service.addFeedback(session, fileA, r(10), 'pending', undefined, undefined, 'thread-1', AgentFeedbackKind.PRReview, AgentFeedbackState.Created, sourcePullRequest, 'reviewer');
+		service.acceptFeedback(session, created.id);
+		service.updateFeedbackSourcePullRequest(session, created.id, sourcePullRequest, 'other-reviewer');
+
+		assert.deepStrictEqual({
+			author: service.getFeedback(session)[0].sourcePRReviewCommentAuthor,
+			state: service.getFeedback(session)[0].state,
+		}, { author: 'reviewer', state: AgentFeedbackState.Accepted });
+	});
+
+	test('backfills an empty PR author when the originating pull request is already known', () => {
+		const sourcePullRequest = { owner: 'owner', repo: 'repo', number: 42 };
+		const created = service.addFeedback(session, fileA, r(10), 'pending', undefined, undefined, 'thread-1', AgentFeedbackKind.PRReview, AgentFeedbackState.Created, sourcePullRequest, '');
+		service.updateFeedbackSourcePullRequest(session, created.id, sourcePullRequest, 'reviewer');
+
+		assert.strictEqual(service.getFeedback(session)[0].sourcePRReviewCommentAuthor, 'reviewer');
 	});
 
 	test('markFeedbackSubmitted resolves accepted items directly for non-agent-host sessions', () => {

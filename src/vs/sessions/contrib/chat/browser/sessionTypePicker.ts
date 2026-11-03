@@ -29,11 +29,10 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { canInitializeSessionTypeOnSelection, getSessionTypeAvailability, getSessionTypePickerAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
+import { getSessionTypeAvailability, getSessionTypePickerAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
-import { isAllowSignedOutWhenUsableEnabled } from '../../../browser/sessionsAuthGate.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
 import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
@@ -528,18 +527,11 @@ export class SessionTypePicker extends Disposable {
 	/** Availability shared by the desktop popup and the mobile picker sheet. */
 	protected _getPickerAvailability(sessionType: ISessionType): SessionTypeAvailability {
 		const modelTarget = sessionType.chatSessionType ?? sessionType.id;
-		const allowSignedOutWhenUsable = isAllowSignedOutWhenUsableEnabled(this.configurationService);
 		const initialization = sessionType.initializationOnSelection;
 		return getSessionTypePickerAvailability(
 			modelTarget,
-			getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, modelTarget, allowSignedOutWhenUsable),
-			allowSignedOutWhenUsable,
-			canInitializeSessionTypeOnSelection(
-				this.chatEntitlementService.entitlement,
-				allowSignedOutWhenUsable,
-				initialization !== undefined,
-				initialization?.canInitializeWithoutGitHub,
-			),
+			getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, modelTarget),
+			initialization !== undefined,
 		);
 	}
 

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { X509Certificate } from 'crypto';
 import { rootCertificates } from 'tls';
 import { EventEmitter as NodeEventEmitter } from 'events';
-import { spawnSync } from 'child_process';
+import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'child_process';
 import { existsSync } from 'fs';
 import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
@@ -15,7 +15,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { delimiter, join } from '../../../../base/common/path.js';
-import { isLinux } from '../../../../base/common/platform.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { getCaseInsensitive } from '../../../../base/common/objects.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -30,7 +30,7 @@ import { IRequestService } from '../../../request/common/request.js';
 import { writeUserDataCertificatesFile } from '../../../request/node/certificates.js';
 import { IGitHubService } from '../../../github/common/githubService.js';
 import { URI } from '../../../../base/common/uri.js';
-import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, parseDevContainerMounts, parseDevContainerUpResult, RemoteDevContainerAgentHostService, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
+import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, IDevContainerShellExec, parseDevContainerMounts, parseDevContainerUpResult, RemoteDevContainerAgentHostService, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
 import { ISshExec, shellEscape } from '../../node/sshRemoteAgentHostHelpers.js';
 import { devContainerServerCacheMount } from '../../node/devContainerServerCache.js';
 import { DevContainerSample } from '../../common/devContainerSamples.js';
@@ -75,6 +75,12 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	readonly devContainerArgs: string[][] = [];
 	readonly devContainerEnvironments: (NodeJS.ProcessEnv | undefined)[] = [];
 	execEnvironment: NodeJS.ProcessEnv | undefined;
+	readonly shellSelectors: (string | readonly string[])[] = [];
+	readonly separateExecs: { readonly selector: string | readonly string[]; readonly command: string }[] = [];
+	shellDisposed = false;
+	unameM = 'x86_64';
+	shellDisposedBeforeRelay: boolean | undefined;
+	relaySelector: string | readonly string[] | undefined;
 	relayEnvironment: NodeJS.ProcessEnv | undefined;
 	sandboxEnvironment: NodeJS.ProcessEnv | undefined;
 	sandboxConfigurationOutput: string | undefined;
@@ -292,7 +298,24 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		return super._createExec(connectionId, workspaceFolder, token, environment);
 	}
 
-	protected override _createExec(_connectionId: string, _workspaceFolder: string | readonly string[], _token: CancellationToken, environment?: NodeJS.ProcessEnv): ISshExec {
+	startDevContainerShell(connectionId: string, workspaceFolder: readonly string[], token: CancellationToken): Promise<IDevContainerShellExec> {
+		return super._startShell(connectionId, workspaceFolder, token, process.env);
+	}
+
+	protected override _createExec(_connectionId: string, workspaceFolder: string | readonly string[], _token: CancellationToken, environment?: NodeJS.ProcessEnv): ISshExec {
+		const exec = this._createMockExec(environment);
+		return (command, options) => {
+			this.separateExecs.push({ selector: workspaceFolder, command });
+			return exec(command, options);
+		};
+	}
+
+	protected override async _startShell(_connectionId: string, workspaceFolder: string | readonly string[], _token: CancellationToken, environment?: NodeJS.ProcessEnv): Promise<IDevContainerShellExec> {
+		this.shellSelectors.push(workspaceFolder);
+		return { exec: this._createMockExec(environment), dispose: () => this.shellDisposed = true };
+	}
+
+	private _createMockExec(environment?: NodeJS.ProcessEnv): ISshExec {
 		this.execEnvironment = environment;
 		return async command => {
 			this.execCommands.push(command);
@@ -324,7 +347,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 				return { stdout: 'Linux\n', stderr: '', code: 0 };
 			}
 			if (command === 'uname -m') {
-				return { stdout: 'x86_64\n', stderr: '', code: 0 };
+				return { stdout: `${this.unameM}\n`, stderr: '', code: 0 };
 			}
 			if (command.includes('/etc/alpine-release')) {
 				return { stdout: this._libc, stderr: '', code: 0 };
@@ -378,7 +401,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 
 	protected override _createRelay(
 		_connectionId: string,
-		_workspaceFolder: string | readonly string[],
+		workspaceFolder: string | readonly string[],
 		command: string,
 		_endpoint: { readonly type: 'tcp'; readonly host: string; readonly port: number } | { readonly type: 'socket'; readonly path: string },
 		_connectionToken: string | undefined,
@@ -386,6 +409,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		environment?: NodeJS.ProcessEnv,
 	): Promise<IDevContainerRelay> {
 		this.relayCommand = command;
+		this.relaySelector = workspaceFolder;
+		this.shellDisposedBeforeRelay = this.shellDisposed;
 		this.relayEnvironment = environment;
 		void this.relayStarted.complete();
 		return this.relayResult ?? Promise.resolve(this.relay);
@@ -403,7 +428,7 @@ suite('Dev Container Agent Host Main Service', () => {
 			const result = await service.connect({ connectionId: 'certificates', workspaceFolder: '/workspace', name: 'Certificates' });
 
 			assert.deepStrictEqual({
-				eligible: result.forwardClientCertificates,
+				eligible: result.sharesClientNetwork,
 				configuresCertificates: service.execCommands.some(command => command.includes('export NODE_EXTRA_CA_CERTS=')),
 				logsCertificates: service.devContainerArgs.flat().some(argument => argument.includes('LOCAL CA')),
 			}, { eligible: true, configuresCertificates: false, logsCertificates: false });
@@ -420,21 +445,21 @@ suite('Dev Container Agent Host Main Service', () => {
 		{ name: 'remote context overridden by a local host', environment: { DOCKER_CONTEXT: 'remote', DOCKER_HOST: 'unix:///var/run/docker.sock' }, endpoint: 'ssh://remote.example', forwards: true },
 		{ name: 'local context overridden by a remote host', environment: { DOCKER_CONTEXT: 'desktop-linux', DOCKER_HOST: 'ssh://remote.example' }, endpoint: 'unix:///var/run/docker.sock', forwards: false },
 	]) {
-		test(`certificate forwarding with ${name}`, async () => {
+		test(`client network sharing with ${name}`, async () => {
 			const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, environment, true, ['LOCAL CA']));
 			service.inheritedEnvironment = {};
 			service.dockerEndpoint = endpoint;
 			service.endpointSessionId = undefined;
 			const result = await service.connect({ connectionId: name, workspaceFolder: '/workspace', name });
 			assert.deepStrictEqual({
-				eligible: result.forwardClientCertificates,
+				eligible: result.sharesClientNetwork,
 				configuresCertificates: service.execCommands.some(command => command.includes('export NODE_EXTRA_CA_CERTS=')),
 			}, { eligible: forwards ? true : undefined, configuresCertificates: false });
 		});
 	}
 
 	for (const failure of ['exit', 'exception'] as const) {
-		test(`does not forward certificates when Docker locality cannot be determined (${failure})`, async () => {
+		test(`does not share the client network when Docker locality cannot be determined (${failure})`, async () => {
 			const log = new TestLogService();
 			const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, {}, true, ['LOCAL CA'], new Set(), '/tmp', log));
 			service.inheritedEnvironment = {};
@@ -446,16 +471,16 @@ suite('Dev Container Agent Host Main Service', () => {
 			service.endpointSessionId = undefined;
 			const result = await service.connect({ connectionId: `unknown-${failure}`, workspaceFolder: '/workspace', name: 'Unknown Docker host' });
 			assert.deepStrictEqual({
-				eligible: result.forwardClientCertificates,
-				warned: log.warnings.some(warning => warning.message.includes('not forwarding certificates')),
+				eligible: result.sharesClientNetwork,
+				warned: log.warnings.some(warning => warning.message.includes('treating it as remote')),
 			}, { eligible: undefined, warned: true });
 		});
 	}
 
-	test('a remote launcher never forwards its host certificates into containers', async () => {
+	test('a remote launcher never shares its host network with containers', async () => {
 		const service = store.add(new class extends RemoteDevContainerAgentHostService {
-			shouldForwardCertificates(): Promise<boolean> {
-				return this._shouldForwardCertificates(CancellationToken.None);
+			sharesClientNetwork(): Promise<boolean> {
+				return this._sharesClientNetwork(CancellationToken.None);
 			}
 		}(
 			new NullLogService(),
@@ -465,7 +490,7 @@ suite('Dev Container Agent Host Main Service', () => {
 			new class extends mock<IRequestService>() { }(),
 			new class extends mock<IGitHubService>() { }(),
 		));
-		assert.strictEqual(await service.shouldForwardCertificates(), false);
+		assert.strictEqual(await service.sharesClientNetwork(), false);
 	});
 
 	test('an Agent Host Dev Container CLI refreshes the shared Copilot certificate bundle before each run', async () => {
@@ -811,7 +836,7 @@ suite('Dev Container Agent Host Main Service', () => {
 				remoteWorkspaceFolder: '/workspaces/project',
 				hostWorkspaceFolder: '/workspace',
 				sandboxSupported: false,
-				forwardClientCertificates: true,
+				sharesClientNetwork: true,
 			},
 			devContainerArgs: [
 				['read-configuration', '--log-level', 'debug', '--workspace-folder', '/workspace', '--include-merged-configuration'],
@@ -994,6 +1019,8 @@ suite('Dev Container Agent Host Main Service', () => {
 			assert.strictEqual(service.devContainerEnvironments[service.devContainerArgs.findIndex(args => args[0] === 'up')], environment);
 			assert.strictEqual(service.execEnvironment, environment);
 			assert.strictEqual(service.relayEnvironment, environment);
+			const sandboxSelector = ['--workspace-folder', '/workspace', '--config', '/workspace/.devcontainer/devcontainer.json', '--override-config', '/sandbox/devcontainer.json', '--container-id', 'container-id'];
+			assert.deepStrictEqual({ shell: service.shellSelectors, relay: service.relaySelector }, { shell: [sandboxSelector], relay: sandboxSelector });
 
 			await service.createDevContainerExec('sandbox', '/workspace', CancellationToken.None, environment)('printf test');
 			assert.strictEqual(service.devContainerEnvironments.at(-1), environment);
@@ -1223,6 +1250,80 @@ suite('Dev Container Agent Host Main Service', () => {
 			warning: '[DevContainerAgentHost] Failed to configure Git safe.directory after <duration>',
 			error: 'Mount inspection failed',
 		});
+	});
+
+	test('runs startup commands in one shell for the started container and starts the Agent Host separately', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		service.endpointSessionId = undefined;
+		await service.connect({
+			connectionId: 'connection',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		});
+
+		const selector = ['--workspace-folder', '/workspace', '--container-id', 'container-id'];
+		assert.deepStrictEqual({
+			shellSelectors: service.shellSelectors,
+			separateExecs: service.separateExecs.map(({ selector, command }) => ({ selector, startsAgentHost: command.startsWith(`${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=`) })),
+			relaySelector: service.relaySelector,
+			shellDisposedBeforeRelay: service.shellDisposedBeforeRelay,
+		}, {
+			shellSelectors: [selector],
+			separateExecs: [{ selector, startsAgentHost: true }],
+			relaySelector: selector,
+			shellDisposedBeforeRelay: true,
+		});
+	});
+
+	test('closes the startup shell when startup fails', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		service.unameM = 'sparc64';
+		await assert.rejects(service.connect({ connectionId: 'connection', workspaceFolder: '/workspace', name: 'Project Dev Container' }), /Unsupported Dev Container platform: Linux sparc64/);
+		assert.deepStrictEqual({ shellDisposed: service.shellDisposed, relayStarted: service.relayCommand !== undefined }, { shellDisposed: true, relayStarted: false });
+	});
+
+	(isWindows ? test.skip : test)('runs commands through one container shell launched for the started container', async () => {
+		const spawned: (readonly string[])[] = [];
+		const children: ChildProcessWithoutNullStreams[] = [];
+		const output: string[] = [];
+		const service = store.add(new class extends TestDevContainerAgentHostMainService {
+			protected override _spawnDevContainer(args: readonly string[]): ChildProcessWithoutNullStreams {
+				spawned.push(args);
+				const child = spawn('/bin/sh', ['-c', 'echo "CLI log" >&2; exec /bin/sh']);
+				children.push(child);
+				return child;
+			}
+		}());
+		store.add(service.onDidOutput(event => output.push(event.data)));
+		const shell = await service.startDevContainerShell('connection', ['--workspace-folder', '/workspace', '--container-id', 'container-id'], CancellationToken.None);
+		try {
+			const results = await Promise.all([
+				shell.exec('printf "%s" "$PPID"'),
+				shell.exec('printf "%s" "$PPID"; echo warning >&2'),
+				shell.exec('exit 4', { ignoreExitCode: true }),
+				shell.exec('cat'),
+			]);
+			await assert.rejects(shell.exec('echo failed >&2; exit 5'), /Dev Container command failed \(exit 5\): echo failed >&2; exit 5\nstderr: failed/);
+			assert.deepStrictEqual({
+				spawned,
+				results,
+				output: output.slice(0, 2),
+			}, {
+				spawned: [['exec', '--log-level', 'debug', '--workspace-folder', '/workspace', '--container-id', 'container-id', '/bin/sh']],
+				results: [
+					{ stdout: String(children[0].pid), stderr: '', code: 0 },
+					{ stdout: String(children[0].pid), stderr: 'warning\n', code: 0 },
+					{ stdout: '', stderr: '', code: 4 },
+					{ stdout: '', stderr: '', code: 0 },
+				],
+				output: [
+					'$ devcontainer "exec" "--log-level" "debug" "--workspace-folder" "/workspace" "--container-id" "container-id" "/bin/sh"\n',
+					'CLI log\n',
+				],
+			});
+		} finally {
+			shell.dispose();
+		}
 	});
 
 	test('runs Dev Container exec commands with debug logging', async () => {

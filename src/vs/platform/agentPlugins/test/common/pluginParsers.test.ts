@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { FileService } from '../../../files/common/fileService.js';
 import { FileSystemProviderCapabilities } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { CustomizationType, McpServerStatus, type McpServerCustomization } from '../../../agentHost/common/state/protocol/state.js';
@@ -389,10 +390,19 @@ suite('pluginParsers', () => {
 		let fileService: FileService;
 
 		setup(() => {
-			fileService = store.add(new FileService(new NullLogService()));
-			store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+			fileService = createInMemoryFileService(store, Schemas.inMemory);
 		});
 		teardown(() => store.clear());
+
+		test('publishes ordered model and reasoning preferences without reading agent files in the client', async () => {
+			const uri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/review.agent.md' });
+			await fileService.writeFile(uri, VSBuffer.fromString('---\nname: Review\nmodel: [missing, sonnet]\nreasoning-effort: low\n---\nReview.'));
+			const agents = await readAgentComponents([uri], fileService);
+			const customization = toParsedAgent(agents[0]).customization;
+			assert.deepStrictEqual({ model: customization.model, meta: customization._meta }, {
+				model: 'missing', meta: { 'vscode.models': ['missing', 'sonnet'], 'vscode.reasoningEffort': 'low' },
+			});
+		});
 
 		for (const sameFilename of [true, false]) {
 			test(`deduplicates ${sameFilename ? 'file-derived' : 'authored'} names unless the caller opts out`, async () => {
@@ -417,8 +427,7 @@ suite('pluginParsers', () => {
 		let fileService: FileService;
 
 		setup(() => {
-			fileService = store.add(new FileService(new NullLogService()));
-			store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+			fileService = createInMemoryFileService(store, Schemas.inMemory);
 		});
 		teardown(() => store.clear());
 
@@ -581,8 +590,7 @@ suite('pluginParsers', () => {
 			let fileService: FileService;
 
 			setup(() => {
-				fileService = store.add(new FileService(new NullLogService()));
-				store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+				fileService = createInMemoryFileService(store, Schemas.inMemory);
 			});
 
 			teardown(() => store.clear());
@@ -931,10 +939,27 @@ suite('pluginParsers', () => {
 			const groups = parse({
 				hooks: {
 					postToolUse: [{ hooks: [{ type: 'command', command: 'echo a' }] }],
+					preCompact: [{ type: 'command', command: 'echo compact' }],
+					subagentStart: [{ type: 'command', command: 'echo subagent' }],
 					bogusEvent: [{ hooks: [{ type: 'command', command: 'echo b' }] }],
 				},
 			});
-			assert.deepStrictEqual(groups.map(g => g.type), ['PostToolUse']);
+			assert.deepStrictEqual(groups.map(g => ({
+				type: g.type,
+				originalId: g.originalId,
+				commands: g.commands.map(c => c.command),
+			})), [
+				{ type: 'PostToolUse', originalId: 'postToolUse', commands: ['echo a'] },
+				{ type: 'PreCompact', originalId: 'preCompact', commands: ['echo compact'] },
+				{ type: 'SubagentStart', originalId: 'subagentStart', commands: ['echo subagent'] },
+			]);
+		});
+
+		test('recognizes a userPromptTransformed-only hook file', () => {
+			const groups = parse({ hooks: { userPromptTransformed: [{ type: 'command', command: 'echo context' }] } });
+			assert.deepStrictEqual(groups.map(group => ({ type: group.type, originalId: group.originalId, commands: group.commands.map(command => command.command) })), [
+				{ type: 'UserPromptTransformed', originalId: 'userPromptTransformed', commands: ['echo context'] },
+			]);
 		});
 
 		test('extracts commands from the nested matcher form and drops empty groups', () => {

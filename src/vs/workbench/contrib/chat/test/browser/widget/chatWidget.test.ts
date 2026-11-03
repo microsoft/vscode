@@ -45,7 +45,7 @@ import { ChatUserInteraction, ChatUserInteractionTimingResult, IChatUserInteract
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicatorState, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
 import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
-import { ChatViewPaneTarget, IChatAcceptInputOptions, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions } from '../../../browser/chat.js';
+import { ChatViewPaneTarget, IChatAcceptInputOptions, IChatListItemRendererOptions, IChatScrollAnchor, IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions } from '../../../browser/chat.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatRequestVariableSet } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
@@ -156,12 +156,19 @@ suite('ChatWidget', () => {
 		const editorPlaceholders: (string | undefined)[] = [];
 		const rendererOptions: (IChatListItemRendererOptions['responseIdentity'])[] = [];
 		const modelPools: ({ pool: string | undefined; resource: string | undefined; revalidate?: boolean } | { cleared: true; revalidate?: boolean } | undefined)[] = [];
+		const contextKeyService = new MockContextKeyService();
+		const requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);
+		const hasActiveRequest = ChatContextKeys.hasActiveRequest.bindTo(contextKeyService);
+		requestInProgress.set(true);
+		hasActiveRequest.set(true);
+		const toolbarStates: { requestInProgress: boolean; hasActiveRequest: boolean }[] = [];
 		const inputPart = upcastPartial<ChatInputPart>({
 			inputEditor: upcastPartial<CodeEditorWidget>({ updateOptions: (options: { placeholder?: string }) => { editorPlaceholders.push(options.placeholder); } }),
 			setModelSessionTypeOverride: (override: { readonly sessionType: string | undefined } | undefined, target?: URI, options?: { readonly revalidate?: boolean }) => {
 				modelPools.push(override ? { pool: override.sessionType, resource: target?.fragment, ...(options?.revalidate === false ? { revalidate: false } : {}) } : (options?.revalidate === false ? { cleared: true, revalidate: false } : undefined));
 			},
 			flushInputStateToModel: () => { },
+			refreshToolbars: () => toolbarStates.push({ requestInProgress: !!requestInProgress.get(), hasActiveRequest: !!hasActiveRequest.get() }),
 		});
 		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
 			_viewModel: viewModel,
@@ -181,11 +188,19 @@ suite('ChatWidget', () => {
 			updateWorkingProgressBorder: () => { },
 			onDidChangeItems: () => { },
 			_hasPendingRequestsContextKey: { set: () => { } },
+			requestInProgress,
+			hasActiveRequest,
 			_chatSessionSupportsRenameContextKey: { set: () => { } },
 			viewOptions: { isSessionsWindow: true },
 		});
-		return { widget, resource, get placeholder() { return placeholder; }, editorPlaceholders, rendererOptions, modelPools };
+		return { widget, resource, get placeholder() { return placeholder; }, editorPlaceholders, rendererOptions, modelPools, toolbarStates };
 	}
+
+	test('unbinding clears running-request controls before refreshing the toolbars', () => {
+		const harness = createRespondentWidget(true);
+		harness.widget.setModel(undefined);
+		assert.deepStrictEqual(harness.toolbarStates, [{ requestInProgress: false, hasActiveRequest: false }]);
+	});
 
 	test('presents a chat answered by another agent with that agent, and restores its session type\'s presentation', () => {
 		const harness = createRespondentWidget(true);
@@ -728,6 +743,7 @@ suite('ChatWidget', () => {
 			input: {
 				value: {
 					inputEditor: { getValue: () => currentInput },
+					getPromptText: () => currentInput,
 					attachmentModel: { getAttachmentIDs: () => new Set(currentAttachmentIds) },
 					focus: () => focusCount++,
 				}
@@ -903,6 +919,8 @@ suite('ChatWidget', () => {
 				getValue: () => 'original request', getModel: () => null, focus: () => { },
 				onDidChangeModelContent: Event.None, onDidChangeCursorSelection: Event.None,
 			}),
+			getPromptText: () => 'original request',
+			inlineAttachments: undefined,
 			attachmentModel: upcastPartial<ChatInputPart['attachmentModel']>({
 				attachments: [], getAttachmentIDs: () => new Set(), addContext: () => { },
 				updateContext: () => { counts.updateContext++; },
@@ -1728,21 +1746,18 @@ suite('ChatWidget', () => {
 		const { widget, domNode, rerenders } = createRerenderWidget();
 		domNode.style.display = 'none';
 		mainWindow.document.body.appendChild(domNode);
-		try {
-			widget.setReadOnly(true);
-			widget.setVisible(false);
-			widget.setVisible(true);
-			const whileHidden = rerenders();
+		store.add(toDisposable(() => domNode.remove()));
+		widget.setReadOnly(true);
+		widget.setVisible(false);
+		widget.setVisible(true);
+		const whileHidden = rerenders();
 
-			domNode.style.display = '';
-			domNode.style.height = '50px';
-			widget.layoutForInputHeight(100, 100);
-			widget.layoutForInputHeight(100, 100);
+		domNode.style.display = '';
+		domNode.style.height = '50px';
+		widget.layoutForInputHeight(100, 100);
+		widget.layoutForInputHeight(100, 100);
 
-			assert.deepStrictEqual({ whileHidden, afterLayouts: rerenders() }, { whileHidden: 0, afterLayouts: 1 });
-		} finally {
-			domNode.remove();
-		}
+		assert.deepStrictEqual({ whileHidden, afterLayouts: rerenders() }, { whileHidden: 0, afterLayouts: 1 });
 	});
 
 	for (const mode of ['local', 'remote', 'unsupported'] as const) {
@@ -2254,6 +2269,9 @@ suite('ChatWidget', () => {
 	});
 
 	test('captures and restores transcript scroll state', () => {
+		const anchor: IChatScrollAnchor = { requestId: 'request_1', kind: 'response', offset: 40 };
+		const removed: IChatScrollAnchor = { requestId: 'request_removed', kind: 'request', offset: 0 };
+		const revealed: IChatScrollAnchor[] = [];
 		const listWidget = {
 			scrollTop: 200,
 			scrollHeight: 1000,
@@ -2264,22 +2282,41 @@ suite('ChatWidget', () => {
 			scrollToEnd() {
 				this.scrollTop = this.scrollHeight - this.renderHeight;
 			},
+			getScrollAnchor: () => anchor,
+			revealScrollAnchor(target: IChatScrollAnchor) {
+				revealed.push(target);
+				if (target.requestId !== anchor.requestId) {
+					return false;
+				}
+				this.scrollTop = 640;
+				return true;
+			},
 		};
 		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), { listWidget });
 
 		const scrolledUp = widget.getViewState();
-		widget.restoreViewState({ scrollTop: 350 });
+		widget.restoreViewState({ scrollTop: 350, isAtBottom: false, scrollAnchor: anchor });
+		const anchoredScrollTop = listWidget.scrollTop;
+		widget.restoreViewState({ scrollTop: 350, isAtBottom: false, scrollAnchor: removed });
+		const removedAnchorScrollTop = listWidget.scrollTop;
+		widget.restoreViewState({ scrollTop: 450 });
 		const legacyScrollTop = listWidget.scrollTop;
 		widget.restoreViewState({ scrollTop: 200, isAtBottom: true });
 
 		assert.deepStrictEqual({
 			scrolledUp,
+			anchoredScrollTop,
+			removedAnchorScrollTop,
 			legacyScrollTop,
-			bottomScrollTop: listWidget.scrollTop,
+			atBottom: widget.getViewState(),
+			revealed,
 		}, {
-			scrolledUp: { scrollTop: 200, isAtBottom: false },
-			legacyScrollTop: 350,
-			bottomScrollTop: 700,
+			scrolledUp: { scrollTop: 200, isAtBottom: false, scrollAnchor: anchor },
+			anchoredScrollTop: 640,
+			removedAnchorScrollTop: 350,
+			legacyScrollTop: 450,
+			atBottom: { scrollTop: 700, isAtBottom: true, scrollAnchor: undefined },
+			revealed: [anchor, removed],
 		});
 	});
 
@@ -2332,6 +2369,9 @@ suite('ChatWidget - acceptInput submission', () => {
 		const original = createSession(URI.parse('agent-host-copilot:/existing-a'));
 		const widgetStore = store.add(new DisposableStore());
 		const onDidChangeViewModel = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
+		const onDidAcceptRequest = store.add(new Emitter<URI>());
+		const acceptedRequests: URI[] = [];
+		store.add(onDidAcceptRequest.event(resource => acceptedRequests.push(resource)));
 		const attachments = new ChatRequestVariableSet();
 		const contribs: IChatWidget['contribs'][number][] = [];
 		const parts: IParsedChatRequest['parts'][number][] = [];
@@ -2340,6 +2380,8 @@ suite('ChatWidget - acceptInput submission', () => {
 		const contextKeyService = store.add(new MockContextKeyService());
 		const input = mockObject<ChatInputPart>()({
 			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({ getValue: () => parsedInput.text }),
+			getPromptText: () => parsedInput.text,
+			inlineAttachments: undefined,
 			currentModeKind: ChatModeKind.Ask,
 			currentModeInfo: upcastPartial<ChatInputPart['currentModeInfo']>({ kind: ChatModeKind.Ask, isBuiltin: true }),
 			currentLanguageModel: undefined,
@@ -2398,6 +2440,7 @@ suite('ChatWidget - acceptInput submission', () => {
 			_viewModel: { value: original.viewModel, writable: true },
 			_location: { value: { location: ChatAgentLocation.Chat } },
 			_onDidAcceptInput: { value: store.add(new Emitter<void>()) },
+			_onDidAcceptRequest: { value: onDidAcceptRequest },
 			_onDidSubmitAgent: { value: store.add(new Emitter<void>()) },
 			onDidChangeViewModel: { value: onDidChangeViewModel.event },
 			onDidHide: { value: Event.None },
@@ -2427,10 +2470,44 @@ suite('ChatWidget - acceptInput submission', () => {
 			telemetryService: { value: NullTelemetryService },
 			listWidget: { value: { domNode: dom.$('div'), setScrollLock: () => { }, updateRendererOptions: () => { }, rerender: () => { } } },
 			updateChatViewVisibility: { value: () => { } },
+			_maybeStartGoalSummary: { value: () => { } },
 		});
 		const options: IChatAcceptInputOptions = { preserveInput: true };
-		return { widget, viewOptions, options, original, input, editorService, chatService, chatWidgetService, chatSessionsService, parser, parts, policyRequiresAgentHost, contextKeyService, attachments, contribs, response, sent };
+		return { widget, viewOptions, options, original, input, editorService, chatService, chatWidgetService, chatSessionsService, parser, parts, policyRequiresAgentHost, contextKeyService, attachments, contribs, response, sent, acceptedRequests };
 	}
+
+	for (const kind of ['sent', 'queued', 'rejected'] as const) {
+		test(`reports ${kind} acceptance from the originating widget chat even if its model changes`, async () => {
+			const fixture = createSubmissionWidget();
+			const sendResult = new DeferredPromise<ChatSendResult>();
+			const queued = new DeferredPromise<ChatSendResult>();
+			fixture.chatService.sendRequest.returns(sendResult.p);
+			const submitting = fixture.widget.acceptInput('Follow up');
+			await timeout(0);
+			Object.defineProperty(fixture.widget, '_viewModel', { value: createSession(URI.parse('agent-host-copilot:/other')).viewModel });
+			await sendResult.complete(kind === 'sent' ? fixture.sent
+				: kind === 'queued' ? { kind, deferred: queued.p } : { kind, reason: 'Rejected' });
+			await timeout(0);
+			assert.deepStrictEqual(fixture.acceptedRequests, kind === 'rejected' ? [] : [fixture.original.model.sessionResource]);
+			if (kind === 'queued') {
+				await queued.complete(fixture.sent);
+			}
+			await submitting;
+		});
+	}
+
+	test('does not report preserved-input background requests as user submissions', async () => {
+		const fixture = createSubmissionWidget();
+		await fixture.widget.acceptInput('Background continuation', { preserveInput: true });
+		assert.deepStrictEqual(fixture.acceptedRequests, []);
+	});
+
+	test('a failed send does not report an accepted request', async () => {
+		const fixture = createSubmissionWidget();
+		fixture.chatService.sendRequest.rejects(new Error('Send failed'));
+		await assert.rejects(fixture.widget.acceptInput('Follow up'), /Send failed/);
+		assert.deepStrictEqual(fixture.acceptedRequests, []);
+	});
 
 	for (const waitingForApproval of [false, true]) {
 		test(`cancelCurrentRequest waits before a preserved-input continuation when waitingForApproval=${waitingForApproval}`, async () => {

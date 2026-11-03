@@ -25,7 +25,8 @@ import { ILogService, NullLogService } from '../../../../../../../platform/log/c
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService, OpenOptions } from '../../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestTelemetryService as RecordingTelemetryService } from '../../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationBody, IChatInputNotificationContext, IChatInputNotificationModelState, IChatInputNotificationService, matchesModelIdentifier } from '../../../../browser/widget/input/chatInputNotificationService.js';
@@ -63,16 +64,6 @@ class RecordingLogService extends NullLogService {
 	override dispose(): void {
 		this._onError.dispose();
 		super.dispose();
-	}
-}
-
-class RecordingTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { name: string; data: unknown }[] = [];
-
-	override publicLog2(eventName?: string, data?: unknown): void {
-		if (eventName) {
-			this.events.push({ name: eventName, data });
-		}
 	}
 }
 
