@@ -2203,15 +2203,22 @@ suite('Sessions - Actions', () => {
 		assert.deepStrictEqual({ opened, selections }, { opened: 2, selections: ['local-provider file:///local'] });
 	});
 
-	test('New Session opens the standard composer instead of delegating into the active native canvas', async () => {
+	test('New Session uses the active native canvas for plain invocations and incidental toolbar context', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
 		instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
 		let canvasRequests = 0;
 		let sessionRequests = 0;
+		let canvasHandlesNewSession = true;
 		instantiationService.stub(IWindowCanvasService, {
 			activeCanvasId: constObservable('test.inbox'),
-			openNewSession: async () => { canvasRequests++; },
+			openNewSession: () => {
+				if (!canvasHandlesNewSession) {
+					return undefined;
+				}
+				canvasRequests++;
+				return Promise.resolve();
+			},
 		});
 		instantiationService.stub(ISessionsService, {
 			activeSession: constObservable(undefined),
@@ -2221,7 +2228,26 @@ suite('Sessions - Actions', () => {
 		const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID);
 		assert.ok(command);
 		await command.handler(instantiationService);
-		assert.deepStrictEqual({ canvasRequests, sessionRequests }, { canvasRequests: 0, sessionRequests: 1 });
+		await command.handler(instantiationService, {});
+		await command.handler(instantiationService, { preserveFocus: true });
+		await command.handler(instantiationService, { toSide: false });
+		await command.handler(instantiationService, { toSide: true });
+		canvasHandlesNewSession = false;
+		await command.handler(instantiationService);
+		assert.deepStrictEqual({ canvasRequests, sessionRequests }, { canvasRequests: 4, sessionRequests: 2 });
+	});
+
+	test('New Session propagates native canvas failures without opening the standard composer', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const error = new Error('Inbox composer unavailable');
+		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
+		instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
+		instantiationService.stub(IWindowCanvasService, {
+			openNewSession: async () => { throw error; },
+		});
+		const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID);
+		assert.ok(command);
+		await assert.rejects(async () => command.handler(instantiationService), error);
 	});
 
 	test('New Session keyboard navigation works inside native canvases but leaves ordinary editors alone', () => {
