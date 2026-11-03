@@ -181,6 +181,37 @@ suite('AgentHostSessionInputPills', () => {
 		instantiationService.stub(IChatImageCarouselService, upcastPartial<IChatImageCarouselService>({}));
 		return instantiationService;
 	};
+	function createSessionInputPills(
+		widget: ChatWidget,
+		connectionsService: IAgentHostConnectionsService,
+		browserViewService: IBrowserViewWorkbenchService,
+		clipboardService: IClipboardService,
+		configurationService: IConfigurationService,
+		editorService: IEditorService,
+		instantiationService: ReturnType<typeof createInstantiationService>,
+		openerService: IOpenerService,
+		visibility: SessionChatPillVisibility
+	): AgentHostSessionInputPills {
+		return store.add(new AgentHostSessionInputPills(
+			widget,
+			false,
+			connectionsService,
+			browserViewService,
+			clipboardService,
+			configurationService,
+			editorService,
+			instantiationService,
+			openerService,
+			visibility,
+			noProvisionalSessions,
+			labelService,
+			notificationService,
+			instantiationService.get(ICommandService),
+			instantiationService.get(IDialogService),
+			instantiationService.get(IChatEditingService),
+			instantiationService.get(ITelemetryService),
+		));
+	}
 	const createRichGitHubService = (disposed: string[], options?: {
 		readonly credentialState?: { fail: boolean; calls: number };
 		readonly pullRequestSnapshots?: Map<number, ReturnType<typeof observableValue<PullRequestSnapshot>>>;
@@ -2058,25 +2089,7 @@ suite('AgentHostSessionInputPills', () => {
 		] as const);
 		const openerService = new TestOpenerService();
 
-		const pills = store.add(new AgentHostSessionInputPills(
-			widget,
-			false,
-			connectionsService,
-			browserViewService,
-			clipboardService,
-			configurationService,
-			editorService,
-			instantiationService,
-			openerService,
-			visibility,
-			noProvisionalSessions,
-			labelService,
-			notificationService,
-			instantiationService.get(ICommandService),
-			instantiationService.get(IDialogService),
-			instantiationService.get(IChatEditingService),
-			instantiationService.get(ITelemetryService),
-		));
+		const pills = createSessionInputPills(widget, connectionsService, browserViewService, clipboardService, configurationService, editorService, instantiationService, openerService, visibility);
 		await timeout(0);
 
 		const buttons = [...persistentContent.querySelectorAll<HTMLElement>('.chat-dropdown-pill-button')];
@@ -2408,25 +2421,7 @@ suite('AgentHostSessionInputPills', () => {
 				accessor.get(IOpenerService),
 			] as const);
 
-			store.add(new AgentHostSessionInputPills(
-				widget,
-				false,
-				connectionsService,
-				browserViewService,
-				clipboardService,
-				configurationService,
-				editorService,
-				instantiationService,
-				openerService,
-				visibility,
-				noProvisionalSessions,
-				labelService,
-				notificationService,
-				instantiationService.get(ICommandService),
-				instantiationService.get(IDialogService),
-				instantiationService.get(IChatEditingService),
-				instantiationService.get(ITelemetryService),
-			));
+			createSessionInputPills(widget, connectionsService, browserViewService, clipboardService, configurationService, editorService, instantiationService, openerService, visibility);
 			const button = persistentContent.querySelector<HTMLElement>('.chat-changes-pill-button');
 			button?.click();
 			await timeout(0);
@@ -3455,25 +3450,7 @@ suite('AgentHostSessionInputPills', () => {
 			accessor.get(IOpenerService),
 		] as const);
 
-		store.add(new AgentHostSessionInputPills(
-			widget,
-			false,
-			connectionsService,
-			browserViewService,
-			clipboardService,
-			configurationService,
-			editorService,
-			instantiationService,
-			openerService,
-			visibility,
-			noProvisionalSessions,
-			labelService,
-			notificationService,
-			instantiationService.get(ICommandService),
-			instantiationService.get(IDialogService),
-			instantiationService.get(IChatEditingService),
-			instantiationService.get(ITelemetryService),
-		));
+		createSessionInputPills(widget, connectionsService, browserViewService, clipboardService, configurationService, editorService, instantiationService, openerService, visibility);
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
 
 		assert.deepStrictEqual({
@@ -3566,25 +3543,7 @@ suite('AgentHostSessionInputPills', () => {
 			accessor.get(IOpenerService),
 		] as const);
 
-		store.add(new AgentHostSessionInputPills(
-			widget,
-			false,
-			connectionsService,
-			browserViewService,
-			clipboardService,
-			configurationService,
-			editorService,
-			instantiationService,
-			openerService,
-			visibility,
-			noProvisionalSessions,
-			labelService,
-			notificationService,
-			instantiationService.get(ICommandService),
-			instantiationService.get(IDialogService),
-			instantiationService.get(IChatEditingService),
-			instantiationService.get(ITelemetryService),
-		));
+		createSessionInputPills(widget, connectionsService, browserViewService, clipboardService, configurationService, editorService, instantiationService, openerService, visibility);
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
 		const initial = {
 			hidden: row?.classList.contains('hidden'),
@@ -3742,25 +3701,7 @@ suite('AgentHostSessionInputPills', () => {
 		] as const);
 		const openerService = new TestOpenerService();
 
-		store.add(new AgentHostSessionInputPills(
-			widget,
-			false,
-			connectionsService,
-			browserViewService,
-			clipboardService,
-			configurationService,
-			editorService,
-			instantiationService,
-			openerService,
-			visibility,
-			noProvisionalSessions,
-			labelService,
-			notificationService,
-			instantiationService.get(ICommandService),
-			instantiationService.get(IDialogService),
-			instantiationService.get(IChatEditingService),
-			instantiationService.get(ITelemetryService),
-		));
+		createSessionInputPills(widget, connectionsService, browserViewService, clipboardService, configurationService, editorService, instantiationService, openerService, visibility);
 		const button = persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button');
 		const icon = button?.querySelector<HTMLElement>('.chat-pill-icon');
 		const multiple = {
@@ -4050,25 +3991,7 @@ suite('AgentHostSessionInputPills', () => {
 			setPersistentContentHeight: height => persistentContentHeight = height,
 			registerBackgroundActivityPillSections: () => Disposable.None,
 		});
-		store.add(new AgentHostSessionInputPills(
-			widget,
-			false,
-			connectionsService,
-			browserViewService,
-			clipboardService,
-			configurationService,
-			editorService,
-			instantiationService,
-			openerService,
-			visibility,
-			noProvisionalSessions,
-			labelService,
-			notificationService,
-			instantiationService.get(ICommandService),
-			instantiationService.get(IDialogService),
-			instantiationService.get(IChatEditingService),
-			instantiationService.get(ITelemetryService),
-		));
+		createSessionInputPills(widget, connectionsService, browserViewService, clipboardService, configurationService, editorService, instantiationService, openerService, visibility);
 		const showChat = (resource: URI) => {
 			const previousSessionResource = viewModel.sessionResource;
 			viewModel = upcastPartial<ChatViewModel>({ sessionResource: resource });
@@ -4144,25 +4067,7 @@ suite('AgentHostSessionInputPills', () => {
 				return toDisposable(() => { backgroundActivityPillSections = undefined; });
 			},
 		});
-		store.add(new AgentHostSessionInputPills(
-			widget,
-			false,
-			connectionsService,
-			browserViewService,
-			clipboardService,
-			configurationService,
-			editorService,
-			instantiationService,
-			openerService,
-			visibility,
-			noProvisionalSessions,
-			labelService,
-			notificationService,
-			instantiationService.get(ICommandService),
-			instantiationService.get(IDialogService),
-			instantiationService.get(IChatEditingService),
-			instantiationService.get(ITelemetryService),
-		));
+		createSessionInputPills(widget, connectionsService, browserViewService, clipboardService, configurationService, editorService, instantiationService, openerService, visibility);
 		const pills = () => Array.from(persistentContent.querySelectorAll('.chat-pill-label')).map(label => label.textContent);
 		const running = pills();
 		const transcriptShells = () => backgroundActivityPillSections?.backgroundShells?.get().map(shell => shell.description);
