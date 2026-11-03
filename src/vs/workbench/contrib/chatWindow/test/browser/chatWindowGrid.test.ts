@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
+import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -135,6 +136,17 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual({ backSideBySide, restoredStacked: restored.partGrid!.getCellSize(ChatWindowGridCell.Chat).height }, { backSideBySide: 300, restoredStacked: 200 });
 	});
 
+	test('sizes of an arrangement that something else changed, such as a part moved, are not remembered for the arrangement: the main part comes back at its remembered share, not at its minimum', () => {
+		const { mode, grid } = setup();
+		grid.partGrid!.resizeCell(ChatWindowGridCell.Chat, { width: 400, height: 770 });
+		// Moved by the user, such as with Move Part Down: the chat across the window, below the main part.
+		grid.partGrid!.moveCell(ChatWindowGridCell.Chat, { edge: Direction.Down });
+		mode.set(ChatWindowLayoutMode.Stacked, undefined);
+		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
+
+		assert.deepStrictEqual({ topology: grid.partGrid!.describe(), chat: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width, exported: grid.exportSizes()['column(titleRow,row(chat,main))']?.[ChatWindowGridCell.Chat]?.width }, { topology: 'column(titleRow, row(chat, main))', chat: 400, exported: 400 });
+	});
+
 	/** A part whose editors come and go: it is empty until an editor opens in it. */
 	function createPartWithEditors(name: string) {
 		const onDidModelChange = disposables.add(new Emitter<IGroupModelChangeEvent>());
@@ -227,9 +239,9 @@ suite('Chat window grid', () => {
 		const editorAreaClosed = { ...read(), height: height(), acrossTheWindow: grid.partGrid!.getCellSize(ChatWindowGridCell.Terminals).width === grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width };
 		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
 
-		assert.deepStrictEqual({ editorAreaClosed, editorShownAgain: read() }, {
+		assert.deepStrictEqual({ editorAreaClosed, editorShownAgain: { ...read(), height: height() } }, {
 			editorAreaClosed: { topology: 'column(titleRow, row(chat, main), terminals)', visible: [ChatWindowGridCell.Chat, ChatWindowGridCell.Terminals], terminalsVisible: true, height: 200, acrossTheWindow: true },
-			editorShownAgain: { topology: 'column(titleRow, row(chat, column(main, terminals)))', visible: [ChatWindowGridCell.Chat, ChatWindowGridCell.Main, ChatWindowGridCell.Terminals], terminalsVisible: true },
+			editorShownAgain: { topology: 'column(titleRow, row(chat, column(main, terminals)))', visible: [ChatWindowGridCell.Chat, ChatWindowGridCell.Main, ChatWindowGridCell.Terminals], terminalsVisible: true, height: 200 },
 		});
 	});
 

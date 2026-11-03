@@ -181,6 +181,10 @@ export class ChatWindowGrid extends Disposable {
 	private _dimension: IViewSize | undefined;
 	private _outerInsets: IGridEdgeInsets = NO_GRID_EDGE_INSETS;
 	private _sizes: ChatWindowPartSizes = {};
+	/** The arrangement of the part grid as the window arranged it: sizes are remembered for it only while the grid still shows it. */
+	private _arranged: string | undefined;
+	/** The height the terminals take once the cells of the arrangement they moved in show. */
+	private _pendingTerminalsHeight: number | undefined;
 
 	private readonly _terminalsVisible = observableValue<boolean>(this, false);
 	/** Whether the part that holds the window's terminals shows: it is in the grid and has editors. */
@@ -263,6 +267,12 @@ export class ChatWindowGrid extends Disposable {
 		if (this._strip && (mode === ChatWindowLayoutMode.Stacked || mode === ChatWindowLayoutMode.EditorOnly)) {
 			grid.setCellVisible(ChatWindowGridCell.Strip, !!this._cells.strip?.visible.get());
 		}
+		// Sized once the cells beside them show, which would otherwise take a share of their height.
+		if (this._pendingTerminalsHeight !== undefined) {
+			this._resizeTerminals(grid, this._pendingTerminalsHeight);
+			this._pendingTerminalsHeight = undefined;
+		}
+		this._arranged = grid.describe();
 		this._updateTerminalsVisible();
 	}
 
@@ -274,7 +284,8 @@ export class ChatWindowGrid extends Disposable {
 
 	private _rememberSizes(): void {
 		const grid = this._grid.value;
-		if (!grid || !this._topologyKey) {
+		// Not once something else changed the arrangement, such as a part the user moved: its sizes are not the arrangement's.
+		if (!grid || !this._topologyKey || grid.describe() !== this._arranged) {
 			return;
 		}
 		const sizes: Record<string, { width: number; height: number }> = {};
@@ -313,9 +324,7 @@ export class ChatWindowGrid extends Disposable {
 			} else if (this._terminalsInGrid) {
 				const height = this._sizes[previousKey ?? '']?.[ChatWindowGridCell.Terminals]?.height;
 				grid.moveCell(ChatWindowGridCell.Terminals, getTerminalsLocation(mode, position));
-				if (height !== undefined) {
-					this._resizeTerminals(grid, height);
-				}
+				this._pendingTerminalsHeight = height;
 			} else {
 				const remembered = this._sizes[key] ?? {};
 				grid.addPart(ChatWindowGridCell.Terminals, terminals, getTerminalsLocation(mode, position), this._terminalsHeight(remembered, dimension.height));
