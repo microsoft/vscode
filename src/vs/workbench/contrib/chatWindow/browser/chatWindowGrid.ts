@@ -506,17 +506,31 @@ export class ChatWindowGrid extends Disposable {
 
 	/**
 	 * The cells of the root of an arrangement with the parts the grid created after them, at the end of the window
-	 * beside the arrangement of the layout mode: under the title row that spans the window, beside what is under it.
+	 * beside the arrangement of the layout mode: under the title row that spans the window, beside what is under it. They
+	 * take their room from the main part, or else the chat, so that the other parts, such as the terminals, keep theirs.
 	 */
 	private _withCreatedParts(rootCells: readonly ISerializedNode[], orientation: Orientation, width: number, height: number): ISerializedNode[] {
-		const createdLeaves = (extent: number): ISerializedNode[] => Array.from(this._created.keys(), id => ({ type: 'leaf', data: { id }, size: Math.round(extent / (this._created.size + 2)) }));
+		if (!this._created.size) {
+			return rootCells;
+		}
 		const [first, content] = rootCells;
 		const titleRowFirst = first?.type === 'leaf' && (first.data as { id: string }).id === ChatWindowGridCell.TitleRow;
-		if (this._created.size && titleRowFirst && rootCells.length === 2 && content.type === 'branch') {
-			const contentExtent = orientation === Orientation.HORIZONTAL ? height : width;
-			return [first, { ...content, data: [...content.data, ...createdLeaves(contentExtent)] }];
+		if (titleRowFirst && rootCells.length === 2 && content.type === 'branch') {
+			return [first, { ...content, data: this._addCreatedParts(content.data, orientation === Orientation.HORIZONTAL ? height : width) }];
 		}
-		return [...rootCells, ...createdLeaves(orientation === Orientation.HORIZONTAL ? width : height)];
+		return this._addCreatedParts(rootCells, orientation === Orientation.HORIZONTAL ? width : height);
+	}
+
+	private _addCreatedParts(cells: readonly ISerializedNode[], extent: number): ISerializedNode[] {
+		const contains = (node: ISerializedNode, id: string): boolean => node.type === 'leaf' ? (node.data as { id: string }).id === id : node.data.some(child => contains(child, id));
+		const sizeOf = (node: ISerializedNode) => node.size ?? 0;
+		const donor = [ChatWindowGridCell.Main, ChatWindowGridCell.Chat]
+			.map(id => cells.find(cell => contains(cell, id)))
+			.find(cell => cell && sizeOf(cell) > 0);
+		const share = Math.round((donor ? sizeOf(donor) : extent) / (this._created.size + (donor ? 1 : 2)));
+		const created: ISerializedNode[] = Array.from(this._created.keys(), id => ({ type: 'leaf', data: { id }, size: share }));
+		const rest = donor ? cells.map(cell => cell === donor ? { ...cell, size: sizeOf(cell) - share * created.length } : cell) : cells;
+		return [...rest, ...created];
 	}
 
 	/** The room the grid keeps to the edges of the window, such as the main window's outer insets. */

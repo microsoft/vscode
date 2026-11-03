@@ -13,9 +13,9 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IPartGridPartFactory } from '../../../../browser/parts/partGrid/partGrid.js';
+import { IPartGridPartFactory, PartGridLocation } from '../../../../browser/parts/partGrid/partGrid.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { ChatWindowGrid, ChatWindowGridCell, IChatWindowGridChrome } from '../../browser/chatWindowGrid.js';
 import { IGroupModelChangeEvent } from '../../../../common/editor/editorGroupModel.js';
 import { ChatWindowLayoutMode, ChatWindowTerminalPosition } from '../../common/chatWindowLayout.js';
@@ -77,11 +77,16 @@ suite('Chat window grid', () => {
 		return { element: $('div'), visible: constObservable(true), size: constObservable(size), layout: () => { } };
 	}
 
+	/** The part the editors moved into a new part come from. */
+	let sourcePart: IContentPart | undefined;
 	const editorGroupsService = new class extends mock<IEditorGroupsService>() {
 		override getGroup(): IEditorGroup {
 			return new class extends mock<IEditorGroup>() {
 				override moveEditors(): boolean { return true; }
 			}();
+		}
+		override getPart(): IEditorPart {
+			return sourcePart!;
 		}
 	}();
 
@@ -708,6 +713,61 @@ suite('Chat window grid', () => {
 		leads.editorOnly = grid.chatLeads.get();
 
 		assert.deepStrictEqual(leads, { sideBySide: true, movedRight: false, movedBack: true, stacked: false, editorOnly: false });
+	});
+
+	test('the terminals keep the height the user gave them when an editor moves into a new part beside the main part or at an edge of the window, also once the arrangement shows again', () => {
+		const results: Record<string, { added: number; rearranged: number }> = {};
+		const editor = new class extends mock<EditorInput>() {
+			override readonly typeId = 'testEditor';
+			override readonly resource = undefined;
+			override getName() { return 'file'; }
+		}();
+		const cases: [string, PartGridLocation][] = [
+			['above', { reference: ChatWindowGridCell.Main, direction: Direction.Up }],
+			['below', { reference: ChatWindowGridCell.Main, direction: Direction.Down }],
+			['left', { reference: ChatWindowGridCell.Main, direction: Direction.Left }],
+			['right', { reference: ChatWindowGridCell.Main, direction: Direction.Right }],
+			['top edge', { edge: Direction.Up }],
+			['bottom edge', { edge: Direction.Down }],
+		];
+		for (const [name, location] of cases) {
+			const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.SideBySide);
+			const terminalsPart = createPartWithEditors('terminals');
+			terminalsPart.setEmpty(false);
+			const main = createPart('main');
+			sourcePart = main;
+			const created = new class extends mock<IContentPart>() {
+				override readonly element = $('.created');
+				override readonly minimumWidth = 100;
+				override readonly maximumWidth = Number.POSITIVE_INFINITY;
+				override readonly minimumHeight = 50;
+				override readonly maximumHeight = Number.POSITIVE_INFINITY;
+				override readonly onDidChange = Event.None;
+				override readonly groups = [new class extends mock<IEditorGroup>() {
+					override readonly isEmpty = false;
+					override readonly onDidModelChange = Event.None;
+					override focus(): void { }
+				}()];
+				override get activeGroup() { return this.groups[0]; }
+				override readonly onDidAddGroup = Event.None;
+				override readonly onDidRemoveGroup = Event.None;
+				override readonly onWillClose = Event.None;
+				override layout() { }
+			}();
+			const partFactory: IPartGridPartFactory = { createPart: () => ({ id: 'created', part: created }) };
+			const grid = disposables.add(new ChatWindowGrid($('div'), { main, chat: createPart('chat'), titleRow: createChrome(30), terminals: constObservable(terminalsPart.part) }, mode, constObservable(0), undefined, constObservable(ChatWindowTerminalPosition.FullWidth), partFactory, editorGroupsService));
+			grid.layout(1000, 800);
+			grid.partGrid!.resizeCell(ChatWindowGridCell.Terminals, { width: 1000, height: 199 });
+
+			grid.partGrid!.moveEditorsIntoNewPart([{ editor, groupId: 1 }], location);
+			const added = grid.partGrid!.getCellSize(ChatWindowGridCell.Terminals).height;
+			mode.set(ChatWindowLayoutMode.ChatOnly, undefined);
+			mode.set(ChatWindowLayoutMode.SideBySide, undefined);
+			results[name] = { added, rearranged: grid.partGrid!.getCellSize(ChatWindowGridCell.Terminals).height };
+		}
+		sourcePart = undefined;
+
+		assert.deepStrictEqual(results, Object.fromEntries(cases.map(([name]) => [name, { added: 199, rearranged: 199 }])));
 	});
 
 	test('a part created for an editor dropped on an edge of the window stays when the layout mode changes, until it closes, and the sizes of the arrangement with it or without it are remembered', () => {
