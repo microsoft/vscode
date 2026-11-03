@@ -344,6 +344,11 @@ export class FileService extends Disposable implements IFileService {
 		}
 	}
 
+	async synchronize(resource: URI): Promise<string | undefined> {
+		const provider = await this.withProvider(resource);
+		return provider.synchronize?.(resource);
+	}
+
 	//#endregion
 
 	//#region File Reading/Writing
@@ -399,7 +404,7 @@ export class FileService extends Disposable implements IFileService {
 
 			// mkdir recursively as needed
 			if (!stat) {
-				await this.mkdirp(provider, providerExtUri.dirname(resource));
+				await this.mkdirp(provider, providerExtUri.dirname(resource), writeFileOptions?.synchronization);
 			}
 
 			// optimization: if the provider has unbuffered write capability and the data
@@ -789,12 +794,12 @@ export class FileService extends Disposable implements IFileService {
 		return true;
 	}
 
-	async move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+	async move(source: URI, target: URI, overwrite?: boolean, options?: { readonly synchronization?: readonly string[] }): Promise<IFileStatWithMetadata> {
 		const sourceProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(source), source);
 		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(target), target);
 
 		// move
-		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'move', !!overwrite);
+		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'move', !!overwrite, options?.synchronization);
 
 		// resolve and send events
 		const fileStat = await this.resolve(target, { resolveMetadata: true });
@@ -803,12 +808,12 @@ export class FileService extends Disposable implements IFileService {
 		return fileStat;
 	}
 
-	async copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+	async copy(source: URI, target: URI, overwrite?: boolean, options?: { readonly synchronization?: readonly string[] }): Promise<IFileStatWithMetadata> {
 		const sourceProvider = await this.withReadProvider(source);
 		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(target), target);
 
 		// copy
-		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'copy', !!overwrite);
+		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'copy', !!overwrite, options?.synchronization);
 
 		// resolve and send events
 		const fileStat = await this.resolve(target, { resolveMetadata: true });
@@ -817,7 +822,7 @@ export class FileService extends Disposable implements IFileService {
 		return fileStat;
 	}
 
-	private async doMoveCopy(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI, mode: 'move' | 'copy', overwrite: boolean): Promise<'move' | 'copy'> {
+	private async doMoveCopy(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI, mode: 'move' | 'copy', overwrite: boolean, synchronization?: readonly string[]): Promise<'move' | 'copy'> {
 		if (source.toString() === target.toString()) {
 			return mode; // simulate node.js behaviour here and do a no-op if paths match
 		}
@@ -827,18 +832,18 @@ export class FileService extends Disposable implements IFileService {
 
 		// delete as needed (unless target is same resurce with different path case)
 		if (exists && !isSameResourceWithDifferentPathCase && overwrite) {
-			await this.del(target, { recursive: true });
+			await this.del(target, { recursive: true, ...(synchronization ? { synchronization } : {}) });
 		}
 
 		// create parent folders
-		await this.mkdirp(targetProvider, this.getExtUri(targetProvider).providerExtUri.dirname(target));
+		await this.mkdirp(targetProvider, this.getExtUri(targetProvider).providerExtUri.dirname(target), synchronization);
 
 		// copy source => target
 		if (mode === 'copy') {
 
 			// same provider with fast copy: leverage copy() functionality
 			if (sourceProvider === targetProvider && hasFileFolderCopyCapability(sourceProvider)) {
-				await sourceProvider.copy(source, target, { overwrite });
+				await sourceProvider.copy(source, target, { overwrite, ...(synchronization ? { synchronization } : {}) });
 			}
 
 			// when copying via buffer/unbuffered, we have to manually
@@ -846,9 +851,9 @@ export class FileService extends Disposable implements IFileService {
 			else {
 				const sourceFile = await this.resolve(source);
 				if (sourceFile.isDirectory) {
-					await this.doCopyFolder(sourceProvider, sourceFile, targetProvider, target);
+					await this.doCopyFolder(sourceProvider, sourceFile, targetProvider, target, synchronization);
 				} else {
-					await this.doCopyFile(sourceProvider, source, targetProvider, target);
+					await this.doCopyFile(sourceProvider, source, targetProvider, target, synchronization);
 				}
 			}
 
@@ -860,22 +865,26 @@ export class FileService extends Disposable implements IFileService {
 
 			// same provider: leverage rename() functionality
 			if (sourceProvider === targetProvider) {
-				await sourceProvider.rename(source, target, { overwrite });
+				await sourceProvider.rename(source, target, { overwrite, ...(synchronization ? { synchronization } : {}) });
 
 				return mode;
 			}
 
 			// across providers: copy to target & delete at source
 			else {
-				await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'copy', overwrite);
-				await this.del(source, { recursive: true });
+				await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'copy', overwrite, synchronization);
+				await this.del(source, { recursive: true, ...(synchronization ? { synchronization } : {}) });
 
 				return 'copy';
 			}
 		}
 	}
 
-	private async doCopyFile(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI): Promise<void> {
+	private async doCopyFile(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI, synchronization?: readonly string[]): Promise<void> {
+		if (synchronization?.length) {
+			await this.writeFile(target, (await this.readFileStream(source)).value, { synchronization });
+			return;
+		}
 
 		// copy: source (buffered) => target (buffered)
 		if (hasOpenReadWriteCloseCapability(sourceProvider) && hasOpenReadWriteCloseCapability(targetProvider)) {
@@ -898,19 +907,23 @@ export class FileService extends Disposable implements IFileService {
 		}
 	}
 
-	private async doCopyFolder(sourceProvider: IFileSystemProvider, sourceFolder: IFileStat, targetProvider: IFileSystemProvider, targetFolder: URI): Promise<void> {
+	private async doCopyFolder(sourceProvider: IFileSystemProvider, sourceFolder: IFileStat, targetProvider: IFileSystemProvider, targetFolder: URI, synchronization?: readonly string[]): Promise<void> {
 
 		// create folder in target
-		await targetProvider.mkdir(targetFolder);
+		if (synchronization?.length) {
+			await targetProvider.mkdir(targetFolder, { synchronization });
+		} else {
+			await targetProvider.mkdir(targetFolder);
+		}
 
 		// create children in target
 		if (Array.isArray(sourceFolder.children)) {
 			await Promises.settled(sourceFolder.children.map(async sourceChild => {
 				const targetChild = this.getExtUri(targetProvider).providerExtUri.joinPath(targetFolder, sourceChild.name);
 				if (sourceChild.isDirectory) {
-					return this.doCopyFolder(sourceProvider, await this.resolve(sourceChild.resource), targetProvider, targetChild);
+					return this.doCopyFolder(sourceProvider, await this.resolve(sourceChild.resource), targetProvider, targetChild, synchronization);
 				} else {
-					return this.doCopyFile(sourceProvider, sourceChild.resource, targetProvider, targetChild);
+					return this.doCopyFile(sourceProvider, sourceChild.resource, targetProvider, targetChild, synchronization);
 				}
 			}));
 		}
@@ -983,7 +996,7 @@ export class FileService extends Disposable implements IFileService {
 		return fileStat;
 	}
 
-	private async mkdirp(provider: IFileSystemProvider, directory: URI): Promise<void> {
+	private async mkdirp(provider: IFileSystemProvider, directory: URI, synchronization?: readonly string[]): Promise<void> {
 		const directoriesToCreate: string[] = [];
 
 		// mkdir until we reach root
@@ -1016,7 +1029,11 @@ export class FileService extends Disposable implements IFileService {
 			directory = providerExtUri.joinPath(directory, directoriesToCreate[i]);
 
 			try {
-				await provider.mkdir(directory);
+				if (synchronization?.length) {
+					await provider.mkdir(directory, { synchronization });
+				} else {
+					await provider.mkdir(directory);
+				}
 			} catch (error) {
 				if (toFileSystemProviderErrorCode(error) !== FileSystemProviderErrorCode.FileExists) {
 					// For mkdirp() we tolerate that the mkdir() call fails
@@ -1104,7 +1121,7 @@ export class FileService extends Disposable implements IFileService {
 		const atomic = deleteFileOptions?.atomic ?? false;
 
 		// Delete through provider
-		await provider.delete(resource, { recursive, useTrash, atomic });
+		await provider.delete(resource, { recursive, useTrash, atomic, ...(deleteFileOptions?.synchronization ? { synchronization: deleteFileOptions.synchronization } : {}) });
 
 		// Events
 		this._onDidRunOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
@@ -1271,7 +1288,7 @@ export class FileService extends Disposable implements IFileService {
 		return this.writeQueue.queueFor(resource, async () => {
 
 			// open handle
-			const handle = await provider.open(resource, { create: true, unlock: options?.unlock ?? false, append: options?.append ?? false });
+			const handle = await provider.open(resource, { create: true, unlock: options?.unlock ?? false, append: options?.append ?? false, ...(options?.synchronization ? { synchronization: options.synchronization } : {}) });
 
 			// write into handle until all bytes from buffer have been written
 			try {
@@ -1398,7 +1415,7 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		// Write through the provider
-		await provider.writeFile(resource, buffer.buffer, { create: true, overwrite: true, unlock: options?.unlock ?? false, atomic: options?.atomic ?? false, append: options?.append ?? false });
+		await provider.writeFile(resource, buffer.buffer, { create: true, overwrite: true, unlock: options?.unlock ?? false, atomic: options?.atomic ?? false, append: options?.append ?? false, ...(options?.synchronization ? { synchronization: options.synchronization } : {}) });
 	}
 
 	private async doPipeBuffered(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {

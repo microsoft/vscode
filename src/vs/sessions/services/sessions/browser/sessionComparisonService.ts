@@ -20,6 +20,7 @@ import { createSessionComparisonJudgePrompt } from '../../../../platform/agentHo
 import { localize } from '../../../../nls.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { resolveChatBinaryData } from '../../../../workbench/contrib/chat/common/model/chatSessionResources.js';
 import { aggregateChatUsage } from '../../../../workbench/contrib/chat/common/chatUsage.js';
 import { isActiveSessionStatus, ISession, SessionStatus } from '../common/session.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
@@ -115,7 +116,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		}
 
 		const id = generateUuid();
-		const attachedContext = options.attachedContext ? snapshotAttachedContext(options.attachedContext) : undefined;
+		const attachedContext = options.attachedContext ? snapshotAttachedContext(await resolveChatBinaryData(options.attachedContext, 'request', token)) : undefined;
 		const title = comparisonTitle(options.prompt);
 		const group = this.sessionGroupsService.createGroup(title);
 		const attempts = options.attempts.map(attempt => ({

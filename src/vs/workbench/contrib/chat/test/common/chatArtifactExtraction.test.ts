@@ -18,6 +18,10 @@ import { IChatModel, IChatRequestModel, IChatResponseModel, IResponse } from '..
 import { ChatToolInvocation } from '../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatArtifactsService } from '../../common/tools/chatArtifactsService.js';
 import { IToolResultInputOutputDetails, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { createTestChatSessionResources } from './model/chatSessionResourceLocks.js';
 
 suite('Chat generated image artifacts', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -83,6 +87,20 @@ suite('Chat generated image artifacts', () => {
 			],
 		});
 		assert.deepStrictEqual(getGeneratedImageResources(response, sessionResource), []);
+	});
+
+	test('ordinary tool image artifacts retain labels and readable bytes after hydration', async () => {
+		const files = store.add(new FileService(new NullLogService()));
+		store.add(files.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const resources = store.add(createTestChatSessionResources(files));
+		const source: IToolResultInputOutputDetails = { input: '{}', output: [{ type: 'embed', value: 'AQID', mimeType: 'image/png', uri: URI.parse('mcp-resource://server/screenshot.png') }] };
+		const prepared = await resources.prepare(source, URI.file('/session.resources'));
+		const restored = resources.restore(prepared.value, URI.file('/session.resources'));
+		const artifacts = extractArtifactsFromResponse(upcastPartial<IResponse>({ value: [imageTool({ toolSpecificData: undefined, resultDetails: restored })] }), sessionResource, { 'image/*': { groupName: 'Images' } }, {});
+		assert.deepStrictEqual({
+			labels: artifacts.map(artifact => artifact.label),
+			bytes: [...(await files.readFile(URI.parse(artifacts[0].uri))).value.buffer],
+		}, { labels: ['screenshot.png'], bytes: [1, 2, 3] });
 	});
 
 	for (const confirmResults of [false, true]) {

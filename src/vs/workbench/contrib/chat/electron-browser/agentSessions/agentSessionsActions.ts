@@ -56,6 +56,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { serializeChatDraft, UnsupportedChatDraftAttachmentError } from '../../common/attachments/chatDraft.js';
+import { resolveChatBinaryData } from '../../common/model/chatSessionResources.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { CopilotHarnessIntroductionButtonVariant, copilotHarnessIntroductionButtonVariants, CopilotHarnessIntroductionCopyVariant, copilotHarnessIntroductionCopyVariants, copilotHarnessIntroductionFeedbackCommandId, copilotHarnessIntroductionLearnMoreCommandId, getCopilotHarnessIntroductionContent } from '../../browser/agentSessions/copilotHarnessIntroduction.js';
@@ -114,7 +115,7 @@ function isCopilotHarnessSessionType(chatSessionsService: IChatSessionsService, 
 		|| chatSessionsService.getChatSessionContribution(sessionType)?.agentHostProviderId === SessionType.CopilotCLI;
 }
 
-function getDraftHandoffOptions(accessor: ServicesAccessor, sessionResource?: URI, forceTransfer = false, inputUri?: URI): Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'> {
+async function getDraftHandoffOptions(accessor: ServicesAccessor, sessionResource?: URI, forceTransfer = false, inputUri?: URI): Promise<Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'>> {
 	const widgets = accessor.get(IChatWidgetService);
 	const widget = inputUri ? widgets.getWidgetByInputUri(inputUri) : sessionResource ? widgets.getWidgetBySessionResource(sessionResource) : widgets.lastFocusedWidget;
 	if (sessionResource && !isEqual(widget?.viewModel?.sessionResource, sessionResource)) {
@@ -136,20 +137,21 @@ function canHandOffDraft(widget: IChatWidget | undefined): widget is IChatWidget
 	return isDraftWidget(widget) && widget.scopedContextKeyService.contextMatchesRules(ContextKeyExpr.and(OPEN_AGENTS_WINDOW_PRECONDITION, ChatContextKeys.enabled));
 }
 
-function captureDraftHandoffOptions(accessor: ServicesAccessor, widget: IChatWidget | undefined): Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'> {
+async function captureDraftHandoffOptions(accessor: ServicesAccessor, widget: IChatWidget | undefined): Promise<Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'>> {
 	if (!canHandOffDraft(widget)) {
 		return {};
 	}
+	const modelService = accessor.get(IModelService);
+	const notificationService = accessor.get(INotificationService);
 	try {
-		const modelService = accessor.get(IModelService);
 		return {
-			draft: serializeChatDraft({ inputText: widget.getInput(), attachments: widget.attachmentModel.attachments }, resource => modelService.getModel(resource)),
+			draft: serializeChatDraft(await resolveChatBinaryData({ inputText: widget.getInput(), attachments: widget.attachmentModel.attachments }, 'request'), resource => modelService.getModel(resource)),
 		};
 	} catch (error) {
 		if (!(error instanceof UnsupportedChatDraftAttachmentError)) {
 			throw error;
 		}
-		accessor.get(INotificationService).warn(localize('agentsWindow.unsupportedDraftAttachment', "This draft contains context that is only available in this window. Your prompt and attachments have been kept here instead of copied to the Agents Window."));
+		notificationService.warn(localize('agentsWindow.unsupportedDraftAttachment', "This draft contains context that is only available in this window. Your prompt and attachments have been kept here instead of copied to the Agents Window."));
 		return { folderUriIsDefault: true };
 	}
 }
@@ -173,9 +175,11 @@ export class OpenWorkspaceInAgentsWindowAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, options?: { readonly source?: AgentsWindowOpenSource; readonly sessionResource?: URI; readonly inputUri?: URI; readonly reveal?: IOpenAgentsWindowOptions['reveal'] }): Promise<void> {
 		ensureAgentModeEnabled(accessor.get(IConfigurationService));
-		const draftOptions = options?.reveal === 'new' ? getDraftHandoffOptions(accessor, options.sessionResource, false, options.inputUri) : {};
-		await accessor.get(INativeHostService).openAgentsWindow({
-			folderUri: getInvokingWorkspaceFolder(accessor) ?? accessor.get(IWorkspaceContextService).getWorkspace().folders[0]?.uri,
+		const nativeHostService = accessor.get(INativeHostService);
+		const folderUri = getInvokingWorkspaceFolder(accessor) ?? accessor.get(IWorkspaceContextService).getWorkspace().folders[0]?.uri;
+		const draftOptions = options?.reveal === 'new' ? await getDraftHandoffOptions(accessor, options.sessionResource, false, options.inputUri) : {};
+		await nativeHostService.openAgentsWindow({
+			folderUri,
 			reveal: options?.reveal,
 			source: options?.source ?? AgentsWindowOpenSource.CommandPalette,
 			...draftOptions,
@@ -289,9 +293,11 @@ export class OpenAgentsWindowAction extends Action2 {
 	async run(accessor: ServicesAccessor, args?: IOpenAgentsWindowOptions): Promise<void> {
 		ensureAgentModeEnabled(accessor.get(IConfigurationService));
 		const nativeHostService = accessor.get(INativeHostService);
-		const draftOptions: Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'> = args?.reveal === 'new' && !args.folderUri && !args.draft ? getDraftHandoffOptions(accessor) : {};
+		const invokingFolder = getInvokingWorkspaceFolder(accessor);
+		const defaultFolder = accessor.get(IWorkspaceContextService).getWorkspace().folders[0]?.uri;
+		const draftOptions: Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'> = args?.reveal === 'new' && !args.folderUri && !args.draft ? await getDraftHandoffOptions(accessor) : {};
 		const folderUri = !args?.folderUri && (!args?.reveal || args.reveal === 'new')
-			? getInvokingWorkspaceFolder(accessor) ?? (draftOptions.draft ? accessor.get(IWorkspaceContextService).getWorkspace().folders[0]?.uri : undefined)
+			? invokingFolder ?? (draftOptions.draft ? defaultFolder : undefined)
 			: undefined;
 		await nativeHostService.openAgentsWindow({
 			...args,
@@ -363,9 +369,9 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 		}
 
 		// A persisted session carries its own workspace; otherwise retain the folder for a cold open or explicit new-session reveal.
-		const draftOptions = commandOptions?.reveal === 'new' ? getDraftHandoffOptions(accessor, sessionResource, commandOptions.transferDraft === true, inputUri) : {};
-		const hasRealSession = sessionResource && !isUntitledChatSession(sessionResource) && commandOptions?.reveal !== 'new';
 		const folderUri = getInvokingWorkspaceFolder(accessor) ?? workspaceContextService.getWorkspace().folders[0]?.uri;
+		const draftOptions = commandOptions?.reveal === 'new' ? await getDraftHandoffOptions(accessor, sessionResource, commandOptions.transferDraft === true, inputUri) : {};
+		const hasRealSession = sessionResource && !isUntitledChatSession(sessionResource) && commandOptions?.reveal !== 'new';
 		await nativeHostService.openAgentsWindow({
 			folderUri: !hasRealSession && (draftOptions.draft || folderUri?.scheme === Schemas.file) ? folderUri?.toJSON() : undefined,
 			reveal: hasRealSession ? sessionResource?.toJSON() : commandOptions?.reveal,

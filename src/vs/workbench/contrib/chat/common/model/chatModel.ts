@@ -10,7 +10,7 @@ import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode, IMarkdownString, MarkdownString, isMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
@@ -51,6 +51,7 @@ import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService,
 import { ChatRequestTextPart, IChatPromptText, IParsedChatRequest, reviveParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { chatSessionResourceToId, LocalChatSessionUri } from './chatUri.js';
 import { ObjectMutationLog } from './objectMutationLog.js';
+import { assertPortableChatData, ChatBinaryReferenceCollection, retainChatBinaryReferences } from './chatSessionResources.js';
 import type { ICanvasContext } from '../../../canvases/common/canvas.js';
 import type { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import type { IAgentModelConfigurationReport } from '../../../../../platform/agentHost/common/agentModelConfiguration.js';
@@ -457,7 +458,22 @@ export interface IChatRequestModelParameters {
 export class ChatRequestModel implements IChatRequestModel {
 	private _agentHostMetadata?: Record<string, unknown>;
 	public readonly id: string;
-	public response: ChatResponseModel | undefined;
+	private _response: ChatResponseModel | undefined;
+	private _binaryReferencesListener: (() => void) | undefined;
+	public get response(): ChatResponseModel | undefined { return this._response; }
+	public set response(value: ChatResponseModel | undefined) {
+		this._response = value;
+		this._binaryReferencesListener?.();
+	}
+
+	trackBinaryChanges(listener: () => void): IDisposable {
+		this._binaryReferencesListener = listener;
+		return toDisposable(() => {
+			if (this._binaryReferencesListener === listener) {
+				this._binaryReferencesListener = undefined;
+			}
+		});
+	}
 	public shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	public readonly timestamp: number;
 	public readonly requestTimestamp: number | undefined;
@@ -509,6 +525,7 @@ export class ChatRequestModel implements IChatRequestModel {
 	public set variableData(v: IChatRequestVariableData) {
 		this._version++;
 		this._variableData = v;
+		this._binaryReferencesListener?.();
 	}
 
 	public get modelId(): string | undefined {
@@ -527,6 +544,7 @@ export class ChatRequestModel implements IChatRequestModel {
 	public set agentHostMetadata(metadata: Record<string, unknown> | undefined) {
 		this._version++;
 		this._agentHostMetadata = metadata;
+		this._binaryReferencesListener?.();
 	}
 
 	public get confirmation(): string | undefined {
@@ -942,6 +960,7 @@ function isChatResponseConfirmationPart(part: IChatProgressResponseContent): par
 
 export class Response extends AbstractResponse implements IDisposable {
 	private readonly _store = new DisposableStore();
+	private readonly _binaryReferences = this._store.add(new ChatBinaryReferenceCollection());
 	private readonly _toolInvocationDisposables = this._store.add(new DisposableStore());
 	private readonly _pendingConfirmationCandidates = new Set<ChatResponseConfirmationPart>();
 	private _onDidChangeValue = this._store.add(new Emitter<void>());
@@ -960,6 +979,7 @@ export class Response extends AbstractResponse implements IDisposable {
 					{ kind: 'treeData', treeData: v }
 		)));
 		for (const part of this._responseParts) {
+			this._binaryReferences.add(this.binaryReferenceValue(part));
 			if (isChatResponseConfirmationPart(part)) {
 				this._pendingConfirmationCandidates.add(part);
 			}
@@ -968,6 +988,15 @@ export class Response extends AbstractResponse implements IDisposable {
 
 	dispose(): void {
 		this._store.dispose();
+	}
+
+	private binaryReferenceValue(part: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatExternalToolInvocationUpdate): unknown {
+		if (part.kind === 'mcpAuthenticationRequired' || part.kind === 'mcpServersStartingSlow' || part.kind === 'voiceProgress') {
+			return undefined;
+		}
+		return part.kind === 'toolInvocation'
+			? [IChatToolInvocation.resultDetails(part), part.toolSpecificData, part.invocationMessage, part.pastTenseMessage]
+			: part;
 	}
 
 	/** Revisit only unsettled confirmation-capable parts, not the streamed response history. */
@@ -1001,6 +1030,7 @@ export class Response extends AbstractResponse implements IDisposable {
 	clear(): void {
 		this.finalizeReasoningDuration();
 		this._toolInvocationDisposables.clear();
+		this._binaryReferences.clear();
 		this._pendingConfirmationCandidates.clear();
 		this._responseParts = [];
 		this._contentChanged(true);
@@ -1031,10 +1061,12 @@ export class Response extends AbstractResponse implements IDisposable {
 		if (message) {
 			this._responseParts.push({ kind: 'warning', content: new MarkdownString(message) });
 		}
+		this._binaryReferences.set(this._responseParts.map(part => this.binaryReferenceValue(part)));
 		this._contentChanged(true);
 	}
 
 	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatExternalToolInvocationUpdate, quiet?: boolean, restored?: boolean): void {
+		this._binaryReferences.add(this.binaryReferenceValue(progress));
 		// Nested subagent progress renders inside its parent card, so it neither ends the parent's
 		// reasoning section nor its reasoning timer.
 		if (progress.kind !== 'thinking' && !isNestedSubagentResponsePart(progress)) {
@@ -1186,6 +1218,7 @@ export class Response extends AbstractResponse implements IDisposable {
 
 				// Replace the resolving part's content with the resolved response
 				if (typeof content === 'string') {
+					this._binaryReferences.add(content);
 					(this._responseParts[responsePosition] as IChatTask).content = new MarkdownString(content);
 				}
 				this._contentChanged(false);
@@ -1202,6 +1235,9 @@ export class Response extends AbstractResponse implements IDisposable {
 				}
 				// A completed launch can still be reclassified when its child is discovered.
 				progress.toolSpecificDataKind.read(reader);
+				if (IChatToolInvocation.isComplete(progress)) {
+					this._binaryReferences.add(this.binaryReferenceValue(progress));
+				}
 				this._contentChanged(false);
 			}));
 			this._responseParts.push(progress);
@@ -1260,6 +1296,7 @@ export class Response extends AbstractResponse implements IDisposable {
 			return;
 		}
 		this._responseParts = [...parts, ...this._responseParts.filter(part => part.kind !== 'autoModeResolution')];
+		this._binaryReferences.set(this._responseParts.map(part => this.binaryReferenceValue(part)));
 		this._contentChanged();
 	}
 
@@ -1448,6 +1485,8 @@ function sumModelOutputTokens(modelTotals: readonly IChatUsageModelTotal[] | und
 }
 
 export class ChatResponseModel extends Disposable implements IChatResponseModel {
+	private readonly _binaryResultReferences = this._register(new MutableDisposable());
+	private readonly _binaryFollowupReferences = this._register(new MutableDisposable());
 	private readonly _onDidChange = this._register(new Emitter<ChatResponseModelChangeReason>());
 	readonly onDidChange = this._onDidChange.event;
 
@@ -1687,7 +1726,9 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._elapsedMs = params.elapsedMs;
 		this._vote = params.vote;
 		this._result = params.result;
+		this._binaryResultReferences.value = retainChatBinaryReferences(this._result);
 		this._followups = params.followups ? [...params.followups] : undefined;
+		this._binaryFollowupReferences.value = retainChatBinaryReferences(this._followups);
 		this.isCompleteAddedRequest = params.isCompleteAddedRequest ?? false;
 		this._shouldBeRemovedOnSend = params.shouldBeRemovedOnSend;
 		this._shouldBeBlocked.set(params.shouldBeBlocked ?? false, undefined);
@@ -1849,6 +1890,9 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	setResult(result: IChatAgentResult): void {
+		if (this._store.isDisposed) {
+			return;
+		}
 		// If already cancelled, discard error details from late-arriving agent responses.
 		if (this.isCanceled && result.errorDetails) {
 			const { errorDetails: _errorDetails, ...rest } = result;
@@ -1856,6 +1900,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		} else {
 			this._result = result;
 		}
+		this._binaryResultReferences.value = retainChatBinaryReferences(this._result);
 		this._onDidChange.fire(defaultChatResponseModelChangeReason);
 	}
 
@@ -1969,6 +2014,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		if (this._result?.errorDetails) {
 			const { errorDetails: _errorDetails, ...result } = this._result;
 			this._result = result;
+			this._binaryResultReferences.value = retainChatBinaryReferences(result);
 		}
 		if (this.completedAt !== undefined) {
 			this._timeSpentWaitingAccumulator += Math.max(0, Date.now() - this.completedAt);
@@ -2024,6 +2070,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	setFollowups(followups: IChatFollowup[] | undefined): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		this._binaryFollowupReferences.value = retainChatBinaryReferences(followups);
 		this._followups = followups;
 		this._onDidChange.fire(defaultChatResponseModelChangeReason); // Fire so that command followups get rendered on the row
 	}
@@ -2362,6 +2412,7 @@ export interface IExportableChatData {
 	initialLocation: ChatAgentLocation | undefined;
 	requests: ISerializableChatRequestData[];
 	responderUsername: string;
+	inputState?: ISerializableChatModelInputState;
 }
 
 /*
@@ -2380,6 +2431,7 @@ export interface ISerializableChatData2 extends ISerializableChatData1 {
 
 export interface ISerializableChatData3 extends Omit<ISerializableChatData2, 'version' | 'computedTitle'> {
 	version: 3;
+	binaryResourcesVersion?: 1;
 	customTitle: string | undefined;
 	/** Whether the session had pending edits when it was stored. */
 	hasPendingEdits?: boolean;
@@ -2449,7 +2501,7 @@ export interface IInputModel extends IIntendedModelHolder {
 	clearState(): void;
 
 	/** Serializes the state */
-	toJSON(): ISerializableChatModelInputState | undefined;
+	toJSON(options?: { skipBinaryEncoding?: boolean }): ISerializableChatModelInputState | undefined;
 }
 
 export const enum ChatInputStateOrigin {
@@ -2574,6 +2626,7 @@ export type IChatDataSerializerLog = ObjectMutationLog<IChatModel, ISerializable
 export interface ISerializedChatDataReference {
 	value: ISerializableChatData | IExportableChatData;
 	serializer: IChatDataSerializerLog;
+	resources?: IDisposable;
 }
 
 /**
@@ -2646,15 +2699,62 @@ export function parseChatImport(content: string): IExportableChatData {
 		}
 		return value;
 	}));
+	assertPortableChatData(data);
 	if (!isExportableSessionData(data)) {
 		throw new Error('Invalid chat session data');
 	}
 
 	removeImportedMarkdownTrust(data.requests);
+	const inputState = sanitizeImportedInputState(data.inputState);
 	return {
 		initialLocation: data.initialLocation,
 		requests: data.requests,
 		responderUsername: data.responderUsername,
+		...(inputState ? { inputState } : {}),
+	};
+}
+
+function sanitizeImportedInputState(value: unknown): ISerializableChatModelInputState | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		throw new Error('Invalid imported chat draft');
+	}
+	const state = value as Record<string, unknown>;
+	const attachments: IChatRequestVariableEntry[] = [];
+	for (const raw of Array.isArray(state.attachments) ? state.attachments : []) {
+		if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+			continue;
+		}
+		const entry = raw as Record<string, unknown>;
+		if (entry.kind !== 'image' && entry.kind !== 'element' && entry.kind !== 'notebookOutput') {
+			continue;
+		}
+		const binary = entry.kind === 'element' ? entry.imageData : entry.value;
+		if (!binary || typeof binary !== 'object' || Array.isArray(binary)) {
+			continue;
+		}
+		const encoded = binary as Record<string, unknown>;
+		if (typeof encoded.$base64 !== 'string') {
+			continue;
+		}
+		attachments.push({
+			kind: 'image',
+			id: generateUuid(),
+			name: typeof entry.name === 'string' ? entry.name : localize('chat.importedImage', "Imported image"),
+			mimeType: typeof entry.mimeType === 'string' ? entry.mimeType : typeof entry.imageMimeType === 'string' ? entry.imageMimeType : 'image/png',
+			value: { $base64: encoded.$base64 },
+			isPasted: true,
+		});
+	}
+	return {
+		inputText: typeof state.inputText === 'string' ? state.inputText : '',
+		attachments,
+		mode: { id: 'agent', kind: ChatModeKind.Agent },
+		selectedModel: undefined,
+		selections: [],
+		contrib: {},
 	};
 }
 
@@ -2777,7 +2877,8 @@ export interface IChatInitEvent {
 /**
  * Internal implementation of IInputModel
  */
-class InputModel implements IInputModel {
+class InputModel extends Disposable implements IInputModel {
+	private readonly _binaryReferences = this._register(new MutableDisposable());
 	private readonly _state: ReturnType<typeof observableValue<IChatModelInputState | undefined>>;
 	readonly state: IObservable<IChatModelInputState | undefined>;
 
@@ -2788,6 +2889,7 @@ class InputModel implements IInputModel {
 	private _intendedModel: IIntendedModelSelection | undefined;
 
 	constructor(initialState: IChatModelInputState | undefined, private readonly logger: ILogService, private readonly sessionId: string) {
+		super();
 		this._state = observableValueOpts({ debugName: 'inputModelState', equalsFn: equals }, initialState);
 		this.state = this._state;
 	}
@@ -2803,7 +2905,7 @@ class InputModel implements IInputModel {
 	setState(state: Partial<IChatModelInputState>): void {
 		const current = this._state.get();
 		_logChangesToStateModel(state, current, this.logger, this.sessionId);
-		this._state.set({
+		const next: IChatModelInputState = {
 			// If current is undefined, provide defaults for required fields
 			attachments: [],
 			mode: { id: 'agent', kind: ChatModeKind.Agent },
@@ -2818,14 +2920,23 @@ class InputModel implements IInputModel {
 			// the keys it says nothing about, so merge rather than replace.
 			contrib: { ...current?.contrib, ...state.contrib },
 			origin: state.origin
-		}, undefined);
+		};
+		this.retainBinaryReferences(next);
+		this._state.set(next, undefined);
 	}
 
 	clearState(): void {
 		this._state.set(undefined, undefined);
+		this._binaryReferences.clear();
 	}
 
-	toJSON(): ISerializableChatModelInputState | undefined {
+	retainBinaryReferences(state = this._state.get()): void {
+		if (!this._store.isDisposed) {
+			this._binaryReferences.value = retainChatBinaryReferences([state?.attachments, state?.contrib, state?.selectedModel]);
+		}
+	}
+
+	toJSON(options?: { skipBinaryEncoding?: boolean }): ISerializableChatModelInputState | undefined {
 		const value = this.state.get();
 		if (!value) {
 			return undefined;
@@ -2845,7 +2956,7 @@ class InputModel implements IInputModel {
 
 		return {
 			contrib: value.contrib,
-			attachments: persistableAttachments.map(IChatRequestVariableEntry.toExport),
+			attachments: options?.skipBinaryEncoding ? persistableAttachments : persistableAttachments.map(IChatRequestVariableEntry.toExport),
 			mode: value.mode,
 			selectedModel: value.selectedModel ? {
 				identifier: value.selectedModel.identifier,
@@ -2859,11 +2970,28 @@ class InputModel implements IInputModel {
 	}
 }
 
+class ChatRequestBinaryReferences extends Disposable {
+	private readonly variables = this._register(new MutableDisposable());
+
+	constructor(private readonly request: IChatRequestModel) {
+		super();
+		if (request instanceof ChatRequestModel) {
+			this._register(request.trackBinaryChanges(() => this.update()));
+		}
+	}
+
+	update(): void {
+		this.variables.value = retainChatBinaryReferences([this.request.variableData, this.request.agentHostMetadata, this.request.attachedContext]);
+	}
+}
+
 function creditsExceed(actual: number, reported: number): boolean {
 	return actual - reported > 2 * Number.EPSILON * Math.max(Math.abs(actual), Math.abs(reported));
 }
 
 export class ChatModel extends Disposable implements IChatModel {
+	private readonly _binaryRequests = this._register(new DisposableMap<IChatRequestModel, ChatRequestBinaryReferences>());
+	private readonly _binaryPendingOptions = this._register(new MutableDisposable());
 	static getDefaultTitle(requests: (ISerializableChatRequestData | IChatRequestModel)[]): string {
 		const firstRequestMessage = requests.at(0)?.message ?? '';
 		const message = typeof firstRequestMessage === 'string' ?
@@ -2888,6 +3016,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			return;
 		}
 		this.pendingRequestHandoffs.set(requests, undefined);
+		this.syncBinaryReferences();
 	}
 
 	private _requests: ChatRequestModel[];
@@ -3271,8 +3400,8 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		// Initialize input model from serialized data (undefined for new chats)
-		const serializedInputState = initialModelProps.inputState || (isValidFullData && initialData.inputState ? initialData.inputState : undefined);
-		this.inputModel = new InputModel(serializedInputState && reviveSerializableInputState(serializedInputState), this.logService, this._sessionId);
+		const serializedInputState = initialModelProps.inputState || (isValidExportedData ? initialData.inputState : undefined);
+		this.inputModel = this._register(new InputModel(serializedInputState && reviveSerializableInputState(serializedInputState), this.logService, this._sessionId));
 
 		this.dataSerializer = dataRef?.serializer;
 		this._initialResponderUsername = initialData?.responderUsername;
@@ -3348,6 +3477,42 @@ export class ChatModel extends Disposable implements IChatModel {
 				}
 			}));
 		}
+		try {
+			this.inputModel.retainBinaryReferences();
+			this.syncBinaryReferences();
+			this._register(this.onDidChange(event => {
+				if (event.kind === 'addRequest' || event.kind === 'removeRequest' || event.kind === 'changedRequest') {
+					this.syncBinaryReferences();
+				}
+			}));
+			this._register(this.onDidChangePendingRequests(() => this.syncBinaryReferences()));
+			dataRef?.resources?.dispose();
+		} catch (error) {
+			dataRef?.resources?.dispose();
+			this.dispose();
+			throw error;
+		}
+	}
+
+	private syncBinaryReferences(): void {
+		if (this._store.isDisposed || !this._requests) {
+			return;
+		}
+		const requests = new Set<IChatRequestModel>([...this._requests, ...this._pendingRequests.map(pending => pending.request), ...this.pendingRequestHandoffs.get()]);
+		for (const request of requests) {
+			let resources = this._binaryRequests.get(request);
+			if (!resources) {
+				resources = new ChatRequestBinaryReferences(request);
+				this._binaryRequests.set(request, resources);
+				resources.update();
+			}
+		}
+		for (const request of this._binaryRequests.keys()) {
+			if (!requests.has(request)) {
+				this._binaryRequests.deleteAndDispose(request);
+			}
+		}
+		this._binaryPendingOptions.value = retainChatBinaryReferences(this._pendingRequests.map(pending => serializeSendOptions(pending.sendOptions)));
 	}
 
 	startEditingSession(isGlobalEditingSession?: boolean, transferFromSession?: IChatEditingSession): void {
@@ -3743,6 +3908,8 @@ export class ChatModel extends Disposable implements IChatModel {
 		request.adoptTo(this);
 		request.response?.adoptTo(this);
 		this._requests.push(request);
+		this.syncBinaryReferences();
+		oldOwner.syncBinaryReferences();
 
 		oldOwner._onDidChange.fire({ kind: 'removeRequest', requestId: request.id, responseId: request.response?.id, reason: ChatRequestRemovalReason.Adoption });
 		this._onDidChange.fire({ kind: 'addRequest', request });
@@ -3834,6 +4001,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		return {
 			responderUsername: this.responderUsername,
 			initialLocation: this.initialLocation,
+			...(this.inputModel.state.get() ? { inputState: this.inputModel.toJSON() } : {}),
 			requests: this._requests.map((r): ISerializableChatRequestData => {
 				const message = {
 					...r.message,

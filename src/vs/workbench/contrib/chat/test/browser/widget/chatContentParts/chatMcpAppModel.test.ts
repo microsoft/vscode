@@ -33,6 +33,9 @@ import { ChatMcpAppModel } from '../../../../browser/widget/chatContentParts/too
 import { IMcpAppRenderData } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatMcpAppSubPart.js';
 import { IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatResponseResourceFileSystemProvider } from '../../../../common/widget/chatResponseResourceFileSystemProvider.js';
+import { FileService } from '../../../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { createTestChatSessionResources } from '../../../common/model/chatSessionResourceLocks.js';
 
 suite('ChatMcpAppModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -40,7 +43,7 @@ suite('ChatMcpAppModel', () => {
 	const resource: IMcpAppResourceContent = { html: '<html>Verification app</html>', mimeType: 'text/html' };
 	type Server = ReturnType<IAgentHostCustomizationService['getMcpServers']>[number];
 
-	function createFixture(initialStatus: McpServerStatus | undefined, loadResource: () => Promise<IMcpAppResourceContent> = async () => resource, renderData: { serverName?: string; kind?: 'agentHost' | 'local' } = { serverName: 'verification' }, initiallyVisible = true, clippingContainer?: HTMLElement) {
+	function createFixture(initialStatus: McpServerStatus | undefined, loadResource: () => Promise<IMcpAppResourceContent> = async () => resource, renderData: { serverName?: string; kind?: 'agentHost' | 'local' } = { serverName: 'verification' }, initiallyVisible = true, clippingContainer?: HTMLElement, resultDetails?: IChatToolInvocationSerialized['resultDetails']) {
 		const onDidChangeCustomizations = store.add(new Emitter<void>());
 		const onMessage = store.add(new Emitter<WebviewMessageReceivedEvent>());
 		const onDidPostMessage = store.add(new Emitter<MCP.JSONRPCMessage>());
@@ -77,7 +80,7 @@ suite('ChatMcpAppModel', () => {
 				if (!hasContext) {
 					return false;
 				}
-				messages.push(message);
+				messages.push(structuredClone(message));
 				onDidPostMessage.fire(message);
 				return true;
 			},
@@ -181,7 +184,7 @@ suite('ChatMcpAppModel', () => {
 			return observer;
 		};
 		const model = store.add(instantiationService.createInstance(ChatMcpAppModel,
-			upcastPartial<IChatToolInvocationSerialized>({ kind: 'toolInvocationSerialized', toolCallId: 'call', toolId: 'verification' }),
+			upcastPartial<IChatToolInvocationSerialized>({ kind: 'toolInvocationSerialized', toolCallId: 'call', toolId: 'verification', resultDetails }),
 			data,
 			createIntersectionObserver,
 		));
@@ -376,6 +379,32 @@ suite('ChatMcpAppModel', () => {
 			tools: fixture.model.tools.get(),
 		}, { registered: true, requests: [{ method: 'tools/list', params: {} }], tools });
 	});
+
+	for (const missing of [false, true]) {
+		test(`restored binary MCP output ${missing ? 'reports missing data' : 'crosses the webview structured-clone boundary'}`, async () => {
+			const files = store.add(new FileService(new NullLogService()));
+			store.add(files.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+			const resources = store.add(createTestChatSessionResources(files));
+			const mcpOutput = { content: [{ type: 'image', data: 'AQID', mimeType: 'image/png' }], isError: false };
+			const directory = URI.file('/session.resources');
+			const prepared = await resources.prepare({ input: '{}', output: [], mcpOutput }, directory);
+			const restored = resources.restore(prepared.value, directory);
+			if (missing) {
+				await files.del(directory, { recursive: true });
+			}
+			const fixture = createFixture(McpServerStatus.Ready, undefined, undefined, true, undefined, restored);
+			const delivered = !missing ? Event.toPromise(Event.filter(fixture.onDidPostMessage, message => hasKey(message, { method: true }) && message.method === 'ui/notifications/tool-result')) : undefined;
+			await fixture.initialize(false);
+			if (missing) {
+				await waitForState(fixture.model.loadState, state => state.status === 'error');
+				assert.strictEqual(fixture.messages.some(message => hasKey(message, { method: true }) && message.method === 'ui/notifications/tool-result'), false);
+			} else {
+				await delivered;
+				const message = fixture.messages.find(message => hasKey(message, { method: true }) && message.method === 'ui/notifications/tool-result');
+				assert.deepStrictEqual(message, { jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: mcpOutput });
+			}
+		});
+	}
 
 	test('follows tool-list pagination and refreshes after list_changed', async () => {
 		const fixture = createFixture(McpServerStatus.Ready);

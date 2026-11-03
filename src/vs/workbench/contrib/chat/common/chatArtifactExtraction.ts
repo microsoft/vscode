@@ -8,6 +8,7 @@ import { getExtensionForMimeType } from '../../../../base/common/mime.js';
 import { basename as pathBasename } from '../../../../base/common/path.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { getChatBinaryReference } from './model/chatSessionResources.js';
 import { localize } from '../../../../nls.js';
 import { getGeneratedImageResources } from './chatImageExtraction.js';
 import { IChatToolInvocation, IToolResultOutputDetailsSerialized } from './chatService/chatService.js';
@@ -259,7 +260,8 @@ export function extractArtifactsFromResponse(
 			if (isToolResultInputOutputDetails(details)) {
 				for (let i = 0; i < details.output.length; i++) {
 					const outputPart = details.output[i];
-					if (outputPart.type === 'embed' && !outputPart.isText && outputPart.mimeType) {
+					const stored = outputPart.type === 'ref' && getChatBinaryReference(outputPart.uri);
+					if ((outputPart.type === 'embed' && !outputPart.isText || stored) && outputPart.mimeType) {
 						const rule = findMimeTypeRule(outputPart.mimeType, byMimeType);
 						if (rule) {
 							const key = `${part.toolCallId}:${i}`;
@@ -267,9 +269,10 @@ export function extractArtifactsFromResponse(
 								seenUris.add(key);
 								const ext = getExtensionForMimeType(outputPart.mimeType);
 								const permalinkBasename = ext ? `file${ext}` : 'file.bin';
-								const artifactUri = ChatResponseResource.createUri(sessionResource, part.toolCallId, i, permalinkBasename);
+								const artifactUri = stored ? stored.uri : ChatResponseResource.createUri(sessionResource, part.toolCallId, i, permalinkBasename);
+								const sourceUri = stored ? stored.descriptor.sourceUri && URI.parse(stored.descriptor.sourceUri) : outputPart.uri;
 								artifacts.push({
-									label: outputPart.uri?.path.split('/').pop() ?? `${rule.groupName} ${i + 1}`,
+									label: sourceUri ? basename(sourceUri) : `${rule.groupName} ${i + 1}`,
 									uri: artifactUri.toString(),
 									toolCallId: part.toolCallId,
 									dataPartIndex: i,
@@ -292,7 +295,7 @@ export function extractArtifactsFromResponse(
 						seenUris.add(key);
 						const ext = getExtensionForMimeType(details.output.mimeType);
 						const permalinkBasename = ext ? `file${ext}` : 'file.bin';
-						const artifactUri = ChatResponseResource.createUri(sessionResource, part.toolCallId, 0, permalinkBasename);
+						const artifactUri = details.output.resource ?? ChatResponseResource.createUri(sessionResource, part.toolCallId, 0, permalinkBasename);
 						artifacts.push({
 							label: `${rule.groupName}`,
 							uri: artifactUri.toString(),

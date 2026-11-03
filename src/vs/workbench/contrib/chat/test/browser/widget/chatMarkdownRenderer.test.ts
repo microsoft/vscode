@@ -27,6 +27,16 @@ import { ChatWorkspaceEditContentPart } from '../../../browser/widget/chatConten
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { IExportableChatData, parseChatImport, Response } from '../../../common/model/chatModel.js';
+import { addDisposableListener } from '../../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { joinPath } from '../../../../../../base/common/resources.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { BrowserResourceService } from '../../../../../../platform/files/browser/browserResourceService.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { chatSessionResourceScheme } from '../../../common/model/chatSessionResources.js';
+import { createTestChatSessionResources } from '../../common/model/chatSessionResourceLocks.js';
 
 suite('ChatMarkdownRenderer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -37,6 +47,40 @@ suite('ChatMarkdownRenderer', () => {
 		instantiationService = store.add(workbenchInstantiationService(undefined, store));
 		testRenderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
 	});
+
+	for (const missing of [false, true]) {
+		test(`restored inline binary Markdown ${missing ? 'reports missing data' : 'renders lazily'}`, async () => {
+			const files = store.add(new FileService(new NullLogService()));
+			store.add(files.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+			const resources = store.add(createTestChatSessionResources(files));
+			const browser = store.add(new BrowserResourceService(undefined, files));
+			store.add(browser.registerScheme(chatSessionResourceScheme));
+			const directory = URI.file('/markdown.resources');
+			const prepared = await resources.prepare({
+				value: '![Screenshot](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=)',
+			}, directory);
+			const restored = resources.restore(JSON.parse(JSON.stringify(prepared.value)), directory);
+			if (missing) {
+				await files.del(joinPath(directory, [...prepared.hashes][0]));
+			}
+			const updated = new DeferredPromise<void>();
+			const result = store.add(testRenderer.render(new MarkdownString(restored.value), { asyncRenderCallback: () => { if (!updated.isSettled) { updated.complete(); } } }));
+			mainWindow.document.body.appendChild(result.element);
+			store.add(toDisposable(() => result.element.remove()));
+			if (missing) {
+				await updated.p;
+				assert.strictEqual(result.element.querySelector('[role=status]')?.textContent, 'Saved image unavailable: Screenshot');
+			} else {
+				const image = result.element.querySelector('img')!;
+				assert.ok(image);
+				await new Promise<void>((resolve, reject) => {
+					store.add(addDisposableListener(image, 'load', () => resolve()));
+					store.add(addDisposableListener(image, 'error', () => reject(new Error('Restored Markdown image failed to load'))));
+				});
+				assert.deepStrictEqual({ width: image.naturalWidth, height: image.naturalHeight }, { width: 1, height: 1 });
+			}
+		});
+	}
 
 	suite('imported chat command links', () => {
 		const commandId = 'test.chatImport';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, reset } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, reset } from '../../../../../base/browser/dom.js';
 import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../base/browser/markdownRenderer.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -20,6 +20,8 @@ import product from '../../../../../platform/product/common/product.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../../../../platform/agentHost/common/openSessionLink.js';
+import { chatSessionResourceScheme, getChatBinaryReference } from '../../common/model/chatSessionResources.js';
+import { localize } from '../../../../../nls.js';
 
 const trustedChatImageSources = new Map([
 	['raw.githubusercontent.com', '/'],
@@ -167,7 +169,9 @@ export function getChatMarkdownRenderOptions(options?: MarkdownRenderOptions): M
 			},
 			...options?.sanitizerConfig,
 			allowedLinkSchemes: { augment: [product.urlProtocol, 'copilot-skill', Schemas.vscodeBrowser, AGENT_HOST_SCHEME, AGENT_HOST_SESSION_LINK_SCHEME] },
+			allowedMediaSchemes: { augment: [...(options?.sanitizerConfig?.allowedMediaSchemes?.augment ?? []), chatSessionResourceScheme] },
 			remoteImageIsAllowed: uri => isRemoteImageAllowed(uri)
+				|| !!getChatBinaryReference(uri)
 				|| (uri.scheme === AGENT_HOST_SCHEME && options?.sanitizerConfig?.remoteImageIsAllowed?.(uri) === true),
 		}
 	};
@@ -214,11 +218,21 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 				child.replaceWith($('p', undefined, child.textContent));
 			}
 		}
-		return this.attachCustomHover(result);
+		return this.attachCustomHover(result, options);
 	}
 
-	private attachCustomHover(result: IRenderedMarkdown): IRenderedMarkdown {
+	private attachCustomHover(result: IRenderedMarkdown, options: MarkdownRenderOptions): IRenderedMarkdown {
 		const store = new DisposableStore();
+		// eslint-disable-next-line no-restricted-syntax
+		for (const image of result.element.querySelectorAll('img')) {
+			if (image.dataset.src?.startsWith(`${chatSessionResourceScheme}:`)) {
+				store.add(addDisposableListener(image, 'error', () => {
+					const message = localize('chat.savedImageUnavailable', "Saved image unavailable: {0}", image.alt);
+					image.replaceWith($('span', { role: 'status' }, message));
+					options.asyncRenderCallback?.();
+				}));
+			}
+		}
 		// eslint-disable-next-line no-restricted-syntax
 		result.element.querySelectorAll('a').forEach((element) => {
 			if (element.title) {

@@ -21,6 +21,7 @@ import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatProgressSubPart } from '../chatProgressContentPart.js';
 import { IChatOutputPartStateCache, IOutputPartState } from '../chatOutputPartStateCache.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import { getChatBinaryReference } from '../../../../common/model/chatSessionResources.js';
 
 // TODO: see if we can reuse existing types instead of adding ChatToolOutputSubPart
 export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
@@ -41,16 +42,6 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 	) {
 		super(toolInvocation);
 
-		const details: IToolResultOutputDetails = toolInvocation.kind === 'toolInvocation'
-			? IChatToolInvocation.resultDetails(toolInvocation) as IToolResultOutputDetails
-			: {
-				output: {
-					type: 'data',
-					mimeType: (toolInvocation.resultDetails as IToolResultOutputDetailsSerialized).output.mimeType,
-					value: decodeBase64((toolInvocation.resultDetails as IToolResultOutputDetailsSerialized).output.base64Data),
-				},
-			};
-
 		this.domNode = dom.$('div.tool-output-part');
 
 		if (toolInvocation.invocationMessage) {
@@ -64,7 +55,7 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 			}
 		}
 
-		this.domNode.appendChild(this.createOutputPart(toolInvocation, details));
+		this.domNode.appendChild(this.createOutputPart(toolInvocation));
 	}
 
 	public override dispose(): void {
@@ -72,7 +63,7 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 		super.dispose();
 	}
 
-	private createOutputPart(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, details: IToolResultOutputDetails): HTMLElement {
+	private createOutputPart(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): HTMLElement {
 		const parent = dom.$('div.webview-output');
 		parent.style.maxHeight = '80vh';
 
@@ -92,11 +83,26 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 		parent.appendChild(progressPart.domNode);
 
 		// TODO: we also need to show the tool output in the UI
-		this.chatOutputItemRendererService.renderOutputPart(details.output.mimeType, details.output.value.buffer, parent, {
+		const render = async () => {
+			let details: IToolResultOutputDetails;
+			if (toolInvocation.kind === 'toolInvocation') {
+				details = IChatToolInvocation.resultDetails(toolInvocation) as IToolResultOutputDetails;
+			} else {
+				const output = (toolInvocation.resultDetails as IToolResultOutputDetailsSerialized).output;
+				const reference = getChatBinaryReference(output.resource);
+				if (typeof output.base64Data !== 'string' && !reference) {
+					throw new Error(localize('chat.toolOutputUnavailable', "The saved tool output is unavailable."));
+				}
+				details = { output: { type: 'data', mimeType: output.mimeType, value: typeof output.base64Data === 'string' ? decodeBase64(output.base64Data) : await reference!.read(this._disposeCts.token) } };
+			}
+			return this.chatOutputItemRendererService.renderOutputPart(details.output.mimeType, details.output.value.buffer, parent, {
 			webviewState: partState.webviewState,
 			chatSessionResource: this.context.element.sessionResource,
-		}, this._disposeCts.token).then((renderedItem) => {
+			}, this._disposeCts.token);
+		};
+		render().then((renderedItem) => {
 			if (this._disposeCts.token.isCancellationRequested) {
+				renderedItem.dispose();
 				return;
 			}
 

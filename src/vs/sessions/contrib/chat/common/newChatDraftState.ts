@@ -35,6 +35,10 @@ export function writeNewChatDraftState(storageService: IStorageService, draft: I
 	}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 }
 
+export function clearNewChatDraftState(storageService: IStorageService): void {
+	storageService.remove(STORAGE_KEY_DRAFT_STATE, StorageScope.WORKSPACE);
+}
+
 function isDynamicVariable(value: unknown): value is IDynamicVariable {
 	const reference = value as Partial<IDynamicVariable> | undefined;
 	return typeof reference === 'object' && reference !== null && typeof reference.id === 'string' && Range.isIRange(reference.range);

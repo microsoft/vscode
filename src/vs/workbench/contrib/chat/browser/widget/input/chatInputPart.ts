@@ -121,6 +121,9 @@ import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chat
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { ChatHistoryNavigator } from '../../../common/widget/chatWidgetHistoryService.js';
+import { ChatInputStorage } from '../../../common/model/chatInputStorage.js';
+import { ChatStorageOwner } from '../../../common/model/chatSessionStore.js';
+import { cloneChatData } from '../../../common/model/chatSessionResources.js';
 import { ChatEditingSessionSubmitAction, ChatSessionPrimaryPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenDelegationPickerAction, OpenModelPickerAction, OpenModePickerAction, OpenPermissionPickerAction, OpenSessionTargetPickerAction, OpenWorkspacePickerAction } from '../../actions/chatExecuteActions.js';
 import { ChatVoiceInputModeAction, VoiceInputModeActionViewItem } from '../../voiceInputMode/voiceInputModeActionViewItem.js';
 import { ChatSpeechToTextConnectingAction, ChatSpeechToTextPreparingAction, ToggleChatSpeechToTextAction } from '../../actions/chatSpeechToTextActions.js';
@@ -1066,7 +1069,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _generating?: { rc: number; defer: DeferredPromise<void> };
 
 	private _emptyInputState: ObservableMemento<IChatModelInputState | undefined>;
-	private _emptyInputAttachments: ObservableMemento<readonly IChatRequestVariableEntry[]>;
+	private _emptyInputAttachments: ChatInputStorage<ChatStorageOwner.EmptyDraftAttachments>;
+	private _emptyAttachmentsGeneration = 0;
 	private _chatSessionIsEmpty = false;
 	private readonly _pendingDelegationTargetObservable = observableValue<AgentSessionTarget | undefined>(this, undefined);
 	private get _pendingDelegationTarget(): AgentSessionTarget | undefined { return this._pendingDelegationTargetObservable.get(); }
@@ -1239,7 +1243,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._syncInputStateToModel();
 		}, 150));
 		this._emptyInputState = this._register(createEmptyInputStateMemento(this.options.widgetViewKindTag)(StorageScope.WORKSPACE, StorageTarget.USER, this.storageService));
-		this._emptyInputAttachments = this._register(emptyInputAttachments(StorageScope.WORKSPACE, StorageTarget.USER, this.storageService));
+		const legacyAttachments = this._register(emptyInputAttachments(StorageScope.WORKSPACE, StorageTarget.USER, this.storageService));
+		this._emptyInputAttachments = this._register(this.instantiationService.createInstance(ChatInputStorage<ChatStorageOwner.EmptyDraftAttachments>,
+			ChatStorageOwner.EmptyDraftAttachments, legacyAttachments.get(), () => legacyAttachments.set([], undefined)));
 
 		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
 		this._currentModeObservable = observableValue<IChatMode>('currentMode', this.options.defaultMode ?? ChatMode.Agent);
@@ -1283,8 +1289,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._attachmentModel = this._register(this.instantiationService.createInstance(ChatAttachmentModel));
 		const attachmentModel = this._attachmentModel;
 		this._register(this._attachmentModel.onDidChange(() => {
-			if (this._chatSessionIsEmpty) {
-				this._emptyInputAttachments.set(this._attachmentModel.attachments, undefined);
+			if (!this._isSyncingToOrFromInputModel) {
+				this._emptyAttachmentsGeneration++;
+			}
+			if (this._chatSessionIsEmpty && !this._isSyncingToOrFromInputModel) {
+				this._emptyInputAttachments.set(this._attachmentModel.attachments);
 			}
 			this._syncInputStateToModel();
 		}));
@@ -2004,6 +2013,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (conversationChanged) {
 			this._modelConfigStore.notifyConversationChanged();
 		}
+		if (this._chatSessionIsEmpty) {
+			const attachmentGeneration = this._emptyAttachmentsGeneration;
+			const restore = () => {
+				void this.restoreEmptyDraftAttachments(model, attachmentGeneration).catch(error => this.logService.error('Unable to restore empty chat draft attachments', error));
+			};
+			this._modelSyncDisposables.add(this._emptyInputAttachments.onDidLoad(restore));
+			restore();
+		}
+	}
+
+	private async restoreEmptyDraftAttachments(model: IInputModel, attachmentGeneration = this._emptyAttachmentsGeneration): Promise<void> {
+		await this._emptyInputAttachments.whenReady;
+		if (!this._store.isDisposed && this._inputModel === model && this._chatSessionIsEmpty
+			&& this._emptyInputAttachments.isReady
+			&& attachmentGeneration === this._emptyAttachmentsGeneration && !this._attachmentModel.attachments.length
+			&& this._emptyInputAttachments.value.length) {
+			model.setState({ attachments: this._emptyInputAttachments.value });
+		}
 	}
 
 	private _getPersistedEmptyInputState(inheritModelConfiguration = false): IChatModelInputState | undefined {
@@ -2012,7 +2039,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return undefined;
 		}
 
-		const persistedAttachments = this._emptyInputAttachments.read(undefined);
+		const persistedAttachments = this._emptyInputAttachments.value;
 		state = {
 			...state,
 			attachments: persistedAttachments.length > 0 ? persistedAttachments : state.attachments,
@@ -2635,7 +2662,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	logInputHistory(): void {
-		const historyStr = this.history.values.map(entry => JSON.stringify(entry)).join('\n');
+		const historyStr = this.history.values.map(entry => JSON.stringify(cloneChatData(entry, reference => ({ $chatBinary: reference.descriptor })))).join('\n');
 		this.logService.info(`[${this.location}] Chat input history:`, historyStr);
 	}
 
@@ -2672,6 +2699,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	async showPreviousValue(): Promise<void> {
+		await this.history.whenReady;
 		if (this.history.isAtStart()) {
 			return;
 		}
@@ -2684,6 +2712,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	async showNextValue(): Promise<void> {
+		await this.history.whenReady;
 		if (this.history.isAtEnd()) {
 			return;
 		}
@@ -2699,7 +2728,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Restores attachments to the input, re-fetching image binary data as needed.
 	 */
 	async restoreAttachments(attachments: readonly IChatRequestVariableEntry[]): Promise<void> {
-		let restored = [...attachments];
+		let restored = attachments.map(IChatRequestVariableEntry.fromExport);
 
 		if (restored.length > 0) {
 			restored = (await Promise.all(restored.map(async (attachment) => {
@@ -2820,7 +2849,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	async acceptInput(isUserQuery?: boolean, preserveFocus?: boolean, preserveInput?: boolean): Promise<void> {
 		if (isUserQuery) {
 			const userQuery = this.getCurrentInputState();
-			this.history.append(this._getFilteredEntry(userQuery));
+			this.history.append(userQuery);
 		}
 
 		this.resetScrollbarVisibilityAfterAccept();
@@ -2832,7 +2861,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (this._chatSessionIsEmpty) {
 			this._chatSessionIsEmpty = false;
 			this._emptyInputState.set(undefined, undefined);
-			this._emptyInputAttachments.set([], undefined);
+			this._emptyInputAttachments.set([]);
 		}
 
 		if (preserveInput) {
@@ -2868,20 +2897,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (!this.agentService.hasToolsAgent && this._currentModeObservable.get().kind === ChatModeKind.Agent) {
 			this.setChatMode(ChatModeKind.Edit);
 		}
-	}
-
-	// A function that filters out specifically the `value` property of the attachment.
-	private _getFilteredEntry(inputState: IChatModelInputState): IChatModelInputState {
-		const attachmentsWithoutImageValues = inputState.attachments.map(attachment => {
-			if (isImageVariableEntry(attachment) && attachment.references?.length && attachment.value) {
-				const newAttachment = { ...attachment };
-				newAttachment.value = undefined;
-				return newAttachment;
-			}
-			return attachment;
-		});
-
-		return { ...inputState, attachments: attachmentsWithoutImageValues };
 	}
 
 	private _acceptInputForVoiceover(): void {

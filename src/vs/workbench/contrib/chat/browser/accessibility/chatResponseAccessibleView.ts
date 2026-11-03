@@ -87,7 +87,7 @@ function isOutputDetailsSerialized(obj: unknown): obj is IToolResultOutputDetail
 	return typeof obj === 'object' && obj !== null && 'output' in obj &&
 		typeof (obj as IToolResultOutputDetailsSerialized).output === 'object' &&
 		(obj as IToolResultOutputDetailsSerialized).output?.type === 'data' &&
-		typeof (obj as IToolResultOutputDetailsSerialized).output?.base64Data === 'string';
+		(!!(obj as IToolResultOutputDetailsSerialized).output?.base64Data || !!(obj as IToolResultOutputDetailsSerialized).output?.resource);
 }
 
 export function getToolSpecificDataDescription(toolSpecificData: ToolSpecificData | undefined): string {

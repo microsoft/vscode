@@ -50,7 +50,7 @@ export type SchemaEntries = [string, Transform<unknown, unknown>][];
 interface TransformBase<TFrom, TTo> {
 	readonly kind: TransformKind;
 	/** Extracts the serializable value from the source object */
-	extract(from: TFrom): TTo;
+	extract(from: TFrom, cloneValues?: boolean): TTo;
 }
 
 /** Transform for primitive values (keys and values) that can be compared for equality */
@@ -103,13 +103,13 @@ export function value<T, R>(comparator: (a: R, b: R) => boolean): TransformValue
 export function value<T, R>(comparator?: (a: R, b: R) => boolean): TransformValue<T, R> {
 	return {
 		kind: TransformKind.Primitive,
-		extract: (from: T) => {
+		extract: (from: T, cloneValues = true) => {
 			let value = from as unknown as R;
 			// We map the object to JSON for two reasons (a) reduce issues with references to
 			// mutable type that could be held internally in the LogAdapter and (b) to make
 			// object comparison work with the data we re-hydrate from disk (e.g. if using
 			// objectsEqual, a hydrated URI is not equal to the serialized UriComponents)
-			if (!!value && typeof value === 'object') {
+			if (cloneValues && !!value && typeof value === 'object') {
 				value = deepCloneWithFallback(value);
 			}
 
@@ -124,9 +124,9 @@ export function array<T, R>(schema: TransformObject<T, R> | TransformValue<T, R>
 	return {
 		kind: TransformKind.Array,
 		itemSchema: schema,
-		extract: from => from?.map((item, i) => {
+		extract: (from, cloneValues) => from?.map((item, i) => {
 			try {
-				return schema.extract(item);
+				return schema.extract(item, cloneValues);
 			} catch (e) {
 				rethrowWithPathSegment(e, i);
 			}
@@ -151,7 +151,7 @@ export function object<T, R extends object>(schema: Schema<T, R>, options?: Obje
 		kind: TransformKind.Object,
 		children: entries as SchemaEntries,
 		sealed: options?.sealed,
-		extract: (from: T) => {
+		extract: (from: T, cloneValues) => {
 			if (isUndefinedOrNull(from)) {
 				return from as unknown as R;
 			}
@@ -159,7 +159,7 @@ export function object<T, R extends object>(schema: Schema<T, R>, options?: Obje
 			const result: Record<string, unknown> = Object.create(null);
 			for (const [key, transform] of entries) {
 				try {
-					result[key] = transform.extract(from);
+					result[key] = transform.extract(from, cloneValues);
 				} catch (e) {
 					rethrowWithPathSegment(e, key);
 				}
@@ -173,21 +173,21 @@ export function object<T, R extends object>(schema: Schema<T, R>, options?: Obje
  * Defines a getter on the object to extract a value, compared with the given schema.
  * It should return the value that will get serialized in the resulting log file.
  */
-export function t<T, O, R>(getter: (obj: T) => O, schema: Transform<O, R>): Transform<T, R> {
+export function t<T, O, R>(getter: (obj: T, cloneValues?: boolean) => O, schema: Transform<O, R>): Transform<T, R> {
 	return {
 		...schema,
-		extract: (from: T) => schema.extract(getter(from)),
+		extract: (from: T, cloneValues) => schema.extract(getter(from, cloneValues), cloneValues),
 	};
 }
 
 /** Shortcut for t(fn, value()) */
-export function v<T, R extends string | number | boolean | undefined>(getter: (obj: T) => R): TransformValue<T, R>;
-export function v<T, R>(getter: (obj: T) => R, comparator: (a: R, b: R) => boolean): TransformValue<T, R>;
-export function v<T, R>(getter: (obj: T) => R, comparator?: (a: R, b: R) => boolean): TransformValue<T, R> {
+export function v<T, R extends string | number | boolean | undefined>(getter: (obj: T, cloneValues?: boolean) => R): TransformValue<T, R>;
+export function v<T, R>(getter: (obj: T, cloneValues?: boolean) => R, comparator: (a: R, b: R) => boolean): TransformValue<T, R>;
+export function v<T, R>(getter: (obj: T, cloneValues?: boolean) => R, comparator?: (a: R, b: R) => boolean): TransformValue<T, R> {
 	const inner = value(comparator!);
 	return {
 		...inner,
-		extract: (from: T) => inner.extract(getter(from)),
+		extract: (from: T, cloneValues) => inner.extract(getter(from, cloneValues), cloneValues),
 	};
 }
 
@@ -408,8 +408,11 @@ export class ObjectMutationLog<TFrom, TTo> {
 	 * corrupted log files when a write fails.
 	 */
 	write(current: TFrom): { op: 'append' | 'replace'; data: VSBuffer } {
-		const currentValue = this._transform.extract(current);
+		return this.writeSerialized(this._transform.extract(current));
+	}
 
+	/** Writes a snapshot whose external resources have already been durably prepared. */
+	writeSerialized(currentValue: TTo): { op: 'append' | 'replace'; data: VSBuffer } {
 		if (!this._previous || this._entryCount > this._compactAfterEntries) {
 			// No previous state, create initial
 			this._hasPendingWrite = true;

@@ -54,7 +54,7 @@ import { ILifecycleService, StartupKind } from '../../../../../services/lifecycl
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { IChatModel, IChatModelInputState } from '../../../common/model/chatModel.js';
+import { IChatModel } from '../../../common/model/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../../../common/participants/chatParticipantContribTypes.js';
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
@@ -97,7 +97,7 @@ import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 
-interface IChatViewPaneState extends Partial<IChatModelInputState> {
+interface IChatViewPaneState {
 	/**
 	 * @deprecated This is kept around to support old view states. However it should not be set on new states and `sessionResource` should be used instead.
 	 */
@@ -199,6 +199,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// but some other strictly per-model state will require a separate memento.
 		this.memento = new Memento(`interactive-session-view-${CHAT_PROVIDER_ID}`, this.storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		for (const key of Object.keys(this.viewState)) {
+			if (key !== 'sessionId' && key !== 'sessionResource' && key !== 'sessionsSidebarWidth') {
+				delete (this.viewState as Record<string, unknown>)[key];
+			}
+		}
 		if (
 			lifecycleService.startupKind !== StartupKind.ReloadedWindow &&
 			this.configurationService.getValue<boolean>(ChatConfiguration.RestoreLastPanelSession) === false
@@ -1508,8 +1513,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// overwriting the fresh session we are about to create.
 		this.loadSessionCts.value?.cancel();
 
-		// Grab the widget's latest view state because it will be loaded back into the widget
-		this.updateViewState();
 		await this.showModel(CancellationToken.None);
 
 		// Update the toolbar context with new sessionId
@@ -1888,20 +1891,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		if (this._widget?.viewModel) {
 			this._widget.saveState();
 
-			this.updateViewState();
 			this.memento.saveMemento();
 		}
 
 		super.saveState();
-	}
-
-	private updateViewState(viewState?: IChatModelInputState): void {
-		const newViewState = viewState ?? this._widget.getInputState();
-		if (newViewState) {
-			for (const [key, value] of Object.entries(newViewState)) {
-				(this.viewState as Record<string, unknown>)[key] = value; // Assign all props to the memento so they get saved
-			}
-		}
 	}
 
 	override shouldShowWelcome(): boolean {

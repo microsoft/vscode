@@ -13,7 +13,7 @@ import { newWriteableStream, ReadableStreamEventPayload, ReadableStreamEvents } 
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileAtomicReadOptions, IFileChange, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, IFileSystemProviderError, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileWriteOptions, IStat, IWatchOptions } from './files.js';
+import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileAtomicReadOptions, IFileChange, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, IFileSynchronizationOptions, IFileSystemProviderError, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileWriteOptions, IStat, IWatchOptions } from './files.js';
 import { reviveFileChanges } from './watcher.js';
 
 export const LOCAL_FILE_SYSTEM_CHANNEL_NAME = 'localFilesystem';
@@ -86,6 +86,10 @@ export class DiskFileSystemProviderClient extends Disposable implements
 
 	readdir(resource: URI): Promise<[string, FileType][]> {
 		return this.channel.call('readdir', [resource]);
+	}
+
+	synchronize(resource: URI): Promise<string | undefined> {
+		return this.channel.call('synchronize', [resource]);
 	}
 
 	//#endregion
@@ -189,8 +193,8 @@ export class DiskFileSystemProviderClient extends Disposable implements
 
 	//#region Move/Copy/Delete/Create Folder
 
-	mkdir(resource: URI): Promise<void> {
-		return this.channel.call('mkdir', [resource]);
+	mkdir(resource: URI, options?: IFileSynchronizationOptions): Promise<void> {
+		return this.channel.call('mkdir', options ? [resource, options] : [resource]);
 	}
 
 	delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {

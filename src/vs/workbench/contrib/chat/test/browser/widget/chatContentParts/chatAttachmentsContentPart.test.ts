@@ -19,6 +19,22 @@ import { getEffectiveImageOmittedState, ImageAttachmentWidget } from '../../../.
 import { ChatAttachmentsContentPart } from '../../../../browser/widget/chatContentParts/chatAttachmentsContentPart.js';
 import { AgentHostCompletionReferenceKind, IChatRequestVariableEntry, OmittedState, toAgentHostCompletionVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../common/languageModels.js';
+import { decodeBase64, VSBuffer } from '../../../../../../../base/common/buffer.js';
+import { Event } from '../../../../../../../base/common/event.js';
+import { joinPath } from '../../../../../../../base/common/resources.js';
+import { IEnvironmentService } from '../../../../../../../platform/environment/common/environment.js';
+import { FileService } from '../../../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { IUserDataProfilesService, toUserDataProfile } from '../../../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IWorkspaceEditingService } from '../../../../../../services/workspaces/common/workspaceEditing.js';
+import { ChatAgentLocation } from '../../../../common/constants.js';
+import { ChatModel } from '../../../../common/model/chatModel.js';
+import { getChatBinaryReference } from '../../../../common/model/chatSessionResources.js';
+import { ChatSessionStore } from '../../../../common/model/chatSessionStore.js';
+import { IChatSessionResourceLocks } from '../../../../common/model/chatSessionResourceLocks.js';
+import { createTestChatSessionResourceLocks } from '../../../common/model/chatSessionResourceLocks.js';
+import { IChatAgentService } from '../../../../common/participants/chatAgents.js';
 
 suite('ChatAttachmentsContentPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -381,6 +397,61 @@ suite('ChatAttachmentsContentPart', () => {
 		});
 
 		suite('hydrated image attachments', () => {
+			for (const scenario of ['available', 'missing', 'corrupt'] as const) {
+				test(`renders ${scenario} binary attachment after a complete save and reload`, async () => {
+					const files = disposables.add(new FileService(new NullLogService()));
+					disposables.add(files.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+					instantiationService.stub(IFileService, files);
+					instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
+					instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/workspaceStorage') });
+					instantiationService.stub(IUserDataProfilesService, { defaultProfile: toUserDataProfile('default', 'Default', URI.file('/userdata'), URI.file('/cache')) });
+					instantiationService.stub(IChatAgentService, { getDefaultAgent: () => undefined });
+					instantiationService.stub(IChatSessionResourceLocks, createTestChatSessionResourceLocks());
+					const sessions = disposables.add(instantiationService.createInstance(ChatSessionStore));
+					const source = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+					const png = decodeBase64('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=').buffer;
+					source.inputModel.setState({ attachments: [createImageEntry('persisted.png', png)] });
+					await sessions.storeSessions([source]);
+					source.dispose();
+					const loaded = await sessions.readSession(source.sessionId);
+					assert.ok(loaded);
+					const restored = disposables.add(instantiationService.createInstance(ChatModel, loaded, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+					const attachment = restored.inputModel.state.get()!.attachments[0];
+					const reference = getChatBinaryReference(attachment.value)!;
+					assert.ok(reference);
+					const blob = joinPath(reference.directory, reference.descriptor.sha256);
+					if (scenario === 'missing') {
+						await files.del(blob);
+					} else if (scenario === 'corrupt') {
+						await files.writeFile(blob, VSBuffer.fromString('corrupt'));
+					}
+					const container = dom.append(mainWindow.document.body, dom.$('div'));
+					disposables.add(toDisposable(() => container.remove()));
+					const labels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+					const widget = disposables.add(instantiationService.createInstance(ImageAttachmentWidget, undefined, attachment, undefined,
+						{ shouldFocusClearButton: false, supportsDeletion: true, imagePresentation: 'inline' }, container, labels));
+					const image = widget.element.querySelector('img')!;
+					if (scenario === 'available') {
+						await new Promise<void>((resolve, reject) => {
+							disposables.add(dom.addDisposableListener(image, 'load', () => resolve()));
+							disposables.add(dom.addDisposableListener(image, 'error', () => reject(new Error('Persisted PNG did not render'))));
+						});
+						assert.deepStrictEqual({ width: image.naturalWidth, height: image.naturalHeight, busy: widget.element.getAttribute('aria-busy') }, { width: 1, height: 1, busy: 'false' });
+					} else {
+						await new Promise<void>(resolve => {
+							const observer = new mainWindow.MutationObserver(() => {
+								if (widget.element.getAttribute('aria-busy') === 'false') {
+									resolve();
+								}
+							});
+							disposables.add(toDisposable(() => observer.disconnect()));
+							observer.observe(widget.element, { attributes: true, subtree: true });
+						});
+						assert.ok(widget.element.querySelector('.chat-attached-context-image-status')?.textContent?.includes('Unable'));
+					}
+				});
+			}
+
 			async function renderImageAndCollectReads(image: IChatRequestVariableEntry): Promise<string[]> {
 				const fileService = instantiationService.get(IFileService) as TestFileService;
 				const part = store.add(instantiationService.createInstance(

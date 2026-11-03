@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { Event } from '../../../../base/common/event.js';
 import { isLinux } from '../../../../base/common/platform.js';
-import { FileSystemProviderCapabilities, IFileDeleteOptions, IStat, FileType, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileAtomicReadOptions, IFileSystemProviderWithFileCloneCapability, IFileChange } from '../../../../platform/files/common/files.js';
+import { FileSystemProviderCapabilities, IFileDeleteOptions, IStat, FileType, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileAtomicReadOptions, IFileSystemProviderWithFileCloneCapability, IFileChange, IFileSynchronizationOptions } from '../../../../platform/files/common/files.js';
 import { AbstractDiskFileSystemProvider } from '../../../../platform/files/common/diskFileSystemProvider.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -76,6 +76,10 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		return this.provider.readdir(resource);
 	}
 
+	synchronize(resource: URI): Promise<string | undefined> {
+		return this.provider.synchronize(resource);
+	}
+
 	//#endregion
 
 	//#region File Reading/Writing
@@ -112,8 +116,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	//#region Move/Copy/Delete/Create Folder
 
-	mkdir(resource: URI): Promise<void> {
-		return this.provider.mkdir(resource);
+	mkdir(resource: URI, options?: IFileSynchronizationOptions): Promise<void> {
+		return this.provider.mkdir(resource, options);
 	}
 
 	delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {

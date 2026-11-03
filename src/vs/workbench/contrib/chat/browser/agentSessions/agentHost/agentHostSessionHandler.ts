@@ -115,6 +115,7 @@ import {
 	type IImageVariableEntry
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
+import { hasChatBinaryReferences, resolveChatBinaryData } from '../../../common/model/chatSessionResources.js';
 import { ChatErrorLevel, ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestionAnswers, IChatService, IChatToolInvocation, IRemotePendingRequest, ToolConfirmKind, type IChatAutoModeResolutionPart, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { isInConversationModelChoice } from '../../../common/modelSelection.js';
 import { readAgentRuntimeModelConfiguration } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
@@ -131,7 +132,7 @@ import { IChatSessionReviewPreferencesService } from '../../../common/editing/ch
 import { HIDE_AUTO_EXPLAINABILITY_TREATMENT } from '../../../common/chatAutoModeExplainability.js';
 import { AUTO_RAW_MODEL_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../common/languageModelSourcePresentation.js';
-import { ChatInputStateOrigin, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatRequestModeInstructions, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
+import { ChatInputStateOrigin, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatPendingRequest, type IChatRequestModeInstructions, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
@@ -1304,6 +1305,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _chatURIsBySessionResource = new ResourceMap<string>();
 	/** Per-session subscription to chat model pending request changes. */
 	private readonly _pendingMessageSubscriptions = this._register(new DisposableResourceMap());
+	private readonly _pendingBinarySynchronizations = this._register(new DisposableResourceMap<IDisposable & {
+		readonly unpublishedIds: Set<string>;
+		readonly previousMessages: Map<string, { readonly kind: ChatRequestQueueKind; readonly message: Message }>;
+	}>());
 	private readonly _remotePendingMessageProjections = new ResourceSet();
 	private readonly _steeringMessageHandoffs = new Map<string, AgentHostSteeringMessageHandoff>();
 	/** Locally retained IDs; true means dispatched but not yet projected by the host. */
@@ -2509,13 +2514,80 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (this._remotePendingMessageProjections.has(sessionResource)) {
 			return;
 		}
+		this._pendingBinarySynchronizations.deleteAndDispose(sessionResource);
+		const chatModel = this._chatService.getSession(sessionResource);
+		if (!chatModel) {
+			return;
+		}
+		const pending = chatModel.getPendingRequests();
+		const binaryIds = new Set(pending.filter(entry => hasChatBinaryReferences(entry.request.variableData)).map(entry => entry.request.id));
+		if (!binaryIds.size) {
+			this._publishPendingMessages(sessionResource, backendSession);
+			return;
+		}
+		const cancellation = new CancellationTokenSource(this._lifetime.token);
+		const state = this._getSessionState(backendSession.toString(), this._getChatURI(sessionResource));
+		const publishedIds = new Set([...(state ? getPendingSteeringMessages(state) : []), ...(state?.queuedMessages ?? [])].map(message => message.id));
+		const previousMessages = new Map<string, { kind: ChatRequestQueueKind; message: Message }>();
+		for (const pending of state ? getPendingSteeringMessages(state) : []) {
+			if (binaryIds.has(pending.id)) {
+				previousMessages.set(pending.id, { kind: ChatRequestQueueKind.Steering, message: pending.message });
+			}
+		}
+		for (const pending of state?.queuedMessages ?? []) {
+			if (pending.kind !== PendingMessageKind.Steering && binaryIds.has(pending.id)) {
+				previousMessages.set(pending.id, { kind: ChatRequestQueueKind.Queued, message: pending.message });
+			}
+		}
+		const lifetime = Object.assign(toDisposable(() => cancellation.dispose(true)), {
+			unpublishedIds: new Set(pending.filter(entry => !publishedIds.has(entry.request.id)).map(entry => entry.request.id)),
+			previousMessages,
+		});
+		this._pendingBinarySynchronizations.set(sessionResource, lifetime);
+		void (async () => {
+			let failed = false;
+			try {
+				this._publishPendingMessages(sessionResource, backendSession);
+				const captures = chatModel.getPendingRequests()
+					.filter(entry => hasChatBinaryReferences(entry.request.variableData))
+					.map(entry => ({ id: entry.request.id, variableData: entry.request.variableData, text: entry.request.message.text }));
+				const attachments = new Map<string, MessageAttachment[]>();
+				for (const entry of captures) {
+					attachments.set(entry.id, await this._captureAttachments(entry.variableData?.variables ?? [], sessionResource, entry.text, cancellation.token));
+				}
+				if (!cancellation.token.isCancellationRequested && this._chatService.getSession(sessionResource) === chatModel) {
+					const current = new Map(chatModel.getPendingRequests().map(entry => [entry.request.id, entry.request]));
+					if (captures.some(entry => {
+						const request = current.get(entry.id);
+						return request && (request.variableData !== entry.variableData || request.message.text !== entry.text);
+					})) {
+						this._syncPendingMessages(sessionResource, backendSession);
+						return;
+					}
+					this._publishPendingMessages(sessionResource, backendSession, attachments);
+				}
+			} catch (error) {
+				if (!cancellation.token.isCancellationRequested && !isCancellationError(error)) {
+					failed = true;
+					this._logService.error('[AgentHost] Unable to synchronize pending message attachments', error);
+					this._notificationService.error(localize('agentHost.pendingAttachmentsFailed', "Could not read the pending message attachments: {0}. The messages remain in the queue. Edit or remove them to continue.", error instanceof Error ? error.message : String(error)));
+				}
+			} finally {
+				if (!failed && this._pendingBinarySynchronizations.get(sessionResource) === lifetime) {
+					this._pendingBinarySynchronizations.deleteAndDispose(sessionResource);
+				}
+			}
+		})();
+	}
+
+	private _publishPendingMessages(sessionResource: URI, backendSession: URI, resolvedAttachments?: ReadonlyMap<string, MessageAttachment[]>): void {
 		const chatModel = this._chatService.getSession(sessionResource);
 		if (!chatModel) {
 			return;
 		}
 		const session = backendSession.toString();
 		const chatURI = this._getChatURI(sessionResource);
-		const pending = chatModel.getPendingRequests();
+		const pending = [...chatModel.getPendingRequests()];
 		const protocolState = this._getSessionState(session, chatURI);
 		const previous = [
 			...(protocolState ? getPendingSteeringMessages(protocolState).map(message => ({ ...message, kind: PendingMessageKind.Steering })) : []),
@@ -2525,10 +2597,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const localSteering = this._localSteeringSubmissions.get(sessionResource) ?? new Map<string, boolean>();
 		this._localSteeringSubmissions.set(sessionResource, localSteering);
 
+		const currentIds = new Set(pending.map(entry => entry.request.id));
 		const current: (PendingMessage & { kind: PendingMessageKind })[] = [];
 		for (const p of pending) {
 			const variables = p.request.variableData?.variables ?? [];
-			const messageAttachments = this._variableEntriesToAttachments(variables, sessionResource, p.request.message.text);
+			const preparedAttachments = resolvedAttachments?.get(p.request.id);
+			if (!preparedAttachments && hasChatBinaryReferences(p.request.variableData)) {
+				continue;
+			}
+			const messageAttachments = preparedAttachments ?? this._variableEntriesToAttachments(variables, sessionResource, p.request.message.text);
 			const attachments = messageAttachments.length > 0 ? messageAttachments : undefined;
 			const model = this._createModelSelection(p.sendOptions.userSelectedModelId, p.sendOptions.userSelectedModelConfiguration);
 			const previousMessage = previousMessages.get(p.request.id);
@@ -2556,11 +2633,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		for (const id of localSteering.keys()) {
-			if (!current.some(message => message.id === id)) {
+			if (!currentIds.has(id)) {
 				localSteering.delete(id);
 			}
 		}
-		const currentIds = new Set(current.map(message => message.id));
 		for (const prev of previous) {
 			if (!currentIds.has(prev.id)) {
 				this._dispatchAction(backendSession, {
@@ -2590,17 +2666,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		const updatedProtocol = this._getSessionState(session, chatURI);
 		const updatedQueued = updatedProtocol?.queuedMessages ?? [];
-		if (updatedQueued.length > 1 && current.length === updatedQueued.length) {
+		const queuedIds = new Set(updatedQueued.map(message => message.id));
+		const currentQueued = pending.filter(entry => queuedIds.has(entry.request.id));
+		if (updatedQueued.length > 1 && currentQueued.length === updatedQueued.length) {
 			// Display groups steering first without rewriting the host's interleaved order.
 			const displayed = [
 				...updatedQueued.filter(message => message.kind === PendingMessageKind.Steering),
 				...updatedQueued.filter(message => message.kind !== PendingMessageKind.Steering),
 			];
-			const needsReorder = current.some((message, i) => message.id !== displayed[i].id);
+			const needsReorder = currentQueued.some((entry, i) => entry.request.id !== displayed[i].id);
 			if (needsReorder) {
 				this._dispatchAction(backendSession, {
 					type: ActionType.ChatQueuedMessagesReordered,
-					order: current.map(message => message.id),
+					order: currentQueued.map(entry => entry.request.id),
 				}, chatURI);
 			}
 		}
@@ -2624,50 +2702,74 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return;
 		}
 
-		const toRemote = (pending: PendingMessage, kind: ChatRequestQueueKind): IRemotePendingRequest => ({
-			id: pending.id,
-			kind,
-			message: pending.message.text,
-			variableData: messageToVariableData(pending.message, this._config.connectionAuthority, this._config.connection.resourceUris),
-			modelId: this._toLanguageModelId(sessionResource, pending.message.model?.id),
-			modelConfiguration: pending.message.model?.config,
-			agentHostMessageOrigin: pending.message.origin,
-			metadata: pending.message._meta,
-			isSystemInitiated: pending.message.origin.kind === MessageKind.SystemNotification,
-			requestSource: messageToRequestSource(pending.message),
-			artifactRequest: readArtifactIntegrationRequest(pending.message),
-			systemInitiatedLabel: readMessageSystemInitiatedLabel(pending.message),
+		const pendingRequests = model.getPendingRequests();
+		const localById = new Map(pendingRequests.map(entry => [entry.request.id, entry]));
+		const synchronization = this._pendingBinarySynchronizations.get(sessionResource);
+		const toLocal = (pending: IChatPendingRequest): IRemotePendingRequest => ({
+			id: pending.request.id,
+			kind: pending.kind,
+			message: pending.request.message.text,
+			variableData: pending.request.variableData,
+			modelId: pending.request.modelId ?? pending.sendOptions.userSelectedModelId,
+			modelConfiguration: pending.request.modelConfiguration ?? pending.sendOptions.userSelectedModelConfiguration,
+			metadata: pending.sendOptions.metadata,
+			agentHostMessageOrigin: pending.sendOptions.agentHostMessageOrigin,
+			isSystemInitiated: pending.request.isSystemInitiated ?? pending.sendOptions.isSystemInitiated,
+			requestSource: pending.request.requestSource,
+			artifactRequest: pending.request.artifactRequest,
+			systemInitiatedLabel: pending.request.systemInitiatedLabel ?? pending.sendOptions.systemInitiatedLabel,
 		});
+		const toRemote = (pending: PendingMessage, kind: ChatRequestQueueKind): IRemotePendingRequest => {
+			const local = localById.get(pending.id);
+			const previous = synchronization?.previousMessages.get(pending.id);
+			if (previous && local && previous.kind === kind && equals(previous.message, pending.message)) {
+				return toLocal(local);
+			}
+			synchronization?.previousMessages.delete(pending.id);
+			return {
+				id: pending.id,
+				kind,
+				message: pending.message.text,
+				variableData: messageToVariableData(pending.message, this._config.connectionAuthority, this._config.connection.resourceUris),
+				modelId: this._toLanguageModelId(sessionResource, pending.message.model?.id),
+				modelConfiguration: pending.message.model?.config,
+				agentHostMessageOrigin: pending.message.origin,
+				metadata: pending.message._meta,
+				isSystemInitiated: pending.message.origin.kind === MessageKind.SystemNotification,
+				requestSource: messageToRequestSource(pending.message),
+				artifactRequest: readArtifactIntegrationRequest(pending.message),
+				systemInitiatedLabel: readMessageSystemInitiatedLabel(pending.message),
+			};
+		};
 
 		const remote: IRemotePendingRequest[] = [];
 		for (const message of getPendingSteeringMessages(state)) {
 			remote.push(toRemote(message, ChatRequestQueueKind.Steering));
 		}
+		const queued = (state.queuedMessages ?? []).filter(message => message.kind !== PendingMessageKind.Steering).map(message => toRemote(message, ChatRequestQueueKind.Queued));
+		const remoteIds = new Set([...remote, ...queued].map(message => message.id));
 		const localSteering = this._localSteeringSubmissions.get(sessionResource);
-		for (const message of remote) {
-			localSteering?.delete(message.id);
+		const unpublishedIds = synchronization?.unpublishedIds;
+		for (const id of remoteIds) {
+			localSteering?.delete(id);
+			unpublishedIds?.delete(id);
 		}
-		for (const pending of model.getPendingRequests()) {
-			if (pending.kind !== ChatRequestQueueKind.Steering || !localSteering?.has(pending.request.id)) {
+		const local: IRemotePendingRequest[] = [];
+		for (const pending of pendingRequests) {
+			if (remoteIds.has(pending.request.id)
+				|| !unpublishedIds?.has(pending.request.id) && (pending.kind !== ChatRequestQueueKind.Steering || !localSteering?.has(pending.request.id))) {
 				continue;
 			}
-			remote.push({
-				id: pending.request.id,
-				kind: pending.kind,
-				message: pending.request.message.text,
-				variableData: pending.request.variableData,
-				modelId: pending.request.modelId ?? pending.sendOptions.userSelectedModelId,
-				modelConfiguration: pending.request.modelConfiguration ?? pending.sendOptions.userSelectedModelConfiguration,
-				metadata: pending.sendOptions.metadata,
-				agentHostMessageOrigin: pending.sendOptions.agentHostMessageOrigin,
-				isSystemInitiated: pending.request.isSystemInitiated ?? pending.sendOptions.isSystemInitiated,
-				systemInitiatedLabel: pending.request.systemInitiatedLabel ?? pending.sendOptions.systemInitiatedLabel,
-			});
+			local.push(toLocal(pending));
 		}
-		for (const queued of state.queuedMessages ?? []) {
-			if (queued.kind !== PendingMessageKind.Steering) {
-				remote.push(toRemote(queued, ChatRequestQueueKind.Queued));
-			}
+		remote.push(...queued);
+		for (const message of local) {
+			const index = pendingRequests.findIndex(entry => entry.request.id === message.id);
+			const next = pendingRequests.slice(index + 1).find(entry => entry.kind === message.kind && remoteIds.has(entry.request.id));
+			const insertion = next
+				? remote.findIndex(entry => entry.id === next.request.id)
+				: message.kind === ChatRequestQueueKind.Steering ? remote.findIndex(entry => entry.kind === ChatRequestQueueKind.Queued) : remote.length;
+			remote.splice(insertion < 0 ? remote.length : insertion, 0, message);
 		}
 
 		this._remotePendingMessageProjections.add(sessionResource);
@@ -2676,7 +2778,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		} finally {
 			this._remotePendingMessageProjections.delete(sessionResource);
 		}
-		if (localSteering && [...localSteering.values()].some(submitted => !submitted)) {
+		if (!this._pendingBinarySynchronizations.has(sessionResource) && localSteering && [...localSteering.values()].some(submitted => !submitted)) {
 			this._syncPendingMessages(sessionResource, backendSession);
 		}
 	}
@@ -6850,14 +6952,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Snapshot source-owned context and selection before the preflight awaits
 		// below. They must not follow a newly focused widget or a changed picker.
 		const capturedInitialMessage = options?.initialMessage
-			? this._captureForkInitialMessage(sessionResource, protocolState, options.initialMessage)
+			? this._captureForkInitialMessage(sessionResource, protocolState, options.initialMessage, token)
 			: undefined;
 
 		const forkedChat = URI.parse(newAgentHostChatUri(sessionUri, rawSessionState.defaultChat, this._config.connection.initializeResult.get()));
 		const forkedChatId = getAgentHostChatId(forkedChat.toString());
 		const forkedResource = URI.from({ scheme: this._config.sessionType, path: sessionResource.path, fragment: forkedChatId });
 		const initialMessage = capturedInitialMessage
-			? await this._prepareForkInitialMessage(sessionResource, backendSession, capturedInitialMessage, token)
+			? await this._prepareForkInitialMessage(sessionResource, backendSession, await capturedInitialMessage, token)
 			: undefined;
 		try {
 			await this._config.connection.createChat(backendSession, forkedChat, {
@@ -6939,17 +7041,24 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return captured;
 	}
 
-	private _captureForkInitialMessage(
+	private async _captureForkInitialMessage(
 		sessionResource: URI,
 		sourceState: ForkInitialMessageSource | undefined,
 		intent: IChatSessionInitialMessage,
-	): Message {
-		const attachments = this._convertVariablesToAttachments(getChatSessionInitialMessageVariables(intent), sessionResource, intent.text);
+		token: CancellationToken,
+	): Promise<Message> {
+		const variables = getChatSessionInitialMessageVariables(intent);
+		const attachments = this._captureAttachments(variables, sessionResource, intent.text, token);
+		const ambient: MessageAttachment[] = [];
+		this._appendActiveEditorAttachments(ambient, variables, sessionResource, intent.text);
 		const sourceMessage = sourceState?.activeTurn?.message ?? sourceState?.turns.at(-1)?.message;
-		return {
-			...requestMessage(intent.text, attachments, undefined, false),
+		const selection = {
 			...(sourceMessage?.model ? { model: sourceMessage.model } : {}),
 			...(sourceMessage?.agent ? { agent: sourceMessage.agent } : {}),
+		};
+		return {
+			...requestMessage(intent.text, [...await attachments, ...ambient], undefined, false),
+			...selection,
 		};
 	}
 
@@ -7121,6 +7230,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (chatModel) {
 			const store = new DisposableStore();
 			this._pendingMessageSubscriptions.set(sessionResource, store);
+			store.add(toDisposable(() => this._pendingBinarySynchronizations.deleteAndDispose(sessionResource)));
 			store.add(toDisposable(() => this._localSteeringSubmissions.delete(sessionResource)));
 			const chatURI = this._chatURIsBySessionResource.get(sessionResource);
 			store.add(this._config.connection.onDidAction(envelope => {
@@ -7244,7 +7354,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// compare, which matters because it runs on every chat state change
 		// (each streaming delta), not just draft changes.
 		let lastRemoteDraft = draftState.synced;
-		const syncDraft = (state: IChatModelInputState | undefined): void => {
+		let generation = 0;
+		let pendingResolution: CancellationTokenSource | undefined;
+		let synchronizedLocalState: IChatModelInputState | undefined;
+		const publishDraft = (state: IChatModelInputState | undefined): void => {
 			if (state?.origin === ChatInputStateOrigin.Remote) {
 				return;
 			}
@@ -7263,9 +7376,43 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				draft,
 			});
 		};
+		const syncDraft = async (state: IChatModelInputState | undefined, revision: number): Promise<void> => {
+			if (state?.origin === ChatInputStateOrigin.Remote || this._lifetime.token.isCancellationRequested) {
+				return;
+			}
+			if (!hasChatBinaryReferences(state)) {
+				publishDraft(state);
+				synchronizedLocalState = state;
+				return;
+			}
+			const cancellation = new CancellationTokenSource(this._lifetime.token);
+			pendingResolution = cancellation;
+			try {
+				const portable = await resolveChatBinaryData(state, 'request', cancellation.token);
+				if (revision === generation && !cancellation.token.isCancellationRequested) {
+					publishDraft(portable);
+					synchronizedLocalState = state;
+				}
+			} catch (error) {
+				if (!isCancellationError(error)) {
+					this._logService.error('[AgentHost] Unable to persist draft attachments', error);
+				}
+			} finally {
+				if (pendingResolution === cancellation) {
+					pendingResolution = undefined;
+				}
+				cancellation.dispose();
+			}
+		};
 		store.add(autorun(reader => {
 			const state = inputModel.state.read(reader);
-			delayer.trigger(() => syncDraft(state)).catch(() => { /* delayer disposed */ });
+			const revision = ++generation;
+			pendingResolution?.cancel();
+			delayer.trigger(() => syncDraft(state, revision)).catch(error => {
+				if (!isCancellationError(error)) {
+					this._logService.error('[AgentHost] Unable to synchronize chat draft', error);
+				}
+			});
 		}));
 		store.add(chatSubscription.onDidChange(() => {
 			const remoteDraft = readRemoteDraft();
@@ -7276,7 +7423,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (equals(draftState.synced, remoteDraft)) {
 				return;
 			}
-			const localDraft = this._inputStateToDraft(sessionResource, inputModel.state.get());
+			const localState = inputModel.state.get();
+			const hasReferences = hasChatBinaryReferences(localState);
+			if (hasReferences && localState !== synchronizedLocalState) {
+				return;
+			}
+			const localDraft = hasReferences ? draftState.synced : this._inputStateToDraft(sessionResource, localState);
 			if (!equals(draftState.synced, localDraft)) {
 				// The pending outbound debounce will publish the local edit (last writer wins).
 				return;
@@ -7286,7 +7438,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 		store.add(toDisposable(() => {
 			delayer.cancel();
-			syncDraft(inputModel.state.get());
+			pendingResolution?.cancel();
+			void syncDraft(inputModel.state.get(), ++generation);
 		}));
 	}
 
@@ -7778,6 +7931,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._logService.trace(`[AgentHost] Forwarded ${attachments.length - explicitCount} active editor attachment(s); ${attachments.length} total`);
 		}
 		return attachments;
+	}
+
+	private async _captureAttachments(variables: readonly IChatRequestVariableEntry[], sessionResource: URI, message: string, token: CancellationToken): Promise<MessageAttachment[]> {
+		const parts = variables.map(variable => hasChatBinaryReferences(variable)
+			? resolveChatBinaryData(variable, 'request', token).then(resolved => this._variableEntriesToAttachments([resolved], sessionResource, message))
+			: this._variableEntriesToAttachments([variable], sessionResource, message));
+		return (await Promise.all(parts)).flat();
 	}
 
 	/**

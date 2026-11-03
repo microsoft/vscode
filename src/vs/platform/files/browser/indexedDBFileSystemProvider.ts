@@ -187,6 +187,13 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 		return Disposable.None;
 	}
 
+	async synchronize(_resource: URI): Promise<undefined> {
+		this.cachedFiletree = undefined;
+		this.mtimes.clear();
+		await this.getFiletree();
+		return undefined;
+	}
+
 	async mkdir(resource: URI): Promise<void> {
 		try {
 			const resourceStat = await this.stat(resource);

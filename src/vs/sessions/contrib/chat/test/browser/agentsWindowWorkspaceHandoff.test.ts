@@ -33,7 +33,8 @@ import { INewSessionComposerService, NewSessionComposerService } from '../../bro
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IChatDraft, reviveChatDraft, serializeChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { toFileVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { writeNewChatDraftState } from '../../common/newChatDraftState.js';
+import { ChatStorageOwner, IChatSessionStore } from '../../../../../workbench/contrib/chat/common/model/chatSessionStore.js';
+import { TestChatSessionStore } from '../../../../../workbench/contrib/chat/test/common/model/testChatSessionStore.js';
 
 suite('Agents Window workspace handoff', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -42,6 +43,14 @@ suite('Agents Window workspace handoff', () => {
 	function createHarness() {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const composerService = disposables.add(new NewSessionComposerService());
+		let ownedReady = Promise.resolve();
+		const ownedStorage = new class extends TestChatSessionStore {
+			override async readOwnedData<K extends ChatStorageOwner>(owner: K) {
+				await ownedReady;
+				return super.readOwnedData(owner);
+			}
+		}();
+		instantiationService.stub(IChatSessionStore, ownedStorage);
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 		const initialRestoreComplete = observableValue('restored', true);
 		const navigationRequest = observableValue<ISessionNavigationRequest | undefined>('navigationRequest', undefined);
@@ -145,6 +154,8 @@ suite('Agents Window workspace handoff', () => {
 		return {
 			handoff, composerService, sessionsService, sessionsPartService, activeSession, initialRestoreComplete, onWillSend, states, selections, notifications, openingOptions, storage, drafts,
 			draftOptions, noWorkspaceSelections,
+			saveDraft: async (draft: IChatDraft) => { (await ownedStorage.writeOwnedData(ChatStorageOwner.NewSessionDraft, draft)).dispose(); },
+			set ownedReady(value: Promise<void>) { ownedReady = value; },
 			set providerReady(value: boolean) { providerReady = value; },
 			set acceptsWorkspace(value: (folder: URI) => boolean) { acceptsWorkspace = value; },
 			set viewReady(value: boolean) { viewReady = value; },
@@ -201,7 +212,7 @@ suite('Agents Window workspace handoff', () => {
 				const harness = createHarness();
 				if (restored) {
 					harness.inputReady = false;
-					writeNewChatDraftState(harness.storage, content);
+					await harness.saveDraft(content);
 				} else {
 					harness.edit(content);
 				}
@@ -216,7 +227,7 @@ suite('Agents Window workspace handoff', () => {
 					const harness = createHarness();
 					if (restored) {
 						harness.inputReady = false;
-						writeNewChatDraftState(harness.storage, content);
+						await harness.saveDraft(content);
 					} else {
 						harness.edit(content);
 					}
@@ -231,6 +242,20 @@ suite('Agents Window workspace handoff', () => {
 			}
 		}
 	}
+
+	test('cold handoff waits for owned draft hydration without navigating or replacing it', async () => {
+		const harness = createHarness();
+		harness.inputReady = false;
+		await harness.saveDraft({ inputText: 'keep owned draft', attachments: [] });
+		const loaded = new DeferredPromise<void>();
+		harness.ownedReady = loaded.p;
+		const opening = harness.openDraft({ inputText: 'incoming', attachments: [] }, undefined);
+		await Promise.resolve();
+		assert.deepStrictEqual(harness.openingOptions, []);
+		loaded.complete();
+		await opening;
+		assert.deepStrictEqual({ result: harness.states.at(-1), openings: harness.openingOptions, applied: harness.drafts }, { result: 'preservedSession', openings: [], applied: [] });
+	});
 
 	test('explicit new-session reveal opens a composer even with an inferred workspace default', async () => {
 		const harness = createHarness();

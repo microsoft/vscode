@@ -11,6 +11,7 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { IAgentsWindowDraft } from '../../../../../platform/window/common/window.js';
 import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, isChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry, toPasteVariableEntry } from './chatVariableEntries.js';
 import { IDynamicVariable } from './chatVariables.js';
+import { assertPortableChatData } from '../model/chatSessionResources.js';
 
 export interface IChatDraft {
 	readonly inputText: string;
@@ -72,6 +73,7 @@ export function serializeChatDraft(draft: IChatDraft, getTextModel?: (resource: 
 
 export function reviveChatDraft(draft: IAgentsWindowDraft): IChatDraft {
 	const attachments: unknown = parse(draft.attachments);
+	assertPortableChatData(attachments);
 	if (!Array.isArray(attachments) || !attachments.every(isChatRequestVariableEntry)) {
 		throw new Error('Invalid chat draft attachments.');
 	}

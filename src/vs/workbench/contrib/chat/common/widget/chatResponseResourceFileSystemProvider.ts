@@ -19,6 +19,8 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ChatResponseResource, IChatModel } from '../model/chatModel.js';
 import { IChatService, IChatToolInvocation, IChatToolInvocationSerialized } from '../chatService/chatService.js';
 import { isToolResultInputOutputDetails } from '../tools/languageModelToolsService.js';
+import { IBrowserResourceService } from '../../../../../platform/files/common/browserResourceService.js';
+import { chatSessionResourceScheme } from '../model/chatSessionResources.js';
 
 export const IChatResponseResourceFileSystemProvider = createDecorator<IChatResponseResourceFileSystemProvider>('chatResponseResourceFileSystemProvider');
 
@@ -300,8 +302,10 @@ export class ChatResponseResourceWorkbenchContribution extends Disposable implem
 	constructor(
 		@IChatResponseResourceFileSystemProvider chatResponseResourceFsProvider: IChatResponseResourceFileSystemProvider,
 		@IFileService fileService: IFileService,
+		@IBrowserResourceService browserResourceService: IBrowserResourceService,
 	) {
 		super();
 		this._register(fileService.registerProvider(ChatResponseResource.scheme, chatResponseResourceFsProvider));
+		this._register(browserResourceService.registerScheme(chatSessionResourceScheme));
 	}
 }

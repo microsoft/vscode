@@ -9,7 +9,6 @@ import { structuralEquals } from '../../../../../base/common/equals.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { revive } from '../../../../../base/common/marshalling.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -19,7 +18,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../platform
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
-import type { ISerializableChatData } from '../../common/model/chatModel.js';
+import { cloneChatData } from '../../common/model/chatSessionResources.js';
 import { isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatSessionForkError, IChatSessionForkOptions, IChatSessionRequestHistoryItem, IChatSessionsService, isAgentHostTarget } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
@@ -169,7 +168,7 @@ export class ForkConversationAction extends Action2 {
 				return;
 			}
 
-			const cleanData = revive(JSON.parse(JSON.stringify(serializedData))) as ISerializableChatData;
+			const cleanData = cloneChatData(serializedData);
 			cleanData.sessionId = generateUuid();
 			const forkTimestamp = Date.now();
 			cleanData.creationDate = forkTimestamp;
@@ -296,10 +295,10 @@ export class ForkConversationAction extends Action2 {
 			return;
 		}
 
-		const forkedData = revive(JSON.parse(JSON.stringify({
+		const forkedData = cloneChatData({
 			...serializedData,
 			requests: serializedData.requests.slice(0, targetIndex + 1),
-		}))) as ISerializableChatData;
+		});
 		forkedData.sessionId = generateUuid();
 		const forkedTimestamp = Date.now();
 		forkedData.creationDate = forkedTimestamp;

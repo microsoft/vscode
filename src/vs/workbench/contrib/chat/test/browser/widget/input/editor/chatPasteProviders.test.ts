@@ -17,16 +17,56 @@ import { ITextModel } from '../../../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../../../editor/common/services/model.js';
 import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IConfigurationService } from '../../../../../../../../platform/configuration/common/configuration.js';
-import { ILogService } from '../../../../../../../../platform/log/common/log.js';
+import { ILogService, NullLogService } from '../../../../../../../../platform/log/common/log.js';
 import { IChatPasteTarget, IChatPasteTargetService } from '../../../../../browser/chat.js';
 import { IChatSessionsService } from '../../../../../common/chatSessionsService.js';
-import { CHAT_ATTACHMENT_MIME_TYPE, createPastedTextArtifact, getGitHubIssueOrPullRequestAttachments, pastedTextArtifactDefaultMinLength, PasteTextProvider } from '../../../../../browser/widget/input/editor/chatPasteProviders.js';
+import { CHAT_ATTACHMENT_MIME_TYPE, CopyAttachmentsProvider, createPastedTextArtifact, getGitHubIssueOrPullRequestAttachments, pastedTextArtifactDefaultMinLength, PasteTextProvider } from '../../../../../browser/widget/input/editor/chatPasteProviders.js';
 import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
 import { isSupportedChatFileScheme } from '../../../../../common/constants.js';
 import { ChatResponseResource } from '../../../../../common/model/chatModel.js';
+import { FileService } from '../../../../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { hasKey } from '../../../../../../../../base/common/types.js';
+import { createTestChatSessionResources } from '../../../../common/model/chatSessionResourceLocks.js';
+import { createTextModel } from '../../../../../../../../editor/test/common/testTextModel.js';
 
 suite('Chat Paste Providers', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('copies and pastes hydrated image bytes without detached storage descriptors', async () => {
+		const files = store.add(new FileService(new NullLogService()));
+		store.add(files.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
+		const resources = store.add(createTestChatSessionResources(files));
+		const directory = URI.file('/session.resources');
+		const prepared = await resources.prepare({ value: new Uint8Array([1, 128, 255]) }, directory);
+		const restored = resources.restore(prepared.value, directory);
+		const received: IChatRequestVariableEntry[] = [];
+		const attachments: IChatRequestVariableEntry[] = [{ kind: 'image', id: 'image', name: 'image.png', value: restored.value }];
+		const target = upcastPartial<IChatPasteTarget>({
+			attachments, inlineReferences: [],
+			addAttachments: values => received.push(...values),
+		});
+		const instantiation = store.add(new TestInstantiationService());
+		instantiation.stub(IChatPasteTargetService, { getTarget: () => target });
+		const provider = instantiation.createInstance(CopyAttachmentsProvider);
+		const model = store.add(createTextModel('image'));
+		const range = new Range(1, 1, 1, 6);
+		const copied = await provider.prepareDocumentPaste(model, [range], new VSDataTransfer(), CancellationToken.None);
+		assert.ok(copied);
+		const raw = await copied.get(CHAT_ATTACHMENT_MIME_TYPE)!.asString();
+		await files.del(directory, { recursive: true });
+		const dataTransfer = new VSDataTransfer();
+		dataTransfer.append(CHAT_ATTACHMENT_MIME_TYPE, createStringDataTransferItem(raw));
+		dataTransfer.append(Mimes.text, createStringDataTransferItem('image'));
+		const pasted = await provider.provideDocumentPasteEdits(model, [range], dataTransfer, { triggerKind: DocumentPasteTriggerKind.Automatic }, CancellationToken.None);
+		assert.ok(pasted);
+		store.add(pasted);
+		const edit = pasted.edits[0].additionalEdit!.edits[0];
+		assert.ok(hasKey(edit, { redo: true }));
+		await edit.redo();
+		assert.ok(received[0].value instanceof Uint8Array);
+		assert.deepStrictEqual({ internal: raw.includes('$chatBinary'), bytes: [...received[0].value] }, { internal: false, bytes: [1, 128, 255] });
+	});
 
 	test('does not offer an opened artifact back as attachable context', () => {
 		// Opening an artifact makes it the active editor; offering it as context

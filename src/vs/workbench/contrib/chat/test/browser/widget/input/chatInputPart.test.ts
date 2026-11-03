@@ -14,6 +14,8 @@ import { constObservable, IObservable, observableValue } from '../../../../../..
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { IChatModelInputState, IInputModel } from '../../../../common/model/chatModel.js';
 import { IAccessibilitySignalService } from '../../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -38,7 +40,7 @@ import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { emptySessionEntryDiff, hasUndecidedChatEditingResourceContextKey, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
 import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import { IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry } from '../../../../browser/attachments/chatAttachmentWidgetRegistry.js';
-import { createChatReferenceVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
+import { createChatReferenceVariableEntry, IChatRequestVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { MockChatModel } from '../../../common/model/mockChatModel.js';
 import { ChatQuestionCarouselData } from '../../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../../../common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -51,6 +53,87 @@ import '../../../../browser/widget/media/chat.css';
 
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('acceptance clears the submitted draft synchronously without clearing a later edit', async () => {
+		let text = 'submitted';
+		let attachmentCount = 1;
+		const history: IChatModelInputState[] = [];
+		const state: IChatModelInputState = {
+			inputText: text, attachments: [{ kind: 'image', id: 'image', name: 'image.png', value: new Uint8Array([1, 2, 3]) }],
+			mode: { id: 'agent', kind: ChatModeKind.Agent }, selectedModel: undefined, selections: [], contrib: {},
+		};
+		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			getCurrentInputState: () => state,
+			history: { append: (value: IChatModelInputState) => history.push(value) },
+			resetScrollbarVisibilityAfterAccept: () => { },
+			chatInputNotificationService: { handleMessageSent: () => { } },
+			getNotificationContext: () => ({}),
+			_chatSessionIsEmpty: false,
+			_attachmentModel: { clear: () => { attachmentCount = 0; } },
+			_onDidLoadInputState: { fire: () => { } },
+			accessibilityService: { isScreenReaderOptimized: () => false },
+			_inputEditor: { setValue: (value: string) => { text = value; } },
+			logService: new NullLogService(),
+		});
+		const accepted = input.acceptInput(true, true);
+		const immediate = { text, attachmentCount };
+		text = 'new draft';
+		attachmentCount = 2;
+		await accepted;
+		assert.deepStrictEqual({ immediate, final: { text, attachmentCount }, submitted: history[0] }, {
+			immediate: { text: '', attachmentCount: 0 }, final: { text: 'new draft', attachmentCount: 2 }, submitted: state,
+		});
+	});
+
+	for (const change of ['none', 'edited', 'switched', 'disposed'] as const) {
+		test(`late owned-draft hydration preserves the bound composer without overwriting ${change}`, async () => {
+			const loaded = new DeferredPromise<void>();
+			const lifetime = store.add(new DisposableStore());
+			const image: IChatRequestVariableEntry = { kind: 'image', id: 'saved', name: 'saved.png', value: new Uint8Array([0, 128, 255]) };
+			let applied: Partial<IChatModelInputState> | undefined;
+			const model = upcastPartial<IInputModel>({ setState: state => { applied = state; } });
+			const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+				_store: lifetime, _inputModel: model, _chatSessionIsEmpty: true, _emptyAttachmentsGeneration: 7,
+				_attachmentModel: { attachments: [] },
+				_emptyInputAttachments: { whenReady: loaded.p, value: [image], isReady: true },
+			});
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Exercise the private binding path without a production testing API.
+			const restoration = input['restoreEmptyDraftAttachments'](model);
+			if (change === 'edited') {
+				Object.assign(input, { _emptyAttachmentsGeneration: 8 });
+			} else if (change === 'switched') {
+				Object.assign(input, { _inputModel: upcastPartial<IInputModel>({}) });
+			} else if (change === 'disposed') {
+				lifetime.dispose();
+			}
+			loaded.complete();
+			await restoration;
+			assert.deepStrictEqual(applied, change === 'none' ? { attachments: [image] } : undefined);
+		});
+	}
+
+	for (const edited of [false, true]) {
+		test(`empty draft restoration waits for a successful retry and respects edits=${edited}`, async () => {
+			const image: IChatRequestVariableEntry = { kind: 'image', id: 'saved', name: 'saved.png', value: new Uint8Array([0, 128, 255]) };
+			const cache = { whenReady: Promise.resolve(), value: [image], isReady: false };
+			let applied: Partial<IChatModelInputState> | undefined;
+			const model = upcastPartial<IInputModel>({ setState: state => { applied = state; } });
+			const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+				_store: store.add(new DisposableStore()), _inputModel: model, _chatSessionIsEmpty: true, _emptyAttachmentsGeneration: 7,
+				_attachmentModel: { attachments: [] }, _emptyInputAttachments: cache,
+			});
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Exercise the private binding path without a production testing API.
+			await input['restoreEmptyDraftAttachments'](model, 7);
+			assert.strictEqual(applied, undefined);
+			cache.isReady = true;
+			if (edited) {
+				Object.assign(input, { _emptyAttachmentsGeneration: 8 });
+			}
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Exercise the same binding after its storage retry.
+			await input['restoreEmptyDraftAttachments'](model, 7);
+			assert.deepStrictEqual(applied, edited ? undefined : { attachments: [image] });
+		});
+	}
 
 	for (const { preserveFocus, moveFocus } of [
 		{ preserveFocus: undefined, moveFocus: false },

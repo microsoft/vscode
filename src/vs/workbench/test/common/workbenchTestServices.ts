@@ -542,6 +542,7 @@ export class TestMarkerService implements IMarkerService {
 }
 
 export class TestFileService implements IFileService {
+	async synchronize(_resource: URI): Promise<undefined> { return undefined; }
 
 	declare readonly _serviceBrand: undefined;
 

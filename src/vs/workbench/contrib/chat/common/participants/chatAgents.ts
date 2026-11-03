@@ -15,6 +15,7 @@ import { IObservable } from '../../../../../base/common/observable.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { hasChatBinaryReferences, resolveChatBinaryData } from '../model/chatSessionResources.js';
 import { Command } from '../../../../../editor/common/languages.js';
 import type { MessageOrigin } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -551,8 +552,10 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 			throw new Error(`No activated agent with id "${id}"`);
 		}
 
-		this._onWillInvokeAgent.fire({ agentId: id, request });
-		const result = await data.impl.invoke(request, progress, history, token);
+		const resolvedRequest = hasChatBinaryReferences(request) ? await resolveChatBinaryData(request, 'request', token) : request;
+		const resolvedHistory = hasChatBinaryReferences(history) ? await resolveChatBinaryData(history, 'history', token) : history;
+		this._onWillInvokeAgent.fire({ agentId: id, request: resolvedRequest });
+		const result = await data.impl.invoke(resolvedRequest, progress, resolvedHistory, token);
 		markChat(request.sessionResource, ChatPerfMark.AgentDidInvoke);
 		return result;
 	}
@@ -581,7 +584,9 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 			return [];
 		}
 
-		return data.impl.provideFollowups(request, result, history, token);
+		const input = { request, result, history };
+		const resolved = hasChatBinaryReferences(input) ? await resolveChatBinaryData(input, 'history', token) : input;
+		return data.impl.provideFollowups(resolved.request, resolved.result, resolved.history, token);
 	}
 
 	async getChatTitle(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined> {
@@ -590,7 +595,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 			return undefined;
 		}
 
-		return data.impl.provideChatTitle(history, token);
+		return data.impl.provideChatTitle(hasChatBinaryReferences(history) ? await resolveChatBinaryData(history, 'history', token) : history, token);
 	}
 
 	async getChatSummary(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined> {
@@ -599,7 +604,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 			return undefined;
 		}
 
-		return data.impl.provideChatSummary(history, token);
+		return data.impl.provideChatSummary(hasChatBinaryReferences(history) ? await resolveChatBinaryData(history, 'history', token) : history, token);
 	}
 
 	registerChatParticipantDetectionProvider(handle: number, provider: IChatParticipantDetectionProvider) {
@@ -630,7 +635,9 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 			return acc;
 		}, []);
 
-		const result = await provider.provideParticipantDetection(request, history, { ...options, participants }, token);
+		const resolvedRequest = hasChatBinaryReferences(request) ? await resolveChatBinaryData(request, 'request', token) : request;
+		const resolvedHistory = hasChatBinaryReferences(history) ? await resolveChatBinaryData(history, 'history', token) : history;
+		const result = await provider.provideParticipantDetection(resolvedRequest, resolvedHistory, { ...options, participants }, token);
 		if (!result) {
 			return;
 		}

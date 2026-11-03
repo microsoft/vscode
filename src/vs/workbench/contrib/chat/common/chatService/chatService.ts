@@ -1230,8 +1230,7 @@ export interface IToolResultOutputDetailsSerialized {
 	output: {
 		type: 'data';
 		mimeType: string;
-		base64Data: string;
-	};
+	} & ({ base64Data: string; resource?: never } | { base64Data?: never; resource: URI });
 }
 
 /**

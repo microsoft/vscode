@@ -29,11 +29,15 @@ import { ChatCollapsibleInputOutputContentPart } from '../../../../browser/widge
 import { ChatToolOutputContentSubPart } from '../../../../browser/widget/chatContentParts/chatToolOutputContentSubPart.js';
 import { ChatInputOutputMarkdownProgressPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatInputOutputMarkdownProgressPart.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
+import { FileService } from '../../../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { createTestChatSessionResources } from '../../../common/model/chatSessionResourceLocks.js';
+import { LanguageModelPartAudience } from '../../../../common/languageModels.js';
 
 suite('ChatCollapsibleInputOutputContentPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function renderImageDetails(output: IToolResultInputOutputDetails['output'], durationMs?: number, fileService?: IFileService, logService?: ILogService, usage?: IImageGenerationToolUsage) {
+	function renderImageDetails(output: IToolResultInputOutputDetails['output'], durationMs?: number, fileService?: IFileService, logService?: ILogService, usage?: IImageGenerationToolUsage, generated = true) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		if (fileService) {
 			instantiationService.stub(IFileService, fileService);
@@ -75,7 +79,7 @@ suite('ChatCollapsibleInputOutputContentPart', () => {
 			kind: 'toolInvocationSerialized', toolId: 'image_generation', toolCallId: 'image-call',
 			invocationMessage: 'Generating image', pastTenseMessage: 'Generated image', originMessage: undefined,
 			presentation: undefined, source: ToolDataSource.Internal, isComplete: true, isConfirmed: true,
-			toolSpecificData: { kind: 'generatedImage', durationMs, ...(usage ? { imageGeneration: { requestedModel: { id: 'image-model' }, usage } } : {}) },
+			toolSpecificData: generated ? { kind: 'generatedImage', durationMs, ...(usage ? { imageGeneration: { requestedModel: { id: 'image-model' }, usage } } : {}) } : undefined,
 		};
 		return store.add(instantiationService.createInstance(ChatInputOutputMarkdownProgressPart, invocation, context, 0,
 			'Generated image', undefined, '{"prompt":"Draw a tree"}', undefined, output, false));
@@ -106,6 +110,19 @@ suite('ChatCollapsibleInputOutputContentPart', () => {
 				{ label: 'AI credits', value: 'Unavailable', accessibleValue: null },
 			],
 		});
+	});
+
+	test('restored model-only images retain their collapsed audience restrictions', async () => {
+		const files = store.add(new FileService(new NullLogService()));
+		store.add(files.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const resources = store.add(createTestChatSessionResources(files));
+		const source: IToolResultInputOutputDetails = { input: '', output: [{ type: 'embed', value: 'AQID', mimeType: 'image/png', audience: [LanguageModelPartAudience.Assistant] }] };
+		const directory = URI.file('/session.resources');
+		const prepared = await resources.prepare(source, directory);
+		const restored = resources.restore(prepared.value, directory);
+		const before = renderImageDetails(source.output, undefined, files, undefined, undefined, false);
+		const after = renderImageDetails(restored.output, undefined, files, undefined, undefined, false);
+		assert.deepStrictEqual([before, after].map(part => part.domNode.querySelectorAll('.chat-collapsible-io-resource-group').length), [0, 0]);
 	});
 
 	for (const charge of [undefined, 0, 598_500_000]) {

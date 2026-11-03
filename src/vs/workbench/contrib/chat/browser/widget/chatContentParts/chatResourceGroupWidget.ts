@@ -13,6 +13,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { extname as pathExtname } from '../../../../../../base/common/path.js';
 import { basename, extname, joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { getChatBinaryReference } from '../../../common/model/chatSessionResources.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
@@ -97,6 +98,8 @@ export class ChatResourceGroupWidget extends Disposable {
 					deferredImageParts.push({ index: i, part, mimeType: imageMimeType });
 				} else if (part.value) {
 					entries.push({ kind: 'image', id: generateUuid(), name, value: part.value, mimeType: imageMimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] });
+				} else if (getChatBinaryReference(part.uri)) {
+					entries.push({ kind: 'image', id: generateUuid(), name, value: part.uri, mimeType: imageMimeType, isURL: true, references: [{ kind: 'reference', reference: part.uri }] });
 				} else {
 					const value = await this._fileService.readFile(part.uri).then(f => f.value.buffer, () => undefined);
 					if (!value) {
