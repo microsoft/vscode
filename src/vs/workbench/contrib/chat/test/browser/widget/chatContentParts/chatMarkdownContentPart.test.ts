@@ -764,16 +764,19 @@ suite('ChatMarkdownContentPart', () => {
 					video: !!domNode.querySelector('video'),
 				};
 			};
-			assert.deepStrictEqual({
+			const results = {
 				untrusted: render(new MarkdownString(`${span} $x^2$`)),
 				trustedWithSpan: render(new MarkdownString(`${span} $x^2$`, { isTrusted: true })),
 				trustedWithoutSpan: render(new MarkdownString('text $x^2$', { isTrusted: true })),
 				supportHtml: render(new MarkdownString(`${span} <video autoplay muted src="data:video/mp4;base64,AA=="></video> $x^2$`, { supportHtml: true })),
-			}, {
+			};
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.EnableMath, false);
+			assert.deepStrictEqual({ ...results, mathDisabled: render(new MarkdownString('text $x^2$')) }, {
 				untrusted: { math: true, span: undefined, video: false },
 				trustedWithSpan: { math: false, span: '<span>fake</span>', video: false },
 				trustedWithoutSpan: { math: true, span: undefined, video: false },
 				supportHtml: { math: false, span: '<span>fake</span>', video: false },
+				mathDisabled: { math: false, span: undefined, video: false },
 			});
 		});
 
