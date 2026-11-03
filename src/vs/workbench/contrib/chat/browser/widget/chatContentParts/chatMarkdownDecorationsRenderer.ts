@@ -146,10 +146,9 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 							'';
 
 		const args: IDecorationWidgetArgs = inlineAttachment === undefined ? { title } : { title, inlineAttachment };
-		// The text of an attachment shown as a pill is literal: a terminal command can contain brackets that would end the link,
-		// and the Markdown link that the prompt sent to the model read an attachment as would become a link of its own inside it.
-		const text = inlineAttachment === undefined ? part.text : escapeMarkdownSyntaxTokens(escape(part.text));
-		return `[${text}](${decorationRefUrl}?${encodeURIComponent(JSON.stringify(args))})`;
+		const text = escapeMarkdownSyntaxTokens(escape(part.text));
+		const encodedArgs = encodeURIComponent(JSON.stringify(args)).replace(/\(/g, '%28').replace(/\)/g, '%29');
+		return `[${text}](${decorationRefUrl}?${encodedArgs})`;
 	}
 
 	/**

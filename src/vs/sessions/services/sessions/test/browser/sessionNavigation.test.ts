@@ -8,6 +8,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -21,6 +22,8 @@ import { SessionsNavigation } from '../../browser/sessionNavigation.js';
 import { getRecencyEntryKey, SessionsRecencyHistory } from '../../browser/sessionsRecencyHistory.js';
 import { Event } from '../../../../../base/common/event.js';
 import { INestedChatWorkspace, ISendRequestOptions } from '../../common/sessionsProvider.js';
+import { TestWindowCanvasService } from '../../../canvas/test/browser/testWindowCanvasService.js';
+import { IWindowCanvasDescriptor } from '../../../canvas/browser/windowCanvasService.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -129,7 +132,7 @@ class MockSessionStore implements ISessionsManagementService {
 	get lastOpenedChatResource(): URI | undefined { return this._openedChatResource; }
 	get lastOpenedNewSession(): boolean { return this._openedNewSession; }
 
-	constructor(private readonly customViewService: ICustomViewService) { }
+	constructor(private readonly customViewService: ICustomViewService, private readonly canvasService: TestWindowCanvasService) { }
 
 	setActiveSession(session: ISession | undefined, chat?: IChat): void {
 		if (session) {
@@ -202,6 +205,7 @@ class MockSessionStore implements ISessionsManagementService {
 	getNewSessionTarget() { return undefined; }
 	isQuickChatTargetAvailable(_options?: ICreateNewSessionOptions): boolean { return false; }
 	resolveWorkspace(_folderUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined { return undefined; }
+	getRemoteHostLabel(): string | undefined { return undefined; }
 
 	async openSession(sessionResource: URI): Promise<void> {
 		this._openedResource = sessionResource;
@@ -211,6 +215,7 @@ class MockSessionStore implements ISessionsManagementService {
 		if (session) {
 			transaction(tx => {
 				this.customViewService.hideCustomView(tx);
+				this.canvasService.deactivateCanvas(tx);
 				this.setActiveSession(session);
 			});
 		}
@@ -222,6 +227,7 @@ class MockSessionStore implements ISessionsManagementService {
 		this._openedChatResource = undefined;
 		transaction(tx => {
 			this.customViewService.hideCustomView(tx);
+			this.canvasService.deactivateCanvas(tx);
 			this.setActiveSession(undefined);
 		});
 	}
@@ -234,6 +240,7 @@ class MockSessionStore implements ISessionsManagementService {
 		if (chat) {
 			transaction(tx => {
 				this.customViewService.hideCustomView(tx);
+				this.canvasService.deactivateCanvas(tx);
 				this.setActiveSession(session, chat);
 			});
 		}
@@ -257,6 +264,7 @@ class MockSessionStore implements ISessionsManagementService {
 	createAndSendNewChatRequest(_folderUri: URI, _options: ISendRequestOptions, _createOptions?: ICreateNewSessionOptions): Promise<ISession | undefined> { throw new Error('not implemented'); }
 	createAndSendQuickChatRequest(_options: ISendRequestOptions, _createOptions?: ICreateNewSessionOptions): Promise<ISession | undefined> { throw new Error('not implemented'); }
 	sendRequest(_session: ISession, _chat: IChat, _options: ISendRequestOptions): Promise<void> { throw new Error('not implemented'); }
+	sendRequestInBackground(_session: ISession, _chat: IChat, _options: ISendRequestOptions): Promise<void> { throw new Error('not implemented'); }
 	openNewChatInSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	openPreviousSession(): Promise<void> { throw new Error('not implemented'); }
 	openNextSession(): Promise<void> { throw new Error('not implemented'); }
@@ -292,6 +300,9 @@ class MockSessionStore implements ISessionsManagementService {
 	listCanvases(_session: ISession, _chat: IChat): Promise<readonly ISessionCanvasDefinition[]> { throw new Error('not implemented'); }
 	openCanvas(_session: ISession, _chat: IChat, _canvas: ISessionCanvasDefinition, _instanceId: string): Promise<void> { throw new Error('not implemented'); }
 	closeCanvas(_session: ISession, _chat: IChat, _canvas: ISessionCanvas): Promise<void> { throw new Error('not implemented'); }
+	readonly onDidCloseCanvas = Event.None;
+	observeCanvas(): undefined { return undefined; }
+	observeChatCanvases(): undefined { return undefined; }
 }
 
 suite('SessionsNavigation', () => {
@@ -303,6 +314,7 @@ suite('SessionsNavigation', () => {
 	let customViewService: CustomViewService;
 	let storageService: InMemoryStorageService;
 	let recency: SessionsRecencyHistory;
+	let canvasService: TestWindowCanvasService;
 
 	setup(() => {
 		const disposables = ds.add(new DisposableStore());
@@ -311,13 +323,15 @@ suite('SessionsNavigation', () => {
 
 		storageService = disposables.add(new InMemoryStorageService());
 		customViewService = disposables.add(new CustomViewService(new NullLogService(), storageService));
-		store = new MockSessionStore(customViewService);
+		canvasService = new TestWindowCanvasService(customViewService);
+		store = new MockSessionStore(customViewService, canvasService);
 		recency = disposables.add(new SessionsRecencyHistory(storageService, new NullLogService()));
 
 		nav = disposables.add(new SessionsNavigation(
 			store,
 			store.activeSession,
 			customViewService,
+			canvasService,
 			store,
 			recency,
 			contextKeyService,
@@ -333,9 +347,10 @@ suite('SessionsNavigation', () => {
 		return contextKeyService.getContextKeyValue('sessionsCanGoForward') ?? false;
 	}
 
-	function registerCustomView(id: string) {
+	function registerCustomView(id: string, acceptsState?: (state: string) => boolean) {
 		return ds.add(customViewService.registerCustomView({
 			id,
+			acceptsState,
 			ctor: new SyncDescriptor(class extends AbstractCustomView {
 				readonly title = constObservable('Custom View');
 				render(_container: HTMLElement): void { }
@@ -352,7 +367,7 @@ suite('SessionsNavigation', () => {
 			} else {
 				await nav.goForward();
 			}
-			destinations.push(customViewService.activeCustomView.get()?.id ?? store.activeSession.get()?.sessionId ?? 'newSession');
+			destinations.push(customViewService.activeCustomView.get()?.id ?? canvasService.activeCanvasOpen.get()?.id ?? store.activeSession.get()?.sessionId ?? 'newSession');
 		}
 		return destinations;
 	}
@@ -536,6 +551,98 @@ suite('SessionsNavigation', () => {
 		});
 	});
 
+	test('window canvases participate in back and forward without changing MRU order', async () => {
+		const session = stubSession('s1', SessionStatus.Completed, [stubChatWithId('main'), stubChatWithId('peer')]);
+		store.addSession(session);
+		ds.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
+
+		await store.openSession(session.resource);
+		await canvasService.openCanvas('inbox');
+		await store.openChat(session, session.chats.get()[1].resource);
+		const order = recency.entries.map(getRecencyEntryKey);
+		const back = await navigate('back', 1);
+		const forward = await navigate('forward', 1);
+		assert.deepStrictEqual({
+			back, forward,
+			chat: store.lastOpenedChatResource?.toString(),
+			sameOrder: recency.entries.map(getRecencyEntryKey),
+			canGoForward: canGoForward(),
+		}, {
+			back: ['inbox'], forward: ['s1'],
+			chat: session.chats.get()[1].resource.toString(),
+			sameOrder: order, canGoForward: false,
+		});
+	});
+
+	test('opening an already-visible session leaves its canvas destination in history', async () => {
+		const session = stubSession('s1');
+		store.addSession(session);
+		await store.openSession(session.resource);
+		ds.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
+		await canvasService.openCanvas('inbox');
+		await store.openSession(session.resource);
+
+		assert.deepStrictEqual({
+			back: await navigate('back', 1),
+			forward: await navigate('forward', 1),
+			canvases: recency.entries.filter(entry => entry.kind === 'canvas'),
+		}, { back: ['inbox'], forward: ['s1'], canvases: [{ kind: 'canvas', id: 'inbox' }] });
+	});
+
+	test('repeated explicit canvas opens promote one entry and background session changes do not', async () => {
+		const session = stubSession('s1');
+		store.addSession(session);
+		ds.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
+		await canvasService.openCanvas('inbox');
+		await store.openSession(session.resource);
+		await nav.goBack();
+		store.setActiveSession(undefined);
+		const before = recency.entries.map(getRecencyEntryKey);
+		await canvasService.openCanvas('inbox');
+		await canvasService.openCanvas('inbox');
+
+		assert.deepStrictEqual({
+			before,
+			back: await navigate('back', 1),
+			entries: recency.entries.filter(entry => entry.kind === 'canvas'),
+		}, {
+			before: [getRecencyEntryKey({ kind: 'session', sessionResource: session.resource, chatResource: stubChat.resource }), 'canvas:inbox', 'newSession'],
+			back: ['s1'], entries: [{ kind: 'canvas', id: 'inbox' }],
+		});
+	});
+
+	test('opening a canvas from a custom view does not visit the covered session', async () => {
+		const session = stubSession('s1');
+		store.addSession(session);
+		registerCustomView('automations');
+		ds.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
+		await store.openSession(session.resource);
+		customViewService.showCustomView('automations');
+		await canvasService.openCanvas('inbox');
+		assert.deepStrictEqual(await navigate('back', 2), ['automations', 's1']);
+	});
+
+	for (const direction of ['back', 'forward'] as const) {
+		test(`disabled window canvases are skipped when navigating ${direction}`, async () => {
+			const first = stubSession('first');
+			const second = stubSession('second');
+			store.addSession(first);
+			store.addSession(second);
+			const registration = ds.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
+			await store.openSession(first.resource);
+			await canvasService.openCanvas('inbox');
+			await store.openSession(second.resource);
+			if (direction === 'forward') {
+				await navigate('back', 2);
+			}
+			registration.dispose();
+			assert.deepStrictEqual({
+				destinations: await navigate(direction, 1),
+				canvases: recency.entries.filter(entry => entry.kind === 'canvas'),
+			}, { destinations: [direction === 'back' ? 'first' : 'second'], canvases: [] });
+		});
+	}
+
 	test('each custom view retains only its most recent opening', async () => {
 		const s1 = stubSession('s1');
 		const s2 = stubSession('s2');
@@ -559,6 +666,38 @@ suite('SessionsNavigation', () => {
 			canGoFurtherBack: false,
 			forward: ['s1', 's2', 'other', 'automations'],
 			canGoForward: false,
+		});
+	});
+
+	test('back and forward return a custom view to the item each opening showed, skipping items it can no longer show', async () => {
+		const s1 = stubSession('s1');
+		store.addSession(s1);
+		const shownItems = new Set(['plan', 'preview', 'removed']);
+		// Like the pinned canvas page, the view declines an opening for an item it can no longer show.
+		registerCustomView('canvas', state => shownItems.has(state));
+		const destinations = async (direction: 'back' | 'forward', count: number) => {
+			const shown: string[] = [];
+			for (let i = 0; i < count; i++) {
+				await (direction === 'back' ? nav.goBack() : nav.goForward());
+				const open = customViewService.activeCustomViewOpen.get();
+				shown.push(open ? `${open.descriptor.id}:${open.state}` : store.activeSession.get()?.sessionId ?? 'newSession');
+			}
+			return shown;
+		};
+
+		await store.openSession(s1.resource);
+		customViewService.showCustomView('canvas', { state: 'removed' });
+		customViewService.showCustomView('canvas', { state: 'plan' });
+		customViewService.showCustomView('canvas', { state: 'preview' });
+		shownItems.delete('removed');
+
+		const back = await destinations('back', 2);
+		const forward = await destinations('forward', 1);
+
+		assert.deepStrictEqual({ back, forward, canGoForward: canGoForward() }, {
+			back: ['canvas:plan', 's1'],
+			forward: ['canvas:plan'],
+			canGoForward: true,
 		});
 	});
 
@@ -662,9 +801,11 @@ suite('SessionsNavigation', () => {
 		store.addSession(s1);
 		store.addSession(s2);
 		registerCustomView('automations');
+		ds.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
 
 		await store.openSession(s1.resource);
 		customViewService.showCustomView('automations');
+		await canvasService.openCanvas('inbox');
 		await store.openNewSession();
 		await store.openSession(s2.resource);
 		const restored = ds.add(new SessionsRecencyHistory(storageService, new NullLogService()));

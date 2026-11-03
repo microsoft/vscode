@@ -14,6 +14,9 @@
 src/vscode-dts/vscode.d.ts @TylerLeonhardt @alexr00
 src/vs/workbench/services/extensions/common/extensionPoints.json @TylerLeonhardt @alexr00
 
+# Quick Input API
+src/vs/platform/quickinput/common/quickInput.ts @TylerLeonhardt
+
 # Allowlist for the `local/code-no-new-javascript-files` lint rule.
 # Adding entries here lets a new .js/.cjs/.mjs file land in the repo;
 # review is required to make sure TypeScript is not a better choice.

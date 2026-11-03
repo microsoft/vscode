@@ -9,7 +9,7 @@ import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { autorun, derived, IReader, ISettableObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -17,21 +17,24 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { renderChatPetAchievementPreview, CHAT_PET_ACHIEVEMENT_PREVIEW_SIZE } from './chatPetAchievementPreview.js';
 import { chatPetAchievements, ChatPetAccessoryId, ChatPetAchievementId, getChatPetAccessory, getChatPetAchievementPresentation } from './chatPetAchievements.js';
-import { IChatPetService } from './chatPetService.js';
+import { ChatPetAppearanceSelection, getChatPetAppearanceSelection, getChatPetAppearanceSelectionPressedState, getChatPetTargetAccessory, getChatPetTargetColor, renderChatPetAppearanceTargetPicker } from './chatPetAppearanceTarget.js';
+import { ChatPetAppearanceTarget, getChatPetAppearanceTargetWindows, IChatPetService } from './chatPetService.js';
 import { CHAT_PET_CHANGE_COLOR_COMMAND_ID, ChatPetColor } from './chatPetColors.js';
+
+const NO_HAT_CARD_ID = 'none';
 
 export class ChatPetAchievementsWidget extends Disposable {
 
 	private readonly container: HTMLElement;
 	private readonly content: HTMLElement;
+	private readonly collectionContainer: HTMLElement;
 	private readonly scrollable: DomScrollableElement;
 	private readonly renderDisposables = this._register(new DisposableStore());
 	private readonly accessoryCards = new Map<string, {
 		readonly button: Button;
 		readonly state: HTMLElement;
 		readonly defaultState: string;
-		readonly selectedAriaLabel: string;
-		readonly defaultAriaLabel: string;
+		readonly getAriaLabel: (selection: ChatPetAppearanceSelection, state: string) => string;
 		readonly achievementId?: ChatPetAchievementId;
 		readonly newBadge?: HTMLElement;
 		readonly colorCustomization?: boolean;
@@ -43,6 +46,7 @@ export class ChatPetAchievementsWidget extends Disposable {
 	constructor(
 		parent: HTMLElement,
 		private readonly onDidRequestClose: () => void,
+		private readonly appearanceTarget: ISettableObservable<ChatPetAppearanceTarget>,
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ILogService private readonly logService: ILogService,
@@ -64,15 +68,23 @@ export class ChatPetAchievementsWidget extends Disposable {
 			}
 		}, { passive: true }));
 
+		// The header persists across renders, so changing the target keeps focus on the picker.
+		const inner = DOM.append(this.content, DOM.$('.chat-pet-achievements-inner'));
+		DOM.append(inner, DOM.$('h1')).textContent = localize('chatPet.achievements.title', "Achievements");
+		DOM.append(inner, DOM.$('p.chat-pet-achievements-intro')).textContent = localize('chatPet.achievements.intro', "Unlock hats and colors as you explore agent features, then customize Blobby by selecting an unlocked card.");
+		this._register(renderChatPetAppearanceTargetPicker(inner, appearanceTarget, onDidRequestClose));
+		this.collectionContainer = DOM.append(inner, DOM.$('.chat-pet-achievements-collection-container'));
+
 		const themeChanged = observableSignalFromEvent(this, this.themeService.onDidColorThemeChange);
+		const previewColor = derived(this, reader => getChatPetTargetColor(this.chatPetService, this.appearanceTarget.read(reader)).read(reader));
 		this._register(autorun(reader => {
 			const unlockedAchievements = this.chatPetService.unlockedAchievements.read(reader);
-			const color = this.chatPetService.color.read(reader);
+			const color = previewColor.read(reader);
 			themeChanged.read(reader);
-			this.render(unlockedAchievements, this.chatPetService.selectedAccessory.read(undefined), color);
+			this.render(unlockedAchievements, color);
 		}));
 		this._register(autorun(reader => {
-			this.updateSelectedAccessory(this.chatPetService.selectedAccessory.read(reader));
+			this.updateSelectedAccessories(reader);
 		}));
 		this._register(autorun(reader => {
 			this.updateNewAchievements(this.chatPetService.unseenAchievements.read(reader));
@@ -100,20 +112,17 @@ export class ChatPetAchievementsWidget extends Disposable {
 		this.focusTarget?.();
 	}
 
-	private render(unlockedAchievements: readonly ChatPetAchievementId[], selectedAccessory: ChatPetAccessoryId | undefined, color: ChatPetColor): void {
+	private render(unlockedAchievements: readonly ChatPetAchievementId[], color: ChatPetColor): void {
 		const activeElement = DOM.getActiveElement();
 		const focusedCard = DOM.isHTMLElement(activeElement) ? activeElement.closest<HTMLElement>('.chat-pet-achievement-card') : undefined;
 		const restoreFocusId = focusedCard?.dataset.accessoryId ?? focusedCard?.dataset.achievementId;
 		this.renderDisposables.clear();
-		DOM.clearNode(this.content);
+		DOM.clearNode(this.collectionContainer);
 		this.accessoryCards.clear();
 		this.focusTarget = undefined;
 
-		const inner = DOM.append(this.content, DOM.$('.chat-pet-achievements-inner'));
-		DOM.append(inner, DOM.$('h1')).textContent = localize('chatPet.achievements.title', "Achievements");
-		DOM.append(inner, DOM.$('p.chat-pet-achievements-intro')).textContent = localize('chatPet.achievements.intro', "Unlock hats and colors as you explore agent features, then customize Blobby by selecting an unlocked card.");
 		const unlockedSet = new Set(unlockedAchievements);
-		const collection = DOM.append(inner, DOM.$('section.chat-pet-achievements-collection'));
+		const collection = DOM.append(this.collectionContainer, DOM.$('section.chat-pet-achievements-collection'));
 		collection.setAttribute('role', 'region');
 		collection.setAttribute('aria-label', localize(
 			'chatPet.achievements.collectionAriaLabel',
@@ -132,42 +141,31 @@ export class ChatPetAchievementsWidget extends Disposable {
 
 		const list = DOM.append(collection, DOM.$('ul.chat-pet-achievements-list'));
 		const cards = new Map<string, Button>();
-		const noHatId = 'none';
 		const noHatItem = DOM.append(list, DOM.$('li.chat-pet-achievements-list-item'));
-		const noHatSelected = selectedAccessory === undefined;
 		const noHatCard = this.renderDisposables.add(new Button(noHatItem, {
 			secondary: true,
-			ariaLabel: noHatSelected
-				? localize('chatPet.achievement.noHatSelected', "No Hat, selected")
-				: localize('chatPet.achievement.noHat', "No Hat"),
+			ariaLabel: localize('chatPet.achievement.noHat', "No Hat"),
 		}));
 		noHatCard.element.classList.add('chat-pet-achievement-card', 'no-hat');
-		noHatCard.element.dataset.accessoryId = noHatId;
-		noHatCard.element.setAttribute('aria-pressed', String(noHatSelected));
-		noHatCard.element.classList.toggle('wearing', noHatSelected);
+		noHatCard.element.dataset.accessoryId = NO_HAT_CARD_ID;
 		const noHatPreviews = DOM.append(noHatCard.element, DOM.$('.chat-pet-achievement-previews'));
 		this.renderCardPreview(noHatPreviews, undefined, true, color);
 		const noHatContent = DOM.append(noHatCard.element, DOM.$('.chat-pet-achievement-card-content'));
 		DOM.append(noHatContent, DOM.$('h3')).textContent = localize('chatPet.achievements.noHat', "No Hat");
 		const noHatState = DOM.append(noHatContent, DOM.$('span.chat-pet-achievement-state'));
-		noHatState.textContent = noHatSelected
-			? localize('chatPet.achievement.wearing', "Wearing")
-			: localize('chatPet.achievement.select', "Select");
 		this.renderDisposables.add(noHatCard.onDidClick(() => this.selectAccessory(undefined)));
 		this.renderDisposables.add(noHatCard.onDidEscape(() => this.onDidRequestClose()));
-		this.accessoryCards.set(noHatId, {
+		this.accessoryCards.set(NO_HAT_CARD_ID, {
 			button: noHatCard,
 			state: noHatState,
 			defaultState: localize('chatPet.achievement.select', "Select"),
-			selectedAriaLabel: localize('chatPet.achievement.noHatSelected', "No Hat, selected"),
-			defaultAriaLabel: localize('chatPet.achievement.noHat', "No Hat"),
+			getAriaLabel: getNoHatCardAriaLabel,
 		});
-		cards.set(noHatId, noHatCard);
+		cards.set(NO_HAT_CARD_ID, noHatCard);
 
 		for (const achievement of chatPetAchievements) {
 			const unlocked = unlockedSet.has(achievement.id);
 			const presentation = getChatPetAchievementPresentation(achievement, unlocked);
-			const wearing = unlocked && achievement.accessories.some(accessory => selectedAccessory === accessory.id);
 			const item = DOM.append(list, DOM.$('li.chat-pet-achievements-list-item'));
 			const accessory = achievement.accessories[0];
 			const cardId = accessory?.id ?? achievement.id;
@@ -179,16 +177,15 @@ export class ChatPetAchievementsWidget extends Disposable {
 				secondary: true,
 				ariaLabel: presentation.locked
 					? localize('chatPet.achievement.lockedAriaLabel', "Locked. Hint: {0} Rewards: {1}.", presentation.hint, presentation.rewardLabels.join(', '))
-					: localize('chatPet.achievement.cardAriaLabel', "{0}. Reward: {1}. {2}", presentation.title, rewardLabel, wearing ? localize('chatPet.achievement.wearing', "Wearing") : defaultState),
+					: localize('chatPet.achievement.cardAriaLabel', "{0}. Reward: {1}. {2}", presentation.title, rewardLabel, defaultState),
 			}));
 			card.element.classList.add('chat-pet-achievement-card');
 			card.element.dataset.achievementId = achievement.id;
 			if (accessory) {
 				card.element.dataset.accessoryId = accessory.id;
-				card.element.setAttribute('aria-pressed', String(wearing));
+				card.element.setAttribute('aria-pressed', 'false');
 			}
 			card.element.classList.toggle('locked', !unlocked);
-			card.element.classList.toggle('wearing', wearing);
 			card.enabled = unlocked;
 			const newBadge = DOM.append(card.element, DOM.$('span.chat-pet-achievement-new-badge.hidden'));
 			newBadge.textContent = localize('chatPet.achievement.new', "New");
@@ -200,17 +197,14 @@ export class ChatPetAchievementsWidget extends Disposable {
 			if (!presentation.locked) {
 				DOM.append(cardContent, DOM.$('h3')).textContent = presentation.title;
 				const state = DOM.append(cardContent, DOM.$('span.chat-pet-achievement-state'));
-				state.textContent = wearing
-					? localize('chatPet.achievement.wearing', "Wearing")
-					: defaultState;
+				state.textContent = defaultState;
 				DOM.append(cardContent, DOM.$('p.chat-pet-achievement-description')).textContent = presentation.description;
 				DOM.append(cardContent, DOM.$('p.chat-pet-achievement-reward')).textContent = localize('chatPet.achievement.rewards', "Rewards: {0}", rewardLabel);
 				this.accessoryCards.set(cardId, {
 					button: card,
 					state,
 					defaultState,
-					selectedAriaLabel: localize('chatPet.achievement.cardAriaLabel', "{0}. Reward: {1}. {2}", achievement.title, rewardLabel, localize('chatPet.achievement.wearing', "Wearing")),
-					defaultAriaLabel: localize('chatPet.achievement.cardAriaLabel', "{0}. Reward: {1}. {2}", achievement.title, rewardLabel, defaultState),
+					getAriaLabel: (_selection, cardState) => localize('chatPet.achievement.cardAriaLabel', "{0}. Reward: {1}. {2}", achievement.title, rewardLabel, cardState),
 					achievementId: achievement.id,
 					newBadge,
 					colorCustomization: achievement.colorCustomization,
@@ -250,14 +244,12 @@ export class ChatPetAchievementsWidget extends Disposable {
 			DOM.append(roadmapList, DOM.$('li')).textContent = item;
 		}
 
-		const experimentalNote = DOM.append(inner, DOM.$('p.chat-pet-achievements-experimental'));
+		const experimentalNote = DOM.append(this.collectionContainer, DOM.$('p.chat-pet-achievements-experimental'));
 		experimentalNote.textContent = localize('chatPet.achievements.experimental', "The VS Code pet and achievements are experimental. Features and rewards may change.");
 
 		this.scrollable.scanDomNode();
 		this.layout(this.lastDimension);
 		this.updateNewAchievements(this.chatPetService.unseenAchievements.read(undefined));
-		const selectedCardId = selectedAccessory ?? noHatId;
-		this.focusTarget = () => cards.get(selectedCardId)?.focus();
 		if (restoreFocusId) {
 			queueMicrotask(() => {
 				if (!this._store.isDisposed) {
@@ -279,30 +271,33 @@ export class ChatPetAchievementsWidget extends Disposable {
 		if (achievementId) {
 			this.chatPetService.markAchievementSeen(achievementId);
 		}
-		if (accessoryId === this.chatPetService.selectedAccessory.get()) {
+		const target = this.appearanceTarget.get();
+		if (getChatPetAppearanceTargetWindows(target).every(windowKind => this.chatPetService.getWindowAccessory(windowKind).get() === accessoryId)) {
 			return;
 		}
-		this.chatPetService.setAccessory(accessoryId);
-		status(accessoryId === undefined
-			? localize('chatPet.achievements.hatRemoved', "VS Code pet hat removed")
-			: localize('chatPet.achievements.hatSelected', "VS Code pet is now wearing {0}", getChatPetAccessory(accessoryId).label));
+		this.chatPetService.setAccessory(accessoryId, target);
+		status(getHatChangedStatus(target, accessoryId && getChatPetAccessory(accessoryId).label));
 	}
 
-	private updateSelectedAccessory(accessoryId: ChatPetAccessoryId | undefined): void {
-		const selectedId = accessoryId ?? 'none';
+	private updateSelectedAccessories(reader: IReader | undefined): void {
+		const target = this.appearanceTarget.read(reader);
+		const editorCardId = this.chatPetService.getWindowAccessory('editor').read(reader) ?? NO_HAT_CARD_ID;
+		const agentsCardId = this.chatPetService.getWindowAccessory('agents').read(reader) ?? NO_HAT_CARD_ID;
 		for (const [id, card] of this.accessoryCards) {
-			const wearing = id === selectedId;
-			card.button.element.classList.toggle('wearing', wearing);
+			const selection = card.colorCustomization ? undefined : getChatPetAppearanceSelection(target, windowKind => windowKind === 'editor' ? editorCardId : agentsCardId, id);
+			card.button.element.classList.toggle('wearing', selection !== undefined);
 			if (!card.colorCustomization) {
-				card.button.element.setAttribute('aria-pressed', String(wearing));
+				card.button.element.setAttribute('aria-pressed', getChatPetAppearanceSelectionPressedState(selection));
 			}
-			const baseAriaLabel = wearing ? card.selectedAriaLabel : card.defaultAriaLabel;
+			const state = getHatCardState(selection) ?? card.defaultState;
+			const ariaLabel = card.getAriaLabel(selection, state);
 			card.button.setAriaLabel(card.achievementId && this.unseenAchievementIds.has(card.achievementId)
-				? localize('chatPet.achievement.cardNewAriaLabel', "{0}. New", baseAriaLabel)
-				: baseAriaLabel);
-			card.state.textContent = wearing ? localize('chatPet.achievement.wearing', "Wearing") : card.defaultState;
+				? localize('chatPet.achievement.cardNewAriaLabel', "{0}. New", ariaLabel)
+				: ariaLabel);
+			card.state.textContent = state;
 		}
-		this.focusTarget = () => this.accessoryCards.get(selectedId)?.button.focus();
+		const targetCardId = getChatPetTargetAccessory(this.chatPetService, target).read(reader) ?? NO_HAT_CARD_ID;
+		this.focusTarget = () => this.accessoryCards.get(targetCardId)?.button.focus();
 	}
 
 	private updateNewAchievements(achievementIds: readonly ChatPetAchievementId[]): void {
@@ -310,6 +305,49 @@ export class ChatPetAchievementsWidget extends Disposable {
 		for (const card of this.accessoryCards.values()) {
 			card.newBadge?.classList.toggle('hidden', !card.achievementId || !this.unseenAchievementIds.has(card.achievementId));
 		}
-		this.updateSelectedAccessory(this.chatPetService.selectedAccessory.read(undefined));
+		this.updateSelectedAccessories(undefined);
+	}
+}
+
+function getHatCardState(selection: ChatPetAppearanceSelection): string | undefined {
+	switch (selection) {
+		case 'all':
+			return localize('chatPet.achievement.wearing', "Wearing");
+		case 'editor':
+			return localize('chatPet.achievement.wearingInEditor', "Wearing in Editor Window");
+		case 'agents':
+			return localize('chatPet.achievement.wearingInAgents', "Wearing in Agents Window");
+		default:
+			return undefined;
+	}
+}
+
+function getNoHatCardAriaLabel(selection: ChatPetAppearanceSelection): string {
+	switch (selection) {
+		case 'all':
+			return localize('chatPet.achievement.noHatSelected', "No Hat, selected");
+		case 'editor':
+			return localize('chatPet.achievement.noHatSelectedInEditor', "No Hat, selected in editor windows");
+		case 'agents':
+			return localize('chatPet.achievement.noHatSelectedInAgents', "No Hat, selected in the Agents window");
+		default:
+			return localize('chatPet.achievement.noHat', "No Hat");
+	}
+}
+
+function getHatChangedStatus(target: ChatPetAppearanceTarget, hat: string | undefined): string {
+	switch (target) {
+		case 'editor':
+			return hat
+				? localize('chatPet.achievements.hatSelectedInEditor', "VS Code pet is now wearing {0} in editor windows", hat)
+				: localize('chatPet.achievements.hatRemovedInEditor', "VS Code pet hat removed in editor windows");
+		case 'agents':
+			return hat
+				? localize('chatPet.achievements.hatSelectedInAgents', "VS Code pet is now wearing {0} in the Agents window", hat)
+				: localize('chatPet.achievements.hatRemovedInAgents', "VS Code pet hat removed in the Agents window");
+		default:
+			return hat
+				? localize('chatPet.achievements.hatSelected', "VS Code pet is now wearing {0}", hat)
+				: localize('chatPet.achievements.hatRemoved', "VS Code pet hat removed");
 	}
 }
