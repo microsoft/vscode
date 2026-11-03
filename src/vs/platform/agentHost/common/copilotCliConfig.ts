@@ -63,6 +63,10 @@ export const enum CopilotCliConfigKey {
 	Opus48Prompt = 'opus48Prompt',
 	/** Send the system prompt in the runtime's stability-ordered prompt-cache layout. Off by default. */
 	StabilityOrderedPrompt = 'stabilityOrderedPrompt',
+	/** Ask GPT and Auto sessions for brief user-visible progress updates before and between tool calls. Off by default. */
+	ProgressUpdatesPrompt = 'progressUpdatesPrompt',
+	/** Whether the workbench progress-update prompt value is controlled by its configuration default. */
+	ProgressUpdatesPromptDefaultControlled = 'progressUpdatesPromptDefaultControlled',
 	/** Enable runtime tool search (deferred-tool loading) for Copilot SDK sessions. On by default. */
 	ToolSearchEnabled = 'toolSearchEnabled',
 	/** Minimum tool count before MCP/external tools are deferred behind tool search. 0 = always defer. */
@@ -124,6 +128,8 @@ export const CopilotLocalIndexEnabledSettingId = 'github.copilot.chat.localIndex
 export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
 
 export const CopilotStabilityOrderedPromptEnabledSettingId = 'chat.copilot.stabilityOrderedPrompt.enabled';
+
+export const AgentHostCopilotProgressUpdatesPromptSettingId = 'chat.agentHost.copilot.progressUpdatesPrompt.enabled';
 
 export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolSearch.enabled';
 
@@ -324,6 +330,18 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.stabilityOrderedPrompt.title', "Stability-Ordered System Prompt"),
 		description: localize('agentHost.config.stabilityOrderedPrompt.description', "When enabled, Copilot SDK sessions order the system prompt by how often each section changes, so sessions with the same tools and workspace can reuse each other's prompt cache. This moves per-session sections, such as the environment and session folder, to the end of the system prompt."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.ProgressUpdatesPrompt]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.progressUpdatesPrompt.title', "Progress Updates Prompt"),
+		description: localize('agentHost.config.progressUpdatesPrompt.description', "When enabled, Copilot SDK sessions running a GPT model or Auto are asked to send brief user-visible progress updates before and between tool calls."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.ProgressUpdatesPromptDefaultControlled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.progressUpdatesPromptDefaultControlled.title', "Progress Updates Prompt Default Control"),
+		description: localize('agentHost.config.progressUpdatesPromptDefaultControlled.description', "Whether the workbench progress updates prompt setting has no explicit override. Used only to gate setting experiment telemetry."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.ToolSearchEnabled]: schemaProperty<boolean>({

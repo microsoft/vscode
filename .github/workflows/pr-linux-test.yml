@@ -452,9 +452,13 @@ jobs:
       # session smoke tests to time out. See
       # https://github.com/anthropics/claude-agent-sdk-typescript for the SDK
       # resolution order.
+      # The platform packages are next to the real folder of the SDK, which is the root
+      # node_modules/@anthropic-ai with a flat node_modules.
       - name: Remove musl Claude binary on glibc Linux
         if: ${{ env.SMOKE_TESTS == 'true' && env.BROWSER_TESTS != 'true' }}
-        run: rm -rf node_modules/@anthropic-ai/claude-agent-sdk-linux-x64-musl node_modules/@anthropic-ai/claude-agent-sdk-linux-arm64-musl
+        run: |
+          sdk_scope="$(dirname "$(realpath node_modules/@anthropic-ai/claude-agent-sdk)")"
+          rm -rf "$sdk_scope/claude-agent-sdk-linux-x64-musl" "$sdk_scope/claude-agent-sdk-linux-arm64-musl"
 
       - name: Diagnostics before smoke test run (processes, max_user_watches, number of opened file handles)
         run: |

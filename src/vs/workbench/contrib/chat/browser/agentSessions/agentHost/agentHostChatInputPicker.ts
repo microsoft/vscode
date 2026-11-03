@@ -12,6 +12,7 @@ import { Delayer, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, observableSignal } from '../../../../../../base/common/observable.js';
@@ -682,7 +683,10 @@ export class AgentHostChatInputPicker extends Disposable {
 		const localBackend = toAgentHostBackendSessionUri(sessionResource, this._connectionsService);
 		if (localBackend && localProvider && isUntitledChatSession(sessionResource) && !provisionalBackend) {
 			this._subRef.clear();
-			if (!this._initialResolved || this._initialResolved.sessionResource.toString() !== sessionResource.toString()) {
+			const prepared = this._provisional.getResolvedConfig(sessionResource) ?? this._provisional.getPreparedSessionConfig(sessionResource);
+			if (prepared) {
+				this._initialResolved = { sessionResource, result: prepared };
+			} else if (!this._initialResolved || this._initialResolved.sessionResource.toString() !== sessionResource.toString()) {
 				this._initialResolved = undefined;
 				void this._refreshInitialResolved(sessionResource, localProvider, resolution);
 			}
@@ -706,7 +710,15 @@ export class AgentHostChatInputPicker extends Disposable {
 			return;
 		}
 
-		this._initialResolved = undefined;
+		if (!localProvider || !isUntitledChatSession(sessionResource) || !isEqual(this._initialResolved?.sessionResource, sessionResource) || resolution.connection !== this._connectionsService.ambientConnection) {
+			this._initialResolved = undefined;
+		}
+		if (localProvider && isUntitledChatSession(sessionResource) && resolution.connection === this._connectionsService.ambientConnection) {
+			const prepared = this._provisional.getPreparedSessionConfig(sessionResource);
+			if (prepared) {
+				this._initialResolved = { sessionResource, result: prepared };
+			}
+		}
 		this._cancelInitialResolve();
 		const ref = resolution.connection.getSubscription(StateComponents.Session, resolution.backendSession, 'AgentHostChatInputPicker');
 		const sub = ref.object;
@@ -740,7 +752,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		};
 		syncChat();
 		let availableApprovalModes = sub.value && !(sub.value instanceof Error) ? sub.value.config?.values.availableApprovalModes : undefined;
-		const listener = sub.onDidChange(() => {
+		const listener = Event.any(sub.onDidChange, sub.onDidError ?? Event.None)(() => {
 			syncChat();
 			const available = sub.value && !(sub.value instanceof Error) ? sub.value.config?.values.availableApprovalModes : undefined;
 			if (!equals(availableApprovalModes, available)) {
@@ -767,7 +779,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private async _refreshInitialResolved(sessionResource: URI, provider: string, resolution: IAgentHostSessionResolution): Promise<void> {
-		const result = await this._initialConfig.resolve(sessionResource, provider, resolution, this._readWorkingDirectory());
+		const result = await this._initialConfig.resolve(sessionResource, provider, resolution, this._readWorkingDirectory(), this._provisional.getInitialSessionConfig());
 		if (result && result === this._initialConfig.value && isEqual(this._widget.viewModel?.sessionResource, sessionResource) && this._initialConfig.isCurrent(sessionResource, resolution)) {
 			this._initialResolved = { sessionResource, result };
 			this._renderChip();
@@ -849,6 +861,9 @@ export class AgentHostChatInputPicker extends Disposable {
 			return model.hasActiveRequest.get() || model.isInputBlocked.get();
 		}
 		const target = this._subRef.value;
+		if (target && target.sub.value === undefined) {
+			return true;
+		}
 		if (!target || !isChatConfigProperty(context.configSchema, context.key)) {
 			return false;
 		}
@@ -1012,7 +1027,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			return bound ? { sessionResource, generation: this._sessionGeneration, connection: undefined, backendSession: undefined, provider: CLOUD_SANDBOX_AGENT_PROVIDER, ...bound } : undefined;
 		}
 
-		if (this._subRef.value) {
+		if (this._subRef.value && this._subRef.value.sub.value !== undefined) {
 			const state = this._subRef.value.sub.value;
 			if (!state || state instanceof Error) {
 				return undefined;
@@ -1034,7 +1049,9 @@ export class AgentHostChatInputPicker extends Disposable {
 				values[key] = resolveConfigChipValue(isUntitledChatSession(sessionResource) && !hostOwnedAvailability, hostValues?.[key], overlay?.values[key], schemaSource.properties[key].default);
 			}
 			const bound = this._bindContext(property, schemaSource, values);
-			return bound ? { ...this._subRef.value, provider: state.provider, ...bound } : undefined;
+			if (!bound || !this._isChatConfigResolving(bound) || !isEqual(this._initialResolved?.sessionResource, sessionResource)) {
+				return bound ? { ...this._subRef.value, provider: state.provider, ...bound } : undefined;
+			}
 		}
 
 		if (this._initialResolved && this._initialResolved.sessionResource.toString() === sessionResource.toString()) {
@@ -1042,11 +1059,13 @@ export class AgentHostChatInputPicker extends Disposable {
 			if (!bound) {
 				return undefined;
 			}
-			const backendSession = toAgentHostBackendSessionUri(sessionResource, this._connectionsService);
-			if (!backendSession) {
+			const target = this._subRef.value;
+			const backendSession = target?.backendSession ?? toAgentHostBackendSessionUri(sessionResource, this._connectionsService);
+			const provider = getLocalAgentHostSessionProvider(sessionResource);
+			if (!backendSession || !provider) {
 				return undefined;
 			}
-			return { sessionResource, backendSession, connection: this._connectionsService.ambientConnection, generation: this._sessionGeneration, provider: backendSession.scheme, ...bound };
+			return { sessionResource, backendSession, connection: target?.connection ?? this._connectionsService.ambientConnection, generation: this._sessionGeneration, provider, ...bound };
 		}
 
 		return undefined;

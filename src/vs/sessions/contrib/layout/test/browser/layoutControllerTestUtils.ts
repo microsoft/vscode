@@ -22,6 +22,9 @@ import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/wo
 import { IViewContainerModel, IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { ICloseEditorOptions, IEditorGroup, IEditorGroupContextKeyProvider, IEditorGroupsService, IEditorReplacement, IEditorWorkingSet } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorsChangeEvent, IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { IResolvedUntitledTextEditorModel, IUntitledTextEditorModel } from '../../../../../workbench/services/untitled/common/untitledTextEditorModel.js';
+import { IUntitledTextEditorService } from '../../../../../workbench/services/untitled/common/untitledTextEditorService.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IPaneComposite } from '../../../../../workbench/common/panecomposite.js';
@@ -282,6 +285,9 @@ export interface ITestLayoutHarness {
 	/** Records every `applyWorkingSet` call made by the controller. */
 	applyWorkingSetCalls: (IEditorWorkingSet | 'empty')[];
 	saveWorkingSetCalls: string[];
+	/** Untitled editors bound to a file path and their text; reverting one removes it from the active group. */
+	untitledWithPath: { readonly resource: URI; readonly content: string }[];
+	revertedUntitledResources: URI[];
 	deleteWorkingSetCalls: string[];
 	workspaceFolders: { readonly uri: URI }[];
 	onDidChangeWorkspaceFolders: Emitter<void>;
@@ -407,6 +413,8 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		editorGroupsHaveContent: true,
 		applyWorkingSetCalls: [],
 		saveWorkingSetCalls: [],
+		untitledWithPath: [],
+		revertedUntitledResources: [],
 		deleteWorkingSetCalls: [],
 		workspaceFolders: options.workspaceFolders ? [...options.workspaceFolders] : [],
 		onDidChangeWorkspaceFolders: store.add(new Emitter<void>()),
@@ -839,6 +847,24 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		}
 		override deleteWorkingSet(workingSet: IEditorWorkingSet) {
 			harness.deleteWorkingSetCalls.push(workingSet.id);
+		}
+	});
+
+	instaService.stub(IUntitledTextEditorService, new class extends mock<IUntitledTextEditorService>() {
+		override isUntitledWithAssociatedResource(resource: URI) {
+			return harness.untitledWithPath.some(untitled => isEqual(untitled.resource, resource));
+		}
+		override get(resource: URI) {
+			const content = harness.untitledWithPath.find(untitled => isEqual(untitled.resource, resource))?.content ?? '';
+			return new class extends mock<IUntitledTextEditorModel>() {
+				override isResolved(): this is IResolvedUntitledTextEditorModel { return true; }
+				override get textEditorModel() { return new class extends mock<ITextModel>() { override getValueLength() { return content.length; } }(); }
+				override async revert() {
+					harness.revertedUntitledResources.push(resource);
+					harness.activeGroupEditors = harness.activeGroupEditors.filter(editor => !isEqual(editor.resource, resource));
+					harness.onDidEditorsChange.fire();
+				}
+			}();
 		}
 	});
 

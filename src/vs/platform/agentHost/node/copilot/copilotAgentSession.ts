@@ -39,7 +39,7 @@ import { ILogService, LogLevel } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
-import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
 import { logSettingExperimentTrigger } from '../../../telemetry/common/experimentTrigger.js';
 import { withCustomizationEnablement } from '../../common/customizationEnablement.js';
 import { isAutoModeRoutingTier, isSupportedAutoModeTier, type IAutoModeTierSupport } from '../../common/autoModeTiers.js';
@@ -323,6 +323,8 @@ const DEBUG_LOG_COLLECTION_RETRY_ATTEMPTS = 50;
 const DEBUG_LOG_COLLECTION_RETRY_DELAY_MS = 20;
 const EMPTY_TOOL_RESULT_TEXT = '<empty />';
 const MCP_ROUTING_PROXY_DESCRIPTION_MAX_LENGTH = 12_000;
+/** "Search again" replies a routing proxy gives per connection before reporting the server's tools as unavailable. */
+const MCP_ROUTING_MAX_CALLS_PER_CONNECTION = 2;
 const USER_DENIED_PERMISSION_RESULT = { kind: 'reject', feedback: 'The user denied permission.' } satisfies PermissionRequestResult;
 const ALLOW_SAMPLING_ALWAYS_OPTION_ID = 'allow-sampling-always';
 
@@ -1882,6 +1884,8 @@ export class CopilotAgentSession extends Disposable {
 	/** Contributions successfully applied to the SDK session. */
 	private _appliedSnapshot: IActiveClientSnapshot;
 	private _clientToolConfiguration: ICopilotClientToolConfiguration | undefined;
+	/** Whether the launched system message is eligible for the progress-update experiment, fixed with it at launch. */
+	private _progressUpdatesPromptEligible = false;
 	private _pendingClientToolReplacement: ICopilotClientToolReplacement | undefined;
 	private readonly _appliedPluginSources: ReadonlySet<string>;
 	private readonly _appliedPluginDirectories: readonly URI[];
@@ -2019,6 +2023,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _configuredMcpRoutingServers = new Map<string, ICopilotMcpRoutingServer>();
 	private readonly _mcpRoutingProxies = new Map<string, IMcpRoutingProxy>();
 	private readonly _mcpRoutingActivations = new Map<string, { readonly promise: Promise<void>; readonly cancellation: CancellationTokenSource }>();
+	/** Routing proxy calls per server on its current connection. */
+	private readonly _mcpRoutingConnectionCalls = new Map<string, number>();
 
 	/**
 	 * Fans MCP server notifications (today: `notifications/tools/list_changed`)
@@ -3780,6 +3786,38 @@ export class CopilotAgentSession extends Disposable {
 			this._reportToolApproval(toolCallId, record.toolName, record.mcpServerName);
 		}
 	}
+
+	/**
+	 * A background subagent can outlive or straddle root turns, so its invocation is attributed to its own chat,
+	 * the root turn it (or its spawning subagent) was invoked in, and the account captured at its start, never to
+	 * an unrelated current turn.
+	 */
+	private _reportSkillInvoked(e: SessionEventPayload<'skill.invoked'>): void {
+		const turn = this._currentTurn.value;
+		const base = {
+			provider: COPILOT_CLI_AGENT_PROVIDER_ID,
+			owner: this._ownerSessionUri.toString(),
+			sdkEventId: e.id,
+			trigger: e.data.trigger,
+			isSubagentInvocation: !!e.agentId,
+		};
+		if (!e.agentId) {
+			this._telemetryReporter.skillInvoked({ ...base, session: this._chatChannelUri.toString(), turnId: this._turnId, clientContext: turn?.clientContext, telemetryContext: turn?.telemetryContext });
+			return;
+		}
+		const childToolCallId = this._parentToolCallIdForSubagentEvent(e);
+		if (!childToolCallId) {
+			return;
+		}
+		const owningTurnId = this._subagents.getInvocationTurnId(childToolCallId);
+		this._telemetryReporter.skillInvoked({
+			...base,
+			session: this._subagentChatUri(childToolCallId),
+			turnId: owningTurnId,
+			clientContext: owningTurnId !== undefined && turn?.id === owningTurnId ? turn.clientContext : undefined,
+			telemetryContext: this._subagents.getAccountContext(childToolCallId),
+		});
+	}
 	private _toolSourceKindFor(toolName: string, mcpServerName: string | undefined): string {
 		if (mcpServerName) {
 			return 'mcp';
@@ -4236,9 +4274,18 @@ export class CopilotAgentSession extends Disposable {
 					try {
 						await this._activateMcpRoutingServer(server.serverName);
 						const liveTools = await this._refreshMcpToolRoutingCache(server.serverName);
+						const liveToolNames = JSON.stringify(liveTools.map(tool => tool.name));
+						// Once a server's tools are searchable, tool search stops offering this proxy, so repeated calls on
+						// one connection mean the tools never reached the session, e.g. a configured tool filter excludes them.
+						const calls = (this._mcpRoutingConnectionCalls.get(server.serverName) ?? 0) + 1;
+						this._mcpRoutingConnectionCalls.set(server.serverName, calls);
+						if (calls > MCP_ROUTING_MAX_CALLS_PER_CONNECTION) {
+							this._logService.warn(`[Copilot:${this.sessionId}] MCP routing proxy for '${server.serverName}' was called ${calls} times on one connection; its tools never became available, so its configured tool filter may exclude them`);
+							return this._toolSearchFailure(`The ${displayName} MCP server is connected and lists these tools: ${liveToolNames}, but they are still not available in this session, so searching again will not find them. The server's configuration likely restricts which tools are exposed, for example a "tools" allowlist naming tools the server no longer offers. Do not search for or call this server's tools again; tell the user to check its MCP configuration.`);
+						}
 						return {
 							resultType: 'success',
-							textResultForLlm: `The ${displayName} MCP server is connected. Search tools again to use one of its current tools: ${JSON.stringify(liveTools.map(tool => tool.name))}`,
+							textResultForLlm: `The ${displayName} MCP server is connected. Search tools again to use one of its current tools: ${liveToolNames}`,
 						};
 					} catch (error) {
 						const message = getErrorMessage(error);
@@ -5342,6 +5389,7 @@ export class CopilotAgentSession extends Disposable {
 			}, false, 'unsandboxed-command-confirmation'),
 			createClientSdkTools: (toolSearchActive, hostToolNames, withheldToolNames) => this._createClientSdkTools(toolSearchActive, hostToolNames, withheldToolNames),
 			configureClientTools: configuration => { this._clientToolConfiguration = configuration; },
+			setProgressUpdatesPromptEligible: eligible => { this._progressUpdatesPromptEligible = eligible; },
 			createServerSdkTools: toolSearchActive => this._createServerSdkTools(toolSearchActive),
 			createComputerUseActivationTools: () => this._computerUseActivation.createTools(),
 			reloadExtensions: () => this.reloadExtensions(),
@@ -8162,7 +8210,9 @@ export class CopilotAgentSession extends Disposable {
 			? CopilotCliConfigKey.ExecutionSubagentDefaultControlled
 			: settingId === AgentHostCopilotExecutionSubagentModelSettingId
 				? CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled
-				: undefined;
+				: settingId === AgentHostCopilotProgressUpdatesPromptSettingId
+					? CopilotCliConfigKey.ProgressUpdatesPromptDefaultControlled
+					: undefined;
 		if (defaultControlledKey !== undefined && this._configurationService.getRootValue(copilotCliConfigSchema, defaultControlledKey) !== true) {
 			this._pendingSettingExperimentTriggers.delete(settingId);
 			return;
@@ -9379,9 +9429,9 @@ export class CopilotAgentSession extends Disposable {
 			// describe a subagent's model call, so subagent messages (mapped or dropped) are skipped.
 			if (!e.agentId && isModelResponse) {
 				const clientType = this._currentTurn.value?.clientType ?? AgentHostClientType.Unknown;
-				void this._telemetryReporter.assistantMessageReceived(this.resourceUri.toString(), this._chatChannelUri.toString(), clientType, e.data.clientRequestId, this._appliedSnapshot.tools).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
+				void this._telemetryReporter.assistantMessageReceived(this.resourceUri.toString(), this._chatChannelUri.toString(), clientType, e.data.clientRequestId, this._appliedSnapshot.tools, wrapper.sessionId).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
 				// Restricted `conversation.messageText` (source=model): the model's raw response text.
-				void this._telemetryReporter.modelMessageText(this.resourceUri.toString(), this._chatChannelUri.toString(), clientType, e.data.content, this._turnOrdinal, e.data.clientRequestId).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
+				void this._telemetryReporter.modelMessageText(this.resourceUri.toString(), this._chatChannelUri.toString(), clientType, e.data.content, this._turnOrdinal, e.data.clientRequestId, wrapper.sessionId).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
 				// Accumulate the per-turn tool-call aggregate for the restricted `toolCallDetails` event.
 				// Every main-agent `assistant.message` is one model-call round (matches the extension's
 				// `numRequests = toolCallRounds.length`, which counts the final tool-free response round
@@ -10196,6 +10246,7 @@ export class CopilotAgentSession extends Disposable {
 			if (this._shouldDropUnmappedSubagentEvent(e, 'skill.invoked')) {
 				return;
 			}
+			this._reportSkillInvoked(e);
 			// Restricted `skillContentRead`: which skill file was loaded. Main-agent only, like the other restricted events.
 			if (!e.agentId) {
 				this._telemetryReporter.skillContentRead({
@@ -11116,6 +11167,7 @@ export class CopilotAgentSession extends Disposable {
 	private _noteMcpSdkStatus(serverName: string, status: SdkMcpServerStatus): void {
 		if (this._mcpSdkStatus.get(serverName) === 'connected' && status !== 'connected') {
 			this._mcpToolsLoaded.delete(serverName);
+			this._mcpRoutingConnectionCalls.delete(serverName);
 		}
 		this._mcpSdkStatus.set(serverName, status);
 	}
@@ -12308,7 +12360,7 @@ export class CopilotAgentSession extends Disposable {
 			// matching `isSyntheticUserMessage`) and provider-initiated root requests so generated
 			// extension prompts are not reported as the user's text.
 			if (!e.agentId && !this._currentTurn.value?.providerInitiated && (!e.data.source || e.data.source.toLowerCase() === 'user')) {
-				void this._telemetryReporter.userMessageText(this.resourceUri.toString(), this._chatChannelUri.toString(), this._currentTurn.value?.clientType ?? AgentHostClientType.Unknown, e.data.content, this._turnOrdinal).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
+				void this._telemetryReporter.userMessageText(this.resourceUri.toString(), this._chatChannelUri.toString(), this._currentTurn.value?.clientType ?? AgentHostClientType.Unknown, e.data.content, this._turnOrdinal, wrapper.sessionId).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
 			}
 		}));
 
@@ -12348,6 +12400,10 @@ export class CopilotAgentSession extends Disposable {
 					// setting experiments without excluding unavailable-model treatments.
 					this._reportSettingExperimentTrigger(AgentHostCopilotExecutionSubagentEnabledSettingId);
 					this._reportSettingExperimentTrigger(AgentHostCopilotExecutionSubagentModelSettingId);
+					// The launched system message decides whether the progress-update arms diverge.
+					if (this._progressUpdatesPromptEligible) {
+						this._reportSettingExperimentTrigger(AgentHostCopilotProgressUpdatesPromptSettingId);
+					}
 					this._currentTurn.value.activeSdkTurnId = e.data.turnId;
 					this._currentTurn.value.sdkTurnIds.add(e.data.turnId);
 					this._hasFusionRootTurnBoundary = true;

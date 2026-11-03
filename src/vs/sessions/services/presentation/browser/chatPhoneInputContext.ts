@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IChatPhoneInputSessionContext } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IChatPhoneInputSessionContext } from '../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
+import { IActiveSession } from '../../sessions/common/sessionsManagement.js';
 
 export interface IChatPhoneInputTarget {
 	readonly providerId: string;
