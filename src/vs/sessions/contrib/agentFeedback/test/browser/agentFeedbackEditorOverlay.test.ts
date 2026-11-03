@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { EditorGroupView } from '../../../../../workbench/browser/parts/editor/editorGroupView.js';
+import { ViewEditorInput } from '../../../../../workbench/browser/parts/editor/viewEditorInput.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { createEditorParts, registerTestEditor, TestFileEditorInput, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -119,11 +120,18 @@ suite('AgentFeedbackEditorOverlay', () => {
 		const mainFile = disposables.add(new TestFileEditorInput(URI.file('/main.ts'), 'agentFeedbackOverlayInput'));
 		const windowFile = disposables.add(new TestFileEditorInput(URI.file('/window.ts'), 'agentFeedbackOverlayInput'));
 		groupNames.set('/main.ts', 'main window').set('/window.ts', 'chat window');
+		// The chat of the window, a view shown as an editor, in a part of its own: its resource is the chat's, not a file.
+		const chatPart = editorParts.createEditorPart({ container: document.createElement('div'), services: new ServiceCollection([ISessionScope, windowScope]) });
+		disposables.add({ dispose: () => chatPart.close() });
+		chatPart.layout(400, 600, 0, 0);
+		const chatView = disposables.add(new ViewEditorInput('sessions.chat', URI.parse('test-chat:/b')));
+		groupNames.set('/b', 'chat view');
 		await editorParts.testMainPart.activeGroup.openEditor(mainFile, { pinned: true });
 		await windowPart.activeGroup.openEditor(windowFile, { pinned: true });
+		await chatPart.activeGroup.openEditor(chatView, { pinned: true });
 
 		const seen = (name: string) => [...new Set(lookups.filter(lookup => lookup.group === name).map(lookup => lookup.hostSession ?? 'none'))];
-		assert.deepStrictEqual({ mainWindow: seen('main window'), chatWindow: seen('chat window') }, { mainWindow: ['none'], chatWindow: ['b'] });
+		assert.deepStrictEqual({ mainWindow: seen('main window'), chatWindow: seen('chat window'), chatView: seen('chat view'), chatViewCandidates: getAgentFeedbackOverlayResourceCandidates(chatView) }, { mainWindow: ['none'], chatWindow: ['b'], chatView: [], chatViewCandidates: [] });
 	});
 
 	test('hides the overlay for the empty Files editor', () => {

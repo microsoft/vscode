@@ -11,6 +11,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { EditorGroupView } from '../../../../workbench/browser/parts/editor/editorGroupView.js';
+import { ViewEditorInput } from '../../../../workbench/browser/parts/editor/viewEditorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { AgentEditorCommentsOverlayWidget } from '../../../../workbench/services/agentEditorComments/browser/agentEditorCommentsOverlayWidget.js';
 import { IAgentFeedbackService, shouldIncludeRawPRReviewComments } from './agentFeedbackService.js';
@@ -28,8 +29,12 @@ export interface IAgentFeedbackOverlayEditorGroup extends IEditorGroup {
 	readonly editorPaneContainer: HTMLElement;
 }
 
+/**
+ * The files whose feedback the overlay of an editor shows: none for an editor that shows no file, such as the empty
+ * Files editor, or a view shown as an editor, such as the chat of a chat window, which is a view of the main window.
+ */
 export function getAgentFeedbackOverlayResourceCandidates(input: Parameters<typeof getActiveResourceCandidates>[0]): ReturnType<typeof getActiveResourceCandidates> {
-	return input instanceof EmptyFileEditorInput ? [] : getActiveResourceCandidates(input);
+	return input instanceof EmptyFileEditorInput || input instanceof ViewEditorInput ? [] : getActiveResourceCandidates(input);
 }
 
 export class AgentFeedbackOverlayController {
