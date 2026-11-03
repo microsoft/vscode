@@ -34,7 +34,7 @@ import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliCo
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { projectCopilotSandboxPolicy } from './copilotSandboxPolicy.js';
-import { defaultAutoModeTier, getSupportedAutoModeTiers, isAutoAdvertisedAsFusion, isSupportedAutoModeTier, normalizeAutoModeTier } from '../../common/autoModeTiers.js';
+import { defaultAutoModeTier, getAdvertisedAutoModeTierSupport, getSupportedAutoModeTiers, isAutoAdvertisedAsFusion, isSupportedAutoModeTier, normalizeAutoModeTier, type IAutoModeTierSupport } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import type { AgentCustomization, ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
 import { ContextSizeConfigKey } from '../../common/agentModelConfiguration.js';
@@ -59,6 +59,7 @@ import { COPILOT_DEFAULT_AVAILABLE_TOOLS } from './copilotBuiltinToolAllowlist.j
 import './prompts/allPrompts.js';
 import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
 import { applyPromptOverridesFromString, resolveConfiguredPromptOverride } from './prompts/promptOverride.js';
+import { isProgressUpdatesPromptModel } from './prompts/progressUpdatesInstructions.js';
 import { describeSystemMessageConfig, fullSystemPrompt } from './prompts/systemMessage.js';
 import type { SandboxConfig } from './sandboxConfigForSdk.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
@@ -373,6 +374,12 @@ export interface ICopilotSessionRuntime {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	createClientSdkTools(toolSearchActive: boolean, hostToolNames?: ReadonlySet<string>, withheldToolNames?: ReadonlySet<string>): Tool<any>[];
 	configureClientTools?(configuration: ICopilotClientToolConfiguration): void;
+	/**
+	 * Whether the system message this launch resolved gets the progress-update guidance when its experiment
+	 * enables it: the family-aliased model is GPT or Auto, and no prompt override replaces the registry.
+	 * Independent of the experiment arm, so both arms report the same exposure.
+	 */
+	setProgressUpdatesPromptEligible?(eligible: boolean): void;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	createServerSdkTools(toolSearchActive?: boolean): Tool<any>[];
 	/** Tools that let the agent ask the user to turn on Computer Use; empty unless the runtime has it and it is off. */
@@ -446,6 +453,8 @@ interface ICopilotSessionLaunchBase {
 	readonly localModelProvider?: ILocalModelProvider;
 	readonly availableModels?: () => readonly IAgentModelInfo[];
 	readonly modelPolicyModels?: () => readonly IAgentModelInfo[];
+	/** The Auto tiers this chat's catalog accepts: a scoped caller's own catalog, else the host-wide one. */
+	readonly autoTierSupport?: () => IAutoModeTierSupport;
 	readonly managedSettingsResolver?: CopilotManagedSettingsResolver;
 
 	/**
@@ -698,18 +707,19 @@ export function getCopilotContextTier(model: ModelSelection | undefined, longCon
 }
 
 /**
- * The Auto routing preference ("Optimize for"). Profiles left on concrete models are ignored.
+ * The Auto routing preference ("Optimize for"), when the chat's catalog offers that tier or its tiers are not known yet,
+ * in which case the runtime validates it. Profiles left on concrete models are ignored.
  */
-export function getCopilotAutoTier(model: ModelSelection | undefined): string | undefined {
+export function getCopilotAutoTier(model: ModelSelection | undefined, support = getAdvertisedAutoModeTierSupport()): string | undefined {
 	if (!isAutoModel(model?.id)) {
 		return undefined;
 	}
 	const tier = normalizeAutoModeTier(model?.config?.[AutoTierConfigKey] ?? model?.config?.[CopilotAutoTierConfigKey]);
-	return isSupportedAutoModeTier(tier) ? tier : undefined;
+	return isSupportedAutoModeTier(tier, support) ? tier : undefined;
 }
 
 /** Resolves the shared Auto override, leaving concrete models unchanged. `null` applies the override by leaving the tier to the runtime. */
-function resolveConfiguredAutoTierOverride(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): string | null | undefined {
+function resolveConfiguredAutoTierOverride(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string, support: IAutoModeTierSupport): string | null | undefined {
 	if (model && !isAutoModel(model.id)) {
 		return undefined;
 	}
@@ -718,20 +728,20 @@ function resolveConfiguredAutoTierOverride(model: ModelSelection | undefined, co
 		return undefined;
 	}
 	const tier = normalizeAutoModeTier(override);
-	if (!isSupportedAutoModeTier(tier)) {
-		logService.warn(`[Copilot:${sessionId}] Ignoring unsupported Auto "Optimize for" override '${override}'; expected one of [${getSupportedAutoModeTiers().join(', ')}]`);
+	if (!isSupportedAutoModeTier(tier, support)) {
+		logService.warn(`[Copilot:${sessionId}] Ignoring unsupported Auto "Optimize for" override '${override}'; expected one of [${getSupportedAutoModeTiers(support).join(', ')}]`);
 		return undefined;
 	}
 	logService.info(`[Copilot:${sessionId}] Applying Auto "Optimize for" override '${tier}'`);
-	return toFusionTier(tier, logService, sessionId) ?? null;
+	return toFusionTier(tier, logService, sessionId, support) ?? null;
 }
 
 /** Fusion offers no Efficiency, so it runs as Fusion's default instead, when the provider accepts it. */
-function toFusionTier(tier: string, logService: ILogService, sessionId: string): string | undefined {
-	if (tier !== 'efficiency' || !isAutoAdvertisedAsFusion()) {
+function toFusionTier(tier: string, logService: ILogService, sessionId: string, support: IAutoModeTierSupport): string | undefined {
+	if (tier !== 'efficiency' || !isAutoAdvertisedAsFusion(support)) {
 		return tier;
 	}
-	if (!isSupportedAutoModeTier(defaultAutoModeTier)) {
+	if (!isSupportedAutoModeTier(defaultAutoModeTier, support)) {
 		logService.info(`[Copilot:${sessionId}] Leaving Auto "Optimize for" '${tier}' to the runtime's default, since Fusion offers no Efficiency and the provider does not accept '${defaultAutoModeTier}'`);
 		return undefined;
 	}
@@ -750,18 +760,18 @@ const InlineChatFusionAutoTier = 'fast';
  * provider does not accept the tier. Advertised on Fusion's model, so clients hide its effort level in
  * inline chat only while the host pins it.
  */
-export function getInlineChatFusionAutoTier(): string | undefined {
-	return isAutoAdvertisedAsFusion() && isSupportedAutoModeTier(InlineChatFusionAutoTier) ? InlineChatFusionAutoTier : undefined;
+export function getInlineChatFusionAutoTier(support = getAdvertisedAutoModeTierSupport()): string | undefined {
+	return isAutoAdvertisedAsFusion(support) && isSupportedAutoModeTier(InlineChatFusionAutoTier, support) ? InlineChatFusionAutoTier : undefined;
 }
 
 /** Fusion's tier for inline chat, or `undefined` when the model is not Fusion or the provider does not accept the tier. */
-function resolveInlineChatFusionAutoTier(model: ModelSelection | undefined, logService: ILogService, sessionId: string): string | undefined {
-	if (!isAutoModel(model?.id) || !isAutoAdvertisedAsFusion()) {
+function resolveInlineChatFusionAutoTier(model: ModelSelection | undefined, logService: ILogService, sessionId: string, support: IAutoModeTierSupport): string | undefined {
+	if (!isAutoModel(model?.id) || !isAutoAdvertisedAsFusion(support)) {
 		return undefined;
 	}
-	const tier = getInlineChatFusionAutoTier();
+	const tier = getInlineChatFusionAutoTier(support);
 	if (tier === undefined) {
-		logService.warn(`[Copilot:${sessionId}] Not pinning inline chat to Fusion's '${InlineChatFusionAutoTier}' tier, which the provider does not accept; expected one of [${getSupportedAutoModeTiers().join(', ')}]`);
+		logService.warn(`[Copilot:${sessionId}] Not pinning inline chat to Fusion's '${InlineChatFusionAutoTier}' tier, which the provider does not accept; expected one of [${getSupportedAutoModeTiers(support).join(', ')}]`);
 		return undefined;
 	}
 	logService.info(`[Copilot:${sessionId}] Using Fusion's '${tier}' tier for inline chat`);
@@ -772,29 +782,35 @@ function resolveInlineChatFusionAutoTier(model: ModelSelection | undefined, logS
  * Resolves the tiers that take precedence over the picker: the shared override, then inline chat's
  * Fusion tier. `null` applies the override by leaving the tier to the runtime.
  */
-function resolveForcedAutoTier(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string, isInlineChat: boolean): string | null | undefined {
-	const override = resolveConfiguredAutoTierOverride(model, configurationService, logService, sessionId);
+function resolveForcedAutoTier(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string, isInlineChat: boolean, support: IAutoModeTierSupport): string | null | undefined {
+	const override = resolveConfiguredAutoTierOverride(model, configurationService, logService, sessionId, support);
 	if (override !== undefined) {
 		return override;
 	}
-	return isInlineChat ? resolveInlineChatFusionAutoTier(model, logService, sessionId) : undefined;
+	return isInlineChat ? resolveInlineChatFusionAutoTier(model, logService, sessionId, support) : undefined;
 }
 
 /**
  * Resolves the shared override first, then inline chat's Fusion tier, then the picker preference.
  * `isInlineChat` is the launch's {@link ICopilotSessionLaunchBase.isInlineChatSurface}, set for editor and terminal inline chat.
+ * `support` is the chat's catalog's tiers: a scoped caller's own catalog, else the host-wide one.
  */
-export function resolveCopilotAutoTier(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string, isInlineChat = false): string | undefined {
-	const forced = resolveForcedAutoTier(model, configurationService, logService, sessionId, isInlineChat);
+export function resolveCopilotAutoTier(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string, isInlineChat = false, support = getAdvertisedAutoModeTierSupport()): string | undefined {
+	const forced = resolveForcedAutoTier(model, configurationService, logService, sessionId, isInlineChat, support);
 	if (forced !== undefined) {
 		return forced ?? undefined;
 	}
-	const tier = getCopilotAutoTier(model);
+	// Inline chat pins Fusion's fast tier, which needs the provider's tiers; until they are known, it runs at the runtime's
+	// default rather than at a deeper saved preference.
+	if (isInlineChat && !support.tiers) {
+		return undefined;
+	}
+	const tier = getCopilotAutoTier(model, support);
 	if (tier === undefined) {
 		return undefined;
 	}
 	logService.info(`[Copilot:${sessionId}] Using Auto "Optimize for" preference '${tier}'`);
-	return toFusionTier(tier, logService, sessionId);
+	return toFusionTier(tier, logService, sessionId, support);
 }
 
 /**
@@ -1032,26 +1048,6 @@ export function isCopilotSessionTelemetryEnabled(
 	return effectiveLevel >= TelemetryLevel.USAGE;
 }
 
-/** The HydraFusion features a session runs with. */
-export interface ICopilotHydraFusionConfig {
-	readonly enabled: boolean;
-	readonly v2: boolean;
-	/** The sticky-root hint, which only affects HydraFusion v2 plans. */
-	readonly multiRoot: boolean;
-}
-
-/**
- * The HydraFusion features the configuration turns on. Dynamic Auto tiers can offer HydraFusion and
- * HydraFusion Max as Fusion's tiers, so they turn on HydraFusion v2.
- */
-export function getCopilotHydraFusionConfig(configurationService: Pick<IAgentConfigurationService, 'getRootValue'>): ICopilotHydraFusionConfig {
-	const isOn = (key: CopilotCliConfigKey.DynamicAutoTiers | CopilotCliConfigKey.HydraFusion | CopilotCliConfigKey.HydraFusionV2 | CopilotCliConfigKey.HydraFusionMultiRoot) => configurationService.getRootValue(copilotCliConfigSchema, key) === true;
-	const dynamicAutoTiers = isOn(CopilotCliConfigKey.DynamicAutoTiers);
-	const enabled = dynamicAutoTiers || isOn(CopilotCliConfigKey.HydraFusion);
-	const v2 = enabled && (dynamicAutoTiers || isOn(CopilotCliConfigKey.HydraFusionV2));
-	return { enabled, v2, multiRoot: v2 && isOn(CopilotCliConfigKey.HydraFusionMultiRoot) };
-}
-
 export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	/**
@@ -1266,7 +1262,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			model: plan.model?.id,
 			reasoningEffort: resolveCopilotReasoningEffort(model, this._configurationService, this._logService, plan.sessionId),
 			contextTier: omittedContextDefault ? undefined : getCopilotContextTier(model, plan.longContextWindow, plan.freeLongContext),
-			...toSdkCapiSessionOptions(resolveCopilotAutoTier(model, this._configurationService, this._logService, plan.sessionId, plan.isInlineChatSurface === true)),
+			...toSdkCapiSessionOptions(resolveCopilotAutoTier(model, this._configurationService, this._logService, plan.sessionId, plan.isInlineChatSurface === true, plan.autoTierSupport?.())),
 			...(trustWorkingDirectory ? { trustWorkingDirectory } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		})));
@@ -1435,9 +1431,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
 		// renderer reports no BYOK models), merged into the returned config so both
 		// createSession and resumeSession advertise the models to the runtime.
-		const { enabled: hydraFusionEnabled, v2: hydraFusionV2Enabled, multiRoot: hydraFusionMultiRootEnabled } = getCopilotHydraFusionConfig(this._configurationService);
 		// Throwaway chat surfaces skip memory, like the other heavyweight features they omit.
-		const memoryEnabled = !plan.isEphemeral && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Memory) === true;
+		const memoryEnabled = !plan.isEphemeral;
 		const localMemoryEnabled = memoryEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalMemory) === true;
 		const searchSubagentEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SearchSubagent) === true;
 		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
@@ -1455,14 +1450,16 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// Always explicit so only the VS Code opt-in can switch the store.
 			[COPILOT_LOCAL_MEMORY_FEATURE_FLAG]: localMemoryEnabled,
 			...(copilotConnectorsEnabled ? { MANAGED_MCP_SERVERS: true } : {}),
-			...(hydraFusionEnabled ? { HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true, HYDRAFUSION_INTERRUPTED_COMMIT: true } : {}),
+			// Auto's service-provided tiers decide whether HydraFusion is offered, so the runtime always supports it,
+			// with v2 plans and the committed root reported to CAPI as `previous_turn` so it can keep the root model across turns.
+			HYDRAFUSION: true,
+			HYDRAFUSION_ROLLOUT: true,
+			HYDRAFUSION_INTERRUPTED_COMMIT: true,
 			// The runtime regroups the system prompt into global, repository and
 			// per-session cache blocks so a new session reuses the stable prefix.
 			...(stabilityOrderedPromptEnabled ? { STABILITY_ORDERED_SYSTEM_PROMPT_V2: true } : {}),
-			...(hydraFusionV2Enabled ? { HYDRAFUSION_PLAN_V2: true } : {}),
-			// The runtime reports the committed root to CAPI as `previous_turn` (plan v2 only),
-			// so CAPI can keep the same root model across turns.
-			...(hydraFusionMultiRootEnabled ? { HYDRAFUSION_STICKY_ROOT: true } : {}),
+			HYDRAFUSION_PLAN_V2: true,
+			HYDRAFUSION_STICKY_ROOT: true,
 		};
 		const enableCustomTerminalTool = process.platform !== 'win32' && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
 		let shellToolsPromise: ReturnType<typeof createShellTools> | Promise<[]> = Promise.resolve([]);
@@ -1628,6 +1625,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			},
 		});
 		const systemMessage = toolConfiguration.sessionConfig.systemMessage;
+		runtime.setProgressUpdatesPromptEligible?.(isProgressUpdatesPromptModel(effectiveModel) && applyToolOverrides([]).systemPrompt === undefined);
 		this._logService.info(`[Copilot:${plan.sessionId}] Resolved system message: ${describeSystemMessageConfig(systemMessage)}`);
 		const additionalDisabledMcpServers = plan.isEphemeral ? [
 			...plugins.flatMap(plugin => plugin.mcpServers.map(server => server.name)),
@@ -1673,7 +1671,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				enabled: this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGeneration) === true,
 				watermark: this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGenerationWatermark) === true,
 			},
-			...(hydraFusionEnabled ? { enableExperimentalMode: true } : {}),
+			// HydraFusion, which Auto's service-provided tiers can route to, needs experimental mode.
+			enableExperimentalMode: true,
 			interactiveUser: true,
 			featureFlags,
 			...toSdkExpAssignments(this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey]),
@@ -1682,7 +1681,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// while a resumed session keeps the effort the runtime journaled unless
 			// an override is configured (encoded like every other path).
 			...(plan.kind === 'resume' ? { reasoningEffort: toRuntimeReasoningEffort(model, resolveConfiguredReasoningEffortOverride(model, this._configurationService, this._logService, plan.sessionId)) } : {}),
-			...(plan.kind === 'resume' ? toSdkCapiSessionOptions(resolveForcedAutoTier(model, this._configurationService, this._logService, plan.sessionId, plan.isInlineChatSurface === true) ?? undefined) : {}),
+			...(plan.kind === 'resume' ? toSdkCapiSessionOptions(resolveForcedAutoTier(model, this._configurationService, this._logService, plan.sessionId, plan.isInlineChatSurface === true, plan.autoTierSupport?.() ?? getAdvertisedAutoModeTierSupport()) ?? undefined) : {}),
 			modelCapabilities,
 			enableMcpApps: true,
 			githubMcpToolConfig: { disableFormDeferral: true },
@@ -1716,7 +1715,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			additionalDirectories,
 			coauthorEnabled: this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.IncludeCoAuthoredBy),
 			largeOutput: {
-				maxSizeBytes: 8 * 1024,
+				// The SDK also uses this as `view`'s full-read limit, whose schema promises 20KB; lower values make `view` refuse ordinary files (#342977).
+				maxSizeBytes: 20 * 1024,
 			},
 			managedSettings: {
 				permissions: managedSettingsPermissions,

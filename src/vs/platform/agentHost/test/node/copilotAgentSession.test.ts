@@ -36,9 +36,9 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
-import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../../telemetry/common/gdprTypings.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
+import { CapturingTelemetryService as PlatformCapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, fixedChatOwnerRef, type IAgentChatOwnerRef, SubagentChatSignal, type AgentSignal, type IAgentActionSignal, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -122,7 +122,7 @@ import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from '
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpToolRoutingEnabledConfigKey } from '../../common/agentHostSchema.js';
-import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
@@ -1107,27 +1107,18 @@ class CapturingLogService extends NullLogService {
 	}
 }
 
-class CapturingTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
-	readonly telemetryLevel = TelemetryLevel.USAGE;
-	readonly sendErrorTelemetry = true;
-	readonly sessionId = 'sessionId';
-	readonly machineId = 'machineId';
-	readonly sqmId = 'sqmId';
-	readonly devDeviceId = 'devDeviceId';
-	readonly firstSessionDate = 'firstSessionDate';
-	readonly events: Array<{ eventName: string; data: unknown }> = [];
-
-	publicLog(): void { }
-	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
-		this.events.push({ eventName, data });
+class CapturingTelemetryService extends PlatformCapturingTelemetryService {
+	constructor() {
+		super({
+			captureErrors: true,
+			sendErrorTelemetry: true,
+			sessionId: 'sessionId',
+			machineId: 'machineId',
+			sqmId: 'sqmId',
+			devDeviceId: 'devDeviceId',
+			firstSessionDate: 'firstSessionDate',
+		});
 	}
-	publicLogError(): void { }
-	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
-		this.events.push({ eventName, data });
-	}
-	setExperimentProperty(): void { }
-	setCommonProperty(): void { }
 }
 
 // ---- Helpers ----------------------------------------------------------------
@@ -1326,6 +1317,15 @@ interface ITestSessionConfiguration {
 	setRootValue(key: string, value: unknown): void;
 	fireRootConfigChange(): void;
 	fireSessionConfigChange(config: Record<string, unknown>, session?: string): void;
+}
+
+/** The runtime execution-subagent experiment triggers, without those of other experiments that root turns also reach. */
+function executionTriggers(telemetryService: TestExperimentTriggerTelemetryService): string[] {
+	return telemetryService.triggers.filter(trigger => trigger === `config.${AgentHostCopilotExecutionSubagentEnabledSettingId}` || trigger === `config.${AgentHostCopilotExecutionSubagentModelSettingId}`);
+}
+
+function progressUpdatesTriggers(telemetryService: TestExperimentTriggerTelemetryService): string[] {
+	return telemetryService.triggers.filter(trigger => trigger === `config.${AgentHostCopilotProgressUpdatesPromptSettingId}`);
 }
 
 async function createAgentSession(disposables: DisposableStore, options?: {
@@ -2794,7 +2794,7 @@ suite('CopilotAgentSession', () => {
 			operations: rows.filter(row => row.kind === 'operation').map(row => row.name).sort(),
 			milestones: rows.filter(row => row.kind === 'milestone').map(row => row.name).sort(),
 		}, {
-			operations: ['attachments', 'execution', 'executionMarker', 'mcp', 'mcpList', 'mode', 'permission', 'permissionRpc', 'sandbox', 'sandboxDiagnostics', 'sandboxRpc', 'sdkSend', 'shell'],
+			operations: ['attachments', 'execution', 'executionMarker', 'mcp', 'mcpList', 'mode', 'permission', 'permissionOptions', 'permissionRpc', 'sandbox', 'sandboxDiagnostics', 'sandboxRpc', 'sdkSend', 'shell'],
 			milestones: ['sdkFirstEvent', 'sdkSend', 'sdkSendReturned', 'sdkText'],
 		});
 	});
@@ -10146,6 +10146,38 @@ suite('CopilotAgentSession', () => {
 	});
 
 	for (const parentEnded of [false, true]) {
+		test(`attributes background subagent skill invocations to the child after root ${parentEnded ? 'completion' : 'replacement'}`, async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const options = { telemetryService, telemetryContext: { copilotSku: 'sku-a' } };
+			const { session, mockSession } = await createAgentSession(disposables, options);
+			session.resetTurnState('turn-1');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+			options.telemetryContext = { copilotSku: 'sku-b' };
+			if (parentEnded) {
+				session.discardActiveTurn();
+			} else {
+				session.resetTurnState('turn-2', undefined, AgentHostClientType.EditorWindow);
+			}
+			mockSession.fire('skill.invoked', { name: 'commit', path: '/skills/commit/SKILL.md', content: '', trigger: 'agent-invoked' }, { id: 'skill-child', agentId: 'agent-1' });
+
+			const data = telemetryService.events.find(event => event.eventName === 'agentHost.skillInvoked')?.data as Record<string, unknown> | undefined;
+			assert.deepStrictEqual({
+				copilotSku: data?.copilotSku,
+				chatSessionId: data?.chatSessionId,
+				turnId: data?.turnId,
+				initiatorClientType: data?.initiatorClientType,
+				isSubagentInvocation: data?.isSubagentInvocation,
+			}, {
+				copilotSku: 'sku-a',
+				chatSessionId: getTelemetryChatSessionId(buildSubagentChatUri(session.ownerSessionUri.toString(), 'tc-subagent')),
+				turnId: 'turn-1',
+				initiatorClientType: undefined,
+				isSubagentInvocation: true,
+			});
+		});
+
 		test(`retains background subagent account telemetry after root ${parentEnded ? 'completion' : 'replacement'}`, async () => {
 			const telemetryService = new class extends CapturingTelemetryService {
 				override publicLog(eventName = '', data?: unknown): void {
@@ -10288,6 +10320,26 @@ suite('CopilotAgentSession', () => {
 			invalidated: { copilotSku: undefined, copilotTrackingId: undefined },
 			disposed: undefined,
 		});
+	});
+
+	test('attributes a nested subagent skill invocation to the turn its background parent was invoked in', async () => {
+		const telemetryService = new CapturingTelemetryService();
+		const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
+		session.resetTurnState('turn-1');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'parent-tool', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'parent-agent' });
+		session.resetTurnState('turn-2', undefined, AgentHostClientType.EditorWindow);
+		mockSession.fire('tool.execution_start', {
+			toolCallId: 'child-tool', toolName: 'task', arguments: { prompt: 'Explore more', agent_type: 'explore' },
+		} as SessionEventPayload<'tool.execution_start'>['data'], { agentId: 'parent-agent' });
+		mockSession.fire('subagent.started', {
+			toolCallId: 'child-tool', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore more',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'child-agent' });
+		mockSession.fire('skill.invoked', { name: 'commit', path: '/skills/commit/SKILL.md', content: '', trigger: 'agent-invoked' }, { id: 'nested-skill', agentId: 'child-agent' });
+
+		const data = telemetryService.events.find(event => event.eventName === 'agentHost.skillInvoked')?.data as Record<string, unknown> | undefined;
+		assert.deepStrictEqual({ turnId: data?.turnId, initiatorClientType: data?.initiatorClientType }, { turnId: 'turn-1', initiatorClientType: undefined });
 	});
 
 	test('nested subagents inherit the spawning child account context instead of the replacement root', async () => {
@@ -12242,7 +12294,7 @@ suite('CopilotAgentSession', () => {
 				enabledExperimentalMode: mockSession.experimentalModeUpdates.includes(true),
 			}, {
 				permissionModes: ['manual'],
-				enabledExperimentalMode: false,
+				enabledExperimentalMode: true,
 			});
 		});
 
@@ -12286,54 +12338,9 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
-		test('switching from Approve When Safe to Ask When Needed disables SDK experimental mode', async () => {
+		test('switching from Approve When Safe to Ask When Needed keeps SDK experimental mode enabled', async () => {
 			const configValues: Record<string, unknown> = { [SessionConfigKey.AutoApprove]: 'assisted' };
 			const { session, mockSession } = await createAgentSession(disposables, { configValues });
-
-			await session.syncPermissionMode('turn-start');
-			configValues[SessionConfigKey.AutoApprove] = 'default';
-			await session.syncPermissionMode('config-change');
-
-			assert.deepStrictEqual({
-				experimentalModeUpdates: mockSession.experimentalModeUpdates,
-				permissionModes: mockSession.permissionModeSetCalls,
-			}, {
-				experimentalModeUpdates: [true, false],
-				permissionModes: ['assisted', 'manual'],
-			});
-		});
-
-		test('HydraFusion keeps SDK experimental mode enabled when approval mode changes', async () => {
-			const configValues: Record<string, unknown> = { [SessionConfigKey.AutoApprove]: 'assisted' };
-			const { session, mockSession } = await createAgentSession(disposables, {
-				configValues,
-				rootValues: {
-					[CopilotCliConfigKey.HydraFusion]: true,
-				},
-			});
-
-			await session.syncPermissionMode('turn-start');
-			configValues[SessionConfigKey.AutoApprove] = 'default';
-			await session.syncPermissionMode('config-change');
-
-			assert.deepStrictEqual({
-				experimentalModeUpdates: mockSession.experimentalModeUpdates,
-				permissionModes: mockSession.permissionModeSetCalls,
-			}, {
-				experimentalModeUpdates: [true],
-				permissionModes: ['assisted', 'manual'],
-			});
-		});
-
-		test('dynamic Auto tiers keep SDK experimental mode enabled when HydraFusion is otherwise disabled', async () => {
-			const configValues: Record<string, unknown> = { [SessionConfigKey.AutoApprove]: 'assisted' };
-			const { session, mockSession } = await createAgentSession(disposables, {
-				configValues,
-				rootValues: {
-					[CopilotCliConfigKey.DynamicAutoTiers]: true,
-					[CopilotCliConfigKey.HydraFusion]: false,
-				},
-			});
 
 			await session.syncPermissionMode('turn-start');
 			configValues[SessionConfigKey.AutoApprove] = 'default';
@@ -13028,6 +13035,46 @@ suite('CopilotAgentSession', () => {
 			});
 			assert.deepStrictEqual({ before, queries, statuses, sends: mockSession.sendRequests }, {
 				before: false, queries: 1, statuses: ['notInstalled'], sends: [{ prompt: 'hello', attachments: undefined }],
+			});
+		});
+
+		test('sandbox certificate refresh bypasses cached status and publishes external trust changes and failures', async () => {
+			let installed = false;
+			let failed = false;
+			let checks = 0;
+			const sandboxCertificateRpc = new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() {
+				override checkRelevance = async () => true;
+				override checkInstallationSupport = async () => true;
+				override getStatus = async (): ReturnType<CopilotClient['rpc']['sandbox']['proxyCa']['getStatus']> => {
+					checks++;
+					if (failed) {
+						throw new Error('Check failed');
+					}
+					return { state: installed ? 'installed' : 'notInstalled', canInstall: true };
+				};
+			};
+			const { session, dispatchedActions } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { enabled: 'on' } },
+				sandboxCertificateRpc,
+			});
+			await session.refreshSandboxCertificate();
+			const chat = buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1').toString());
+			const statuses = () => dispatchedActions.flatMap(action => {
+				const status = action.type === ActionType.SessionMetaChanged ? readAgentSandboxCertificate(action, chat) : undefined;
+				return status ? [status] : [];
+			});
+			const initial = statuses().at(-1);
+			assert.ok(initial);
+			installed = true;
+			await session.refreshSandboxCertificate();
+			const cached = statuses().at(-1);
+			await session.refreshSandboxCertificate(initial.scopeId);
+			failed = true;
+			await assert.rejects(session.refreshSandboxCertificate(initial.scopeId), /Check failed/);
+			failed = false;
+			await session.refreshSandboxCertificate(initial.scopeId);
+			assert.deepStrictEqual({ cached, states: statuses().map(status => status.state), checks }, {
+				cached: initial, states: ['notInstalled', 'installed', 'error', 'installed'], checks: 4,
 			});
 		});
 
@@ -15899,7 +15946,7 @@ Use the attached image as context.
 				sendRequests: [],
 				sendMessagesRequests: [{ messages: [] }],
 				modeSetCalls: [{ mode: 'plan' }],
-				operations: ['execution', 'executionMarker', 'mcp', 'mcpList', 'mode', 'permission', 'permissionRpc', 'sandbox', 'sandboxDiagnostics', 'sandboxRpc', 'sdkSend', 'shell'],
+				operations: ['execution', 'executionMarker', 'mcp', 'mcpList', 'mode', 'permission', 'permissionOptions', 'permissionRpc', 'sandbox', 'sandboxDiagnostics', 'sandboxRpc', 'sdkSend', 'shell'],
 				milestones: ['sdkAssistantTurnStart', 'sdkFirstEvent', 'sdkSend', 'sdkSendReturned', 'sdkText'],
 			});
 		});
@@ -18400,6 +18447,37 @@ Use the attached image as context.
 			assert.strictEqual(ready?.toolInput, '{"skill":"plan"}');
 		});
 
+		test('does not report skill invocations from a subagent the host cannot map', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
+			session.resetTurnState('turn-skill');
+
+			mockSession.fire('skill.invoked', { name: 'commit', path: '/skills/commit/SKILL.md', content: '', trigger: 'agent-invoked' }, { id: 'unmapped-skill', agentId: 'unknown-agent' });
+
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.skillInvoked'), []);
+		});
+
+		test('skill invocations report their trigger with the SDK event id, scoped to the chat channel', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
+			const chatChannelUri = URI.parse(buildDefaultChatUri(sessionUri));
+			const { session, mockSession } = await createAgentSession(disposables, { telemetryService, sessionUri, chatChannelUri, resource: sessionUri });
+			session.resetTurnState('turn-skill');
+
+			mockSession.fire('skill.invoked', { name: 'commit', path: '/skills/commit/SKILL.md', content: '', trigger: 'agent-invoked' }, { id: 'skill-1' });
+			mockSession.fire('skill.invoked', { name: 'merge', path: '/skills/merge/SKILL.md', content: '', trigger: 'user-invoked' }, { id: 'skill-2' });
+
+			const chatSessionId = getTelemetryChatSessionId(chatChannelUri);
+			assert.notStrictEqual(chatSessionId, getTelemetryChatSessionId(sessionUri));
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.skillInvoked').map(event => {
+				const data = event.data as Record<string, unknown>;
+				return { sdkEventId: data.sdkEventId, turnId: data.turnId, trigger: data.trigger, isSubagentInvocation: data.isSubagentInvocation, chatSessionId: data.chatSessionId };
+			}), [
+				{ sdkEventId: 'skill-1', turnId: 'turn-skill', trigger: 'agent-invoked', isSubagentInvocation: false, chatSessionId },
+				{ sdkEventId: 'skill-2', turnId: 'turn-skill', trigger: 'user-invoked', isSubagentInvocation: false, chatSessionId },
+			]);
+		});
+
 		test('MCP permissions preserve the tool arguments for clients', async () => {
 			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables);
 			const args = { path: '/repo/image.png', query: 'theme' };
@@ -19856,7 +19934,7 @@ Use the attached image as context.
 			]);
 		});
 
-		test('tool_complete keeps a committed Auto tier only while the provider advertises it', async () => {
+		test('tool_complete keeps a committed Auto tier unless the provider\'s known tiers exclude it', async () => {
 			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
 				configureMockSession: mockSession => { mockSession.currentModel = { modelId: 'auto', autoTier: 'balance' }; },
 			});
@@ -19878,9 +19956,13 @@ Use the attached image as context.
 				setAdvertisedAutoModeTiers(['balance', 'hydrafusion']);
 				mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', autoTier: 'hydrafusion' });
 				await edit('advertised');
-				setAdvertisedAutoModeTiers(undefined);
+				setAdvertisedAutoModeTiers(['balance']);
 				mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', autoTier: 'hydrafusion' });
 				await edit('no-longer-advertised');
+				// Until the provider's tiers are known, the tier the runtime committed is the one it runs.
+				setAdvertisedAutoModeTiers(undefined);
+				mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', autoTier: 'hydrafusion' });
+				await edit('tiers-unknown');
 			} finally {
 				setAdvertisedAutoModeTiers(undefined);
 			}
@@ -19888,6 +19970,7 @@ Use the attached image as context.
 			assert.deepStrictEqual(taken, [
 				{ toolCallId: 'advertised', autoTier: 'hydrafusion' },
 				{ toolCallId: 'no-longer-advertised', autoTier: undefined },
+				{ toolCallId: 'tiers-unknown', autoTier: 'hydrafusion' },
 			]);
 		});
 
@@ -20541,7 +20624,7 @@ Use the attached image as context.
 			assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.SessionActivityChanged ? [action.activity] : []), [
 				'Preparing request',
 				'Fix-up pass running',
-				'Continuing the HydraFusion workflow...',
+				'Continuing the Copilot Fusion workflow...',
 				'Finishing request',
 				undefined,
 			]);
@@ -20573,28 +20656,6 @@ Use the attached image as context.
 				]);
 			});
 		}
-
-		test('reports the HydraFusion v2 experiment trigger when a route starts, in both arms', async () => {
-			const treatment = `config.${AgentHostHydraFusionEnabledSettingId}`;
-			const results: Record<string, { beforeRoute: readonly string[]; afterRoute: readonly string[] }> = {};
-			for (const v2 of [true, false]) {
-				const telemetryService = new TestExperimentTriggerTelemetryService();
-				const { session, mockSession } = await createAgentSession(disposables, {
-					telemetryService,
-					rootValues: { [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: v2, [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' },
-				});
-				session.resetTurnState('fusion-turn');
-				const beforeRoute = [...telemetryService.triggers];
-				mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
-				mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
-				results[v2 ? 'v2' : 'v1'] = { beforeRoute, afterRoute: telemetryService.triggers };
-			}
-
-			assert.deepStrictEqual(results, {
-				v2: { beforeRoute: [], afterRoute: [treatment] },
-				v1: { beforeRoute: [], afterRoute: [treatment] },
-			});
-		});
 
 		test('reports one agentHost.fusionPhaseCompleted per phase from the runtime phase record', async () => {
 			const telemetryService = new CapturingTelemetryService();
@@ -20708,10 +20769,10 @@ Use the attached image as context.
 				});
 				session.resetTurnState('execution-turn');
 				mockSession.fire('assistant.turn_start', { turnId: 'child-turn' }, { agentId: 'child' });
-				const beforeParentTurn = [...telemetryService.triggers];
+				const beforeParentTurn = executionTriggers(telemetryService);
 				mockSession.fire('assistant.turn_start', { turnId: 'parent-turn' });
 				mockSession.fire('assistant.turn_start', { turnId: 'parent-turn' });
-				results[name] = { beforeParentTurn, afterParentTurn: telemetryService.triggers };
+				results[name] = { beforeParentTurn, afterParentTurn: executionTriggers(telemetryService) };
 			}
 
 			const enabled = `config.${AgentHostCopilotExecutionSubagentEnabledSettingId}`;
@@ -20738,12 +20799,12 @@ Use the attached image as context.
 			});
 			session.resetTurnState('execution-turn');
 			mockSession.fire('assistant.turn_start', { turnId: 'parent-turn' });
-			const beforeContext = [...telemetryService.triggers];
+			const beforeContext = executionTriggers(telemetryService);
 			setRootValue(CopilotCliVSCodeAssignmentContextKey, 'assignment-context');
 			fireRootConfigChange();
 			await Promise.resolve();
 
-			assert.deepStrictEqual({ beforeContext, afterContext: telemetryService.triggers }, {
+			assert.deepStrictEqual({ beforeContext, afterContext: executionTriggers(telemetryService) }, {
 				beforeContext: [],
 				afterContext: [
 					`config.${AgentHostCopilotExecutionSubagentEnabledSettingId}`,
@@ -20773,7 +20834,7 @@ Use the attached image as context.
 				});
 				session.resetTurnState('execution-turn');
 				mockSession.fire('assistant.turn_start', { turnId: 'parent-turn' });
-				results[name] = [...telemetryService.triggers];
+				results[name] = executionTriggers(telemetryService);
 			}
 
 			const enabled = `config.${AgentHostCopilotExecutionSubagentEnabledSettingId}`;
@@ -20805,25 +20866,43 @@ Use the attached image as context.
 			fireRootConfigChange();
 			await Promise.resolve();
 
-			assert.deepStrictEqual(telemetryService.triggers, []);
+			assert.deepStrictEqual(executionTriggers(telemetryService), []);
 		});
 
-		test('holds the HydraFusion v2 experiment trigger until the assignment context arrives', async () => {
-			const telemetryService = new TestExperimentTriggerTelemetryService();
-			const { session, mockSession, setRootValue, fireRootConfigChange } = await createAgentSession(disposables, {
-				telemetryService,
-				rootValues: { [CopilotCliConfigKey.HydraFusion]: true },
-			});
-			session.resetTurnState('fusion-turn');
-			mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
-			const beforeContext = [...telemetryService.triggers];
-			setRootValue(CopilotCliVSCodeAssignmentContextKey, 'assignment-context');
-			fireRootConfigChange();
-			await timeout(0);
+		test('reports the progress-update prompt trigger in both arms at root turn start, for eligible launches whose setting follows the experiment', async () => {
+			const results: Record<string, { beforeRootTurn: readonly string[]; afterRootTurn: readonly string[] }> = {};
+			// Eligibility is the launcher's decision from the family-aliased model and any prompt override.
+			for (const [name, eligible, enabled, defaultControlled] of [
+				['control', true, false, true],
+				['treatment', true, true, true],
+				['ineligible launch', false, true, true],
+				['explicit user value', true, true, false],
+				['unknown provenance', true, false, undefined],
+			] as const) {
+				const telemetryService = new TestExperimentTriggerTelemetryService();
+				const { session, mockSession } = await createAgentSession(disposables, {
+					telemetryService,
+					duringLaunch: runtime => runtime.setProgressUpdatesPromptEligible?.(eligible),
+					rootValues: {
+						[CopilotCliConfigKey.ProgressUpdatesPrompt]: enabled,
+						[CopilotCliConfigKey.ProgressUpdatesPromptDefaultControlled]: defaultControlled,
+						[CopilotCliVSCodeAssignmentContextKey]: 'assignment-context',
+					},
+				});
+				session.resetTurnState('progress-turn');
+				mockSession.fire('assistant.turn_start', { turnId: 'child-turn' }, { agentId: 'child' });
+				const beforeRootTurn = progressUpdatesTriggers(telemetryService);
+				mockSession.fire('assistant.turn_start', { turnId: 'parent-turn' });
+				results[name] = { beforeRootTurn, afterRootTurn: progressUpdatesTriggers(telemetryService) };
+			}
 
-			assert.deepStrictEqual({ beforeContext, afterContext: telemetryService.triggers }, {
-				beforeContext: [],
-				afterContext: [`config.${AgentHostHydraFusionEnabledSettingId}`],
+			const trigger = `config.${AgentHostCopilotProgressUpdatesPromptSettingId}`;
+			assert.deepStrictEqual(results, {
+				control: { beforeRootTurn: [], afterRootTurn: [trigger] },
+				treatment: { beforeRootTurn: [], afterRootTurn: [trigger] },
+				'ineligible launch': { beforeRootTurn: [], afterRootTurn: [] },
+				'explicit user value': { beforeRootTurn: [], afterRootTurn: [] },
+				'unknown provenance': { beforeRootTurn: [], afterRootTurn: [] },
 			});
 		});
 
@@ -21080,10 +21159,10 @@ Use the attached image as context.
 				// A phase gets a child chat only once one of its events is routed to it.
 				subagentSignals: [],
 				activity: [
-					'Choosing a HydraFusion workflow...',
+					'Choosing a Copilot Fusion workflow...',
 					'Preparing the Cascade workflow...',
 					'Fix-up pass running',
-					'Continuing the HydraFusion workflow...',
+					'Continuing the Copilot Fusion workflow...',
 					undefined,
 				],
 				leaksPhaseContent: false,
@@ -21128,7 +21207,7 @@ Use the attached image as context.
 				{ action: ActionType.ChatToolCallComplete, status: ToolCallStatus.Completed, model: 'actual-model', progress: undefined },
 			]);
 			assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.SessionActivityChanged ? [action.activity] : []), [
-				'Fix-up pass running', 'Fix-up pass: running a tool', 'Fix-up pass running', 'Continuing the HydraFusion workflow...',
+				'Fix-up pass running', 'Fix-up pass: running a tool', 'Fix-up pass running', 'Continuing the Copilot Fusion workflow...',
 			]);
 		});
 
@@ -21220,7 +21299,7 @@ Use the attached image as context.
 			}
 			assert.deepStrictEqual(followUps, [2, 3].map(() => ({
 				statuses: ['selected'],
-				activity: ['Preparing the Cascade workflow...', 'Main pass running', 'Continuing the HydraFusion workflow...', undefined],
+				activity: ['Preparing the Cascade workflow...', 'Main pass running', 'Continuing the Copilot Fusion workflow...', undefined],
 				pendingEvents: 0,
 			})));
 		});
@@ -21403,8 +21482,8 @@ Use the attached image as context.
 					beforeBoundaryEvents: 0,
 					unownedEvents: 0,
 					lateEvents: 0,
-					activity: ['Choosing a HydraFusion workflow...', undefined],
-					fallbacks: [{ turnId: 'second', status: 'degraded', content: 'HydraFusion&nbsp;routing&nbsp;failed;&nbsp;continuing&nbsp;with&nbsp;model-a' }],
+					activity: ['Choosing a Copilot Fusion workflow...', undefined],
+					fallbacks: [{ turnId: 'second', status: 'degraded', content: 'Copilot&nbsp;Fusion&nbsp;routing&nbsp;failed;&nbsp;continuing&nbsp;with&nbsp;model-a' }],
 				});
 			});
 		}
@@ -27355,6 +27434,35 @@ Use the attached image as context.
 			}, {
 				starts: [],
 				resultType: 'success',
+			});
+		});
+
+		test('MCP routing stops the search loop when a connected server\'s tools never become available', async () => {
+			const routeThreeTimes = async (reconnectBeforeThirdCall: boolean) => {
+				const { session, runtime, mockSession } = await createMcpRoutingSession(true);
+				mockSession.mcpListToolsResult = { tools: [{ name: 'current_search' }] };
+				const [, proxy] = runtime.createClientSdkTools(true);
+				session.resetTurnState('turn-repeat-mcp-route');
+				const results = [await invokeClientToolHandler(proxy, 'first-route'), await invokeClientToolHandler(proxy, 'second-route')];
+				if (reconnectBeforeThirdCall) {
+					mockSession.fire('session.mcp_server_status_changed', { serverName: 'docs', status: 'pending' });
+					mockSession.fire('session.mcp_server_status_changed', { serverName: 'docs', status: 'connected' });
+				}
+				results.push(await invokeClientToolHandler(proxy, 'third-route'));
+				return results.map(result => ({
+					resultType: result.resultType,
+					stopsSearching: result.textResultForLlm.includes('searching again will not find them'),
+				}));
+			};
+			const searchAgain = { resultType: 'success', stopsSearching: false };
+
+			assert.deepStrictEqual({
+				sameConnection: await routeThreeTimes(false),
+				// A reconnect starts a new connection, whose tools may now be available.
+				reconnected: await routeThreeTimes(true),
+			}, {
+				sameConnection: [searchAgain, searchAgain, { resultType: 'failure', stopsSearching: true }],
+				reconnected: [searchAgain, searchAgain, searchAgain],
 			});
 		});
 
@@ -34046,7 +34154,7 @@ Use the attached image as context.
 
 	suite('restricted telemetry', () => {
 		test('uses the originating chat rather than the persistence resource for compatibility telemetry', async () => {
-			const sessionUri = AgentSession.uri('copilot', 'test-session-1');
+			const sessionUri = AgentSession.uri('copilot', 'host-session');
 			const peer = URI.parse(buildChatUri(sessionUri, 'peer'));
 			const cases = [
 				{ resource: sessionUri, chat: URI.parse(buildDefaultChatUri(sessionUri)) },
@@ -34076,19 +34184,21 @@ Use the attached image as context.
 				mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
 				await telemetrySent.p;
 
-				const correlation = { conversationId: AgentSession.id(resource), chatSessionId: getTelemetryChatSessionId(chat) };
+				const correlation = { conversationId: AgentSession.id(resource), chatSessionId: getTelemetryChatSessionId(chat), sdkSessionId: undefined };
+				const sdkCorrelation = { ...correlation, sdkSessionId: mockSession.sessionId };
 				assert.deepStrictEqual(telemetryService.events.map(event => ({
 					eventName: event.eventName,
 					destination: event.destination,
 					conversationId: event.properties?.conversationId,
 					chatSessionId: event.properties?.chatSessionId,
+					sdkSessionId: event.properties?.sdkSessionId,
 				})).sort((a, b) => `${a.eventName}:${a.destination}`.localeCompare(`${b.eventName}:${b.destination}`)), [
 					{ eventName: 'automode.routerDecisionRestricted', destination: 'enhanced', ...correlation },
-					{ eventName: 'conversation.messageText', destination: 'enhanced', ...correlation },
-					{ eventName: 'conversation.messageText', destination: 'enhanced', ...correlation },
-					{ eventName: 'conversation.messageText', destination: 'internal', ...correlation },
-					{ eventName: 'conversation.messageText', destination: 'internal', ...correlation },
-					{ eventName: 'request.options.tools', destination: 'enhanced', ...correlation },
+					{ eventName: 'conversation.messageText', destination: 'enhanced', ...sdkCorrelation },
+					{ eventName: 'conversation.messageText', destination: 'enhanced', ...sdkCorrelation },
+					{ eventName: 'conversation.messageText', destination: 'internal', ...sdkCorrelation },
+					{ eventName: 'conversation.messageText', destination: 'internal', ...sdkCorrelation },
+					{ eventName: 'request.options.tools', destination: 'enhanced', ...sdkCorrelation },
 					{ eventName: 'toolCallDetailsExternal', destination: 'enhanced', ...correlation, conversationId: AgentSession.id(sessionUri) },
 					{ eventName: 'toolCallDetailsInternal', destination: 'internal', ...correlation, conversationId: AgentSession.id(sessionUri) },
 				]);
@@ -34327,26 +34437,17 @@ Use the attached image as context.
 
 	suite('instructionsCollected telemetry', () => {
 
-		class CapturingTelemetryService implements ITelemetryService {
-			declare readonly _serviceBrand: undefined;
-			readonly telemetryLevel = TelemetryLevel.USAGE;
-			readonly sendErrorTelemetry = true;
-			readonly sessionId = 'sessionId';
-			readonly machineId = 'machineId';
-			readonly sqmId = 'sqmId';
-			readonly devDeviceId = 'devDeviceId';
-			readonly firstSessionDate = 'firstSessionDate';
-
-			readonly events: Array<{ eventName: string; data: unknown }> = [];
-
-			publicLog(): void { }
-			publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
-				this.events.push({ eventName, data });
+		class CapturingTelemetryService extends PlatformCapturingTelemetryService {
+			constructor() {
+				super({
+					sendErrorTelemetry: true,
+					sessionId: 'sessionId',
+					machineId: 'machineId',
+					sqmId: 'sqmId',
+					devDeviceId: 'devDeviceId',
+					firstSessionDate: 'firstSessionDate',
+				});
 			}
-			publicLogError(): void { }
-			publicLogError2(): void { }
-			setExperimentProperty(): void { }
-			setCommonProperty(): void { }
 		}
 
 		function fireUserMessage(mockSession: MockCopilotSession, overrides?: Partial<{ content: string; source: string }>) {

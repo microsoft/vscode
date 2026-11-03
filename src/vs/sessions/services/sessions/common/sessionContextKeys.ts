@@ -6,6 +6,7 @@
 import { IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { getCanvasReferenceKey } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import {
 	SessionHasChangesContext,
 	SessionHasCachedChangesContext,
@@ -36,6 +37,7 @@ import {
 	SessionActiveChatIsUntitledContext,
 	SessionActiveChatHasSideChatsContext,
 	SessionActiveChatResourceContext,
+	SessionActiveChatCanvasReferenceKeysContext,
 	SessionHasGitRepositoryContext,
 } from '../../../common/contextkeys.js';
 import { ChatOriginKind, getChatCapabilities, isActiveSessionStatus, isSideChatOf, ISession, SessionStatus } from './session.js';
@@ -75,6 +77,7 @@ interface ISessionContextKeys {
 	readonly activeChatIsDeletable: IContextKey<boolean>;
 	readonly activeChatIsUntitled: IContextKey<boolean>;
 	readonly activeChatResource: IContextKey<string>;
+	readonly activeChatCanvasReferenceKeys: IContextKey<string[]>;
 	readonly activeChatHasSideChats: IContextKey<boolean>;
 }
 
@@ -121,6 +124,7 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			activeChatIsDeletable: SessionActiveChatIsDeletableContext.bindTo(contextKeyService),
 			activeChatIsUntitled: SessionActiveChatIsUntitledContext.bindTo(contextKeyService),
 			activeChatResource: SessionActiveChatResourceContext.bindTo(contextKeyService),
+			activeChatCanvasReferenceKeys: SessionActiveChatCanvasReferenceKeysContext.bindTo(contextKeyService),
 			activeChatHasSideChats: SessionActiveChatHasSideChatsContext.bindTo(contextKeyService),
 		};
 		boundKeysByService.set(contextKeyService, keys);
@@ -241,6 +245,12 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 		const activeChat = session?.activeChat.read(reader);
 		const mainResource = session?.mainChat.read(reader).resource;
 		keys.activeChatResource.set(activeChat?.resource.toString() ?? '');
+		keys.activeChatCanvasReferenceKeys.set(activeChat && session ? (activeChat.canvases?.read(reader) ?? []).map(canvas => getCanvasReferenceKey({
+			providerId: session.providerId,
+			session: session.resource,
+			chat: activeChat.resource,
+			canvas: canvas.resource,
+		})) : []);
 		const isNonMainChat = !!activeChat && !!mainResource && !isEqual(mainResource, activeChat.resource);
 		keys.activeChatIsClosable.set(isNonMainChat);
 		keys.activeChatCanArchive.set(!!activeChat && !(activeChat.isArchived?.read(reader) ?? false) && getChatCapabilities(activeChat, session, reader).canArchive);

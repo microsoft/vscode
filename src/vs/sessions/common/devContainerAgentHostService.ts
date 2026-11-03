@@ -7,6 +7,7 @@ import { CancellationToken } from '../../base/common/cancellation.js';
 import { Event } from '../../base/common/event.js';
 import { IDisposable } from '../../base/common/lifecycle.js';
 import type { IAgentHostClientCertificatesProvider } from '../../platform/agentHost/common/clientCertificatesProtocol.js';
+import type { IAgentHostClientProxyProvider } from '../../platform/agentHost/common/clientProxyProtocol.js';
 import { URI } from '../../base/common/uri.js';
 import { IProtocolTransport } from '../../platform/agentHost/common/state/sessionTransport.js';
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
@@ -54,6 +55,7 @@ export interface IDevContainerAgentHostConnection {
 	readonly sandboxSupported?: boolean;
 	readonly defaultDirectory?: string;
 	readonly clientCertificates?: IAgentHostClientCertificatesProvider;
+	readonly clientProxy?: IAgentHostClientProxyProvider;
 }
 
 /** Creates a Dev Container and connects to its Agent Host. */
