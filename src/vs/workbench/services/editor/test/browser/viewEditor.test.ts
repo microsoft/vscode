@@ -341,11 +341,12 @@ suite('View Editors', () => {
 		});
 	});
 
-	test('an editor dropped on the edge of a part holding a view that handles drops splits the part; its center stays the view\'s', async () => {
+	test('an editor dropped on a part holding a view that handles drops, such as a chat, splits the part, also over the center: it goes into a new group with its own tab row, not behind the view', async () => {
 		const { parts, part } = await createServices();
 		await part.activeGroup.openEditor(createViewInput('test.titled', '/chat/a'));
 		disposables.add(registerContentDropTarget(views[0].element));
 		const group = groupViewOf(parts, part.activeGroup);
+		const titleShownIn = (view: IEditorGroupView) => view.element.querySelector<HTMLElement>(':scope > .title')!.style.display !== 'none' && !view.element.classList.contains('title-provided-by-editor');
 		// Where the view is in its group, which can be taller than the view, such as in a browser
 		const bounds = views[0].element.getBoundingClientRect();
 
@@ -358,15 +359,16 @@ suite('View Editors', () => {
 			return file;
 		};
 
-		const center = await dragFile('/center.txt', bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
-		const afterCenter = { groups: part.groups.length, inPart: part.groups.some(group => group.contains(center)) };
+		const center = await dragFile('/center.txt', bounds.left + bounds.width / 2 + 10, bounds.top + bounds.height / 2);
+		const newGroup = part.groups.find(other => other.id !== group.id && other.contains(center));
+		const afterCenter = { groups: part.groups.length, inNewGroup: !!newGroup, newGroupTitle: !!newGroup && titleShownIn(groupViewOf(parts, newGroup)), viewGroupTitleIsTheView: !titleShownIn(group) };
 
-		const edge = await dragFile('/edge.txt', bounds.left + bounds.width - 2, bounds.top + bounds.height / 2);
+		const edge = await dragFile('/edge.txt', bounds.left + 2, bounds.top + bounds.height / 2);
 		const afterEdge = { groups: part.groups.length, inNewGroup: part.groups.some(other => other.id !== group.id && other.contains(edge)), inMain: parts.mainPart.groups.some(group => group.contains(edge)) };
 
 		assert.deepStrictEqual({ afterCenter, afterEdge }, {
-			afterCenter: { groups: 1, inPart: false },
-			afterEdge: { groups: 2, inNewGroup: true, inMain: false }
+			afterCenter: { groups: 2, inNewGroup: true, newGroupTitle: true, viewGroupTitleIsTheView: true },
+			afterEdge: { groups: 3, inNewGroup: true, inMain: false }
 		});
 	});
 

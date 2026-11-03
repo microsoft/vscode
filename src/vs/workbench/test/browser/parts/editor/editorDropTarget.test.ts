@@ -184,35 +184,29 @@ suite('EditorDropTarget', () => {
 		});
 	});
 
-	test('over content that handles drops, editors get the edge zones of the group and the center stays the content\'s drop', () => {
-		const { groupElement, content: input, operations } = setup({ contentCoversGroup: true });
+	test('over content that handles drops, such as a chat, editors cannot go into the group: they split it on the side nearest to them, also over its center, and the input still takes them', () => {
+		const { groupElement, content, operations } = setup({ contentCoversGroup: true });
 
-		// The center of the input: no overlay
-		dispatch(input, 'dragenter', 150, 150);
-		dispatch(input, 'dragover', 150, 150);
-		const overlayOnCenter = !!getOverlay(groupElement);
+		// The center of the content, left of its middle: a split to the left
+		dispatch(content, 'dragenter', 140, 150);
+		dispatch(content, 'dragover', 140, 150);
+		const overlay = getOverlay(groupElement);
+		const indicator = overlay?.querySelector<HTMLElement>('.editor-group-overlay-indicator');
+		const onCenter = { overlay: !!overlay, width: indicator?.style.width, left: indicator?.style.left };
 
-		// Moving within the input onto its left edge shows the overlay
-		dispatch(input, 'dragover', 5, 150);
-		const overlayOnEdge = getOverlay(groupElement);
+		// Over the input, the input takes it
+		dispatch(overlay!, 'dragover', 150, 225);
+		const overlayOverInput = !!getOverlay(groupElement);
 
-		// Back to the center: the overlay goes away, a drop there is the input's
-		dispatch(overlayOnEdge!, 'dragover', 150, 150);
-		const overlayBackOnCenter = !!getOverlay(groupElement);
-		dispatch(input, 'drop', 150, 150);
+		// Back over the center, right of its middle: a drop there splits to the right
+		dispatch(content, 'dragenter', 160, 150);
+		dispatch(getOverlay(groupElement)!, 'dragover', 160, 150);
+		dispatch(getOverlay(groupElement)!, 'drop', 160, 150);
+		dispatch(groupElement, 'dragend', 160, 150);
 
-		// Entering at the right edge shows the overlay, a drop there splits
-		dispatch(input, 'dragenter', 295, 150);
-		const overlayOnEdgeEnter = getOverlay(groupElement);
-		dispatch(overlayOnEdgeEnter!, 'dragover', 295, 150);
-		dispatch(overlayOnEdgeEnter!, 'drop', 295, 150);
-		dispatch(groupElement, 'dragend', 295, 150);
-
-		assert.deepStrictEqual({ overlayOnCenter, overlayOnEdge: !!overlayOnEdge, overlayBackOnCenter, overlayOnEdgeEnter: !!overlayOnEdgeEnter, operations }, {
-			overlayOnCenter: false,
-			overlayOnEdge: true,
-			overlayBackOnCenter: false,
-			overlayOnEdgeEnter: true,
+		assert.deepStrictEqual({ onCenter, overlayOverInput, operations }, {
+			onCenter: { overlay: true, width: '50%', left: '0px' },
+			overlayOverInput: false,
 			operations: [`split ${GroupDirection.RIGHT}`, 'move 1 editor(s) to new group']
 		});
 	});
@@ -243,8 +237,9 @@ suite('EditorDropTarget', () => {
 		getOverlay(groupElement)!.dispatchEvent(dropOnEnter);
 		dispatch(groupElement, 'dragend', 295, 150);
 
+		// The content gets no drag of editors: they split the group, also over its center
 		assert.deepStrictEqual({ contentDragOvers, shown, taken: [drop.defaultPrevented, dropOnEnter.defaultPrevented], overlayAfter: !!getOverlay(groupElement), operations }, {
-			contentDragOvers: [150],
+			contentDragOvers: [],
 			shown: { width: '50%', height: '100%' },
 			taken: [true, true],
 			overlayAfter: false,
@@ -284,8 +279,9 @@ suite('EditorDropTarget', () => {
 		dispatch(other, 'drop', 400, 100);
 		dispatch(groupElement, 'dragend', 400, 100);
 
+		// Editors split the group, so the content shows no drop feedback for them, but it gets their leave
 		assert.deepStrictEqual({ feedback, overlayAfter: !!getOverlay(groupElement), operations }, {
-			feedback: ['show', 'hide', 'show', 'hide'],
+			feedback: ['hide', 'hide'],
 			overlayAfter: false,
 			operations: []
 		});
