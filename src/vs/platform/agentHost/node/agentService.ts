@@ -10442,10 +10442,15 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!canContinue) {
 			return 'other';
 		}
-		const sessionState = this._stateManager.getSessionState(session.toString());
-		const chatStatus = this._stateManager.getChatState(chat.toString())?.status
-			?? sessionState?.chats.find(candidate => candidate.resource === chat.toString())?.status;
-		return isSessionStatusArchived(sessionState?.status) || isSessionStatusArchived(chatStatus) ? 'archived' : 'idle';
+		return this._isChatArchived(session.toString(), chat.toString()) ? 'archived' : 'idle';
+	}
+
+	/** Whether the chat or its owning session is archived, as the host state records it. */
+	private _isChatArchived(session: string, chat: string): boolean {
+		const sessionState = this._stateManager.getSessionState(session);
+		const chatStatus = this._stateManager.getChatState(chat)?.status
+			?? sessionState?.chats.find(candidate => candidate.resource === chat)?.status;
+		return isSessionStatusArchived(sessionState?.status) || isSessionStatusArchived(chatStatus);
 	}
 
 	/**
@@ -11801,6 +11806,10 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			const canvases = provider.watchChatCanvases?.(chat, {
 				published: () => this._stateManager.getChatState(chat.toString())?.canvases?.map(canvas => canvas.resource),
+				isArchived: () => {
+					const currentOwner = this._chatOwnership.getChatOwner(chat.toString());
+					return currentOwner !== undefined && this._isChatArchived(currentOwner, chat.toString());
+				},
 				resolveContext: async () => {
 					while (true) {
 						const owner = this._chatOwnership.requireChatOwner(chat.toString());

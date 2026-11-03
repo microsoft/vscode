@@ -72,6 +72,7 @@ import { isAgentModelFusion, readAgentModelAutoTierPromotionsMeta, readAgentMode
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { buildAgentHostOTelEnv } from '../../common/agentService.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { buildCanvasUri } from '../../common/canvasUri.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -8293,6 +8294,150 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		async function settleCanvasContinuity(agent: CopilotAgent, chat: URI): Promise<void> {
+			await (agent as unknown as { _canvasContinuityStorage: { queue(key: string, task: () => Promise<void>): Promise<void> } })._canvasContinuityStorage.queue(chat.toString(), async () => { });
+		}
+
+		async function readCanvasContinuity(sessionDataService: TestSessionDataService, storage: URI): Promise<unknown> {
+			const raw = await sessionDataService.openDatabase(storage).object.getMetadata('copilot.canvasContinuity');
+			return raw === undefined ? undefined : JSON.parse(raw);
+		}
+
+		function canvasStates(signals: readonly AgentSignal[]): Extract<AgentSignal, { kind: 'canvas' }>[] {
+			return signals.filter((signal): signal is Extract<AgentSignal, { kind: 'canvas' }> => signal.kind === 'canvas');
+		}
+
+		/** Opens one canvas in a fresh chat of a first host process, then shuts that process down. */
+		async function openCanvasBeforeRestart(sessionDataService: TestSessionDataService, session: URI, canvas: { readonly instanceId: string; readonly canvasId: string; readonly extensionId: string; readonly title: string; readonly url: string }) {
+			const directory = URI.file(process.cwd());
+			const chat = defaultChatUri(session);
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'sponsor', expiresAt: undefined, revision: 1 }) };
+			const context = { ...exactChatContext(session, chat, session), credentials };
+			const first = setup(sessionDataService, [], [], { [AgentHostCanvasesEnabledConfigKey]: true });
+			const signals: AgentSignal[] = [];
+			const listener = first.agent.onDidChatProgress(signal => signals.push(signal));
+			try {
+				const created = await provisionSession(first.agent, { session, credentials, workingDirectories: [directory] });
+				await first.agent.chats.prepareTurn!(chat, 'first-turn', [directory], context);
+				await first.agent.chats.sendMessage(chat, 'Open the canvas', [directory], undefined, 'first-turn', undefined, context);
+				const runtime = first.launches[0].runtime;
+				runtime.openCanvases.push(canvas);
+				runtime.emit({ id: 'canvas-open', timestamp: '2026-01-01T00:00:00Z', parentId: null, ephemeral: true, type: 'session.canvas.opened', data: canvas });
+				const resource = canvasStates(signals)[0]?.resource;
+				assert.ok(resource);
+				await settleCanvasContinuity(first.agent, chat);
+				return { first, chat, context, directory, resource, providerData: created.providerData, sdkSessionId: first.launches[0].sessionId, runtime };
+			} finally {
+				listener.dispose();
+			}
+		}
+
+		for (const trigger of ['observation', 'send'] as const) {
+			test(`restores canvases persisted by an earlier host process on ${trigger}`, async () => {
+				const initialCanvas = { instanceId: 'preview-instance', canvasId: 'preview', extensionId: 'project:preview', title: 'Preview', url: 'https://example.test/initial' };
+				const restoredCanvas = { ...initialCanvas, url: 'https://example.test/restored' };
+				const sessionDataService = disposables.add(new TestSessionDataService());
+				const session = AgentSession.uri('copilotcli', `canvas-restart-${trigger}`);
+				const { first, chat, context, directory, resource, providerData, sdkSessionId } = await openCanvasBeforeRestart(sessionDataService, session, initialCanvas);
+				await disposeAgent(first.agent);
+				const persisted = await readCanvasContinuity(sessionDataService, session);
+
+				const resumed: MockCopilotSession[] = [];
+				const second = setup(sessionDataService, [], [], { [AgentHostCanvasesEnabledConfigKey]: true }, {
+					onClientCreated: client => {
+						client.resumeSession = async sessionId => {
+							const runtime = new MockCopilotSession(sessionId);
+							Object.assign(runtime.rpc, { sendMessages: async () => { runtime.sendCalls++; return {}; } });
+							runtime.openCanvases.push(restoredCanvas);
+							resumed.push(runtime);
+							return runtime as unknown as CopilotSession;
+						};
+					},
+				});
+				afterTest(() => disposeAgent(second.agent));
+				const signals: AgentSignal[] = [];
+				disposables.add(second.agent.onDidChatProgress(signal => signals.push(signal)));
+				await second.agent.materializeChat(chat, context, providerData);
+				if (trigger === 'observation') {
+					const watch = second.agent.watchChatCanvases(chat, { published: () => [], resolveContext: async () => context });
+					await (second.agent as unknown as { _canvasContinuityLoads: Map<string, Promise<void>> })._canvasContinuityLoads.get(chat.toString());
+					const restoration = (second.agent as unknown as { _canvasRestores: { get(chat: URI): Promise<void> | undefined } })._canvasRestores.get(chat);
+					assert.ok(restoration);
+					await restoration;
+					watch.dispose();
+				} else {
+					await second.agent.chats.prepareTurn!(chat, 'second-turn', [directory], context);
+					await second.agent.chats.sendMessage(chat, 'Continue', [directory], undefined, 'second-turn', undefined, context);
+				}
+
+				const states = canvasStates(signals);
+				assert.deepStrictEqual({
+					persisted,
+					sends: resumed.map(runtime => runtime.sendCalls),
+					resources: [...new Set(states.map(signal => signal.resource.toString()))],
+					sources: { first: states[0]?.state.url, last: states.at(-1)?.state.url },
+				}, {
+					persisted: {
+						version: 1,
+						chat: chat.toString(),
+						sdkSessionId,
+						projections: [{ resource: resource.toString(), canvas: { instanceId: 'preview-instance', extensionId: 'project:preview', canvasId: 'preview', title: 'Preview' } }],
+						pendingCloseInstanceIds: [],
+					},
+					sends: [trigger === 'send' ? 1 : 0],
+					resources: [resource.toString()],
+					sources: { first: undefined, last: restoredCanvas.url },
+				});
+			});
+		}
+
+		test('archiving a chat removes its persisted canvases even when its live runtime reports them later', async () => {
+			const canvas = { instanceId: 'preview-instance', canvasId: 'preview', extensionId: 'project:preview', title: 'Preview', url: 'https://example.test/initial' };
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const session = AgentSession.uri('copilotcli', 'canvas-restart-archive');
+			const { first, chat, runtime } = await openCanvasBeforeRestart(sessionDataService, session, canvas);
+			afterTest(() => disposeAgent(first.agent));
+			const beforeArchive = (await readCanvasContinuity(sessionDataService, session) as { projections?: unknown[] } | undefined)?.projections?.length;
+
+			first.agent.clearCanvasContinuity(session, chat);
+			runtime.emit({ id: 'canvas-retitled', timestamp: '2026-01-01T00:00:01Z', parentId: null, ephemeral: true, type: 'session.canvas.opened', data: { ...canvas, title: 'Retitled' } });
+			await settleCanvasContinuity(first.agent, chat);
+
+			assert.deepStrictEqual({ beforeArchive, afterArchive: await readCanvasContinuity(sessionDataService, session) }, { beforeArchive: 1, afterArchive: undefined });
+		});
+
+		for (const reason of ['a different backing', 'an archived chat'] as const) {
+			test(`discards instead of restoring canvases persisted for ${reason}`, async () => {
+				const sessionDataService = disposables.add(new TestSessionDataService());
+				const session = AgentSession.uri('copilotcli', `canvas-restart-${reason === 'an archived chat' ? 'archived' : 'stale'}`);
+				const chat = defaultChatUri(session);
+				const context = exactChatContext(session, chat, session);
+				await sessionDataService.openDatabase(session).object.setMetadata('copilot.canvasContinuity', JSON.stringify({
+					version: 1,
+					chat: chat.toString(),
+					sdkSessionId: 'previous-backing',
+					projections: [{ resource: buildCanvasUri(chat, 'stale').toString(), canvas: { instanceId: 'stale', extensionId: 'project:preview', canvasId: 'preview' } }],
+					pendingCloseInstanceIds: [],
+				}));
+				const { agent } = setup(sessionDataService, [], [], { [AgentHostCanvasesEnabledConfigKey]: true });
+				afterTest(() => disposeAgent(agent));
+				const signals: AgentSignal[] = [];
+				disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+				await agent.materializeChat(chat, context, JSON.stringify({ sdkSessionId: reason === 'an archived chat' ? 'previous-backing' : 'current-backing' }));
+
+				const watch = agent.watchChatCanvases(chat, { published: () => [], isArchived: () => reason === 'an archived chat', resolveContext: async () => context });
+				await (agent as unknown as { _canvasContinuityLoads: Map<string, Promise<void>> })._canvasContinuityLoads.get(chat.toString());
+				await settleCanvasContinuity(agent, chat);
+				watch.dispose();
+
+				assert.deepStrictEqual({
+					states: canvasStates(signals).length,
+					restoring: (agent as unknown as { _canvasRestores: { has(chat: URI): boolean } })._canvasRestores.has(chat),
+					persisted: await readCanvasContinuity(sessionDataService, session),
+				}, { states: 0, restoring: false, persisted: undefined });
+			});
+		}
 
 		test('live registration refreshes a cached isolated canvas inventory after an early registry event without dropping open canvases', async () => {
 			const directory = URI.file(process.cwd());
