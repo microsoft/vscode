@@ -207,27 +207,15 @@
 }
 
 /* Where the dragged card goes: an empty card, with the watermark of an empty editor. */
+/* The image is that of the watermark of an empty editor group (see editorgroupview.css). */
 .part-grid-frame-layer > .part-grid-slot-watermark {
 	position: fixed;
 	width: 128px;
 	height: 128px;
 	transform-origin: center;
-	background-image: url('../../editor/media/letterpress-light.svg');
 	background-size: contain;
 	background-position: center;
 	background-repeat: no-repeat;
-}
-
-.monaco-workbench.vs-dark .part-grid-frame-layer > .part-grid-slot-watermark {
-	background-image: url('../../editor/media/letterpress-dark.svg');
-}
-
-.monaco-workbench.hc-light .part-grid-frame-layer > .part-grid-slot-watermark {
-	background-image: url('../../editor/media/letterpress-hcLight.svg');
-}
-
-.monaco-workbench.hc-black .part-grid-frame-layer > .part-grid-slot-watermark {
-	background-image: url('../../editor/media/letterpress-hcDark.svg');
 }
 
 /* The cards leave their looks to their frames, which take the size of where they go. */
