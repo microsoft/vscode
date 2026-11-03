@@ -1765,6 +1765,14 @@ export class AgentSideEffects extends Disposable {
 			this._toolCallAgents.delete(toolCallKey);
 			this._managedApprovalToolCalls.delete(toolCallKey);
 			agent.respondToPermissionRequest(e.state.toolCallId, false, { decisionSource: 'unattended_fallback', userNotAvailable: true });
+			// A started call stays `Streaming` until it is ready, and only a ready call takes the failed
+			// result the agent reports. A running client tool is one its client executes, so a client tool
+			// is left as it is rather than run.
+			if (toolCall?.status === ToolCallStatus.Streaming && contributor?.kind !== ToolCallContributorKind.Client) {
+				const settled = this._permissionManager.createToolReadyAction({ ...e, state: { ...e.state, confirmationTitle: undefined } }, sessionKey, turnId);
+				this._stateManager.dispatchServerAction(sessionKey, settled);
+				this._turnTracker.markActivity(sessionKey, turnId, settled.type);
+			}
 			return;
 		} else if (effective.state.confirmationTitle) {
 			// Make sure the agent is registered for the eventual `ChatToolCallConfirmed` response.

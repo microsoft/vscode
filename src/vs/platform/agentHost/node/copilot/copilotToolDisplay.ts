@@ -531,8 +531,10 @@ export function getTaskCompleteMarkdown(parameters: Record<string, unknown> | un
 		// The completion reviewer kept the task running, so nothing was completed yet.
 		return undefined;
 	}
-	const summary = getTaskCompleteSummary(parameters, toolOutput);
 	const blockedActions = review?.blockedActions?.length ? getBlockedActionsMarkdown(review.blockedActions) : undefined;
+	// The review repeats the call's summary with the runtime's own list of blocked actions appended,
+	// which `blockedActions` lists in the user's language, so it only stands in for a missing summary.
+	const summary = getTaskCompleteSummary(parameters, toolOutput) ?? (!blockedActions && review?.summary?.trim() ? review.summary : undefined);
 	if (review?.outcome === 'blocked') {
 		const details = [review.reason, summary, blockedActions].filter(part => !!part?.trim()).join('\n\n');
 		return '\n\n' + (details
@@ -545,6 +547,16 @@ export function getTaskCompleteMarkdown(parameters: Record<string, unknown> | un
 	return '\n\n' + (blockedActions
 		? localize('toolMarkdown.taskCompletedWithBlockedActions', "**Task completed with blocked actions:**\n\n{0}\n\n{1}", summary, blockedActions)
 		: localize('toolMarkdown.taskComplete', "**Task completed:**\n\n{0}", summary));
+}
+
+/**
+ * Formats a HydraFusion phase's completion summary for its phase chat. The runtime reviews
+ * a phase's completion only if the phase commits, and the main chat reports that review,
+ * so the phase chat doesn't claim the task is complete.
+ */
+export function getPhaseTaskCompleteMarkdown(parameters: Record<string, unknown> | undefined, toolOutput: string | undefined): string | undefined {
+	const summary = getTaskCompleteSummary(parameters, toolOutput);
+	return summary ? '\n\n' + localize('toolMarkdown.phaseTaskSummary', "**Summary:**\n\n{0}", summary) : undefined;
 }
 
 function getBlockedActionsMarkdown(actions: NonNullable<TaskCompletionReview['blockedActions']>): string {

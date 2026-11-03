@@ -109,7 +109,7 @@ import { AgentHostComputerUseEnabledSettingId, AgentHostGitHubMcpServerEnabledSe
 import { COMPUTER_USE_PLUGIN_NAME } from './copilotComputerUsePlugin.js';
 import { CopilotComputerUseActivation } from './copilotComputerUseActivationTool.js';
 import { classifyComputerUsePrompt, type CopilotComputerUsePermissionSetup, type ICopilotComputerUseSetupChat, type IComputerUsePermissionPrompt } from './copilotComputerUsePermissionSetup.js';
-import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify, getAssistedApprovalNotice, type TaskCompletionReview } from './copilotToolDisplay.js';
+import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getPhaseTaskCompleteMarkdown, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify, getAssistedApprovalNotice, type TaskCompletionReview } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
@@ -2106,7 +2106,11 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _shownProvisionalFusionMessageIds = new Set<string>();
 	/** `task_complete` calls already shown in a provisional phase, reported again when their phase commits. */
 	private readonly _provisionalFusionTaskCompletions = new Map<string, ITaskCompletion>();
-	/** The root agent's completed `task_complete` call, shown once the runtime reports its review. */
+	/**
+	 * The root agent's completed `task_complete` call, shown once the runtime reports its review.
+	 * The runtime reports every completion it accepts before the turn ends; one it doesn't report
+	 * (such as a call made outside Autopilot, which tells the agent to continue) completed nothing.
+	 */
 	private _pendingTaskCompletion: (ITaskCompletion & { readonly turnId: string }) | undefined;
 	private readonly _pendingFusionMessageChunks = new CopilotFusionMessageChunks();
 	private readonly _provisionalInlineFusionMessageChunks = new CopilotFusionMessageChunks();
@@ -8316,27 +8320,33 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to apply image generation setting`);
-			const turn = this._currentTurn.value ?? this._resumingTurnAwaitingProviderStart;
-			if (turn) {
-				try {
-					await this.abort();
-				} catch (abortError) {
-					this._logService.error(abortError, `[Copilot:${this.sessionId}] Failed to abort after image generation setting failure`);
-				}
-				// Abort quarantines late SDK content, not this host-owned terminal action.
-				this._emitAction({
-					type: ActionType.ChatError,
-					turnId: turn.id,
-					duration: turn.duration,
-					part: createErrorResponsePart({
-						errorType: 'imageGenerationConfiguration',
-						message: localize('copilotAgent.imageGenerationConfigurationFailed', "The image generation setting could not be applied. Try again before continuing."),
-					}),
-				}, undefined, true);
-				if (this._currentTurn.value === turn) {
-					this._clearActiveTurn();
-				}
-			}
+			await this._endTurnAfterConfigurationFailure('image generation setting', 'imageGenerationConfiguration', localize('copilotAgent.imageGenerationConfigurationFailed', "The image generation setting could not be applied. Try again before continuing."));
+		}
+	}
+
+	/**
+	 * Ends the active turn when a live setting change could not be applied, so the turn
+	 * doesn't continue without it. Aborting the SDK alone leaves the host's turn running.
+	 */
+	private async _endTurnAfterConfigurationFailure(setting: string, errorType: string, message: string): Promise<void> {
+		const turn = this._currentTurn.value ?? this._resumingTurnAwaitingProviderStart;
+		if (!turn) {
+			return;
+		}
+		try {
+			await this.abort();
+		} catch (abortError) {
+			this._logService.error(abortError, `[Copilot:${this.sessionId}] Failed to abort after ${setting} failure`);
+		}
+		// Abort quarantines late SDK content, not this host-owned terminal action.
+		this._emitAction({
+			type: ActionType.ChatError,
+			turnId: turn.id,
+			duration: turn.duration,
+			part: createErrorResponsePart({ errorType, message }),
+		}, undefined, true);
+		if (this._currentTurn.value === turn) {
+			this._clearActiveTurn();
 		}
 	}
 
@@ -8371,15 +8381,8 @@ export class CopilotAgentSession extends Disposable {
 			if (this._isInactiveForBackgroundConfigSync()) {
 				return;
 			}
-			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to apply Assisted permissions instructions${this.hasActiveTurn ? '; aborting active turn' : ''}`);
-			if (!this.hasActiveTurn) {
-				return;
-			}
-			try {
-				await this.abort();
-			} catch (abortError) {
-				this._logService.error(abortError, `[Copilot:${this.sessionId}] Failed to abort after Assisted permissions instructions failure`);
-			}
+			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to apply Assisted permissions instructions`);
+			await this._endTurnAfterConfigurationFailure('Assisted permissions instructions', 'assistedApprovalInstructions', localize('copilotAgent.assistedApprovalInstructionsFailed', "The Assisted permissions instructions could not be applied. Try again before continuing."));
 		}
 	}
 
@@ -10047,19 +10050,26 @@ export class CopilotAgentSession extends Disposable {
 			this._emitPendingImageReady(tracked);
 
 			if (isTaskCompleteTool(tracked.toolName)) {
+				if (!e.data.success) {
+					// A failed call completed nothing, and the runtime doesn't review it.
+					return;
+				}
 				const provisional = isProvisionalFusionConversationEvent(e);
 				if (!e.agentId && !provisional && (!parentToolCallId || e.data.fusion)) {
 					// The runtime reports its review of a root call, including one a Fusion phase committed, in the `session.task_complete` right after this completion.
 					this._pendingTaskCompletion = { turnId: this._turnId, parameters: tracked.parameters, toolOutput };
 					return;
 				}
-				const summary = getTaskCompleteMarkdown(tracked.parameters, toolOutput);
+				const phaseToolCallId = provisional ? this._fusionPhaseToolCallId(e.agentId, e.data.fusion) : undefined;
+				if (phaseToolCallId !== undefined) {
+					// Reported in the main chat, with the runtime's review, if the phase commits.
+					this._provisionalFusionTaskCompletions.set(e.data.toolCallId, { parameters: tracked.parameters, toolOutput });
+				}
+				const summary = phaseToolCallId !== undefined
+					? getPhaseTaskCompleteMarkdown(tracked.parameters, toolOutput)
+					: getTaskCompleteMarkdown(tracked.parameters, toolOutput);
 				if (summary) {
-					const phaseToolCallId = provisional ? this._fusionPhaseToolCallId(e.agentId, e.data.fusion) : undefined;
 					const phaseChatToolCallId = phaseToolCallId !== undefined ? this._fusionPhaseContentParentToolCallId(phaseToolCallId) : undefined;
-					if (phaseToolCallId !== undefined) {
-						this._provisionalFusionTaskCompletions.set(e.data.toolCallId, { parameters: tracked.parameters, toolOutput });
-					}
 					if (phaseToolCallId === undefined || phaseChatToolCallId !== undefined) {
 						this._emitAction({
 							type: ActionType.ChatResponsePart,
@@ -10330,11 +10340,7 @@ export class CopilotAgentSession extends Disposable {
 		store.add(wrapper.onIdle(async e => {
 			this._logService.info(`[Copilot:${sessionId}] Session idle`);
 			if (!e.agentId) {
-				if (e.data.aborted) {
-					this._pendingTaskCompletion = undefined;
-				} else {
-					this._flushTaskCompletion(undefined);
-				}
+				this._pendingTaskCompletion = undefined;
 			}
 			const idleFromFailedExecution = !e.agentId && !e.data.aborted && this._failedExecutionIdlePending;
 			if (!e.agentId) {
@@ -12049,11 +12055,10 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Shows the root agent's pending `task_complete` summary. With the runtime's review,
-	 * a blocked or continued task is not reported as complete; without one (older runtimes,
-	 * or no review before the turn ends) the summary is shown as before.
+	 * Shows the root agent's pending `task_complete` summary as the runtime reported it:
+	 * a blocked or continued task is not reported as complete.
 	 */
-	private _flushTaskCompletion(review: TaskCompletionReview | undefined): void {
+	private _reportTaskCompletion(review: TaskCompletionReview): void {
 		const pending = this._pendingTaskCompletion;
 		this._pendingTaskCompletion = undefined;
 		if (!pending || pending.turnId !== this._turnId || this._shouldDropLateRootTurnEvent('session.task_complete', true)) {
@@ -12657,7 +12662,7 @@ export class CopilotAgentSession extends Disposable {
 			if (e.agentId) {
 				this._refreshBackgroundTasks();
 			} else {
-				this._flushTaskCompletion(undefined);
+				this._pendingTaskCompletion = undefined;
 			}
 			const turn = this._currentTurn.value;
 			if (!e.agentId && turn?.imageGenerationSdkTurnId !== undefined && turn.imageGenerationSdkTurnId === e.data.turnId) {
@@ -12679,7 +12684,7 @@ export class CopilotAgentSession extends Disposable {
 
 		store.add(wrapper.onTaskComplete(e => {
 			if (!e.agentId) {
-				this._flushTaskCompletion(e.data);
+				this._reportTaskCompletion(e.data);
 			}
 		}));
 

@@ -18,7 +18,7 @@ import { getToolCallDurationMs, readToolCallMeta, toToolCallMeta, type IToolCall
 import { IFileEditRecord, ISessionDatabase, IToolResultResource, MAX_TOOL_RESULT_RESOURCE_BYTES } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type ContentRef, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
-import { CopilotToolName, getInvocationMessage, getPastTenseMessage, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type TaskCompletionReview, type ToolAgentNameResolver } from './copilotToolDisplay.js';
+import { CopilotToolName, getInvocationMessage, getPastTenseMessage, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getSubagentMetadata, getPhaseTaskCompleteMarkdown, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type TaskCompletionReview, type ToolAgentNameResolver } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
@@ -496,6 +496,8 @@ export async function mapSessionEvents(
 	// `session.task_complete` reviews the root `task_complete` call that completed right before it.
 	const taskCompletionReviewsByCallId = new Map<string, TaskCompletionReview>();
 	let unreviewedTaskCompleteCallId: string | undefined;
+	// Root `task_complete` requests, which identify a call whose `tool.execution_start` wasn't recorded.
+	const taskCompleteRequestCallIds = new Set<string>();
 	const binaryAssets = new Map<string, BinaryAssetData>();
 	const subagentInfoByToolCallId = new Map<string, ISubagentInfo>();
 	const subagentTaskPrompts = new Map<string, string>();
@@ -570,13 +572,24 @@ export async function mapSessionEvents(
 				parentToolCallIdByAgentId.set(e.agentId, e.data.toolCallId);
 			}
 		}
+		if (e.type === 'assistant.message' && !e.agentId) {
+			for (const request of e.data.toolRequests ?? []) {
+				if (isTaskCompleteTool(request.name)) {
+					taskCompleteRequestCallIds.add(request.toolCallId);
+				}
+			}
+		}
 		if (e.type === 'tool.execution_complete') {
 			completionsByCallId.set(e.data.toolCallId, e.data);
 			if (!e.agentId) {
 				const info = toolInfoByCallId.get(e.data.toolCallId);
 				// A Fusion phase's call is a root call, reviewed once the phase commits.
 				const isRootCall = !resolveParentToolCallId(e.agentId, e.data.parentToolCallId) && (!info?.parentToolCallId || !!e.data.fusion);
-				unreviewedTaskCompleteCallId = info && isRootCall && isTaskCompleteTool(info.toolName) ? e.data.toolCallId : undefined;
+				const isTaskComplete = info ? isTaskCompleteTool(info.toolName) : taskCompleteRequestCallIds.has(e.data.toolCallId);
+				// Only a successful call is reviewed.
+				if (isRootCall && isTaskComplete && e.data.success) {
+					unreviewedTaskCompleteCallId = e.data.toolCallId;
+				}
 			}
 		} else if (e.type === 'session.task_complete' && !e.agentId) {
 			if (unreviewedTaskCompleteCallId) {
@@ -1068,30 +1081,7 @@ export async function mapSessionEvents(
 					break;
 				}
 				if (isTaskCompleteTool(info.toolName)) {
-					const review = subagentParentToolCallId ? undefined : taskCompletionReviewsByCallId.get(d.toolCallId);
-					const summary = getTaskCompleteMarkdown(info.parameters, d.error?.message ?? d.result?.content, review);
-					const phaseBuilder = parentToolCallId !== subagentParentToolCallId ? targetBuilderFor(parentToolCallId) : undefined;
-					if (summary && phaseBuilder) {
-						phaseBuilder.responseParts.push({ kind: ResponsePartKind.Markdown, id: generateUuid(), content: summary });
-					}
-					if (!subagentParentToolCallId && parentTurnTerminated && parentTurnState === TurnState.Error) {
-						continue;
-					}
-					const builder = targetBuilderFor(subagentParentToolCallId);
-					if (!builder) {
-						continue;
-					}
-					if (summary) {
-						builder.responseParts.push({
-							kind: ResponsePartKind.Markdown,
-							id: generateUuid(),
-							content: summary,
-						});
-					}
-					if (!subagentParentToolCallId && d.success && review?.outcome !== 'continue' && builder === parentBuilder && !parentTurnTerminated) {
-						parentTurnState = TurnState.Complete;
-						rootRequestActive = false;
-					}
+					restoreTaskComplete(d.toolCallId, info.parameters, d, subagentParentToolCallId, parentToolCallId !== subagentParentToolCallId ? parentToolCallId : undefined);
 					continue;
 				}
 				const builder = targetBuilderFor(parentToolCallId);
@@ -1192,18 +1182,8 @@ export async function mapSessionEvents(
 				continue;
 			}
 			if (isTaskCompleteTool(info.toolName)) {
-				const summary = getTaskCompleteMarkdown(info.parameters, completion?.error?.message ?? completion?.result?.content);
-				if (summary) {
-					builder.responseParts.push({
-						kind: ResponsePartKind.Markdown,
-						id: generateUuid(),
-						content: summary,
-					});
-				}
-				if (!parentToolCallId && completion?.success && builder === parentBuilder && !parentTurnTerminated) {
-					parentTurnState = TurnState.Complete;
-					rootRequestActive = false;
-				}
+				const phaseToolCallId = parentToolCallId !== undefined && fusionPhaseToolCallIds.has(parentToolCallId) ? parentToolCallId : undefined;
+				restoreTaskComplete(request.toolCallId, info.parameters, completion, phaseToolCallId === undefined ? parentToolCallId : undefined, phaseToolCallId);
 				continue;
 			}
 			builder.responseParts.push(makeCompletedToolCallPart(
@@ -1221,6 +1201,41 @@ export async function mapSessionEvents(
 				resolveAgentName,
 				binaryAssets,
 			));
+		}
+	}
+
+	/**
+	 * Restores a completed `task_complete` call. A failed call completed nothing. A Fusion phase's
+	 * chat shows its summary, and the main chat shows a root call's completion as the runtime
+	 * reported it in `session.task_complete`: the runtime reports every completion it accepts, so an
+	 * unreported root call (such as one made outside Autopilot) completed nothing. A subagent's call
+	 * ends only its own task, which the runtime doesn't report.
+	 */
+	function restoreTaskComplete(toolCallId: string, parameters: Record<string, unknown> | undefined, completion: ToolExecutionCompleteData | undefined, subagentParentToolCallId: string | undefined, phaseToolCallId: string | undefined): void {
+		if (!completion?.success) {
+			return;
+		}
+		const toolOutput = completion.result?.content;
+		const phaseBuilder = phaseToolCallId !== undefined ? targetBuilderFor(phaseToolCallId) : undefined;
+		const phaseSummary = phaseBuilder && getPhaseTaskCompleteMarkdown(parameters, toolOutput);
+		if (phaseBuilder && phaseSummary) {
+			phaseBuilder.responseParts.push({ kind: ResponsePartKind.Markdown, id: generateUuid(), content: phaseSummary });
+		}
+		const review = subagentParentToolCallId ? undefined : taskCompletionReviewsByCallId.get(toolCallId);
+		if (!subagentParentToolCallId && (!review || (parentTurnTerminated && parentTurnState === TurnState.Error))) {
+			return;
+		}
+		const builder = targetBuilderFor(subagentParentToolCallId);
+		if (!builder) {
+			return;
+		}
+		const summary = getTaskCompleteMarkdown(parameters, toolOutput, review);
+		if (summary) {
+			builder.responseParts.push({ kind: ResponsePartKind.Markdown, id: generateUuid(), content: summary });
+		}
+		if (!subagentParentToolCallId && review?.outcome !== 'continue' && builder === parentBuilder && !parentTurnTerminated) {
+			parentTurnState = TurnState.Complete;
+			rootRequestActive = false;
 		}
 	}
 }

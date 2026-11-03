@@ -2178,24 +2178,37 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
-		test('a failed live update aborts the active turn', async () => {
+		test('a failed live update ends the active turn even when SDK idle arrives during abort', async () => {
 			const rig = await createAgentSession(disposables);
 			await rig.session.send('hello', undefined, 'active-instructions');
 			rig.mockSession.fire('assistant.turn_start', { turnId: 'sdk-instructions' });
-			const aborted = new DeferredPromise<void>();
-			rig.mockSession.onAbort = () => { void aborted.complete(); };
+			const abortEntered = new DeferredPromise<void>();
+			const abortRelease = new DeferredPromise<void>();
+			rig.mockSession.abortGate = abortRelease.p;
+			rig.mockSession.onAbort = () => { void abortEntered.complete(); };
 			rig.mockSession.permissionConfigureSuccess = false;
-			rig.setRootValue(AgentHostAssistedApprovalInstructionsConfigKey, instructions);
-			rig.fireRootConfigChange();
-			await aborted.p;
-			rig.mockSession.fire('session.idle', {});
-			assert.deepStrictEqual({
-				abortCalls: rig.mockSession.abortCalls,
-				calls: instructionsCalls(rig.mockSession),
-			}, {
-				abortCalls: 1,
-				calls: [{ assistedApprovalInstructions: instructions }],
-			});
+			const failed = rig.waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatError);
+			try {
+				rig.setRootValue(AgentHostAssistedApprovalInstructionsConfigKey, instructions);
+				rig.fireRootConfigChange();
+				await abortEntered.p;
+				rig.mockSession.fire('session.idle', {});
+				await abortRelease.complete();
+				await failed;
+				assert.deepStrictEqual({
+					abortCalls: rig.mockSession.abortCalls,
+					calls: instructionsCalls(rig.mockSession),
+					errorTurns: getActions(rig.signals).flatMap(action => action.type === ActionType.ChatError ? [action.turnId] : []),
+					hasActiveTurn: rig.session.hasActiveTurn,
+				}, {
+					abortCalls: 1,
+					calls: [{ assistedApprovalInstructions: instructions }],
+					errorTurns: ['active-instructions'],
+					hasActiveTurn: false,
+				});
+			} finally {
+				await abortRelease.complete();
+			}
 		});
 
 		test('a relaunched SDK session receives the instructions again', async () => {
@@ -19892,11 +19905,11 @@ Use the attached image as context.
 			});
 		});
 
-		test('live task_complete waits for the runtime review before reporting completion', async () => {
-			const showCompletion = async (settle: (mockSession: MockCopilotSession) => void) => {
+		test('live task_complete reports only a completion the runtime reviewed', async () => {
+			const showCompletion = async (success: boolean, settle: (mockSession: MockCopilotSession) => void) => {
 				const { mockSession, signals } = await createAgentSession(disposables);
 				mockSession.fire('tool.execution_start', { toolCallId: 'tc-task-complete', toolName: 'task_complete', arguments: { summary: 'Updated the parser.' } } as SessionEventPayload<'tool.execution_start'>['data']);
-				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-task-complete', success: true, result: { content: 'Updated the parser.' } } as SessionEventPayload<'tool.execution_complete'>['data']);
+				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-task-complete', success, result: { content: 'Updated the parser.' } } as SessionEventPayload<'tool.execution_complete'>['data']);
 				const beforeReview = getActions(signals).length;
 				settle(mockSession);
 				return {
@@ -19907,15 +19920,21 @@ Use the attached image as context.
 			const blockedActions: SessionEventPayload<'session.task_complete'>['data']['blockedActions'] = [{ episodeId: 'episode-1', permissionKind: 'shell', recoveryReason: 'attempts_exhausted', toolCallId: 'tc-push' }];
 
 			assert.deepStrictEqual({
-				blocked: await showCompletion(mockSession => mockSession.fire('session.task_complete', { summary: 'Updated the parser.', success: false, outcome: 'blocked', blockedActions })),
-				continued: await showCompletion(mockSession => mockSession.fire('session.task_complete', { summary: 'Updated the parser.', success: false, outcome: 'continue' })),
-				unreviewed: await showCompletion(mockSession => mockSession.fire('assistant.turn_end', { turnId: 'sdk-turn' })),
-				aborted: await showCompletion(mockSession => mockSession.fire('session.idle', { aborted: true })),
+				completed: await showCompletion(true, mockSession => mockSession.fire('session.task_complete', { summary: 'Updated the parser.', success: true, outcome: 'completed' })),
+				blocked: await showCompletion(true, mockSession => mockSession.fire('session.task_complete', { summary: 'Updated the parser.', success: false, outcome: 'blocked', blockedActions })),
+				continued: await showCompletion(true, mockSession => mockSession.fire('session.task_complete', { summary: 'Updated the parser.', success: false, outcome: 'continue' })),
+				unreviewedAtTurnEnd: await showCompletion(true, mockSession => mockSession.fire('assistant.turn_end', { turnId: 'sdk-turn' })),
+				unreviewedAtIdle: await showCompletion(true, mockSession => mockSession.fire('session.idle', {})),
+				aborted: await showCompletion(true, mockSession => mockSession.fire('session.idle', { aborted: true })),
+				failed: await showCompletion(false, mockSession => mockSession.fire('assistant.turn_end', { turnId: 'sdk-turn' })),
 			}, {
+				completed: { beforeReview: 0, markdown: ['\n\n**Task completed:**\n\nUpdated the parser.'] },
 				blocked: { beforeReview: 0, markdown: ['\n\n**Task blocked:**\n\nUpdated the parser.\n\nBlocked actions:\n- Run a terminal command'] },
 				continued: { beforeReview: 0, markdown: [] },
-				unreviewed: { beforeReview: 0, markdown: ['\n\n**Task completed:**\n\nUpdated the parser.'] },
+				unreviewedAtTurnEnd: { beforeReview: 0, markdown: [] },
+				unreviewedAtIdle: { beforeReview: 0, markdown: [] },
 				aborted: { beforeReview: 0, markdown: [] },
+				failed: { beforeReview: 0, markdown: [] },
 			});
 		});
 
@@ -22606,7 +22625,7 @@ Use the attached image as context.
 
 				assert.deepStrictEqual(fusionTranscript(signals), [
 					'subagent_started fusion:fusion-1:phase-1',
-					'fusion:fusion-1:phase-1: \n\n**Task completed:**\n\nPhase summary',
+					'fusion:fusion-1:phase-1: \n\n**Summary:**\n\nPhase summary',
 					...(committed ? ['root: \n\n**Task completed:**\n\nPhase summary'] : []),
 				]);
 			});
@@ -22642,11 +22661,11 @@ Use the attached image as context.
 				phaseChat: {
 					beforeReview: [
 						'subagent_started fusion:fusion-1:phase-1',
-						'fusion:fusion-1:phase-1: \n\n**Task completed:**\n\nUpdated the parser.',
+						'fusion:fusion-1:phase-1: \n\n**Summary:**\n\nUpdated the parser.',
 					],
 					transcript: [
 						'subagent_started fusion:fusion-1:phase-1',
-						'fusion:fusion-1:phase-1: \n\n**Task completed:**\n\nUpdated the parser.',
+						'fusion:fusion-1:phase-1: \n\n**Summary:**\n\nUpdated the parser.',
 						'root: \n\n**Task blocked:**\n\nUpdated the parser.\n\nBlocked actions:\n- Run a terminal command',
 						'subagent_completed fusion:fusion-1:phase-1',
 					],

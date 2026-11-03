@@ -289,6 +289,7 @@ suite('mapSessionEvents — history replay', () => {
 			event('assistant.message', { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-complete', name: 'task_complete', arguments: {} }], fusion: committed }),
 			event('tool.execution_start', { toolCallId: 'tc-complete', toolName: 'task_complete', arguments: { summary: 'The app is running' }, fusion: committed }),
 			event('tool.execution_complete', { toolCallId: 'tc-complete', success: true, result: { content: 'Done' }, fusion: committed }),
+			event('session.task_complete', { summary: 'The app is running', success: true, outcome: 'completed' }),
 			event('session.fusion_completed', fusion.completed),
 		]);
 		assert.deepStrictEqual({
@@ -313,6 +314,7 @@ suite('mapSessionEvents — history replay', () => {
 				event('tool.execution_start', { toolCallId: 'tc-complete', toolName: 'task_complete', arguments: { summary: 'Fixed the parser' }, fusion: committed }),
 				...(failed ? [event('session.error', { errorType: 'requestFailed', message: 'Failed' })] : []),
 				event('tool.execution_complete', { toolCallId: 'tc-complete', success: true, result: { content: 'Done' }, fusion: committed }),
+				...(failed ? [] : [event('session.task_complete', { summary: 'Fixed the parser', success: true, outcome: 'completed' })]),
 			]);
 			const markdown = (parts: readonly ResponsePart[] | undefined) => (parts ?? []).flatMap(part => part.kind === ResponsePartKind.Markdown ? [part.content] : []);
 			const phase = turns[0].responseParts.find((part): part is ToolCallResponsePart => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'fusion:fusion-1:phase-1');
@@ -323,7 +325,7 @@ suite('mapSessionEvents — history replay', () => {
 				error: !!getErrorResponsePart(turns[0]),
 			}, {
 				root: failed ? [] : ['\n\n**Task completed:**\n\nFixed the parser'],
-				phaseChat: ['\n\n**Task completed:**\n\nFixed the parser'],
+				phaseChat: ['\n\n**Summary:**\n\nFixed the parser'],
 				linked: true,
 				error: failed,
 			});
@@ -357,7 +359,7 @@ suite('mapSessionEvents — history replay', () => {
 		}, {
 			fixUp: {
 				root: ['\n\n**Task blocked:**\n\nFixed the parser\n\nBlocked actions:\n- Run a terminal command'],
-				phaseChat: ['\n\n**Task blocked:**\n\nFixed the parser\n\nBlocked actions:\n- Run a terminal command'],
+				phaseChat: ['\n\n**Summary:**\n\nFixed the parser'],
 				complete: true,
 			},
 			mainPass: { root: [], phaseChat: [], complete: false },
@@ -809,6 +811,7 @@ suite('mapSessionEvents — history replay', () => {
 			{ type: 'assistant.message', data: { messageId: 'm2', content: 'Working on it.', toolRequests: [{ toolCallId: 'tc-1', name: 'task_complete' }] } },
 			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'task_complete', arguments: { summary: '## Summary\n\nDone. All good.' } } },
 			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true, result: { content: 'Output too large to read at once (11.3 KB). Saved to: /tmp/task-complete.txt' } } },
+			{ type: 'session.task_complete', data: { summary: '## Summary\n\nDone. All good.', success: true, outcome: 'completed' } },
 		];
 
 		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
@@ -821,28 +824,46 @@ suite('mapSessionEvents — history replay', () => {
 	});
 
 	test('task_complete restores the runtime review of the completion', async () => {
-		const restore = async (review: Record<string, unknown> | undefined) => {
+		const restore = async (review: Record<string, unknown> | undefined, { success = true, fallback = false } = {}) => {
 			const events: ISessionEvent[] = [
 				{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
-				{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'task_complete', arguments: { summary: 'Updated the parser.' } } },
-				{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true } },
+				// A fallback request has no recorded `tool.execution_start`.
+				fallback
+					? { type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'task_complete', arguments: { summary: 'Updated the parser.' } }] } }
+					: { type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'task_complete', arguments: { summary: 'Updated the parser.' } } },
+				{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success } },
 				...(review ? [{ type: 'session.task_complete', data: review }] : []),
 			];
 			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
-			return turns.flatMap(turn => partKinds(turn.responseParts).map(part => part.content));
+			return {
+				markdown: turns.flatMap(turn => partKinds(turn.responseParts).map(part => part.content)),
+				complete: turns[0].state === TurnState.Complete,
+			};
 		};
 		const blockedActions = [{ episodeId: 'episode-1', permissionKind: 'shell', recoveryReason: 'attempts_exhausted', toolCallId: 'tc-push' }];
+		const blocked = { summary: 'Updated the parser.', success: false, outcome: 'blocked', blockedActions };
+		const continued = { summary: 'Updated the parser.', success: false, outcome: 'continue' };
 
 		assert.deepStrictEqual({
 			unreviewed: await restore(undefined),
+			failed: await restore(undefined, { success: false }),
+			completed: await restore({ summary: 'Updated the parser.', success: true, outcome: 'completed' }),
 			completedWithBlockedActions: await restore({ summary: 'Updated the parser.', success: true, outcome: 'completed', blockedActions }),
-			blocked: await restore({ summary: 'Updated the parser.', success: false, outcome: 'blocked', blockedActions }),
-			continued: await restore({ summary: 'Updated the parser.', success: false, outcome: 'continue' }),
+			blocked: await restore(blocked),
+			continued: await restore(continued),
+			fallbackUnreviewed: await restore(undefined, { fallback: true }),
+			fallbackBlocked: await restore(blocked, { fallback: true }),
+			fallbackContinued: await restore(continued, { fallback: true }),
 		}, {
-			unreviewed: ['\n\n**Task completed:**\n\nUpdated the parser.'],
-			completedWithBlockedActions: ['\n\n**Task completed with blocked actions:**\n\nUpdated the parser.\n\nBlocked actions:\n- Run a terminal command'],
-			blocked: ['\n\n**Task blocked:**\n\nUpdated the parser.\n\nBlocked actions:\n- Run a terminal command'],
-			continued: [],
+			unreviewed: { markdown: [], complete: false },
+			failed: { markdown: [], complete: false },
+			completed: { markdown: ['\n\n**Task completed:**\n\nUpdated the parser.'], complete: true },
+			completedWithBlockedActions: { markdown: ['\n\n**Task completed with blocked actions:**\n\nUpdated the parser.\n\nBlocked actions:\n- Run a terminal command'], complete: true },
+			blocked: { markdown: ['\n\n**Task blocked:**\n\nUpdated the parser.\n\nBlocked actions:\n- Run a terminal command'], complete: true },
+			continued: { markdown: [], complete: false },
+			fallbackUnreviewed: { markdown: [], complete: false },
+			fallbackBlocked: { markdown: ['\n\n**Task blocked:**\n\nUpdated the parser.\n\nBlocked actions:\n- Run a terminal command'], complete: true },
+			fallbackContinued: { markdown: [], complete: false },
 		});
 	});
 
@@ -1070,6 +1091,7 @@ suite('mapSessionEvents — history replay', () => {
 			{ type: 'assistant.message', data: { messageId: 'm2', content: 'All set.', toolRequests: [{ toolCallId: 'tc-1', name: 'task_complete' }] } },
 			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'task_complete', arguments: {} } },
 			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true } },
+			{ type: 'session.task_complete', data: { success: true, outcome: 'completed' } },
 		];
 
 		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
@@ -1088,6 +1110,7 @@ suite('mapSessionEvents — history replay', () => {
 			{ type: 'assistant.turn_end', data: { turnId: 'sdk-turn' } },
 			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'task_complete', arguments: {} } },
 			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true } },
+			{ type: 'session.task_complete', data: { success: true, outcome: 'completed' } },
 		];
 
 		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events), {
@@ -1261,6 +1284,7 @@ suite('mapSessionEvents — history replay', () => {
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'finish the task' } },
 			{ type: 'assistant.message', data: { messageId: 'm2', content: 'All done.', toolRequests: [{ toolCallId: 'tc-1', name: 'task_complete', arguments: { summary: 'Finished.' } }] } },
 			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true } },
+			{ type: 'session.task_complete', data: { summary: 'Finished.', success: true, outcome: 'completed' } },
 		];
 
 		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));

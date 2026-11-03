@@ -9,7 +9,7 @@ import * as marked from '../../../../base/common/marked/marked.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentPermissionKind } from '../../common/agent.js';
-import { getAssistedApprovalNotice, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type TaskCompletionReview } from '../../node/copilot/copilotToolDisplay.js';
+import { getAssistedApprovalNotice, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getPhaseTaskCompleteMarkdown, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type TaskCompletionReview } from '../../node/copilot/copilotToolDisplay.js';
 
 type CopilotShellPermissionRequest = Extract<PermissionRequest, { kind: 'shell' }>;
 type CopilotCustomToolPermissionRequest = Extract<PermissionRequest, { kind: 'custom-tool' }>;
@@ -280,6 +280,8 @@ suite('copilotToolDisplay — markdown-rendered tools', () => {
 			blockedWithReason: getTaskCompleteMarkdown(undefined, undefined, { success: false, outcome: 'blocked', reason: 'The task was cancelled.' }),
 			blockedWithoutDetails: getTaskCompleteMarkdown(undefined, undefined, { success: false, outcome: 'blocked' }),
 			continued: getTaskCompleteMarkdown(parameters, undefined, { summary: 'Updated the parser.', success: false, outcome: 'continue' }),
+			reviewSummaryOnly: getTaskCompleteMarkdown(undefined, undefined, { summary: 'Updated the parser.', success: true, outcome: 'completed' }),
+			reviewSummaryListingBlockedActions: getTaskCompleteMarkdown(undefined, undefined, { summary: 'Updated the parser.\n\nBlocked actions:\n- shell (tool call tc-push)', success: false, outcome: 'blocked', blockedActions: blockedActions.slice(0, 1) }),
 		}, {
 			completed: '\n\n**Task completed:**\n\nUpdated the parser.',
 			completedWithBlockedActions: '\n\n**Task completed with blocked actions:**\n\nUpdated the parser.\n\nBlocked actions:\n- Run a terminal command\n- Edit a file\n- Use a tool',
@@ -287,6 +289,20 @@ suite('copilotToolDisplay — markdown-rendered tools', () => {
 			blockedWithReason: '\n\n**Task blocked:**\n\nThe task was cancelled.',
 			blockedWithoutDetails: '\n\n**Task blocked.**',
 			continued: undefined,
+			reviewSummaryOnly: '\n\n**Task completed:**\n\nUpdated the parser.',
+			reviewSummaryListingBlockedActions: '\n\n**Task blocked:**\n\nBlocked actions:\n- Run a terminal command',
+		});
+	});
+
+	test('getPhaseTaskCompleteMarkdown shows a phase summary without claiming completion', () => {
+		assert.deepStrictEqual({
+			summary: getPhaseTaskCompleteMarkdown({ summary: 'Updated the parser.' }, 'Done'),
+			toolOutput: getPhaseTaskCompleteMarkdown({}, 'Updated the parser.'),
+			empty: getPhaseTaskCompleteMarkdown(undefined, undefined),
+		}, {
+			summary: '\n\n**Summary:**\n\nUpdated the parser.',
+			toolOutput: '\n\n**Summary:**\n\nUpdated the parser.',
+			empty: undefined,
 		});
 	});
 
