@@ -495,6 +495,34 @@ const setTimeout0 = (() => {
 	return (callback) => setTimeout(callback);
 })();
 
+/**
+ * Keeps the <i>th of <n> contiguous parts of the loaded tests (--testShard <i>/<n>), so that the tests
+ * of one file can run in several processes. Mocha skips the suites left without tests, hooks included.
+ * @param {Mocha.Suite} rootSuite
+ * @param {string} testShard
+ */
+function shardTests(rootSuite, testShard) {
+	const match = /^(?<index>\d+)\/(?<total>\d+)$/.exec(testShard);
+	const index = Number(match?.groups?.index);
+	const total = Number(match?.groups?.total);
+	if (!match || index < 1 || index > total) {
+		throw new Error(`Invalid --testShard ${testShard}: expected <index>/<total> with 1 <= index <= total, for example 1/2`);
+	}
+	/** @type {Mocha.Test[]} */
+	const tests = [];
+	const collect = (/** @type {Mocha.Suite} */ suite) => {
+		tests.push(...suite.tests);
+		suite.suites.forEach(collect);
+	};
+	collect(rootSuite);
+	const kept = new Set(tests.slice(Math.floor((index - 1) * tests.length / total), Math.floor(index * tests.length / total)));
+	const filter = (/** @type {Mocha.Suite} */ suite) => {
+		suite.tests = suite.tests.filter(test => kept.has(test));
+		suite.suites.forEach(filter);
+	};
+	filter(rootSuite);
+}
+
 async function runTests(opts) {
 	// @ts-expect-error
 	Mocha.Runner.immediately = setTimeout0;
@@ -517,6 +545,10 @@ async function runTests(opts) {
 	const testFiles = opts.workerDir ? trackTestFiles(mocha.suite) : undefined;
 
 	await loadTests(opts);
+
+	if (opts.testShard) {
+		shardTests(mocha.suite, opts.testShard);
+	}
 
 	if (testFiles) {
 		distributeTestFiles(mocha.suite, testFiles, { workerId: opts.worker, workerDir: opts.workerDir });
