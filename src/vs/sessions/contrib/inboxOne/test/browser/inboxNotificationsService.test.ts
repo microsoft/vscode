@@ -382,6 +382,69 @@ suite('InboxNotificationsService', () => {
 		assert.notStrictEqual(active[0].id, firstId);
 	});
 
+	test('regenerates row action titles from the latest completed response without renaming the session', async () => {
+		const session = createSession({
+			id: 'latest-title', title: 'Update profile', status: SessionStatus.Completed,
+			updatedAt: 200, description: 'Updated the profile.',
+		});
+		const chatService = new TestChatService();
+		const resource = session.mainChat.get().resource;
+		chatService.setCompletedResponse(resource, { requestId: 'first', markdown: 'Updated the profile.' });
+		const requests: IChatUtilityModelRequest[] = [];
+		const fixture = createFixture([session], undefined, undefined, chatService, undefined, true, [], true, {
+			utilityRequest: async request => {
+				requests.push(request);
+				return requests.length === 1 ? 'Review profile changes' : 'Review chocolate.md';
+			},
+		});
+		const first = fixture.service.sessionRows.get()[0];
+		fixture.service.requestPreview(first);
+		await waitForState(fixture.service.isLoading, loading => !loading);
+		chatService.setCompletedResponse(resource, { requestId: 'second', markdown: `${'Earlier progress. '.repeat(200)}Created chocolate.md.` });
+		const next = fixture.service.sessionRows.get()[0];
+		fixture.service.requestPreview(next);
+		await waitForState(fixture.service.isLoading, loading => !loading);
+		assert.deepStrictEqual({
+			sameRow: first.id === next.id,
+			newSignature: first.previewSignature !== next.previewSignature,
+			title: session.title.get(),
+			latestInput: next.previewInputText?.startsWith('Latest completed response:'),
+			containsResult: next.previewInputText?.includes('Created chocolate.md.'),
+			bounded: (next.previewInputText?.length ?? 0) <= 2000,
+			requests: requests.length,
+			old: fixture.service.previews.get().get(first.previewSignature!),
+			current: fixture.service.previews.get().get(next.previewSignature!),
+		}, {
+			sameRow: true, newSignature: true, title: 'Update profile', latestInput: true, containsResult: true,
+			bounded: true, requests: 2, old: 'Review profile changes', current: 'Review chocolate.md',
+		});
+	});
+
+	test('loads history for a visible completed preview and releases its reference', async () => {
+		const session = createSession({ id: 'preview-history', status: SessionStatus.Completed, updatedAt: 200 });
+		const chatService = new TestChatService();
+		let loads = 0;
+		let releases = 0;
+		chatService.setAcquireOrLoadHandler(async resource => {
+			loads++;
+			chatService.setCompletedResponse(resource, { requestId: 'loaded', markdown: 'Created chocolate.md.' });
+			return { object: chatService.getSession(resource)!, dispose: () => { releases++; chatService.removeSession(resource); } };
+		});
+		const requests: IChatUtilityModelRequest[] = [];
+		const fixture = createFixture([session], undefined, undefined, chatService, undefined, true, [], true, {
+			utilityRequest: async request => { requests.push(request); return 'Review chocolate.md'; },
+		});
+		const row = fixture.service.sessionRows.get()[0];
+		assert.strictEqual(loads, 0);
+		fixture.service.requestPreview(row);
+		await waitForState(fixture.service.isLoading, loading => !loading);
+		assert.deepStrictEqual({
+			loads, releases,
+			latestInput: requests[0].messages.some(message => message.content.some(part => part.type === 'text' && part.value.includes('Created chocolate.md.'))),
+			preview: fixture.service.previews.get().get(row.previewSignature!),
+		}, { loads: 1, releases: 1, latestInput: true, preview: 'Review chocolate.md' });
+	});
+
 	test('completed ids survive chat-model residency, metadata changes, and reading the session', () => {
 		const session = createSession({ id: 'stable-completion', status: SessionStatus.Completed, updatedAt: 200, lastTurnEnd: 100 });
 		const chatResource = session.mainChat.get().resource;

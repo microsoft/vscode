@@ -1266,6 +1266,47 @@ suite('InboxNotificationsView', () => {
 		}, { order: ['second', 'first'], selected: 'first' });
 	});
 
+	test('live titles replace stale work headings without refresh notices, reordering, or losing reply drafts', () => {
+		const chat = upcastPartial<IChat>({ resource: URI.parse('test:///chat') });
+		const session = upcastPartial<ISession>({ sessionId: 'session', mainChat: constObservable(chat), chats: constObservable([chat]) });
+		const item: IInboxNotificationItem = {
+			id: 'item', kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+			title: 'Review completed work', description: 'Completed', timestamp: 1, actions: [],
+			sessionResource: URI.parse('test:///session'), previewSignature: 'first',
+		};
+		const row: IInboxSessionRow = {
+			...item, tab: InboxTab.ReadyForYou, sessionTitle: 'Update profile', workTitle: 'Update profile',
+			occurrence: 'first', notifications: [item], hasImages: false,
+		};
+		const second = { ...row, id: 'second', previewSignature: undefined };
+		const rows = observableValue<readonly IInboxSessionRow[]>('rows', [row, second]);
+		const previews = observableValue<ReadonlyMap<string, string>>('previews', new Map([['first', 'Review profile changes']]));
+		const { view, container, instantiationService, chatViews } = createView(constObservable([item]), { rows, previews });
+		instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
+		view.render(container);
+		container.querySelector<HTMLElement>('[data-notification-id="item"]')!.click();
+		const input = chatViews[0].input;
+		input.value = 'Keep this draft';
+		input.focus();
+		rows.set([second, { ...row, previewSignature: 'second', occurrence: 'second' }], undefined);
+		previews.set(new Map([['first', 'Review profile changes'], ['second', 'Review chocolate.md']]), undefined);
+		const card = container.querySelector<HTMLElement>('[data-notification-id="item"]')!;
+		assert.deepStrictEqual({
+			title: card.querySelector('.inbox-notifications-item-title')?.textContent,
+			session: card.querySelector('.inbox-notifications-session-title')?.textContent,
+			evidence: container.querySelector('.inbox-notifications-evidence-header h3')?.textContent,
+			accessible: view.getDetailAccessibleContent()?.startsWith('Evidence for Review chocolate.md'),
+			ariaLabel: card.getAttribute('aria-label')?.startsWith('Review chocolate.md'),
+			order: [...container.querySelectorAll<HTMLElement>('.inbox-notifications-item')].map(card => card.dataset.notificationId),
+			bannerHidden: container.querySelector('.inbox-notifications-deferred-updates')?.classList.contains('hidden'),
+			draft: input.value, focused: document.activeElement === input, bindings: chatViews[0].bindings.length,
+		}, {
+			title: 'Review chocolate.md', session: 'Update profile', evidence: 'Review chocolate.md',
+			accessible: true, ariaLabel: true, order: ['item', 'second'], bannerHidden: true,
+			draft: 'Keep this draft', focused: true, bindings: 1,
+		});
+	});
+
 	for (const outcome of ['success', 'failure', 'cancel', 'queued', 'rejected'] as const) {
 		test(`reply completion is truthful and does not dismiss an item on transport acceptance: ${outcome}`, async () => {
 			const chat = upcastPartial<IChat>({ resource: URI.parse('test:///cloud-chat') });
@@ -1968,6 +2009,46 @@ suite('InboxNotificationsView', () => {
 			bindings: chatViews[0].bindings.length, views: chatViews.length, draft: input.value, focused: document.activeElement === input,
 		}, { title: 'Hydrated work title', pullRequest: '#42', accessible: true, bindings: 1, views: 1, draft: 'Keep this draft', focused: true });
 	});
+
+	for (const width of [360, 560, 1000]) {
+		test(`evidence titles wrap above actions and empty notifications do not add spacing at ${width}px`, () => {
+			const item: IInboxNotificationItem = {
+				id: 'item', kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+				title: 'Update profile', description: '', timestamp: 1, actions: [],
+				sessionResource: URI.parse('test:///session'), previewSignature: 'preview',
+			};
+			const previews = constObservable(new Map([['preview', 'Review the completed profile changes and the newly created chocolate documentation']]));
+			const detailSummaries = constObservable(new Map<string, IInboxDetailSummary>([['item', {
+				status: 'Created chocolate.md.', decisions: ['Used a Markdown document.'], evidence: [],
+			}]]));
+			const { view, container } = createView(constObservable([item]), { previews, detailSummaries });
+			container.style.width = `${width}px`;
+			container.style.height = '600px';
+			for (const size of [8, 12, 16]) {
+				container.style.setProperty(`--vscode-spacing-size${size * 10}`, `${size}px`);
+			}
+			view.render(container);
+			view.layout(width, 600);
+			container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+			const header = container.querySelector<HTMLElement>('.inbox-notifications-evidence-header')!;
+			const heading = header.querySelector<HTMLElement>('h3')!;
+			const actions = header.querySelector<HTMLElement>('.inbox-notifications-evidence-actions')!;
+			const summary = container.querySelector<HTMLElement>('.inbox-notifications-detail-summary')!;
+			const disclosure = container.querySelector<HTMLElement>('.inbox-notifications-interpretation-content details')!;
+			assert.deepStrictEqual({
+				headingFits: heading.scrollWidth <= heading.clientWidth,
+				headingUsesFullWidth: Math.abs(heading.clientWidth - header.clientWidth) <= 1,
+				actionsBelow: actions.getBoundingClientRect().top >= heading.getBoundingClientRect().bottom + 7,
+				buttonsFit: [...actions.children].every(button => button.getBoundingClientRect().right <= header.getBoundingClientRect().right + 1),
+				emptyHidden: mainWindow.getComputedStyle(container.querySelector('.inbox-notifications-notification')!).display,
+				headerGap: Math.round(summary.getBoundingClientRect().top - header.getBoundingClientRect().bottom),
+				disclosureGap: Math.round(disclosure.getBoundingClientRect().top - summary.getBoundingClientRect().bottom),
+			}, {
+				headingFits: true, headingUsesFullWidth: true, actionsBelow: true, buttonsFit: true,
+				emptyHidden: 'none', headerGap: 16, disclosureGap: 12,
+			});
+		});
+	}
 
 	test('generated previews appear in a non-collapsible interpretation at the top of the detail pane and accessible view', () => {
 		const previews = observableValue<ReadonlyMap<string, string>>('previews', new Map());

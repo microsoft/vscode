@@ -986,7 +986,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	}
 
 	private updateDeferredUpdatesBanner(): void {
-		if (!this.deferredItems || equals(this.renderedItems, this.deferredItems, (a, b) => a.id === b.id)) {
+		if (!this.deferredItems || this.deferredNewNotificationsCount === 0) {
 			this.deferredUpdatesBanner.classList.add('hidden');
 			this.deferredUpdatesBannerLabel.textContent = '';
 			this.announcedDeferredNewNotificationsCount = 0;
@@ -995,11 +995,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		}
 
 		this.deferredUpdatesBanner.classList.remove('hidden');
-		const message = this.deferredNewNotificationsCount === 0
-			? localize('inboxNotifications.deferred.changed', "The session list has changed. Refresh the list when you're ready.")
-			: this.deferredNewNotificationsCount === 1
-				? localize('inboxNotifications.deferred.single', "1 new notification arrived while you were reading.")
-				: localize('inboxNotifications.deferred.multiple', "{0} new notifications arrived while you were reading.", this.deferredNewNotificationsCount);
+		const message = this.deferredNewNotificationsCount === 1
+			? localize('inboxNotifications.deferred.single', "1 new notification arrived while you were reading.")
+			: localize('inboxNotifications.deferred.multiple', "{0} new notifications arrived while you were reading.", this.deferredNewNotificationsCount);
 		this.deferredUpdatesBannerLabel.textContent = message;
 		if (this.announcedDeferredNewNotificationsCount !== this.deferredNewNotificationsCount) {
 			this.announcedDeferredNewNotificationsCount = this.deferredNewNotificationsCount;
@@ -1261,10 +1259,10 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		store.add(this.hoverService.setupDelayedHover(title, () => ({ content: title.textContent ?? item.title })));
 		store.add(autorun(reader => {
 			const generated = item.previewSignature ? this.inboxNotificationsService.previews.read(reader).get(item.previewSignature) : undefined;
-			title.textContent = row?.workTitle ?? generated ?? item.title;
-			sessionTitle.textContent = row?.workTitle ? generated || item.title : row?.sessionTitle ?? item.title;
+			title.textContent = generated || row?.workTitle || item.title;
+			sessionTitle.textContent = row?.workTitle ?? row?.sessionTitle ?? item.title;
 			card.setAttribute('aria-label', [
-				row?.workTitle, generated || item.title, row?.sessionTitle, kindLabel, row && getInboxTabLabel(row.tab),
+				title.textContent, sessionTitle.textContent, kindLabel, row && getInboxTabLabel(row.tab),
 				row?.hasImages ? localize('inbox.visual.aria', "Visual evidence available") : undefined,
 				fromNowByDay(item.timestamp, true, true),
 			].filter(Boolean).join('. '));
@@ -1419,6 +1417,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		descriptionEl.hidden = !descriptionEl.textContent;
 		card.setAttribute('aria-label', this.getCardAriaLabel(item, descriptionEl.textContent));
 		this.renderNeedsInputPart(card, item, store);
+		const hasContent = !!(titleGroup.childElementCount || primaryActions.length || item.repositoryLabel
+			|| item.pullRequestStates?.length || descriptionEl.textContent || item.needsInputPart);
+		card.hidden = !hasContent;
 		const session = item.sessionResource ? this.sessionsManagementService.getSession(item.sessionResource) : undefined;
 		if (session?.artifacts) {
 			const teaser = card.appendChild($('.inbox-evidence-note.inbox-evidence-teaser'));
@@ -1430,6 +1431,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 				const artifacts = chat ? getChatSessionArtifacts(session, chat, reader).filter(artifact => artifact.isArtifact) : [];
 				teaser.hidden = artifacts.length === 0;
 				teaser.textContent = artifacts.length ? localize('inbox.evidence.teaser', "{0} recorded artifacts in this session's evidence", artifacts.length) : '';
+				card.hidden = !hasContent && artifacts.length === 0;
 			}));
 		}
 
@@ -2854,19 +2856,27 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		const row = this.getRow(item.id);
 		const sessionTitle = row?.workTitle ?? row?.sessionTitle ?? item.title;
 		const header = body.appendChild($('.inbox-notifications-evidence-header'));
-		header.appendChild($('h3', undefined, sessionTitle));
+		const heading = header.appendChild($('h3', undefined, sessionTitle));
+		this.detailDisposables.add(autorun(reader => {
+			const current = this.inboxNotificationsService.sessionRows.read(reader).find(row => row.id === item.id) ?? item;
+			const generated = current?.previewSignature ? this.inboxNotificationsService.previews.read(reader).get(current.previewSignature) : undefined;
+			heading.textContent = generated || sessionTitle;
+			this.detailContentElement.setAttribute('aria-label', localize('inboxNotifications.detail.ariaLabel.item', "Notification details for {0}.", heading.textContent));
+		}));
+		const headerActions = header.appendChild($('.inbox-notifications-evidence-actions'));
 		if (item.sessionResource) {
-			this.renderActionButton(header, item, { id: 'open', label: localize('inbox.openSession', "Open Session"), kind: InboxNotificationActionKind.OpenSession }, this.detailDisposables);
+			this.renderActionButton(headerActions, item, { id: 'open', label: localize('inbox.openSession', "Open Session"), kind: InboxNotificationActionKind.OpenSession }, this.detailDisposables);
 		}
 		if (row && row.tab !== InboxTab.Done) {
-			this.renderActionButton(header, row, { id: 'done', label: localize('inbox.done', "Mark Session as Done"), kind: InboxNotificationActionKind.MarkDone }, this.detailDisposables);
+			this.renderActionButton(headerActions, row, { id: 'done', label: localize('inbox.done', "Mark Session as Done"), kind: InboxNotificationActionKind.MarkDone }, this.detailDisposables);
 		}
 		const closeLabel = localize('inbox.closeEvidence', "Close Evidence");
-		const close = this.detailDisposables.add(new Button(header, {
+		const close = this.detailDisposables.add(new Button(headerActions, {
 			...inboxButtonStyles, secondary: true, small: true, supportIcons: true,
 			ariaLabel: closeLabel, title: closeLabel,
 		}));
 		close.label = '$(close)';
+		close.element.classList.add('inbox-notifications-close-evidence');
 		this.detailDisposables.add(close.onDidClick(() => {
 			this.focusSelectedCard();
 			this.clearSelectedItem('closeEvidence');
@@ -3241,6 +3251,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	getDetailAccessibleContent(): string | undefined {
 		const item = this.selectedItem();
 		const sessionTitle = item ? this.getRow(item.id)?.sessionTitle ?? item.title : '';
+		const title = item?.previewSignature ? this.inboxNotificationsService.previews.get().get(item.previewSignature) ?? sessionTitle : sessionTitle;
 		const interpretation = item && this.getDetailInterpretation(item);
 		const content = [
 			...(item ? (this.getRow(item.id)?.notifications ?? [item]).map(notification => [
@@ -3259,7 +3270,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			...(item?.pullRequestStates?.map(state => `${state.repositoryLabel} ${state.label}: ${state.statusLabel}${state.pullRequestUri ? `\n${state.pullRequestUri.toString(true)}` : ''}`) ?? []),
 			this.getDetailChatStatus(),
 		].filter(Boolean).join('\n\n');
-		return content ? localize('inbox.evidence.accessible', "Evidence for {0}\n\n{1}", sessionTitle, content) : undefined;
+		return content ? localize('inbox.evidence.accessible', "Evidence for {0}\n\n{1}", title, content) : undefined;
 	}
 
 	getCanvasAccessibleProvider() {
