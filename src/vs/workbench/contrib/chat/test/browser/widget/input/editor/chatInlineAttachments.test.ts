@@ -242,6 +242,118 @@ suite('ChatInlineAttachments', () => {
 		});
 	});
 
+	for (const type of [AccessibleViewType.View, AccessibleViewType.Help]) {
+		test(`${type} restores a link when preview loading finishes while reading`, async () => {
+			const preview = dom.$('div');
+			preview.setAttribute('aria-busy', 'true');
+			const input = createInput('review ', true, preview, {
+				...NullHoverService,
+				showInstantHover: () => {
+					dom.getActiveDocument().body.appendChild(preview);
+					return { isDisposed: false, setVisible: () => { }, dispose: () => preview.remove() };
+				},
+			});
+			const host = input.editor.getContainerDomNode();
+			dom.getActiveDocument().body.appendChild(host);
+			store.add(toDisposable(() => host.remove()));
+			input.editor.focus();
+			input.editor.setPosition(new Position(1, 8));
+			input.attachments.addContext(file('a.ts'));
+			await settle();
+			input.editor.setPosition(new Position(1, 9), 'keyboard');
+			input.controller.openActivePill();
+			const provider = store.add(input.controller.getAccessiblePreviewProvider(type)!);
+			const observation = provider.onOpen?.();
+			if (observation) {
+				store.add(observation);
+			}
+			const accessibleHost = dom.append(dom.getActiveDocument().body, dom.$('div', { tabIndex: 0 }));
+			store.add(toDisposable(() => accessibleHost.remove()));
+			accessibleHost.focus();
+			const link = dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode' }, 'Repository'));
+			preview.setAttribute('aria-busy', 'false');
+			await settle();
+			const readingPreserved = dom.getActiveElement() === accessibleHost;
+			const placeholderTabIndex = preview.getAttribute('tabindex');
+			const textUpdated = type === AccessibleViewType.Help || provider.provideContent().includes('Repository');
+			provider.onClose();
+			assert.deepStrictEqual({
+				readingPreserved,
+				placeholderTabIndex,
+				textUpdated,
+				returnedToLink: dom.getActiveElement() === link,
+			}, { readingPreserved: true, placeholderTabIndex: null, textUpdated: true, returnedToLink: true });
+		});
+
+		test(`${type} retains preview ownership through a deferred composer refresh`, async () => {
+			const preview = dom.$('div');
+			dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode' }, 'Repository'));
+			const reference = dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode/pull/123' }, 'Reference'));
+			let shown = 0;
+			let disposed = 0;
+			let visible = true;
+			const input = createInput('review ', true, preview, {
+				...NullHoverService,
+				showInstantHover: () => {
+					shown++;
+					dom.getActiveDocument().body.appendChild(preview);
+					let isDisposed = false;
+					return {
+						get isDisposed() { return isDisposed; },
+						setVisible: value => { visible = value; },
+						dispose: () => {
+							if (!isDisposed) {
+								isDisposed = true;
+								disposed++;
+								preview.remove();
+							}
+						},
+					};
+				},
+			});
+			const host = input.editor.getContainerDomNode();
+			dom.getActiveDocument().body.appendChild(host);
+			store.add(toDisposable(() => host.remove()));
+			input.editor.focus();
+			input.editor.setPosition(new Position(1, 8));
+			input.attachments.addContext(file('a.ts'));
+			await settle();
+			input.editor.setPosition(new Position(1, 9), 'keyboard');
+			input.controller.openActivePill();
+			reference.focus();
+			const provider = store.add(input.controller.getAccessiblePreviewProvider(type)!);
+			const observation = provider.onOpen?.();
+			if (observation) {
+				store.add(observation);
+			}
+			const accessibleHost = dom.append(dom.getActiveDocument().body, dom.$('div', { tabIndex: 0 }));
+			store.add(toDisposable(() => accessibleHost.remove()));
+			accessibleHost.focus();
+			input.controller.refresh();
+			await settle();
+			const reading = {
+				shown, disposed, visible,
+				focusPreserved: dom.getActiveElement() === accessibleHost,
+				ownerPreserved: ChatInlineAttachments.getPreviewOwner(reference) === input.controller,
+				widgetRenders: input.attachmentElements.length,
+			};
+			provider.onClose();
+			provider.dispose();
+			await settle();
+			const returned = { shown, disposed, visible, focusPreserved: dom.getActiveElement() === reference };
+			input.controller.openActivePill();
+			await settle();
+			assert.deepStrictEqual({
+				reading, returned,
+				dismissed: { shown, disposed, editorFocused: input.editor.hasTextFocus(), widgetRenders: input.attachmentElements.length },
+			}, {
+				reading: { shown: 1, disposed: 0, visible: false, focusPreserved: true, ownerPreserved: true, widgetRenders: 1 },
+				returned: { shown: 1, disposed: 0, visible: true, focusPreserved: true },
+				dismissed: { shown: 1, disposed: 1, editorFocused: true, widgetRenders: 2 },
+			});
+		});
+	}
+
 	test('Tab during loading focuses the preview and leaves late-arriving links reachable', async () => {
 		const preview = dom.$('div');
 		preview.setAttribute('aria-busy', 'true');

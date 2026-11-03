@@ -6,9 +6,9 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import * as dom from '../../../../../../../base/browser/dom.js';
-import { IDelayedHoverOptions, IHoverLifecycleOptions } from '../../../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
@@ -47,7 +47,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 	suite('GitHub attachment previews', () => {
 		for (const [path, kind] of [['issues', 'issue'], ['pull', 'pullRequest']] as const) {
-			test(`reuses the lazy ${kind} preview for pointer and keyboard hovers`, () => {
+			test(`provides the lazy ${kind} preview only to inline attachments`, () => {
 				instantiationService.stub(IWorkbenchGitHubService, upcastPartial<IWorkbenchGitHubService>({
 					onDidChangeDefaultClient: Event.None,
 				}));
@@ -58,22 +58,15 @@ suite('ChatAttachmentsContentPart', () => {
 					pillHover: { element: render },
 					prefetch: () => assert.fail('Attachments must not prefetch details'),
 				});
-				let hoverOptions: (() => IDelayedHoverOptions) | IDelayedHoverOptions | undefined;
-				let lifecycle: IHoverLifecycleOptions | undefined;
-				let hoverDisposed = false;
 				instantiationService.stub(IHoverService, {
 					...NullHoverService,
-					setupDelayedHover: (_target, options, lifecycleOptions) => {
-						hoverOptions = options;
-						lifecycle = lifecycleOptions;
-						return toDisposable(() => hoverDisposed = true);
-					},
+					setupDelayedHover: () => assert.fail('Inline references must not register a pointer preview'),
 				});
 				const labels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 				const attachment = getGitHubIssueOrPullRequestAttachments(`https://github.com/microsoft/vscode/${path}/123`)[0];
 				const widget = disposables.add(instantiationService.createInstance(DefaultChatAttachmentWidget,
 					undefined, undefined, attachment, undefined, undefined,
-					{ shouldFocusClearButton: false, supportsDeletion: true }, dom.$('div'), labels));
+					{ shouldFocusClearButton: false, supportsDeletion: true }, dom.$('.chat-inline-attachment'), labels));
 				assert.deepStrictEqual({
 					createdAtRest: createHover.callCount,
 					renderedAtRest: render.callCount,
@@ -83,27 +76,19 @@ suite('ChatAttachmentsContentPart', () => {
 					renderedAtRest: 0,
 					label: 'microsoft/vscode#123',
 				});
-				assert.ok(typeof hoverOptions === 'function');
-				const pointerHover = hoverOptions();
+				const keyboardContent = widget.getPreviewHoverContent();
 				assert.deepStrictEqual({
 					kind: createHover.firstCall.args[1].kind,
 					target: createHover.firstCall.args[1].target,
-					pointerContent: pointerHover.content,
-					keyboardContent: widget.getPreviewHoverContent()?.element,
-					interactive: pointerHover.persistence?.hideOnHover === false,
-					trapFocus: pointerHover.trapFocus,
-					group: lifecycle?.groupId,
+					keyboardContent: keyboardContent?.element,
+					supportsPreview: widget.supportsPreview,
 				}, {
 					kind,
 					target: { owner: 'microsoft', repo: 'vscode', number: 123 },
-					pointerContent: preview,
 					keyboardContent: preview,
-					interactive: true,
-					trapFocus: true,
-					group: 'chat-attachments',
+					supportsPreview: true,
 				});
 				widget.dispose();
-				assert.strictEqual(hoverDisposed, true);
 				const copied: string[] = [];
 				const opened: { resource: string; options: Parameters<IOpenerService['open']>[1] }[] = [];
 				instantiationService.stub(IClipboardService, upcastPartial<IClipboardService>({ writeText: async text => { copied.push(text); } }));
@@ -115,7 +100,7 @@ suite('ChatAttachmentsContentPart', () => {
 				}));
 				const copyWidget = disposables.add(instantiationService.createInstance(DefaultChatAttachmentWidget,
 					undefined, undefined, attachment, undefined, undefined,
-					{ shouldFocusClearButton: false, supportsDeletion: true }, dom.$('div'), labels));
+					{ shouldFocusClearButton: false, supportsDeletion: true }, dom.$('.chat-inline-attachment'), labels));
 				copyWidget.getPreviewHoverContent();
 				createHover.lastCall.args[1].onDidClickBaseBranch('main');
 				createHover.lastCall.args[1].onDidClickHeadBranch('feature/preview');
@@ -125,6 +110,30 @@ suite('ChatAttachmentsContentPart', () => {
 					opened: [{ resource: `https://github.com/microsoft/vscode/${path}/123`, options: { openExternal: true } }],
 				});
 				copyWidget.dispose();
+			});
+
+			test(`preserves the ordinary non-inline ${kind} attachment tooltip`, () => {
+				const createHover = sinon.stub(GitHubResourceDetailsResolver.prototype, 'createHover');
+				let tooltipRegistrations = 0;
+				instantiationService.stub(IHoverService, {
+					...NullHoverService,
+					setupDelayedHover: () => {
+						tooltipRegistrations++;
+						return toDisposable(() => { });
+					},
+				});
+				const labels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+				const attachment = getGitHubIssueOrPullRequestAttachments(`https://github.com/microsoft/vscode/${path}/123`)[0];
+				assert.ok(attachment.kind === 'generic');
+				const widget = disposables.add(instantiationService.createInstance(DefaultChatAttachmentWidget,
+					undefined, undefined, { ...attachment, tooltip: new MarkdownString('Existing reference tooltip') }, undefined, undefined,
+					{ shouldFocusClearButton: false, supportsDeletion: true }, dom.$('div'), labels));
+				assert.deepStrictEqual({
+					supportsPreview: widget.supportsPreview,
+					preview: widget.getPreviewHoverContent(),
+					enrichmentCalls: createHover.callCount,
+					tooltipRegistrations,
+				}, { supportsPreview: false, preview: undefined, enrichmentCalls: 0, tooltipRegistrations: 1 });
 			});
 		}
 
@@ -140,7 +149,7 @@ suite('ChatAttachmentsContentPart', () => {
 			const labels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 			const widget = disposables.add(instantiationService.createInstance(DefaultChatAttachmentWidget,
 				undefined, undefined, getGitHubIssueOrPullRequestAttachments('https://github.com/microsoft/vscode/pull/123')[0], undefined, undefined,
-				{ shouldFocusClearButton: false, supportsDeletion: true }, dom.$('div'), labels));
+				{ shouldFocusClearButton: false, supportsDeletion: true }, dom.$('.chat-inline-attachment'), labels));
 			widget.getPreviewHoverContent();
 			let invalidated = 0;
 			dom.getActiveDocument().body.appendChild(oldContent);

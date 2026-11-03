@@ -213,6 +213,7 @@ export class ChatInlineAttachments extends Disposable {
 	private _activePillHoverContent: IChatPillHoverContent | undefined;
 	private _activePillHoverWidget: IHoverWidget | undefined;
 	private _previewInAccessibleView = false;
+	private _deferredPreviewRender = false;
 	private _restorePillPreview: InlineAttachmentPill | undefined;
 	private _previewPill: InlineAttachmentPill | undefined;
 	/**
@@ -1092,14 +1093,23 @@ export class ChatInlineAttachments extends Disposable {
 		if (!this._needsRender && ![...this._pills].some(pill => pill.needsRender(this._resolveEntry(pill.data)))) {
 			return;
 		}
-		this._restorePillPreview = this._activePillHoverWidget && !this._activePillHoverWidget.isDisposed ? this._previewPill : undefined;
-		this._activePillHover.clear();
+		const preservedPreview = this._previewPill && (this._previewInAccessibleView || this._deferredPreviewRender) ? this._previewPill : undefined;
+		if (preservedPreview) {
+			// Keep the accessible reader's DOM owner stable until its preview closes.
+			this._deferredPreviewRender = true;
+		} else {
+			this._restorePillPreview = this._activePillHoverWidget && !this._activePillHoverWidget.isDisposed ? this._previewPill : undefined;
+			this._activePillHover.clear();
+		}
 		this._needsRender = false;
 
 		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
 		const anchorWidth = measureAnchorWidth(`${fontInfo.fontWeight} ${fontInfo.fontSize}px ${fontInfo.fontFamily}`);
 		for (const pill of this._pills) {
+			if (pill === preservedPreview) {
+				continue;
+			}
 			const entry = this._resolveEntry(pill.data);
 			pill.render(entry, lineHeight, container => this._host.createAttachmentWidget(entry, container, { shouldFocusClearButton: false, supportsDeletion: true }), {
 				getClassName: width => this._widthStyles.getClassName(width),
@@ -1309,6 +1319,11 @@ export class ChatInlineAttachments extends Disposable {
 			this._previewPill = undefined;
 			target.setAttribute('aria-expanded', 'false');
 			target.removeAttribute('aria-controls');
+			if (this._deferredPreviewRender) {
+				this._deferredPreviewRender = false;
+				this._needsRender = true;
+				this._scheduleReconcile();
+			}
 		}));
 		const hover = this._hoverService.showInstantHover({
 			content: content.element,
@@ -1396,8 +1411,15 @@ export class ChatInlineAttachments extends Disposable {
 			() => {
 				this._previewInAccessibleView = false;
 				this._activePillHoverWidget?.setVisible?.(true);
-				if (dom.isHTMLElement(focused) && focused.isConnected) {
-					focused.focus();
+				const currentContent = this._activePillHoverContent;
+				const focusTarget = currentContent && dom.isHTMLElement(focused) && focused.isConnected && focused !== currentContent.element
+					? focused
+					: currentContent?.tabbableElements.find(element => element.isConnected && element.tabIndex >= 0);
+				if (focusTarget) {
+					focusTarget.focus();
+				} else if (currentContent?.element.isConnected) {
+					currentContent.element.tabIndex = -1;
+					currentContent.element.focus();
 				} else {
 					this._editor.focus();
 				}

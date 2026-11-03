@@ -1046,7 +1046,7 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 			this._setupTooltipHover(attachment.tooltip);
 		}
 
-		if (attachment.kind === 'generic' && attachment.id.startsWith(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX)) {
+		if (attachment.kind === 'generic' && attachment.id.startsWith(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX) && this.element.closest('.chat-inline-attachment')) {
 			const link = URI.parse(attachment.id.substring(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX.length));
 			const issue = parseGitHubReferenceTarget(link, 'issue');
 			const target = issue ?? parseGitHubReferenceTarget(link, 'pullRequest');
@@ -1084,19 +1084,9 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 					currentContent?.element.replaceChildren(dom.$('span', undefined, localize('chat.attachment.previewAccountChanged', "Reference details changed. Reopen the preview to refresh.")));
 					currentContent = undefined;
 				}));
-				const getHoverContent = this._hoverContent;
-				if (!this.supportsPreview) {
-					this._tooltipHover.value = this.hoverService.setupDelayedHover(this.element, () => ({
-						...commonHoverOptions,
-						accessibility: { role: 'dialog', label: localize('chat.attachment.referencePreview', "Reference preview") },
-						content: getHoverContent().element,
-						persistence: { hideOnHover: false },
-					}), commonHoverLifecycleOptions);
-				} else {
-					this.element.setAttribute('aria-haspopup', 'dialog');
-					this.element.setAttribute('aria-expanded', 'false');
-					this.element.ariaLabel = this.appendDeletionHint(localize('chat.attachment.previewLabel', "Preview reference, {0}", attachment.name));
-				}
+				this.element.setAttribute('aria-haspopup', 'dialog');
+				this.element.setAttribute('aria-expanded', 'false');
+				this.element.ariaLabel = this.appendDeletionHint(localize('chat.attachment.previewLabel', "Preview reference, {0}", attachment.name));
 			}
 		}
 
