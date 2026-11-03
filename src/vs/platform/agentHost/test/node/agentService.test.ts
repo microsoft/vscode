@@ -42950,6 +42950,37 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('release preflight distinguishes archived peer chats from idle chats', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const agent = new MockAgent('copilot');
+				disposables.add(toDisposable(() => agent.dispose()));
+				const reasons: Array<{ chat: string; reason: string | undefined }> = [];
+				agent.chats.canReleaseChat = async (chat, _context, reason) => {
+					reasons.push({ chat: chat.toString(), reason });
+					return true;
+				};
+				registerTestAgentProvider(service, agent);
+				const { session } = await createAgentSession(agent);
+				agent.sessionMessages = [
+					{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				];
+				await service.restoreSession(session);
+				const peer = URI.parse(buildChatUri(session, 'archived-peer'));
+				getStateManager(service).addChat(session.toString(), peer.toString(), creationTimeChatStorageResource(session.toString(), peer.toString(), buildDefaultChatUri(session.toString())), {});
+				getStateManager(service).dispatchServerAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+				service.addSubscriber(session, 'client-1');
+
+				const evicted = Event.toPromise(Event.filter(getStateManager(service).onDidRemoveSession, removed => removed === session.toString()), disposables);
+				service.unsubscribe(session, 'client-1');
+				await evicted;
+
+				assert.deepStrictEqual(reasons, [
+					{ chat: peer.toString(), reason: 'archived' },
+					{ chat: buildDefaultChatUri(session), reason: 'idle' },
+				]);
+			});
+		});
+
 		test('re-subscribing during release preflight cancels the release', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				registerTestAgentProvider(service, copilotAgent);

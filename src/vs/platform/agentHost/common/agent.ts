@@ -1239,6 +1239,8 @@ export interface IAgentPrepareChatResult {
 	readonly error?: ErrorInfo;
 }
 
+export type AgentChatReleaseReason = 'idle' | 'archived';
+
 /**
  * The chat-addressed operation surface an agent exposes for the chats
  * within a session.
@@ -1294,8 +1296,8 @@ export interface IAgentChats {
 	/** Dispose the addressed chat and free its backing. */
 	disposeChat(chat: URI, context: AgentChatOperationContext): Promise<void>;
 
-	/** Return whether the addressed chat can currently release its in-memory backing. */
-	canReleaseChat?(chat: URI, context: AgentChatOperationContext): Promise<boolean>;
+	/** Return whether the addressed chat can currently release its in-memory backing for `reason`. */
+	canReleaseChat?(chat: URI, context: AgentChatOperationContext, reason?: AgentChatReleaseReason): Promise<boolean>;
 
 	/** Release the addressed chat's in-memory backing without deleting durable data. */
 	releaseChat(chat: URI, context: AgentChatOperationContext): Promise<void>;

@@ -370,6 +370,26 @@ suite('AgentSessionResidency', () => {
 		});
 	});
 
+	test('distinguishes idle-pressure release from archived release', async () => {
+		residency.dispose();
+		const reasons: string[] = [];
+		delegate.createRelease = session => ({
+			canRelease: async (_chats, reason) => {
+				reasons.push(`${AgentSession.id(session)}:${reason}`);
+				return true;
+			},
+			release: async () => { released.push(session.toString()); },
+		});
+		residency = createResidency(0);
+		createUsedSession('pressure');
+		await residency.reconcile();
+		const archived = createUsedSession('archived');
+		stateManager.dispatchServerAction(archived.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+		await residency.reconcile();
+
+		assert.deepStrictEqual(reasons, ['pressure:idle', 'archived:archived']);
+	});
+
 	test('does not continue release after disposal', async () => {
 		residency.dispose();
 		const canRelease = new DeferredPromise<void>();

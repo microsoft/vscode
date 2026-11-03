@@ -9,6 +9,7 @@ import { Disposable, DisposableResourceMap, toDisposable, type IDisposable } fro
 import { LinkedMap, Touch } from '../../../base/common/map.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
+import type { AgentChatReleaseReason } from '../common/agent.js';
 import { AgentHostSessionReleaseRetryMsEnvVar, AgentHostSessionResidencyLimitEnvVar } from '../common/agentService.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { parseAnnotationsUri } from '../common/annotationsUri.js';
@@ -26,7 +27,7 @@ function readNonNegativeIntegerEnv(name: string, defaultValue: number): number {
 }
 
 export interface IAgentSessionRelease {
-	canRelease(chats: readonly URI[]): Promise<boolean>;
+	canRelease(chats: readonly URI[], reason: AgentChatReleaseReason): Promise<boolean>;
 	release(chats: readonly URI[]): Promise<void>;
 }
 
@@ -290,12 +291,18 @@ export class AgentSessionResidency extends Disposable {
 	}
 
 	private _isReleaseRequired(sessionKey: string, expectedRecency: URI | undefined): boolean {
+		return this._releaseReason(sessionKey, expectedRecency) !== undefined;
+	}
+
+	private _releaseReason(sessionKey: string, expectedRecency: URI | undefined): AgentChatReleaseReason | undefined {
 		if (isSessionStatusArchived(this._stateManager.getSessionState(sessionKey)?.status)) {
-			return true;
+			return 'archived';
 		}
 		return expectedRecency !== undefined
 			&& this._recency.get(sessionKey) === expectedRecency
-			&& this._residentCount() > this._limit;
+			&& this._residentCount() > this._limit
+			? 'idle'
+			: undefined;
 	}
 
 	private async _doReconcile(): Promise<void> {
@@ -388,7 +395,11 @@ export class AgentSessionResidency extends Disposable {
 			}
 			let chats = this._delegate.getSessionChats(session);
 			while (true) {
-				if (!await release.canRelease(chats)) {
+				const reason = this._releaseReason(sessionKey, expectedRecency);
+				if (!reason) {
+					return false;
+				}
+				if (!await release.canRelease(chats, reason)) {
 					this._scheduleRetryIfNeeded(session, expectedRecency);
 					return false;
 				}

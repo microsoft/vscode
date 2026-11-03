@@ -26816,6 +26816,31 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		test('release preflight keeps idle chats with projected canvases resident', async () => {
+			const agent = createTestAgent(disposables);
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'conv-canvas-release');
+			const chat = URI.parse(buildChatUri(session, 'peer-canvas-release'));
+			const live = {
+				hasActiveTurn: false,
+				hasProjectedCanvases: true,
+				hasRunningDetachedShells: async () => false,
+				dispose: () => { },
+			};
+			setPeerChatStub(agent, chat, live);
+
+			const idle = await agent.chats.canReleaseChat?.(chat, exactChatContext(session, chat), 'idle');
+			const archived = await agent.chats.canReleaseChat?.(chat, exactChatContext(session, chat), 'archived');
+			live.hasProjectedCanvases = false;
+			const afterClose = await agent.chats.canReleaseChat?.(chat, exactChatContext(session, chat), 'idle');
+
+			assert.deepStrictEqual({ idle, archived, afterClose }, {
+				idle: false,
+				archived: true,
+				afterClose: true,
+			});
+		});
+
 		test('disposeChat releases the peer chat\'s own OTel trace context without releasing a still-live sibling\'s scope', async () => {
 			const otelService = new RecordingReleaseOTelService();
 			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), otelService });
