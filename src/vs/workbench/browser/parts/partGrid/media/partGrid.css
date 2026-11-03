@@ -119,6 +119,11 @@
 	background-color: var(--vscode-editorGroup-dropBackground);
 }
 
+/* Where a part goes shows as a card: its slot, or the whole part it merges into, framed as a card is. */
+.part-grid-drop-indicator.part {
+	border: var(--vscode-strokeThickness, 1px) solid var(--vscode-focusBorder);
+}
+
 .monaco-enable-motion .part-grid-drop-indicator {
 	transition: left 0.07s ease-out, top 0.07s ease-out, width 0.07s ease-out, height 0.07s ease-out;
 }

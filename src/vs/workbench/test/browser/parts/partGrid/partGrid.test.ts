@@ -10,6 +10,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -23,7 +24,7 @@ import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
 import { DraggedEditorIdentifier } from '../../../../browser/dnd.js';
 import { ContentPart } from '../../../../browser/parts/editor/contentPart.js';
 import { MoveEditorIntoNewPartBelowAction, MovePartRightAction } from '../../../../browser/parts/partGrid/partGridActions.js';
-import { DraggedPartIdentifier, getPartGridDrop } from '../../../../browser/parts/partGrid/partGridDnd.js';
+import { DraggedPartIdentifier, getPartGridDrop, IPartGridDrop } from '../../../../browser/parts/partGrid/partGridDnd.js';
 import { GRID_GAP_SASH_CLASS } from '../../../../browser/parts/partGrid/partGridGap.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
@@ -445,6 +446,10 @@ suite('Part Grid', () => {
 		assert.deepStrictEqual({ afterCellLayout, afterUpdateLook: grid.getCellSize('title').height }, { afterCellLayout: 30, afterUpdateLook: 32 });
 	});
 
+	function locationOf(drop: IPartGridDrop | undefined) {
+		return drop && hasKey(drop, { location: true }) ? drop.location : undefined;
+	}
+
 	function dispatch(target: Element, type: string, clientX = 0, clientY = 0): void {
 		target.dispatchEvent(new DragEvent(type, { dataTransfer: new DataTransfer(), clientX, clientY, bubbles: true, cancelable: true }));
 	}
@@ -459,7 +464,7 @@ suite('Part Grid', () => {
 	test('a drop goes to the window edge near it, else beside the cell under it on its nearest side, not onto the dragged cell', () => {
 		const container = { left: 0, top: 0, width: 400, height: 200 };
 		const cells = [{ id: 'a', element: boxAt(0, 0, 200, 200) }, { id: 'b', element: boxAt(200, 0, 200, 200) }];
-		const at = (x: number, y: number, excluded?: string) => getPartGridDrop(x, y, container, cells, excluded)?.location;
+		const at = (x: number, y: number, excluded?: string) => locationOf(getPartGridDrop(x, y, container, cells, excluded));
 
 		assert.deepStrictEqual({
 			windowLeft: at(5, 100),
@@ -483,7 +488,7 @@ suite('Part Grid', () => {
 		const cells = [{ id: 'a', element: boxAt(4, 33, 196, 163) }, { id: 'b', element: boxAt(200, 33, 196, 163) }];
 		const at = (x: number, y: number) => getPartGridDrop(x, y, container, cells);
 
-		assert.deepStrictEqual({ belowTitle: at(300, 40), inset: at(2, 100), aMiddle: at(100, 120)?.location, aTopFar: at(100, 60)?.location }, {
+		assert.deepStrictEqual({ belowTitle: at(300, 40), inset: at(2, 100), aMiddle: locationOf(at(100, 120)), aTopFar: locationOf(at(100, 60)) }, {
 			belowTitle: { location: { edge: Direction.Up }, indicator: { left: 4, top: 33, width: 392, height: 163 * 0.25 } },
 			inset: { location: { edge: Direction.Left }, indicator: { left: 4, top: 33, width: 392 * 0.25, height: 163 } },
 			aMiddle: { reference: 'a', direction: Direction.Down },
@@ -528,6 +533,77 @@ suite('Part Grid', () => {
 			ontoItself: { indicatorShown: false, editorOverlay: false, shape: 'column(row(side, chat), bottom)' },
 			transfer: false,
 			indicatorAfter: 'none'
+		});
+	});
+
+	test('a part dragged beside another shows its whole slot after the move, the others shifted, not half of the part under it', async () => {
+		const parts = await createParts();
+		const container = boxAt(0, 0, 1000, 800);
+		const grid = disposables.add(new PartGrid(container, parts));
+		const [left, right] = [createPart(parts), createPart(parts)];
+		await Promise.all([openEditor(left, '/left.txt'), openEditor(right, '/right.txt')]);
+		grid.addPart('left', left);
+		grid.addPart('right', right, { reference: 'left', direction: Direction.Right });
+		grid.layout(1000, 800);
+		grid.resizeCell('left', { width: 700, height: 800 });
+
+		const cellOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!;
+		const indicator = container.querySelector<HTMLElement>('.part-grid-drop-indicator')!;
+		const rectOf = (element: HTMLElement) => { const r = element.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round); };
+		const handle = cellOf('right').querySelector('.part-grid-drag-handle')!;
+
+		// The right part over the left side of the left part takes the left slot, the left part moving right
+		dispatch(handle, 'dragstart');
+		const target = cellOf('left').getBoundingClientRect();
+		const point = [target.left + target.width * 0.1, target.top + target.height / 2] as const;
+		dispatch(cellOf('left'), 'dragover', ...point);
+		const shown = rectOf(indicator);
+		dispatch(cellOf('left'), 'drop', ...point);
+		dispatch(handle, 'dragend');
+
+		assert.deepStrictEqual({ shape: grid.describe(), shown, slotAfterDrop: rectOf(cellOf('right')), halfOfTarget: shown[2] === Math.round(target.width / 2) }, {
+			shape: 'row(right, left)',
+			shown: rectOf(cellOf('right')),
+			slotAfterDrop: rectOf(cellOf('right')),
+			halfOfTarget: false
+		});
+	});
+
+	test('a part dropped on the center of another merges into it, the whole part highlighted, unless the window says parts do not merge', async () => {
+		const parts = await createParts();
+		const container = boxAt(0, 0, 1000, 800);
+		const grid = disposables.add(new PartGrid(container, parts));
+		const [left, right] = [createPart(parts), createPart(parts)];
+		const [leftFile, rightFile] = await Promise.all([openEditor(left, '/left.txt'), openEditor(right, '/right.txt')]);
+		grid.addPart('left', left);
+		grid.addPart('right', right, { reference: 'left', direction: Direction.Right });
+		grid.layout(1000, 800);
+
+		const cellOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!;
+		const indicator = container.querySelector<HTMLElement>('.part-grid-drop-indicator')!;
+		const rectOf = (element: HTMLElement) => { const r = element.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round); };
+		const dragToCenter = () => {
+			const handle = cellOf('right').querySelector('.part-grid-drag-handle')!;
+			dispatch(handle, 'dragstart');
+			const target = cellOf('left').getBoundingClientRect();
+			const point = [target.left + target.width / 2, target.top + target.height / 2] as const;
+			dispatch(cellOf('left'), 'dragover', ...point);
+			const feedback = indicator.style.display === 'none' ? 'none' : { merge: indicator.classList.contains('merge'), wholeTarget: rectOf(indicator).join() === rectOf(cellOf('left')).join() };
+			dispatch(cellOf('left'), 'drop', ...point);
+			dispatch(handle, 'dragend');
+			return { feedback, shape: grid.describe(), rightVisible: grid.isCellVisible('right') };
+		};
+
+		grid.setMergeAllowed(false);
+		const notMerging = dragToCenter();
+		grid.setMergeAllowed(true);
+		const merging = dragToCenter();
+		await timeout(0);
+
+		assert.deepStrictEqual({ notMerging, merging, leftEditors: left.activeGroup.editors.map(editor => editor === leftFile ? 'left' : editor === rightFile ? 'right' : 'other') }, {
+			notMerging: { feedback: 'none', shape: 'row(left, right)', rightVisible: true },
+			merging: { feedback: { merge: true, wholeTarget: true }, shape: 'row(left, right)', rightVisible: false },
+			leftEditors: ['left', 'right']
 		});
 	});
 

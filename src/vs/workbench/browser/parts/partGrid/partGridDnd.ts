@@ -12,7 +12,7 @@ import { LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js'
 import { IEditorIdentifier } from '../../../common/editor.js';
 import { DraggedEditorIdentifier } from '../../dnd.js';
 import { disposeEditorDropOverlays } from '../editor/editorDropTarget.js';
-import type { PartGridLocation } from './partGrid.js';
+import type { IPartGridRect, PartGridLocation } from './partGrid.js';
 
 /**
  * The transfer of a part dragged within its window's part grid.
@@ -33,14 +33,24 @@ export interface IPartGridDropCell {
 	readonly element: HTMLElement;
 }
 
-export interface IPartGridDrop {
-	readonly location: PartGridLocation;
+/**
+ * Where a drop goes: to a location in the grid, or, for a part dropped on
+ * the center of another part, into that part (a merge).
+ */
+export type IPartGridDrop = ({ readonly location: PartGridLocation } | { readonly merge: string }) & {
 
 	/**
 	 * Where the drop indicator shows, in client coordinates.
 	 */
 	readonly indicator: { readonly left: number; readonly top: number; readonly width: number; readonly height: number };
-}
+};
+
+/**
+ * How far into a part, as a share of its size from each side, a dropped
+ * part goes beside it. Further in, its center, the part merges into it, if
+ * parts merge, else it does not go there.
+ */
+export const PART_GRID_SIDE_ZONE = 0.25;
 
 interface IRect {
 	readonly left: number;
@@ -80,7 +90,7 @@ function half(rect: IRect, direction: Direction, fraction = 0.5): IRect {
  * them that span the window, such as a title row, stay at the edge, and the
  * room between the parts and the edges of the window counts as the edge.
  */
-export function getPartGridDrop(x: number, y: number, container: IRect, cells: readonly IPartGridDropCell[], excludedCellId?: string): IPartGridDrop | undefined {
+export function getPartGridDrop(x: number, y: number, container: IRect, cells: readonly IPartGridDropCell[], excludedCellId?: string, canMerge?: (targetId: string) => boolean): IPartGridDrop | undefined {
 	if (!contains(container, x, y)) {
 		return undefined;
 	}
@@ -118,7 +128,12 @@ export function getPartGridDrop(x: number, y: number, container: IRect, cells: r
 			[Direction.Up, (y - rect.top) / rect.height],
 			[Direction.Down, (rect.top + rect.height - y) / rect.height]
 		];
-		const [direction] = sides.reduce((nearest, side) => side[1] < nearest[1] ? side : nearest);
+		const [direction, distance] = sides.reduce((nearest, side) => side[1] < nearest[1] ? side : nearest);
+
+		// The center of a part: the dropped part merges into it, if parts merge
+		if (canMerge && distance > PART_GRID_SIDE_ZONE) {
+			return canMerge(cell.id) ? { merge: cell.id, indicator: rect } : undefined;
+		}
 
 		return { location: { reference: cell.id, direction }, indicator: half(rect, direction) };
 	}
@@ -152,6 +167,26 @@ export interface IPartGridDropTargetHost {
 	 * Moves editors into a new part at an edge of the window, as dropped.
 	 */
 	moveEditorsIntoNewPart(editors: readonly IEditorIdentifier[], edge: Direction): void;
+
+	/**
+	 * Whether a part dropped on another merges into it.
+	 */
+	canMerge(id: string, targetId: string): boolean;
+
+	/**
+	 * Merges a part into another, as dropped on its center.
+	 */
+	mergeCell(id: string, targetId: string): void;
+
+	/**
+	 * Where a part would be, in client coordinates, if moved to a location.
+	 */
+	previewMove(id: string, location: PartGridLocation): IPartGridRect | undefined;
+
+	/**
+	 * The card of a cell, whose look the drop indicator takes.
+	 */
+	getCardStyle(id: string): HTMLElement | undefined;
 }
 
 /**
@@ -217,11 +252,22 @@ export class PartGridDropTarget extends Disposable {
 
 	private getDrop(e: DragEvent, dragged: PartGridDragged): IPartGridDrop | undefined {
 		const bounds = this.host.container.getBoundingClientRect();
-		const drop = getPartGridDrop(e.clientX, e.clientY, bounds, this.host.getVisibleCells(), hasKey(dragged, { cellId: true }) ? dragged.cellId : undefined);
+		const cellId = hasKey(dragged, { cellId: true }) ? dragged.cellId : undefined;
+		const drop = getPartGridDrop(e.clientX, e.clientY, bounds, this.host.getVisibleCells(), cellId, cellId !== undefined ? targetId => this.host.canMerge(cellId, targetId) : undefined);
 
 		// Editors go into a new part only at an edge of the window
-		if (hasKey(dragged, { editors: true }) && drop && !hasKey(drop.location, { edge: true })) {
+		if (hasKey(dragged, { editors: true }) && drop && !(hasKey(drop, { location: true }) && hasKey(drop.location, { edge: true }))) {
 			return undefined;
+		}
+
+		// A part shows where it goes as a whole: its slot after the move, the
+		// other cells shifted, or, merging, the whole part it merges into
+		if (cellId !== undefined && drop && hasKey(drop, { location: true })) {
+			const slot = this.host.previewMove(cellId, drop.location);
+			if (!slot) {
+				return undefined;
+			}
+			return { location: drop.location, indicator: slot };
 		}
 
 		return drop;
@@ -256,6 +302,13 @@ export class PartGridDropTarget extends Disposable {
 			return;
 		}
 
+		// The indicator of a part has the look of its card: a part goes there as a card
+		const card = hasKey(dragged, { cellId: true }) ? this.host.getCardStyle(dragged.cellId) : undefined;
+		const cardStyle = card ? getWindow(card).getComputedStyle(card) : undefined;
+		this.indicator.style.borderRadius = cardStyle ? cardStyle.borderRadius : '';
+		this.indicator.classList.toggle('part', !!card);
+		this.indicator.classList.toggle('merge', hasKey(drop, { merge: true }));
+
 		const { left, top, width, height } = drop.indicator;
 		this.indicator.style.left = `${left}px`;
 		this.indicator.style.top = `${top}px`;
@@ -280,12 +333,14 @@ export class PartGridDropTarget extends Disposable {
 
 		if (hasKey(dragged, { cellId: true })) {
 			this.partTransfer.clearData(DraggedPartIdentifier.prototype);
-			if (drop) {
+			if (drop && hasKey(drop, { merge: true })) {
+				this.host.mergeCell(dragged.cellId, drop.merge);
+			} else if (drop) {
 				this.host.moveCell(dragged.cellId, drop.location);
 			}
 		} else {
 			this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
-			if (drop && hasKey(drop.location, { edge: true })) {
+			if (drop && hasKey(drop, { location: true }) && hasKey(drop.location, { edge: true })) {
 				this.host.moveEditorsIntoNewPart(dragged.editors, drop.location.edge);
 			}
 		}
