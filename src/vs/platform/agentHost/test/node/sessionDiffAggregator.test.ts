@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { isLinux } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileEditKind, type ISessionFileDiff } from '../../common/state/sessionState.js';
@@ -196,6 +197,78 @@ suite('computeSessionDiffs', () => {
 
 		assert.strictEqual(result.length, 1);
 		assert.strictEqual(getDiffUri(result[0]), URI.file('/b.txt').toString(), 'uses terminal path after rename');
+	});
+
+	(isLinux ? test.skip : test)('uses host identity in full, incremental and turn diffs while retaining raw snapshot addresses', async () => {
+		const db = new TestSessionDatabase();
+		const diffService = createTestDiffService();
+		const edit = (turnId: string, toolCallId: string, filePath: string, before: string, after: string) => db.addEdit({
+			turnId, toolCallId, filePath, kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString(before), afterContent: encodeString(after),
+		});
+		edit('t1', 'first', '/file.txt', 'original', 'first');
+		const previousDiffs = await computeSessionDiffs(TEST_SESSION_URI, db, diffService);
+		edit('t2', 'second', '/FILE.txt', 'first', 'second');
+		const full = await computeSessionDiffs(TEST_SESSION_URI, db, diffService);
+		const incremental = await computeSessionDiffs(TEST_SESSION_URI, db, diffService, { changedTurnId: 't2', previousDiffs });
+		edit('t2', 'third', '/file.txt', 'second', 'third');
+		const turn = await computeTurnDiffs(TEST_SESSION_URI, db, diffService, 't2');
+		const snapshots = (diffs: ISessionFileDiff[]) => diffs.map(diff => ({
+			beforeUri: diff.before?.uri,
+			afterUri: diff.after?.uri,
+			before: diff.before && parseSessionDbUri(diff.before.content.uri),
+			after: diff.after && parseSessionDbUri(diff.after.content.uri),
+		}));
+		const expected = [{
+			beforeUri: URI.file('/FILE.txt').toString(),
+			afterUri: URI.file('/FILE.txt').toString(),
+			before: { sessionUri: TEST_SESSION_URI, toolCallId: 'first', filePath: '/file.txt', part: 'before' },
+			after: { sessionUri: TEST_SESSION_URI, toolCallId: 'second', filePath: '/FILE.txt', part: 'after' },
+		}];
+		assert.deepStrictEqual({ full: snapshots(full), incremental: snapshots(incremental), turn: snapshots(turn) }, {
+			full: expected, incremental: expected,
+			turn: [{
+				beforeUri: URI.file('/file.txt').toString(), afterUri: URI.file('/file.txt').toString(),
+				before: { sessionUri: TEST_SESSION_URI, toolCallId: 'second', filePath: '/FILE.txt', part: 'before' },
+				after: { sessionUri: TEST_SESSION_URI, toolCallId: 'third', filePath: '/file.txt', part: 'after' },
+			}],
+		});
+	});
+
+	test('recreating a renamed-away path retains separate identities in full and incremental history', async () => {
+		const db = new TestSessionDatabase();
+		const diffService = createTestDiffService();
+		db.addEdit({ turnId: 't1', toolCallId: 'first', filePath: '/a.txt', kind: FileEditKind.Create, addedLines: undefined, removedLines: undefined, afterContent: encodeString('first') });
+		const previousDiffs = await computeSessionDiffs(TEST_SESSION_URI, db, diffService);
+		db.addEdit({ turnId: 't2', toolCallId: 'rename', filePath: '/b.txt', originalPath: '/a.txt', kind: FileEditKind.Rename, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('first'), afterContent: encodeString('moved') });
+		db.addEdit({ turnId: 't2', toolCallId: 'new', filePath: '/a.txt', kind: FileEditKind.Create, addedLines: undefined, removedLines: undefined, afterContent: encodeString('new') });
+		const files = (diffs: ISessionFileDiff[]) => diffs.map(diff => [getDiffUri(diff), diff.after && parseSessionDbUri(diff.after.content.uri)?.toolCallId]).sort();
+		const expected = [[URI.file('/a.txt').toString(), 'new'], [URI.file('/b.txt').toString(), 'rename']];
+		assert.deepStrictEqual({
+			full: files(await computeSessionDiffs(TEST_SESSION_URI, db, diffService)),
+			incremental: files(await computeSessionDiffs(TEST_SESSION_URI, db, diffService, { changedTurnId: 't2', previousDiffs })),
+			turn: files(await computeTurnDiffs(TEST_SESSION_URI, db, diffService, 't2')),
+		}, { full: expected, incremental: expected, turn: expected });
+	});
+
+	(isLinux ? test.skip : test)('a case-only rename retains its identity for a later alias edit', async () => {
+		const db = new TestSessionDatabase();
+		const diffService = createTestDiffService();
+		db.addEdit({ turnId: 't1', toolCallId: 'first', filePath: '/a.txt', kind: FileEditKind.Create, addedLines: undefined, removedLines: undefined, afterContent: encodeString('first') });
+		const previousDiffs = await computeSessionDiffs(TEST_SESSION_URI, db, diffService);
+		db.addEdit({ turnId: 't1', toolCallId: 'rename', filePath: '/A.txt', originalPath: '/a.txt', kind: FileEditKind.Rename, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('first'), afterContent: encodeString('first') });
+		db.addEdit({ turnId: 't1', toolCallId: 'last', filePath: '/a.txt', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('first'), afterContent: encodeString('last') });
+		const results = await Promise.all([
+			computeSessionDiffs(TEST_SESSION_URI, db, diffService),
+			computeSessionDiffs(TEST_SESSION_URI, db, diffService, { changedTurnId: 't1', previousDiffs }),
+			computeTurnDiffs(TEST_SESSION_URI, db, diffService, 't1'),
+		]);
+		assert.deepStrictEqual(results.map(diffs => diffs.map(diff => [getDiffUri(diff), diff.before, diff.after && parseSessionDbUri(diff.after.content.uri)?.toolCallId])), [
+			[[URI.file('/a.txt').toString(), undefined, 'last']],
+			[[URI.file('/a.txt').toString(), undefined, 'last']],
+			[[URI.file('/a.txt').toString(), undefined, 'last']],
+		]);
 	});
 
 	// ---- Incremental-mode tests ---------------------------------------------

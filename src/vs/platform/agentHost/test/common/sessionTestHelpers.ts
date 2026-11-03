@@ -6,6 +6,7 @@
 import type { IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
+import { extUriBiasedIgnorePathCase, type IExtUri } from '../../../../base/common/resources.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import type { IDetailedDiffResult, IDiffComputeService, IDiffCountResult, IDiffHunksResult } from '../../common/diffComputeService.js';
 import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionDataService, type ISessionRowsWatermark, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord, type StoredAssistantResponsePart } from '../../common/sessionDataService.js';
@@ -43,6 +44,8 @@ export class TestSessionDatabase implements ISessionDatabase {
 	readonly onDidChangeChatRows: Event<void> = this._onDidChangeChatRows.event;
 
 	private readonly _edits: (IFileEditRecord & IFileEditContent)[] = [];
+	private readonly _editOrders = new WeakMap<IFileEditRecord, number>();
+	private _nextEditOrder = 0;
 	private readonly _metadata = new ObservedMetadata(() => this._onDidChangeMetadata.fire());
 	private _catalogSyncSnapshot: ISessionCatalogSyncSnapshot | undefined;
 	private readonly _drafts = new Map<string, Message>();
@@ -65,8 +68,15 @@ export class TestSessionDatabase implements ISessionDatabase {
 	setTurnEventIdCalls: Array<{ turnId: string; eventId: string }> = [];
 	setMetadataCalls: Array<{ key: string; value: string }> = [];
 
+	constructor(readonly fileEditUriIdentity: IExtUri = extUriBiasedIgnorePathCase) { }
+
 	addEdit(edit: IFileEditRecord & IFileEditContent): void {
+		this._editOrders.set(edit, ++this._nextEditOrder);
 		this._edits.push(edit);
+	}
+
+	async reserveFileEditOrder(): Promise<number> {
+		return ++this._nextEditOrder;
 	}
 
 	async createTurn(turnId: string): Promise<void> {
@@ -88,7 +98,8 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this._deleteWorkspaceTransitionMarkerIfEmpty();
 	}
 
-	async storeFileEdit(edit: IFileEditRecord & IFileEditContent): Promise<void> {
+	async storeFileEdit(edit: IFileEditRecord & IFileEditContent, order?: number): Promise<void> {
+		this._editOrders.set(edit, order ?? ++this._nextEditOrder);
 		this._turns.add(edit.turnId);
 		const existingIndex = this._edits.findIndex(e => e.toolCallId === edit.toolCallId && e.filePath === edit.filePath);
 		if (existingIndex >= 0) {
@@ -96,6 +107,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 		} else {
 			this._edits.push(edit);
 		}
+		this._edits.sort((a, b) => this._editOrders.get(a)! - this._editOrders.get(b)!);
 	}
 
 	async storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: (readContent: ISessionDatabase['readFileEditContent']) => Promise<void> | void): Promise<void> {
@@ -718,7 +730,10 @@ export class TestSessionDatabase implements ISessionDatabase {
 	}
 
 	private _toEditRecords(edits: (IFileEditRecord & IFileEditContent)[]): IFileEditRecord[] {
-		return edits.map(({ beforeContent: _, afterContent: _2, ...metadata }) => metadata);
+		return edits.map(edit => {
+			const { beforeContent: _, afterContent: _2, ...metadata } = edit;
+			return { ...metadata, editOrder: this._editOrders.get(edit) };
+		});
 	}
 }
 

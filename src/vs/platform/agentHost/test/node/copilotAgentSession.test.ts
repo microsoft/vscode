@@ -108,6 +108,7 @@ import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from '../../nod
 import { CopilotMcpToolRoutingCache, getMcpRoutingCacheKey, getMcpRoutingProxyName, type ICopilotMcpRoutingServer } from '../../node/copilot/copilotMcpToolRoutingCache.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostFileEditCoordinator, describeDiscardedFileEdits, IAgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
+import { createTestFileEditCoordinator } from './fileEditTestUtils.js';
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter, type ICanvasExtensionsReadyEvent } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
@@ -1346,6 +1347,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	/** Per-key root config values returned by the fake configuration service's `getRootValue`. */
 	rootValues?: Record<string, unknown>;
 	fileContents?: Record<string, string>;
+	fileRead?: (resource: URI) => Promise<VSBuffer>;
 	fileReadErrors?: readonly string[];
 	fileWriteError?: Error;
 	shellInitWriteFailures?: number;
@@ -1566,7 +1568,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			if (options?.fileReadErrors?.includes(resource.toString()) || options?.fileReadErrors?.includes(resource.fsPath)) {
 				throw new Error('read failed');
 			}
-			return { value: VSBuffer.fromString(storedFileContents.get(resource.toString()) ?? storedFileContents.get(resource.fsPath) ?? '') };
+			return { value: options?.fileRead ? await options.fileRead(resource) : VSBuffer.fromString(storedFileContents.get(resource.toString()) ?? storedFileContents.get(resource.fsPath) ?? '') };
 		},
 		exists: async (resource: URI) => storedFileContents.has(resource.toString()) || storedFileContents.has(resource.fsPath),
 		hasCapability: (resource: URI, capability: FileSystemProviderCapabilities) =>
@@ -1763,7 +1765,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		services.set(INativeEnvironmentService, environmentService);
 		services.set(ICopilotHomeService, new TestCopilotHomeService(URI.file('/mock-home'), options?.copilotHome ? URI.file(options.copilotHome) : undefined));
 	}
-	services.set(IAgentHostFileEditCoordinator, options?.fileEditCoordinator ?? disposables.add(new AgentHostFileEditCoordinator()));
+	services.set(IAgentHostFileEditCoordinator, options?.fileEditCoordinator ?? createTestFileEditCoordinator(disposables));
 	const terminalManager = disposables.add(new TestAgentHostTerminalManager());
 	services.set(IAgentHostTerminalManager, terminalManager);
 	if (options?.editServices) {
@@ -19647,7 +19649,7 @@ Use the attached image as context.
 		});
 
 		test('an edit holds back changes of its file by the host from before its snapshots until it is recorded', async () => {
-			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+			const fileEditCoordinator = createTestFileEditCoordinator(disposables);
 			const sessionDatabase = new TestSessionDatabase();
 			const write = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
 			sessionDatabase.storeFileEdit = async edit => {
@@ -19684,8 +19686,86 @@ Use the attached image as context.
 			});
 		});
 
+		for (const [phase, aliases, failures] of [['pre', false, 1], ['post', false, 1], ['pre', true, 1], ['post', true, 1], ['pre', true, 2], ['post', true, 2]] as const) {
+			test(`a failed multi-file ${phase}-tool hook drains other snapshots before tool completion (aliases: ${aliases}, failures: ${failures})`, async () => {
+				const fileEditCoordinator = createTestFileEditCoordinator(disposables, aliases ? new class extends mock<IFileService>() {
+					override hasProvider(): boolean { return true; }
+					override hasCapability(): boolean { return false; }
+				}() : undefined);
+				const sessionDatabase = new TestSessionDatabase();
+				const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+				const delayedRead = new DeferredPromise<void>();
+				const releaseRead = new DeferredPromise<void>();
+				const first = URI.file(aliases ? '/repo/FILE.txt' : '/repo/a.txt');
+				const second = URI.file(aliases ? '/repo/file.txt' : '/repo/b.txt');
+				const failedFiles = [first, ...(failures === 2 ? [URI.file('/repo/FiLe.txt')] : [])];
+				let blocked = false;
+				let text = 'before';
+				const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+					sessionDatabase, captureRuntime: capturedRuntime, fileEditCoordinator,
+					fileRead: async resource => {
+						if ((blocked || (aliases && phase === 'pre')) && failedFiles.some(file => resource.toString() === file.toString())) {
+							throw new Error('snapshot failed');
+						}
+						if (blocked && resource.toString() === second.toString()) {
+							delayedRead.complete();
+							await releaseRead.p;
+						}
+						return VSBuffer.fromString(text);
+					},
+				});
+				session.resetTurnState('turn-edit');
+				mockSession.fire('user.message', { content: 'Edit both files' });
+				const patch = ['*** Begin Patch', ...[...failedFiles, second].flatMap(file => [`*** Update File: ${file.fsPath}`, '@@', '+after']), '*** End Patch'].join('\n');
+				const hook = { sessionId: 'test-session-1', timestamp: new Date(0), workingDirectory: '/repo', toolName: 'apply_patch', toolArgs: patch };
+				const postHook = { ...hook, toolResult: { textResultForLlm: '', resultType: 'success' as const } };
+				mockSession.fire('tool.execution_start', { toolCallId: 'patch', toolName: hook.toolName, arguments: patch });
+				if (phase === 'post') {
+					await capturedRuntime.current!.handlePreToolUse(hook);
+					text = 'after';
+				}
+				blocked = true;
+				const completion = waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
+				let returned = false;
+				let failure = '';
+				const hooks = (phase === 'pre' ? capturedRuntime.current!.handlePreToolUse(hook) : capturedRuntime.current!.handlePostToolUse(postHook))
+					.catch(error => { failure = error.message; })
+					.then(async () => {
+						returned = true;
+						blocked = false;
+						if (phase === 'pre') {
+							text = 'after';
+							await capturedRuntime.current!.handlePostToolUse(postHook).catch(error => { failure = error.message; });
+						}
+						mockSession.fire('tool.execution_complete', { toolCallId: 'patch', success: true });
+					});
+				try {
+					await delayedRead.p;
+					await timeout(0);
+					const returnedWhileSnapshotPending = returned;
+					releaseRead.complete();
+					await Promise.all([hooks, completion]);
+					await timeout(0);
+					const content = await sessionDatabase.readFileEditContent('patch', second.fsPath);
+					const decision = await fileEditCoordinator.runExclusive(second, async () => 'settled', 0).catch(error => error.message);
+					assert.deepStrictEqual({
+						returnedWhileSnapshotPending, failure, decision,
+						before: content?.beforeContent && new TextDecoder().decode(content.beforeContent),
+						after: content?.afterContent && new TextDecoder().decode(content.afterContent),
+						editing: [...failedFiles, second].map(resource => fileEditCoordinator.isEditing(resource)),
+					}, {
+						returnedWhileSnapshotPending: false, failure: 'snapshot failed', decision: 'settled',
+						before: 'before', after: 'after', editing: [...failedFiles, second].map(() => false),
+					});
+				} finally {
+					releaseRead.complete();
+					await hooks;
+				}
+			});
+		}
+
 		test('root and subagent lifecycle completion cannot release a still-running SDK edit', async () => {
-			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+			const fileEditCoordinator = createTestFileEditCoordinator(disposables);
 			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
 			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, { captureRuntime: capturedRuntime, fileEditCoordinator });
 			session.resetTurnState('turn-parent');
@@ -19710,7 +19790,7 @@ Use the attached image as context.
 		});
 
 		test('a completed background subagent holds its file until its edit is recorded', async () => {
-			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+			const fileEditCoordinator = createTestFileEditCoordinator(disposables);
 			const write = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
 			const sessionDatabase = new class extends TestSessionDatabase {
 				override async storeFileEdit(...args: Parameters<ISessionDatabase['storeFileEdit']>): Promise<void> {
@@ -19752,7 +19832,7 @@ Use the attached image as context.
 		});
 
 		test('a waiting SDK edit can continue after its root turn ends', async () => {
-			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+			const fileEditCoordinator = createTestFileEditCoordinator(disposables);
 			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
 			const { session, mockSession } = await createAgentSession(disposables, { captureRuntime: capturedRuntime, fileEditCoordinator });
 			session.resetTurnState('turn-edit');
@@ -19776,7 +19856,7 @@ Use the attached image as context.
 
 		for (const startNextTurn of [false, true]) {
 			test(`a late SDK edit completion releases its file without publishing to another turn (nextTurn=${startNextTurn})`, async () => {
-				const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+				const fileEditCoordinator = createTestFileEditCoordinator(disposables);
 				const sessionDatabase = new TestSessionDatabase();
 				const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
 				const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { sessionDatabase, captureRuntime: capturedRuntime, fileEditCoordinator });
@@ -19807,7 +19887,7 @@ Use the attached image as context.
 		}
 
 		test('tells the agent about its changes the user undid, once, with its next tool result or prompt', async () => {
-			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+			const fileEditCoordinator = createTestFileEditCoordinator(disposables);
 			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
 			const { session } = await createAgentSession(disposables, { captureRuntime: capturedRuntime, fileEditCoordinator });
 			const runtime = capturedRuntime.current!;
@@ -25562,7 +25642,7 @@ Use the attached image as context.
 
 		test('saves generated images without asking the agent to display or register them again and preserves pending Undo context', async () => {
 			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
-			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+			const fileEditCoordinator = createTestFileEditCoordinator(disposables);
 			const sessionDirectory = URI.file('/mock-state-home/.copilot/session-state/test-session-1');
 			const { session, storedFileContents } = await createAgentSession(disposables, {
 				captureRuntime: capturedRuntime,

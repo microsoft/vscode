@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { timeout } from '../../../../base/common/async.js';
+import { isLinux } from '../../../../base/common/platform.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -28,6 +30,7 @@ import { createNoopChangesetService, TestDiffComputeService } from '../common/se
 import { mock } from '../../../../base/test/common/mock.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { InProcessDiffComputeService } from './inProcessDiffComputeService.js';
+import { createTestFileEditCoordinator, getTestWorkingSetNonce } from './fileEditTestUtils.js';
 
 const SESSION = 'agent:/session';
 const FILE = URI.file('/repo/src/file.ts');
@@ -82,7 +85,8 @@ function setup(disposables: Pick<DisposableStore, 'add'>) {
 	changesets.openTrackedSessionDatabases = () => ({ ...tracked, workingDirectories: [URI.file('/repo').toString()], dispose: () => { } });
 	changesets.onFileEditsAccepted = owner => { accepted.push(owner); };
 	const diffService = new InProcessDiffComputeService();
-	const handler = new AgentHostAcceptChangesOperationHandler(new NullLogService(), stateManager, changesets, diffService);
+	const fileEditCoordinator = createTestFileEditCoordinator(disposables);
+	const handler = new AgentHostAcceptChangesOperationHandler(new NullLogService(), stateManager, changesets, diffService, fileEditCoordinator);
 	const invoke = (resource: URI | undefined, channel = buildWorkingSetChangesetUri(SESSION), range?: IRangeTarget, nonce?: string) => handler.invoke({
 		channel,
 		operationId: AgentHostAcceptChangesOperationHandler.OPERATION_ACCEPT_CHANGES,
@@ -104,7 +108,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>) {
 		return { baseline: decode(baseline), current: decode(current) };
 	};
 	const rows = async () => (await db.getAllFileEdits()).map(record => isFileEditAcceptRecord(record) ? `accept:${record.turnId}:${record.kind}` : record.toolCallId);
-	return { stateManager, chat, db, tracked, accepted, invoke, workingSet, contents, rows };
+	return { stateManager, chat, db, tracked, accepted, invoke, workingSet, contents, rows, fileEditCoordinator };
 }
 
 interface IRangeTarget {
@@ -335,11 +339,12 @@ suite('AgentHostAcceptChangesOperationHandler', () => {
 			});
 		};
 		const recordLaterEdit = ({ db }: ReturnType<typeof setup>) => storeEdit(db, 't2', 'tc2', FILE, FileEditKind.Edit, 'v1', 'v2');
+		const nonce = ({ db }: ReturnType<typeof setup>) => getTestWorkingSetNonce(db, FILE);
 
 		await run('omittedNonce', async () => undefined);
-		await run('namedNonce', async () => 'tc1');
-		await run('namedNonceAfterLaterEdit', async context => { await recordLaterEdit(context); return 'tc1'; });
-		await run('namedNonceChangesBeforeCommit', async context => { context.db.beforeStore = () => recordLaterEdit(context); return 'tc1'; });
+		await run('namedNonce', nonce);
+		await run('namedNonceAfterLaterEdit', async context => { const shown = await nonce(context); await recordLaterEdit(context); return shown; });
+		await run('namedNonceChangesBeforeCommit', async context => { context.db.beforeStore = () => recordLaterEdit(context); return nonce(context); });
 		await run('publishedNonce', async context => { publish(context, 'tc1'); return undefined; });
 		await run('publishedNonceAfterLaterEdit', async context => { publish(context, 'tc1'); await recordLaterEdit(context); return undefined; });
 		await run('publishedLatestNonce', async context => { await recordLaterEdit(context); publish(context, 'tc2'); return undefined; });
@@ -353,6 +358,70 @@ suite('AgentHostAcceptChangesOperationHandler', () => {
 			publishedNonce: { error: undefined, accepted: 1, rows: ['tc1', 'accept:t1:edit'] },
 			publishedNonceAfterLaterEdit: { error: undefined, accepted: 1, rows: ['tc1', 'tc2', 'accept:t2:edit'] },
 			publishedLatestNonce: { error: undefined, accepted: 1, rows: ['tc1', 'tc2', 'accept:t2:edit'] },
+		});
+	});
+
+	for (const when of ['before invocation', 'before commit'] as const) {
+		(isLinux ? test.skip : test)(`refuses an alias row added by the same tool call ${when} until its new nonce is shown`, async () => {
+			const context = setup(disposables);
+			const alias = FILE.with({ path: '/repo/src/FILE.ts' });
+			await storeEdit(context.db, 't1', 'same-call', FILE, FileEditKind.Edit, 'original', 'first');
+			const nonce = await getTestWorkingSetNonce(context.db, FILE);
+			const editAlias = () => storeEdit(context.db, 't1', 'same-call', alias, FileEditKind.Edit, 'first', 'second');
+			if (when === 'before invocation') {
+				await editAlias();
+			} else {
+				context.db.beforeStore = editAlias;
+			}
+			const error = await toError(context.invoke(FILE, undefined, undefined, nonce));
+			const afterFailure = { code: error?.code, accepted: context.accepted.length, rows: await context.rows() };
+			await context.invoke(alias, undefined, undefined, await getTestWorkingSetNonce(context.db, alias));
+			assert.deepStrictEqual({ afterFailure, workingSet: await context.workingSet() }, {
+				afterFailure: { code: AhpErrorCodes.Conflict, accepted: 0, rows: ['same-call', 'same-call'] },
+				workingSet: [],
+			});
+		});
+	}
+
+	(isLinux ? test.skip : test)('Keep waits for an alias snapshot to be recorded before checking the shown nonce', async () => {
+		const context = setup(disposables);
+		const alias = FILE.with({ path: '/repo/src/FILE.ts' });
+		await storeEdit(context.db, 't1', 'first', FILE, FileEditKind.Edit, 'original', 'first');
+		const lease = disposables.add(await context.fileEditCoordinator.beginEdit(alias));
+		const order = await context.db.reserveFileEditOrder();
+		const kept = toError(context.invoke(FILE, undefined, undefined, await getTestWorkingSetNonce(context.db, FILE)));
+		await timeout(0);
+		const acceptedWhileEditing = context.accepted.length;
+		await context.db.storeFileEdit({
+			turnId: 't1', toolCallId: 'second', filePath: alias.fsPath, kind: FileEditKind.Edit,
+			beforeContent: new TextEncoder().encode('first'), afterContent: new TextEncoder().encode('second'),
+			addedLines: undefined, removedLines: undefined,
+		}, order);
+		lease.dispose();
+		assert.deepStrictEqual({ acceptedWhileEditing, code: (await kept)?.code, rows: await context.rows(), files: await context.workingSet() }, {
+			acceptedWhileEditing: 0, code: AhpErrorCodes.Conflict, rows: ['first', 'second'], files: [alias.toString()],
+		});
+	});
+
+	(isLinux ? test.skip : test)('an uncoordinated alias starting during Keep cannot be hidden behind its accept row', async () => {
+		const context = setup(disposables);
+		const alias = FILE.with({ path: '/repo/src/FILE.ts' });
+		await storeEdit(context.db, 't1', 'first', FILE, FileEditKind.Edit, 'original', 'first');
+		let order = 0;
+		context.db.beforeStore = async () => {
+			disposables.add(context.fileEditCoordinator.markEditing(alias));
+			order = await context.db.reserveFileEditOrder();
+		};
+		const error = await toError(context.invoke(FILE));
+		await context.db.storeFileEdit({
+			turnId: 't1', toolCallId: 'second', filePath: alias.fsPath, kind: FileEditKind.Edit,
+			beforeContent: new TextEncoder().encode('first'), afterContent: new TextEncoder().encode('second'),
+			addedLines: undefined, removedLines: undefined,
+		}, order);
+		assert.deepStrictEqual({ code: error?.code, message: error?.message, rows: await context.rows(), files: await context.workingSet() }, {
+			code: JsonRpcErrorCodes.InvalidParams,
+			message: 'The agent is still editing \'file.ts\'. Try again once it has finished.',
+			rows: ['first', 'second'], files: [alias.toString()],
 		});
 	});
 });

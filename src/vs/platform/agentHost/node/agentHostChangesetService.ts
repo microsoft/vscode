@@ -612,7 +612,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 			for (const file of state.files) {
 				const id = file.edit.after?.uri ?? file.edit.before?.uri;
-				if (id && (file.isEditing === true) !== editing && extUriBiasedIgnorePathCase.isEqual(URI.parse(id), resource)) {
+				if (id && (file.isEditing === true) !== editing && this._fileEditCoordinator.uriIdentity.isEqual(URI.parse(id), resource)) {
 					if (editing) {
 						this._stateManager.dispatchServerAction(changesetUri, {
 							type: ActionType.ChangesetFileSet,

@@ -29,6 +29,7 @@ import { parseGitBlobUri } from './gitDiffContent.js';
 import { createFileEditDiscardRecord, createSessionFileEditDiscardRecords, getUndiscardedFileEditRevertSteps, readFileEditRevertSteps, spanFileEditRevertSteps } from './fileEditDiscard.js';
 import { createFileEditAcceptRecordAfter, fileEditContentEquals, getUnacceptedFileEditRecords, getWorkingSetFileEditRecords, isFileEditAcceptRecord } from './fileEditAccept.js';
 import { FileEditsInProgressError, IAgentHostFileEditCoordinator } from './agentHostFileEditCoordinator.js';
+import { getFileEditRecordKey, isFileEditPath } from './fileEditIdentity.js';
 import { getWorkingSetFileNonce, isPathWithinFolderScope } from './sessionDiffAggregator.js';
 import { createChangedSinceShownError } from './workingSetNonce.js';
 import { computeWorkingSetFileContents, computeWorkingSetRangeChanges } from './workingSetFileContents.js';
@@ -47,10 +48,6 @@ export function getLastTurn(stateManager: AgentHostStateManager, owner: Protocol
 	}
 	const id = lastAttributableTurnId(state.turns);
 	return id === undefined ? undefined : { id, inProgress: false };
-}
-
-function isFilePath(path: string | undefined, resource: URI): boolean {
-	return path !== undefined && extUriBiasedIgnorePathCase.isEqual(URI.file(path), resource);
 }
 
 /** The one-based lines that a zero-based range covers; a range that ends at the start of a line doesn't cover it. */
@@ -279,6 +276,11 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 	private async _discardTurnFile(params: InvokeChangesetOperationParams, owner: ProtocolURI, turnId: string, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
 		this._throwIfCancelled(token);
 		const resource = this._getResourceTarget(params);
+		return this._runAfterEdits(resource, () => this._doDiscardTurnFile(resource, owner, turnId, token), token);
+	}
+
+	private async _doDiscardTurnFile(resource: URI, owner: ProtocolURI, turnId: string, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
+		this._throwIfCancelled(token);
 		if (!this._stateManager.getSessionState(owner)) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${owner}`);
 		}
@@ -290,7 +292,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardTurnChanges.ambiguousTurn', "Changes from a turn that belongs to more than one chat can't be discarded."));
 		}
 		try {
-			const records = this._getFileEditRecords(await source.db.getFileEditsByTurn(turnId), resource, source.folderScope).filter(record => !isFileEditAcceptRecord(record));
+			const records = this._getFileEditRecords(source.db, await source.db.getFileEditsByTurn(turnId), resource, source.folderScope).filter(record => !isFileEditAcceptRecord(record));
 			if (records.length === 0) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardTurnChanges.notInTurn', "'{0}' has no changes in the last turn.", basename(resource)));
 			}
@@ -346,6 +348,9 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 			await recording.db.storeFileEdits(rows, async () => {
 				recording.throwIfTurnRan();
 				await recording.throwIfRecordsChanged?.(rows);
+				if (this._fileEditCoordinator.isEditing(resource)) {
+					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardWorkingSetChanges.editInProgress', "The agent is still editing '{0}'. Try again once it has finished.", basename(resource)));
+				}
 				await revert.apply();
 			});
 		} catch (err) {
@@ -378,14 +383,15 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		if (!duringTurn) {
 			this._throwIfTurnActive(session);
 		}
-		if (!sinceAccepted) {
-			return this._doDiscardSessionFile(owner, session, resource, undefined, false, false, undefined, token);
-		}
-		const shownNonce = params.target?.nonce;
+		const shownNonce = sinceAccepted ? params.target?.nonce : undefined;
+		return this._runAfterEdits(resource, () => this._doDiscardSessionFile(owner, session, resource, range, sinceAccepted, duringTurn, shownNonce, token), token);
+	}
+
+	private async _runAfterEdits<T>(resource: URI, task: () => Promise<T>, token: CancellationToken): Promise<T> {
 		try {
-			// The agent's edit tool calls on the file wait meanwhile, so each one's snapshots and the discard are recorded in order.
-			return await this._fileEditCoordinator.runExclusive(resource, () => this._doDiscardSessionFile(owner, session, resource, range, true, duringTurn, shownNonce, token));
+			return await this._fileEditCoordinator.runExclusive(resource, task, undefined, token);
 		} catch (err) {
+			this._throwIfCancelled(token);
 			if (err instanceof FileEditsInProgressError) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardWorkingSetChanges.editInProgress', "The agent is still editing '{0}'. Try again once it has finished.", basename(resource)));
 			}
@@ -420,7 +426,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 
 			const matches: { readonly source: ITrackedEditSource; readonly records: readonly IFileEditRecord[] }[] = [];
 			for (const source of tracked.sources) {
-				const records = this._getFileEditRecords(await source.db.getAllFileEdits(), resource, tracked.folderScope);
+				const records = this._getFileEditRecords(source.db, await source.db.getAllFileEdits(), resource, tracked.folderScope);
 				if (records.length > 0) {
 					matches.push({ source, records });
 				}
@@ -431,7 +437,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, messages.noChanges);
 			}
 			await this._throwIfEditedByOtherChats([...otherMatches.map(other => other.source.db), ...tracked.otherChatDatabases], resource);
-			if (shownNonce !== undefined && shownNonce !== getWorkingSetFileNonce(match.records[match.records.length - 1])) {
+			if (shownNonce !== undefined && shownNonce !== getWorkingSetFileNonce(match.records)) {
 				throw createChangedSinceShownError(resource);
 			}
 
@@ -460,13 +466,12 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 				// the accepted changes.
 				throwIfRecordsChanged: sinceAccepted ? async discardRows => {
 					const discardRowIds = new Set(discardRows.map(row => row.toolCallId));
-					const current = this._getFileEditRecords(await source.db.getAllFileEdits(), resource, tracked.folderScope)
+					const current = this._getFileEditRecords(source.db, await source.db.getAllFileEdits(), resource, tracked.folderScope)
 						.filter(record => !discardRowIds.has(record.toolCallId));
-					const last = current.at(-1);
-					if (shownNonce !== undefined && last && shownNonce !== getWorkingSetFileNonce(last)) {
+					if (shownNonce !== undefined && shownNonce !== getWorkingSetFileNonce(current)) {
 						throw createChangedSinceShownError(resource);
 					}
-					if (!equals(current, match.records, (a, b) => a.toolCallId === b.toolCallId)) {
+					if (!equals(current, match.records, (a, b) => getFileEditRecordKey(a) === getFileEditRecordKey(b) && a.editOrder === b.editOrder)) {
 						throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, this._getChangedDuringDiscardMessage(resource));
 					}
 				} : undefined,
@@ -570,11 +575,12 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 	 * `folderScope`. A renamed file's records span more than one path, so a
 	 * rename that touches `resource` is rejected.
 	 */
-	private _getFileEditRecords(records: readonly IFileEditRecord[], resource: URI, folderScope: readonly URI[] | undefined): IFileEditRecord[] {
-		if (records.some(record => record.kind === FileEditKind.Rename && (isFilePath(record.filePath, resource) || isFilePath(record.originalPath, resource)))) {
+	private _getFileEditRecords(db: ISessionDatabase, records: readonly IFileEditRecord[], resource: URI, folderScope: readonly URI[] | undefined): IFileEditRecord[] {
+		const identity = db.fileEditUriIdentity;
+		if (records.some(record => record.kind === FileEditKind.Rename && (isFileEditPath(record.filePath, resource, identity) || isFileEditPath(record.originalPath, resource, identity)))) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardTurnChanges.renamed', "Changes to a renamed file can't be discarded."));
 		}
-		return records.filter(record => isFilePath(record.filePath, resource) && (!folderScope || isPathWithinFolderScope(record.filePath, folderScope)));
+		return records.filter(record => isFileEditPath(record.filePath, resource, identity) && (!folderScope || isPathWithinFolderScope(record.filePath, folderScope, identity)));
 	}
 
 	/**
@@ -584,7 +590,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 	private async _throwIfEditedByOtherChats(otherChatDatabases: readonly ISessionDatabase[], resource: URI): Promise<void> {
 		for (const db of otherChatDatabases) {
 			const records = await db.getAllFileEdits();
-			if (records.some(record => isFilePath(record.filePath, resource) || isFilePath(record.originalPath, resource))) {
+			if (records.some(record => isFileEditPath(record.filePath, resource, db.fileEditUriIdentity) || isFileEditPath(record.originalPath, resource, db.fileEditUriIdentity))) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardTurnChanges.otherChat', "Changes to '{0}' can't be discarded because another chat in this session also changed it.", basename(resource)));
 			}
 		}
@@ -595,7 +601,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Changeset owner has no working directory: ${owner}`);
 		}
 		const isInWorkingDirectory = workingDirectories.some(workingDirectory =>
-			extUriBiasedIgnorePathCase.isEqualOrParent(resource, URI.parse(workingDirectory)));
+			this._fileEditCoordinator.uriIdentity.isEqualOrParent(resource, URI.parse(workingDirectory)));
 		if (!isInWorkingDirectory) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardRecordedChanges.outsideWorkspace', "Changes can only be discarded for files in this session's workspace."));
 		}

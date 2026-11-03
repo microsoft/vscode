@@ -17,6 +17,8 @@ import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, IWi
 import { SessionDatabase } from './sessionDatabase.js';
 import { CompatibleSessionDatabase } from './compatibleSessionDatabase.js';
 import type { SessionStorageIdentity } from './sessionStorageIdentity.js';
+import type { IExtUri } from '../../../base/common/resources.js';
+import { createFileEditUriIdentity } from './fileEditIdentity.js';
 
 class SessionDatabaseCollection extends ReferenceCollection<ISessionDatabase> {
 
@@ -32,6 +34,7 @@ class SessionDatabaseCollection extends ReferenceCollection<ISessionDatabase> {
 
 	constructor(
 		private readonly _getDbPath: (key: string) => string,
+		private readonly _fileEditUriIdentity: IExtUri,
 		private readonly _logService: ILogService,
 		private readonly _identity?: SessionStorageIdentity,
 	) {
@@ -42,7 +45,7 @@ class SessionDatabaseCollection extends ReferenceCollection<ISessionDatabase> {
 		const dbPath = this._getDbPath(key);
 		this._logService.trace(`[SessionDataService] Opening database: ${dbPath}`);
 		this.opens++;
-		const raw = new SessionDatabase(dbPath);
+		const raw = new SessionDatabase(dbPath, undefined, undefined, this._fileEditUriIdentity);
 		const db = this._identity ? new CompatibleSessionDatabase(raw, this._identity) : raw;
 		this.liveDatabases.add(db);
 		return db;
@@ -80,6 +83,7 @@ export class SessionDataService implements ISessionDataService {
 		this._basePath = URI.joinPath(userDataPath, 'agentSessionData');
 		this._databases = new SessionDatabaseCollection(
 			getDbPath ?? (key => URI.joinPath(this._basePath, key, SESSION_DB_FILENAME).fsPath),
+			createFileEditUriIdentity(_fileService),
 			this._logService,
 			this._identity,
 		);

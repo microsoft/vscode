@@ -5,17 +5,92 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
+import { isLinux } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentHostFileEditCoordinator, describeDiscardedFileEdits, FileEditsInProgressError } from '../../node/agentHostFileEditCoordinator.js';
+import { describeDiscardedFileEdits, FileEditsInProgressError } from '../../node/agentHostFileEditCoordinator.js';
+import { createTestFileEditCoordinator } from './fileEditTestUtils.js';
 
 suite('AgentHostFileEditCoordinator', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const file = URI.file('/repo/src/file.ts');
 
+	test('only coordinates aliases in the same host filesystem and authority', async () => {
+		const coordinator = createTestFileEditCoordinator(disposables);
+		const remote = URI.parse('vscode-remote://first/repo/src/file.ts');
+		const otherAuthority = URI.parse('vscode-remote://second/repo/src/file.ts');
+		const otherProvider = remote.with({ scheme: 'other-provider' });
+		const localLease = disposables.add(await coordinator.beginEdit(file));
+		const local = [file, URI.file('/repo/SRC/FILE.ts'), remote, otherAuthority, otherProvider].map(resource => coordinator.isEditing(resource));
+		const remoteLease = disposables.add(await coordinator.beginEdit(remote));
+		const separated = [otherAuthority, otherProvider].map(resource => coordinator.isEditing(resource));
+		localLease.dispose();
+		remoteLease.dispose();
+
+		assert.deepStrictEqual({ local, separated, settled: [file, remote].map(resource => coordinator.isEditing(resource)) }, {
+			local: [true, !isLinux, false, false, false], separated: [false, false], settled: [false, false],
+		});
+	});
+
+	for (const observed of [false, true]) {
+		test(`a dot-segment edit holds the canonical file's exclusive decision (observed: ${observed})`, async () => {
+			const coordinator = createTestFileEditCoordinator(disposables);
+			const dotted = URI.file('/repo/./src/file.ts');
+			const lease = disposables.add(observed ? coordinator.markEditing(dotted) : await coordinator.beginEdit(dotted));
+			let decisionRan = false;
+			const decision = coordinator.runExclusive(file, async () => { decisionRan = true; });
+			await Promise.resolve();
+			await Promise.resolve();
+			const whileWriting = { canonical: coordinator.isEditing(file), dotted: coordinator.isEditing(dotted), decisionRan };
+			lease.dispose();
+			await decision;
+			assert.deepStrictEqual({ whileWriting, after: coordinator.isEditing(file), decisionRan }, {
+				whileWriting: { canonical: true, dotted: true, decisionRan: false }, after: false, decisionRan: true,
+			});
+		});
+	}
+
+	test('a canonical edit waits for an exclusive decision through a dot-segment alias', async () => {
+		const coordinator = createTestFileEditCoordinator(disposables);
+		const entered = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const decision = coordinator.runExclusive(URI.file('/repo/./src/file.ts'), async () => {
+			entered.complete();
+			await release.p;
+		});
+		await entered.p;
+		let editStarted = false;
+		const edit = coordinator.beginEdit(file).then(lease => {
+			editStarted = true;
+			disposables.add(lease).dispose();
+		});
+		await Promise.resolve();
+		await Promise.resolve();
+		const startedBeforeRelease = editStarted;
+		release.complete();
+		await Promise.all([decision, edit]);
+		assert.deepStrictEqual({ startedBeforeRelease, editStarted, editing: coordinator.isEditing(file) }, {
+			startedBeforeRelease: false, editStarted: true, editing: false,
+		});
+	});
+
+	test('dot normalization preserves parent traversals, authorities and opaque providers', () => {
+		const { uriIdentity } = createTestFileEditCoordinator(disposables);
+		assert.deepStrictEqual({
+			dot: uriIdentity.isEqual(file, URI.file('/repo/./src/./file.ts')),
+			parent: uriIdentity.isEqualOrParent(file, URI.file('/repo/./src')),
+			traversal: uriIdentity.isEqual(file, URI.file('/repo/link/../src/file.ts')),
+			authority: uriIdentity.isEqual(file, file.with({ authority: 'other', path: '/repo/./src/file.ts' })),
+			provider: uriIdentity.isEqual(URI.parse('opaque:/repo/./file.ts'), URI.parse('opaque:/repo/file.ts')),
+			root: uriIdentity.isEqual(URI.file('/.'), URI.file('/')),
+		}, { dot: true, parent: true, traversal: false, authority: false, provider: false, root: true });
+	});
+
 	test('runs a change of a file between its edit tool calls: after the running ones, before those that start later', async () => {
-		const coordinator = disposables.add(new AgentHostFileEditCoordinator());
+		const coordinator = createTestFileEditCoordinator(disposables);
 		const log: string[] = [];
 		disposables.add(coordinator.onDidChangeEditing(resource => log.push(`editing ${resource.path}: ${coordinator.isEditing(resource)}`)));
 
@@ -56,7 +131,7 @@ suite('AgentHostFileEditCoordinator', () => {
 	});
 
 	test('gives up on a change whose file an edit tool call keeps writing, and lets later edits run', async () => {
-		const coordinator = disposables.add(new AgentHostFileEditCoordinator());
+		const coordinator = createTestFileEditCoordinator(disposables);
 		const running = await coordinator.beginEdit(file);
 		let ran = false;
 		const error = await coordinator.runExclusive(file, async () => { ran = true; }, 1).then(() => undefined, err => err);
@@ -67,8 +142,54 @@ suite('AgentHostFileEditCoordinator', () => {
 		assert.deepStrictEqual({ error: error instanceof FileEditsInProgressError, ran, editing: coordinator.isEditing(file) }, { error: true, ran: false, editing: false });
 	});
 
+	test('cancelling a queued operation does not let later edits bypass the earlier exclusive operation', async () => {
+		const coordinator = createTestFileEditCoordinator(disposables);
+		const entered = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const first = coordinator.runExclusive(file, async () => {
+			entered.complete();
+			await release.p;
+		});
+		await entered.p;
+		const cancellation = disposables.add(new CancellationTokenSource());
+		let cancelledTaskRan = false;
+		const cancelled = coordinator.runExclusive(file, async () => { cancelledTaskRan = true; }, undefined, cancellation.token);
+		cancellation.cancel();
+		await assert.rejects(cancelled, CancellationError);
+		let laterStarted = false;
+		const later = coordinator.beginEdit(file).then(lease => {
+			laterStarted = true;
+			disposables.add(lease);
+			lease.dispose();
+		});
+		await Promise.resolve();
+		const startedBeforeRelease = laterStarted;
+		release.complete();
+		await Promise.all([first, later]);
+		assert.deepStrictEqual({ cancelledTaskRan, startedBeforeRelease, laterStarted }, { cancelledTaskRan: false, startedBeforeRelease: false, laterStarted: true });
+	});
+
+	test('cancelling a running operation waits for its mutation to settle', async () => {
+		const coordinator = createTestFileEditCoordinator(disposables);
+		const entered = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const cancellation = disposables.add(new CancellationTokenSource());
+		let settled = false;
+		const operation = coordinator.runExclusive(file, async () => {
+			entered.complete();
+			await release.p;
+			return 'committed';
+		}, undefined, cancellation.token).then(result => { settled = true; return result; });
+		await entered.p;
+		cancellation.cancel();
+		await Promise.resolve();
+		const settledBeforeMutation = settled;
+		release.complete();
+		assert.deepStrictEqual({ settledBeforeMutation, result: await operation }, { settledBeforeMutation: false, result: 'committed' });
+	});
+
 	test('knows which providers coordinate their edit tool calls while they are registered', () => {
-		const coordinator = disposables.add(new AgentHostFileEditCoordinator());
+		const coordinator = createTestFileEditCoordinator(disposables);
 		const first = coordinator.registerCoordinatedProvider('copilotcli');
 		const second = coordinator.registerCoordinatedProvider('copilotcli');
 		const registered = coordinator.isCoordinatedProvider('copilotcli');

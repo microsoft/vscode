@@ -164,7 +164,8 @@ import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { requireMintedTestChatOwner } from '../common/mintedChatUri.js';
 import { TestChatOwnerRef } from './agentChatContextTestUtils.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
-import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
+import { IAgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
+import { createTestFileEditCoordinator } from './fileEditTestUtils.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
@@ -1617,7 +1618,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(IAgentHostStartupPerformance, options?.startupPerformance ?? NullAgentHostStartupPerformance);
 	services.set(IProductService, options?.productService ?? TEST_PRODUCT_SERVICE);
 	services.set(ICopilotHomeService, new TestCopilotHomeService(options?.userHome ?? URI.file('/mock-home'), options?.copilotHome ? URI.file(options.copilotHome) : undefined));
-	services.set(IAgentHostFileEditCoordinator, disposables.add(new AgentHostFileEditCoordinator()));
+	services.set(IAgentHostFileEditCoordinator, createTestFileEditCoordinator(disposables));
 	services.set(IAgentHostMacAccessibilityTrustService, new AgentHostMacAccessibilityTrustService());
 	services.set(IAgentHostSessionOpenTelemetry, {
 		_serviceBrand: undefined,
@@ -23678,7 +23679,7 @@ suite('CopilotAgent', () => {
 			services.set(IAgentHostStartupPerformance, NullAgentHostStartupPerformance);
 			services.set(IProductService, TEST_PRODUCT_SERVICE);
 			services.set(ICopilotHomeService, new TestCopilotHomeService(URI.file('/mock-home')));
-			services.set(IAgentHostFileEditCoordinator, disposables.add(new AgentHostFileEditCoordinator()));
+			services.set(IAgentHostFileEditCoordinator, createTestFileEditCoordinator(disposables));
 			services.set(INativeEnvironmentService, {
 				_serviceBrand: undefined,
 				userHome: URI.from({ scheme: Schemas.inMemory, path: '/mock-home' }),
@@ -23969,7 +23970,7 @@ suite('CopilotAgent', () => {
 			services.set(IAgentHostStartupPerformance, NullAgentHostStartupPerformance);
 			services.set(IProductService, TEST_PRODUCT_SERVICE);
 			services.set(ICopilotHomeService, new TestCopilotHomeService(URI.file('/mock-home')));
-			services.set(IAgentHostFileEditCoordinator, disposables.add(new AgentHostFileEditCoordinator()));
+			services.set(IAgentHostFileEditCoordinator, createTestFileEditCoordinator(disposables));
 			services.set(IAgentHostPromptCache, new AgentHostPromptCache(stateManager));
 			services.set(IAgentHostSessionTitleSignal, titleSignal);
 			services.set(INativeEnvironmentService, {

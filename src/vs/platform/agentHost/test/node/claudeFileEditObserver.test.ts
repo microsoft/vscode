@@ -6,6 +6,7 @@
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 
 import assert from 'assert';
+import { stub } from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { IReference } from '../../../../base/common/lifecycle.js';
@@ -31,7 +32,8 @@ import { ClaudeMapperState } from '../../node/claude/claudeMapSessionEvents.js';
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
 import { IEditArcReporterLaunchParams, IEditArcReporterService } from '../../node/shared/editArcReporter.js';
 import { createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
+import { IAgentHostFileEditCoordinator, type AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
+import { createTestFileEditCoordinator } from './fileEditTestUtils.js';
 import { TestChatOwnerRef } from './agentChatContextTestUtils.js';
 
 interface IObserverHarness {
@@ -49,7 +51,7 @@ function createObserver(disposables: Pick<import('../../../../base/common/lifecy
 	const db = new TestSessionDatabase();
 	const dbRef: IReference<ISessionDatabase> = { object: db, dispose: () => { } };
 	const arcReports: IEditArcReporterLaunchParams[] = [];
-	const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+	const fileEditCoordinator = createTestFileEditCoordinator(disposables);
 
 	const services = new ServiceCollection(
 		[ILogService, new NullLogService()],
@@ -133,6 +135,54 @@ suite('ClaudeFileEditObserver', () => {
 			afterStart: true, whilePersisting: true, afterCompletion: false, coordinated: false, cachedType: ToolResultContentType.FileEdit,
 		});
 	});
+
+	for (const phase of ['start', 'complete'] as const) {
+		test(`retires a ${phase} snapshot failure before an identical tool retry`, async () => {
+			const { observer, fileService, mapperState, db, fileEditCoordinator } = createObserver(disposables);
+			const file = URI.file('/work/retry.txt');
+			const input = { file_path: file.fsPath, content: 'after' };
+			await fileService.writeFile(file, VSBuffer.fromString('before'));
+			const snapshot = await fileService.readFile(file);
+			if (phase === 'complete') {
+				const captured = new DeferredPromise<void>();
+				const before = stub(fileService, 'readFile').callsFake(async () => { captured.complete(); return snapshot; });
+				try {
+					observer.observeAssistant(assistantMessage([{ type: 'tool_use', id: 'first', name: 'Write', input }]));
+					await captured.p;
+				} finally {
+					before.restore();
+				}
+			}
+			const failed = stub(fileService, 'readFile').rejects(new Error('snapshot failed'));
+			try {
+				if (phase === 'start') {
+					observer.observeAssistant(assistantMessage([{ type: 'tool_use', id: 'first', name: 'Write', input }]));
+				}
+				await observer.observeUser(userMessage([{ type: 'tool_result', tool_use_id: 'first', content: 'failed', is_error: true }]), 'turn-1', mapperState);
+			} finally {
+				failed.restore();
+			}
+			const captured = new DeferredPromise<void>();
+			const before = stub(fileService, 'readFile').callsFake(async () => { captured.complete(); return snapshot; });
+			try {
+				observer.observeAssistant(assistantMessage([{ type: 'tool_use', id: 'second', name: 'Write', input }]));
+				await captured.p;
+			} finally {
+				before.restore();
+			}
+			await fileService.writeFile(file, VSBuffer.fromString('after'));
+			await observer.observeUser(userMessage([{ type: 'tool_result', tool_use_id: 'second', content: 'ok' }]), 'turn-1', mapperState);
+			const content = await db.readFileEditContent('second', file.fsPath);
+			assert.deepStrictEqual({
+				first: mapperState.takeFileEdit('first'),
+				second: mapperState.takeFileEdit('second')?.type,
+				records: (await db.getAllFileEdits()).map(record => record.toolCallId),
+				before: content?.beforeContent && new TextDecoder().decode(content.beforeContent),
+				after: content?.afterContent && new TextDecoder().decode(content.afterContent),
+				editing: fileEditCoordinator.isEditing(file),
+			}, { first: undefined, second: ToolResultContentType.FileEdit, records: ['second'], before: 'before', after: 'after', editing: false });
+		});
+	}
 
 	test('observe assistant→user round-trip caches a file edit on the mapper state', async () => {
 		const { observer, fileService, mapperState, arcReports } = createObserver(disposables);

@@ -131,11 +131,15 @@ export class ClaudeFileEditObserver extends Disposable {
 			}
 			this._editToolPaths.delete(block.tool_use_id);
 			try {
-				await this._editTracker.completeEdit(tracked.filePath, tracked.toolInput);
-				const editChatUri = chat?.isSubagent ? chat.uri : tracked.chatUri ?? chat?.uri;
-				const fileEdit = await this._editTracker.takeCompletedEdit(turnId, block.tool_use_id, tracked.filePath, tracked.toolName, tracked.toolInput, tracked.modelId, chat?.isSubagent ?? false, tracked.clientContext, editChatUri);
-				if (fileEdit) {
-					mapperState.cacheFileEdit(block.tool_use_id, fileEdit);
+				try {
+					await this._editTracker.completeEdit(tracked.filePath, tracked.toolInput);
+				} finally {
+					// Taking the result also retires ownership of a failed snapshot.
+					const editChatUri = chat?.isSubagent ? chat.uri : tracked.chatUri ?? chat?.uri;
+					const fileEdit = await this._editTracker.takeCompletedEdit(turnId, block.tool_use_id, tracked.filePath, tracked.toolName, tracked.toolInput, tracked.modelId, chat?.isSubagent ?? false, tracked.clientContext, editChatUri);
+					if (fileEdit) {
+						mapperState.cacheFileEdit(block.tool_use_id, fileEdit);
+					}
 				}
 			} catch (err) {
 				this._logService.warn(`[ClaudeFileEditObserver] file edit tracking failed for ${tracked.filePath}: ${err}`);

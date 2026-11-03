@@ -647,15 +647,26 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 			.map(n => getActionEnvelope(n).action as ChatToolCallReadyAction)
 			.find(action => action.toolCallId === patchStarts[0]?.toolCallId);
 		const patchInput: string | null = JSON.parse(getInlineToolInput(ready?.toolInput) ?? 'null');
+		const completion = context.client.receivedNotifications(n => isActionNotification(n, ActionType.ChatToolCallComplete))
+			.map(n => getActionEnvelope(n).action as ChatToolCallCompleteAction)
+			.find(action => action.toolCallId === patchStarts[0]?.toolCallId);
+		const trackedSnapshots = completion?.result.content?.filter(content => content.type === ToolResultContentType.FileEdit)
+			.map(edit => ({ resource: edit.after?.uri, before: !!edit.before?.content.uri, after: !!edit.after?.content.uri }))
+			.sort((a, b) => (a.resource ?? '').localeCompare(b.resource ?? '')) ?? [];
 		assert.deepStrictEqual({
 			patchCalls: patchStarts.length,
 			patchInput: patchInput?.trim(),
+			trackedSnapshots,
 			replacement: readFileSync(join(workspace, 'replacement.txt'), 'utf8').trimEnd(),
 			deletionBytes: readFileSync(join(workspace, 'deletion.txt')).length,
 			response: result.responseText.trim(),
 		}, {
 			patchCalls: 1,
 			patchInput: patch,
+			trackedSnapshots: [
+				{ resource: URI.file(join(workspace, 'deletion.txt')).toString(), before: true, after: true },
+				{ resource: URI.file(join(workspace, 'replacement.txt')).toString(), before: true, after: true },
+			],
 			replacement: 'A',
 			deletionBytes: 0,
 			response: 'PATCH_COMPLETE',
