@@ -16,13 +16,13 @@
 	--part-grid-card-radius: var(--agents-part-corner-radius);
 }
 
-/* The main part's card has the background of the main window's side pane: the editor's. */
-.monaco-workbench .agents-chat-window .part-grid-cell[data-part-grid-cell="main"] > .part-grid-card {
+/* The main part's card has the background of the main window's side pane: the editor's. So do the cards of the parts the grid creates, which are like the main part. */
+.monaco-workbench .agents-chat-window .part-grid-cell:is([data-part-grid-cell="main"], [data-part-grid-created]) > .part-grid-card {
 	--part-grid-card-background: var(--vscode-editor-background);
 }
 
 /* With connected tabs, the groups of the main part draw their frames, as those of the main window's side pane do: its card leaves its frame to them. */
-.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .agents-chat-window .part-grid-cell[data-part-grid-cell="main"] > .part-grid-card {
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .agents-chat-window .part-grid-cell:is([data-part-grid-cell="main"], [data-part-grid-created]) > .part-grid-card {
 	--part-grid-card-frame-owner: content;
 	--part-grid-card-border-color: transparent;
 }
