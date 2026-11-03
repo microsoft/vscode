@@ -50,6 +50,10 @@ export class PromptFileRewriter {
 
 	public rewriteTools(model: ITextModel, newTools: ToolAndToolSetEnablementMap, range: Range, isString: boolean): void {
 		const newToolNames = this._languageModelToolsService.toFullReferenceNames(newTools);
+		this.rewriteToolNames(model, newToolNames, range, isString);
+	}
+
+	public rewriteToolNames(model: ITextModel, newToolNames: readonly string[], range: Range, isString: boolean): void {
 		const newEntries = newToolNames.map(toolName => formatArrayValue(toolName)).join(', ');
 		const newValue = isString ? newEntries : `[${newEntries}]`;
 		this.rewriteAttribute(model, newValue, range);
