@@ -30,10 +30,11 @@ suite('Mobile pull to refresh', () => {
 				refresh: async () => { refreshCount++; throw error; },
 			}));
 
+			// WebKit exposes Touch but does not support constructing it.
 			for (const [type, clientY] of [['touchstart', 100], ['touchmove', 200]] as const) {
-				container.dispatchEvent(new TouchEvent(type, { touches: [new Touch({ identifier: 1, target: container, clientY })] }));
+				container.dispatchEvent(Object.assign(new mainWindow.Event(type), { touches: [{ clientY }] }));
 			}
-			container.dispatchEvent(new TouchEvent(endEvent));
+			container.dispatchEvent(new mainWindow.Event(endEvent));
 			const failure = await reported.p;
 			const indicator = container.querySelector<HTMLElement>('.mobile-pull-indicator')!;
 			assert.deepStrictEqual({
