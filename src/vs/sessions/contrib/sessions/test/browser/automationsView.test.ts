@@ -3758,7 +3758,7 @@ suite('AutomationsCardsWidget', () => {
 		}]);
 	});
 
-	test('capable providers offer keeping history with its accessible owner name', async () => {
+	test('capable providers always delete all history without offering a choice', async () => {
 		const { automationService, dialogService, instantiationService } = setup();
 		const source = automation();
 		automationService.setAutomations([source]);
@@ -3768,21 +3768,32 @@ suite('AutomationsCardsWidget', () => {
 		const command = CommandsRegistry.getCommand('sessions.automations.delete');
 		assert.ok(command);
 		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
-		const accessible = buildAutomationsAccessibleContent([], automationService.runs.get(), 'ready', [], [], 'ready', [], () => source.name, () => 'retained', () => true);
 		assert.deepStrictEqual({
-			checkbox: dialogService.confirmations[0].checkbox,
+			confirmation: dialogService.confirmations[0],
 			options: automationService.deleteOptions,
 			runs: automationService.runs.get().length,
-			accessible: {
-				owner: accessible.includes('Daily review,'),
-				retained: accessible.includes('Run history for Daily review is retained. Use the run context menu to delete it.'),
-			},
 		}, {
-			checkbox: { label: 'Delete Run History', checked: true },
-			options: [{ deleteHistory: false }],
-			runs: 1,
-			accessible: { owner: true, retained: true },
+			confirmation: {
+				type: 'warning',
+				message: 'Delete automation "Daily review"?',
+				detail: 'This will permanently delete the automation and all of its run history.',
+				primaryButton: 'Delete',
+			},
+			options: [{ deleteHistory: true }],
+			runs: 0,
 		});
+	});
+
+	test('previously retained history keeps its accessible owner and deletion guidance', () => {
+		const { automationService } = setup();
+		automationService.setRuns([run()]);
+		const accessible = buildAutomationsAccessibleContent([], automationService.runs.get(), 'ready', [], [], 'ready', [], () => 'Daily review', () => 'retained', () => true);
+		assert.deepStrictEqual({
+			owner: accessible.includes('Daily review,'),
+			retained: accessible.includes('Run history for Daily review is retained. Use the run context menu to delete it.'),
+			runs: automationService.runs.get().length,
+			deleteCalls: automationService.deleteCalls,
+		}, { owner: true, retained: true, runs: 1, deleteCalls: [] });
 	});
 
 	test('delete context menu action confirms before deleting the automation and its history', async () => {
@@ -3805,12 +3816,14 @@ suite('AutomationsCardsWidget', () => {
 			runs: automationService.runs.get(),
 		}, {
 			confirmations: [{
+				type: 'warning',
 				message: 'Delete automation "Daily review"?',
-				detail: 'This will permanently delete the automation and its run history.',
+				detail: 'This will permanently delete the automation and all of its run history.',
 				primaryButton: 'Delete',
 			}, {
+				type: 'warning',
 				message: 'Delete automation "Daily review"?',
-				detail: 'This will permanently delete the automation and its run history.',
+				detail: 'This will permanently delete the automation and all of its run history.',
 				primaryButton: 'Delete',
 			}],
 			deleteCalls: [source.id],
