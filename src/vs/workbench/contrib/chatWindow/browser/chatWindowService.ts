@@ -22,7 +22,7 @@ import { IsAuxiliaryWindowContext } from '../../../common/contextkeys.js';
 import { EditorCloseContext } from '../../../common/editor.js';
 import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { bindEditorPartsToWindow } from '../../../services/editor/browser/editorPartWindowBinding.js';
-import { IContentPart, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { GroupsOrder, IContentPart, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
@@ -148,9 +148,12 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		};
 		const chatGroupListeners = this._register(new DisposableMap<IEditorGroup>());
 		const chatMoved = observableSignal(this);
+		// The chat leads the window from the first group of the chat part, at its top left, such as not after a group
+		// split off to its left
+		this._register(Event.any(chatPart.onDidAddGroup, chatPart.onDidRemoveGroup, chatPart.onDidMoveGroup)(() => chatMoved.trigger(undefined)));
 		this.chatLeads = derived(this, reader => {
 			chatMoved.read(reader);
-			return _host.chatPartLeads.read(reader) && isChatIn(chatPart.groups);
+			return _host.chatPartLeads.read(reader) && !!chatPart.getGroups(GroupsOrder.GRID_APPEARANCE)[0]?.contains(content.input);
 		});
 		const trackChatGroup = (group: IEditorGroup) => chatGroupListeners.set(group, combinedDisposable(group.onDidModelChange(e => {
 			if (e.editor === content.input) {
