@@ -9,11 +9,15 @@ import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { Lazy } from '../../../../../../../base/common/lazy.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { CodeEditorWidget } from '../../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { EditorOption } from '../../../../../../../editor/common/config/editorOptions.js';
+import { createCodeEditorServices } from '../../../../../../../editor/test/browser/testCodeEditor.js';
+import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
 import { IAccessibilitySignalService } from '../../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -27,7 +31,9 @@ import { EditorInput } from '../../../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
-import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
+import { getSimpleEditorOptions } from '../../../../../codeEditor/browser/simpleEditorOptions.js';
+import { ChatLayoutService } from '../../../../browser/widget/chatLayoutService.js';
+import { ChatInputPart, IChatInputPartOptions } from '../../../../browser/widget/input/chatInputPart.js';
 import { ChatSessionWorkingSetKeptChanges } from '../../../../browser/widget/input/chatSessionWorkingSet.js';
 import { ChatSessionReviewPreferencesService, IChatSessionReviewPreferencesService } from '../../../../common/editing/chatSessionReviewPreferences.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
@@ -938,6 +944,81 @@ suite('ChatInputPart', () => {
 		assert.deepStrictEqual(createdFor, [restoredSession.toString(), restoredSession.toString(), editedRequestSession.toString()]);
 	});
 
+	for (const { name, options, padding, minimumLines } of [
+		{ name: 'default', options: {}, padding: { top: 12, bottom: 12 }, minimumLines: 1 },
+		{ name: 'compact', options: { renderStyle: 'compact' }, padding: { top: 2, bottom: 2 }, minimumLines: 1 },
+		{ name: 'Sessions', options: { isSessionsWindow: true, inputEditorMinLines: 2, inputEditorPadding: { top: 4, bottom: 4 } }, padding: { top: 4, bottom: 4 }, minimumLines: 2 },
+	] satisfies { name: string; options: Partial<IChatInputPartOptions>; padding: { top: number; bottom: number }; minimumLines: number }[]) {
+		for (const maxHeight of [undefined, 1]) {
+			test(`follows chat font size and preserves usable input height (${name}, max height ${maxHeight})`, async () => {
+				const configurationService = new TestConfigurationService({ 'chat.fontSize': 24 });
+				store.add(configurationService.onDidChangeConfigurationEmitter);
+				const chatLayoutService = store.add(new ChatLayoutService(configurationService));
+				const container = dom.append(mainWindow.document.body, dom.$('div'));
+				store.add(toDisposable(() => container.remove()));
+				const instantiationService = createCodeEditorServices(store);
+				const editor = store.add(instantiationService.createInstance(CodeEditorWidget, container, {
+					...getSimpleEditorOptions(configurationService),
+					padding,
+				}, { contributions: [], isSimpleWidget: true }));
+				editor.setModel(store.add(createTextModel('')));
+
+				const inputPart: Pick<ChatInputPart, 'layout'> & { bindInputEditorFontSize(): IDisposable } = Object.assign(Object.create(ChatInputPart.prototype), {
+					options,
+					chatLayoutService,
+					_inputEditor: editor,
+					followupsContainer: dom.$('div'),
+					inputEditorMaxHeight: options.renderStyle === 'compact' ? 250 / 3 : 250,
+					inputEditorTrailingSpace: 0,
+					_maxHeight: maxHeight,
+					height: constObservable(0),
+					getLayoutData: () => ({
+						inputPartHorizontalPadding: 0, inputPartHorizontalPaddingInside: 0,
+						editorBorder: 0, toolbarsWidth: 0, sideToolbarWidth: 0,
+					}),
+				});
+				const binding = store.add(inputPart.bindInputEditorFontSize());
+				const setConfiguration = async (key: string, value: number | undefined) => {
+					await configurationService.setUserConfiguration(key, value);
+					configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+						affectsConfiguration: setting => setting === key,
+					}));
+				};
+				const getState = () => {
+					inputPart.layout(400);
+					return {
+						fontSize: editor.getOption(EditorOption.fontSize),
+						lineHeight: editor.getOption(EditorOption.lineHeight),
+						height: editor.getLayoutInfo().height,
+					};
+				};
+
+				const states = [getState()];
+				for (const fontSize of [18, 100, 10, 6, undefined]) {
+					await setConfiguration('chat.fontSize', fontSize);
+					states.push(getState());
+				}
+				await setConfiguration('chat.editor.fontSize', 40);
+				await setConfiguration('editor.fontSize', 30);
+				states.push(getState());
+				binding.dispose();
+				await setConfiguration('chat.fontSize', 24);
+				states.push(getState());
+
+				assert.deepStrictEqual(states, [
+					{ fontSize: 24, lineHeight: 36 },
+					{ fontSize: 18, lineHeight: 27 },
+					{ fontSize: 100, lineHeight: 150 },
+					{ fontSize: 10, lineHeight: 20 },
+					{ fontSize: 6, lineHeight: 20 },
+					{ fontSize: 13, lineHeight: 20 },
+					{ fontSize: 13, lineHeight: 20 },
+					{ fontSize: 13, lineHeight: 20 },
+				].map(state => ({ ...state, height: state.lineHeight * minimumLines + padding.top + padding.bottom })));
+			});
+		}
+	}
+
 	test('uses the Sessions content gutter for composer layout', () => {
 		const followupsContainer = dom.$('div');
 		const editorLayouts: { width: number; height: number }[] = [];
@@ -948,11 +1029,10 @@ suite('ChatInputPart', () => {
 			_inputEditor: {
 				getScrollWidth: () => 100,
 				getContentHeight: () => 20,
+				getOption: () => 20,
 				layout: (dimension: { width: number; height: number }) => editorLayouts.push(dimension),
 			},
 			inputEditorMaxHeight: 250,
-			inputEditorMinHeight: undefined,
-			singleLineInputEditorHeight: 20,
 			inputEditorTrailingSpace: 0,
 			ignoreInputEditorContentSizeChanges: false,
 		}) as ChatInputPart;
