@@ -477,19 +477,21 @@ export class PartGrid extends Disposable {
 		status(localize('movedPart', "Moved {0}", getPartName(part)));
 	}
 
-	private mergeAllowed = true;
+	private mergeAllowed: (id: string, targetId: string) => boolean = () => true;
 
 	/**
 	 * Whether a part dropped on the center of another part merges into it,
 	 * its editors joining that part. By default it does; a window can say
-	 * that its parts do not merge, so that parts only move beside others.
+	 * that its parts do not merge, or which do not, such as one whose editor
+	 * other editors cannot join. Where a part does not merge, the center of
+	 * the part takes it beside, on the nearest side.
 	 */
-	setMergeAllowed(allowed: boolean): void {
-		this.mergeAllowed = allowed;
+	setMergeAllowed(allowed: boolean | ((id: string, targetId: string) => boolean)): void {
+		this.mergeAllowed = typeof allowed === 'boolean' ? () => allowed : allowed;
 	}
 
 	private canMergeCell(id: string, targetId: string): boolean {
-		return this.mergeAllowed && id !== targetId && !!this.cells.get(id)?.part && !!this.cells.get(targetId)?.part;
+		return id !== targetId && !!this.cells.get(id)?.part && !!this.cells.get(targetId)?.part && this.mergeAllowed(id, targetId);
 	}
 
 	/**

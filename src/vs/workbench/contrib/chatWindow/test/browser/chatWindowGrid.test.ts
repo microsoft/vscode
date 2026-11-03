@@ -102,17 +102,17 @@ suite('Chat window grid', () => {
 		return { mode, grid, visible, userResize, container };
 	}
 
-	test('a part dragged onto the center of another part merges into it, the whole part highlighted; at its sides, it goes beside it', () => {
+	test('a part dragged onto the center of another part merges into it, the whole part highlighted, but onto the chat it goes beside it; at the sides, it goes beside', () => {
 		const { container } = setup();
 		const cellOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!;
 		const pointer = (target: EventTarget, type: string, clientX: number, clientY: number) => target.dispatchEvent(new PointerEvent(type, { clientX, clientY, button: 0, pointerId: 1, bubbles: true, cancelable: true }));
-		const dragChatOverMain = (fraction: number) => {
-			const handle = cellOf(ChatWindowGridCell.Chat).querySelector('.part-grid-drag-handle')!;
+		const drag = (id: ChatWindowGridCell, over: ChatWindowGridCell, fraction: number) => {
+			const handle = cellOf(id).querySelector('.part-grid-drag-handle')!;
 			const start = handle.getBoundingClientRect();
 			pointer(handle, 'pointerdown', start.left + start.width / 2, start.top + start.height / 2);
 			pointer(handle, 'pointermove', start.left + start.width / 2 + 10, start.top + start.height / 2 + 10);
-			const main = cellOf(ChatWindowGridCell.Main).getBoundingClientRect();
-			pointer(handle, 'pointermove', main.left + main.width * fraction, main.top + main.height / 2);
+			const target = cellOf(over).getBoundingClientRect();
+			pointer(handle, 'pointermove', target.left + target.width * fraction, target.top + target.height / 2);
 			const indicator = container.querySelector<HTMLElement>('.part-grid-drop-indicator.part');
 			const shown = !indicator || indicator.style.display === 'none' ? 'none' : indicator.classList.contains('merge') ? 'merge' : 'beside';
 			// Escape: the part goes nowhere
@@ -120,7 +120,11 @@ suite('Chat window grid', () => {
 			return shown;
 		};
 
-		assert.deepStrictEqual({ center: dragChatOverMain(0.5), side: dragChatOverMain(0.9) }, { center: 'merge', side: 'beside' });
+		assert.deepStrictEqual({
+			chatOnMainCenter: drag(ChatWindowGridCell.Chat, ChatWindowGridCell.Main, 0.5),
+			chatOnMainSide: drag(ChatWindowGridCell.Chat, ChatWindowGridCell.Main, 0.9),
+			mainOnChatCenter: drag(ChatWindowGridCell.Main, ChatWindowGridCell.Chat, 0.5)
+		}, { chatOnMainCenter: 'merge', chatOnMainSide: 'beside', mainOnChatCenter: 'beside' });
 	});
 
 	test('the title row is above the chat while the main part is beside it, else across the window; the strip has a column of its own while the chat is below the main part or hidden', () => {
