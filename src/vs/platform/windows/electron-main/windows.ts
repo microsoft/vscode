@@ -107,6 +107,7 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	removeMode?: boolean;
 	readonly gotoLineMode?: boolean;
 	readonly initialStartup?: boolean;
+	readonly restoreNativeTabs?: boolean;
 	readonly noRecentEntry?: boolean;
 	/**
 	 * The remote authority to use when windows are opened with either
