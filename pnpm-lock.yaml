@@ -937,8 +937,8 @@ importers:
         specifier: ^0.9.8
         version: 0.9.8(tslib@2.8.1)
       '@vscode/markdown-editor':
-        specifier: 0.0.2-153
-        version: 0.0.2-153
+        specifier: 0.0.2-162
+        version: 0.0.2-162
       '@vscode/observables':
         specifier: ^0.1.1-0
         version: 0.1.1-0
@@ -3402,8 +3402,8 @@ packages:
   '@vscode/l10n@0.0.18':
     resolution: {integrity: sha512-KYSIHVmslkaCDyw013pphY+d7x1qV8IZupYfeIfzNA+nsaWHbn5uPuQRvdRFsa9zFzGeudPuoGoZ1Op4jrJXIQ==}
 
-  '@vscode/markdown-editor@0.0.2-153':
-    resolution: {integrity: sha512-m2mkimOsOgHPMjxNKH1Hf4Q2jz+b9jGqS0nTmCEYZT0bhb13Na5t/wQWABjQMZ6+DkB4pdSBdNvW4hYLKo0lfw==}
+  '@vscode/markdown-editor@0.0.2-162':
+    resolution: {integrity: sha512-fuwipffle2r6kMwY2OZPv3++DSjIKHPJCgYKkERN9K5sMwwbeYn9MxNuuf+bOY0+cjjkoP3ooJWU80mRmvP4+A==}
 
   '@vscode/markdown-it-katex@1.1.1':
     resolution: {integrity: sha512-3KTlbsRBPJQLE2YmLL7K6nunTlU+W9T5+FjfNdWuIUKgxSS6HWLQHaO3L4MkJi7z7MpIPpY+g4N+cWNBPE/MSA==}
@@ -11511,7 +11511,7 @@ snapshots:
 
   '@vscode/l10n@0.0.18': {}
 
-  '@vscode/markdown-editor@0.0.2-153':
+  '@vscode/markdown-editor@0.0.2-162':
     dependencies:
       '@vscode/codicons': 0.0.46-36
       '@vscode/diff': 0.0.2-0
