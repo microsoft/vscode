@@ -299,6 +299,7 @@ suite('ResponseSelectionSideChatController', () => {
 			isArchived: constObservable(false),
 			capabilities: constObservable({ supportsMultipleChats: true, supportsSideChat: true }),
 			chats: constObservable([chat, sideChat]),
+			activeChat: constObservable(chat),
 		});
 
 		const callOrder: string[] = [];
@@ -321,6 +322,8 @@ suite('ResponseSelectionSideChatController', () => {
 		}));
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
 			visibleSessions: constObservable([session]),
+			activeSession: constObservable(session),
+			navigationRequest: constObservable(undefined),
 			openChat: async (_session, chatUri) => {
 				callOrder.push(`open:${chatUri.toString()}`);
 			},

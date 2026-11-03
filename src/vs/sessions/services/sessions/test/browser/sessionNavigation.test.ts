@@ -264,6 +264,7 @@ class MockSessionStore implements ISessionsManagementService {
 	createAndSendNewChatRequest(_folderUri: URI, _options: ISendRequestOptions, _createOptions?: ICreateNewSessionOptions): Promise<ISession | undefined> { throw new Error('not implemented'); }
 	createAndSendQuickChatRequest(_options: ISendRequestOptions, _createOptions?: ICreateNewSessionOptions): Promise<ISession | undefined> { throw new Error('not implemented'); }
 	sendRequest(_session: ISession, _chat: IChat, _options: ISendRequestOptions): Promise<void> { throw new Error('not implemented'); }
+	sendRequestInBackground(_session: ISession, _chat: IChat, _options: ISendRequestOptions): Promise<void> { throw new Error('not implemented'); }
 	openNewChatInSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	openPreviousSession(): Promise<void> { throw new Error('not implemented'); }
 	openNextSession(): Promise<void> { throw new Error('not implemented'); }
