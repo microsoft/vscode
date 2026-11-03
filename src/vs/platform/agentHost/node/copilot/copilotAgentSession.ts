@@ -3784,6 +3784,34 @@ export class CopilotAgentSession extends Disposable {
 			this._reportToolApproval(toolCallId, record.toolName, record.mcpServerName);
 		}
 	}
+
+	/**
+	 * A background subagent can outlive or straddle root turns, so its invocation is attributed to its own chat,
+	 * the root turn that owns it, and the account captured at its start, never to an unrelated current turn.
+	 */
+	private _reportSkillInvoked(e: SessionEventPayload<'skill.invoked'>): void {
+		const turn = this._currentTurn.value;
+		const base = {
+			provider: COPILOT_CLI_AGENT_PROVIDER_ID,
+			owner: this._ownerSessionUri.toString(),
+			sdkEventId: e.id,
+			trigger: e.data.trigger,
+			isSubagentInvocation: !!e.agentId,
+		};
+		if (!e.agentId) {
+			this._telemetryReporter.skillInvoked({ ...base, session: this._chatChannelUri.toString(), turnId: this._turnId, clientContext: turn?.clientContext, telemetryContext: turn?.telemetryContext });
+			return;
+		}
+		const childToolCallId = this._parentToolCallIdForSubagentEvent(e);
+		const owningTurnId = childToolCallId ? this._subagents.getRootTurnId(childToolCallId) : undefined;
+		this._telemetryReporter.skillInvoked({
+			...base,
+			session: childToolCallId ? this._subagentChatUri(childToolCallId) : this._chatChannelUri.toString(),
+			turnId: owningTurnId,
+			clientContext: owningTurnId !== undefined && turn?.id === owningTurnId ? turn.clientContext : undefined,
+			telemetryContext: childToolCallId ? this._subagents.getAccountContext(childToolCallId) : undefined,
+		});
+	}
 	private _toolSourceKindFor(toolName: string, mcpServerName: string | undefined): string {
 		if (mcpServerName) {
 			return 'mcp';
@@ -10206,21 +10234,7 @@ export class CopilotAgentSession extends Disposable {
 		store.add(wrapper.onSkillInvoked(e => {
 			this._logService.info(`[Copilot:${sessionId}] Skill invoked: ${e.data.name} (${e.data.path})`);
 			this._resumeSubagentForEvent(e);
-			// A background subagent can outlive or straddle root turns, so attribute its account like its model calls.
-			const subagentToolCallId = e.agentId ? this._parentToolCallIdForSubagentEvent(e) : undefined;
-			this._telemetryReporter.skillInvoked({
-				clientContext: this._currentTurn.value?.clientContext,
-				telemetryContext: e.agentId
-					? (subagentToolCallId ? this._subagents.getAccountContext(subagentToolCallId) : undefined)
-					: this._currentTurn.value?.telemetryContext,
-				provider: COPILOT_CLI_AGENT_PROVIDER_ID,
-				session: this._chatChannelUri.toString(),
-				owner: this._ownerSessionUri.toString(),
-				turnId: this._turnId,
-				sdkEventId: e.id,
-				trigger: e.data.trigger,
-				isSubagentInvocation: !!e.agentId,
-			});
+			this._reportSkillInvoked(e);
 			if (this._shouldDropUnmappedSubagentEvent(e, 'skill.invoked')) {
 				return;
 			}

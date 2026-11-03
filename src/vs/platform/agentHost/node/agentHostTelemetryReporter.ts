@@ -1111,7 +1111,8 @@ export interface IAgentHostSkillInvokedReport extends IAgentHostTurnAttributedRe
 	session: string;
 	/** Owning session, recorded when the turn or request started. */
 	owner: string;
-	turnId: string;
+	/** The root turn that owns the invocation; undefined for a background subagent whose root turn has ended. */
+	turnId: string | undefined;
 	/** The SDK `skill.invoked` event id; equals `event_id` on the forwarded `copilotSdk/skill_invoked`. */
 	sdkEventId: string;
 	trigger: string | undefined;
@@ -1122,7 +1123,7 @@ type IAgentHostSkillInvokedEvent = IAgentHostEventTelemetry & {
 	provider: string;
 	agentSessionId: string;
 	chatSessionId: string;
-	turnId: string;
+	turnId: string | undefined;
 	sdkEventId: string;
 	trigger: string;
 	isSubagentInvocation: boolean;
@@ -1133,8 +1134,8 @@ type IAgentHostSkillInvokedClassification = IAgentHostEventClassification & {
 	comment: 'Records what triggered each agent host skill invocation, to tell skills the agent chose apart from skills the user ran. Skill identity is on copilotSdk/skill_invoked, joined by sdkEventId.';
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host provider that invoked the skill.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
-	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the agent host session.' };
-	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host turn in which the skill was invoked.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the agent host session; the subagent chat for subagent invocations.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The root turn that owns the invocation; absent for a background subagent whose root turn has ended.' };
 	sdkEventId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The SDK skill invocation event identifier; equals event_id on copilotSdk/skill_invoked.' };
 	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What triggered the invocation: agent-invoked (the model chose the skill), user-invoked (slash command or UI), context-load (preloaded by a custom agent or subagent), or unknown.' };
 	isSubagentInvocation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a subagent, rather than the main agent, invoked the skill.' };

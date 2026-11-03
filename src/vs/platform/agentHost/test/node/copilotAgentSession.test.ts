@@ -10146,7 +10146,7 @@ suite('CopilotAgentSession', () => {
 	});
 
 	for (const parentEnded of [false, true]) {
-		test(`retains background subagent account telemetry on skill invocations after root ${parentEnded ? 'completion' : 'replacement'}`, async () => {
+		test(`attributes background subagent skill invocations to the child after root ${parentEnded ? 'completion' : 'replacement'}`, async () => {
 			const telemetryService = new CapturingTelemetryService();
 			const options = { telemetryService, telemetryContext: { copilotSku: 'sku-a' } };
 			const { session, mockSession } = await createAgentSession(disposables, options);
@@ -10158,12 +10158,24 @@ suite('CopilotAgentSession', () => {
 			if (parentEnded) {
 				session.discardActiveTurn();
 			} else {
-				session.resetTurnState('turn-2');
+				session.resetTurnState('turn-2', undefined, AgentHostClientType.EditorWindow);
 			}
 			mockSession.fire('skill.invoked', { name: 'commit', path: '/skills/commit/SKILL.md', content: '', trigger: 'agent-invoked' }, { id: 'skill-child', agentId: 'agent-1' });
 
 			const data = telemetryService.events.find(event => event.eventName === 'agentHost.skillInvoked')?.data as Record<string, unknown> | undefined;
-			assert.deepStrictEqual({ copilotSku: data?.copilotSku, isSubagentInvocation: data?.isSubagentInvocation }, { copilotSku: 'sku-a', isSubagentInvocation: true });
+			assert.deepStrictEqual({
+				copilotSku: data?.copilotSku,
+				chatSessionId: data?.chatSessionId,
+				turnId: data?.turnId,
+				initiatorClientType: data?.initiatorClientType,
+				isSubagentInvocation: data?.isSubagentInvocation,
+			}, {
+				copilotSku: 'sku-a',
+				chatSessionId: getTelemetryChatSessionId(buildSubagentChatUri(session.ownerSessionUri.toString(), 'tc-subagent')),
+				turnId: 'turn-1',
+				initiatorClientType: undefined,
+				isSubagentInvocation: true,
+			});
 		});
 
 		test(`retains background subagent account telemetry after root ${parentEnded ? 'completion' : 'replacement'}`, async () => {
