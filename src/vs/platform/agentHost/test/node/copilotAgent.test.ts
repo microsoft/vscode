@@ -19244,7 +19244,7 @@ suite('CopilotAgent', () => {
 		 * `_forkSdkChat` records its inputs and hands back a deterministic
 		 * forked SDK id, and `_createAgentSession` returns a recording fake.
 		 */
-		function stubForkSeams(agent: CopilotAgent, forkedSdkId = 'forked-sdk-id'): {
+		function stubForkSeams(agent: CopilotAgent, forkedSdkId = 'forked-sdk-id', revalidateTelemetryBeforeRegistration?: () => Promise<void>): {
 			readonly forks: { sourceEntry: unknown; turnId: string; targetDbDir: string }[];
 			readonly launches: { kind: string; sessionId: string; workingDirectory: string | undefined; chatChannelUri: string | undefined; resource: string | undefined }[];
 			readonly remaps: ReadonlyMap<string, string>[];
@@ -19269,13 +19269,13 @@ suite('CopilotAgent', () => {
 					chatChannelUri: identity.chatChannelUri.toString(),
 					resource: identity?.resource?.toString(),
 				});
-				const built = makeForkFake(launchPlan, identity?.chatChannelUri, remaps);
+				const built = makeForkFake(launchPlan, identity?.chatChannelUri, remaps, revalidateTelemetryBeforeRegistration);
 				return built;
 			};
 			return { forks, launches, remaps };
 		}
 
-		function makeForkFake(launchPlan: CopilotSessionLaunchPlan, chatChannelUri: URI | undefined, remaps: ReadonlyMap<string, string>[]): CopilotAgentSession {
+		function makeForkFake(launchPlan: CopilotSessionLaunchPlan, chatChannelUri: URI | undefined, remaps: ReadonlyMap<string, string>[], revalidateTelemetryBeforeRegistration?: () => Promise<void>): CopilotAgentSession {
 			return {
 				sessionUri: AgentSession.uri('copilotcli', launchPlan.sessionId),
 				chatChannelUri,
@@ -19290,6 +19290,7 @@ suite('CopilotAgent', () => {
 				setExtensionLaunchAdmission(admission: IDisposable): void { admission.dispose(); },
 				async initializeSession(): Promise<void> { },
 				async remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> { remaps.push(mapping); },
+				revalidateTelemetryBeforeRegistration,
 				async getMessages(): Promise<readonly Turn[]> { return []; },
 				async destroySession(): Promise<void> { },
 				handleClientToolCallComplete(): void { },
@@ -19578,7 +19579,7 @@ suite('CopilotAgent', () => {
 					resource: target.toString(),
 				}],
 				remaps: [[[sourceTurn.id, forkedTurnId]]],
-				forkStages: ['queue', 'existingBacking', 'credentials', 'workingDirectory', 'sourceMetadata', 'client', 'customizationAnchors', 'customizationDiscovery', 'customizationSnapshot', 'sourceSession', 'runtimeConfiguration', 'project', 'persistMetadata', 'runtimeInitialization', 'remapTurnIds', 'recordBacking', 'copyReviewedRef'],
+				forkStages: ['queue', 'existingBacking', 'credentials', 'workingDirectory', 'sourceMetadata', 'client', 'customizationAnchors', 'customizationDiscovery', 'customizationSnapshot', 'sourceSession', 'runtimeConfiguration', 'project', 'persistMetadata', 'runtimeInitialization', 'remapTurnIds', 'runtimeRegistration', 'recordBacking', 'copyReviewedRef'],
 				storedWorkingDirectory: sourceWorkingDirectory.toString(),
 				retried: {
 					session: target.toString(),
@@ -19587,6 +19588,56 @@ suite('CopilotAgent', () => {
 				},
 			});
 		});
+
+		for (const remap of [false, true]) {
+			for (const fail of [false, true]) {
+				test(`attributes pending runtime registration${remap ? ' after turn remapping' : ''} to its own stage when it ${fail ? 'fails' : 'succeeds'}`, async () => {
+					const sessionDataService = disposables.add(new TestSessionDataService());
+					const logService = new NullLogService();
+					const logs = spy(logService, 'info');
+					disposables.add(toDisposable(() => logs.restore()));
+					const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]), logService });
+					const source = AgentSession.uri('copilotcli', 'registration-source');
+					const target = AgentSession.uri('copilotcli', 'registration-target');
+					setDefaultSessionStub(agent, AgentSession.id(source), makeSourceStub(URI.file('/source-workspace'), sourceTurn));
+					const entered = new DeferredPromise<void>();
+					const released = new DeferredPromise<void>();
+					const seams = stubForkSeams(agent, 'registration-sdk', async () => {
+						entered.complete();
+						await released.p;
+						if (fail) {
+							throw new Error('Registration failed');
+						}
+					});
+					afterTest(() => disposeAgent(agent));
+					await agent.authenticate('https://api.github.com', 'token');
+					const creating = provisionSession(agent, { session: target }, {
+						fork: {
+							source: defaultChatUri(source),
+							turnId: sourceTurn.id,
+							...(remap ? { turnIdMapping: new Map([[sourceTurn.id, 'remapped-turn']]) } : {}),
+						},
+					});
+					const completed = fail ? assert.rejects(creating, /Registration failed/) : creating;
+					await entered.p;
+					const pendingStage = logs.args.map(([message]) => /Stage started:.*stage=(?<stage>[^,]+)/.exec(message)?.groups?.stage).filter(stage => stage !== undefined).at(-1);
+					released.complete();
+					await completed;
+
+					assert.deepStrictEqual({
+						pendingStage,
+						remaps: seams.remaps.length,
+						registration: logs.args.map(([message]) => /Stage settled:.*stage=runtimeRegistration, outcome=(?<outcome>[^,]+)/.exec(message)?.groups?.outcome).filter(outcome => outcome !== undefined),
+						result: logs.args.map(([message]) => /\[CopilotFork\] Settled:.*outcome=(?<outcome>[^,]+)/.exec(message)?.groups?.outcome).filter(outcome => outcome !== undefined),
+					}, {
+						pendingStage: 'runtimeRegistration',
+						remaps: remap ? 1 : 0,
+						registration: [fail ? 'error' : 'success'],
+						result: [fail ? 'error' : 'success'],
+					});
+				});
+			}
+		}
 
 		test('a fork copies the source database into the storage scope of the chat it creates', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());

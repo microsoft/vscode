@@ -23,7 +23,7 @@ export async function openAndSendSideChat(
 	const navigationRequest = sessionsService.navigationRequest.get();
 	await opening;
 	if (sessionsService.navigationRequest.get() !== navigationRequest) {
-		await sessionsManagementService.sendRequest(session, sideChat, { ...requestOptions, background: true });
+		await sessionsManagementService.sendRequestInBackground(session, sideChat, requestOptions);
 		return;
 	}
 	sessionsPartService.getSessionView(session.sessionId)?.splitChatToSide(sideChat.resource);
@@ -62,7 +62,7 @@ export async function createAndSendSideChat(
 		navigationObserver.dispose();
 	}
 	if (navigated) {
-		await sessionsManagementService.sendRequest(session, sideChat, { ...requestOptions, background: true });
+		await sessionsManagementService.sendRequestInBackground(session, sideChat, requestOptions);
 	} else {
 		await openAndSendSideChat(sessionsManagementService, sessionsService, sessionsPartService, session, sideChat, requestOptions);
 	}

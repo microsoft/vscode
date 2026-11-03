@@ -1266,6 +1266,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: false, isNewChat: true, options });
 	}
 
+	async sendRequestInBackground(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider) {
+			throw new Error(`Sessions provider '${session.providerId}' not found`);
+		}
+		await this._sendRequestInBackground(provider, session, chat, { ...options, background: true });
+	}
+
 	/**
 	 * Send a request for an existing chat in the background: commit the send via
 	 * the provider and—on success—fire {@link _onDidSendRequest}. Unlike the

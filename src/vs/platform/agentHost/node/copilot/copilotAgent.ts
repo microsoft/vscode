@@ -8272,6 +8272,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 						forkTiming?.startStage('remapTurnIds');
 						await initializingSession.remapTurnIds(fork.turnIdMapping);
 					}
+					forkTiming?.startStage('runtimeRegistration');
 				});
 				forkTiming?.startStage('recordBacking');
 				const backing: IPersistedChat = {
