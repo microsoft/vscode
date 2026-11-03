@@ -8,6 +8,7 @@ import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Direction, Grid, GridNode, isGridBranchNode, ISerializableView, IView, ISerializedGrid, ISerializedNode, IViewSize, Orientation, orthogonal, SerializableGrid, Sizing } from '../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { GroupDirection, GroupsOrder, IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
@@ -310,6 +311,20 @@ function createCell(id: string, content: PartGridCellContent): PartGridCell {
 	}, part, content.options);
 }
 
+/**
+ * The active editor of the group of a part an element is in.
+ */
+function describeEditorAt(part: IContentPart | undefined, element: HTMLElement): { readonly name: string; readonly icon: ThemeIcon | undefined } | undefined {
+	const group = part?.groups.find(candidate => (candidate as Partial<IEditorGroupView>).element?.contains(element));
+	const editor = group?.activeEditor;
+	if (!editor) {
+		return undefined;
+	}
+
+	const icon = editor.getIcon();
+	return { name: editor.getName(), icon: ThemeIcon.isThemeIcon(icon) ? icon : undefined };
+}
+
 function hasEditors(part: IContentPart): boolean {
 	return part.groups.some(group => !group.isEmpty);
 }
@@ -434,7 +449,7 @@ export class PartGrid extends Disposable {
 	private getReflowCells(): IPartGridReflowCell[] {
 		return Array.from(this.cells.values())
 			.filter(cell => this.grid?.isViewVisible(cell) && this.isCellVisible(cell.id))
-			.map(cell => ({ id: cell.id, element: cell.element, card: cell.cardElement, isPart: !!cell.part, setContentVisible: visible => cell.setVisible(visible), layoutPreview: preview => cell.layoutPreview(preview) }));
+			.map(cell => ({ id: cell.id, element: cell.element, card: cell.cardElement, isPart: !!cell.part, describeOverlay: anchor => describeEditorAt(cell.part, anchor), layoutPreview: preview => cell.layoutPreview(preview) }));
 	}
 
 	/**

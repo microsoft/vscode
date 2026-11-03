@@ -4,8 +4,84 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getComputedStyle, setParentFlowTo } from './dom.js';
-import { IDisposable } from '../common/lifecycle.js';
+import { IDisposable, toDisposable } from '../common/lifecycle.js';
 import { generateUuid } from '../common/uuid.js';
+
+/**
+ * What draws over an element rather than in it, such as an overlay positioned
+ * over it or a native view, which does not move with the element when it
+ * moves by a transform.
+ */
+export interface IOverlayAnchorHost {
+	/**
+	 * Hides or shows what draws over the element.
+	 */
+	setHidden(hidden: boolean): void;
+}
+
+const overlayAnchors = new Map<HTMLElement, Map<IOverlayAnchorHost, number>>();
+
+/**
+ * Registers an element that something draws over, such as an overlay or a
+ * native view, so that what moves the element by transforms can find it and
+ * hide what draws over it meanwhile (see {@link hideOverlaysIn}).
+ */
+export function registerOverlayAnchor(anchor: HTMLElement, host: IOverlayAnchorHost): IDisposable {
+	let hosts = overlayAnchors.get(anchor);
+	if (!hosts) {
+		hosts = new Map();
+		overlayAnchors.set(anchor, hosts);
+	}
+	hosts.set(host, 0);
+
+	return toDisposable(() => {
+		const current = overlayAnchors.get(anchor);
+		if (current?.get(host)) {
+			host.setHidden(false);
+		}
+		current?.delete(host);
+		if (current?.size === 0) {
+			overlayAnchors.delete(anchor);
+		}
+	});
+}
+
+/**
+ * The elements inside `container` that something draws over and that show.
+ */
+export function findOverlayAnchors(container: HTMLElement): HTMLElement[] {
+	return Array.from(overlayAnchors.keys()).filter(anchor => anchor.isConnected && container.contains(anchor) && anchor.getClientRects().length > 0);
+}
+
+/**
+ * Hides what draws over the elements inside `container`, until disposed.
+ */
+export function hideOverlaysIn(container: HTMLElement): IDisposable {
+	const hidden: [Map<IOverlayAnchorHost, number>, IOverlayAnchorHost][] = [];
+	for (const anchor of findOverlayAnchors(container)) {
+		const hosts = overlayAnchors.get(anchor)!;
+		for (const [host, count] of hosts) {
+			hosts.set(host, count + 1);
+			if (count === 0) {
+				host.setHidden(true);
+			}
+			hidden.push([hosts, host]);
+		}
+	}
+
+	return toDisposable(() => {
+		for (const [hosts, host] of hidden) {
+			const count = hosts.get(host);
+			if (count === undefined) {
+				continue; // no longer registered
+			}
+			hosts.set(host, count - 1);
+			if (count === 1) {
+				host.setHidden(false);
+			}
+		}
+	});
+}
 
 /**
  * If the element already has an `anchor-name` style, return it.
@@ -31,7 +107,7 @@ function getOrCreateAnchorName(element: HTMLElement): string {
  */
 export class OverlayLayoutElement implements IDisposable {
 
-	private _currentAnchor?: { readonly element: HTMLElement; readonly name: string };
+	private _currentAnchor?: { readonly element: HTMLElement; readonly name: string; readonly registration: IDisposable };
 	private _clippingAnchor?: { readonly element: HTMLElement; readonly name: string };
 
 	/**
@@ -66,7 +142,21 @@ export class OverlayLayoutElement implements IDisposable {
 	}
 
 	public dispose(): void {
+		this._currentAnchor?.registration.dispose();
+		this._currentAnchor = undefined;
 		this.root.remove();
+	}
+
+	private _hidden = false;
+
+	/**
+	 * Hides or shows the overlay, whatever else its content shows or hides.
+	 */
+	private setHidden(hidden: boolean): void {
+		if (this._hidden !== hidden) {
+			this._hidden = hidden;
+			this._root.style.display = hidden ? 'none' : '';
+		}
 	}
 
 	/**
@@ -94,10 +184,11 @@ export class OverlayLayoutElement implements IDisposable {
 		},
 	): void {
 		if (this._currentAnchor?.element !== anchorElement) {
+			this._currentAnchor?.registration.dispose();
 			const name = getOrCreateAnchorName(anchorElement);
 			this.content.style.setProperty('position-anchor', name);
 			setParentFlowTo(this.content, anchorElement);
-			this._currentAnchor = { element: anchorElement, name };
+			this._currentAnchor = { element: anchorElement, name, registration: registerOverlayAnchor(anchorElement, { setHidden: hidden => this.setHidden(hidden) }) };
 		}
 
 		this._updateClipping(options?.clippingContainer);

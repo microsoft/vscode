@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append, getWindow } from '../../../../base/browser/dom.js';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { findOverlayAnchors, hideOverlaysIn } from '../../../../base/browser/overlayLayoutElement.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import type { IPartGridRect } from './partGrid.js';
 
 /**
@@ -37,20 +38,12 @@ export interface IPartGridMotionHost {
 }
 
 /**
- * What, drawn over the window rather than in a cell, does not move with
- * the cell: integrated browsers and canvases, drawn natively, and webviews
- * and notebooks, drawn in overlays. Their cards move as plain cards.
- */
-const NATIVE_CONTENT_SELECTOR = '.browser-container-wrapper, .session-canvas-editor, [id^="webview-editor-element-"], .notebookOverlay';
-
-/**
- * Whether a cell shows what is drawn over the window rather than in it,
- * which does not move with the cell.
+ * Whether a cell shows what draws over it rather than in it, such as a
+ * webview or a native view (see `registerOverlayAnchor`), which does not
+ * move with the cell.
  */
 export function hasNativeContent(cell: HTMLElement): boolean {
-	// What the cell shows is not built here: it is found by what marks it as drawn natively or in an overlay
-	// eslint-disable-next-line no-restricted-syntax
-	return !!cell.querySelector(NATIVE_CONTENT_SELECTOR);
+	return findOverlayAnchors(cell).length > 0;
 }
 
 /**
@@ -98,6 +91,7 @@ export class PartGridMotion extends Disposable {
 	private readonly moving = new Map<string, IMoving>();
 	private settleTimer: ReturnType<typeof setTimeout> | undefined;
 	private readonly unclipped = this._register(new MutableDisposable());
+	private readonly hidden = this._register(new DisposableStore());
 
 	constructor(private readonly host: IPartGridMotionHost) {
 		super();
@@ -129,6 +123,10 @@ export class PartGridMotion extends Disposable {
 			}
 
 			const moving: IMoving = { cell, ghost: hasNativeContent(cell) ? this.createGhost(id) : undefined };
+			if (moving.ghost) {
+				// What draws over the cell hides while its plain card moves
+				this.hidden.add(hideOverlaysIn(cell));
+			}
 			this.moving.set(id, moving);
 			glides.push({ moving, origin, target });
 		}
@@ -230,6 +228,7 @@ export class PartGridMotion extends Disposable {
 		}
 		this.moving.clear();
 		this.unclipped.clear();
+		this.hidden.clear();
 		this.layer?.remove();
 		this.layer = undefined;
 	}

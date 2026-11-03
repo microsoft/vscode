@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append, getWindow, prepend } from '../../../../base/browser/dom.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import type { IPartGridRect } from './partGrid.js';
-import { hasNativeContent, unclipCells } from './partGridMotion.js';
+import { findOverlayAnchors, hideOverlaysIn } from '../../../../base/browser/overlayLayoutElement.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { unclipCells } from './partGridMotion.js';
 
 /**
  * How long cards take to make way for what goes among them, and to settle,
@@ -19,6 +22,12 @@ export const PART_GRID_REFLOW_DURATION = 200;
  * pixels, at most.
  */
 const SLOT_WATERMARK_SIZE = 128;
+
+/**
+ * The class of a cell whose card shows a placeholder for what draws over it
+ * while it moves (see {@link PartGridReflow}).
+ */
+export const PART_GRID_PLACEHOLDER_CLASS = 'part-grid-placeholder-card';
 
 /**
  * A cell that shows, as what makes the cards make way sees it.
@@ -34,10 +43,11 @@ export interface IPartGridReflowCell {
 	readonly isPart: boolean;
 
 	/**
-	 * Hides or shows what the cell shows, such as what draws over the window
-	 * rather than in it, while its card moves as a plain card.
+	 * The editor shown under an element of the cell that something draws
+	 * over, such as a webview, which shows as a placeholder while its card
+	 * moves.
 	 */
-	setContentVisible(visible: boolean): void;
+	describeOverlay(anchor: HTMLElement): { readonly name: string; readonly icon: ThemeIcon | undefined } | undefined;
 
 	/**
 	 * Lays the cell out at a size, moved by `dx`/`dy`, while its card makes
@@ -85,8 +95,12 @@ export interface IPartGridReflowCellState {
 	/** Where the cell was. */
 	readonly cellStart: IPartGridRect;
 
-	/** Whether what it shows draws over the window, hidden while its card moves as a plain card. */
-	readonly native: boolean;
+	/**
+	 * The elements of the cell that something draws over rather than in it,
+	 * such as a webview or a native view, which does not move with the cell:
+	 * hidden while its card moves, each shows a placeholder instead.
+	 */
+	readonly anchors: readonly HTMLElement[];
 
 	/** The look of its card. */
 	readonly look: IPartGridCardLook;
@@ -150,9 +164,14 @@ export class PartGridReflow extends Disposable {
 		this.containerRect = rectOf(container);
 
 		// Where everything is, and how it looks, read once, before anything is written
+		const staticAnchors = new Map<HTMLElement, boolean>();
 		for (const cell of cells) {
 			const start = rectOf(cell.card);
-			this._states.set(cell.id, { cell, start, cellStart: rectOf(cell.element), native: motion && hasNativeContent(cell.element), look: readLook(cell.card), shown: start, laidOut: { width: start.width, height: start.height } });
+			const anchors = motion ? findOverlayAnchors(cell.element) : [];
+			this._states.set(cell.id, { cell, start, cellStart: rectOf(cell.element), anchors, look: readLook(cell.card), shown: start, laidOut: { width: start.width, height: start.height } });
+			for (const anchor of anchors) {
+				staticAnchors.set(anchor, getWindow(anchor).getComputedStyle(anchor).position === 'static');
+			}
 		}
 		this._shown = this.getPartRects(new Map(Array.from(this._states.values(), state => [state.cell.id, state.start])));
 
@@ -167,10 +186,13 @@ export class PartGridReflow extends Disposable {
 		// The frames of the cards are under the cells: they show where each card goes
 		this.frameLayer = prepend(container, $('.part-grid-frame-layer'));
 		for (const state of this._states.values()) {
-			if (state.native) {
-				// What draws over the window does not move with the cell: its card moves as a plain card
-				state.cell.setContentVisible(false);
-				state.cell.element.style.visibility = 'hidden';
+			if (state.anchors.length) {
+				// What draws over the cell does not move with it: it hides, and the cell shows a placeholder for it, its tabs as they are
+				this.visuals.add(hideOverlaysIn(state.cell.element));
+				state.cell.element.classList.add(PART_GRID_PLACEHOLDER_CLASS);
+				for (const anchor of state.anchors) {
+					this.visuals.add(this.createPlaceholder(state.cell, anchor, !!staticAnchors.get(anchor)));
+				}
 			}
 			state.cell.element.style.setProperty('--part-grid-frame-radius', state.look.radius);
 			if (state.cell.id !== movingId) {
@@ -282,7 +304,7 @@ export class PartGridReflow extends Disposable {
 	 * is hidden meanwhile, and lays out once it shows again.
 	 */
 	private layOut(state: IPartGridReflowCellState, size: { readonly width: number; readonly height: number }): void {
-		if (state.native || (Math.round(size.width) === Math.round(state.laidOut.width) && Math.round(size.height) === Math.round(state.laidOut.height))) {
+		if ((Math.round(size.width) === Math.round(state.laidOut.width) && Math.round(size.height) === Math.round(state.laidOut.height))) {
 			return;
 		}
 
@@ -407,6 +429,31 @@ export class PartGridReflow extends Disposable {
 		watermark.style.scale = `${scale}`;
 	}
 
+	/**
+	 * A placeholder over an element that something draws over: an empty
+	 * editor's watermark, with the icon and name of the editor shown there.
+	 */
+	private createPlaceholder(cell: IPartGridReflowCell, anchor: HTMLElement, positionAnchor: boolean): IDisposable {
+		const placeholder = append(anchor, $('.part-grid-placeholder', { 'aria-hidden': 'true' }));
+		append(placeholder, $('.part-grid-slot-watermark'));
+		const editor = cell.describeOverlay(anchor);
+		if (editor) {
+			const label = append(placeholder, $('.part-grid-placeholder-label'));
+			append(label, $(`span${ThemeIcon.asCSSSelector(editor.icon ?? Codicon.file)}`));
+			append(label, $('span.part-grid-placeholder-name')).textContent = editor.name;
+		}
+		if (positionAnchor) {
+			anchor.style.position = 'relative';
+		}
+
+		return toDisposable(() => {
+			placeholder.remove();
+			if (positionAnchor) {
+				anchor.style.position = '';
+			}
+		});
+	}
+
 	private cleanUp(): void {
 		this.settled.clear();
 		const container = this.container;
@@ -419,9 +466,7 @@ export class PartGridReflow extends Disposable {
 			style.removeProperty('--part-grid-frame-radius');
 			// As the grid lays it out, unless it did already, such as with a move
 			state.cell.layoutPreview(undefined);
-			if (state.native) {
-				state.cell.setContentVisible(true);
-			}
+			element.classList.remove(PART_GRID_PLACEHOLDER_CLASS);
 		}
 		this._states.clear();
 

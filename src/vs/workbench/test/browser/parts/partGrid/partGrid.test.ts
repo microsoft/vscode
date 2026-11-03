@@ -25,7 +25,8 @@ import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier } from '../../../
 import { ContentPart } from '../../../../browser/parts/editor/contentPart.js';
 import { MoveEditorIntoNewPartBelowAction, MovePartRightAction } from '../../../../browser/parts/partGrid/partGridActions.js';
 import { getPartGridDrop, getPartGridNewPartZone, IPartGridDrop } from '../../../../browser/parts/partGrid/partGridDnd.js';
-import { PART_GRID_REFLOW_DURATION } from '../../../../browser/parts/partGrid/partGridReflow.js';
+import { PART_GRID_PLACEHOLDER_CLASS, PART_GRID_REFLOW_DURATION } from '../../../../browser/parts/partGrid/partGridReflow.js';
+import { registerOverlayAnchor } from '../../../../../base/browser/overlayLayoutElement.js';
 import { GRID_GAP_SASH_CLASS } from '../../../../browser/parts/partGrid/partGridGap.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
@@ -805,6 +806,32 @@ suite('Part Grid', () => {
 			backOverCenter: { translated: [], highlights: [rectOf('a')] },
 			settling: { merges: 0, cVisible: true },
 			merged: { merges: 1, cVisible: false }
+		});
+	});
+
+	test('while a card moves, a part with what draws over it, such as a webview, hides it and shows a placeholder with the editor\'s name, its tabs as they are; a part of text editors does not', async () => {
+		const { container, cellOf, middleY: y } = await createRowOfThree(true);
+		// Something drawing over an element of the editor of a, as a webview does
+		const anchor = cellOf('a').querySelector<HTMLElement>('.editor-group-container')!.appendChild(mainWindow.document.createElement('div'));
+		anchor.style.cssText = 'width: 100px; height: 100px;';
+		const hidden: boolean[] = [];
+		disposables.add(registerOverlayAnchor(anchor, { setHidden: value => hidden.push(value) }));
+		const read = () => ({
+			placeholders: ['a', 'b'].filter(id => cellOf(id).classList.contains(PART_GRID_PLACEHOLDER_CLASS)),
+			names: [...container.querySelectorAll('.part-grid-placeholder .part-grid-placeholder-name')].map(element => element.textContent),
+			tabsShown: cellOf('a').querySelector<HTMLElement>('.title')!.style.display !== 'none' && cellOf('a').style.visibility !== 'hidden',
+			hidden: [...hidden]
+		});
+
+		dragCard(container, 'c', [[30, y]], { hold: true });
+		const dragging = read();
+		pressEscape();
+		await timeout(PART_GRID_REFLOW_DURATION + 80);
+		pointer(mainWindow.document.body, 'pointerup', 30, y);
+
+		assert.deepStrictEqual({ dragging, after: read() }, {
+			dragging: { placeholders: ['a'], names: ['Editor testEditorInputForPartGrid'], tabsShown: true, hidden: [true] },
+			after: { placeholders: [], names: [], tabsShown: true, hidden: [true, false] }
 		});
 	});
 

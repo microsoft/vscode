@@ -287,14 +287,10 @@ class CardDragSession extends Disposable {
 
 		this.topLayer = append(this.host.container, $('.part-grid-motion-layer'));
 
-		// The lifted card: the cell itself, which shows what it shows as it moves, or, for what draws over the window, a plain card
-		if (dragged.native) {
-			this.liftedGhost = this.createGhost(dragged);
-		} else {
-			const element = dragged.cell.element;
-			element.style.transformOrigin = `${this.startX - dragged.cellStart.left}px ${this.startY - dragged.cellStart.top}px`;
-			element.classList.add('part-grid-lifted');
-		}
+		// The lifted card: the cell itself, which shows what it shows as it moves, a placeholder for what draws over it
+		const element = dragged.cell.element;
+		element.style.transformOrigin = `${this.startX - dragged.cellStart.left}px ${this.startY - dragged.cellStart.top}px`;
+		element.classList.add('part-grid-lifted');
 
 		// The card lifts in the next frame, from where it is
 		this.visuals.add(scheduleAtNextAnimationFrame(this.targetWindow, () => {
