@@ -165,6 +165,10 @@ export class DocumentDiffItemViewModel extends Disposable {
 		return (original !== undefined && original.textModel === undefined)
 			|| (modified !== undefined && modified.textModel === undefined);
 	}
+	public get isTooLarge(): boolean {
+		const { original, modified } = this.documentDiffItem;
+		return !!(original?.isTooLarge || modified?.isTooLarge);
+	}
 
 	public readonly isActive: IObservable<boolean> = derived(this, reader => this._editorViewModel.activeDiffItem.read(reader) === this);
 	public readonly isFirst: IObservable<boolean> = derived(this, reader => this._editorViewModel.items.read(reader)[0] === this);

@@ -24,6 +24,8 @@ import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { localize } from '../../../../nls.js';
 import { ConfirmResult } from '../../../../platform/dialogs/common/dialogs.js';
+import { isConfigured } from '../../../../platform/configuration/common/configuration.js';
+import { ByteSize, FileSystemProviderCapabilities, getLargeFileConfirmationLimit, IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorConfiguration } from '../../../browser/parts/editor/textEditor.js';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, GroupIdentifier, IEditorSerializer, IResourceMultiDiffEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput } from '../../../common/editor.js';
@@ -96,6 +98,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMultiDiffSourceResolverService private readonly _multiDiffSourceResolverService: IMultiDiffSourceResolverService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 		this._name = '';
@@ -212,6 +215,42 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		this._resourceOrder.set(order, undefined);
 	}
 
+	/**
+	 * Whether `resource` exceeds the large file limit of text editors and comes from a file system that can only read
+	 * whole files (such as the agent host's), where even binary detection would transfer the whole file. Resources with
+	 * a resolved text file model are never too large, because loading them reuses that model.
+	 */
+	private async _isTooLargeToLoad(resource: URI | undefined): Promise<boolean> {
+		if (!resource) {
+			return false;
+		}
+
+		// Mirror `createModelReference`: untitled, in-memory and content provider resources are not read from a file
+		// system, and other resources wait for their file system provider, which an extension can register on activation
+		if (!this._fileService.hasProvider(resource)
+			&& (this._textModelService.canHandleResource(resource) || !await this._fileService.canHandleResource(resource))) {
+			return false;
+		}
+
+		if (this._fileService.hasCapability(resource, FileSystemProviderCapabilities.FileReadStream)
+			|| this._fileService.hasCapability(resource, FileSystemProviderCapabilities.FileOpenReadWriteClose)) {
+			return false;
+		}
+
+		// `createModelReference` reuses a resolved model, such as one open and dirty in an editor, without reading the file
+		if (this._textFileService.files.get(resource)?.isResolved()) {
+			return false;
+		}
+
+		const configuredLimitMb = this._textResourceConfigurationService.inspect<number>(resource, null, 'workbench.editorLargeFileConfirmation');
+		const limit = isConfigured(configuredLimitMb) ? configuredLimitMb.value * ByteSize.MB : getLargeFileConfirmationLimit(resource);
+		try {
+			return (await this._fileService.stat(resource)).size > limit;
+		} catch {
+			return false; // loading the model reports the error
+		}
+	}
+
 	private async _createModel(): Promise<IMultiDiffEditorModel & IDisposable> {
 		const source = await this._resolvedSource.getPromise();
 		const textResourceConfigurationService = this._textResourceConfigurationService;
@@ -221,8 +260,15 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			let original: IReference<IResolvedTextEditorModel> | undefined;
 			let modified: IReference<IResolvedTextEditorModel> | undefined;
 
+			// An item with a side that is too large shows a placeholder, so neither side is loaded.
+			const [originalTooLarge, modifiedTooLarge] = await Promise.all([
+				this._isTooLargeToLoad(r.originalUri),
+				this._isTooLargeToLoad(r.modifiedUri),
+			]);
+			const isTooLarge = originalTooLarge || modifiedTooLarge;
+
 			const multiDiffItemStore = new DisposableStore();
-			const createModelReference = async (resource: URI | undefined) => resource ? this._textModelService.createModelReference(resource) : undefined;
+			const createModelReference = async (resource: URI | undefined) => resource && !isTooLarge ? this._textModelService.createModelReference(resource) : undefined;
 
 			const [originalResult, modifiedResult] = await Promise.allSettled([
 				createModelReference(r.originalUri),
@@ -261,8 +307,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			const uri = (r.modifiedUri ?? r.originalUri)!;
 			const result: IDocumentDiffItemWithMultiDiffEditorItem = {
 				multiDiffEditorItem: r,
-				original: r.originalUri ? new DiffItemSource(r.originalUri, original?.object.textEditorModel) : undefined,
-				modified: r.modifiedUri ? new DiffItemSource(r.modifiedUri, modified?.object.textEditorModel) : undefined,
+				original: r.originalUri ? new DiffItemSource(r.originalUri, original?.object.textEditorModel, originalTooLarge) : undefined,
+				modified: r.modifiedUri ? new DiffItemSource(r.modifiedUri, modified?.object.textEditorModel, modifiedTooLarge) : undefined,
 				contextKeys: r.contextKeys,
 				get options() {
 					return {
@@ -354,6 +400,11 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		if (items) {
 			await Promise.all(items.map(async item => {
 				if (item.isBinary) {
+					// A file that is too large to show is not loaded here, but either side can be open and dirty in another editor
+					const dirtyUris = item.isTooLarge
+						? [item.originalUri, item.modifiedUri].filter(isDefined).filter(uri => uri.scheme !== Schemas.untitled && this._textFileService.isDirty(uri))
+						: [];
+					await Promise.all(dirtyUris.map(uri => mode === 'save' ? this._textFileService.save(uri, options) : this._textFileService.revert(uri, options)));
 					return;
 				}
 				const model = item.diffEditorViewModel.model;

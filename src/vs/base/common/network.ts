@@ -103,6 +103,8 @@ export namespace Schemas {
 	export const vscodeChatResponseResource = 'vscode-chat-response-resource';
 	/** Scheme used for Agent Host terminal channels. */
 	export const agentHostTerminal = 'agenthost-terminal';
+	/** Scheme used for files read through an Agent Host connection. */
+	export const vscodeAgentHost = 'vscode-agent-host';
 	/** Scheme used for subscription-backed Agent Host terminal output editors. */
 	export const vscodeChatTerminalOutput = 'vscode-chat-terminal-output';
 

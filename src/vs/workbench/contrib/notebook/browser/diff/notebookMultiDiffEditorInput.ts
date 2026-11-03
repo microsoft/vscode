@@ -13,6 +13,7 @@ import { NotebookDiffViewModel } from './notebookDiffViewModel.js';
 import { NotebookDiffEditorInput } from '../../common/notebookDiffEditorInput.js';
 import { NotebookEditorInput } from '../../common/notebookEditorInput.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 
 export const NotebookMultiDiffEditorScheme = 'multi-cell-notebook-diff-editor';
 
@@ -42,8 +43,9 @@ export class NotebookMultiDiffEditorWidgetInput extends MultiDiffEditorInput imp
 		@IInstantiationService _instantiationService: IInstantiationService,
 		@IMultiDiffSourceResolverService _multiDiffSourceResolverService: IMultiDiffSourceResolverService,
 		@ITextFileService _textFileService: ITextFileService,
+		@IFileService _fileService: IFileService,
 	) {
-		super(multiDiffSource, undefined, undefined, true, _textModelService, _textResourceConfigurationService, _instantiationService, _multiDiffSourceResolverService, _textFileService);
+		super(multiDiffSource, undefined, undefined, true, _textModelService, _textResourceConfigurationService, _instantiationService, _multiDiffSourceResolverService, _textFileService, _fileService);
 		this._register(_multiDiffSourceResolverService.registerResolver(this));
 	}
 

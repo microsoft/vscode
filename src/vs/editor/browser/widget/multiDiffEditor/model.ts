@@ -22,6 +22,10 @@ export class DiffItemSource {
 	constructor(
 		public readonly uri: URI,
 		public readonly textModel: ITextModel | undefined,
+		/**
+		 * Whether the text model was not loaded because the file is larger than the large file limit.
+		 */
+		public readonly isTooLarge = false,
 	) { }
 }
 

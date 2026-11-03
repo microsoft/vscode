@@ -6,9 +6,10 @@
 import assert from 'assert';
 import { isEqual, isEqualOrParent } from '../../../../base/common/extpath.js';
 import { isLinux, isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../base/test/common/utils.js';
-import { FileChangesEvent, FileChangeType, IFileChange, isParent } from '../../common/files.js';
+import { ByteSize, FileChangesEvent, FileChangeType, getLargeFileConfirmationLimit, IFileChange, isParent } from '../../common/files.js';
 
 suite('Files', () => {
 
@@ -293,6 +294,13 @@ suite('Files', () => {
 			assert(!isEqualOrParent('foo/bar/test.ts', 'foo/bar/test.', true));
 			assert(!isEqualOrParent('foo/bar/test.ts', 'foo/BAR/test.', true));
 		}
+	});
+
+	test('getLargeFileConfirmationLimit uses the remote limit for agent host files', function () {
+		const remoteLimit = getLargeFileConfirmationLimit(URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+host', path: '/repo/capture.pcapng' }));
+		const agentHostLimit = getLargeFileConfirmationLimit(URI.from({ scheme: Schemas.vscodeAgentHost, authority: 'host', path: '/repo/capture.pcapng' }));
+
+		assert.deepStrictEqual({ remoteLimit, agentHostLimit }, { remoteLimit: 10 * ByteSize.MB, agentHostLimit: 10 * ByteSize.MB });
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
