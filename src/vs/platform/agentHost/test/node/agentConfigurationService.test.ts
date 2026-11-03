@@ -536,6 +536,11 @@ suite('AgentConfigurationService', () => {
 		firstService.updateRootConfig({
 			[AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days,
 			[AgentHostMcpServersConfigKey]: { operatorServer: { command: 'node' } },
+			[SessionConfigKey.Permissions]: {
+				allow: ['Read(//repo/notes.txt)', 'Read(//repo/docs/**)', 'Edit(//repo/.mcp.json)', 'Edit(//repo/src/**)'],
+				ask: ['Edit(//repo/asked.txt)'],
+				deny: ['Read(//repo/denied.txt)'],
+			},
 		});
 		await firstService.whenIdle();
 
@@ -545,9 +550,15 @@ suite('AgentConfigurationService', () => {
 		assert.deepStrictEqual({
 			showExternalSessions: restartedService.getRootValue(platformRootSchema, AgentHostShowExternalSessionsConfigKey),
 			mcpServers: restartedService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey),
+			permissions: restartedService.getRootValue(platformRootSchema, SessionConfigKey.Permissions),
 		}, {
 			showExternalSessions: AgentHostExternalSessionsMode.Last30Days,
 			mcpServers: { operatorServer: { command: 'node' } },
+			permissions: {
+				allow: ['Read(//repo/notes.txt)', 'Read(//repo/docs/**)', 'Edit(//repo/.mcp.json)', 'Edit(//repo/src/**)'],
+				ask: ['Edit(//repo/asked.txt)'],
+				deny: ['Read(//repo/denied.txt)'],
+			},
 		});
 		fs.rmSync(directory, { recursive: true, force: true });
 	});
