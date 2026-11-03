@@ -1384,6 +1384,7 @@ export class CopilotAgentSession extends Disposable {
 	 * non-destructive idle release to avoid disconnecting mid-turn.
 	 */
 	get hasActiveTurn(): boolean { return this._currentTurn.value !== undefined; }
+	get hasProjectedCanvases(): boolean { return this._canvasByInstanceId.size > 0; }
 	get hasCompletedTurn(): boolean { return this._hasCompletedTurn; }
 	/** Reuses persisted history to distinguish restored chats from a chat's first turn. */
 	get completedTurnHistory(): Promise<boolean> | undefined {

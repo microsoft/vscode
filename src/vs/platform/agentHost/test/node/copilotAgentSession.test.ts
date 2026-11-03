@@ -3944,6 +3944,31 @@ suite('CopilotAgentSession', () => {
 		session.dispose();
 	});
 
+	test('reports projected canvases for idle residency release', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		const canvas = {
+			instanceId: 'preview',
+			extensionId: 'project:preview',
+			canvasId: 'preview',
+			url: 'https://example.test/preview',
+		};
+		const before = session.hasProjectedCanvases;
+		mockSession.fire('session.canvas.opened', canvas);
+		const opened = session.hasProjectedCanvases;
+		mockSession.fire('session.canvas.closed', canvas);
+
+		assert.deepStrictEqual({
+			before,
+			opened,
+			closed: session.hasProjectedCanvases,
+		}, {
+			before: false,
+			opened: true,
+			closed: false,
+		});
+		session.dispose();
+	});
+
 	test('projects live canvas channels after resume and clears unavailable sources', async () => {
 		const telemetryService = new CapturingTelemetryService();
 		const { session, mockSession, signals } = await createAgentSession(disposables, {
