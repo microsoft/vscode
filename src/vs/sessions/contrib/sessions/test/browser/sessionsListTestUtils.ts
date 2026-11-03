@@ -7,7 +7,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable, IReader, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, IReader, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -280,6 +280,8 @@ export interface IListHarnessOptions {
 	readonly liveListModel?: boolean;
 	/** Apply pinSession changes and fire change events, as the real service does. */
 	readonly livePins?: boolean;
+	/** The active session, whose open chat the list selects. */
+	readonly activeSession?: IObservable<IActiveSession | undefined>;
 	readonly liveGroups?: boolean;
 	readonly comparisons?: readonly ISessionComparison[];
 	/** Custom groups the user capped with "Show less" in an earlier window; groups otherwise list every session. */
@@ -322,7 +324,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 		override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
-		override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+		override readonly activeSession = options.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
 	});
 	instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 		override readonly onDidChange = onDidChangeListModel.event;
