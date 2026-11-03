@@ -16,6 +16,7 @@ import { ExtUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
@@ -1757,6 +1758,166 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.strictEqual(agentHost.resolveCalls.length, 1);
 		assert.deepStrictEqual(agentHost.resolveCalls[0].config, { isolation: 'worktree' });
 	});
+
+	test('prepares configured new-chat defaults without creating a backend or repeating the read', async () => {
+		const ui = URI.parse('agent-host-copilotcli:/untitled-prepared');
+		const folder = URI.file('/workspace');
+		workspaceFolders = [folder];
+		await configurationService.setUserConfiguration(ChatConfiguration.DefaultConfiguration, { mode: 'autopilot', approvals: 'allowAll' });
+		const resolved: ResolveSessionConfigResult = {
+			schema: makeSchema(true),
+			values: { isolation: 'folder', mode: 'autopilot', autoApprove: 'autoApprove' },
+		};
+		agentHost.resolveQueue = [resolved];
+
+		await provisional.prepareSessionConfig(ui);
+		await provisional.prepareSessionConfig(ui);
+		assert.deepStrictEqual({
+			prepared: provisional.getPreparedSessionConfig(ui),
+			overlay: provisional.getResolvedConfig(ui),
+			requests: agentHost.resolveCalls,
+			created: agentHost.createCalls,
+		}, {
+			prepared: resolved,
+			overlay: undefined,
+			requests: [{ provider: 'copilotcli', workingDirectory: folder, config: resolved.values }],
+			created: [],
+		});
+	});
+
+	test('prepared defaults remain editable while provisional creation is pending', async () => {
+		const ui = URI.parse('agent-host-copilotcli:/untitled-prepared-edit');
+		agentHost.resolveQueue = [{ schema: makeSchema(true), values: { isolation: 'folder', mode: 'autopilot' } }];
+		await provisional.prepareSessionConfig(ui);
+		const creating = new DeferredPromise<void>();
+		agentHost.createGate = creating;
+		const provisionalCreation = provisional.getOrCreate(ui, 'copilotcli', undefined);
+		await timeout(0);
+		const change = provisional.applyConfigChange(ui, 'copilotcli', undefined, { mode: 'plan' });
+		const valuesWhileCreating = provisional.getResolvedConfig(ui)?.values;
+		await creating.complete();
+		await Promise.all([provisionalCreation, change]);
+		assert.deepStrictEqual({ valuesWhileCreating }, { valuesWhileCreating: { mode: 'plan' } });
+	});
+
+	test('preparation does not resolve saved, remote or Agents-window sessions', async () => {
+		await provisional.prepareSessionConfig(URI.parse('agent-host-copilotcli:/saved'));
+		await provisional.prepareSessionConfig(URI.parse('remote-host-copilotcli:/untitled-remote'));
+		isSessionsWindow = true;
+		await provisional.prepareSessionConfig(URI.parse('agent-host-copilotcli:/untitled-agents'));
+		assert.deepStrictEqual(agentHost.resolveCalls, []);
+	});
+
+	test('preparation displays the host-resolved permissions rather than the requested default', async () => {
+		const ui = URI.parse('agent-host-copilotcli:/untitled-managed');
+		await configurationService.setUserConfiguration(ChatConfiguration.DefaultConfiguration, { approvals: 'allowAll' });
+		const resolved: ResolveSessionConfigResult = { schema: makeSchema(true), values: { autoApprove: 'default' } };
+		agentHost.resolveQueue = [resolved];
+		await provisional.prepareSessionConfig(ui);
+		assert.deepStrictEqual({
+			requested: agentHost.resolveCalls[0].config,
+			displayed: provisional.getPreparedSessionConfig(ui)?.values,
+		}, { requested: { isolation: 'folder', autoApprove: 'autoApprove' }, displayed: { autoApprove: 'default' } });
+	});
+
+	for (const changeWhilePending of [true, false]) {
+		test(`discards prepared configuration when defaults change ${changeWhilePending ? 'during' : 'after'} resolution`, async () => {
+			const ui = URI.parse('agent-host-copilotcli:/untitled-defaults-changed');
+			await configurationService.setUserConfiguration(ChatConfiguration.DefaultConfiguration, { mode: 'interactive', approvals: 'manual' });
+			const answer = new DeferredPromise<ResolveSessionConfigResult>();
+			agentHost.resolveQueue = [answer.p];
+			const preparation = provisional.prepareSessionConfig(ui);
+			const changeDefaults = () => configurationService.setUserConfiguration(ChatConfiguration.DefaultConfiguration, { mode: 'autopilot', approvals: 'allowAll' });
+			if (changeWhilePending) {
+				await changeDefaults();
+			}
+			await answer.complete({ schema: makeSchema(true), values: { mode: 'interactive', autoApprove: 'default' } });
+			await preparation;
+			if (!changeWhilePending) {
+				await changeDefaults();
+			}
+			await provisional.getOrCreate(ui, 'copilotcli', undefined);
+			assert.deepStrictEqual({
+				prepared: provisional.getPreparedSessionConfig(ui),
+				overlay: provisional.getResolvedConfig(ui),
+				created: agentHost.createCalls.map(call => call.config),
+			}, { prepared: undefined, overlay: undefined, created: [{ isolation: 'folder', mode: 'autopilot', autoApprove: 'autoApprove' }] });
+		});
+	}
+
+	test('discards preparation for a superseded working directory', async () => {
+		const ui = URI.parse('agent-host-copilotcli:/untitled-folder-changed');
+		workspaceFolders = [URI.file('/old-folder')];
+		const answer = new DeferredPromise<ResolveSessionConfigResult>();
+		agentHost.resolveQueue = [answer.p];
+		const preparation = provisional.prepareSessionConfig(ui);
+		workspaceFolders = [URI.file('/new-folder')];
+		await answer.complete({ schema: makeSchema(true), values: { branch: 'old-folder-branch' } });
+		await preparation;
+		assert.deepStrictEqual({ prepared: provisional.getPreparedSessionConfig(ui), overlay: provisional.getResolvedConfig(ui) }, { prepared: undefined, overlay: undefined });
+	});
+
+	test('times out optional preparation after one second and ignores its late answer', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const ui = URI.parse('agent-host-copilotcli:/untitled-timeout');
+		const answer = new DeferredPromise<ResolveSessionConfigResult>();
+		agentHost.resolveQueue = [answer.p];
+		let completed = false;
+		const started = Date.now();
+		const preparation = provisional.prepareSessionConfig(ui).then(() => { completed = true; });
+		await timeout(999);
+		const beforeDeadline = completed;
+		await timeout(1);
+		await preparation;
+		const elapsed = Date.now() - started;
+		await answer.complete({ schema: makeSchema(true), values: { mode: 'interactive' } });
+		await timeout(0);
+		assert.deepStrictEqual({ beforeDeadline, completed, elapsed, prepared: provisional.getPreparedSessionConfig(ui), warnings: warnings.length }, {
+			beforeDeadline: false, completed: true, elapsed: 1000, prepared: undefined, warnings: 1,
+		});
+	}));
+
+	test('cancels optional preparation without publishing its late answer', async () => {
+		const ui = URI.parse('agent-host-copilotcli:/untitled-cancelled');
+		const answer = new DeferredPromise<ResolveSessionConfigResult>();
+		agentHost.resolveQueue = [answer.p];
+		const cts = ds.add(new CancellationTokenSource());
+		const preparation = provisional.prepareSessionConfig(ui, cts.token);
+		cts.cancel();
+		await preparation;
+		await answer.complete({ schema: makeSchema(true), values: { mode: 'interactive' } });
+		await timeout(0);
+		assert.deepStrictEqual({ prepared: provisional.getPreparedSessionConfig(ui), warnings }, { prepared: undefined, warnings: [] });
+	});
+
+	for (const changeWhilePending of [true, false]) {
+		for (const change of ['restart', 'disposal', 'connection'] as const) {
+			test(`invalidates prepared configuration on ${change} ${changeWhilePending ? 'during' : 'after'} resolution`, async () => {
+				const ui = URI.parse('agent-host-copilotcli:/untitled-invalidated');
+				const answer = new DeferredPromise<ResolveSessionConfigResult>();
+				agentHost.resolveQueue = [answer.p];
+				const preparation = provisional.prepareSessionConfig(ui);
+				const invalidate = () => {
+					if (change === 'restart') {
+						agentHost.fireAgentHostStart();
+					} else if (change === 'disposal') {
+						onDidDisposeChatSession.fire({ sessionResources: [ui], reason: 'disposed' });
+					} else {
+						sessionResolutions.set(ui, undefined);
+						onDidChangeSessionResolution.fire();
+					}
+				};
+				if (changeWhilePending) {
+					invalidate();
+				}
+				await answer.complete({ schema: makeSchema(true), values: { mode: 'interactive' } });
+				await preparation;
+				if (!changeWhilePending) {
+					invalidate();
+				}
+				assert.deepStrictEqual({ prepared: provisional.getPreparedSessionConfig(ui), overlay: provisional.getResolvedConfig(ui) }, { prepared: undefined, overlay: undefined });
+			});
+		}
+	}
 
 	test('refreshResolvedConfig stores a schema overlay for running sessions', async () => {
 		const ui = URI.from({ scheme: 'agent-host-copilot', path: '/real-j' });
