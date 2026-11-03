@@ -3291,8 +3291,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		const selected = this.selectedItem();
 		const newSession = !selected?.sessionResource;
 		this.composerLabel.setAttribute('role', 'status');
+		this.composerLabel.hidden = newSession;
 		this.composerLabel.textContent = newSession
-			? localize('inbox.composer.new', "New session")
+			? ''
 			: replying
 				? localize('inbox.composer.reply', "Reply to {0}", this.getRow(selected.id)?.sessionTitle ?? selected.title)
 				: localize('inbox.composer.unavailable', "Conversation unavailable. Open the full session for details, or choose New Session.");
