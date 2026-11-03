@@ -6,11 +6,12 @@
 import './media/sessionChangesEditor.css';
 import { $, append, Dimension } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derivedObservableWithCache, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derivedObservableWithCache, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
@@ -75,6 +76,14 @@ const CHANGES_DIFF_EDITOR_OPTIONS: IDiffEditorOptions = {
 };
 
 const CHANGES_LIST_BOTTOM_PADDING_PX = 24;
+
+interface IOutgoingChangesContent extends IDisposable {
+	readonly input: SessionChangesEditorInput;
+	readonly retention: IDisposable;
+}
+
+/** How long a replaced input's diffs stay on screen while the incoming session's changes load. */
+const INCOMING_CHANGES_LOAD_WAIT_MS = 1000;
 class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 
 	constructor(
@@ -213,6 +222,11 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	private readonly _pendingReveal = this._register(new MutableDisposable());
 	/** Defers resolving the multi-diff while the editor part is hidden (desktop detail-only). */
 	private readonly _pendingResolve = this._register(new MutableDisposable());
+	/**
+	 * Keeps the cleared input's diffs on screen until the next input is shown. Editor panes
+	 * clear the input right before setting the next one; if none follows, the diffs are dropped.
+	 */
+	private readonly _outgoingContent = this._register(new MutableDisposable<IOutgoingChangesContent>());
 
 	private readonly _logger: MultiDiffEditorLogger;
 
@@ -359,6 +373,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	}
 
 	override async setInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		this._adoptOutgoingContent(input);
 		await super.setInput(input, options, context, token);
 		if (token.isCancellationRequested) {
 			return;
@@ -377,12 +392,25 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 				this._resolveInput(input, options, context, cts.token).catch(onUnexpectedError);
 			}));
 			this._pendingResolve.value = store;
+			this._releaseOutgoingContent(true);
 			return;
 		}
 		await this._resolveInput(input, options, context, token);
 	}
 
 	private async _resolveInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		const sessionResource = this.sessionChangesService.getSessionResource(input.multiDiffSource);
+		if (this._isSessionChangesLoading(sessionResource, undefined)) {
+			this._logger.log('changes editor set input waiting for changes to load', { session: sessionResource });
+			const loaded = await this._whenSessionChangesLoaded(sessionResource, token);
+			if (token.isCancellationRequested || this.input !== input) {
+				return;
+			}
+			if (!loaded) {
+				this._releaseOutgoingContent(true);
+			}
+		}
+
 		const viewModel = await input.getViewModel();
 		if (token.isCancellationRequested || this.input !== input) {
 			return;
@@ -399,7 +427,41 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			hasPersistedViewState: !!viewState,
 		});
 		this.widget?.setViewModel(viewModel, { preserveFocus: options?.preserveFocus, viewState });
+		this._releaseOutgoingContent(false);
 		this._applyOptions(options);
+	}
+
+	/**
+	 * Whether the active session is `sessionResource` and its changes are still loading,
+	 * during which the changes service reports no changes for it.
+	 */
+	private _isSessionChangesLoading(sessionResource: URI | undefined, reader: IReader | undefined): boolean {
+		return !!sessionResource
+			&& isEqual(this.changesViewService.activeSessionResourceObs.read(reader), sessionResource)
+			&& this.changesViewService.activeSessionChangesetLoadingObs.read(reader);
+	}
+
+	/**
+	 * Resolves `true` once the changes of `sessionResource` stop loading (or it stops being
+	 * the active session), or `false` when `token` is cancelled or loading takes longer than
+	 * {@link INCOMING_CHANGES_LOAD_WAIT_MS}. Resolving the view model only afterwards makes
+	 * it wait for the loaded changes' documents instead of resolving empty.
+	 */
+	private async _whenSessionChangesLoaded(sessionResource: URI | undefined, token: CancellationToken): Promise<boolean> {
+		const store = new DisposableStore();
+		try {
+			return await new Promise<boolean>(resolve => {
+				store.add(token.onCancellationRequested(() => resolve(false)));
+				disposableTimeout(() => resolve(false), INCOMING_CHANGES_LOAD_WAIT_MS, store);
+				store.add(autorun(reader => {
+					if (!this._isSessionChangesLoading(sessionResource, reader)) {
+						resolve(true);
+					}
+				}));
+			});
+		} finally {
+			store.dispose();
+		}
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
@@ -506,6 +568,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	override clearInput(): void {
 		const input = this.input;
+		const inputShown = !!this.viewModel;
 		this._pendingFocus.clear();
 		this._pendingReveal.clear();
 		this._pendingResolve.clear();
@@ -514,10 +577,50 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// view model is torn down.
 		super.clearInput();
 		this.viewModel = undefined;
-		this.widget?.setViewModel(undefined);
 		if (input instanceof SessionChangesEditorInput) {
-			input.clear();
+			if (inputShown) {
+				const retention = input.retainViewModel();
+				this._outgoingContent.value = {
+					input,
+					retention,
+					dispose: () => {
+						retention.dispose();
+						input.clear();
+					},
+				};
+			} else {
+				input.clear();
+			}
 		}
+		if (!this._outgoingContent.value) {
+			this.widget?.setViewModel(undefined);
+			return;
+		}
+		queueMicrotask(() => {
+			if (!this.input && !this._store.isDisposed) {
+				this._releaseOutgoingContent(true);
+			}
+		});
+	}
+
+	/** Takes over the outgoing content's view model when the same input is set again (e.g. a forced reload) instead of releasing it. */
+	private _adoptOutgoingContent(input: SessionChangesEditorInput): void {
+		const outgoing = this._outgoingContent.value;
+		if (outgoing?.input !== input) {
+			return;
+		}
+		this._outgoingContent.clearAndLeak();
+		outgoing.retention.dispose();
+	}
+
+	private _releaseOutgoingContent(clearWidget: boolean): void {
+		if (!this._outgoingContent.value) {
+			return;
+		}
+		if (clearWidget) {
+			this.widget?.setViewModel(undefined);
+		}
+		this._outgoingContent.clear();
 	}
 
 	override focus(): void {

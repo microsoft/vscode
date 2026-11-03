@@ -74,4 +74,27 @@ suite('Sessions - IconOnlySessionPickers', () => {
 			{ iconOnly: [], menu: 'reloaded' },
 		]);
 	});
+
+	test('the options disclosure can be hidden and restored across reloads without a picker target', async () => {
+		const storageService = store.add(new TestStorageService());
+		const contextMenuService = new TestContextMenuService();
+		const create = () => store.add(new IconOnlySessionPickers(
+			() => undefined, storageService, contextMenuService,
+			upcastPartial<ICommandService>({}), new MockKeybindingService(),
+		));
+		const pickers = create();
+		const anchor = new StandardMouseEvent(mainWindow, new MouseEvent('contextmenu'));
+		const states: boolean[] = [pickers.showOptionsToggle.get()];
+		for (let i = 0; i < 2; i++) {
+			pickers.showContextMenu(undefined, anchor);
+			const [action] = contextMenuService.actions;
+			await action.run();
+			states.push(pickers.showOptionsToggle.get(), create().showOptionsToggle.get());
+		}
+		assert.deepStrictEqual({ states, menu: contextMenuService.actions.map(action => action.label), compact: [...pickers.iconOnlyPickerIds.get()] }, {
+			states: [true, false, false, true, true],
+			menu: ['Show Session Options Toggle'],
+			compact: [],
+		});
+	});
 });

@@ -940,7 +940,7 @@ suite('Desktop layout strategies', () => {
 		});
 	});
 
-	test('Existing Session restores its composition when another mounted session is hidden', () => {
+	test('Existing Session keeps a docked-only composition hidden when another mounted session is hidden', () => {
 		const ctx = setup({}, { multipleChatsVisible: false });
 		ctx.chatLayoutActive = () => true;
 		const initialSession = makeSession(URI.parse('session:/initial'));
@@ -964,7 +964,7 @@ suite('Desktop layout strategies', () => {
 			auxiliaryBar: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
 		}, {
 			editor: false,
-			auxiliaryBar: true,
+			auxiliaryBar: false,
 		});
 	});
 

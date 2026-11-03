@@ -33,7 +33,7 @@ import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatPen
 import { ChatAgentLocation, ChatModeKind, IResolvedNewChatSessionType } from '../common/constants.js';
 import { ChatAttachmentModel } from './attachments/chatAttachmentModel.js';
 import { IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
-import { ChatInputPart, IChatInputHostModelSelection, IChatInputHostSubmit } from './widget/input/chatInputPart.js';
+import { ChatInputPart, IChatInputHostModelSelection, IChatInputHostSubmit, IChatInputPartOptions } from './widget/input/chatInputPart.js';
 import { IChatWidgetContrib } from './widget/chatWidget.js';
 import { ICodeBlockActionContext, ICodeBlockRenderOptions } from './widget/chatContentParts/codeBlockPart.js';
 import { AgentSessionTarget } from './agentSessions/agentSessions.js';
@@ -172,7 +172,7 @@ export interface IChatWidgetService {
 	openSession(sessionResource: URI, target?: PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 
-	getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined;
+	getWidgetBySessionResource(sessionResource: URI, options?: { readonly preferInputRequests?: boolean }): IChatWidget | undefined;
 
 	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget>;
 
@@ -369,6 +369,7 @@ export interface IChatWidgetViewOptions {
 	supportsSideChat?: IObservable<boolean>;
 	dndContainer?: HTMLElement;
 	inputEditorMinLines?: number;
+	inputEditorOptions?: IChatInputPartOptions['inputEditorOptions'];
 	/** Vertical padding of the input editor. Defaults to the render style's padding. */
 	inputEditorPadding?: { readonly top: number; readonly bottom: number };
 	/** The input's placeholder, in place of the session's or a locked agent's. */
@@ -508,6 +509,16 @@ export interface IChatWidgetViewModelChangeEvent {
 export interface IChatWidgetViewState {
 	readonly scrollTop: number;
 	readonly isAtBottom?: boolean;
+	/** The row at the top of the viewport. Unlike `scrollTop`, it lands on the same content when the rows above it haven't been measured yet. */
+	readonly scrollAnchor?: IChatScrollAnchor;
+}
+
+/** A transcript row and how far the viewport is scrolled past its top. */
+export interface IChatScrollAnchor {
+	/** The ID of the request, or of the request that the response answers. Response IDs can change when a chat is restored. */
+	readonly requestId: string;
+	readonly kind: 'request' | 'response';
+	readonly offset: number;
 }
 
 export const CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT = 100;
@@ -536,6 +547,8 @@ export interface IChatWidget {
 	readonly viewModel: IChatViewModel | undefined;
 	readonly inputEditor: ICodeEditor;
 	readonly supportsFileReferences: boolean;
+	/** Whether this widget can host question and confirmation controls. Defaults to true. */
+	readonly supportsInputRequests?: boolean;
 	/** Whether the input part is rendered above the transcript instead of below it (quick chat, composer-style widgets). */
 	readonly rendersInputOnTop: boolean;
 	readonly attachmentCapabilities: IChatAgentAttachmentCapabilities;

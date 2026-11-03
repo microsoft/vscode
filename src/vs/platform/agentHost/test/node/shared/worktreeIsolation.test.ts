@@ -30,6 +30,7 @@ import { AgentHostWorktreeCleanupService } from '../../../node/agentHostWorktree
 import type { AgentHostSessionStateStore } from '../../../node/agentHostSessionStateStore.js';
 import { SessionStateMirrorFlush, SessionStateNotASessionError } from '../../../common/agentHostSessionStateStore.js';
 import type { ISessionDataService } from '../../../common/sessionDataService.js';
+import { TestWarningLogService } from '../../../../log/test/common/testWarningLogService.js';
 
 function createNullCopilotApiService(): ICopilotApiService {
 	return {
@@ -49,14 +50,6 @@ const nullPullRequestResolver: IAgentHostPullRequestResolver = {
 	captureSessionCredentialSource: (_session, source) => source,
 	resolve: async () => { throw new Error('Pull request resolution is not expected.'); },
 };
-
-class TestLogService extends NullLogService {
-	readonly warnings: string[] = [];
-
-	override warn(message: string): void {
-		this.warnings.push(message);
-	}
-}
 
 suite('WorktreeIsolation', () => {
 
@@ -436,7 +429,7 @@ suite('WorktreeIsolation', () => {
 					listSessionDataIds: async prefix => [...databases.keys()].map(key => URI.parse(key).path.substring(1)).filter(id => id.startsWith(prefix)),
 					deleteSessionData: async resource => { databases.delete(resource.toString()); },
 				};
-				const logService = new TestLogService();
+				const logService = new TestWarningLogService();
 				const stores: AgentHostSessionStateStore[] = [];
 				// Deleting the owner as a session delete does: its state is dropped and tombstoned centrally, then its data.
 				const deleteOwner = async () => {
@@ -922,7 +915,7 @@ suite('WorktreeIsolation', () => {
 
 	test('continues creating the worktree when fetching the selected remote fails', async () => {
 		const gitService = createGitService();
-		const logService = new TestLogService();
+		const logService = new TestWarningLogService();
 		const operations: string[] = [];
 		const fetchTimeouts: (number | undefined)[] = [];
 		gitService.getBranch = async (_root, name) => ({

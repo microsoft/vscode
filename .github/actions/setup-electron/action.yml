@@ -1,5 +1,5 @@
 name: Setup Electron
-description: Restores cached Electron archives, validates and prepares Electron, and optionally saves the cache.
+description: Restores cached Electron archives, validates and prepares Electron, and optionally saves the cache. Expects pnpm to be set up, except in lookup-only mode.
 
 inputs:
   arch:
@@ -50,7 +50,7 @@ runs:
       shell: bash
       run: |
         for i in {1..3}; do
-          if npm run electron -- "$VSCODE_ARCH"; then
+          if pnpm run electron "$VSCODE_ARCH"; then
             echo "Download successful on attempt $i"
             break
           fi
@@ -75,7 +75,7 @@ runs:
 
         for ($i = 1; $i -le 3; $i++) {
           try {
-            exec { npm run electron -- $env:VSCODE_ARCH }
+            exec { pnpm run electron $env:VSCODE_ARCH }
             break
           }
           catch {

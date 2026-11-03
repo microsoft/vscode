@@ -3,7 +3,7 @@ description: Computes the node_modules cache key, restores the cache, and extrac
 
 inputs:
   key-prefix:
-    description: Prefix for the cache key. The package-lock hash is appended automatically.
+    description: Prefix for the cache key. The hash of the lockfiles is appended automatically.
     required: true
   key-args:
     description: Arguments passed to build/azure-pipelines/common/computeNodeModulesCacheKey.ts.

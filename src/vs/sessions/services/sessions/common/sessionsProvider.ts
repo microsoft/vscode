@@ -514,6 +514,9 @@ export interface ISessionsProvider {
 	 */
 	resolveWorkspace(workspaceUri: URI, options?: { readonly resolveMetadata?: boolean }): ISessionWorkspace | undefined;
 
+	/** Clones or reuses a repository on this provider's host, returning its ready workspace. */
+	cloneRepository?(repository: URI, token: CancellationToken): Promise<ISessionWorkspace>;
+
 	/** An alternate creation context for New Session gestures from an existing session. */
 	getNewSessionTarget?(sessionResource: URI): ISessionCreationTarget | undefined;
 
@@ -616,6 +619,21 @@ export interface ISessionsProvider {
 
 	/** Close one live canvas of a chat, notifying the extension that provides it. */
 	closeCanvas?(sessionId: string, chatResource: URI, canvas: ISessionCanvas): Promise<void>;
+
+	/**
+	 * Observe one live canvas of a chat, whether or not its session is active. Holding
+	 * the reference keeps the canvas live, which may keep its session resident; the
+	 * value is `undefined` once the provider can no longer reach the canvas.
+	 */
+	observeCanvas?(sessionId: string, chatResource: URI, canvasResource: URI): IReference<IObservable<ISessionCanvas | undefined>>;
+
+	/**
+	 * Observe the live canvases of a chat whether or not its session is active, unlike
+	 * {@link IChat.canvases}. `undefined` while membership is unknown. Holding the
+	 * reference may keep the session resident. Returns `undefined` when the provider
+	 * cannot resolve the chat.
+	 */
+	observeChatCanvases?(sessionId: string, chatResource: URI): IReference<IObservable<readonly ISessionCanvas[] | undefined>> | undefined;
 
 	/**
 	 * Get selectable models and the current resolution of `desiredModelId`.

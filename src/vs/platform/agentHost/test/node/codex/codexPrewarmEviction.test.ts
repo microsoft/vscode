@@ -2077,6 +2077,7 @@ suite('CodexAgent prewarm eviction', () => {
 			_serviceBrand: undefined,
 			onDidChange: onDidChange.event,
 			initializeSession: async () => { },
+			adoptMcpServerOwnership: () => { },
 			getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
 			resolve,
 			applyClientGlobalEnablement: resolve,
@@ -5184,38 +5185,35 @@ suite('CodexAgent managed working directory ownership', () => {
 		const userFolder = fs.mkdtempSync(join(os.tmpdir(), 'vscode-codex-test-user-'));
 		const marker = join(userFolder, 'marker.txt');
 		fs.writeFileSync(marker, 'keep-me');
-		try {
-			// An overlay written before the explicit `managedWorkingDirectory`
-			// field existed: only the legacy boolean flag was ever recorded,
-			// and `cwd` has since been overwritten — by an adoption in some
-			// prior process — with a real, unmanaged user folder.
-			await agent['_metadataStore'].write(session, {
-				threadId: 'legacy-thread',
-				cwd: URI.file(userFolder),
-				ownsManagedWorkingDirectory: true,
-			});
+		disposables.add(toDisposable(() => fs.rmSync(userFolder, { recursive: true, force: true })));
+		// An overlay written before the explicit `managedWorkingDirectory`
+		// field existed: only the legacy boolean flag was ever recorded,
+		// and `cwd` has since been overwritten — by an adoption in some
+		// prior process — with a real, unmanaged user folder.
+		await agent['_metadataStore'].write(session, {
+			threadId: 'legacy-thread',
+			cwd: URI.file(userFolder),
+			ownsManagedWorkingDirectory: true,
+		});
 
-			await agent.materializeChat(chat, session, JSON.stringify({ sessionId }));
-			assert.strictEqual(
-				agent['_sessions'].get(sessionId)?.managedWorkingDirectory,
-				undefined,
-				'a legacy flag with no explicit path must not resurrect a managed directory',
-			);
+		await agent.materializeChat(chat, session, JSON.stringify({ sessionId }));
+		assert.strictEqual(
+			agent['_sessions'].get(sessionId)?.managedWorkingDirectory,
+			undefined,
+			'a legacy flag with no explicit path must not resurrect a managed directory',
+		);
 
-			// Idle-release then dispose: drops the runtime from memory and
-			// untracks the chat's configuration scope, driving the reclaim
-			// path for a session that is no longer live — the exact path a
-			// stale flag could otherwise infer `cwd` from. Clearing the
-			// released-directory memo simulates the in-memory map being
-			// empty, as it would be after a process restart.
-			agent['_releasedManagedWorkingDirectories'].clear();
-			await agent.chats.releaseChat(chat, chatContext(session, chat));
-			await agent.chats.disposeChat(chat, chatContext(session, chat));
+		// Idle-release then dispose: drops the runtime from memory and
+		// untracks the chat's configuration scope, driving the reclaim
+		// path for a session that is no longer live — the exact path a
+		// stale flag could otherwise infer `cwd` from. Clearing the
+		// released-directory memo simulates the in-memory map being
+		// empty, as it would be after a process restart.
+		agent['_releasedManagedWorkingDirectories'].clear();
+		await agent.chats.releaseChat(chat, chatContext(session, chat));
+		await agent.chats.disposeChat(chat, chatContext(session, chat));
 
-			assert.strictEqual(fs.existsSync(marker), true, 'the user folder must never be deleted');
-		} finally {
-			fs.rmSync(userFolder, { recursive: true, force: true });
-		}
+		assert.strictEqual(fs.existsSync(marker), true, 'the user folder must never be deleted');
 	});
 
 	test('an explicit managed working directory is still reclaimed once the session is no longer live', async () => {
@@ -5225,29 +5223,26 @@ suite('CodexAgent managed working directory ownership', () => {
 		const sessionId = AgentSession.id(session);
 
 		const managedFolder = fs.mkdtempSync(join(os.tmpdir(), 'vscode-agent-codex-'));
-		try {
-			await agent['_metadataStore'].write(session, {
-				threadId: 'managed-thread',
-				cwd: URI.file(managedFolder),
-				ownsManagedWorkingDirectory: true,
-				managedWorkingDirectory: URI.file(managedFolder),
-			});
+		disposables.add(toDisposable(() => fs.rmSync(managedFolder, { recursive: true, force: true })));
+		await agent['_metadataStore'].write(session, {
+			threadId: 'managed-thread',
+			cwd: URI.file(managedFolder),
+			ownsManagedWorkingDirectory: true,
+			managedWorkingDirectory: URI.file(managedFolder),
+		});
 
-			await agent.materializeChat(chat, session, JSON.stringify({ sessionId }));
-			assert.strictEqual(
-				agent['_sessions'].get(sessionId)?.managedWorkingDirectory?.fsPath,
-				URI.file(managedFolder).fsPath,
-				'an explicit managed path is trusted and restored',
-			);
+		await agent.materializeChat(chat, session, JSON.stringify({ sessionId }));
+		assert.strictEqual(
+			agent['_sessions'].get(sessionId)?.managedWorkingDirectory?.fsPath,
+			URI.file(managedFolder).fsPath,
+			'an explicit managed path is trusted and restored',
+		);
 
-			agent['_releasedManagedWorkingDirectories'].clear();
-			await agent.chats.releaseChat(chat, chatContext(session, chat));
-			await agent.chats.disposeChat(chat, chatContext(session, chat));
+		agent['_releasedManagedWorkingDirectories'].clear();
+		await agent.chats.releaseChat(chat, chatContext(session, chat));
+		await agent.chats.disposeChat(chat, chatContext(session, chat));
 
-			assert.strictEqual(fs.existsSync(managedFolder), false, 'the explicitly recorded managed folder is still cleaned up');
-		} finally {
-			fs.rmSync(managedFolder, { recursive: true, force: true });
-		}
+		assert.strictEqual(fs.existsSync(managedFolder), false, 'the explicitly recorded managed folder is still cleaned up');
 	});
 
 	test('adopting a host-supplied working directory abandons a stale managed folder left behind by a failed thread start, and never touches the newly adopted folder', async () => {

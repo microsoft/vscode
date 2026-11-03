@@ -557,6 +557,8 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		} catch (error) {
 			if (!token.isCancellationRequested && !isCancellationError(error)) {
 				this.notificationService.error(error);
+				this.pendingCleanupDelay = Math.min(this.pendingCleanupDelay * 2, 30_000);
+				this.schedulePendingCleanup();
 			}
 		}
 	}
@@ -747,7 +749,12 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 				worktrees.set(sessionId, { ...entry.candidate, sizeBytes: entry.state === 'removed' ? 0 : undefined, worktreeExists: entry.state === 'removed' ? false : undefined, cleanupState: 'archived' });
 			}
 		}
-		return [...worktrees.values()].filter(worktree => worktree.isListedByHost !== false || worktree.worktreeExists === false);
+		return [...worktrees.values()].filter(worktree => (worktree.isListedByHost !== false || worktree.worktreeExists === false) && !this.hasCleanupExitCode128(worktree));
+	}
+
+	private hasCleanupExitCode128(worktree: ISessionWorktree): boolean {
+		const message = this.withSchedulingFailure(worktree).cleanupStatus?.message;
+		return !!message && /\bexited with code 128\b/.test(message);
 	}
 
 	private getMatchingWorktrees(): readonly ISessionWorktree[] {
@@ -802,7 +809,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		const selectableWorktrees = selectable.reduce((total, worktree) => total + worktree.worktreeCount, 0);
 		const totalWorktrees = visible.reduce((total, worktree) => total + (this.cleanupBatch.get(getWorktreeCleanupId(worktree))?.state === 'removed' ? 0 : worktree.worktreeCount), 0);
 		const isEmpty = visible.length === 0;
-		this.summaryRow?.classList.toggle('hidden', isEmpty);
+		this.summaryRow?.classList.toggle('hidden', isEmpty || visible.every(isInProgress));
 		this.list.classList.toggle('hidden', !visible.some(isInMainList));
 		this.unavailableSection.classList.toggle('hidden', unavailable.length === 0);
 		if (unavailable.some(worktree => this.hasRemovalIssue(worktree))) {
@@ -1283,6 +1290,12 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		if (this.isSchedulingCleanup) {
 			return;
 		}
+		for (const worktree of this.worktrees) {
+			const id = getWorktreeCleanupId(worktree);
+			if (isWorktreeCleanupBranchSupported(worktree) && this.hasPendingCleanup(worktree) && !this.cleanupBatch.has(id)) {
+				this.cleanupBatch.set(id, { candidate: worktree, state: 'pending' });
+			}
+		}
 		const worktrees = new Map(this.worktrees.map(worktree => [getWorktreeCleanupId(worktree), worktree]));
 		for (let [sessionId, entry] of this.cleanupBatch) {
 			const worktree = worktrees.get(sessionId);
@@ -1366,7 +1379,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		const generation = this.cleanupGeneration;
 		let started = false;
 		const start = () => {
-			const focusForcedResult = forceWorktrees && dom.getActiveElement() === this.forceCleanupButton?.element;
 			started = true;
 			this.pendingCleanupDelay = 2_000;
 			this.pinnedDisplayOrder = new Map(this.displayedSessionIds.map((sessionId, index) => [sessionId, index]));
@@ -1376,9 +1388,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 				this.cleanupBatch.set(getWorktreeCleanupId(candidate), { candidate, state: 'queued' });
 			}
 			this.renderRows();
-			if (focusForcedResult) {
-				this.renderedCells.get(getWorktreeCleanupId(selected[0]))?.get('title')?.focusTarget?.focus();
-			}
 		};
 		try {
 			const onProgress = (progress: SessionWorktreeCleanupProgress) => {

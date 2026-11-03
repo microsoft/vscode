@@ -1025,13 +1025,15 @@ export class ToolsListWidget extends Disposable {
 		if (query && !includeAll && !nameMatches && toolEntries.length === 0) {
 			return [];
 		}
+		const plugin = this._connectedPlugins.find(plugin => plugin.id === server.pluginId);
 		const source = getAgentHostMcpServerSource(
 			server,
-			this._connectedPlugins.find(plugin => plugin.id === server.pluginId),
+			plugin,
 			this._labelService,
 			this._agentPluginService,
 			plugin => this._onDidRequestShowPlugin.fire(createInstalledPluginItem(plugin)),
 			file => void this._editorService.openEditor({ resource: file.uri, options: { selection: file.range, pinned: true } }),
+			plugin ? this._agentHostCustomizationService.getClientPluginUri(this._harnessService.activeSessionResource.get(), plugin) : undefined,
 		);
 		const description = source ? localize('toolsConnectedServerSource', "MCP server from {0}", source.label) : undefined;
 		const entries: IToolsConnectedRowEntry[] = [{ type: 'connected', id, depth, label: server.name, description, source, server, expandable, nameMatches }];

@@ -2503,11 +2503,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Separate floating controls from transcript content without masking the list,
-	so the treatment remains stable while content streams or scrolls. During the
-	pet's run cycle, the overlay paints the same fade beneath the pet. */
+	so the treatment remains stable while content streams or scrolls. */
 .interactive-session .chat-sticky-progress:not(:empty)::before,
-.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before,
-.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before {
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
 	content: '';
 	position: absolute;
 	inset-inline: 0;
@@ -2525,24 +2523,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	bottom: 0;
 }
 
-.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before {
-	bottom: calc(100% - var(--vscode-spacing-size40));
-	height: calc(var(--vscode-chat-persistent-content-height, 0px) + var(--vscode-spacing-size160));
-}
-
-.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer ~ .chat-input-persistent-content.chat-persistent-content-visible::before {
-	content: none;
-}
-
 .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content > * {
 	position: relative;
 	z-index: 1;
 }
 
 .hc-black .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before,
-.hc-light .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before,
-.hc-black .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before,
-.hc-light .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before {
+.hc-light .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
 	background: var(--vscode-chat-list-background, var(--vscode-editor-background));
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
 	box-sizing: border-box;
@@ -2569,6 +2556,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: var(--vscode-cornerRadius-small);
 	height: 18px;
+	/* Centers the label in the pill rather than in the line height of its surroundings, such as the text of a request. */
+	line-height: 18px;
 	max-width: 100%;
 	width: fit-content;
 }
@@ -3606,8 +3595,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: inline-block;
 }
 
-/* Hover chevron indicator for collapsible parts */
-.chat-used-context-label .chat-collapsible-hover-chevron.codicon {
+/* Hover chevron indicator for collapsible parts. Include the chat owner to outrank
+	`.monaco-workbench .codicon[class*='codicon-']`, which otherwise resets a chevron that sits
+	outside its header button (e.g. beside edit stats) to 16px when the workbench stylesheet loads later. */
+.interactive-session .chat-used-context-label .chat-collapsible-hover-chevron.codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
 }
@@ -4835,6 +4826,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		.monaco-toolbar .action-item.chat-restore-checkpoint-item {
 			display: flex;
 			align-items: stretch;
+			box-sizing: border-box;
+			height: 22px;
 			margin-left: var(--vscode-spacing-size60);
 		}
 
@@ -4848,6 +4841,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming .action-label:first-child,
 		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming .action-label.chat-restore-checkpoint-cancel {
+			height: 100%;
 			color: var(--vscode-foreground);
 			border: none;
 			border-radius: 0;
@@ -5257,6 +5251,20 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-loading-compact,
 .chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-debug-disconnect-compact {
 	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-editorWidget-border));
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label:is(.codicon-mic-compact, .codicon-mic-filled, .codicon-mic-download-compact, .codicon-voice-mode-compact, .codicon-loading-compact, .codicon-debug-disconnect-compact):focus-visible {
+	outline: none;
+	position: relative;
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label:is(.codicon-mic-compact, .codicon-mic-filled, .codicon-mic-download-compact, .codicon-voice-mode-compact, .codicon-loading-compact, .codicon-debug-disconnect-compact):focus-visible::after {
+	content: '';
+	position: absolute;
+	inset: -1px;
+	border: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	border-radius: var(--vscode-cornerRadius-circle);
+	pointer-events: none;
 }
 
 @keyframes chat-voice-icon-glow {

@@ -124,7 +124,7 @@ import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostCatalogListReader, type AgentHostCatalogListManyResult } from './agentHostCatalogListReader.js';
 import { AgentHostSessionsV2CandidateResolution, AgentHostSessionsV2MigrationService, IAgentHostSessionsV2Candidate, type IAgentHostSessionsV2MigrationReport } from './agentHostSessionsV2MigrationService.js';
 
-import { detachedWorktreeRecordUri, getPullRequestSessionBranchName, IAgentHostWorktreeIsolation, type IWorktreeHandOver, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
+import { detachedWorktreeRecordUri, getPullRequestSessionBranchName, IAgentHostWorktreeIsolation, type IRecordedWorktree, type IWorktreeHandOver, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { findMcpServerName } from './shared/mcpCustomizationController.js';
 import type { IAgentHostSessionLifecycleCandidate } from './agentHostSessionLifecycle.js';
@@ -416,6 +416,7 @@ type AgentHostLegacyMigrationEvent = IAgentHostCopilotSkuTelemetry & {
 	errorMessage: string | undefined;
 	reason: string;
 	hostLaunchKind: AgentHostLaunchKind;
+	trigger: AgentHostLegacyMigrationTrigger;
 };
 
 type AgentHostLegacyMigrationClassification = IAgentHostCopilotSkuClassification & {
@@ -450,9 +451,13 @@ type AgentHostLegacyMigrationClassification = IAgentHostCopilotSkuClassification
 	errorMessage: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Error message when the migration failed; absent for migrated/skipped outcomes.' };
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Provider adoption reason (including markerUnavailable), settingDisabled for a frozen-off host, or unknown. This is separate from the stage and exception that may fail after adoption.' };
 	hostLaunchKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'How the agent host was launched: vscode_main_process (local desktop host) or vscode_cli (a host spawned by a VS Code server, e.g. for a remote window), so local and remote migration can be compared.' };
+	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What restored the session: subscribe (a client opened or subscribed to it, including from its agent-host list row, which the client probe event does not see), action (a dispatched action such as rename or archive), or other (an internal restore). The first restore wins when several join.' };
 	owner: 'vijayupadya';
 	comment: 'Tracks one-time adopt-on-open migration of legacy extension-host Copilot CLI sessions into the agent host to measure attempt, success, failure, and skipped rates.';
 };
+
+/** What started the restore that ran a legacy migration attempt. */
+type AgentHostLegacyMigrationTrigger = 'subscribe' | 'action' | 'other';
 
 type AgentHostCatalogBulkReadFailureEvent = {
 	errorMessage: string;
@@ -1146,6 +1151,11 @@ export class AgentService extends Disposable implements IAgentService {
 	private _serverToolActionSequence = 0;
 	private readonly _restoreSubagentInFlight = new Map<string, Promise<void>>();
 	private readonly _restoredSubagentAdmissionRetries = new Map<string, { run(): Promise<void>; cancel(): void; isCurrent(): boolean }>();
+	/**
+	 * Sessions seen as workspace-less in this process. `set_workspace` stays loaded for
+	 * them after conversion, so the provider's tool list, and with it the prompt cache, is unchanged.
+	 */
+	private readonly _startedWorkspacelessSessions = new Set<string>();
 	private readonly _sessionResidency: AgentSessionResidency;
 
 	/**
@@ -1506,6 +1516,8 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			this._authService.moveChatCredentials(chat, previous, current);
 		}));
+		// Not on removal: an evicted idle session restores with the same tool list.
+		this._register(this._stateManager.onDidDeleteSession(session => this._startedWorkspacelessSessions.delete(session)));
 		this._register(this._stateManager.onDidRemoveSession(removed => {
 			for (const [chat, session] of this._chatWatchOwners) {
 				if (session === removed) {
@@ -2188,11 +2200,17 @@ export class AgentService extends Disposable implements IAgentService {
 	 * to this service so the group stays decoupled from the concrete host.
 	 */
 	private _createSessionServerToolAccessor(): IAgentServiceSessionServerToolAccessor {
-		const isWorkspaceless = (session: URI) => readSessionWorkspaceless(this._stateManager.getSessionState(session.toString())?._meta);
 		return {
 			getCredentialSource: chat => this._getServerToolCredentialSource(chat),
 			getAutomaticTitleGenerationStrategy: session => this._titleController.getAutomaticTitleGenerationStrategy(session),
-			isWorkspaceless,
+			startedWorkspaceless: session => {
+				const sessionKey = session.toString();
+				if (readSessionWorkspaceless(this._stateManager.getSessionState(sessionKey)?._meta)) {
+					this._startedWorkspacelessSessions.add(sessionKey);
+					return true;
+				}
+				return this._startedWorkspacelessSessions.has(sessionKey);
+			},
 			canConvertWorkspace: session => this._providerService.getProviderForSession(session)?.agentHostCapabilities.workspaceConversion === true,
 			supportsChatWorkingDirectories: session => !!this._providerService.getProviderForSession(session)?.getDescriptor().capabilities?.multipleWorkingDirectories,
 			listSessions: () => this.listSessions(),
@@ -2410,6 +2428,14 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
+	async manageHostSandboxCertificate(provider: AgentProvider, operation: Parameters<NonNullable<IAgent['manageHostSandboxCertificate']>>[0]): Promise<void> {
+		const agent = this._providerService.getProvider(provider);
+		if (!agent?.manageHostSandboxCertificate) {
+			throw new Error('Host sandbox certificate management is unavailable for this provider.');
+		}
+		await agent.manageHostSandboxCertificate(operation);
+	}
+
 	async installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		await this._runSandboxCertificateOperation(chat, scopeId, 'installSandboxCertificate');
 	}
@@ -2422,7 +2448,11 @@ export class AgentService extends Disposable implements IAgentService {
 		await this._runSandboxCertificateOperation(chat, scopeId, 'removeSandboxCertificate');
 	}
 
-	private async _runSandboxCertificateOperation(chat: string, scopeId: string, operation: 'installSandboxCertificate' | 'rotateSandboxCertificate' | 'removeSandboxCertificate'): Promise<void> {
+	async refreshSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		await this._runSandboxCertificateOperation(chat, scopeId, 'refreshSandboxCertificate');
+	}
+
+	private async _runSandboxCertificateOperation(chat: string, scopeId: string, operation: 'installSandboxCertificate' | 'rotateSandboxCertificate' | 'removeSandboxCertificate' | 'refreshSandboxCertificate'): Promise<void> {
 		const owner = this._chatOwnership.getChatOwner(chat);
 		const provider = owner === undefined ? undefined : this._providerService.getProviderForChat(URI.parse(owner), chat);
 		if (!provider?.[operation]) {
@@ -5638,7 +5668,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		this._startedChatDiscoveryProviders.add(provider.id);
-		void provider.startChatDiscovery().catch(error => {
+		void provider.startChatDiscovery({ migrateLegacyChats: this._isMigrateLegacyEnabled() }).catch(error => {
 			this._startedChatDiscoveryProviders.delete(provider.id);
 			this._logService.warn(`[AgentService] Chat discovery for provider ${provider.id} failed after ${reason}`, error);
 		});
@@ -7845,12 +7875,13 @@ export class AgentService extends Disposable implements IAgentService {
 	/**
 	 * The chat a session that moves under another session takes along: its default chat, which must be its only one.
 	 * The host knows a session's default chat only once it has loaded the session, so it loads one it hasn't, held in
-	 * `leases` (C15).
+	 * `leases` (C15). Its data only when that chat records a backing of its own: otherwise it is restored in full, where
+	 * its agent recovers the backing and the host records it, so the nested chat can become a session again (#344917).
 	 */
 	private async _movedSessionChat(session: URI, leases: DisposableStore): Promise<URI> {
 		const sourceKey = session.toString();
 		this._assertChatMovesEnabled();
-		await this._restoreForMove(session, AgentChatMoveRefusal.NotMovable, leases, true);
+		await this._restoreForMove(session, AgentChatMoveRefusal.NotMovable, leases, await this._recordsDefaultChatBacking(session));
 		const defaultChat = this._stateManager.getSessionState(sourceKey)?.defaultChat ?? this._defaultChat(sourceKey);
 		if (defaultChat === undefined) {
 			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotMovable, `Session ${sourceKey} is not available.`);
@@ -8087,6 +8118,9 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (sessionMove) {
 			this._checkMovedSession(sourceKey, chat);
+			if (!await this._recordsDefaultChatBacking(session)) {
+				refuse(AgentChatMoveRefusal.NotMovable, `Session ${sourceKey} has no recorded conversation of its own to keep under another session.`);
+			}
 		} else {
 			this._checkMovedChat(sourceKey, chat);
 		}
@@ -10278,6 +10312,24 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
+	 * The worktree a predecessor recorded for a session it still owns, so its
+	 * deletion removes the worktree as the predecessor's delete did. Best-effort:
+	 * a failure to read it must not fail the deletion.
+	 */
+	private async _readLegacyChatWorktree(provider: IAgent | undefined, session: URI): Promise<IRecordedWorktree | undefined> {
+		if (!provider?.readLegacyChatWorktree) {
+			return undefined;
+		}
+		try {
+			const worktree = await provider.readLegacyChatWorktree(session);
+			return worktree && { worktree: worktree.worktreePath, repositoryRoot: worktree.repositoryRoot, branchName: worktree.branchName };
+		} catch (error) {
+			this._logService.warn(`[AgentService] Failed to read the predecessor's worktree of ${session.toString()}; deleting without removing it`, error);
+			return undefined;
+		}
+	}
+
+	/**
 	 * Destructively tears a session down: dispose peer chats first and the
 	 * default chat last, and still visit every chat if one rejects.
 	 */
@@ -11212,7 +11264,9 @@ export class AgentService extends Disposable implements IAgentService {
 			const additionalWorktrees = await readSessionAdditionalWorktrees(this._sessionStateStore, session);
 			// The worktrees are removed in the background; deletion only records that, with the tombstone.
 			traceStage('readWorktreeMetadata');
-			const worktreeRemovals = await this._worktreeCleanup.prepareSessionDeletion(session, additionalWorktrees.map(worktree => worktree.handle), worktreeRemovalMode);
+			// Read before the provider disposes the session, which deletes the predecessor's record of the worktree.
+			const predecessorWorktree = await this._readLegacyChatWorktree(provider, session);
+			const worktreeRemovals = await this._worktreeCleanup.prepareSessionDeletion(session, additionalWorktrees.map(worktree => worktree.handle), worktreeRemovalMode, predecessorWorktree);
 			const worktree = worktreeRemovals.find(removal => removal.kind === 'session');
 			const candidateCleanupWorkingDirectoryUris = (worktree
 				? [worktree.repositoryRoot, ...(workingDirectories?.slice(1) ?? [])]
@@ -11472,7 +11526,7 @@ export class AgentService extends Disposable implements IAgentService {
 				if (!this._isSessionRestored(session.toString())) {
 					restorationCredentials = await restorationSource(session);
 				}
-				return this.restoreSession(session, joinedRestore => telemetry.restoreStarted(joinedRestore), restorationCredentials);
+				return this.restoreSession(session, joinedRestore => telemetry.restoreStarted(joinedRestore), restorationCredentials, 'subscribe');
 			};
 			const restoreChangesetOwner = async (owner: string, session: string | undefined): Promise<string | undefined> => {
 				const containing = session ?? (await this._resolveChatOwnerAfterMoves(owner))?.owner;
@@ -12486,7 +12540,7 @@ export class AgentService extends Disposable implements IAgentService {
 							// Dropped so listing / scrolling can't adopt an un-opened legacy session; only an explicit open or archive toggle adopts.
 							return;
 						}
-						await this.restoreSession(sessionUri);
+						await this.restoreSession(sessionUri, undefined, undefined, 'action');
 						adoptedForArchiveToggle = true;
 					} else {
 						// Falls through so the envelope and its side effects (worktree
@@ -12514,7 +12568,7 @@ export class AgentService extends Disposable implements IAgentService {
 					return;
 				}
 				if (outcome === 'restore') {
-					await this.restoreSession(sessionUri);
+					await this.restoreSession(sessionUri, undefined, undefined, 'action');
 				} else if (outcome === 'applied' && !this._stateManager.getSessionState(sessionChannel)) {
 					// The chat has no registered state to reduce into; the envelope acknowledges the client.
 					this._stateManager.dispatchClientAction(chatChannel, action, { clientId, clientSeq }, clientContext);
@@ -12530,7 +12584,7 @@ export class AgentService extends Disposable implements IAgentService {
 				if (subagent) {
 					await this._restoreSubagentSession(sessionChannel, subagent.parentSession);
 				} else {
-					await this.restoreSession(sessionUri, undefined, credentials);
+					await this.restoreSession(sessionUri, undefined, credentials, 'action');
 				}
 			}
 			this._checkCredentialPrincipal(sessionChannel, credentials);
@@ -13856,11 +13910,11 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._resourceProviders.list(uri);
 	}
 
-	async restoreSession(session: URI, onRestoreStart?: (joinedRestore: boolean) => void, credentials?: IAgentHostCredentialSource): Promise<void> {
+	async restoreSession(session: URI, onRestoreStart?: (joinedRestore: boolean) => void, credentials?: IAgentHostCredentialSource, trigger: AgentHostLegacyMigrationTrigger = 'other'): Promise<void> {
 		// An identity-mapped session is one session; restoring its storage spelling would register a second state that peers and catalog ownership are not recorded under.
 		const runtimeSession = this._orchestratorDatabase.toRuntimeSession(session.toString());
 		if (runtimeSession !== session.toString()) {
-			return this.restoreSession(URI.parse(runtimeSession), onRestoreStart, credentials);
+			return this.restoreSession(URI.parse(runtimeSession), onRestoreStart, credentials, trigger);
 		}
 		const sessionStr = session.toString();
 		await this._scratchFoldersLoaded;
@@ -13892,7 +13946,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		onRestoreStart?.(false);
 		this._logService.trace(`[AgentService] restoreSession start: ${sessionStr}`);
-		const restore = this._doRestoreSession(session, sessionStr, credentials);
+		const restore = this._doRestoreSession(session, sessionStr, credentials, trigger);
 		this._restoreSessionInFlight.set(sessionStr, restore);
 		this._chatOwnership.trackRestore(restore);
 		try {
@@ -13923,7 +13977,7 @@ export class AgentService extends Disposable implements IAgentService {
 		outcome: AgentHostLegacyMigrationEvent['outcome'],
 		startTime: number,
 		stage: AgentHostLegacyMigrationEvent['stage'],
-		extra: { advertisedAsAdoptable: boolean; adoption?: IAgentChatAdoptionResult; turnCount?: number; hasProject?: boolean; hasWorktree?: boolean; workingDirectoryCount?: number; error?: unknown; reason?: AgentChatAdoptionReason | 'settingDisabled' },
+		extra: { advertisedAsAdoptable: boolean; trigger: AgentHostLegacyMigrationTrigger; adoption?: IAgentChatAdoptionResult; turnCount?: number; hasProject?: boolean; hasWorktree?: boolean; workingDirectoryCount?: number; error?: unknown; reason?: AgentChatAdoptionReason | 'settingDisabled' },
 	): void {
 		const diagnostics = extra.adoption?.diagnostics;
 		const invalidSessionId = diagnostics?.sessionIdStatus !== undefined && diagnostics.sessionIdStatus !== 'opaque';
@@ -14014,6 +14068,7 @@ export class AgentService extends Disposable implements IAgentService {
 			errorMessage: getTelemetryMigrationErrorMessage(extra.error, session),
 			reason: extra.reason ?? 'unknown',
 			hostLaunchKind: this._hostLaunchKind,
+			trigger: extra.trigger,
 		};
 		if (extra.error !== undefined || diagnostics?.errorMessage !== undefined) {
 			this._telemetryService.publicLogError2<AgentHostLegacyMigrationEvent, AgentHostLegacyMigrationClassification>('agentHost.legacyCopilotCliMigration', data);
@@ -14022,7 +14077,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	private async _doRestoreSession(session: URI, sessionStr: string, credentials?: IAgentHostCredentialSource): Promise<void> {
+	private async _doRestoreSession(session: URI, sessionStr: string, credentials?: IAgentHostCredentialSource, trigger: AgentHostLegacyMigrationTrigger = 'other'): Promise<void> {
 		// A passive metadata update in progress finishes before this restore reads the state it writes.
 		await this._passiveMetadataSequencer.queue(sessionStr, async () => { });
 		if (this._stateManager.getSessionState(sessionStr)) {
@@ -14052,6 +14107,9 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!agent) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `No agent for session: ${sessionStr}`);
 		}
+		if (await this._isSessionSuppressed(session, agent, registeredSession)) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionStr}`);
+		}
 		// Warming the provider catalogue is O(catalogue) — ~48s on a large
 		// `~/.copilot` — and the only decision that needs it is whether a metadata
 		// miss is authoritative (#331648). Defer it so a session that resolves from
@@ -14066,7 +14124,7 @@ export class AgentService extends Disposable implements IAgentService {
 				this._logService.warn(`[AgentService] restore: initial catalog migration for provider ${agent.id} failed; a metadata miss will be reported as unavailable, not missing`, err);
 			}
 			// This wait can be lengthy, so re-check that the session was not deleted or hidden meanwhile.
-			if (await this._sessionRegistry.isSuppressed(session)) {
+			if (await this._isSessionSuppressed(session, agent, registeredSession)) {
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionStr}`);
 			}
 			return readable;
@@ -14087,7 +14145,7 @@ export class AgentService extends Disposable implements IAgentService {
 				adoption = await agent.ensureChatAdopted(defaultChat, this._chatContext(session, defaultChat, defaultChatStorage));
 			} catch (err) {
 				// Adoption itself threw — a genuine migration failure worth surfacing.
-				this._reportLegacyMigration(session, agent.id, 'failed', migrationStartTime, 'adoption', { advertisedAsAdoptable, error: err });
+				this._reportLegacyMigration(session, agent.id, 'failed', migrationStartTime, 'adoption', { advertisedAsAdoptable, trigger, error: err });
 				throw err;
 			}
 		}
@@ -14113,7 +14171,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (!registeredSession) {
 				this._logService.info(`[AgentService] restore refused for unregistered ${sessionStr}: not an adoptable legacy chat (reason=${adoption.reason ?? 'unknown'})`);
 				const reason = migrateLegacyEnabled ? adoption.reason : 'settingDisabled';
-				this._reportLegacyMigration(session, agent.id, 'declined', migrationStartTime, 'eligibility', { advertisedAsAdoptable, adoption: migrateLegacyEnabled ? adoption : undefined, reason });
+				this._reportLegacyMigration(session, agent.id, 'declined', migrationStartTime, 'eligibility', { advertisedAsAdoptable, trigger, adoption: migrateLegacyEnabled ? adoption : undefined, reason });
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session is not an adoptable legacy chat (reason=${reason ?? 'unknown'}): ${sessionStr}`);
 			}
 		}
@@ -14160,12 +14218,12 @@ export class AgentService extends Disposable implements IAgentService {
 				// startup, so clients have no entry for it and a restore alone stays
 				// silent. Publishing announces it with the adopted summary.
 				this._stateManager.setSessionSummaryPublished(sessionStr, true);
-				this._reportLegacyMigration(session, agent.id, 'migrated', migrationStartTime, 'complete', { ...facts, advertisedAsAdoptable, adoption, reason: adoption.reason });
+				this._reportLegacyMigration(session, agent.id, 'migrated', migrationStartTime, 'complete', { ...facts, advertisedAsAdoptable, trigger, adoption, reason: adoption.reason });
 			} else if (adoption.eligible) {
 				// Migrate setting on and a genuine legacy candidate, but not adopted
 				// this pass (e.g. its on-disk working directory could not be resolved).
 				this._logService.info(`[AgentService] legacy session ${sessionStr} was a migration candidate but was not adopted (reason=${adoption.reason ?? 'unknown'})`);
-				this._reportLegacyMigration(session, agent.id, 'skipped', migrationStartTime, 'complete', { advertisedAsAdoptable, adoption, hasProject: facts.hasProject, workingDirectoryCount: facts.workingDirectoryCount, reason: adoption.reason });
+				this._reportLegacyMigration(session, agent.id, 'skipped', migrationStartTime, 'complete', { advertisedAsAdoptable, trigger, adoption, hasProject: facts.hasProject, workingDirectoryCount: facts.workingDirectoryCount, reason: adoption.reason });
 			}
 		} catch (err) {
 			if (adopted) {
@@ -14174,7 +14232,7 @@ export class AgentService extends Disposable implements IAgentService {
 					: `[AgentService] legacy session ${sessionStr} was adopted but could not be registered; the extension host no longer lists it, so it will not appear until the next successful restore`, err);
 			}
 			if (adopted || adoption.eligible) {
-				this._reportLegacyMigration(session, agent.id, 'failed', migrationStartTime, migrationStage, { advertisedAsAdoptable, adoption, error: err, reason: adoption.reason });
+				this._reportLegacyMigration(session, agent.id, 'failed', migrationStartTime, migrationStage, { advertisedAsAdoptable, trigger, adoption, error: err, reason: adoption.reason });
 			}
 			throw err;
 		}
@@ -14301,7 +14359,8 @@ export class AgentService extends Disposable implements IAgentService {
 			meta = await this._getSessionMetadataForRestore(agent, session, external);
 			// The registry is backfilled by that same pass, so re-read it before
 			// concluding the session is unknown.
-			const knownToRegistry = sessionKnownToRegistry || (await this._listRegisteredSessions()).some(entry => entry.session.toString() === sessionStr);
+			const knownToRegistry = (sessionKnownToRegistry || (await this._listRegisteredSessions()).some(entry => entry.session.toString() === sessionStr))
+				&& (!usesStandardSessionUris(agent.id) || AgentSession.isCanonical(session));
 			if (!meta) {
 				// A session still marked provisional never materialized, so its
 				// provider never created a backing for it to describe — but only a
@@ -14722,13 +14781,15 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._invalidateSessionList();
 		const chatStorageResource = (session: string, chat: string, defaultChat: string) => recordedStorage.get(chat) ?? creationTimeChatStorageResource(session, chat, defaultChat);
+		// Adoption decides an adopted legacy session's read state: its normalized catalog row was written before adoption.
+		const restoredDefaultChatIsRead = adoptionListVisible?.isRead ?? (normalizedDefault ? normalizedDefault.isRead : defaultChatIsRead);
 		if (load.kind === 'full') {
 			this._stateManager.restoreSession(summary, mergedTurns, chatStorageResource, {
 				draft: restoredDraft,
 				defaultChatTitle,
 				defaultChatModifiedAt,
 				defaultChatWorkingDirectories,
-				defaultChatIsRead: normalizedDefault ? normalizedDefault.isRead : defaultChatIsRead,
+				defaultChatIsRead: restoredDefaultChatIsRead,
 				defaultChatConfig,
 			});
 		} else {
@@ -14737,7 +14798,7 @@ export class AgentService extends Disposable implements IAgentService {
 				title: defaultChatTitle,
 				modifiedAt: defaultChatModifiedAt,
 				workingDirectories: defaultChatWorkingDirectories,
-				isRead: normalizedDefault ? normalizedDefault.isRead : defaultChatIsRead,
+				isRead: restoredDefaultChatIsRead,
 				draft: restoredDraft,
 				config: defaultChatConfig,
 				providerData: defaultChatProviderData,
@@ -15541,6 +15602,18 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
+	 * Whether the default chat of `session` records a backing of its own, which it keeps when its session moves under
+	 * another. Refuses the move when the session's chats can't be read, as loading it for the move does.
+	 */
+	private async _recordsDefaultChatBacking(session: URI): Promise<boolean> {
+		try {
+			return await this._readDefaultChatProviderData(session) !== undefined;
+		} catch (error) {
+			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotMovable, `Session ${session.toString()} can't be opened: ${toErrorMessage(error)}`);
+		}
+	}
+
+	/**
 	 * A session's default chat, its persisted provider data and its storage, from one catalog read. The storage is
 	 * the recorded one (a promoted chat keeps its own, Block 4), else the default chat's registered or creation-time one.
 	 */
@@ -15569,6 +15642,9 @@ export class AgentService extends Disposable implements IAgentService {
 				chatRef.dispose();
 			}
 		}
+		if (!AgentSession.isCanonical(session)) {
+			return undefined;
+		}
 		const ref = await this._sessionDataService.tryOpenDatabase?.(session);
 		if (!ref) {
 			return undefined;
@@ -15578,6 +15654,25 @@ export class AgentService extends Disposable implements IAgentService {
 		} finally {
 			ref.dispose();
 		}
+	}
+
+	private async _isSessionSuppressed(session: URI, agent?: IAgent, registeredSession?: IRegisteredSession): Promise<boolean> {
+		if (await this._sessionRegistry.isSuppressed(session)) {
+			return true;
+		}
+		if (!agent || !usesStandardSessionUris(agent.id) || (registeredSession && AgentSession.isCanonical(session))) {
+			return false;
+		}
+		const sessionId = AgentSession.id(session);
+		const providerSession = AgentSession.uri(agent.id, sessionId);
+		if (!isEqual(session, providerSession) && await this._sessionRegistry.isSuppressed(providerSession)) {
+			return true;
+		}
+		const standardSession = AgentSession.uri('ahp-session', sessionId);
+		if (!isEqual(session, standardSession) && await this._sessionRegistry.isSuppressed(standardSession)) {
+			return true;
+		}
+		return false;
 	}
 
 	private async _isWorkspaceConversionQuarantined(session: URI): Promise<boolean> {

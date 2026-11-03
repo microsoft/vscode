@@ -993,6 +993,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const session = URI.parse('agent-host-copilotcli:/frontend-session');
 		const calls: string[] = [];
 		const requests: unknown[] = [];
+		const details: string[] = [];
 		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
 			'copilotcli',
 			async () => {
@@ -1012,6 +1013,9 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 						displayName: 'Demo MCP',
 						serverName: 'owner/demo',
 						target: 'owner/demo',
+						command: 'uvx',
+						args: ['markitdown-mcp'],
+						env: { MODE: 'stdio' },
 						configurationFields: [],
 					};
 				}
@@ -1029,7 +1033,10 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				override readonly onDidChangeCustomizations = Event.None;
 			}(),
 			new class extends mock<IDialogService>() {
-				override async confirm() { return { confirmed: true }; }
+				override readonly confirm: IDialogService['confirm'] = async confirmation => {
+					details.push(typeof confirmation.detail === 'string' ? confirmation.detail : confirmation.detail?.value ?? '');
+					return { confirmed: true };
+				};
 			}(),
 			new NullLogService(),
 			pluginService,
@@ -1054,8 +1061,9 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			},
 		}, CancellationToken.None);
 
-		assert.deepStrictEqual({ calls, requests }, {
+		assert.deepStrictEqual({ calls, requests, localReviewVisible: details.some(detail => detail.includes('Command: uvx') && detail.includes('Arguments: ["markitdown-mcp"]') && detail.includes('Environment: {"MODE":"stdio"}')) }, {
 			calls: ['authenticate', 'prepare', 'apply'],
+			localReviewVisible: true,
 			requests: [{
 				mediaType: 'application/mcp-server+json',
 				identifier: 'default:io.example/demo',

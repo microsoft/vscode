@@ -9,7 +9,7 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
 import { HoverStyle, IHoverLifecycleOptions } from '../../../../base/browser/ui/hover/hover.js';
-import { Action, toAction } from '../../../../base/common/actions.js';
+import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
@@ -29,7 +29,7 @@ import { ILayoutService } from '../../../../platform/layout/browser/layoutServic
 import { ChatPillActionViewItem, getChatPillEntryToolbarActions, IChatPill, IChatPillAction, IChatPillEntry } from '../../../../workbench/browser/chatPills.js';
 import { ArtifactButtons, IArtifactButton } from './artifactButtons.js';
 import { ArtifactDetailsSelection } from './artifactDetailsView.js';
-import { ArtifactIntegrationPresentation, countEnabledArtifactAutomations, getArtifactStatusButtons, IArtifactDetailsHost } from './artifactIntegrationPresentation.js';
+import { ArtifactIntegrationPresentation, countEnabledArtifactAutomations, createArtifactOpenAction, getArtifactStatusButtons, IArtifactDetailsHost } from './artifactIntegrationPresentation.js';
 
 /** One artifact listed by an {@link ArtifactIntegrationGroup}. */
 export interface IArtifactIntegrationGroupMember {
@@ -50,9 +50,10 @@ export interface IArtifactIntegrationGroupSummary {
 }
 
 /**
- * Summarizes a group of artifacts sharing a main integration. The icon is the one with the highest group priority
- * the integration assigned to any artifact, keeping the earlier artifact on ties, so a group of pull requests shows
- * a failing pull request's icon over an open one's. The label is the integration's fixed group label.
+ * Summarizes a group of artifacts sharing a group ID, possibly across integrations. The icon is the one with the
+ * highest group priority any main integration assigned to its artifact, keeping the earlier artifact on ties, so a
+ * group of pull requests shows a failing pull request's icon over an open one's. The label is the first fixed group
+ * label among the artifacts' main integrations.
  */
 export function getArtifactIntegrationGroupSummary(snapshots: readonly ArtifactSnapshot[]): IArtifactIntegrationGroupSummary {
 	let group: ArtifactGroupPresentation | undefined;
@@ -85,7 +86,7 @@ export function getArtifactIntegrationGroupSummary(snapshots: readonly ArtifactS
 }
 
 /**
- * Several artifacts sharing a main integration, presented as one pill whose dropdown lists each artifact with the
+ * Several artifacts sharing a group ID, presented as one pill whose dropdown lists each artifact with the
  * same main part and status sections its own pill would show.
  */
 export class ArtifactIntegrationGroup extends Disposable {
@@ -257,12 +258,7 @@ export interface IArtifactGroupRowAction {
  */
 export function getArtifactGroupRowActions(member: Pick<IArtifactIntegrationGroupMember, 'entry' | 'pinAction'>): readonly IArtifactGroupRowAction[] {
 	const { entry, pinAction } = member;
-	const open = toAction({
-		id: `artifactGroup.open.${entry.id}`,
-		label: entry.ariaLabel ?? localize('artifactGroup.open', "Open {0}", entry.label),
-		class: ThemeIcon.asClassName(Codicon.linkExternal),
-		run: () => entry.open(),
-	});
+	const open = createArtifactOpenAction(entry);
 	const entryActions = getChatPillEntryToolbarActions({ ...entry, toolbarActions: [...entry.toolbarActions ?? [], ...pinAction ? [pinAction] : []] });
 	return [open, ...entryActions].map(action => ({ action, keepOpen: action === pinAction || action === entry.promotedAction }));
 }

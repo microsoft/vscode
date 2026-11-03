@@ -60,7 +60,7 @@ suite('Dev Container Agent Host Connector', () => {
 				override readonly onDidCloseConnection = Event.None;
 				override async connect(config: IDevContainerAgentHostConfig) {
 					configs.push(config);
-					return { connectionId: config.connectionId, address: 'devcontainer:sample', name: config.name, remoteWorkspaceFolder: '/workspace', sandboxSupported: !sandboxEnabled, forwardClientCertificates: true };
+					return { connectionId: config.connectionId, address: 'devcontainer:sample', name: config.name, remoteWorkspaceFolder: '/workspace', sandboxSupported: !sandboxEnabled, sharesClientNetwork: true };
 				}
 				override async disconnect() { }
 			}();
@@ -470,7 +470,7 @@ suite('Dev Container Agent Host Connector', () => {
 				override async connect(config: IDevContainerAgentHostConfig) {
 					configs.push(config);
 					outputs.fire({ connectionId: config.connectionId, data: 'remote container output' });
-					return { connectionId: config.connectionId, address: 'devcontainer:container', name: config.name, remoteWorkspaceFolder: '/workspaces/project', forwardClientCertificates: true };
+					return { connectionId: config.connectionId, address: 'devcontainer:container', name: config.name, remoteWorkspaceFolder: '/workspaces/project', sharesClientNetwork: true };
 				}
 				override async disconnect(id: string): Promise<void> {
 					disconnected.push(id);
@@ -775,17 +775,13 @@ suite('Dev Container Agent Host Connector', () => {
 	test('does not reveal the Dev Container output channel when setup is canceled', async () => {
 		const canceledError = new Error('Canceled');
 		canceledError.name = 'Canceled';
-		const tokenSource = new CancellationTokenSource();
-		try {
-			assert.deepStrictEqual({
-				serializedCancellation: await connectWithFailure(canceledError, CancellationToken.None),
-				canceledToken: await connectWithFailure(new Error('Setup stopped'), tokenSource.token, () => tokenSource.cancel()),
-			}, {
-				serializedCancellation: ['get:devContainer.<workspace>', 'connect', 'disconnect'],
-				canceledToken: ['get:devContainer.<workspace>', 'connect', 'disconnect', 'disconnect'],
-			});
-		} finally {
-			tokenSource.dispose();
-		}
+		const tokenSource = store.add(new CancellationTokenSource());
+		assert.deepStrictEqual({
+			serializedCancellation: await connectWithFailure(canceledError, CancellationToken.None),
+			canceledToken: await connectWithFailure(new Error('Setup stopped'), tokenSource.token, () => tokenSource.cancel()),
+		}, {
+			serializedCancellation: ['get:devContainer.<workspace>', 'connect', 'disconnect'],
+			canceledToken: ['get:devContainer.<workspace>', 'connect', 'disconnect', 'disconnect'],
+		});
 	});
 });

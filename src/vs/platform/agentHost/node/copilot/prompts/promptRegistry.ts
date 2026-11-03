@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from '@github/copilot-sdk';
-import { copilotCliConfigSchema } from '../../../common/copilotCliConfig.js';
+import { copilotCliConfigSchema, CopilotCliConfigKey } from '../../../common/copilotCliConfig.js';
 import type { SchemaValue } from '../../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../../common/state/protocol/state.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../shared/fileLinkInstructions.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../shared/workspacelessInstructions.js';
+import { AGENT_HOST_PROGRESS_UPDATES_INSTRUCTIONS, isProgressUpdatesPromptModel } from './progressUpdatesInstructions.js';
 import { appendSystemMessageContent, COPILOT_AGENT_HOST_SYSTEM_MESSAGE, fullSystemPrompt, sectionOverrides, withDefaultSections } from './systemMessage.js';
 import { resolveToolInstructionsOverride, toolSearchInstructionLines, universalToolInstructions, type IToolInstructionContext } from './toolInstructions.js';
 
@@ -157,7 +158,8 @@ export class AgentHostPromptRegistry {
 	resolveSystemMessageConfig(model: ModelSelection | undefined, context: IAgentHostPromptContext): SystemMessageConfig {
 		const config = this._withUniversalSections(this._resolveModelConfig(model, context), context);
 		const withWorkspacelessScratch = this._withWorkspacelessScratch(config, context);
-		return appendSystemMessageContent(withWorkspacelessScratch, AGENT_HOST_FILE_LINK_INSTRUCTIONS);
+		const withProgressUpdates = this._withProgressUpdates(withWorkspacelessScratch, model, context);
+		return appendSystemMessageContent(withProgressUpdates, AGENT_HOST_FILE_LINK_INSTRUCTIONS);
 	}
 
 	/**
@@ -224,6 +226,17 @@ export class AgentHostPromptRegistry {
 			return config;
 		}
 		return appendSystemMessageContent(config, AGENT_HOST_WORKSPACELESS_INSTRUCTIONS);
+	}
+
+	/**
+	 * Appends the progress-update guidance for GPT and Auto sessions when the
+	 * experiment enables it, after any `replace` prompt's content too.
+	 */
+	private _withProgressUpdates(config: SystemMessageConfig, model: ModelSelection | undefined, context: IAgentHostPromptContext): SystemMessageConfig {
+		if (context.getSetting(CopilotCliConfigKey.ProgressUpdatesPrompt) !== true || !isProgressUpdatesPromptModel(model)) {
+			return config;
+		}
+		return appendSystemMessageContent(config, AGENT_HOST_PROGRESS_UPDATES_INSTRUCTIONS);
 	}
 }
 

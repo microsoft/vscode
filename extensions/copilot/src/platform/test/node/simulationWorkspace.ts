@@ -4,25 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import * as fs from 'fs';
 import type * as vscode from 'vscode';
 import { getLanguage, getLanguageForResource, ILanguage } from '../../../util/common/languages';
-import { getLanguageId } from '../../../util/common/markdown';
 import { ExtHostNotebookDocumentData } from '../../../util/common/test/shims/notebookDocument';
 import { ExtHostNotebookEditor } from '../../../util/common/test/shims/notebookEditor';
 import { createTextDocumentData, IExtHostDocumentData, setDocText } from '../../../util/common/test/shims/textDocument';
 import { ExtHostTextEditor } from '../../../util/common/test/shims/textEditor';
-import { isUri } from '../../../util/common/types';
 import { Emitter } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { ResourceMap } from '../../../util/vs/base/common/map';
 import { Schemas } from '../../../util/vs/base/common/network';
 import * as path from '../../../util/vs/base/common/path';
-import { isString } from '../../../util/vs/base/common/types';
 import { URI } from '../../../util/vs/base/common/uri';
 import { SyncDescriptor } from '../../../util/vs/platform/instantiation/common/descriptors';
 import { Range, Selection, Uri } from '../../../vscodeTypes';
-import { IDebugOutputService } from '../../debug/common/debugOutputService';
 import { IDialogService } from '../../dialog/common/dialogService';
 import { IDiffService } from '../../diff/common/diffService';
 import { DiffServiceImpl } from '../../diff/node/diffServiceImpl';
@@ -42,9 +37,8 @@ import { IWorkspaceMutationManager } from '../../testing/common/workspaceMutatio
 import { ISetupTestsDetector, NullSetupTestsDetector } from '../../testing/node/setupTestDetector';
 import { ITestDepsResolver, TestDepsResolver } from '../../testing/node/testDepsResolver';
 import { IWorkspaceService } from '../../workspace/common/workspaceService';
-import { IDeserializedWorkspaceState } from './promptContextModel';
 import { TestingServiceCollection } from './services';
-import { SimulationAlternativeNotebookContentService, SimulationFileSystemAdaptor, SimulationLanguageDiagnosticsService, SimulationNotebookService, SimulationReviewService, SimulationWorkspaceService, SnapshotSearchService, TestingDebugOutputService, TestingDialogService, TestingGitService, TestingLanguageService, TestingTabsAndEditorsService, TestingTerminalService, WORKSPACE_PATH } from './simulationWorkspaceServices';
+import { SimulationAlternativeNotebookContentService, SimulationFileSystemAdaptor, SimulationLanguageDiagnosticsService, SimulationNotebookService, SimulationReviewService, SimulationWorkspaceService, SnapshotSearchService, TestingDialogService, TestingGitService, TestingLanguageService, TestingTabsAndEditorsService, TestingTerminalService, WORKSPACE_PATH } from './simulationWorkspaceServices';
 
 export interface IRelativeFile {
 	readonly kind: 'relativeFile';
@@ -58,14 +52,6 @@ export interface IQualifiedFile {
 	readonly uri: Uri;
 	readonly fileContents: string;
 	readonly languageId?: string;
-}
-
-export function isQualifiedFile(file: any): file is IQualifiedFile {
-	return file && file.kind === 'qualifiedFile' && isUri(file.uri) && isString(file.fileContents) && (file.languageId === undefined || isString(file.languageId));
-}
-
-export function isRelativeFile(file: any): file is IRelativeFile {
-	return file && file.kind === 'relativeFile' && isString(file.fileName) && isString(file.fileContents) && (file.languageId === undefined || isString(file.languageId));
 }
 
 export type IFile = IRelativeFile | IQualifiedFile;
@@ -119,25 +105,12 @@ export class SimulationWorkspace extends Disposable {
 	private readonly _onDidChangeDiagnostics = this._register(new Emitter<vscode.DiagnosticChangeEvent>());
 	public readonly onDidChangeDiagnostics = this._onDidChangeDiagnostics.event;
 
-	private _workspaceState: IDeserializedWorkspaceState | undefined;
 	private _workspaceFolders: Uri[] | undefined;
 	private readonly _docs = new ResourceMap<IExtHostDocumentData>();
 	private readonly _notebooks = new ResourceMap<ExtHostNotebookDocumentData>();
 	private _diagnostics = new ResourceMap<vscode.Diagnostic[]>();
 	private currentEditor: ExtHostTextEditor | undefined = undefined;
 	private currentNotebookEditor: ExtHostNotebookEditor | undefined = undefined;
-
-	public get repositories() { return this._workspaceState?.repositories; }
-	public get workspaceSymbols() { return this._workspaceState?.workspaceSymbols; }
-	public get debugConsoleOutput() { return this._workspaceState?.debugConsoleOutput; }
-	public get terminalBuffer() { return this._workspaceState?.terminalBuffer; }
-	public get terminalLastCommand() { return this._workspaceState?.terminalLastCommand; }
-	public get terminalSelection() { return this._workspaceState?.terminalSelection; }
-	public get terminalShellType() { return this._workspaceState?.terminalShellType; }
-	public get changeFiles() { return this._workspaceState?.changeFiles; }
-	public get lsifIndex() { return this._workspaceState?.lsifIndex; }
-	public get testFailures() { return this._workspaceState?.testFailures; }
-	public get workspaceFolderPath() { return this._workspaceState?.workspaceFolderPath; }
 
 	public get documents(): IExtHostDocumentData[] {
 		return Array.from(this._docs.values());
@@ -177,7 +150,6 @@ export class SimulationWorkspace extends Disposable {
 	 * Clear out all fields.
 	 */
 	private _clear() {
-		this._workspaceState = undefined;
 		this._workspaceFolders = undefined;
 		this._docs.clear();
 		this._notebooks.clear();
@@ -187,10 +159,10 @@ export class SimulationWorkspace extends Disposable {
 	}
 
 	public setupServices(testingServiceCollection: TestingServiceCollection) {
-		testingServiceCollection.define(IFileSystemService, new SyncDescriptor(SimulationFileSystemAdaptor, [this]));
+		testingServiceCollection.define(IFileSystemService, new SyncDescriptor(SimulationFileSystemAdaptor));
 		testingServiceCollection.define(IWorkspaceService, new SyncDescriptor(SimulationWorkspaceService, [this]));
 		testingServiceCollection.define(INotebookService, new SyncDescriptor(SimulationNotebookService, [this]));
-		testingServiceCollection.define(ILanguageFeaturesService, new SyncDescriptor(TestingLanguageService, [this]));
+		testingServiceCollection.define(ILanguageFeaturesService, new SyncDescriptor(TestingLanguageService));
 		testingServiceCollection.define(ISearchService, new SyncDescriptor(SnapshotSearchService));
 		testingServiceCollection.define(ITabsAndEditorsService, new SyncDescriptor(
 			TestingTabsAndEditorsService,
@@ -202,7 +174,6 @@ export class SimulationWorkspace extends Disposable {
 		));
 		testingServiceCollection.define(ILanguageDiagnosticsService, new SyncDescriptor(SimulationLanguageDiagnosticsService, [this]));
 		testingServiceCollection.define(ITerminalService, new SyncDescriptor(TestingTerminalService, [this]));
-		testingServiceCollection.define(IDebugOutputService, new SyncDescriptor(TestingDebugOutputService, [this]));
 		testingServiceCollection.define(IGitService, new SyncDescriptor(TestingGitService, [this]));
 		testingServiceCollection.define(IDialogService, new SyncDescriptor(TestingDialogService));
 		testingServiceCollection.define(ITestDepsResolver, new SyncDescriptor(TestDepsResolver));
@@ -212,48 +183,6 @@ export class SimulationWorkspace extends Disposable {
 		testingServiceCollection.define(IAlternativeNotebookContentService, new SyncDescriptor(SimulationAlternativeNotebookContentService));
 		testingServiceCollection.define(IAlternativeNotebookContentEditGenerator, new SyncDescriptor(AlternativeNotebookContentEditGenerator));
 		testingServiceCollection.define(IDiffService, new SyncDescriptor(DiffServiceImpl));
-	}
-
-	public resetFromDeserializedWorkspaceState(workspaceState: IDeserializedWorkspaceState | undefined) {
-		this._clear();
-		if (workspaceState) {
-			this._workspaceState = workspaceState;
-			this._workspaceFolders = workspaceState.workspaceFolders;
-			if (workspaceState.activeTextEditor) {
-				const sourceDoc = workspaceState.activeTextEditor.document;
-				const doc = createTextDocumentData(sourceDoc.uri, sourceDoc.getText(), sourceDoc.languageId);
-				this.addDocument(doc);
-				this.setCurrentDocument(doc.document.uri);
-				this.setCurrentSelection(workspaceState.activeTextEditor.selection);
-				this.setCurrentVisibleRanges(workspaceState.activeTextEditor.visibleRanges);
-			}
-			if (workspaceState.textDocumentFilePaths) {
-				for (const filePath of workspaceState.textDocumentFilePaths) {
-					if (workspaceState.workspaceFolderPath && workspaceState.workspaceFolders) {
-						const fileContents = fs.readFileSync(path.join(workspaceState.workspaceFolderPath, filePath), 'utf8');
-						const documentUri = URI.joinPath(workspaceState.workspaceFolders[0], filePath);
-						const doc = createTextDocumentData(documentUri, fileContents, getLanguageId(documentUri));
-						this.addDocument(doc);
-					}
-				}
-			}
-			if (workspaceState.activeFileDiagnostics && workspaceState.activeFileDiagnostics.length > 0) {
-				if (!workspaceState.activeTextEditor) {
-					throw new Error(`Cannot have active file diagnostics without an active text editor!`);
-				}
-				this.setDiagnostics(new ResourceMap<vscode.Diagnostic[]>([
-					[workspaceState.activeTextEditor.document.uri, workspaceState.activeFileDiagnostics]
-				]));
-			}
-			for (const notebookDoc of workspaceState.__notebookExtHostDocuments) {
-				this._notebooks.set(notebookDoc.uri, notebookDoc);
-			}
-			if (workspaceState.activeNotebookEditor) {
-				const sourceDocUri = workspaceState.activeNotebookEditor.notebook.uri;
-				this.setCurrentNotebookDocument(this.getNotebook(sourceDocUri));
-				this.setCurrentNotebookSelection(workspaceState.activeNotebookEditor.selections);
-			}
-		}
 	}
 
 	public resetFromFiles(files: IFile[], workspaceFolders: Uri[] | undefined) {
@@ -470,17 +399,6 @@ export class SimulationWorkspace extends Disposable {
 		);
 		editor._acceptSelections([selection]);
 		return range;
-	}
-
-	public mapLocation(uri: Uri, forWriting = false): URI {
-		if (this.workspaceFolderPath && uri.scheme === Schemas.file && uri.path.startsWith(WORKSPACE_PATH)) {
-			const location = Uri.file(path.join(this.workspaceFolderPath, uri.path.substring(WORKSPACE_PATH.length)));
-			if (forWriting) {
-				console.log('Warning: Writing to simulation folder');
-			}
-			return location;
-		}
-		return uri;
 	}
 }
 

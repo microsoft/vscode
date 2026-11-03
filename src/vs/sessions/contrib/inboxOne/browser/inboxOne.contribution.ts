@@ -91,6 +91,7 @@ export class InboxNotificationsCanvasContribution extends Disposable implements 
 					title: localize('inbox.canvas.title', "Inbox"),
 					icon: Codicon.inbox,
 					ctor: new SyncDescriptor(InboxNotificationsView, [undefined, undefined]),
+					retainFocusOnRestore: true,
 				});
 			} else {
 				viewRegistration.clear();

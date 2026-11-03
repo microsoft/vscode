@@ -18,16 +18,16 @@ import { SaveReason } from '../../../../../common/editor.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { dirname } from '../../../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { IConfirmation, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
@@ -419,6 +419,41 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	});
 
+	for (const section of [AICustomizationManagementSection.Skills, AICustomizationManagementSection.Plugins]) {
+		test(`retries URI reveal in ${section} until the item is available`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const uri = URI.file('/customizations/example');
+			const attempts: URI[][] = [];
+			let searchCleared = false;
+			const editor = {
+				selectedSection: section,
+				isPromptsSection: (candidate: AICustomizationManagementSection) => candidate === AICustomizationManagementSection.Skills,
+				listWidget: {
+					revealAndSelectFirstItemByUri: (uris: URI[]) => {
+						attempts.push(uris);
+						return attempts.length === 2;
+					},
+					clearSearch: () => { searchCleared = true; },
+				},
+				pluginListWidget: {
+					revealAndSelectItemByUri: async (uri: URI) => {
+						attempts.push([uri]);
+						return attempts.length === 2;
+					},
+				},
+			};
+			const revealCustomizationByUri = Reflect.get(AICustomizationManagementEditor.prototype, 'revealCustomizationByUri') as (
+				this: typeof editor, uri: URI,
+			) => Promise<void>;
+
+			await revealCustomizationByUri.call(editor, uri);
+
+			assert.deepStrictEqual({ attempts, searchCleared }, {
+				attempts: [[uri], [uri]],
+				searchCleared: section === AICustomizationManagementSection.Skills,
+			});
+		}));
+	}
+
 	for (const section of [
 		AICustomizationManagementSection.Agents,
 		AICustomizationManagementSection.Skills,
@@ -771,6 +806,7 @@ suite('aiCustomizationManagementEditor', () => {
 		showEmbeddedPluginDetail(item: IAgentPluginItem): Promise<void>;
 		goBackToList(): void;
 		onDidChangeSidebarSelection(e: IListEvent<{ readonly id: AICustomizationManagementSection }>): void;
+		showDiscover(searchQuery?: string): void;
 		showWelcomePage(options?: { resetFilters?: boolean; preserveFocus?: boolean }): void;
 		renderPreviewAttribute(attribute: IHeaderAttribute, promptType: PromptsType, target: Target): void;
 		onStructuredPreviewSettingChanged(): void;
@@ -827,6 +863,7 @@ suite('aiCustomizationManagementEditor', () => {
 		group: { id: number };
 		closeCustomizationEditor(): Promise<boolean>;
 		runMarketplacePrompt(prompt: string): Promise<void>;
+		createCanvas(): Promise<void>;
 	};
 
 	type MutableConfigurationInspection = {
@@ -933,14 +970,7 @@ suite('aiCustomizationManagementEditor', () => {
 			}),
 			findHarnessById: () => undefined,
 		};
-		editor.hoverService = hoverService ?? {
-			setupManagedHover: () => ({
-				dispose() { },
-				show() { },
-				hide() { },
-				update() { },
-			}),
-		} as unknown as IHoverService;
+		editor.hoverService = hoverService ?? { ...NullHoverService };
 		editor.instantiationService = workbenchInstantiationService({}, editor.editorPreviewDisposables);
 		editor.configurationService = configurationService ?? createConfigurationServiceStub();
 		editor.markdownRendererService = {
@@ -1033,8 +1063,7 @@ suite('aiCustomizationManagementEditor', () => {
 	test('backs up customization sources before launching an agent migration', async () => {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.inMemory);
 		const source = URI.from({ scheme: Schemas.inMemory, path: '/workspace/review.prompt.md' });
 		const recoveryRoot = URI.from({ scheme: Schemas.inMemory, path: '/workspaceStorage/workspace-id/customizationMigrations' });
 		await fileService.writeFile(source, VSBuffer.fromString('original'));
@@ -1088,8 +1117,7 @@ suite('aiCustomizationManagementEditor', () => {
 	test('does not launch an agent migration when backup preparation fails', async () => {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.inMemory);
 		editor.fileService = fileService;
 		editor.environmentService = { workspaceStorageHome: URI.from({ scheme: Schemas.inMemory, path: '/workspaceStorage' }) };
 		editor.customizationsByMigrationCategory.set(CustomizationMigrationCategoryId.PromptFiles, [
@@ -1132,8 +1160,7 @@ suite('aiCustomizationManagementEditor', () => {
 	test('unlocks stale running recoveries while preserving active ones', async () => {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.inMemory);
 		const workspaceStorageHome = URI.from({ scheme: Schemas.inMemory, path: '/workspaceStorage' });
 		const recoveryRoot = URI.joinPath(workspaceStorageHome, 'workspace-id', 'customizationMigrations');
 		editor.fileService = fileService;
@@ -1164,7 +1191,7 @@ suite('aiCustomizationManagementEditor', () => {
 		);
 	});
 
-	test('runs marketplace prompts in a new Agents Window chat', async () => {
+	test('starts Canvas creation in a new Agents Window chat', async () => {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
 		const calls: { commandId: string; args: readonly unknown[] }[] = [];
@@ -1175,11 +1202,11 @@ suite('aiCustomizationManagementEditor', () => {
 			},
 		};
 
-		await editor.runMarketplacePrompt('Review this change');
+		await editor.createCanvas();
 
 		assert.deepStrictEqual(calls, [{
 			commandId: 'workbench.action.sessions.newChat',
-			args: [{ prompt: 'Review this change', prefillPrompt: true, noWorkspace: true }],
+			args: [{ prompt: '/create-canvas ', prefillPrompt: true, noWorkspace: true }],
 		}]);
 	});
 
@@ -1481,6 +1508,33 @@ suite('aiCustomizationManagementEditor', () => {
 			selected: true,
 			ariaCurrent: 'page',
 		});
+	});
+
+	test('opening Discover with a query clears an existing source filter first', () => {
+		const { editor } = createContributedSectionEditor();
+		let selectedSourceId: string | undefined = 'mcpGallery';
+		const calls: string[] = [];
+		Object.assign(editor, {
+			homeButton: $('button'),
+			welcomePage: {
+				container: $('div'),
+				setVisible() { },
+				resetFilters() {
+					calls.push(`reset:${selectedSourceId}`);
+					selectedSourceId = undefined;
+				},
+				reset() { },
+				focus() { },
+				setSearchQuery(query: string) { calls.push(`search:${selectedSourceId ?? 'all'}:${query}`); },
+			},
+		});
+
+		editor.showDiscover('@type:canvas');
+
+		assert.deepStrictEqual(calls, [
+			'reset:mcpGallery',
+			'search:all:@type:canvas',
+		]);
 	});
 
 	test('showing Discover can preserve focus through reset', () => {
@@ -2009,7 +2063,9 @@ suite('aiCustomizationManagementEditor', () => {
 		sectionsList.setSelection([0]);
 		store.add(sectionsList.onDidChangeSelection(e => editor.onDidChangeSidebarSelection(e)));
 
-		const skillUri = URI.file('/plugins/example/skills/review/SKILL.md');
+		const pluginUri = URI.file('/plugins/example');
+		const skillUri = URI.joinPath(pluginUri, 'skills', 'review', 'SKILL.md');
+		const skillDirectoryUri = dirname(skillUri);
 		const skillsLoaded = new DeferredPromise<void>();
 		const openedSkills: URI[] = [];
 		Object.assign(editor, {
@@ -2023,7 +2079,7 @@ suite('aiCustomizationManagementEditor', () => {
 			listWidget: { setSection: () => skillsLoaded.p },
 			itemsModel: {
 				whenSectionLoaded: async () => { },
-				getItems: () => observableValue('items', [{ uri: skillUri }]),
+				getItems: () => observableValue('items', [{ uri: skillUri, pluginUri }]),
 			},
 			openCustomizationItem: async (item: { uri: URI }) => { openedSkills.push(item.uri); },
 		});
@@ -2031,10 +2087,13 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.viewMode = 'pluginDetail';
 		editor.pluginDetailInput = new class extends mock<Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Installed }>>() {
 			override readonly kind = AgentPluginItemKind.Installed;
+			override readonly plugin = new class extends mock<IAgentPlugin>() {
+				override readonly uri = pluginUri;
+			}();
 		};
 		editor.pluginDetailOrigin = { kind: 'section', section: AICustomizationManagementSection.Plugins };
 
-		const navigation = editor.openSkillFromPluginDetail(skillUri);
+		const navigation = editor.openSkillFromPluginDetail(skillDirectoryUri);
 		// A re-enabled plugin's skills finish loading, which re-splices the sidebar.
 		editor.updateSectionCount(AICustomizationManagementSection.Skills, 2);
 		skillsLoaded.complete();
@@ -2214,24 +2273,23 @@ suite('aiCustomizationManagementEditor', () => {
 			return { focused: focusedEditor ?? (active === backButton ? 'backButton' : active?.textContent), hiddenTooltips };
 		};
 
-		try {
-			assert.deepStrictEqual({
-				migrationDetail: focusFor('editor', primary),
-				hiddenMigrateWithRawEditor: focusFor('editor', action('Hidden', { hidden: true }), true),
-				disabledMigrateInPreview: focusFor('editor', action('Disabled', { enabled: false })),
-				mcpDetailWithoutPrimaryAction: focusFor('mcpDetail', undefined),
-				pluginDetailWithoutPrimaryAction: focusFor('pluginDetail', undefined),
-			}, {
-				migrationDetail: { focused: 'Migrate', hiddenTooltips: 0 },
-				hiddenMigrateWithRawEditor: { focused: 'embeddedEditor', hiddenTooltips: 0 },
-				disabledMigrateInPreview: { focused: 'backButton', hiddenTooltips: 1 },
-				mcpDetailWithoutPrimaryAction: { focused: 'definitionEditor', hiddenTooltips: 0 },
-				pluginDetailWithoutPrimaryAction: { focused: 'backButton', hiddenTooltips: 1 },
-			});
-		} finally {
+		store.add(toDisposable(() => {
 			container.remove();
 			editor.editorPreviewDisposables.dispose();
-		}
+		}));
+		assert.deepStrictEqual({
+			migrationDetail: focusFor('editor', primary),
+			hiddenMigrateWithRawEditor: focusFor('editor', action('Hidden', { hidden: true }), true),
+			disabledMigrateInPreview: focusFor('editor', action('Disabled', { enabled: false })),
+			mcpDetailWithoutPrimaryAction: focusFor('mcpDetail', undefined),
+			pluginDetailWithoutPrimaryAction: focusFor('pluginDetail', undefined),
+		}, {
+			migrationDetail: { focused: 'Migrate', hiddenTooltips: 0 },
+			hiddenMigrateWithRawEditor: { focused: 'embeddedEditor', hiddenTooltips: 0 },
+			disabledMigrateInPreview: { focused: 'backButton', hiddenTooltips: 1 },
+			mcpDetailWithoutPrimaryAction: { focused: 'definitionEditor', hiddenTooltips: 0 },
+			pluginDetailWithoutPrimaryAction: { focused: 'backButton', hiddenTooltips: 1 },
+		});
 	});
 
 	test('uses view-raw copy for true read-only extension content', () => {
@@ -2263,19 +2321,18 @@ suite('aiCustomizationManagementEditor', () => {
 		const container = editor.editorPreviewFrontMatterContainer!;
 		document.body.appendChild(container);
 
-		try {
-			editor.renderPreviewAttribute(createScalarAttribute('description', 'Helpful text'), PromptsType.agent, Target.VSCode);
-
-			const helpButton = container.querySelector('button.editor-preview-row-help') as HTMLButtonElement | null;
-			assert.ok(helpButton);
-
-			helpButton.click();
-
-			assert.strictEqual(focused, true);
-		} finally {
+		store.add(toDisposable(() => {
 			container.remove();
 			editor.editorPreviewDisposables.dispose();
-		}
+		}));
+		editor.renderPreviewAttribute(createScalarAttribute('description', 'Helpful text'), PromptsType.agent, Target.VSCode);
+
+		const helpButton = container.querySelector('button.editor-preview-row-help') as HTMLButtonElement | null;
+		assert.ok(helpButton);
+
+		helpButton.click();
+
+		assert.strictEqual(focused, true);
 	});
 
 	test('hides preview button when structured preview setting is disabled', () => {
@@ -4141,23 +4198,20 @@ suite('aiCustomizationManagementEditor', () => {
 			]],
 		]);
 
-		try {
-			const targetFolders = await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
+		store.add(toDisposable(() => editor.editorPreviewDisposables.dispose()));
+		const targetFolders = await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
 
-			assert.deepStrictEqual({
-				pickerInvocationCount,
-				pickerFolders: pickedFolders.map(folder => folder.uri.path),
-				agentTarget: targetFolders?.get(PromptsType.agent)?.get(PromptsStorage.user)?.uri.path,
-				instructionsTarget: targetFolders?.get(PromptsType.instructions)?.get(PromptsStorage.user)?.uri.path,
-			}, {
-				pickerInvocationCount: 1,
-				pickerFolders: ['/home/test/.copilot/agents', '/home/test/.claude/agents'],
-				agentTarget: '/home/test/.copilot/agents',
-				instructionsTarget: '/home/test/.copilot/instructions',
-			});
-		} finally {
-			editor.editorPreviewDisposables.dispose();
-		}
+		assert.deepStrictEqual({
+			pickerInvocationCount,
+			pickerFolders: pickedFolders.map(folder => folder.uri.path),
+			agentTarget: targetFolders?.get(PromptsType.agent)?.get(PromptsStorage.user)?.uri.path,
+			instructionsTarget: targetFolders?.get(PromptsType.instructions)?.get(PromptsStorage.user)?.uri.path,
+		}, {
+			pickerInvocationCount: 1,
+			pickerFolders: ['/home/test/.copilot/agents', '/home/test/.claude/agents'],
+			agentTarget: '/home/test/.copilot/agents',
+			instructionsTarget: '/home/test/.copilot/instructions',
+		});
 	});
 
 	test('automatic migration target does not constrain a later folder choice', async () => {
@@ -4194,21 +4248,18 @@ suite('aiCustomizationManagementEditor', () => {
 			]],
 		]);
 
-		try {
-			const targetFolders = await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
+		store.add(toDisposable(() => editor.editorPreviewDisposables.dispose()));
+		const targetFolders = await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
 
-			assert.deepStrictEqual({
-				pickerInvocationCount,
-				agentTarget: targetFolders?.get(PromptsType.agent)?.get(PromptsStorage.user)?.uri.path,
-				instructionsTarget: targetFolders?.get(PromptsType.instructions)?.get(PromptsStorage.user)?.uri.path,
-			}, {
-				pickerInvocationCount: 1,
-				agentTarget: '/home/test/.copilot/agents',
-				instructionsTarget: '/home/test/.claude/rules',
-			});
-		} finally {
-			editor.editorPreviewDisposables.dispose();
-		}
+		assert.deepStrictEqual({
+			pickerInvocationCount,
+			agentTarget: targetFolders?.get(PromptsType.agent)?.get(PromptsStorage.user)?.uri.path,
+			instructionsTarget: targetFolders?.get(PromptsType.instructions)?.get(PromptsStorage.user)?.uri.path,
+		}, {
+			pickerInvocationCount: 1,
+			agentTarget: '/home/test/.copilot/agents',
+			instructionsTarget: '/home/test/.claude/rules',
+		});
 	});
 
 	test('offers scenario-specific recovery for unavailable migration destinations', async () => {
@@ -4253,61 +4304,58 @@ suite('aiCustomizationManagementEditor', () => {
 			source: PromptFileSource.GitHubWorkspace,
 		};
 
-		try {
-			const untitledSession = URI.parse('agent-host-copilotcli:/untitled-2');
-			editor.harnessService.activeSessionResource.set(untitledSession, undefined);
-			await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), untitledSession);
-			await prompts[0].run();
+		store.add(toDisposable(() => editor.editorPreviewDisposables.dispose()));
+		const untitledSession = URI.parse('agent-host-copilotcli:/untitled-2');
+		editor.harnessService.activeSessionResource.set(untitledSession, undefined);
+		await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), untitledSession);
+		await prompts[0].run();
 
-			const activeSession = URI.parse('agent-host-copilotcli:/session');
-			editor.harnessService.activeSessionResource.set(activeSession, undefined);
-			await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), activeSession);
-			await prompts[1].run();
+		const activeSession = URI.parse('agent-host-copilotcli:/session');
+		editor.harnessService.activeSessionResource.set(activeSession, undefined);
+		await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), activeSession);
+		await prompts[1].run();
 
-			readiness = 'unavailable';
-			await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), activeSession);
-			await prompts[2].run();
+		readiness = 'unavailable';
+		await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), activeSession);
+		await prompts[2].run();
 
-			readiness = 'ready';
-			await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), activeSession);
+		readiness = 'ready';
+		await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), activeSession);
 
-			assert.deepStrictEqual({
-				prompts: prompts.map(prompt => ({
-					severity: prompt.severity,
-					message: prompt.message,
-					label: prompt.label,
-				})),
-				errors,
-				commands,
-				closeCount,
-				refreshCount,
+		assert.deepStrictEqual({
+			prompts: prompts.map(prompt => ({
+				severity: prompt.severity,
+				message: prompt.message,
+				label: prompt.label,
+			})),
+			errors,
+			commands,
+			closeCount,
+			refreshCount,
+		}, {
+			prompts: [{
+				severity: Severity.Error,
+				message: 'Copilot needs an active session before it can report a writable skills folder for this workspace. Start a new session, send a message, then try the migration again.',
+				label: 'Start new session',
 			}, {
-				prompts: [{
-					severity: Severity.Error,
-					message: 'Copilot needs an active session before it can report a writable skills folder for this workspace. Start a new session, send a message, then try the migration again.',
-					label: 'Start new session',
-				}, {
-					severity: Severity.Error,
-					message: 'Copilot is still loading writable skills folders for this workspace. Wait for the session to finish starting, then try again.',
-					label: 'Retry',
-				}, {
-					severity: Severity.Error,
-					message: 'Could not load writable skills folders from Copilot for this workspace. Check the active agent connection, then try again.',
-					label: 'Retry',
-				}],
-				errors: [
-					'Copilot does not provide a writable skills folder for this workspace. Select a different agent target or configure a supported destination before migrating.',
-				],
-				commands: [{
-					commandId: 'workbench.action.chat.openNewSessionSidebar.agent-host-copilotcli',
-					args: [],
-				}],
-				closeCount: 1,
-				refreshCount: 2,
-			});
-		} finally {
-			editor.editorPreviewDisposables.dispose();
-		}
+				severity: Severity.Error,
+				message: 'Copilot is still loading writable skills folders for this workspace. Wait for the session to finish starting, then try again.',
+				label: 'Retry',
+			}, {
+				severity: Severity.Error,
+				message: 'Could not load writable skills folders from Copilot for this workspace. Check the active agent connection, then try again.',
+				label: 'Retry',
+			}],
+			errors: [
+				'Copilot does not provide a writable skills folder for this workspace. Select a different agent target or configure a supported destination before migrating.',
+			],
+			commands: [{
+				commandId: 'workbench.action.chat.openNewSessionSidebar.agent-host-copilotcli',
+				args: [],
+			}],
+			closeCount: 1,
+			refreshCount: 2,
+		});
 	});
 
 	test('migrates workspace customizations into their own workspace folder', async () => {
@@ -4329,22 +4377,19 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 		const customFolder: ICustomizationSourceFolder = { uri: URI.file('/custom/skills'), label: '/custom/skills', source: PromptsStorage.local };
 
-		try {
-			assert.deepStrictEqual({
-				firstWorkspaceFolder: editor.getEffectiveCustomizationMigrationTargetFolder(promptIn('/workspace-a'), targetFolders)?.uri.path,
-				otherWorkspaceFolder: editor.getEffectiveCustomizationMigrationTargetFolder(promptIn('/workspace-b'), targetFolders)?.uri.path,
-				customFolder: editor.getEffectiveCustomizationMigrationTargetFolder(
-					promptIn('/workspace-b'),
-					new Map([[PromptsType.skill, new Map([[PromptsStorage.local, customFolder]])]]),
-				)?.uri.path,
-			}, {
-				firstWorkspaceFolder: '/workspace-a/.github/skills',
-				otherWorkspaceFolder: '/workspace-b/.github/skills',
-				customFolder: '/custom/skills',
-			});
-		} finally {
-			editor.editorPreviewDisposables.dispose();
-		}
+		store.add(toDisposable(() => editor.editorPreviewDisposables.dispose()));
+		assert.deepStrictEqual({
+			firstWorkspaceFolder: editor.getEffectiveCustomizationMigrationTargetFolder(promptIn('/workspace-a'), targetFolders)?.uri.path,
+			otherWorkspaceFolder: editor.getEffectiveCustomizationMigrationTargetFolder(promptIn('/workspace-b'), targetFolders)?.uri.path,
+			customFolder: editor.getEffectiveCustomizationMigrationTargetFolder(
+				promptIn('/workspace-b'),
+				new Map([[PromptsType.skill, new Map([[PromptsStorage.local, customFolder]])]]),
+			)?.uri.path,
+		}, {
+			firstWorkspaceFolder: '/workspace-a/.github/skills',
+			otherWorkspaceFolder: '/workspace-b/.github/skills',
+			customFolder: '/custom/skills',
+		});
 	});
 
 	test('does not infer migration destination groups from folder parents', async () => {
@@ -4382,12 +4427,9 @@ suite('aiCustomizationManagementEditor', () => {
 			]],
 		]);
 
-		try {
-			await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
+		store.add(toDisposable(() => editor.editorPreviewDisposables.dispose()));
+		await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
 
-			assert.strictEqual(pickerInvocationCount, 2);
-		} finally {
-			editor.editorPreviewDisposables.dispose();
-		}
+		assert.strictEqual(pickerInvocationCount, 2);
 	});
 });

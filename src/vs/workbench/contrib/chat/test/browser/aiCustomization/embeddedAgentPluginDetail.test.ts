@@ -12,19 +12,20 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRequestContext } from '../../../../../../base/parts/request/common/request.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
-import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { AgentPluginItemKind, IAgentPluginItem, IMarketplacePluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
-import { getPluginRepository, getPluginSourceUri, getPluginVersion, loadMarketplacePluginContributionEntries, loadPluginReadme, PluginReadmeRenderGuard, waitForInstalledPlugin } from '../../../browser/aiCustomization/embeddedAgentPluginDetail.js';
+import { getPluginRepository, getPluginSourceUri, getPluginVersion, loadMarketplacePluginContributionEntries, loadPluginReadme, PluginReadmeRenderGuard, resolveInstalledPluginSkillLink, waitForInstalledPlugin } from '../../../browser/aiCustomization/embeddedAgentPluginDetail.js';
 import { IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { parseMarketplaceReference } from '../../../common/plugins/marketplaceReference.js';
 import { IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
-import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { dirname } from '../../../../../../base/common/resources.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { createCustomizationMarketplaceInstallationSnapshot, emptyCustomizationMarketplaceInstallationSnapshot } from '../../../common/customizationMarketplaceInstallService.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { ContributionEnablementState } from '../../../common/enablement.js';
 
 class StatusRequestService extends mock<IRequestService>() {
 	override readonly onDidCompleteRequest = Event.None;
@@ -188,8 +189,7 @@ suite('embeddedAgentPluginDetail', () => {
 
 	test('loads contribution details from a marketplace plugin source', async () => {
 		const pluginUri = URI.from({ scheme: Schemas.inMemory, path: '/plugins/example' });
-		const testFileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(testFileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const testFileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		const writeFile = (path: string, content: string) => testFileService.writeFile(
 			URI.from({ scheme: Schemas.inMemory, path }),
 			VSBuffer.fromString(content),
@@ -241,6 +241,49 @@ suite('embeddedAgentPluginDetail', () => {
 			content: '[Guide](./docs/guide.md)',
 			baseUri: 'https://github.com/owner/repo/blob/main/plugins/example/README.md',
 			requests: ['https://raw.githubusercontent.com/owner/repo/main/plugins/example/README.md'],
+		});
+	});
+
+	test('resolves enabled installed plugin README skill links to the skill file', () => {
+		const pluginUri = URI.file('/plugins/example');
+		const skillUri = URI.joinPath(pluginUri, 'skills', 'review', 'SKILL.md');
+		const enablement = observableValue('enablement', ContributionEnablementState.EnabledProfile);
+		const policyEnablement = observableValue<boolean | undefined>('policyEnablement', undefined);
+		const item = {
+			kind: AgentPluginItemKind.Installed,
+			name: 'example',
+			description: 'Example plugin',
+			plugin: new class extends mock<IAgentPlugin>() {
+				override readonly enablement = enablement;
+				override readonly policyEnablement = policyEnablement;
+				override readonly skills = observableValue('skills', [{ name: 'review', uri: skillUri }]);
+			}(),
+		} satisfies IAgentPluginItem;
+
+		const directory = resolveInstalledPluginSkillLink(item, dirname(skillUri).toString())?.toString();
+		const file = resolveInstalledPluginSkillLink(item, skillUri.toString())?.toString();
+		const unrelated = resolveInstalledPluginSkillLink(item, URI.joinPath(pluginUri, 'docs', 'guide.md').toString())?.toString();
+		const marketplace = resolveInstalledPluginSkillLink(createMarketplaceItem(URI.parse('https://example.test/README.md')), skillUri.toString())?.toString();
+		enablement.set(ContributionEnablementState.DisabledProfile, undefined);
+		const disabled = resolveInstalledPluginSkillLink(item, skillUri.toString())?.toString();
+		enablement.set(ContributionEnablementState.EnabledProfile, undefined);
+		policyEnablement.set(false, undefined);
+		const policyBlocked = resolveInstalledPluginSkillLink(item, skillUri.toString())?.toString();
+
+		assert.deepStrictEqual({
+			directory,
+			file,
+			unrelated,
+			marketplace,
+			disabled,
+			policyBlocked,
+		}, {
+			directory: skillUri.toString(),
+			file: skillUri.toString(),
+			unrelated: undefined,
+			marketplace: undefined,
+			disabled: undefined,
+			policyBlocked: undefined,
 		});
 	});
 

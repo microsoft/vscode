@@ -8,6 +8,7 @@ import assert from 'assert';
 import { ITokenColorCustomizations } from '../../common/workbenchThemeService.js';
 import { TokenStyle, getTokenClassificationRegistry } from '../../../../../platform/theme/common/tokenClassificationRegistry.js';
 import { Color } from '../../../../../base/common/color.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isString } from '../../../../../base/common/types.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -99,7 +100,7 @@ suite('Themes - TokenStyleResolving', () => {
 		diskFileSystemProvider.dispose();
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('color defaults', async () => {
 		const themeData = ColorThemeData.createUnloadedTheme('foo');
@@ -271,33 +272,32 @@ suite('Themes - TokenStyleResolving', () => {
 		registry.registerTokenType('myTestInterface', 'A type just for testing', 'interface');
 		registry.registerTokenType('myTestSubInterface', 'A type just for testing', 'myTestInterface');
 
-		try {
-			const themeData = ColorThemeData.createLoadedEmptyTheme('test', 'test');
-			themeData.setCustomColors({ 'editor.foreground': '#000000' });
-			themeData.setCustomSemanticTokenColors({
-				enabled: true,
-				rules: {
-					'interface': '#ff0000',
-					'myTestInterface': { italic: true },
-					'interface.static': { bold: true }
-				}
-			});
-
-			assertTokenStyles(themeData, { 'myTestSubInterface': ts('#ff0000', { italic: true }) });
-			assertTokenStyles(themeData, { 'myTestSubInterface.static': ts('#ff0000', { italic: true, bold: true }) });
-
-			themeData.setCustomSemanticTokenColors({
-				enabled: true,
-				rules: {
-					'interface': '#ff0000',
-					'myTestInterface': { foreground: '#ff00ff', italic: true }
-				}
-			});
-			assertTokenStyles(themeData, { 'myTestSubInterface': ts('#ff00ff', { italic: true }) });
-		} finally {
+		store.add(toDisposable(() => {
 			registry.deregisterTokenType('myTestInterface');
 			registry.deregisterTokenType('myTestSubInterface');
-		}
+		}));
+		const themeData = ColorThemeData.createLoadedEmptyTheme('test', 'test');
+		themeData.setCustomColors({ 'editor.foreground': '#000000' });
+		themeData.setCustomSemanticTokenColors({
+			enabled: true,
+			rules: {
+				'interface': '#ff0000',
+				'myTestInterface': { italic: true },
+				'interface.static': { bold: true }
+			}
+		});
+
+		assertTokenStyles(themeData, { 'myTestSubInterface': ts('#ff0000', { italic: true }) });
+		assertTokenStyles(themeData, { 'myTestSubInterface.static': ts('#ff0000', { italic: true, bold: true }) });
+
+		themeData.setCustomSemanticTokenColors({
+			enabled: true,
+			rules: {
+				'interface': '#ff0000',
+				'myTestInterface': { foreground: '#ff00ff', italic: true }
+			}
+		});
+		assertTokenStyles(themeData, { 'myTestSubInterface': ts('#ff00ff', { italic: true }) });
 	});
 
 	test('language', async () => {

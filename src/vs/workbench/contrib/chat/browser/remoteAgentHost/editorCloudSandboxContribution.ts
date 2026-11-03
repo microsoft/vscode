@@ -45,7 +45,7 @@ import { ISCMService } from '../../../scm/common/scm.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { isImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatProgress, IChatService } from '../../common/chatService/chatService.js';
-import { IChatSession, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, ReadonlyChatSessionOptionsMap, SessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionRefreshReason, IChatSession, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, ReadonlyChatSessionOptionsMap, SessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { IChatRequestModel } from '../../common/model/chatModel.js';
 import { isUntitledChatSession } from '../../common/model/chatUri.js';
@@ -379,7 +379,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			this._editorChatSessionsService.setOptionGroupsForSessionType(CLOUD_SANDBOX_SESSION_TYPE, 0, this._draftOptionGroups.get());
 			store.add(toDisposable(() => this._editorChatSessionsService.setOptionGroupsForSessionType(CLOUD_SANDBOX_SESSION_TYPE, 0, undefined)));
 		} else {
-			void this._discoverAndSeed();
+			void this._discoverAndSeed({ trigger: 'startup' });
 		}
 	}
 
@@ -454,9 +454,13 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		return provider;
 	}
 
-	async refresh(token: CancellationToken): Promise<void> {
+	async refresh(token: CancellationToken, reason: ChatSessionRefreshReason = 'manual'): Promise<void> {
 		if (!token.isCancellationRequested) {
-			await this._discoverAndSeed();
+			if (reason === 'automatic') {
+				await this._refreshIfStale('automatic');
+			} else {
+				await this._discoverAndSeed({ trigger: reason === 'initial' ? 'startup' : 'manual' });
+			}
 		}
 	}
 

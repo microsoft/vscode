@@ -271,30 +271,22 @@ suite('MainThreadTerminalService', () => {
 
 	test('a process exit removes the extension identifier', async () => {
 		await service.$createTerminal('exited-terminal', { name: 'Exited', hideFromUser: true, isExtensionCustomPtyTerminal: true });
-		const terminal = terminals.instances[0];
-		try {
-			await terminal.processReady;
-			const disposed = Event.toPromise(terminal.onDisposed);
-			service.$sendProcessExit(terminal.instanceId, 0);
-			await disposed;
-			await service.$show('exited-terminal', false);
-			assert.strictEqual(terminals.instances.length, 0);
-		} finally {
-			terminal.dispose();
-		}
+		const terminal = store.add(terminals.instances[0]);
+		await terminal.processReady;
+		const disposed = Event.toPromise(terminal.onDisposed);
+		service.$sendProcessExit(terminal.instanceId, 0);
+		await disposed;
+		await service.$show('exited-terminal', false);
+		assert.strictEqual(terminals.instances.length, 0);
 	});
 
 	test('a terminal removed from its group still releases its extension identifier', async () => {
 		await service.$createTerminal('detached-terminal', { name: 'Detached', shellPath: '/test-shell' });
-		const terminal = terminals.instances[0];
-		try {
-			groups.getGroupForInstance(terminal)!.removeInstance(terminal);
-			terminal.dispose();
-			await service.$show('detached-terminal', false);
-			assert.strictEqual(terminals.instances.length, 0);
-		} finally {
-			terminal.dispose();
-		}
+		const terminal = store.add(terminals.instances[0]);
+		groups.getGroupForInstance(terminal)!.removeInstance(terminal);
+		terminal.dispose();
+		await service.$show('detached-terminal', false);
+		assert.strictEqual(terminals.instances.length, 0);
 	});
 
 	test('a terminal closed during creation releases its extension identifier', async () => {
