@@ -237,7 +237,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			?? (owner !== undefined ? this._stateManager.getSessionSummary(owner)?.workingDirectories : undefined);
 		const movesElsewhere = !!workspaceFolder && !!directories?.length && !isEqual(workspaceFolder, URI.parse(directories[0]));
 		return this._canChangeChatWorkspace(chat) && !!state && this._worktreeIsolation.supported
-			&& !this._isChatWorkspaceless(owner!, chat)
+			&& (movesElsewhere || !this._isChatWorkspaceless(owner!, chat))
 			&& (!!workspaceFolder || directories?.length === 1)
 			&& !(!movesElsewhere && state.config?.values[SessionConfigKey.Isolation] === 'worktree'
 				&& directories?.[0] === this._stateManager.getSessionSummary(owner!)?.workingDirectories?.[0])
@@ -345,8 +345,8 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		initiatingClientId = this._resolveInitiatingClientId(chat, initiatingClientId);
 		const session = this._chatOwnership.getChatOwner(chat.toString());
 		const state = session !== undefined ? this._stateManager.getSessionState(session) : undefined;
-		// A workspace-less session converts as a whole only while all its chats share the session's folder; a chat with its own folder, or any chat next to one, changes alone.
-		const chatOnly = !!state && !(readSessionWorkspaceless(state._meta) && this._isChatWorkspaceless(session!, chat) && !hasChatWithOwnFolder(state.chats, state.workingDirectories?.[0]));
+		// A workspace-less session converts as a whole only when its default chat, working in the session's folder rather than folders of its own, asks while all its chats share that folder; any other chat, or any chat next to one with its own folder, changes alone.
+		const chatOnly = !!state && !(readSessionWorkspaceless(state._meta) && this._chatOwnership.isDefaultChat(session!, chat.toString()) && state.chats.find(candidate => candidate.resource === chat.toString())?.workingDirectories === undefined && this._isChatWorkspaceless(session!, chat) && !hasChatWithOwnFolder(state.chats, state.workingDirectories?.[0]));
 		if (chatOnly) {
 			if (!this._canChangeChatWorkspace(chat)) {
 				throw new Error(localize('agentHost.chatWorkspaceUnavailable', "This chat's workspace cannot be changed."));
@@ -505,7 +505,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 				|| ((summary.status ?? 0) & SessionStatus.IsArchived) !== 0
 				|| summary.origin?.kind === ChatOriginKind.Tool
 				|| (summary.interactivity !== undefined && summary.interactivity !== ChatInteractivity.Full)
-				|| (pending.isolation && readSessionWorkspaceless(state._meta)) || readSessionExternal(state._meta)
+				|| readSessionExternal(state._meta)
 				|| (pending.isolation && !this._worktreeIsolation.supported) || !provider?.agentHostCapabilities.workspaceConversion || !provider.setChatWorkingDirectory
 				|| this._providerService.getProviderForChat(session, chat) !== provider
 				|| this._pending.get(chat.toString()) !== pending || this._quarantinedChats.has(chat.toString())
@@ -616,7 +616,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 					[CHAT_ISOLATION_QUARANTINED_KEY]: 'false',
 					...(configValues ? { configValues: JSON.stringify(configValues) } : {}),
 					...workspaceMetadata,
-					...(!pending.isolation && pending.replaceSessionWorkspace ? { [AH_META_WORKSPACELESS_DB_KEY]: 'false' } : {}),
+					...(pending.replaceSessionWorkspace ? { [AH_META_WORKSPACELESS_DB_KEY]: 'false' } : {}),
 				};
 				await this._persistConversionMetadata(session, database.object, metadata, pending.transition && { turnId: continuation.turnId, transition: pending.transition });
 				if (pending.transition) {
@@ -633,9 +633,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 					this._stateManager.setSessionProject(session.toString(), { uri: workspace.project.uri.toString(), displayName: workspace.project.displayName });
 				}
 				this._updateIsolationConfig(session, this._stateManager.getSessionState(session.toString())?.config, configValues!, workspace.isolationConfig, pending.isolation);
-				if (!pending.isolation) {
-					this._stateManager.setSessionMeta(session.toString(), withSessionWorkspaceless(this._stateManager.getSessionState(session.toString())?._meta, false));
-				}
+				this._stateManager.setSessionMeta(session.toString(), withSessionWorkspaceless(this._stateManager.getSessionState(session.toString())?._meta, false));
 			}
 			if (pending.isolation) {
 				this._trackChat(chat.toString());

@@ -12107,6 +12107,59 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		test('decides the default chat from the host, not from where the chat stores', async () => {
+			const root = await fs.mkdtemp(`${os.tmpdir()}/agent-set-cwd-promoted-`);
+			const previous = URI.file(join(root, 'previous'));
+			const next = URI.file(join(root, 'next'));
+			await Promise.all([fs.mkdir(previous.fsPath), fs.mkdir(next.fsPath)]);
+			const session = AgentSession.uri('copilotcli', 'test-session-1');
+			// A chat moved out into a session of its own: that session's default chat, still storing under its own URI.
+			const promotedChat = URI.parse(buildChatUri(session, 'promoted'));
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { sessionDataService });
+			(agent as unknown as { _getOrCreateActiveClient(session: URI, directory: URI): unknown })._getOrCreateActiveClient(session, previous);
+			const sdkCalls: string[] = [];
+			afterTest(async () => {
+				await fs.rm(root, { recursive: true, force: true });
+				await disposeAgent(agent);
+			});
+			setPeerChatStub(agent, promotedChat, {
+				workingDirectory: previous,
+				appliedAdditionalDirectories: [],
+				setWorkingDirectory: async (directory: URI) => { sdkCalls.push(directory.toString()); },
+			}, 'promoted-sdk-session');
+			const failures: string[] = [];
+			for (const isDefaultChat of [false, true]) {
+				try {
+					await agent.setWorkingDirectory(promotedChat, { ...exactChatContext(session, promotedChat, promotedChat), owner: { ...fixedChatOwnerRef(session), isDefaultChat: () => isDefaultChat } }, next);
+				} catch (error) {
+					failures.push(error instanceof Error ? error.message : String(error));
+				}
+			}
+
+			assert.deepStrictEqual({ failures, sdkCalls }, {
+				failures: [`Cannot change the working directory for peer chat '${promotedChat.toString()}': live working-directory changes are only supported for the owning default chat`],
+				sdkCalls: [next.toString()],
+			});
+		});
+
+		test('session-level operations reach the default chat the host records, not the chat stored in the session', async () => {
+			const session = AgentSession.uri('copilotcli', 'test-session-1');
+			const agent = createTestAgent(disposables);
+			afterTest(() => disposeAgent(agent));
+			const plans: string[] = [];
+			for (const [name, isDefaultChat] of [['promoted', true], ['peer', false]] as const) {
+				setPeerChatStub(agent, URI.parse(buildChatUri(session, name)), {
+					ownerRef: { ...fixedChatOwnerRef(session), isDefaultChat: () => isDefaultChat },
+					getSessionPlan: async () => { plans.push(name); return undefined; },
+				}, `${name}-sdk-session`);
+			}
+
+			await agent.getSessionPlan(session);
+
+			assert.deepStrictEqual(plans, ['promoted']);
+		});
+
 		test('rejects a default chat while another live chat shares its configuration', async () => {
 			const root = await fs.mkdtemp(`${os.tmpdir()}/agent-set-cwd-sibling-`);
 			const previous = URI.file(join(root, 'previous'));
@@ -15527,7 +15580,7 @@ suite('CopilotAgent', () => {
 					await timeout(0);
 					await agent.refreshModels();
 				} else if (invalidation === 'resumed chat') {
-					setLiveChatStub(agent, 'resumed-sdk-backing', { resourceUri: session });
+					setLiveChatStub(agent, 'resumed-sdk-backing', { resourceUri: session, ownerSessionUri: session, ownerRef: fixedChatOwnerRef(session) });
 					configurationService.updateSessionConfig(session.toString(), { availableApprovalModes: ['default'] });
 				} else {
 					stateManager.removeSession(session.toString());
@@ -23949,7 +24002,7 @@ suite('CopilotAgent', () => {
 			afterTest(() => disposeAgent(agent));
 			const session = AgentSession.uri('copilotcli', 'ah-session-id');
 			// Model a fork/import whose live SDK id differs from its AH session id.
-			setLiveChatStub(agent, 'sdk-conversation-id', { sessionId: 'sdk-conversation-id', resourceUri: session });
+			setLiveChatStub(agent, 'sdk-conversation-id', { sessionId: 'sdk-conversation-id', resourceUri: session, ownerSessionUri: session, ownerRef: fixedChatOwnerRef(session) });
 			const now = new Date().toISOString();
 			stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, defaultChat: buildDefaultChatUri(session.toString()) });
 			stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });
