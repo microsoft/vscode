@@ -18,6 +18,21 @@ suite('Mime', () => {
 		assert.strictEqual(normalizeMimeType('Text/plain;lower'), 'text/plain;lower');
 	});
 
+	test('normalize preserves case in parameters containing slashes', () => {
+		for (const strict of [false, true]) {
+			const normalize = (value: string) => strict ? normalizeMimeType(value, true) : normalizeMimeType(value);
+			assert.deepStrictEqual([
+				normalize('Multipart/FORM-DATA; boundary="AbC/DeF"'),
+				normalize('Application/SOAP+XML; action="https://Example.com/Action"'),
+				normalize('Text/PLAIN; charset=UTF-8; name="Dir/File.TXT"'),
+			], [
+				'multipart/form-data; boundary="AbC/DeF"',
+				'application/soap+xml; action="https://Example.com/Action"',
+				'text/plain; charset=UTF-8; name="Dir/File.TXT"',
+			]);
+		}
+	});
+
 	test('getExtensionForMimeType', () => {
 		// Note: for MIME types with multiple extensions (e.g., image/jpg -> .jpe, .jpeg, .jpg),
 		// the function returns the first matching extension in iteration order
