@@ -2048,6 +2048,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 							this.clearSelectedItem('done');
 						}
 						this.applyDeferredUpdates(true);
+						await this.markSessionRead(item);
 					}
 				} else if (action.kind === InboxNotificationActionKind.Dismiss) {
 					this.inboxNotificationsService.dismissNotification(item.id, item);
@@ -2594,11 +2595,6 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	}
 
 	private selectItem(id: string, trigger: 'cardClick' | 'cardKeyboard', focusDetailPane = false): void {
-		const item = this.getItemById(id);
-		if (!item) {
-			return;
-		}
-		void this.markSessionRead(item).catch(onUnexpectedError);
 		if (this.selectedItemId.get() === id) {
 			if (focusDetailPane) {
 				this.renderDetailIfChanged();
@@ -2615,6 +2611,11 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		this.updateSplit(true);
 		for (const card of this.renderedCards) {
 			card.classList.toggle('selected', card.dataset.notificationId === id);
+		}
+
+		const item = this.getItemById(id);
+		if (!item) {
+			return;
 		}
 
 		this.selectionTelemetryState = {

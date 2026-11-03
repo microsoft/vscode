@@ -269,7 +269,7 @@ suite('InboxNotificationsView', () => {
 	}
 
 	for (const interaction of ['click', 'keyboard'] as const) {
-		test(`${interaction} opens evidence and marks the session read without completing it; passive exposure does not`, async () => {
+		test(`${interaction} opens evidence without marking the session read or completing it`, async () => {
 			const chat = upcastPartial<IChat>({ resource: URI.parse('test:///chat') });
 			const session = upcastPartial<ISession>({
 				sessionId: 'session', resource: URI.parse('test:///session'), mainChat: constObservable(chat), chats: constObservable([chat]),
@@ -304,7 +304,7 @@ suite('InboxNotificationsView', () => {
 				passiveReads, read: read.args, done: done.callCount, dismissed: dismiss.callCount,
 				selected: container.querySelector('.inbox-notifications-item.selected')?.getAttribute('data-notification-id'),
 				stillPresent: !!container.querySelector('[data-notification-id="item"]'),
-			}, { passiveReads: 0, read: [[session, true]], done: 0, dismissed: 0, selected: 'item', stillPresent: true });
+			}, { passiveReads: 0, read: [], done: 0, dismissed: 0, selected: 'item', stillPresent: true });
 		});
 	}
 
@@ -1093,7 +1093,7 @@ suite('InboxNotificationsView', () => {
 			assert.deepStrictEqual({
 				read: markRead.args, dismiss: dismiss.args, opened: openSession.callCount, archived: archiveSession.callCount,
 				inputStillOpen: chatViews[0].input.isConnected,
-			}, { read: sessions.slice(0, selectsAnotherItem ? 2 : 1).map(session => [session, true]), dismiss: [['item0', items[0]]], opened: 0, archived: 0, inputStillOpen: true });
+			}, { read: [], dismiss: [['item0', items[0]]], opened: 0, archived: 0, inputStillOpen: true });
 			view.dispose();
 			assert.deepStrictEqual(dismiss.args, [['item0', items[0]]]);
 		});
@@ -1404,7 +1404,7 @@ suite('InboxNotificationsView', () => {
 			await timeout(0);
 			assert.deepStrictEqual({ accepted, dismissed: dismiss.callCount, read: read.callCount, errors: error.args }, {
 				accepted: 0, dismissed: outcome === 'success' || outcome === 'queued' ? 1 : 0,
-				read: 1,
+				read: 0,
 				errors: outcome === 'failure' ? [['Backend rejected the reply']] : outcome === 'rejected' ? [['Queued request rejected']] : [],
 			});
 		});
@@ -1435,7 +1435,6 @@ suite('InboxNotificationsView', () => {
 		const next = { ...previous, id: 'next', timestamp: 2 };
 		rows.set([{ ...row, occurrence: 'second', notifications: [next] }, other], undefined);
 		container.querySelector<HTMLElement>('[data-notification-id="other"]')!.click();
-		read.resetHistory();
 		await completion.complete({ canceled: false });
 		await timeout(0);
 		assert.deepStrictEqual({
@@ -1632,6 +1631,23 @@ suite('InboxNotificationsView', () => {
 		});
 	}
 
+	test('Done marks a needs-input session read without requiring evidence to be opened', async () => {
+		const session = upcastPartial<ISession>({ resource: URI.parse('test:///session') });
+		const item: IInboxNotificationItem = {
+			id: 'item', kind: InboxNotificationKind.NeedsInput, priority: InboxNotificationPriority.Now,
+			title: 'Question', description: 'Answer needed', timestamp: 1, actions: [], sessionResource: session.resource,
+		};
+		const { view, container, instantiationService } = createView(constObservable([item]));
+		const read = stub().resolves();
+		const done = spy();
+		instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
+		instantiationService.stub(ISessionsManagementService, 'setSessionReadState', read);
+		instantiationService.stub(IInboxNotificationsService, 'markSessionDone', done);
+		view.render(container);
+		await accessView(view).runAction(item, { id: 'done', label: 'Done', kind: InboxNotificationActionKind.MarkDone });
+		assert.deepStrictEqual({ read: read.args, done: done.callCount }, { read: [[session, true]], done: 1 });
+	});
+
 	test('Done clears the selected interpretation even when the notification moves to Completed', async () => {
 		const item: IInboxNotificationItem = {
 			id: 'item', kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
@@ -1697,7 +1713,7 @@ suite('InboxNotificationsView', () => {
 				dismissed: dismiss.args, read: markRead.args, replyDisposed: chatViews[0].disposed,
 				selected: !!container.querySelector('.inbox-notifications-item.selected'), done: done.callCount,
 			}, {
-				dismissed: dismisses ? [[item.id, item]] : [], read: Array.from({ length: dismisses && kind !== InboxNotificationActionKind.Dismiss ? 2 : 1 }, () => [session, true]), replyDisposed: false, selected: kind !== InboxNotificationActionKind.MarkDone,
+				dismissed: dismisses ? [[item.id, item]] : [], read: kind !== InboxNotificationActionKind.OpenSession && kind !== InboxNotificationActionKind.Dismiss ? [[session, true]] : [], replyDisposed: false, selected: kind !== InboxNotificationActionKind.MarkDone,
 				done: kind === InboxNotificationActionKind.MarkDone ? 1 : 0
 			});
 		});
