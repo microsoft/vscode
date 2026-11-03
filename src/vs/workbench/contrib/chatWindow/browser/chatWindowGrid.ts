@@ -511,7 +511,7 @@ export class ChatWindowGrid extends Disposable {
 	 */
 	private _withCreatedParts(rootCells: readonly ISerializedNode[], orientation: Orientation, width: number, height: number): ISerializedNode[] {
 		if (!this._created.size) {
-			return rootCells;
+			return [...rootCells];
 		}
 		const [first, content] = rootCells;
 		const titleRowFirst = first?.type === 'leaf' && (first.data as { id: string }).id === ChatWindowGridCell.TitleRow;
