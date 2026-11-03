@@ -558,6 +558,15 @@ suite('ExtHostTypes', function () {
 		string = new types.SnippetString();
 		string.appendVariable('BAR', b => { });
 		assert.strictEqual(string.value, '${BAR}');
+		string = new types.SnippetString();
+		string.appendVariable('VAR', '\\');
+		assert.strictEqual(string.value, '${VAR:\\\\}');
+		string = new types.SnippetString();
+		string.appendVariable('VAR', 'C:\\temp');
+		assert.strictEqual(string.value, '${VAR:C:\\\\temp}');
+		string = new types.SnippetString();
+		string.appendVariable('VAR', 'a$}b');
+		assert.strictEqual(string.value, '${VAR:a\\$\\}b}');
 
 		string = new types.SnippetString();
 		string.appendChoice(['b', 'a', 'r']);
