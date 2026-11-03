@@ -10,6 +10,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError, errorHandler, setUnexpectedErrorHandler } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -27,7 +28,7 @@ import { createTextModel } from '../../../../editor/test/common/testTextModel.js
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { CustomEditorDiffInput } from '../../../contrib/customEditor/browser/customEditorDiffInput.js';
 import { CustomEditorInput } from '../../../contrib/customEditor/browser/customEditorInput.js';
-import { ICustomEditorService } from '../../../contrib/customEditor/common/customEditor.js';
+import { CustomEditorCapabilities, ICustomEditorService } from '../../../contrib/customEditor/common/customEditor.js';
 import { CustomEditorModelManager } from '../../../contrib/customEditor/common/customEditorModelManager.js';
 import { IOverlayWebview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from '../../../contrib/webview/browser/webview.js';
 import { WebviewInput } from '../../../contrib/webviewPanel/browser/webviewEditorInput.js';
@@ -85,6 +86,7 @@ suite('MainThreadCustomEditors', () => {
 		resolveCustomEditor?: () => Promise<void>;
 		capabilities?: CustomEditorProviderCapabilities;
 		textEditor?: boolean;
+		pickFileToSave?: IFileDialogService['pickFileToSave'];
 		resolveNavigation?: (handle: string, token: CancellationToken) => Promise<{ selection: undefined } | undefined>;
 	}) {
 		const calls: string[] = [];
@@ -155,17 +157,18 @@ suite('MainThreadCustomEditors', () => {
 			}
 		};
 
+		let registeredCapabilities: CustomEditorCapabilities | undefined;
 		const models = new CustomEditorModelManager();
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ICustomEditorService, new class extends mock<ICustomEditorService>() {
 			override readonly models = models;
-			override registerCustomEditorCapabilities() { return Disposable.None; }
-			override getCustomEditorCapabilities() { return undefined; }
+			override registerCustomEditorCapabilities(_viewType: string, capabilities: CustomEditorCapabilities) { registeredCapabilities = capabilities; return Disposable.None; }
+			override getCustomEditorCapabilities() { return registeredCapabilities; }
 		});
 		instantiationService.stub(IWebviewWorkbenchService, webviewWorkbenchService);
 		instantiationService.stub(IExtensionService, { activateByEvent: async () => { }, onWillStop: Event.None });
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
-		instantiationService.stub(IWorkingCopyService, { workingCopies: [] });
+		instantiationService.stub(IWorkingCopyService, { workingCopies: [], registerWorkingCopy: () => Disposable.None });
 		instantiationService.stub(IWorkingCopyFileService, { registerWorkingCopyProvider: () => Disposable.None, onWillRunWorkingCopyFileOperation: Event.None });
 		instantiationService.stub(IEditorGroupsService, { getGroup: () => undefined, getGroups: () => [] });
 		instantiationService.stub(IEditorService, { activeEditor: undefined });
@@ -176,10 +179,10 @@ suite('MainThreadCustomEditors', () => {
 		instantiationService.stub(IThemeService, new TestThemeService());
 		instantiationService.stub(IFilesConfigurationService, { onDidChangeReadonly: Event.None, isReadonly: () => false });
 		instantiationService.stub(ICustomEditorLabelService, { onDidChange: Event.None, getName: () => undefined });
-		instantiationService.stub(IFileDialogService, {});
-		instantiationService.stub(IUndoRedoService, {});
+		instantiationService.stub(IFileDialogService, { pickFileToSave: extHost.pickFileToSave });
+		instantiationService.stub(IUndoRedoService, { removeElements: () => { } });
 		instantiationService.stub(IWorkbenchEnvironmentService, {});
-		instantiationService.stub(IPathService, {});
+		instantiationService.stub(IPathService, { defaultUriScheme: Schemas.file });
 		instantiationService.stub(IWorkbenchLayoutService, {});
 		let outlineChanges = 0;
 		instantiationService.stub(IOutlineService, { notifyOutlineChanged: () => { outlineChanges++; } });
@@ -228,9 +231,9 @@ suite('MainThreadCustomEditors', () => {
 			};
 		}
 
-		function createInput() {
+		function createInput(inputResource = resource) {
 			const webview = createWebview();
-			const input = store.add(instantiationService.createInstance(CustomEditorInput, { resource, viewType, webviewTitle: undefined, preferredName: 'file.custom', iconPath: undefined }, webview, {}));
+			const input = store.add(instantiationService.createInstance(CustomEditorInput, { resource: inputResource, viewType, webviewTitle: undefined, preferredName: 'file.custom', iconPath: undefined }, webview, {}));
 			return { input, webview };
 		}
 
@@ -241,6 +244,37 @@ suite('MainThreadCustomEditors', () => {
 
 		return { calls, models, resolvers, createInput, createDiffInput, customEditors, outlineChanges: () => outlineChanges };
 	}
+
+	test('Save As and first save of an untitled document use provider filters and preserve cancellation', async () => {
+		const requests: Parameters<IFileDialogService['pickFileToSave']>[] = [];
+		const filters = [{ name: 'Image', extensions: ['png', 'jpg'] }];
+		const fixture = createCustomEditors({
+			createCustomDocument: async () => ({ editable: true }),
+			capabilities: { saveAsFilters: filters },
+			pickFileToSave: async (...args) => { requests.push(args); return undefined; }
+		});
+		const { input } = fixture.createInput();
+		const untitled = URI.from({ scheme: Schemas.untitled, path: '/workspace/untitled.png' });
+		const untitledInput = fixture.createInput(untitled).input;
+		try {
+			await input.resolve();
+			const saveAs = await input.saveAs(0, { availableFileSystems: [Schemas.file] });
+			await untitledInput.resolve();
+			const model = await fixture.models.get(untitled, viewType);
+			assert.ok(model);
+			const firstSave = await model.saveCustomEditor({ availableFileSystems: [Schemas.file] });
+			assert.deepStrictEqual({ saveAs, firstSave, requests }, {
+				saveAs: undefined,
+				firstSave: undefined,
+				requests: [[resource, [Schemas.file], filters], [URI.file('/workspace/untitled.png'), [Schemas.file], filters]]
+			});
+		} finally {
+			input.dispose();
+			untitledInput.dispose();
+			fixture.models.disposeAllModelsForView(viewType);
+			await timeout(0);
+		}
+	});
 
 	test('custom text navigation resolves only after its editor and invalidates Outline capability on disposal', async () => {
 		const fixture = createCustomEditors({ createCustomDocument: async () => ({ editable: false }), textEditor: true, capabilities: { supportsNavigation: true } });

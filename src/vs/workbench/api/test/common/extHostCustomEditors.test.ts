@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
-import { MainThreadCustomEditorsShape } from '../../common/extHost.protocol.js';
+import { CustomEditorProviderCapabilities, MainThreadCustomEditorsShape } from '../../common/extHost.protocol.js';
 import { ExtHostCustomEditors } from '../../common/extHostCustomEditors.js';
 import { ExtHostDocuments } from '../../common/extHostDocuments.js';
 import { ExtHostWebviews } from '../../common/extHostWebview.js';
@@ -109,4 +109,37 @@ suite('ExtHostCustomEditors document disposal', () => {
 		await editors.$disposeCustomDocument(resource, viewType);
 		assert.strictEqual(disposed, 2);
 	});
+});
+
+
+suite('ExtHostCustomEditors Save As filters', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const enabled of [false, true]) {
+		test(`requires the API proposal before forwarding Save As filters (enabled=${enabled})`, () => {
+			let capabilities: CustomEditorProviderCapabilities | undefined;
+			const proxy = new class extends mock<MainThreadCustomEditorsShape>() {
+				override $registerCustomEditorProvider(...args: Parameters<MainThreadCustomEditorsShape['$registerCustomEditorProvider']>): void { capabilities = args[3]; }
+				override $unregisterEditorProvider(): void { }
+			}();
+			const editors = new ExtHostCustomEditors(SingleProxyRPCProtocol(proxy), new class extends mock<ExtHostDocuments>() { }, undefined,
+				new class extends mock<ExtHostWebviews>() { }, new class extends mock<ExtHostWebviewPanels>() { });
+			const provider: vscode.CustomReadonlyEditorProvider = {
+				saveAsFilters: { 'PNG image': ['png'], 'JPEG image': ['jpg', 'jpeg'] },
+				openCustomDocument: () => ({ uri: URI.file('/image'), dispose: () => {} }),
+				resolveCustomEditor: () => {}
+			};
+			const extension = { ...nullExtensionDescription, enabledApiProposals: enabled ? ['customEditorSaveAsFilters'] : [] };
+			if (enabled) {
+				store.add(editors.registerCustomEditorProvider(extension, 'save-filters-test', provider, {}));
+				assert.deepStrictEqual(capabilities?.saveAsFilters, [
+					{ name: 'PNG image', extensions: ['png'] },
+					{ name: 'JPEG image', extensions: ['jpg', 'jpeg'] }
+				]);
+			} else {
+				assert.throws(() => editors.registerCustomEditorProvider(extension, 'save-filters-test', provider, {}), /customEditorSaveAsFilters/);
+				assert.strictEqual(capabilities, undefined);
+			}
+		});
+	}
 });
