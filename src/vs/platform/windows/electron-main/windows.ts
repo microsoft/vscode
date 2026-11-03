@@ -55,6 +55,13 @@ export interface IWindowsMainService {
 
 	getWindowById(windowId: number): ICodeWindow | undefined;
 	getWindowByWebContents(webContents: electron.WebContents): ICodeWindow | undefined;
+
+	/**
+	 * Restores the windows exactly as they are, for example minimized, when the
+	 * application starts the next time. Only applies if the application quits
+	 * without veto.
+	 */
+	restoreExactlyOnNextStartup(restore: boolean): void;
 }
 
 export interface IWindowsCountChangedEvent {
