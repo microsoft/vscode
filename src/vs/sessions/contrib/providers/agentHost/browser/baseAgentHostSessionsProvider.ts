@@ -4901,6 +4901,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this.onDidChangeModels = Event.defer(Event.any(
 			this._languageModelsService.onDidChangeLanguageModels,
 			this._languageModelsService.onDidChangeModelVisibility,
+			this.onDidChangeCustomAgents,
 		), false, this._store);
 		this._register(this.onDidChangeModels(() => {
 			for (const draft of this._newSessions.values()) {

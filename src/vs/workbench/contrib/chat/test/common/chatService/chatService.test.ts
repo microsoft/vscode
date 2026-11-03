@@ -1987,6 +1987,50 @@ suite('ChatService', () => {
 	});
 
 	for (const savedAgent of [false, true]) {
+		for (const explicitModel of [undefined, 'opus']) {
+			test(`required agent forwards the validated ${explicitModel ? 'explicit' : 'saved'} model (${savedAgent ? 'restored' : 'submitted'} agent)`, async () => {
+				const uri = URI.file('/workspace/required.agent.md');
+				const prompts = new MockPromptsService();
+				prompts.setCustomModes([upcastPartial<ICustomAgent>({ uri, enabled: true, model: ['sonnet', 'opus'], modelPolicy: 'required' })]);
+				instantiationService.stub(IPromptsService, prompts);
+				const metadata: ILanguageModelChatMetadata = {
+					id: 'sonnet', name: 'Sonnet', vendor: 'copilot', version: '1.0', family: 'sonnet',
+					extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024,
+					isDefaultForLocation: {},
+				};
+				instantiationService.stub(ILanguageModelsService, new class extends NullLanguageModelsService {
+					override getLanguageModelIds(): string[] { return ['sonnet', 'opus']; }
+					override lookupLanguageModel(id: string): ILanguageModelChatMetadata | undefined {
+						return ['sonnet', 'opus'].includes(id) ? { ...metadata, id, name: id } : undefined;
+					}
+				});
+				const receivedModels: (string | undefined)[] = [];
+				const agentId = 'requiredModelAgent';
+				testDisposables.add(chatAgentService.registerAgent(agentId, { ...getAgentData(agentId), isDefault: true, modes: [ChatModeKind.Ask, ChatModeKind.Agent] }));
+				testDisposables.add(chatAgentService.registerAgentImplementation(agentId, {
+					async invoke(request) {
+						receivedModels.push(request.userSelectedModelId);
+						return {};
+					},
+				}));
+				const service = createChatService();
+				const model = startSessionModel(service).object;
+				model.inputModel.setState({
+					selectedModel: { identifier: 'sonnet', metadata },
+					...(savedAgent ? { mode: { id: uri.toString(), kind: ChatModeKind.Agent } } : {}),
+				});
+				const result = await service.sendRequest(model.sessionResource, 'Send with the required model', {
+					agentId, userSelectedModelId: explicitModel,
+					...(savedAgent ? {} : {
+						modeInfo: { kind: ChatModeKind.Agent, isBuiltin: false, modeInstructions: { uri, name: 'Required', content: '', toolReferences: [] }, telemetryModeId: 'custom', applyCodeBlockSuggestionId: undefined },
+					}),
+				});
+				ChatSendResult.assertSent(result);
+				await result.data.responseCompletePromise;
+				assert.deepStrictEqual(receivedModels, [explicitModel ?? 'sonnet']);
+			});
+		}
+
 		test(`required agent blocks a direct send without changing the draft (${savedAgent ? 'restored' : 'submitted'} agent)`, async () => {
 			const uri = URI.file('/workspace/required.agent.md');
 			const prompts = new MockPromptsService();

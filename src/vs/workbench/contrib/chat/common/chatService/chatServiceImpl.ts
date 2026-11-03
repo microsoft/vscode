@@ -1603,11 +1603,13 @@ export class ChatService extends Disposable implements IChatService {
 					return metadata && !metadata.targetChatSessionType && metadata.isUserSelectable !== false
 						? [{ identifier, metadata }] : [];
 				});
-				const error = getAgentModelPolicyError({ models: agent.model, required: true }, options?.userSelectedModelId ?? model.inputModel.state.get()?.selectedModel?.identifier, models);
+				const modelId = options?.userSelectedModelId ?? model.inputModel.state.get()?.selectedModel?.identifier;
+				const error = getAgentModelPolicyError({ models: agent.model, required: true }, modelId, models);
 				if (error) {
 					this.logService.warn('[ChatService] Rejected request: selected agent requires an available authored model');
 					throw new Error(error);
 				}
+				options = { ...options, userSelectedModelId: modelId };
 			}
 		}
 

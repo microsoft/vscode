@@ -3934,6 +3934,32 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, { unavailable: [], source: { name: agent.name, uri: URI.parse(agent.uri) }, available: ids.slice(1), current: ids[2], cleared: ids });
 	});
 
+	test('agent metadata changes refresh model availability without changing the selected agent', async () => {
+		const agent: AgentCustomization = {
+			type: CustomizationType.Agent, id: 'required', uri: 'other-host:/required', name: 'Required',
+			model: 'sonnet', _meta: { 'vscode.modelPolicy': 'required' },
+		};
+		const agents = observableValue<readonly AgentCustomization[]>('agents', [agent]);
+		const modelId = 'agent-host-copilotcli:other';
+		const provider = createProvider(disposables, agentHost, undefined, {
+			activeClientAgents: agents,
+			languageModelIds: [modelId],
+			lookupLanguageModel: () => ({ ...createTestLanguageModel('other'), targetChatSessionType: 'agent-host-copilotcli' }),
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/required'), provider.sessionTypes[0].id);
+		provider.setAgent(session.sessionId, { uri: agent.uri, name: agent.name });
+		await timeout(0);
+		const before = provider.getModelsSnapshot(session.sessionId).models.map(model => model.identifier);
+		const changes: { required: boolean | undefined; models: string[] }[] = [];
+		disposables.add(provider.onDidChangeModels(() => {
+			const snapshot = provider.getModelsSnapshot(session.sessionId);
+			changes.push({ required: snapshot.agentModelPreferences?.required, models: snapshot.models.map(model => model.identifier) });
+		}));
+		agents.set([{ ...agent, _meta: { 'vscode.modelPolicy': 'preferred' } }], undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ before, changes }, { before: [], changes: [{ required: false, models: [modelId] }] });
+	});
+
 	test('agent model and effort are sent on first, follow-up, and running-session agent changes', async () => {
 		const pickerId = 'agent-host-copilotcli:picker';
 		const pinnedId = 'agent-host-copilotcli:sonnet';

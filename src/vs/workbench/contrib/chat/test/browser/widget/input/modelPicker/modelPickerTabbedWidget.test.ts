@@ -1291,6 +1291,21 @@ suite('TabbedModelPicker', () => {
 	});
 
 	for (const required of [false, true]) {
+		test(`agent ${required ? 'required' : 'preferred'} badges preserve exact-ID precedence over aliases`, () => {
+			const sonnet = model('sonnet');
+			const exact = { ...sonnet, identifier: 'sonnet', metadata: { ...sonnet.metadata, name: 'Exact Sonnet' } };
+			const alias = model('alias');
+			const { popup } = createPicker({
+				models: [exact, { ...alias, metadata: { ...alias.metadata, name: 'sonnet' } }],
+				agentModelPreferences: { models: ['sonnet'], required },
+			});
+			const rows = Array.from(popup.querySelectorAll('.monaco-list-row'));
+			assert.deepStrictEqual({
+				visible: rows.filter(row => row.textContent?.includes('Agent ')).map(row => row.querySelector('.title')?.textContent),
+				accessible: rows.filter(row => row.getAttribute('aria-label')?.includes(required ? 'Agent Required' : 'Agent Preferred')).map(row => row.getAttribute('aria-label')?.includes('Exact Sonnet')),
+			}, { visible: ['Exact Sonnet'], accessible: [true] });
+		});
+
 		test(`announces authored models as agent ${required ? 'required' : 'preferred'} after an override`, () => {
 			const { popup } = createPicker({
 				agentModelPreferences: { models: ['First'], required },

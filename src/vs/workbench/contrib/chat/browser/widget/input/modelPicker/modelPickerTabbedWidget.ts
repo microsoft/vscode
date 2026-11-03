@@ -1337,7 +1337,7 @@ export class TabbedModelPicker extends Disposable {
 			badge: modelBadge?.text ?? routingBadge ?? fusionRecommendedBadge,
 			additionalBadges: [
 				...(this._getOrganizationDefaultBadges(model, context) ?? []),
-				...(context.agentModelPreferences && resolveAgentModelPreferences(context.agentModelPreferences.models, [model]).length > 0
+				...(context.agentModelPreferences && resolveAgentModelPreferences(context.agentModelPreferences.models, context.models).some(candidate => candidate.identifier === model.identifier)
 					? [{ label: context.agentModelPreferences.required ? localize('chat.modelPicker.agentRequired', "Agent Required") : localize('chat.modelPicker.agentPreferred', "Agent Preferred") }]
 					: []),
 			],
