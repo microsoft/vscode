@@ -122,6 +122,35 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 		});
 	}
 
+	test('Focus File List stays in the Command Palette after the user hides the list, and shows the list before focusing it', () => {
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[multiDiffEditorExperimentalFileListSetting]: true,
+		}));
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const editor = disposables.add(instantiationService.createInstance(TestMultiDiffEditor, new TestEditorGroupView(1)));
+		editor.createEditor(container);
+		editor.layout(new Dimension(1000, 100));
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		const precondition = new FocusFileListAction().desc.precondition;
+		const state = () => ({
+			listVisible: contextKeyService.getContextKeyValue(MultiDiffEditorFileListVisibleContext.key) === true,
+			inCommandPalette: !!precondition?.evaluate({ getValue: key => contextKeyService.getContextKeyValue(key) }),
+			focused: !!container.querySelector('.multi-diff-editor-with-file-list-files')?.contains(document.activeElement),
+		});
+
+		toggleMultiDiffEditorFileList(instantiationService.get(IStorageService));
+		const hidden = state();
+		editor.focusFileList();
+		const focused = state();
+
+		assert.deepStrictEqual({ hidden, focused }, {
+			hidden: { listVisible: false, inCommandPalette: true, focused: false },
+			focused: { listVisible: true, inCommandPalette: true, focused: true },
+		});
+	});
+
 	test('orders the diffs of an input like the file list while it is used', async () => {
 		instantiationService.stub(ITextModelService, new class extends InMemoryTextModelService {
 			override createModelReference(): Promise<never> {
@@ -597,7 +626,7 @@ suite('Multi diff editor file list of any host', () => {
 
 		assert.deepStrictEqual({ focused, precondition: new FocusFileListAction().desc.precondition?.serialize(), hiddenStates: states, visibleWithSettingOff: visibleWithSetting.get(), isHost: isMultiDiffEditorFileListHost(host) }, {
 			focused: ['host'],
-			precondition: MultiDiffEditorFileListVisibleContext.key,
+			precondition: MultiDiffEditorFileListAvailableContext.key,
 			hiddenStates: [false, true],
 			visibleWithSettingOff: false,
 			isHost: true,
