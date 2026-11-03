@@ -15,11 +15,12 @@
 	position: relative;
 }
 
-/* While the changed files list shows, the header above the diffs gets a bottom border that the list's separator continues. */
+/* While the changed files list shows, the header above the diffs gets a bottom border that the list's separator continues.
+ * It sits on the last row of the header, so the first diff card keeps the full gap of the cards below it. */
 .session-changes-editor-body.file-list-visible::before {
 	content: '';
 	position: absolute;
-	top: 0;
+	top: calc(-1 * var(--vscode-strokeThickness));
 	left: 0;
 	right: 0;
 	z-index: 10;
