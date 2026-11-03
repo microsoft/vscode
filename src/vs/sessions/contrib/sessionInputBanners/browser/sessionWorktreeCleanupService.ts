@@ -52,10 +52,12 @@ export type ISessionWorktreeCleanupCandidate = WorktreeCleanupOwner & {
 
 export function isWorktreeCleanupBranchSupported(owner: WorktreeCleanupOwner): boolean {
 	if (owner.unlinkedWorktree) {
-		return isAgentWorktreeBranch(owner.unlinkedWorktree.branch);
+		const { branch, worktree, repository } = owner.unlinkedWorktree;
+		return isAgentWorktreeBranch(branch, URI.parse(worktree), URI.parse(repository));
 	}
 	return owner.session.workspace.get()?.folders.every(folder => !folder.gitRepository?.workTreeUri
-		|| folder.gitRepository.branchName === undefined || isAgentWorktreeBranch(folder.gitRepository.branchName)) !== false;
+		|| folder.gitRepository.branchName === undefined
+		|| isAgentWorktreeBranch(folder.gitRepository.branchName, folder.gitRepository.workTreeUri, folder.gitRepository.uri)) !== false;
 }
 
 export function getWorktreeCleanupId(worktree: ISessionWorktreeCleanupCandidate): string {
@@ -748,7 +750,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 
 	private async _cleanupWorktrees(selected: readonly ISessionWorktreeCleanupCandidate[], onProgress: ((progress: SessionWorktreeCleanupProgress) => void) | undefined, force: boolean): Promise<boolean> {
 		if (selected.some(candidate => !isWorktreeCleanupBranchSupported(candidate))) {
-			throw new Error(localize('worktreeCleanup.branchUnavailable', "Only worktrees on agent branches can be cleaned up."));
+			throw new Error(localize('worktreeCleanup.branchUnavailable', "Only worktrees on agent-managed branches can be cleaned up."));
 		}
 		if (selected.some(candidate => candidate.isListedByHost === false)) {
 			throw new Error(localize('worktreeCleanup.notListed', "This worktree is no longer listed by its host. Refresh the worktree inventory before cleanup."));

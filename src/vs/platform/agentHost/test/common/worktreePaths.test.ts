@@ -11,13 +11,29 @@ import { getRepositoryRootFromWorktree, isAgentWorktreeBranch } from '../../comm
 suite('worktreePaths', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('recognizes the agent branch namespace with segment boundaries independently of the configured prefix', () => {
-		const branches = [
-			'agents/task', 'agents/task/detail', 'users/alice/agents/task', 'team/agents/task',
-			undefined, '', 'agents/', 'agents', 'myagents/task', 'users/alice/myagents/task',
-			'users/alice/agents-other/task', 'feature/task', '/agents/task', 'users//agents/task', 'agents//task',
-		];
-		assert.deepStrictEqual(branches.map(branch => [branch, isAgentWorktreeBranch(branch)]), branches.map((branch, index) => [branch, index < 4]));
+	test('recognizes prefixed branches from the original branch and worktree path without the current setting', () => {
+		const repository = URI.file('/src/repo');
+		const worktree = URI.file('/src/repo.worktrees/task');
+		const branches = ['agents/task', 'user/agents/task', 'team/user/agents/task', 'user-agents/task', 'agents/team/agents/task', 'agents/old-name'];
+		assert.deepStrictEqual(branches.map(branch => isAgentWorktreeBranch(branch, worktree, repository)), branches.map(() => true));
+	});
+
+	test('requires the complete generated name and repository layout for prefixed branches', () => {
+		const repository = URI.file('/src/repo');
+		const worktree = URI.file('/src/repo.worktrees/task');
+		assert.deepStrictEqual({
+			branches: ['main', 'task', 'agents-task', 'user/agents/other', 'user/agents/task-extra', 'user/agents/task/extra', 'user/agents/', '', 'agents/team/agents/other'].map(branch => isAgentWorktreeBranch(branch, worktree, repository)),
+			paths: ['/src/repo', '/src/repo.worktrees', '/src/repo.worktrees/other/task', '/src/other.worktrees/task', '/elsewhere/task'].map(path => isAgentWorktreeBranch('user/agents/task', URI.file(path), repository)),
+		}, { branches: Array(9).fill(false), paths: Array(5).fill(false) });
+	});
+
+	test('recognizes prefixed branches in mapped remote URI spaces without crossing repositories', () => {
+		const repository = URI.parse('vscode-agent-host://remote/src/repo');
+		const worktree = URI.parse('vscode-agent-host://remote/src/repo.worktrees/task');
+		assert.deepStrictEqual([
+			isAgentWorktreeBranch('user/agents/task', worktree, repository),
+			isAgentWorktreeBranch('user/agents/task', worktree, repository.with({ authority: 'other' })),
+		], [true, false]);
 	});
 
 	test('derives the repository of a VS Code-created worktree from its path', () => {

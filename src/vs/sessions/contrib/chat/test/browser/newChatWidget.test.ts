@@ -62,6 +62,7 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { SessionConfigSchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -323,6 +324,7 @@ interface IGetComparisonBranchHarness {
 		getProvider(providerId: string): {
 			readonly id: string;
 			getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined;
+			getSessionConfig?: IAgentHostSessionsProvider['getSessionConfig'];
 		} | undefined;
 	};
 }
@@ -4629,12 +4631,14 @@ suite('NewChatWidget', () => {
 					id: LOCAL_AGENT_HOST_PROVIDER_ID,
 					isDevContainerRequested: () => containerRequested,
 					getCreateSessionConfig: () => undefined,
-					getSessionConfig: () => upcastPartial({
+					getSessionConfig: () => ({
 						schema: {
+							type: 'object',
 							properties: {
-								isolation: { type: 'string', enum: ['folder', 'worktree'] },
+								isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] },
 							},
 						},
+						values: {},
 					}),
 					isSessionConfigResolving: () => constObservable(false),
 				}),
@@ -4664,6 +4668,79 @@ suite('NewChatWidget', () => {
 			draftContainer: false,
 		});
 	});
+
+	for (const configuration of ['VS Code', 'native', 'native with a new branch']) {
+		test(`offers comparison in an unborn repository with ${configuration} workspace configuration`, () => {
+			const native = configuration !== 'VS Code';
+			const folder = URI.file('/workspace');
+			const workspace = upcastPartial<ISessionWorkspace>({
+				folders: [{ root: folder, workingDirectory: folder, name: 'workspace', description: undefined }],
+			});
+			const session = upcastPartial<ISession>({
+				sessionId: 'session',
+				mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
+				providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+				sessionType: 'copilotcli',
+				workspace: constObservable(workspace),
+			});
+			const resolving = observableValue('resolving', false);
+			const enabled = observableValue('enabled', true);
+			const values: Record<string, unknown> = native ? { target: 'workspace', baseBranch: 'main' } : { isolation: 'folder', branch: 'main' };
+			if (configuration === 'native with a new branch') {
+				values.branch = 'new-attempt';
+			}
+			const schema: SessionConfigSchema = native ? {
+				type: 'object',
+				properties: {
+					target: { type: 'string', title: 'Target', enum: ['workspace', 'worktree'] },
+					baseBranch: { type: 'string', title: 'Base Branch', enumDynamic: true },
+					branch: { type: 'string', title: 'New Branch' },
+				},
+			} : {
+				type: 'object',
+				properties: {
+					isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] },
+					branch: { type: 'string', title: 'Branch', enumDynamic: true },
+				},
+			};
+			const harness: IComparisonActionVisibilityHarness = {
+				_environment: constObservable(undefined),
+				_compareAgentsEnabled: enabled,
+				_pendingPreferredUpgrade: { value: undefined },
+				_newSessionCreation: { value: undefined },
+				_session: constObservable(session),
+				_workspacePicker: { selectedFolderUri: folder, selectedResolved: { workspace } },
+				sessionsManagementService: {
+					getSessionTypesForFolder: () => [{
+						providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+						sessionType: { id: 'copilotcli', label: 'Copilot', supportsWorktreeConfiguration: true },
+					}],
+				},
+				sessionsProvidersService: {
+					getProvider: () => ({
+						id: LOCAL_AGENT_HOST_PROVIDER_ID,
+						getCreateSessionConfig: () => values,
+						getSessionConfig: () => ({
+							schema,
+							values,
+						}),
+						isSessionConfigResolving: () => resolving,
+					}),
+				},
+				_getComparisonBranch: getComparisonBranch,
+			};
+
+			const branch = getComparisonBranch.call(harness);
+			const ready = shouldShowComparisonAction.call(harness);
+			resolving.set(true, undefined);
+			const pending = shouldShowComparisonAction.call(harness);
+			resolving.set(false, undefined);
+			enabled.set(false, undefined);
+			assert.deepStrictEqual({ branch, ready, pending, disabled: shouldShowComparisonAction.call(harness) }, {
+				branch: 'main', ready: true, pending: false, disabled: false,
+			});
+		});
+	}
 
 	test('uses the workspace branch while Agent Host creation config is unresolved', () => {
 		const workspace = upcastPartial<ISessionWorkspace>({

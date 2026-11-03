@@ -15,7 +15,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agent.js';
 import { type IAgentHostManagedWorktree, type IAgentHostWorktreeCleanupStatus } from '../common/agentHostWorktreeCleanup.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
-import { getWorktreesRoot, isAgentWorktreeBranch, isWorktreeUnderRepository } from '../common/worktreePaths.js';
+import { AGENT_BRANCH_PREFIX, getWorktreesRoot, isAgentWorktreeBranch, isWorktreeUnderRepository } from '../common/worktreePaths.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import { coOwnedWorktreeRemovalOwner, type IPendingWorktreeRemoval, type IWorktreeCoOwner, type IWorktreeCoOwnerState, type IWorktreeRemovalRequest, type WorktreeRemovalMode } from './agentHostWorktreeRemovalDatabase.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, parseSessionAdditionalWorktrees } from './shared/sessionAdditionalWorktrees.js';
@@ -162,7 +162,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 					}
 				}
 				await Promise.all(candidates.map(({ worktree, branch, removal }) => limiter.queue(async () => {
-					if (!branch || !isAgentWorktreeBranch(branch) || !await this._isManagedWorktree(primary, worktree)) {
+					if (!branch || !isAgentWorktreeBranch(branch, worktree, primary) || !await this._isManagedWorktree(primary, worktree)) {
 						return;
 					}
 					if (removal) {
@@ -233,8 +233,9 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		}
 		const registered = entries.slice(1).find(entry => isEqual(entry.path, worktree));
 		const currentBranch = allowBranchChange && registered ? registered.branchName : branch;
-		if (!currentBranch || !isAgentWorktreeBranch(currentBranch) || (registered && !isAgentWorktreeBranch(registered.branchName))) {
-			throw new Error(localize('worktreeCleanup.branchNamespace', "Only worktrees in the 'agents/' branch namespace can be cleaned up."));
+		if (!currentBranch || !isAgentWorktreeBranch(currentBranch, worktree, repository)
+			|| (registered && (!registered.branchName || !isAgentWorktreeBranch(registered.branchName, worktree, repository)))) {
+			throw new Error(localize('worktreeCleanup.branchNamespace', "Only worktrees on agent-managed branches can be cleaned up."));
 		}
 		if (allowMissing) {
 			try {
@@ -630,6 +631,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 			return;
 		}
 		const managed = removal.kind === 'detached' && removal.owner === this._managedRemovalOwner(URI.parse(removal.worktreePath));
+		const validateManaged = managed || force || (removal.branch ?? '').lastIndexOf(AGENT_BRANCH_PREFIX) > 0;
 		const isInUse = () => managed
 			? this._isManagedWorktreeInUse(URI.parse(removal.worktreePath))
 			: this._database.isWorktreeInUse(removal.worktreePath, removal.ownerSession);
@@ -637,7 +639,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 			if (force && archiveOwner !== undefined && !removal.ownerDeleted && await this._database.readSessionArchived(archiveOwner) === false) {
 				return false;
 			}
-			if (managed || force) {
+			if (validateManaged) {
 				await this._assertManagedWorktree(URI.parse(removal.repositoryRoot), URI.parse(removal.worktreePath), removal.branch ?? '', true, force, removal);
 			}
 			return force || !await isInUse();
@@ -656,7 +658,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		// A folder that was ever shared is committed rather than force-removed, also for a request recorded before it was.
 		const mode = removal.mode === 'delete' && coOwners.length > 0 ? 'commit' : removal.mode;
 		try {
-			if (force || (removal.kind === 'detached' && removal.owner === this._managedRemovalOwner(worktree.worktree))) {
+			if (validateManaged) {
 				const currentBranch = await this._assertManagedWorktree(worktree.repositoryRoot, worktree.worktree, worktree.branchName, true, force, removal);
 				worktree = { ...worktree, branchName: currentBranch };
 			}

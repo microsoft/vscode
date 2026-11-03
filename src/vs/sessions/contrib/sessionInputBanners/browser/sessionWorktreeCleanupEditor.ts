@@ -10,7 +10,7 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ITableColumn, ITableRenderer } from '../../../../base/browser/ui/table/table.js';
-import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
+import { Checkbox, TriStateCheckbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
@@ -24,13 +24,14 @@ import { URI } from '../../../../base/common/uri.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { isUnprefixedAgentWorktreeBranch } from '../../../../platform/agentHost/common/worktreePaths.js';
 import { ByteSize } from '../../../../platform/files/common/files.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { WorkbenchTable } from '../../../../platform/list/browser/listService.js';
+import { RawWorkbenchListFocusContextKey, WorkbenchTable } from '../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -108,7 +109,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	private readonly tableScrollables = new Map<WorkbenchTable<string>, DomScrollableElement>();
 	private readonly controlsScrollables: { element: HTMLElement; scrollable: DomScrollableElement }[] = [];
 	private readonly cellHoverOptions = { groupId: generateUuid() };
-	private selectAllCheckbox: Checkbox | undefined;
+	private selectAllCheckbox: TriStateCheckbox | undefined;
 	private workspaceOptionsSignature = '';
 	private container: HTMLElement | undefined;
 	private list: HTMLElement | undefined;
@@ -269,7 +270,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		eligibilityInfo.appendChild(renderIcon(Codicon.info));
 		const eligibilityHover = this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), eligibilityInfo, localize(
 			'sessionWorktreeCleanup.eligibilityDetails',
-			"Select worktrees, then use Clean Up Worktrees to clean up the selection. Failed worktrees and worktrees without an available cleanup action are hidden. Hiding a worktree does not confirm its files were removed. Pending cleanup and completed results remain available for tracking. Done sessions and worktrees without a listed session are not measured. Disk usage is an estimate, not guaranteed freed space.",
+			"Select worktrees, then use Clean Up Worktrees to clean up the selection. Worktrees without a listed session and with a branch prefix require manual selection because agent ownership cannot be verified. Failed worktrees and worktrees without an available cleanup action are hidden. Hiding a worktree does not confirm its files were removed. Pending cleanup and completed results remain available for tracking. Done sessions and worktrees without a listed session are not measured. Disk usage is an estimate, not guaranteed freed space.",
 		)));
 		this.editorDisposables.add(dom.addDisposableListener(eligibilityInfo, dom.EventType.CLICK, () => eligibilityHover.show(true)));
 		this.cleanupButton = this.editorDisposables.add(new Button(summaryRow, defaultButtonStyles));
@@ -281,27 +282,23 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		this.batchSummaryRow = dom.append(controlsContent, dom.$('.session-worktree-cleanup-summary-row.session-worktree-cleanup-batch.hidden'));
 		this.batchSummary = dom.append(this.batchSummaryRow, dom.$('span.session-worktree-cleanup-summary', { role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true' }));
 
-		const selection = dom.$('.session-worktree-cleanup-select-all');
-		summaryRow.insertBefore(selection, this.cleanupButton.element);
-		const selectAll = this.selectAllCheckbox = this.editorDisposables.add(new Checkbox(
+		const selectAll = this.selectAllCheckbox = this.editorDisposables.add(new TriStateCheckbox(
 			localize('sessionWorktreeCleanup.selectAll', "Select all worktrees that can be cleaned up"),
 			false,
 			defaultCheckboxStyles,
 		));
-		selection.appendChild(selectAll.domNode);
-		const selectAllLabel = dom.append(selection, dom.$('span', undefined, localize('sessionWorktreeCleanup.selectAllLabel', "Select All")));
-		this.editorDisposables.add(dom.addDisposableListener(selectAllLabel, dom.EventType.CLICK, () => selectAll.domNode.click()));
 		this.editorDisposables.add(selectAll.onChange(() => {
 			const selectable = this.getVisibleWorktrees().filter(worktree => this.isManuallySelectable(worktree));
+			const checked = selectAll.checked === true;
 			for (const worktree of selectable) {
-				this.explicitSelections.set(getWorktreeCleanupId(worktree), selectAll.checked);
+				this.explicitSelections.set(getWorktreeCleanupId(worktree), checked);
 			}
-			this.selectedSessionIds = selectAll.checked ? new Set(selectable.map(worktree => getWorktreeCleanupId(worktree))) : new Set();
+			this.selectedSessionIds = checked ? new Set(selectable.map(worktree => getWorktreeCleanupId(worktree))) : new Set();
 			this.renderRows();
 		}));
 		this.renderAutomaticCleanup(this.createControlsScrollable(content));
 		this.list = dom.append(content, dom.$('.session-worktree-cleanup-list'));
-		this.mainWorktreeTable = this.createWorktreeTable(this.list, localize('sessionWorktreeCleanup.tableLabel', "Agent session worktrees"));
+		this.mainWorktreeTable = this.createWorktreeTable(this.list, localize('sessionWorktreeCleanup.tableLabel', "Agent session worktrees"), selectAll);
 		this.emptyState = dom.append(content, dom.$('.session-worktree-cleanup-empty', { role: 'status' }));
 		const emptyStateIcon = dom.append(this.emptyState, renderIcon(Codicon.info));
 		emptyStateIcon.setAttribute('aria-hidden', 'true');
@@ -422,7 +419,8 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			this.renderWorkspaceOptions();
 			for (const worktree of this.getVisibleWorktrees()) {
 				const sessionId = getWorktreeCleanupId(worktree);
-				const selectByDefault = worktree.cleanupState === 'eligible' || worktree.cleanupState === 'archived' || (worktree.unlinkedWorktree && this.minimumAgeDays === 0);
+				const selectByDefault = worktree.cleanupState === 'eligible' || worktree.cleanupState === 'archived'
+					|| (worktree.unlinkedWorktree && this.minimumAgeDays === 0 && isUnprefixedAgentWorktreeBranch(worktree.unlinkedWorktree.branch));
 				const selected = this.explicitSelections.get(sessionId) ?? selectByDefault;
 				if (selected && this.isManuallySelectable(worktree) && !this.cleanupBatch.has(sessionId)) {
 					this.selectedSessionIds.add(sessionId);
@@ -566,7 +564,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		}
 	}
 
-	private createWorktreeTable(container: HTMLElement, label: string): WorkbenchTable<string> {
+	private createWorktreeTable(container: HTMLElement, label: string, selectAll?: TriStateCheckbox): WorkbenchTable<string> {
 		const columns: (ITableColumn<string, string> & { templateId: WorktreeColumn })[] = [
 			{ label: '', weight: 0, minimumWidth: 40, maximumWidth: 40, templateId: 'selection', project: sessionId => sessionId },
 			{ label: localize('sessionWorktreeCleanup.sessionColumn', "Session"), weight: 0.4, minimumWidth: 140, templateId: 'title', project: sessionId => sessionId },
@@ -601,6 +599,14 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 				alwaysConsumeMouseWheel: false,
 			},
 		));
+		if (selectAll) {
+			// eslint-disable-next-line no-restricted-syntax -- Table does not expose a header renderer.
+			const selectionHeader = table.getHTMLElement().querySelector<HTMLElement>('.monaco-table-th[data-col-index="0"]')!;
+			selectionHeader.classList.add('session-worktree-cleanup-select-all');
+			const headerContext = this.editorDisposables.add(this.contextKeyService.createScoped(selectionHeader));
+			RawWorkbenchListFocusContextKey.bindTo(headerContext).set(false);
+			selectionHeader.appendChild(selectAll.domNode);
+		}
 		this.tableScrollables.set(table, scrollable);
 		this.editorDisposables.add(table.onDidFocus(() => {
 			const activeElement = dom.getActiveElement();
@@ -818,7 +824,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		if (this.summaryMessage.textContent !== summaryWithStorage) {
 			this.summaryMessage.textContent = summaryWithStorage;
 		}
-		this.selectAllCheckbox.checked = selectable.length > 0 && selectable.every(worktree => this.selectedSessionIds.has(getWorktreeCleanupId(worktree)));
 		if (selectable.length === 0) {
 			this.selectAllCheckbox.disable();
 		} else {
@@ -1000,10 +1005,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		}
 
 		this.renderWorktreeCells(worktree);
-		if (this.selectAllCheckbox) {
-			const selectable = this.getVisibleWorktrees().filter(worktree => this.isManuallySelectable(worktree));
-			this.selectAllCheckbox.checked = selectable.length > 0 && selectable.every(worktree => this.selectedSessionIds.has(getWorktreeCleanupId(worktree)));
-		}
 		this.updateCleanupButton();
 		this.updateScrollDimensions();
 	}
@@ -1158,7 +1159,17 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		}
 	}
 
+	private updateSelectAllCheckbox(checkbox: TriStateCheckbox, selectable: readonly ISessionWorktree[], selectedIds: ReadonlySet<string>): void {
+		const selectedCount = selectable.filter(worktree => selectedIds.has(getWorktreeCleanupId(worktree))).length;
+		const state = selectedCount === 0 ? false : selectedCount === selectable.length ? true : 'mixed';
+		checkbox.checked = state;
+		checkbox.domNode.setAttribute('aria-checked', String(state));
+	}
+
 	private updateCleanupButton(): void {
+		if (this.selectAllCheckbox) {
+			this.updateSelectAllCheckbox(this.selectAllCheckbox, this.getVisibleWorktrees().filter(worktree => this.isManuallySelectable(worktree)), this.selectedSessionIds);
+		}
 		if (!this.cleanupButton) {
 			return;
 		}
