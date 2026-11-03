@@ -19,7 +19,9 @@ import { IPartVisibilityChangeEvent, LayoutSettings, ModernUIDensity, PanelAlign
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { DockedAuxiliaryBarController, IDockedAuxiliaryBarHost } from '../../browser/dockedAuxiliaryBarController.js';
-import { AgentWorkbenchLayout, ISidePaneState, ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
+import { upcastPartial } from '../../../base/test/common/mock.js';
+import { IAuxiliaryWindow, IAuxiliaryWindowOpenEvent } from '../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { addAuxiliaryWindowContainers, AgentWorkbenchLayout, ISidePaneState, ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
 import { DesktopWorkbench, DockedEditorSizeMemento } from '../../browser/desktopWorkbench.js';
 import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../browser/parts/agentsPartCard.js';
 import { DesktopMainEditorPart } from '../../browser/parts/desktopEditorPart.js';
@@ -4420,5 +4422,22 @@ suite('Sessions - Workbench', () => {
 			{ desktop: persistedPanel(true), mobile: persistedPanel(false) },
 			{ desktop: true, mobile: undefined }
 		);
+	});
+
+	test('adds the container of each auxiliary window that opens, as the standard workbench does, so that what tracks every container tracks it too', () => {
+		const opened = store.add(new Emitter<IAuxiliaryWindowOpenEvent>());
+		const added = store.add(new Emitter<{ container: HTMLElement; disposables: DisposableStore }>());
+		const containers: HTMLElement[] = [];
+		const releasedWithWindow: boolean[] = [];
+		store.add(added.event(({ container, disposables }) => {
+			containers.push(container);
+			disposables.add(toDisposable(() => releasedWithWindow.push(true)));
+		}));
+		store.add(addAuxiliaryWindowContainers({ onDidOpenAuxiliaryWindow: opened.event }, added));
+		const container = document.createElement('div');
+		const windowDisposables = new DisposableStore();
+		opened.fire({ window: upcastPartial<IAuxiliaryWindow>({ container }), disposables: windowDisposables });
+		windowDisposables.dispose();
+		assert.deepStrictEqual({ added: containers.map(candidate => candidate === container), releasedWithWindow }, { added: [true], releasedWithWindow: [true] });
 	});
 });
