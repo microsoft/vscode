@@ -385,6 +385,61 @@ suite('ChatInputPart', () => {
 		return { identifier: `${sessionType}:${id}`, metadata: upcastPartial<ILanguageModelChatMetadata>({ id, name: id, targetChatSessionType: sessionType, isUserSelectable: true }) };
 	}
 
+	test('agent preferences resolve IDs and ordered aliases and apply effort only to this input', () => {
+		const base = targetedModel('agent-host-copilotcli', 'sonnet');
+		const model: ILanguageModelChatMetadataAndIdentifier = {
+			...base, metadata: { ...base.metadata, name: 'Sonnet', configurationSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', enum: ['low', 'medium'] } } } },
+		};
+		const { inputPart } = createModelPoolInput([model]);
+		const applied: string[] = [];
+		const configurations: object[] = [];
+		const warnings: string[] = [];
+		Object.assign(inputPart, {
+			options: {},
+			_modelSelectionController: { applyProgrammaticSelection: (selected: ILanguageModelChatMetadataAndIdentifier) => applied.push(selected.identifier) },
+			_modelConfigStore: {
+				getModelConfiguration: () => ({ contextSize: 200000 }),
+				restoreModelConfiguration: (id: string, configuration: object, persist: boolean) => configurations.push({ id, configuration, persist }),
+			},
+			logService: { warn: (message: string) => warnings.push(message) },
+		});
+		const selected = [
+			inputPart.switchModelByQualifiedName(['missing', 'Sonnet (copilot)'], 'low'),
+			inputPart.switchModelByQualifiedName(['sonnet'], 'unsupported'),
+			inputPart.switchModelByQualifiedName(['missing']),
+		];
+		assert.deepStrictEqual({ selected, applied, configurations, warningCount: warnings.length }, {
+			selected: [true, true, false],
+			applied: [model.identifier, model.identifier],
+			configurations: [{ id: model.identifier, configuration: { reasoningEffort: 'low' }, persist: false }],
+			warningCount: 1,
+		});
+	});
+
+	test('agent aliases do not select BYOK models, but explicit IDs and vendor-qualified names do', () => {
+		const base = targetedModel('agent-host-copilotcli', 'byok');
+		const byok = { ...base, metadata: { ...base.metadata, name: 'Sonnet', vendor: 'copilot', isBYOK: true } };
+		const custom = { ...base, identifier: 'custom:model', metadata: { ...base.metadata, id: 'custom-model', name: 'Custom Model', vendor: 'custom', isBYOK: true } };
+		const { inputPart } = createModelPoolInput([byok, custom]);
+		const applied: string[] = [];
+		const warnings: string[] = [];
+		Object.assign(inputPart, {
+			options: {},
+			_modelSelectionController: { applyProgrammaticSelection: (model: ILanguageModelChatMetadataAndIdentifier) => applied.push(model.identifier) },
+			logService: { warn: (message: string) => warnings.push(message) },
+		});
+		const selected = [
+			inputPart.switchModelByQualifiedName(['Sonnet (copilot)']),
+			inputPart.switchModelByQualifiedName(['byok']),
+			inputPart.switchModelByQualifiedName(['Custom Model (custom)']),
+		];
+		assert.deepStrictEqual({ selected, applied, warningCount: warnings.length }, {
+			selected: [false, true, true],
+			applied: [byok.identifier, custom.identifier],
+			warningCount: 1,
+		});
+	});
+
 	test('selects a chat\'s models from the session type it is answered by, never another one\'s', () => {
 		const copilot = targetedModel('agent-host-copilotcli', 'gpt');
 		const claude = targetedModel('agent-host-claude', 'claude-haiku');
