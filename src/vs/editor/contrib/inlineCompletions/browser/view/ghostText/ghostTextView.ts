@@ -311,7 +311,7 @@ export class GhostTextView extends Disposable {
 		}
 
 		const fontSize = `${this._editorObs.getOption(EditorOption.fontInfo).read(reader).fontSize * multiplier}px`;
-		const className = reader.store.add(this._ruleFactory.createClassNameRef({ fontSize })).className;
+		const className = reader.store.add(this._ruleFactory.createClassNameRef({ fontSize, verticalAlign: 'top' })).className;
 		return { fontSize, className };
 	});
 

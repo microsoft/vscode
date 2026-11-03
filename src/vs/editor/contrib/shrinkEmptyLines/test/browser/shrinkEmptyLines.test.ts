@@ -231,6 +231,62 @@ suite('Shrink Empty Lines', () => {
 		]);
 	});
 
+	test('centers punctuation while preserving cursor and selection geometry', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const editor = disposables.add(instantiationService.createInstance(CodeEditorWidget, container, {
+			cursorBlinking: 'solid',
+			minimap: { enabled: false },
+		}, { contributions: [] }));
+		const model = disposables.add(instantiateTextModel(instantiationService, 'code\n    { }\ncode'));
+		editor.setModel(model);
+		disposables.add(new ShrinkEmptyLinesController(editor));
+		editor.layout({ width: 400, height: 300 });
+		editor.setSelection(new Range(2, 5, 2, 8));
+		editor.focus();
+
+		for (const fontSize of [20, 40]) {
+			for (const multiplier of [0.5, 0.25, 1, 0.5]) {
+				editor.updateOptions({ fontSize, lineHeight: fontSize * 1.5, shrinkEmptyLines: multiplier });
+				editor.render(true);
+				const line = container.querySelectorAll('.view-lines .view-line')[1];
+				const cursor = container.querySelector('.cursors-layer .cursor');
+				const selection = container.querySelector('.selected-text');
+				assert.ok(line && cursor && selection);
+				const lineBounds = line.getBoundingClientRect();
+				const punctuation = Array.from(line.querySelectorAll('span span')).filter(token => /[{}]/.test(token.textContent ?? ''));
+				const cursorBounds = cursor.getBoundingClientRect();
+				const selectionBounds = selection.getBoundingClientRect();
+
+				assert.deepStrictEqual({
+					fontSize,
+					multiplier,
+					punctuationCount: punctuation.length,
+					centered: punctuation.every(token => {
+						const bounds = token.getBoundingClientRect();
+						return Math.abs(bounds.top + bounds.bottom - lineBounds.top - lineBounds.bottom) < 2;
+					}),
+					lineHeight: lineBounds.height,
+					cursorTop: cursorBounds.top - lineBounds.top,
+					cursorHeight: cursorBounds.height,
+					selectionTop: selectionBounds.top - lineBounds.top,
+					selectionHeight: selectionBounds.height,
+				}, {
+					fontSize,
+					multiplier,
+					punctuationCount: multiplier === 1 ? 1 : 2,
+					centered: true,
+					lineHeight: Math.round(fontSize * 1.5 * multiplier),
+					cursorTop: 0,
+					cursorHeight: Math.round(fontSize * 1.5 * multiplier),
+					selectionTop: 0,
+					selectionHeight: Math.round(fontSize * 1.5 * multiplier),
+				});
+			}
+		}
+	});
+
 	test('compresses braces and empty lines in the C# example from #66468', () => {
 		const { editor } = createEditor([
 			'internal class TestDbAsyncEnumerator<T> : IDbAsyncEnumerator<T>',

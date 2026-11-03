@@ -55,7 +55,7 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 		const fontSize = `${this.editor.getOption(EditorOption.fontInfo).fontSize * multiplier}px`;
 		let fontSizeOptions = previousOptions?.fontSize;
 		if (!fontSizeOptions || fontSizeOptions.fontSize !== fontSize) {
-			const fontSizeRule = this._ruleFactory.createClassNameRef({ fontSize });
+			const fontSizeRule = this._ruleFactory.createClassNameRef({ fontSize, verticalAlign: 'top' });
 			this._fontSizeRule.value = fontSizeRule;
 			fontSizeOptions = ModelDecorationOptions.createDynamic({
 				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,

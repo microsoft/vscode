@@ -134,6 +134,59 @@ suite('GhostTextView', () => {
 		});
 	});
 
+	test('centers suggestions and preserves their whitespace widths on compressed lines', () => {
+		const context = createGhostTextViewContext(store, '');
+
+		for (const fontSize of [20, 40]) {
+			context.editor.updateOptions({ fontSize, lineHeight: fontSize * 1.5 });
+			for (const [text, column, suggestion, preview] of [
+				['', 1, '    }', false],
+				['', 1, '\t}', true],
+				['  ', 3, '\t{ \t}  ', false],
+				['', 1, '    suggested()', true],
+			] as const) {
+				context.textModel.setValue(text);
+				context.setGhostText(new GhostText(1, [new GhostTextPart(column, suggestion, preview)]));
+				context.editor.render(true);
+
+				const line = context.container.querySelector('.view-lines .view-line');
+				assert.ok(line);
+				const lineBounds = line.getBoundingClientRect();
+				const tokens = Array.from(line.querySelectorAll('.ghost-text-decoration, .ghost-text-decoration-preview'));
+				const contentTokens = tokens.filter(token => /\S/.test(token.textContent ?? ''));
+				const whitespaceTokens = tokens.filter(token => !/\S/.test(token.textContent ?? ''));
+				assert.ok(contentTokens.length > 0);
+				const targetWindow = getWindow(context.container);
+				const centered = contentTokens.every(token => {
+					const bounds = token.getBoundingClientRect();
+					return Math.abs(bounds.top + bounds.bottom - lineBounds.top - lineBounds.bottom) < 2;
+				});
+				const whitespaceUsesRegularFont = whitespaceTokens.length > 0
+					&& whitespaceTokens.every(token => targetWindow.getComputedStyle(token).fontSize === `${fontSize}px`);
+				const suggestionLeft = contentTokens[0].getBoundingClientRect().left - lineBounds.left;
+
+				context.setGhostText(undefined);
+				context.editor.executeEdits('test', [{ range: new Range(1, column, 1, column), text: suggestion }]);
+				context.editor.render(true);
+				const acceptedLeft = context.editor.getOffsetForColumn(1, column + suggestion.search(/\S/));
+
+				assert.deepStrictEqual({
+					fontSize,
+					suggestion,
+					centered,
+					whitespaceUsesRegularFont,
+					indentationMatchesAcceptedText: Math.abs(suggestionLeft - acceptedLeft) < 1,
+				}, {
+					fontSize,
+					suggestion,
+					centered: true,
+					whitespaceUsesRegularFont: true,
+					indentationMatchesAcceptedText: true,
+				});
+			}
+		}
+	});
+
 	test('accepting a multi-line insertion preserves the viewport', async () => {
 		const context = await createInsertionViewContext(store);
 		const scrollTop = context.editor.getScrollTop();
@@ -206,12 +259,12 @@ function createGhostTextViewContext(store: Pick<DisposableStore, 'add'>, text: s
 		container,
 		editor,
 		textModel,
-		setGhostText(ghostText: GhostText): void {
-			input.set({
+		setGhostText(ghostText: GhostText | undefined): void {
+			input.set(ghostText ? {
 				ghostText,
 				warning: undefined,
 				handleInlineCompletionShown: () => { },
-			}, undefined);
+			} : undefined, undefined);
 		},
 		getRenderedFontSizes() {
 			editor.render(true);
