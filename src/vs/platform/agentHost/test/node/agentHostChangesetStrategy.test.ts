@@ -28,6 +28,7 @@ import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirecto
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { buildChatUri, buildDefaultChatUri, ChangesetStatus, FileEditKind, MessageKind, SessionStatus, withSessionGitState, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
@@ -35,10 +36,14 @@ import { GitRepositoryRootsContribution } from '../../node/chatContributions/git
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createSessionDataService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore } from './chatMetadataTestHelpers.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 
 suite('AgentHostChangesetStrategy', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -81,13 +86,8 @@ suite('AgentHostChangesetStrategy', () => {
 	}
 
 	function addTurn(state: AgentHostStateManager, id: string, chat = buildDefaultChatUri(session)): void {
-		state.dispatchServerAction(chat, {
-			type: ActionType.ChatTurnStarted,
-			turnId: id,
-			startedAt: '2026-09-01T00:00:00.000Z',
-			message: { text: 'Edit files', origin: { kind: MessageKind.User } },
-		});
-		state.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: id, duration: 1 });
+		state.dispatchServerAction(chat, chatTurnStarted(id, 'Edit files', '2026-09-01T00:00:00.000Z'));
+		state.dispatchServerAction(chat, chatTurnComplete(id, 1));
 	}
 
 	function createFixture(options: {
@@ -126,7 +126,7 @@ suite('AgentHostChangesetStrategy', () => {
 				checkpointCalls.push('baseline');
 				return results.baseline;
 			},
-			getTurnCheckpointPair: async (_session, id) => {
+			getTurnCheckpointPair: async (_session, _chat, id) => {
 				checkpointCalls.push(id);
 				return results.pair;
 			},
@@ -152,6 +152,7 @@ suite('AgentHostChangesetStrategy', () => {
 			dispose: () => { },
 		};
 		const data = createSessionDataService(db);
+		const sessionStateStore = createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), data);
 		const peerData = options.peer ? createSessionDataService(options.peer.db) : undefined;
 		class TestChangesetService extends AgentHostChangesetService {
 			protected override _createDiffComputeService() { return diff; }
@@ -184,6 +185,10 @@ suite('AgentHostChangesetStrategy', () => {
 			attachSessionGitHubPullRequest: async () => { },
 		}, new NullAgentHostWorktreeIsolation(),
 			{ _serviceBrand: undefined, setRead: async () => { }, setArchived: async () => { }, ...createLegacyChatMetadataPersistence(data) },
+			createTestChatOwnershipService(state),
+			sessionStateStore,
+			createTestAgentHostProviderService(() => undefined),
+			disposables.add(new AgentHostFileEditCoordinator()),
 		));
 		state.createSession({
 			resource: session,
@@ -193,16 +198,17 @@ suite('AgentHostChangesetStrategy', () => {
 			createdAt: '2026-09-01T00:00:00.000Z',
 			modifiedAt: '2026-09-01T00:00:00.000Z',
 			workingDirectories: options.workingDirectories ?? ['file:///repo'],
+			defaultChat: buildDefaultChatUri(session),
 		});
-		state.setSessionChangesets(session, buildDefaultChangesetCatalog(session));
+		state.setSessionChangesets(session, buildDefaultChangesetCatalog(session, false, false));
 		state.dispatchServerAction(session, { type: ActionType.SessionReady });
 		setIsolation(state, options.isolation);
 		addTurn(state, turnId);
 		if (options.peer) {
-			state.addChat(session, options.peer.resource, { workingDirectories: options.peer.workingDirectories });
+			state.addChat(session, options.peer.resource, creationTimeChatStorageResource(session, options.peer.resource, buildDefaultChatUri(session)), { workingDirectories: options.peer.workingDirectories });
 			addTurn(state, options.peer.turnId, options.peer.resource);
 		}
-		return { service, state, db, diff, git, gitStates, checkpoints, results, subscriptions, gitCalls, repositoryCalls, checkpointCalls, databaseCalls, configuration, subscriptionChanged };
+		return { sessionStateStore, service, state, db, diff, git, gitStates, checkpoints, results, subscriptions, gitCalls, repositoryCalls, checkpointCalls, databaseCalls, configuration, subscriptionChanged };
 	}
 
 	function nextPublication(state: AgentHostStateManager, uri: string): Promise<void> {
@@ -251,7 +257,9 @@ suite('AgentHostChangesetStrategy', () => {
 			test(`${isolation ?? 'legacy'} isolation with ${strategy ?? 'omitted'} strategy selects the requested session and turn sources`, async () => {
 				const fixture = createFixture({ isolation });
 				addEdit(fixture.db);
-				const tracker = strategy === 'fileEditTracker';
+				// Session Changes default to tracked edits; turn changesets default to auto.
+				const sessionTracker = strategy === 'fileEditTracker' || strategy === undefined;
+				const turnTracker = strategy === 'fileEditTracker';
 
 				await refresh(fixture, strategy);
 				await fixture.service.computeTurnChangeset(session, turnId, strategy);
@@ -264,15 +272,15 @@ suite('AgentHostChangesetStrategy', () => {
 					repositories: fixture.repositoryCalls,
 					tracked: [fixture.db.getAllFileEditsCalls, fixture.db.getFileEditsByTurnCalls, fixture.diff.callCount],
 				}, {
-					session: ready(tracker ? [trackedDiff()] : [gitOnlyDiff]),
-					turn: ready(tracker ? [trackedDiff()] : [gitOnlyDiff]),
-					git: tracker ? [] : [
-						{ directory: 'file:///repo', fromRef: 'baseline', toRef: 'current' },
-						{ directory: 'file:///repo', fromRef: 'parent', toRef: 'current' },
+					session: ready(sessionTracker ? [trackedDiff()] : [gitOnlyDiff]),
+					turn: ready(turnTracker ? [trackedDiff()] : [gitOnlyDiff]),
+					git: [
+						...(sessionTracker ? [] : [{ directory: 'file:///repo', fromRef: 'baseline', toRef: 'current' }]),
+						...(turnTracker ? [] : [{ directory: 'file:///repo', fromRef: 'parent', toRef: 'current' }]),
 					],
-					checkpoints: tracker ? [] : ['baseline', turnId, turnId],
+					checkpoints: [...(sessionTracker ? [] : ['baseline', turnId]), ...(turnTracker ? [] : [turnId])].sort(),
 					repositories: [],
-					tracked: tracker ? [1, 1, 2] : [0, 0, 0],
+					tracked: [sessionTracker ? 1 : 0, turnTracker ? 1 : 0, (sessionTracker ? 1 : 0) + (turnTracker ? 1 : 0)],
 				});
 			});
 		}
@@ -281,7 +289,7 @@ suite('AgentHostChangesetStrategy', () => {
 	test('explicit overrides are one-shot rather than a session preference', async () => {
 		const fixture = createFixture({ isolation: 'folder' });
 		addEdit(fixture.db);
-		await refresh(fixture, 'fileEditTracker');
+		await refresh(fixture, 'git');
 		await fixture.service.computeTurnChangeset(session, turnId, 'fileEditTracker');
 		await refresh(fixture);
 		await fixture.service.computeTurnChangeset(session, turnId);
@@ -291,25 +299,25 @@ suite('AgentHostChangesetStrategy', () => {
 			turn: snapshot(fixture.state, turnChangeset),
 			gitCalls: fixture.gitCalls.length,
 			isolation: fixture.state.getSessionState(session)?.config?.values[SessionConfigKey.Isolation],
-		}, { session: ready([gitOnlyDiff]), turn: ready([gitOnlyDiff]), gitCalls: 2, isolation: 'folder' });
+		}, { session: ready([trackedDiff()]), turn: ready([gitOnlyDiff]), gitCalls: 2, isolation: 'folder' });
 	});
 
-	test('subscribed session refreshes preserve checkpoint edits from default and peer chats', async () => {
-		const fixture = createFixture({
-			peer: { resource: buildChatUri(session, 'peer'), db: new TestSessionDatabase(), turnId: 'peer-turn' },
-		});
-		const edits = ['default-provider.txt', 'peer-provider.txt'].map(name => ({
-			after: { uri: URI.file(`/repo/${name}`).toString(), content: { uri: `git:/${name}` } },
-			diff: { added: 1, removed: 0 },
-		}));
-		fixture.results.git = edits;
-		await refresh(fixture);
+	test('subscribed session refreshes use only tracked edits from default and peer chats', async () => {
+		const peer = buildChatUri(session, 'peer');
+		const peerDb = new TestSessionDatabase();
+		const fixture = createFixture({ peer: { resource: peer, db: peerDb, turnId: 'peer-turn' } });
+		fixture.results.git = [gitOnlyDiff];
+		addEdit(fixture.db);
+		addEdit(peerDb, '/repo/peer.txt', 'peer-turn', 'peer-edit');
 
 		const { publications, done } = recordSessionPublications(fixture, 1);
 		fixture.service.recomputeSubscribedChangesets(session);
 		await done;
 
-		assert.deepStrictEqual(publications, [ready(edits)]);
+		assert.deepStrictEqual({ publications, gitCalls: fixture.gitCalls.length }, {
+			publications: [ready([trackedDiff('/repo/peer.txt', peer, 'peer-edit'), trackedDiff()])],
+			gitCalls: 0,
+		});
 	});
 
 	test('subscribed session refreshes fall back to tracked edits without checkpoints', async () => {
@@ -336,19 +344,14 @@ suite('AgentHostChangesetStrategy', () => {
 				await refresh(fixture);
 				const chat = owner === 'default' ? buildDefaultChatUri(session) : peer;
 				const activeTurnId = 'active-turn';
-				fixture.state.dispatchServerAction(chat, {
-					type: ActionType.ChatTurnStarted,
-					turnId: activeTurnId,
-					startedAt: '2026-09-01T00:00:01.000Z',
-					message: { text: 'Edit another file', origin: { kind: MessageKind.User } },
-				});
+				fixture.state.dispatchServerAction(chat, chatTurnStarted(activeTurnId, 'Edit another file', '2026-09-01T00:00:01.000Z'));
 				addEdit(owner === 'default' ? fixture.db : peerDb, '/repo/active.txt', activeTurnId, 'active-edit');
 				const published = nextPublication(fixture.state, sessionChangeset);
 				fixture.service.onToolCallEditsApplied(chat, activeTurnId);
 				await published;
 				const beforeRefresh = snapshot(fixture.state, sessionChangeset);
 
-				// First subscription and background Git-state refreshes both select auto.
+				// First subscription and background Git-state refreshes both use tracked edits.
 				await refresh(fixture);
 				const afterSubscribe = snapshot(fixture.state, sessionChangeset);
 				const backgroundPublished = nextPublication(fixture.state, sessionChangeset);
@@ -360,12 +363,8 @@ suite('AgentHostChangesetStrategy', () => {
 					completed: fixture.state.getChatState(chat)?.turns.map(turn => turn.id),
 				};
 
-				fixture.state.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: activeTurnId, duration: 1 });
-				const completedDiff: ISessionFileDiff = {
-					after: { uri: URI.file('/repo/active.txt').toString(), content: { uri: 'git:/active.txt' } },
-					diff: { added: 1, removed: 0 },
-				};
-				fixture.results.git = [completedDiff, gitOnlyDiff];
+				fixture.state.dispatchServerAction(chat, chatTurnComplete(activeTurnId, 1));
+				fixture.results.git = [gitOnlyDiff];
 				await refresh(fixture);
 				const expectedActive = ready([trackedDiff('/repo/active.txt', owner === 'default' ? session : peer, 'active-edit')]);
 				assert.deepStrictEqual({ beforeRefresh, afterSubscribe, afterBackgroundRefresh, activeState, afterCompletion: snapshot(fixture.state, sessionChangeset) }, {
@@ -373,7 +372,7 @@ suite('AgentHostChangesetStrategy', () => {
 					afterSubscribe: expectedActive,
 					afterBackgroundRefresh: expectedActive,
 					activeState: { id: activeTurnId, completed: [owner === 'default' ? turnId : 'peer-turn'] },
-					afterCompletion: ready([completedDiff, gitOnlyDiff]),
+					afterCompletion: expectedActive,
 				});
 			}));
 		}
@@ -457,12 +456,7 @@ suite('AgentHostChangesetStrategy', () => {
 		fixture.service.refreshSessionChangeset(session, 'git');
 		await started.p;
 		fixture.service.refreshSessionChangeset(session);
-		fixture.state.dispatchServerAction(buildDefaultChatUri(session), {
-			type: ActionType.ChatTurnStarted,
-			turnId: 'active-turn',
-			startedAt: '2026-09-01T00:00:01.000Z',
-			message: { text: 'Edit another file', origin: { kind: MessageKind.User } },
-		});
+		fixture.state.dispatchServerAction(buildDefaultChatUri(session), chatTurnStarted('active-turn', 'Edit another file', '2026-09-01T00:00:01.000Z'));
 		addEdit(fixture.db, '/repo/active.txt', 'active-turn', 'active-edit');
 		await release.complete();
 		await done;
@@ -548,7 +542,7 @@ suite('AgentHostChangesetStrategy', () => {
 						gitCalls: fixture.gitCalls.length,
 					}, {
 						session: ready([trackedDiff()]), turn: ready([trackedDiff()]),
-						reads: [1, 1], gitCalls: failure === 'missing checkpoints' ? 0 : 2,
+						reads: [1, 1], gitCalls: failure === 'missing checkpoints' ? 0 : strategy === undefined ? 1 : 2,
 					});
 				});
 			}
@@ -855,7 +849,7 @@ suite('AgentHostChangesetStrategy', () => {
 			if (failure === 'non-git root') {
 				fixture.git.getRepositoryRoot = async directory => directory.path === '/second' ? undefined : repositoryRoot(directory);
 			} else if (failure === 'missing checkpoint') {
-				fixture.checkpoints.getTurnCheckpointPair = async (resource, id, directory) => directory?.path === '/second' ? undefined : checkpointPair(resource, id, directory);
+				fixture.checkpoints.getTurnCheckpointPair = async (resource, _chat, id, directory) => directory?.path === '/second' ? undefined : checkpointPair(resource, _chat, id, directory);
 			} else {
 				fixture.git.computeFileDiffsBetweenRefs = async (directory, refs) => {
 					if (directory.path === '/second') {
@@ -1016,7 +1010,7 @@ suite('AgentHostChangesetStrategy', () => {
 		}, { state: ready([trackedDiff()]), reads: [2, 0], git: [] });
 	});
 
-	test('restore and subscription refreshes preserve session checkpoints after isolation changes', async () => {
+	test('restore and subscription refreshes keep tracked session changes after isolation changes', async () => {
 		const fixture = createFixture();
 		addEdit(fixture.db);
 		await refresh(fixture);
@@ -1030,7 +1024,7 @@ suite('AgentHostChangesetStrategy', () => {
 			turn: snapshot(fixture.state, turnChangeset),
 			gitCalls: fixture.gitCalls.length,
 			reads: [fixture.db.getAllFileEditsCalls, fixture.db.getFileEditsByTurnCalls],
-		}, { session: ready([gitOnlyDiff]), turn: ready([trackedDiff()]), gitCalls: 3, reads: [0, 1] });
+		}, { session: ready([trackedDiff()]), turn: ready([trackedDiff()]), gitCalls: 1, reads: [2, 1] });
 	});
 
 	test('main branch changes retain the persisted baseline while using the session folder', async () => {
@@ -1540,7 +1534,7 @@ suite('AgentHostChangesetStrategy', () => {
 			workingTreeCalls.push(directory.toString());
 			return [gitOnlyDiff];
 		};
-		fixture.checkpoints.getTurnCheckpointPair = async (_resource, id) => ({ parent: 'parent', current: id });
+		fixture.checkpoints.getTurnCheckpointPair = async (_resource, _chat, id) => ({ parent: 'parent', current: id });
 		const branchUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId(['file:///repo'])));
 		const published = nextPublication(fixture.state, branchUri);
 		fixture.service.refreshBranchChangeset(session);

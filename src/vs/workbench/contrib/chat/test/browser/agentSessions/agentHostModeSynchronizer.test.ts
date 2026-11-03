@@ -129,6 +129,18 @@ suite('AgentHostModeSynchronizer', () => {
 		assert.deepStrictEqual(setChatModeCalls, []);
 	});
 
+	test('persists the backend identity of a user-selected host Ask', () => {
+		const ask = upcastPartial<IChatMode>({
+			id: 'other-host:/opaque/ask',
+			kind: ChatModeKind.Ask,
+			isBuiltin: false,
+		});
+		const { modeChanges, storageService } = createSynchronizer(ask, [ask]);
+		modeChanges.fire({ isUserInitiated: true });
+
+		assert.strictEqual(storageService.get(agentHostAgentPickerStorageKey(sessionResource.scheme), StorageScope.PROFILE), ask.id);
+	});
+
 	test('stops observing a removed widget', async () => {
 		const untitledResource = URI.parse('agent-host-claude:/untitled-session-1');
 		const { modeChanges, modesChanges, setChatModeCalls, setCustomModes, storageService, widget, widgetRemovals } = createSynchronizer(ChatMode.Agent, [], untitledResource);

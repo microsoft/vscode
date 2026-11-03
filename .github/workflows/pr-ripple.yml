@@ -1,0 +1,60 @@
+name: Code OSS (ripple)
+
+# Builds the ripple binary that the Detect Changes job of pr.yml uses to plan unit tests, and
+# saves it in the cache. Pull requests can only restore caches created on main, so this spares
+# each pull request a build. It runs when ripple changes, and daily in case the cache was evicted.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - build/ripple/**
+      - .github/workflows/pr-ripple.yml
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ripple:
+    name: Ripple
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: build/ripple
+
+      # Must match the Restore ripple step of pr.yml.
+      - name: Look up ripple cache
+        id: cache-ripple
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: build/ripple/target/release/ripple
+          key: "ripple-${{ runner.os }}-${{ hashFiles('build/ripple/Cargo.lock', 'build/ripple/Cargo.toml', 'build/ripple/rust-toolchain.toml', 'build/ripple/src/**') }}"
+          lookup-only: true
+
+      - name: Build ripple
+        if: steps.cache-ripple.outputs.cache-hit != 'true'
+        working-directory: build/ripple
+        run: |
+          set -e
+          rustup toolchain install "$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)" --profile minimal
+          cargo test --release --locked
+          cargo build --release --locked
+
+      - name: Save ripple cache
+        if: steps.cache-ripple.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: build/ripple/target/release/ripple
+          key: ${{ steps.cache-ripple.outputs.cache-primary-key }}

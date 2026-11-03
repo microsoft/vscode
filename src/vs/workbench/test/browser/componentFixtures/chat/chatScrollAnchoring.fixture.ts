@@ -11,7 +11,7 @@ import { ChatProgressAnimation, ChatProgressVerbosity } from '../../../../contri
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../fixtureUtils.js';
 import { IChatWidgetFixtureHandle, renderChatWidget } from './chatWidget.fixture.js';
 
-async function waitForListToSettle(container: HTMLElement, listWidget: IChatWidgetFixtureHandle['listWidget'], waitForIdle = false): Promise<void> {
+async function waitForListToSettle(container: HTMLElement, listWidget: IChatWidgetFixtureHandle['listWidget']): Promise<void> {
 	const targetWindow = dom.getWindow(container);
 	await targetWindow.document.fonts.ready;
 	let previousLayout: string | undefined;
@@ -21,8 +21,7 @@ async function waitForListToSettle(container: HTMLElement, listWidget: IChatWidg
 		const layout = JSON.stringify([listWidget.contentHeight, listWidget.scrollHeight, listWidget.scrollTop, listWidget.renderHeight]);
 		const animating = container.getAnimations({ subtree: true }).some(animation =>
 			(animation.playState === 'running' || animation.pending) && animation.effect?.getComputedTiming().endTime !== Infinity);
-		const scrollbarWillHide = waitForIdle && !listWidget.domNode.matches(':hover') && listWidget.domNode.querySelector('.scrollbar.visible');
-		stableFrames = layout === previousLayout && !animating && !scrollbarWillHide ? stableFrames + 1 : 0;
+		stableFrames = layout === previousLayout && !animating ? stableFrames + 1 : 0;
 		previousLayout = layout;
 		if (stableFrames >= 3) {
 			return;
@@ -159,7 +158,7 @@ async function renderScrollAnchoring(context: ComponentFixtureContext, completed
 	const stickyBottom = listWidget.stickyScrollDomNode?.getBoundingClientRect().bottom ?? viewportTop;
 	const headerOffset = offscreen ? -600 : Math.max(0, stickyBottom - viewportTop) + 16;
 	listWidget.scrollTop += getHeader().getBoundingClientRect().top - viewportTop - headerOffset;
-	await waitForListToSettle(preview, listWidget, true);
+	await waitForListToSettle(preview, listWidget);
 	const viewport = listWidget.domNode.getBoundingClientRect();
 	const header = getHeader().getBoundingClientRect();
 	const visibleTop = Math.max(viewport.top, listWidget.stickyScrollDomNode?.getBoundingClientRect().bottom ?? viewport.top);
@@ -206,7 +205,7 @@ async function renderReasoningExpansion(context: ComponentFixtureContext): Promi
 	await waitForListToSettle(context.container, handle.listWidget);
 	handle.listWidget.layout(handle.listWidget.domNode.clientHeight, 720);
 	handle.listWidget.scrollToEnd();
-	await waitForListToSettle(context.container, handle.listWidget, true);
+	await waitForListToSettle(context.container, handle.listWidget);
 }
 
 async function renderBottomProgress(context: ComponentFixtureContext): Promise<void> {
@@ -295,7 +294,7 @@ async function renderBottomProgress(context: ComponentFixtureContext): Promise<v
 	}
 	await waitForListToSettle(preview, listWidget);
 	listWidget.scrollToEnd();
-	await waitForListToSettle(preview, listWidget, true);
+	await waitForListToSettle(preview, listWidget);
 	measurements.dataset.initial = JSON.stringify(measure());
 }
 

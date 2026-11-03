@@ -13,7 +13,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId, IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -33,14 +33,14 @@ registerAction2(class extends Action2 {
 			id: ConnectMissionControlEnvironmentCommand,
 			title: localize2('connectMissionControlEnvironment', "Connect to Environment..."),
 			f1: true,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.not('config.chat.disableAIFeatures'), ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true)),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.not('config.chat.disableAIFeatures'), ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true), ContextKeyExpr.equals(`config.${GitHubEnvironmentsEnabledSettingId}`, true), GitHubEnvironmentsAvailableContext),
 		});
 	}
 
 	override async run(accessor: ServicesAccessor, onBack?: () => void): Promise<string | undefined> {
 		const inventory = accessor.get(IMissionControlEnvironmentService);
 		if (!inventory.enabled) {
-			throw new Error(localize('missionControl.connectionsDisabled', "Environment connections require remote agent hosts and AI features to be enabled."));
+			throw new Error(localize('missionControl.connectionsDisabled', "Environment connections require GitHub Environments, remote agent hosts, and AI features to be enabled."));
 		}
 		const picker = accessor.get(IQuickInputService);
 		const notifications = accessor.get(INotificationService);
@@ -68,16 +68,15 @@ registerAction2(class extends Action2 {
 				}
 				const active = new Set(quickPick.activeItems.map(item => item.environment.id));
 				const selected = new Set(quickPick.selectedItems.map(item => item.environment.id));
-				const hosts = inventory.hosts.get();
+				const hosts = inventory.hosts.get().filter(host => host.status === 'online');
 				const items: IEnvironmentPick[] = [...hosts]
-					.sort((a, b) => Number(b.status === 'online') - Number(a.status === 'online') || (a.displayName ?? a.name).localeCompare(b.displayName ?? b.name) || a.id.localeCompare(b.id))
+					.sort((a, b) => (a.displayName ?? a.name).localeCompare(b.displayName ?? b.name) || a.id.localeCompare(b.id))
 					.map(host => {
 						const status = remote.connections.find(connection => connection.address === cloudSandboxAddress(host.id))?.status.kind;
 						const connection = status === 'connected' ? localize('missionControl.connected', "Connected")
 							: status === 'connecting' ? localize('missionControl.connecting', "Connecting")
 								: status === 'reconnecting' ? localize('missionControl.reconnecting', "Reconnecting") : undefined;
-						const availability = host.status === 'online' ? localize('missionControl.online', "Online")
-							: localize('missionControl.offline', "Offline");
+						const availability = localize('missionControl.online', "Online");
 						return {
 							label: host.displayName ?? host.name, environment: host, iconClass: ThemeIcon.asClassName(Codicon.remote),
 							description: connection ? localize('missionControl.hostStatus', "{0} · {1}", availability, connection) : availability,
@@ -86,16 +85,14 @@ registerAction2(class extends Action2 {
 				quickPick.items = items;
 				const hostItems = items;
 				const activeItems = hostItems.filter(item => active.has(item.environment.id));
-				if (activeItems.length) {
+				if (active.size || !items.length) {
 					quickPick.activeItems = activeItems;
 				}
-				if (selected.size) {
-					quickPick.selectedItems = hostItems.filter(item => selected.has(item.environment.id));
-				}
+				quickPick.selectedItems = hostItems.filter(item => selected.has(item.environment.id));
 				quickPick.severity = refreshError ? Severity.Warning : Severity.Info;
 				quickPick.validationMessage = refreshError ?? (!inventory.accountKey
 					? localize('missionControl.signIn', "Sign in with your GitHub account to discover environments.")
-					: !hosts.length ? localize('missionControl.empty', "No environments found.") : undefined);
+					: !hosts.length ? localize('missionControl.empty', "No online environments found.") : undefined);
 			};
 			resources.add(autorun(reader => {
 				inventory.hosts.read(reader);

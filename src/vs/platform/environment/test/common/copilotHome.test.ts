@@ -26,8 +26,8 @@ suite('copilotHome', () => {
 
 	test('resolves all Copilot roots', () => {
 		assert.deepStrictEqual([
-			getCopilotRootPaths('user-home', {}),
-			getCopilotRootPaths('user-home', { COPILOT_HOME: 'custom-copilot' }),
+			getCopilotRootPaths('user-home', join('user-home', '.copilot')),
+			getCopilotRootPaths('user-home', 'custom-copilot'),
 		], [
 			[join('user-home', '.copilot')],
 			['custom-copilot', join('user-home', '.copilot')],

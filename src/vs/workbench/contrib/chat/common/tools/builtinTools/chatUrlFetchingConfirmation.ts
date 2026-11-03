@@ -11,6 +11,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IQuickInputButton, IQuickInputService, IQuickTreeItem } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { extractUrlPatterns, getPatternLabel, isUrlApproved, IUrlApprovalSettings } from '../../../../../../platform/url/common/urlApprovalPatterns.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import { ConfirmedReason, ToolConfirmKind } from '../../chatService/chatService.js';
 import { ChatConfiguration } from '../../constants.js';
@@ -20,7 +21,6 @@ import {
 	ILanguageModelToolConfirmationContributionQuickTreeItem,
 	ILanguageModelToolConfirmationRef
 } from '../languageModelToolsConfirmationService.js';
-import { extractUrlPatterns, getPatternLabel, isUrlApproved, IUrlApprovalSettings } from './chatUrlFetchingPatterns.js';
 
 const trashButton: IQuickInputButton = {
 	iconClass: ThemeIcon.asClassName(Codicon.trash),

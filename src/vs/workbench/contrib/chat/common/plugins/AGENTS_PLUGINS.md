@@ -138,7 +138,7 @@ Agent Plugins use the shared plugin discovery pipeline and permissive component 
 Manages the catalog of available and installed plugins:
 
 - **Fetch** — reads `chat.plugins.marketplaces` config (GitHub shorthand, Git URLs, or file URIs), fetches `marketplace.json` from each, and returns parsed `IMarketplacePlugin` entries.
-- **Installed storage** — persists installed plugins in application-scoped storage (`chat.plugins.installed.v1`). Each entry tracks `{ pluginUri, plugin, enabled }`.
+- **Installed storage** — persists `{ pluginUri, relativePath?, enablementUri?, marketplace, name? }` entries in `agent-plugins/installed.json`. Managed plugins resolve `relativePath` against the current plugin home so moving a portable installation does not invalidate them; external plugins retain absolute URIs. Escaping relative paths fall back to `pluginUri` and are removed or replaced with a valid managed path during migration. Descendant paths preserve plugin-directory casing and use the same casing policy as containment, including on macOS. Legacy entries under the current home and relocated absolute URIs are migrated at startup and after external edits. The store serializes its own file operations and preserves pending local changes instead of publishing stale migration results. Migration uses the file service's existing modification-time and etag checks; detected conflicts are reloaded and rescheduled. This is best-effort protection, not a cross-process transaction: same-size edits, unchanged timestamps, and changes after validation can still be overwritten. A stable `enablementUri` preserves each profile's enablement decisions through `IAgentPluginEnablementService`, including in-window profile switches and after another profile rewrites the shared manifest. Updates that move an installation transfer this identity from its previous recorded URI; a stale update whose source was already removed retains the target's established identity.
 - **Trust** — marketplace canonical IDs must be explicitly trusted before install proceeds (`chat.plugins.trustedMarketplaces.v1`).
 - **Auto-update** — checks eligible installed marketplaces approximately every 24 hours and reports their canonical IDs through `marketplacesWithUpdates`. Managed `extraKnownMarketplaces.<name>.autoUpdate` values override `extensions.autoUpdate` for that marketplace; undefined entries inherit the global setting. Checks and updates are restricted to enabled marketplaces and still enforce `strictKnownMarketplaces`.
 - **GitHub caching** — caches raw GitHub API responses with an 8-hour TTL to avoid repeated fetches.
@@ -198,16 +198,19 @@ In Copilot Agent Host sessions, the runtime reads `strictPluginOnlyCustomization
 ### Storage (ApplicationScope, MachineTarget)
 | Key | Description |
 |-----|-------------|
-| `chat.plugins.installed.v1` | Installed marketplace plugins |
+| `chat.plugins.installed.v1` | Legacy installed marketplace plugins, migrated to `agent-plugins/installed.json` |
 | `chat.plugins.trustedMarketplaces.v1` | User-trusted marketplace canonical IDs |
 | `chat.plugins.lastFetchedPlugins.v2` | Last marketplace fetch results (persisted until next fetch) |
 | `chat.plugins.marketplaces.githubCache.v1` | GitHub API response cache (8 hour TTL) |
 | `chat.plugins.lastUpdateCheck.v1` | Timestamp of last periodic update check |
 
 ### Enablement Storage
+Stored in `StorageScope.APPLICATION`, so every window and profile (including the Agents Window's `agents` profile) shares the same switches. Values from non-default profiles are merged in once, "off wins" (`customizationEnablementStorage.ts`).
+
 | Key | Description |
 |-----|-------------|
 | `agentPlugins.enablement` | Per-plugin enable/disable state (shared `EnablementModel`) |
+| `agentPlugins.enablementIdentities` | Aliases from relocated install URIs to the URI their enablement is stored under |
 
 ## Reactivity Model
 
@@ -236,5 +239,7 @@ The entire system is built on `IObservable`:
 - **Lazy instantiation** — the service is registered as `InstantiationType.Delayed` and only created on first injection.
 
 Synthetic `.plugin/plugin.json` plus `.mcp.json` bundles created by customization synchronization remain legacy Open Plugin packages. Root Agent Plugin recognition is also used for direct standalone installs, but `MarketplaceType.OpenPlugin` and the existing marketplace protocol remain unchanged because Agent Plugins v1 defines no marketplace format.
+
+The synced bundle can also contain client-authored instruction rules without source files. Remote Copilot sessions receive an always-applied image rule through this path: use an absolute Markdown image path, and call `view` once only if no tool has already returned the image. The client resolves matching paths from raster image bytes in that chat's tool results, including restored history, without requiring the original sandbox file. Path inference accepts common path arguments and avoids ambiguous multi-image or multi-path results; stable host-provided resource identities remain the long-term solution.
 
 Provider adapters do not delegate strict packages to legacy SDK plugin discovery. Copilot explicitly receives skills and MCP, Codex explicitly receives skills and MCP, and Claude explicitly receives remote MCP. Remote MCP transport selection remains the responsibility of each provider's existing auto-detection. The Claude SDK currently has no external skill-directory API or per-server stdio working-directory option, so strict Claude skills and stdio MCP are skipped rather than reinterpreted.

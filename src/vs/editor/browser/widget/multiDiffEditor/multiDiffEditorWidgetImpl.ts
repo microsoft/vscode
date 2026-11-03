@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Dimension, h } from '../../../../base/browser/dom.js';
+import { arrayEqualsC } from '../../../../base/common/equals.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ITransaction, autorun, autorunWithStore, constObservable, derived, mapObservableArrayCached, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IObservable, IReader, ITransaction, autorun, autorunWithStore, constObservable, derived, derivedOpts, mapObservableArrayCached, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyValue, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -44,6 +45,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	public readonly scrollTop;
 	public readonly scrollLeft;
 	public readonly layoutDebugState: IObservable<IMultiDiffEditorLayoutDebugState>;
+
+	/** Diff items whose content intersects the viewport, in document order. */
+	public readonly visibleDiffItems: IObservable<readonly DocumentDiffItemViewModel[]>;
 
 	private readonly _viewItemsInfo;
 
@@ -200,6 +204,13 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				} : undefined,
 				items: items.map((item, index) => item.getLayoutDebugState(reader, layout.items[index])),
 			};
+		});
+		this.visibleDiffItems = derivedOpts<readonly DocumentDiffItemViewModel[]>({ owner: this, equalsFn: arrayEqualsC() }, reader => {
+			const layout = this._scrollView.layout.read(reader);
+			// Layout items are index-aligned with the view items (the trailing padding item is not a view item).
+			return this._viewItems.read(reader)
+				.filter((_item, index) => layout.items[index]?.visibility === 'visible')
+				.map(item => item.viewModel);
 		});
 		const variantClassNames = this._variantConfiguration.classNames.map(className => `.${className}`).join('');
 		this._elements = h(`div.monaco-component.multiDiffEditor${variantClassNames}`, {}, [

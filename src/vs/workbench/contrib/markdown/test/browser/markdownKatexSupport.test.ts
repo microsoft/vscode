@@ -15,6 +15,16 @@ import { MarkedKatexSupport } from '../../browser/markedKatexSupport.js';
 suite('Markdown Katex Support Test', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	teardown(() => {
+		// `loadExtension` adds the KaTeX stylesheet to the document, so remove it again. Its rules cannot be read in
+		// the unit tests (it has another origin), which breaks the later tests that read the rules of every stylesheet.
+		for (const element of [...getWindow(document).document.head.children]) {
+			if (element.classList.contains('katex')) {
+				element.remove();
+			}
+		}
+	});
+
 	async function renderMarkdownWithKatex(str: string) {
 		const katex = await MarkedKatexSupport.loadExtension(getWindow(document), {});
 		const rendered = store.add(renderMarkdown(new MarkdownString(str), {

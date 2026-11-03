@@ -43,14 +43,12 @@ suite('PullRequest planning', () => {
 		const available: GitHubHostCapabilities = {
 			graphql: true,
 			mergeQueue: true,
-			internalMergeStatus: false,
 			reviewThreads: true,
 			checkContextRequiredness: true,
 		};
 		const unavailable: GitHubHostCapabilities = {
 			graphql: false,
 			mergeQueue: false,
-			internalMergeStatus: false,
 			reviewThreads: false,
 			checkContextRequiredness: false,
 		};
@@ -62,11 +60,11 @@ suite('PullRequest planning', () => {
 			mergeability: planner.plan('mergeability', 'visible', unavailable),
 			unavailableThreads: planner.plan('reviewThreads', 'background', unavailable),
 		}, {
-			core: { fragment: 'core', strategy: 'rest', priority: 'visible', completeWhenSuccessful: true },
-			threads: { fragment: 'reviewThreads', strategy: 'graphql', priority: 'interactive', completeWhenSuccessful: true },
-			checks: { fragment: 'checks', strategy: 'restChecksFallback', priority: 'background', completeWhenSuccessful: false },
-			mergeability: { fragment: 'mergeability', strategy: 'restMergeabilityFallback', priority: 'visible', completeWhenSuccessful: false },
-			unavailableThreads: { fragment: 'reviewThreads', strategy: 'unavailable', priority: 'background', completeWhenSuccessful: false },
+			core: { strategy: 'rest', priority: 'visible', completeWhenSuccessful: true },
+			threads: { strategy: 'graphql', priority: 'interactive', completeWhenSuccessful: true },
+			checks: { strategy: 'restChecksFallback', priority: 'background', completeWhenSuccessful: false },
+			mergeability: { strategy: 'restMergeabilityFallback', priority: 'visible', completeWhenSuccessful: false },
+			unavailableThreads: { strategy: 'unavailable', priority: 'background', completeWhenSuccessful: false },
 		});
 	});
 

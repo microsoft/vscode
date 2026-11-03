@@ -19,7 +19,7 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { ClaudeRuntimeEffortLevel, toRuntimeEffortLevel, resolveClaudeEffort } from '../../common/claudeModelConfig.js';
-import { AgentSignal, IAgentSessionProjectInfo } from '../../common/agent.js';
+import { AgentPermissionKind, AgentSignal, IAgentSessionProjectInfo, type IAgentChatOwnerRef } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -28,7 +28,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual, areSessionWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
 import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ToolCallContributorKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ClientPluginCustomization, CustomizationEnablement } from '../../common/state/protocol/channels-session/state.js';
-import { CustomizationType, parseRequiredSessionUriFromChatUri, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
+import { CustomizationType, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientMcpServers, buildOptions, toClaudeMcpServers, type ClaudeDeniedMcpServerSpec } from './claudeSdkOptions.js';
 import { claudeTransportForProvider, parseClaudeModelSelection, toClaudeSdkModelId } from './claudeModelSelection.js';
@@ -42,7 +42,7 @@ import { applyMcpServerEnablement, findMcpChildId, findMcpServerName } from '../
 import { scanClaudeHooks } from './customizations/scan/claudeHookScan.js';
 import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
-import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import { IAgentHostOTelService, type IAgentHostNativeOTelConfig, type IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { scanClaudeRules } from './customizations/scan/claudeRuleScan.js';
 import { discoverClaudeMultiRootCustomizations } from './customizations/claudeMultiRootCustomizationDiscovery.js';
@@ -53,7 +53,6 @@ import { parsePlugin, type IMcpServerDefinition } from '../../../agentPlugins/co
 import { hasClientPluginMcpDefaultCwds, readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { ClaudeSdkPipeline, IRematerializer, type ISdkResolvedCustomizations } from './claudeSdkPipeline.js';
 import { SubagentRegistry } from './claudeSubagentRegistry.js';
-import { ClaudePermissionKind } from './claudeToolDisplay.js';
 import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import { AgentHostGitHubMcpServerEnabledConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
@@ -62,9 +61,6 @@ import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { IAgentHostAuthenticationService } from '../agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer } from '../shared/agentMergeToolRestrictions.js';
-
-// Re-export for callers that import IRematerializer from the session.
-export type { IRematerializer } from './claudeSdkPipeline.js';
 
 /**
  * Inputs to {@link ClaudeAgentSession.materialize}. Carries the
@@ -90,7 +86,8 @@ export interface IMaterializeContext {
 	 * operation. Used transiently; the session never derives it from URI shape.
 	 */
 	readonly resource: URI;
-	readonly configResource: URI;
+	/** The session that owns the chat, read at each use. */
+	readonly owner: IAgentChatOwnerRef;
 	readonly customizations?: readonly Customization[];
 	/**
 	 * Working directory the host resolved for this session's first send (e.g. an
@@ -122,10 +119,11 @@ export interface IMaterializeContext {
 function resolveCurrentPermissionMode(
 	configurationService: IAgentConfigurationService,
 	resource: URI,
+	chat: URI,
 	inheritedPermissionMode: ClaudePermissionMode | undefined,
 	permissionModeFallback: ClaudePermissionMode,
 ): ClaudePermissionMode {
-	return readClaudePermissionMode(configurationService, resource) ?? inheritedPermissionMode ?? permissionModeFallback;
+	return readClaudePermissionMode(configurationService, resource, chat) ?? inheritedPermissionMode ?? permissionModeFallback;
 }
 
 function isGitHubMcpServerDefinition(definition: IMcpServerDefinition, gitHubMcpServerConfiguration: IMcpServerConfiguration): boolean {
@@ -153,20 +151,21 @@ function toClaudeMcpToolServerName(serverName: string): string {
  *   • Pending-permission and pending-user-input registries (Phase 7),
  *     surfaced via `requestPermission` / `requestUserInput`.
  */
-export class ClaudeAgentSession extends Disposable {
+export class ClaudeAgentSession extends Disposable implements IRematerializer {
 	private _hostInstructions: readonly string[] | undefined;
 
 	private _pipeline: ClaudeSdkPipeline | undefined;
+	private _rebuildContext: {
+		readonly context: IMaterializeContext;
+		readonly telemetry: IAgentHostNativeOTelConfig | undefined;
+		readonly traceContext: IAgentHostTraceContext | undefined;
+	} | undefined;
 	private _chatChannelUri: URI;
 	private readonly _mcpEnablementSequencer = new Sequencer();
 	private _lastReconciledMcpEnablement: ReadonlyMap<string, boolean> | undefined;
 
 	get chatChannelUri(): URI {
 		return this._chatChannelUri;
-	}
-
-	private get _configurationResource(): URI {
-		return URI.parse(parseRequiredSessionUriFromChatUri(this._chatChannelUri.toString()));
 	}
 
 	bindChatChannel(chatChannelUri: URI): void {
@@ -241,6 +240,7 @@ export class ClaudeAgentSession extends Disposable {
 	static createProvisional(
 		sessionId: string,
 		chatChannelUri: URI,
+		owner: IAgentChatOwnerRef,
 		workspace: URI | undefined,
 		project: IAgentSessionProjectInfo | undefined,
 		model: ModelSelection | undefined,
@@ -255,6 +255,7 @@ export class ClaudeAgentSession extends Disposable {
 			ClaudeAgentSession,
 			sessionId,
 			chatChannelUri,
+			owner,
 			workspace,
 			project,
 			model,
@@ -353,6 +354,8 @@ export class ClaudeAgentSession extends Disposable {
 	 * resolves a transport only when one is actually pending.
 	 */
 	private _pendingTransportSwitch = false;
+	/** The owner the live SDK process was launched for; a send after the chat changed owner relaunches it. */
+	private _materializedOwner: URI | undefined;
 
 	/**
 	 * The transport the agent resolved for a pending {@link _pendingTransportSwitch},
@@ -440,6 +443,8 @@ export class ClaudeAgentSession extends Disposable {
 	constructor(
 		readonly sessionId: string,
 		chatChannelUri: URI,
+		/** The session that owns the chat: read at each use, never stored, since it can change while the chat runs. */
+		private readonly _owner: IAgentChatOwnerRef,
 		readonly workspace: URI | undefined,
 		project: IAgentSessionProjectInfo | undefined,
 		model: ModelSelection | undefined,
@@ -482,7 +487,7 @@ export class ClaudeAgentSession extends Disposable {
 		this.toolDiff = this._register(toolDiff);
 		this._register(this.clientCustomizationsDiff.onDidChange(() => this._onDidCustomizationsChange.fire()));
 		this._register(this._customizationEnablementService.onDidChange(event => {
-			if (!event.sessions.includes(this._configurationResource.toString())) {
+			if (!event.sessions.includes(this._owner.get().toString())) {
 				return;
 			}
 			this._mcpLaunchEnablementRevision++;
@@ -588,7 +593,15 @@ export class ClaudeAgentSession extends Disposable {
 		if (this._pipeline) {
 			throw new Error('ClaudeAgentSession is already materialized');
 		}
-		await this._customizationEnablementService.initializeSession(this._configurationResource.toString());
+		// One owner for the whole launch (permission mode, tool wiring, MCP and plugin enablement, server tools),
+		// passed down rather than shared, so concurrent paths never see another launch's owner.
+		const launchOwner = ctx.owner.get();
+		await this._materialize(ctx, launchOwner);
+		this._materializedOwner = launchOwner;
+	}
+
+	private async _materialize(ctx: IMaterializeContext, launchOwner: URI): Promise<void> {
+		await this._customizationEnablementService.initializeSession(launchOwner.toString());
 		// `ctx.customizations` is the host's last published snapshot for the
 		// owning session. Absent means "the host has published none yet", which
 		// is not the same as an empty list — keep whatever was already
@@ -624,11 +637,11 @@ export class ClaudeAgentSession extends Disposable {
 		this._transportKind = ctx.transport.kind;
 		this._materializedTransport = ctx.transport;
 
-		const permissionMode = resolveCurrentPermissionMode(this._configurationService, ctx.configResource, this._inheritedPermissionMode, this._permissionModeFallback);
-		const plugins = this._desiredClientPluginConfigs();
+		const permissionMode = resolveCurrentPermissionMode(this._configurationService, launchOwner, this._chatChannelUri, this._inheritedPermissionMode, this._permissionModeFallback);
+		const plugins = this._desiredClientPluginConfigs(launchOwner);
 		this.clientCustomizationsDiff.consume(plugins.map(plugin => plugin.uri));
 		const mcpLaunchEnablementRevision = this._mcpLaunchEnablementRevision;
-		const { mcpServers, deniedMcpServers, allowedTools, agentMergeRestrictedMcpServerNames } = await this._buildStartupToolWiring(ctx.resource, ctx.serverToolHost);
+		const { mcpServers, deniedMcpServers, allowedTools, agentMergeRestrictedMcpServerNames } = await this._buildStartupToolWiring(launchOwner, ctx.serverToolHost);
 		const agentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
 		const telemetry = await this._otelService.getNativeSdkTelemetryConfig();
 		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, ctx.resource.toString());
@@ -675,12 +688,13 @@ export class ClaudeAgentSession extends Disposable {
 				ClaudeSdkPipeline,
 				this.sessionId,
 				this._chatChannelUri,
+				this._owner,
 				ctx.resource,
 				warm,
 				this.abortController,
 				dbRef,
 				this.subagents,
-				(toolName: string) => this.toolDiff.model.ownerOf(toolName),
+				this.toolDiff.model,
 			));
 		} catch (err) {
 			dbRef.dispose();
@@ -689,11 +703,11 @@ export class ClaudeAgentSession extends Disposable {
 		}
 		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithMcpContributor(this._enrichSignalWithCredits(s)))));
 		this._pipeline = pipeline;
-		this._register(this._configurationService.onDidSessionConfigChange(event => {
-			if (!event.origin || event.session !== ctx.configResource.toString()) {
+		this._register(this._configurationService.onDidChatConfigChange(event => {
+			if (!event.origin || event.chat !== this._chatChannelUri.toString()) {
 				return;
 			}
-			const inheritedMode = readClaudePermissionMode(this._configurationService, ctx.configResource);
+			const inheritedMode = readClaudePermissionMode(this._configurationService, ctx.owner.get(), this._chatChannelUri);
 			const mode = inheritedMode ?? this.permissionModeFallback;
 			this.setInheritedPermissionMode(inheritedMode).catch(err => {
 				this._logService.warn(`[Claude:${this.sessionId}] mid-turn setPermissionMode(${mode}) failed`, err);
@@ -723,100 +737,91 @@ export class ClaudeAgentSession extends Disposable {
 			throw new CancellationError();
 		}
 
-		pipeline.attachRematerializer(async (_reason) => {
-			const liveMode = resolveCurrentPermissionMode(this._configurationService, ctx.configResource, this._inheritedPermissionMode, this._permissionModeFallback);
-			const rebuildAbort = new AbortController();
-			let rebuildWarm: WarmQuery | undefined;
-			try {
-				// Pin the transport: prefer the one the agent staged for a deliberate
-				// per-session switch (`_pendingSwitchTransport`, already resolved and
-				// validated at `send` — the session only consumes it, never re-resolves),
-				// else reuse the transport captured at materialize. Reusing it keeps a
-				// runtime host-default flip (config change / Copilot sign-in) from
-				// rerouting a live conversation; an SDK-driven recover with nothing staged
-				// stays put and re-tries the switch on the next send.
-				const rebuildTransport = this._pendingSwitchTransport ?? this._materializedTransport;
-				if (!rebuildTransport) {
-					// Always set once `materialize` has run; a throwing guard (never a
-					// non-null assertion) keeps a rebuild honest rather than crashing on
-					// an impossible null.
-					throw new Error(`Cannot rebuild Claude session ${this.sessionId}: no transport resolved`);
-				}
-				this._watchCustomizations(this.workingDirectories);
-				const rebuildPlugins = this._desiredClientPluginConfigs();
-				this.clientCustomizationsDiff.consume(rebuildPlugins.map(plugin => plugin.uri));
-				const rebuildMcpLaunchEnablementRevision = this._mcpLaunchEnablementRevision;
-				const { mcpServers: rebuildMcp, deniedMcpServers: rebuildDeniedMcpServers, allowedTools: rebuildAllowedTools, agentMergeRestrictedMcpServerNames: rebuildAgentMergeRestrictedMcpServerNames } = await this._buildStartupToolWiring(ctx.resource, ctx.serverToolHost);
-				const rebuildAgentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
-				const rebuildOptions = await buildOptions(
-					{
-						sessionId: this.sessionId,
-						workingDirectory: this.workingDirectory!,
-						additionalDirectories: this._desiredAdditionalDirectories,
-						model: this._provisionalModel,
-						abortController: rebuildAbort,
-						permissionMode: liveMode,
-						canUseTool: ctx.canUseTool,
-						onElicitation: ctx.onElicitation,
-						isResume: true,
-						resumeSessionAt: this._pendingResumeSessionAt,
-						mcpServers: rebuildMcp,
-						deniedMcpServers: rebuildDeniedMcpServers,
-						allowedTools: rebuildAllowedTools,
-						plugins: rebuildPlugins,
-						agent: rebuildAgentName,
-						telemetry,
-						traceContext,
-						getUserPromptAdditionalContext: () => this._hostInstructions?.join('\n\n'),
-						onPreToolUse: (toolName, input) => this._restrictAgentMergeGitHubTool(toolName, input, rebuildAgentMergeRestrictedMcpServerNames),
-					},
-					rebuildTransport,
-					data => this._logService.error(`[Claude SDK stderr] ${data}`),
-				);
-				this._logService.info(`[Claude] session ${this.sessionId}: resume rebuild agent=${rebuildOptions.agent ?? '(none)'}`);
-				rebuildWarm = await this._sdkService.startup({ options: rebuildOptions });
-				// Rebuild succeeded with the anchor applied — clear it so it
-				// isn't re-applied. A throw above keeps it staged (handled in the
-				// catch alongside the tool/customization diffs) so the next send
-				// retries the truncation instead of dropping the restore.
-				this._pendingResumeSessionAt = undefined;
-				this._appliedMcpLaunchEnablementRevision = rebuildMcpLaunchEnablementRevision;
-				this._appliedAdditionalDirectories = this._desiredAdditionalDirectories;
-				// Commit the (possibly switched) transport now that the new
-				// subprocess is live, so credit enrichment tracks the running
-				// transport. A throw above leaves everything untouched so the next
-				// send retries.
-				this._transportKind = rebuildTransport.kind;
-				this._materializedTransport = rebuildTransport;
-				if (this._pendingSwitchTransport) {
-					// Only a rebuild that actually consumed a pushed switch transport
-					// resolves the pending switch. An ordinary/SDK-recover rebuild that
-					// reused the materialized transport leaves the flag set so the next
-					// send still performs the deferred switch.
-					this._pendingTransportSwitch = false;
-					this._pendingSwitchTransport = undefined;
-				}
-				return { warm: rebuildWarm, abortController: rebuildAbort };
-			} catch (err) {
-				rebuildAbort.abort();
-				await rebuildWarm?.[Symbol.asyncDispose]();
-				this.toolDiff.markDirty();
-				this.clientCustomizationsDiff.markDirty();
-				throw err;
-			}
-		});
+		this._rebuildContext = { context: ctx, telemetry, traceContext };
+		pipeline.attachRematerializer(this);
 		await this._reconcileMcpServerEnablement();
 
 		// Advertise the agent host's server tools on this session so the client
 		// sees them as server-provided. Execution happens in-process via the
 		// server-tool MCP server built in `_buildStartupToolWiring`.
-		ctx.serverToolHost?.advertise(ctx.resource.toString());
+		ctx.serverToolHost?.advertise(launchOwner.toString());
 
 		// Surface the SDK-resolved customization tier to the workbench.
 		// Pre-materialize, getSessionCustomizations returns only the
 		// client-pushed slice; firing here prompts the workbench to refetch
 		// and pick up the bundled `Discovered in Claude` entry.
 		this._onDidCustomizationsChange.fire();
+	}
+
+	/** Rebuilds the SDK subprocess with the external inputs captured at materialization. */
+	async rematerialize(_reason: 'restart' | 'recover'): Promise<{ readonly warm: WarmQuery; readonly abortController: AbortController }> {
+		if (!this._rebuildContext) {
+			throw new Error(`Cannot rebuild Claude session ${this.sessionId}: not materialized`);
+		}
+		const { context: ctx, telemetry, traceContext } = this._rebuildContext;
+		const pipeline = this._requirePipeline();
+		const launchOwner = ctx.owner.get();
+		const liveMode = resolveCurrentPermissionMode(this._configurationService, launchOwner, this._chatChannelUri, this._inheritedPermissionMode, this._permissionModeFallback);
+		const rebuildAbort = new AbortController();
+		let rebuildWarm: WarmQuery | undefined;
+		try {
+			// Only a staged provider switch may replace the materialized transport.
+			const rebuildTransport = this._pendingSwitchTransport ?? this._materializedTransport;
+			if (!rebuildTransport) {
+				throw new Error(`Cannot rebuild Claude session ${this.sessionId}: no transport resolved`);
+			}
+			this._watchCustomizations(this.workingDirectories);
+			const rebuildPlugins = this._desiredClientPluginConfigs(launchOwner);
+			this.clientCustomizationsDiff.consume(rebuildPlugins.map(plugin => plugin.uri));
+			const rebuildMcpLaunchEnablementRevision = this._mcpLaunchEnablementRevision;
+			const { mcpServers: rebuildMcp, deniedMcpServers: rebuildDeniedMcpServers, allowedTools: rebuildAllowedTools, agentMergeRestrictedMcpServerNames: rebuildAgentMergeRestrictedMcpServerNames } = await this._buildStartupToolWiring(launchOwner, ctx.serverToolHost);
+			const rebuildAgentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
+			const rebuildOptions = await buildOptions(
+				{
+					sessionId: this.sessionId,
+					workingDirectory: this.workingDirectory!,
+					additionalDirectories: this._desiredAdditionalDirectories,
+					model: this._provisionalModel,
+					abortController: rebuildAbort,
+					permissionMode: liveMode,
+					canUseTool: ctx.canUseTool,
+					onElicitation: ctx.onElicitation,
+					isResume: ctx.isResume || pipeline.isResumed,
+					resumeSessionAt: this._pendingResumeSessionAt,
+					mcpServers: rebuildMcp,
+					deniedMcpServers: rebuildDeniedMcpServers,
+					allowedTools: rebuildAllowedTools,
+					plugins: rebuildPlugins,
+					agent: rebuildAgentName,
+					telemetry,
+					traceContext,
+					getUserPromptAdditionalContext: () => this._hostInstructions?.join('\n\n'),
+					onPreToolUse: (toolName, input) => this._restrictAgentMergeGitHubTool(toolName, input, rebuildAgentMergeRestrictedMcpServerNames),
+				},
+				rebuildTransport,
+				data => this._logService.error(`[Claude SDK stderr] ${data}`),
+			);
+			this._logService.info(`[Claude] session ${this.sessionId}: rebuild isResume=${!!rebuildOptions.resume} agent=${rebuildOptions.agent ?? '(none)'}`);
+			rebuildWarm = await this._sdkService.startup({ options: rebuildOptions });
+			this._pendingResumeSessionAt = undefined;
+			this._appliedMcpLaunchEnablementRevision = rebuildMcpLaunchEnablementRevision;
+			this._appliedAdditionalDirectories = this._desiredAdditionalDirectories;
+			this._transportKind = rebuildTransport.kind;
+			this._materializedTransport = rebuildTransport;
+			if (this._pendingSwitchTransport) {
+				this._pendingTransportSwitch = false;
+				this._pendingSwitchTransport = undefined;
+			}
+			this._materializedOwner = launchOwner;
+			ctx.serverToolHost?.advertise(launchOwner.toString());
+			return { warm: rebuildWarm, abortController: rebuildAbort };
+		} catch (err) {
+			rebuildAbort.abort();
+			await rebuildWarm?.[Symbol.asyncDispose]();
+			this.toolDiff.markDirty();
+			this.clientCustomizationsDiff.markDirty();
+			throw err;
+		}
 	}
 
 	/**
@@ -836,12 +841,12 @@ export class ClaudeAgentSession extends Disposable {
 	 * and that a newly registered server tool is wired everywhere at once.
 	 */
 	private async _buildStartupToolWiring(
-		resource: URI,
+		owner: URI,
 		serverToolHost: IAgentServerToolHost | undefined,
 	): Promise<{ mcpServers: Record<string, McpServerConfig> | undefined; deniedMcpServers: readonly ClaudeDeniedMcpServerSpec[]; allowedTools: readonly string[] | undefined; agentMergeRestrictedMcpServerNames: ReadonlySet<string> }> {
-		const externalServers = await this._buildExternalMcpServers(await this._getGitHubMcpServerConfiguration());
+		const externalServers = await this._buildExternalMcpServers(await this._getGitHubMcpServerConfiguration(), owner);
 		const clientServers = await buildClientMcpServers(this.toolDiff, this._pendingClientToolCalls, this._sdkService);
-		const serverToolDefinitions = serverToolHost?.getDefinitionsForSession(resource.toString());
+		const serverToolDefinitions = serverToolHost?.getDefinitionsForSession(owner.toString());
 		const serverToolServer = serverToolHost && serverToolDefinitions?.length
 			? await buildServerToolMcpServer(serverToolHost, this._chatChannelUri.toString(), this._sdkService, serverToolDefinitions)
 			: undefined;
@@ -887,7 +892,7 @@ export class ClaudeAgentSession extends Disposable {
 		}
 	}
 
-	private async _buildExternalMcpServers(gitHubMcpServerConfiguration: IMcpServerConfiguration | undefined): Promise<{ readonly servers: Record<string, McpServerConfig>; readonly deniedServers: readonly ClaudeDeniedMcpServerSpec[]; readonly agentMergeRestrictedServerNames: ReadonlySet<string> }> {
+	private async _buildExternalMcpServers(gitHubMcpServerConfiguration: IMcpServerConfiguration | undefined, owner: URI): Promise<{ readonly servers: Record<string, McpServerConfig>; readonly deniedServers: readonly ClaudeDeniedMcpServerSpec[]; readonly agentMergeRestrictedServerNames: ReadonlySet<string> }> {
 		const primaryCwd = this.workingDirectory;
 		if (!primaryCwd) {
 			return { servers: {}, deniedServers: [], agentMergeRestrictedServerNames: new Set() };
@@ -899,7 +904,7 @@ export class ClaudeAgentSession extends Disposable {
 			? discoveredDefinitions.some(definition => isGitHubMcpServerDefinition(definition, gitHubMcpServerConfiguration))
 			: false;
 		const discoveredCandidates = discoveredDefinitions.map(definition => definition.customization);
-		const discoveredResolution = resolveCustomizationEnablement(this._customizationEnablementService, this._configurationResource, discoveredCandidates);
+		const discoveredResolution = resolveCustomizationEnablement(this._customizationEnablementService, owner, discoveredCandidates);
 		const discoveredEnablement = getSdkMcpServerEnablement(discoveredResolution);
 		const deniedServers: ClaudeDeniedMcpServerSpec[] = [];
 		for (const definition of discoveredDefinitions) {
@@ -915,7 +920,7 @@ export class ClaudeAgentSession extends Disposable {
 			}
 			definitions.set(definition.name, definition);
 		}
-		for (const synced of this._desiredClientPlugins()) {
+		for (const synced of this._desiredClientPlugins(owner)) {
 			if (!synced.pluginDir || !hasClientPluginMcpDefaultCwds(synced.customization)) {
 				continue;
 			}
@@ -925,13 +930,13 @@ export class ClaudeAgentSession extends Disposable {
 					hasGitHubMcpServer = true;
 				}
 				const candidate = { ...synced.customization, children: parsed.mcpServers.map(definition => definition.customization) };
-				const resolved = resolveCustomizationEnablement(this._customizationEnablementService, this._configurationResource, [candidate], this._clientChildEnablement, this._clientPluginEnablement);
+				const resolved = resolveCustomizationEnablement(this._customizationEnablementService, owner, [candidate], this._clientChildEnablement, this._clientPluginEnablement);
 				if (!isCustomizationSdkEligible(resolved, candidate)) {
 					continue;
 				}
 				const enabledById = getSdkMcpServerEnablement(resolved);
 				const internalCandidates = parsed.mcpServers.map(definition => createClaudeInternalMcpServerCustomization(definition.name));
-				const internalResolution = resolveCustomizationEnablement(this._customizationEnablementService, this._configurationResource, internalCandidates);
+				const internalResolution = resolveCustomizationEnablement(this._customizationEnablementService, owner, internalCandidates);
 				const internalEnablement = getSdkMcpServerEnablement(internalResolution);
 				for (let index = 0; index < parsed.mcpServers.length; index++) {
 					const definition = parsed.mcpServers[index];
@@ -956,7 +961,7 @@ export class ClaudeAgentSession extends Disposable {
 				uri: URI.parse(customization.uri),
 				customization,
 			};
-			const resolution = resolveCustomizationEnablement(this._customizationEnablementService, this._configurationResource, [customization]);
+			const resolution = resolveCustomizationEnablement(this._customizationEnablementService, owner, [customization]);
 			if (getSdkMcpServerEnablement(resolution).get(customization.id) === true) {
 				definitions.set(GITHUB_MCP_SERVER_NAME, definition);
 			} else {
@@ -1025,10 +1030,6 @@ export class ClaudeAgentSession extends Disposable {
 		this._requirePipeline().seedCurrentConfig(state.model, state.effort, state.permissionMode);
 	}
 
-	attachRematerializer(rematerializer: IRematerializer): void {
-		this._requirePipeline().attachRematerializer(rematerializer);
-	}
-
 	/**
 	 * Send a user prompt. Performs the per-turn pre-flight before
 	 * yielding to the pipeline:
@@ -1069,14 +1070,16 @@ export class ClaudeAgentSession extends Disposable {
 		// for this turn's `/v1/messages` calls sum from zero.
 		this._currentTurnNanoAiu = 0;
 		if (this.toolDiff.hasDifference
-			|| this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths())
+			|| this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths(this._owner.get()))
 			|| this._appliedMcpLaunchEnablementRevision !== this._mcpLaunchEnablementRevision
 			|| this._pendingResumeSessionAt !== undefined
 			|| !areAdditionalWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories)
-			|| this._pendingTransportSwitch) {
+			|| this._pendingTransportSwitch
+			// The chat changed owner since its process launched: relaunch with the new owner at this turn boundary.
+			|| (this._materializedOwner !== undefined && !isEqual(this._materializedOwner, this._owner.get()))) {
 			await this._rebindForSyncedState();
 		} else {
-			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, resource, this._inheritedPermissionMode, this._permissionModeFallback));
+			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, resource, this._chatChannelUri, this._inheritedPermissionMode, this._permissionModeFallback));
 		}
 		await this._reconcileMcpServerEnablement();
 		this._hostInstructions = hostInstructions;
@@ -1305,8 +1308,11 @@ export class ClaudeAgentSession extends Disposable {
 	requestPermission(args: {
 		readonly toolUseID: string;
 		readonly state: ToolCallPendingConfirmationState;
-		readonly permissionKind: ClaudePermissionKind;
+		readonly permissionKind: AgentPermissionKind;
 		readonly permissionPath?: string;
+		readonly permissionUrl?: string;
+		readonly shellLanguage?: 'bash';
+		readonly shellCommand?: string;
 		/** Phase 12 step 5 — when the confirmation belongs to a subagent context, route it to the subagent session. */
 		readonly parentToolCallId?: string;
 	}): Promise<boolean> {
@@ -1320,6 +1326,9 @@ export class ClaudeAgentSession extends Disposable {
 				state: args.state,
 				permissionKind: args.permissionKind,
 				...(args.permissionPath !== undefined ? { permissionPath: args.permissionPath } : {}),
+				...(args.permissionUrl !== undefined ? { permissionUrl: args.permissionUrl } : {}),
+				...(args.shellLanguage !== undefined ? { shellLanguage: args.shellLanguage } : {}),
+				...(args.shellCommand !== undefined ? { shellCommand: args.shellCommand } : {}),
 				...(args.parentToolCallId !== undefined ? { parentToolCallId: args.parentToolCallId } : {}),
 			});
 		});
@@ -1547,7 +1556,7 @@ export class ClaudeAgentSession extends Disposable {
 		// Cache for the MCP-contributor signal enrichment (see
 		// {@link _enrichSignalWithMcpContributor}).
 		const projected = applyMcpServerEnablement(result, state);
-		const enabled = resolveCustomizationEnablement(this._customizationEnablementService, this._configurationResource, projected, this._clientChildEnablement, this._clientPluginEnablement);
+		const enabled = resolveCustomizationEnablement(this._customizationEnablementService, this._owner.get(), projected, this._clientChildEnablement, this._clientPluginEnablement);
 		this._lastCustomizations = enabled.customizations;
 		return enabled.customizations;
 	}
@@ -1581,7 +1590,7 @@ export class ClaudeAgentSession extends Disposable {
 	private _getDesiredMcpServerEnablement(): Map<string, boolean> {
 		const resolved = resolveCustomizationEnablement(
 			this._customizationEnablementService,
-			this._configurationResource,
+			this._owner.get(),
 			this._hostCustomizations,
 			this._clientChildEnablement,
 			this._clientPluginEnablement,
@@ -1605,19 +1614,20 @@ export class ClaudeAgentSession extends Disposable {
 		return [...desired].every(([name, enabled]) => this._lastReconciledMcpEnablement!.get(name) === enabled);
 	}
 
-	private _desiredClientPluginPaths(): readonly URI[] {
-		return this._desiredClientPlugins().flatMap(synced => synced.pluginDir ? [synced.pluginDir] : []);
+	private _desiredClientPluginPaths(owner: URI): readonly URI[] {
+		return this._desiredClientPlugins(owner).flatMap(synced => synced.pluginDir ? [synced.pluginDir] : []);
 	}
 
-	private _desiredClientPluginConfigs(): readonly { readonly uri: URI; readonly skipMcpDiscovery: boolean }[] {
-		return this._desiredClientPlugins().flatMap(synced => synced.pluginDir ? [{
+	private _desiredClientPluginConfigs(owner: URI): readonly { readonly uri: URI; readonly skipMcpDiscovery: boolean }[] {
+		return this._desiredClientPlugins(owner).flatMap(synced => synced.pluginDir ? [{
 			uri: synced.pluginDir,
 			skipMcpDiscovery: hasClientPluginMcpDefaultCwds(synced.customization),
 		}] : []);
 	}
 
-	private _desiredClientPlugins(): readonly ISyncedCustomization[] {
-		const resolved = resolveCustomizationEnablement(this._customizationEnablementService, this._configurationResource, this.clientCustomizationsDiff.model.state.get().synced.map(item => item.customization), this._clientChildEnablement, this._clientPluginEnablement);
+	/** The client plugins enabled for `owner`: the launch owner while a launch builds its options, else the chat's current owner. */
+	private _desiredClientPlugins(owner: URI): readonly ISyncedCustomization[] {
+		const resolved = resolveCustomizationEnablement(this._customizationEnablementService, owner, this.clientCustomizationsDiff.model.state.get().synced.map(item => item.customization), this._clientChildEnablement, this._clientPluginEnablement);
 		const desiredById = new Map(resolved.customizations
 			.filter(customization => isCustomizationSdkEligible(resolved, customization))
 			.map(customization => [customization.id, customization.type === CustomizationType.Directory ? customization.enabled : isCustomizationEnabled(customization)]));

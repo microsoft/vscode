@@ -11,7 +11,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { AutomationUnavailableError, IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationMutationUncertainError, AutomationUnavailableError, IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 
 /**
@@ -90,6 +90,12 @@ export class AutomationRunner implements IAutomationRunner {
 				cancellationListener?.dispose();
 			}
 		} catch (error) {
+			if (error instanceof AutomationMutationUncertainError) {
+				this.logService.warn(`[AutomationRunner] Run request outcome unknown for ${automation.id}`, error);
+				this.notificationService.warn(error.message);
+				await dispatched.complete({ kind: 'uncertain', message: error.message });
+				return;
+			}
 			if (token.isCancellationRequested && isCancellationError(error)) {
 				await dispatched.complete({ kind: 'notStarted', reason: 'cancelled' });
 				return;

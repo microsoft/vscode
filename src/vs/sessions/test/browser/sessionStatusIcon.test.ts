@@ -85,7 +85,7 @@ suite('Sessions - SessionStatusIcon', () => {
 	});
 
 	for (const reducedMotion of [false, true]) {
-		test(`renders needs-attention as a pulsing report-question icon${reducedMotion ? ' with reduced motion' : ''}`, () => {
+		test(`renders needs-attention as a static report-question icon${reducedMotion ? ' with reduced motion' : ''}`, () => {
 			const container = document.createElement('div');
 			const modelService = new class extends mock<ISessionsListModelService>() {
 				override getStatusIcon() {
@@ -109,7 +109,7 @@ suite('Sessions - SessionStatusIcon', () => {
 					opacity: '',
 					transition: '',
 				}],
-				pulses: true,
+				pulses: false,
 			});
 		});
 	}

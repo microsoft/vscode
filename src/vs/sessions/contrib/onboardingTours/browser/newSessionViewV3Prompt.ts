@@ -25,7 +25,8 @@ import { IActiveSession } from '../../../services/sessions/common/sessionsManage
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { INewSessionComposer, INewSessionComposerService, INewSessionPromptOption, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsProgress, NewSessionPromptOptionsState } from '../../chat/browser/newSessionComposerService.js';
 import { getGitHubRepositoryFromUri } from '../../github/common/utils.js';
-import { GitHubAuthenticationError } from '../../github/browser/githubApiClient.js';
+import { GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
+import { ApiRequestOptions } from '../../../../platform/github/common/client/request.js';
 import { IGitHubRecentIssue, IGitHubRecentPullRequest, IGitHubRecentUserWork } from '../../github/browser/fetchers/githubRecentUserWorkFetcher.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { computeIssueIcon, computePullRequestIcon, GitHubIssueState, GitHubPullRequestState } from '../../github/common/types.js';
@@ -53,6 +54,14 @@ const DEFAULT_PROMPT_TEMPLATE = localize('sessions.onboarding.newSessionViewV3.p
 const PROMPT_OPTION_COUNT = 3;
 
 export type NewSessionViewV3ConfiguredVariation = 'prompt' | 'githubPrompt' | 'options' | 'unknown';
+
+/** Lets another tour reuse the prompt runner, reporting its own scenario id. */
+export interface INewSessionPromptRunnerOptions {
+	/** The scenario reported in prompt telemetry. Defaults to the V3 tour. */
+	readonly scenarioId?: string;
+	/** A fixed prompt experience, instead of the V3 developer setting or treatment. */
+	readonly variation?: Exclude<NewSessionViewV3ConfiguredVariation, 'unknown'>;
+}
 export type NewSessionViewV3EffectiveStrategy = 'prompt' | 'options' | 'githubMergeConflict' | 'githubCiFailure' | 'githubReviewComments' | 'githubIssue';
 export type NewSessionViewV3FallbackReason = 'none' | 'unsupportedVariation' | 'noRepository' | 'noAuthentication' | 'timeout' | 'requestFailed' | 'noCandidate' | 'noComposer';
 
@@ -265,15 +274,20 @@ export class NewSessionViewV3PromptRunner {
 		private readonly _telemetryService: ITelemetryService,
 		private readonly _logService: ILogService,
 		gitHubLookupTimeouts: Partial<IGitHubLookupTimeouts> = {},
+		private readonly _options: INewSessionPromptRunnerOptions = {},
 	) {
 		this._gitHubLookupTimeouts = { ...DEFAULT_GITHUB_LOOKUP_TIMEOUTS, ...gitHubLookupTimeouts };
 	}
 
+	private get _scenarioId(): string {
+		return this._options.scenarioId ?? NEW_SESSION_VIEW_V3_TOUR_ID;
+	}
+
 	async run(token: CancellationToken): Promise<boolean> {
-		this._logService.info(`${LOG_PREFIX} Starting V3 prompt resolution.`);
+		this._logService.info(`${LOG_PREFIX} Starting prompt resolution for '${this._scenarioId}'.`);
 		this._impressionId = generateUuid();
 		this._renderedPromptOptions = [];
-		const configuredVariation = await this._resolveConfiguredVariation();
+		const configuredVariation = this._options.variation ?? await this._resolveConfiguredVariation();
 		if (token.isCancellationRequested) {
 			this._logService.trace(`${LOG_PREFIX} Prompt resolution was cancelled after resolving the configured variation.`);
 			return false;
@@ -461,7 +475,7 @@ export class NewSessionViewV3PromptRunner {
 				this._logService.trace(`${LOG_PREFIX} GitHub prompt option lookup was cancelled by the onboarding flow.`);
 				return this._createPromptOptionsPlan([], 'requestFailed', diagnostics);
 			}
-			if (error instanceof GitHubAuthenticationError) {
+			if (error instanceof GitHubRequestError && error.kind === 'authentication') {
 				this._logService.warn(`${LOG_PREFIX} No existing GitHub authentication session is available; filling with standard options without requesting sign-in.`);
 				return this._createPromptOptionsPlan([], 'noAuthentication', diagnostics);
 			}
@@ -544,7 +558,7 @@ export class NewSessionViewV3PromptRunner {
 		diagnostics?: GitHubLookupDiagnostics,
 		reportCandidates: (candidates: readonly INewSessionViewV3GitHubCandidate[]) => void = () => undefined,
 	): Promise<IGitHubCandidateLookupResult> {
-		const outcome = await this._resolveIssueCandidates(owner, repo, token, diagnostics, issues => reportCandidates(toIssuePromptOptionCandidates(issues)));
+		const outcome = await this._resolveIssueCandidates(owner, repo, token, diagnostics, issues => reportCandidates(toIssuePromptOptionCandidates(issues)), { priority: 'enrichment' });
 		if (outcome.kind === 'failure') {
 			return { candidates: [], failures: [outcome.reason] };
 		}
@@ -562,7 +576,7 @@ export class NewSessionViewV3PromptRunner {
 			'authored pull request summaries',
 			this._gitHubLookupTimeouts.summaryMs,
 			token,
-			lookupToken => this._gitHubService.getRecentAuthoredPullRequests(owner, repo, lookupToken),
+			lookupToken => this._gitHubService.getRecentAuthoredPullRequests(owner, repo, lookupToken, { priority: 'enrichment' }),
 			'prSummary',
 			diagnostics,
 		);
@@ -589,7 +603,7 @@ export class NewSessionViewV3PromptRunner {
 		// Review-thread enrichment is a post-render refinement: candidates whose position can no longer
 		// change were already published above, so this stage can only ever delay the `githubReviewComments`
 		// option, never the merge-conflict, CI or issue options that are already known.
-		const reviewLookup = await this._resolveReviewCandidates(owner, repo, reviewPullRequests, token, diagnostics);
+		const reviewLookup = await this._resolveReviewCandidates(owner, repo, reviewPullRequests, token, diagnostics, { priority: 'enrichment' });
 		const candidates = getCandidatesInPullRequestOrder(
 			pullRequests,
 			[...directCandidates.map(entry => entry.candidate), ...reviewLookup.candidates],
@@ -635,7 +649,7 @@ export class NewSessionViewV3PromptRunner {
 				this._logService.trace(`${LOG_PREFIX} GitHub prompt lookup was cancelled by the onboarding flow.`);
 				return this._resolvePrompt('requestFailed');
 			}
-			if (error instanceof GitHubAuthenticationError) {
+			if (error instanceof GitHubRequestError && error.kind === 'authentication') {
 				this._logService.warn(`${LOG_PREFIX} No existing GitHub authentication session is available; using the prompt variation without requesting sign-in.`);
 				return this._resolvePrompt('noAuthentication');
 			}
@@ -733,12 +747,13 @@ export class NewSessionViewV3PromptRunner {
 		token: CancellationToken,
 		diagnostics?: GitHubLookupDiagnostics,
 		reportIssues?: (issues: readonly IGitHubRecentIssue[]) => void,
+		options?: ApiRequestOptions,
 	): Promise<GitHubLookupOutcome<readonly IGitHubRecentIssue[]>> {
 		const issues = await this._runGitHubLookup(
 			'assigned issue summaries',
 			this._gitHubLookupTimeouts.summaryMs,
 			token,
-			lookupToken => this._gitHubService.getRecentAssignedIssues(owner, repo, lookupToken),
+			lookupToken => this._gitHubService.getRecentAssignedIssues(owner, repo, lookupToken, options),
 			'issueSummary',
 			diagnostics,
 		);
@@ -755,7 +770,7 @@ export class NewSessionViewV3PromptRunner {
 			'issue pull request linkage',
 			this._gitHubLookupTimeouts.linkageMs,
 			token,
-			lookupToken => this._gitHubService.getIssuesWithLinkedPullRequests(owner, repo, issues.value.map(issue => issue.number), lookupToken),
+			lookupToken => this._gitHubService.getIssuesWithLinkedPullRequests(owner, repo, issues.value.map(issue => issue.number), lookupToken, options),
 			'issueLinkage',
 			diagnostics,
 		);
@@ -778,6 +793,7 @@ export class NewSessionViewV3PromptRunner {
 		pullRequests: readonly IGitHubRecentPullRequest[],
 		token: CancellationToken,
 		diagnostics?: GitHubLookupDiagnostics,
+		options?: ApiRequestOptions,
 	): Promise<IGitHubReviewLookupResult> {
 		const eligiblePullRequests = pullRequests.filter(pullRequest => !!pullRequest.latestCommitAt);
 		if (eligiblePullRequests.length === 0) {
@@ -792,7 +808,7 @@ export class NewSessionViewV3PromptRunner {
 				`review threads for pull request #${pullRequest.number}`,
 				this._gitHubLookupTimeouts.reviewMs,
 				token,
-				lookupToken => this._gitHubService.getPullRequestReviewThreads(owner, repo, pullRequest.number, lookupToken),
+				lookupToken => this._gitHubService.getPullRequestReviewThreads(owner, repo, pullRequest.number, lookupToken, options),
 				'prReview',
 				diagnostics,
 			);
@@ -863,7 +879,7 @@ export class NewSessionViewV3PromptRunner {
 				record('timeout');
 				return { kind: 'failure', reason: 'timeout' };
 			}
-			if (error instanceof GitHubAuthenticationError) {
+			if (error instanceof GitHubRequestError && error.kind === 'authentication') {
 				this._logService.warn(`${LOG_PREFIX} ${capitalize(label)} lookup could not run because no existing GitHub authentication session is available.`);
 				record('noAuthentication');
 				return { kind: 'failure', reason: 'noAuthentication' };
@@ -1197,7 +1213,7 @@ export class NewSessionViewV3PromptRunner {
 			timedOutStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The categorical lookup stage that was still running when the total lookup budget expired, or none.' };
 		};
 		this._telemetryService.publicLog2<OnboardingPromptStrategyEvent, OnboardingPromptStrategyClassification>('onboarding.promptStrategy', {
-			scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+			scenarioId: this._scenarioId,
 			impressionId: this._impressionId,
 			configuredVariation,
 			effectiveStrategy,
@@ -1218,7 +1234,7 @@ export class NewSessionViewV3PromptRunner {
 		};
 		type OnboardingPromptOptionInteractionClassification = {
 			owner: 'benibenj';
-			comment: 'Reports privacy-safe interactions with V3 onboarding prompt options without collecting prompt or repository content.';
+			comment: 'Reports privacy-safe interactions with onboarding prompt options without collecting prompt or repository content.';
 			scenarioId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the onboarding scenario that showed the prompt options.' };
 			impressionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random identifier generated for this prompt impression, used only to join this event with the strategy event of the same impression.' };
 			interaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether an option was selected or the prompt-option widget was closed.' };
@@ -1227,7 +1243,7 @@ export class NewSessionViewV3PromptRunner {
 			optionKindsShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The comma separated categorical kinds of the prompt options that were rendered, in slot order.' };
 		};
 		this._telemetryService.publicLog2<OnboardingPromptOptionInteractionEvent, OnboardingPromptOptionInteractionClassification>('onboarding.promptOptionInteraction', {
-			scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+			scenarioId: this._scenarioId,
 			impressionId: this._impressionId,
 			interaction,
 			option: option ? getPromptOptionTelemetryKind(option) : 'none',

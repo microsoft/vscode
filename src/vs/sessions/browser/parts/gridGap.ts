@@ -5,6 +5,7 @@
 
 import { isHTMLElement } from '../../../base/browser/dom.js';
 import { Direction, Grid, GridNode, IView, isGridBranchNode } from '../../../base/browser/ui/grid/grid.js';
+import { Orientation } from '../../../base/browser/ui/sash/sash.js';
 
 export const GRID_GAP_SASH_CLASS = 'agents-grid-gap-sash';
 
@@ -17,6 +18,22 @@ export interface IGridEdgeInsets {
 }
 
 export const NO_GRID_EDGE_INSETS: IGridEdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
+
+/** Returns the views that own the bottom corners of a nested grid. */
+export function getGridBottomCornerViews<T extends IView>(grid: Grid<T>): { readonly bottomLeft: T; readonly bottomRight: T } {
+	const cornerView = (node: GridNode<T>, orientation: Orientation, right: boolean): T => {
+		if (!isGridBranchNode(node)) {
+			return node.view;
+		}
+		const index = orientation === Orientation.VERTICAL || right ? node.children.length - 1 : 0;
+		return cornerView(node.children[index], orientation === Orientation.HORIZONTAL ? Orientation.VERTICAL : Orientation.HORIZONTAL, right);
+	};
+	const root = grid.getViews();
+	return {
+		bottomLeft: cornerView(root, grid.orientation, false),
+		bottomRight: cornerView(root, grid.orientation, true),
+	};
+}
 
 /** Splits a shared gap between each view and its adjacent grid neighbors. */
 export function getGridEdgeInsets<T extends IView>(grid: Grid<T>, view: T, gap: number): IGridEdgeInsets {

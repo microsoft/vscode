@@ -15,6 +15,7 @@ import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
+import type { IImageGenerationToolUsage } from '../../../../../../../platform/agentHost/common/meta/agentImageGenerationMeta.js';
 import { TestFileService } from '../../../../../../test/common/workbenchTestServices.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
@@ -32,7 +33,7 @@ import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.j
 suite('ChatCollapsibleInputOutputContentPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function renderImageDetails(output: IToolResultInputOutputDetails['output'], durationMs?: number, fileService?: IFileService, logService?: ILogService) {
+	function renderImageDetails(output: IToolResultInputOutputDetails['output'], durationMs?: number, fileService?: IFileService, logService?: ILogService, usage?: IImageGenerationToolUsage) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		if (fileService) {
 			instantiationService.stub(IFileService, fileService);
@@ -74,7 +75,7 @@ suite('ChatCollapsibleInputOutputContentPart', () => {
 			kind: 'toolInvocationSerialized', toolId: 'image_generation', toolCallId: 'image-call',
 			invocationMessage: 'Generating image', pastTenseMessage: 'Generated image', originMessage: undefined,
 			presentation: undefined, source: ToolDataSource.Internal, isComplete: true, isConfirmed: true,
-			toolSpecificData: { kind: 'generatedImage', durationMs },
+			toolSpecificData: { kind: 'generatedImage', durationMs, ...(usage ? { imageGeneration: { requestedModel: { id: 'image-model' }, usage } } : {}) },
 		};
 		return store.add(instantiationService.createInstance(ChatInputOutputMarkdownProgressPart, invocation, context, 0,
 			'Generated image', undefined, '{"prompt":"Draw a tree"}', undefined, output, false));
@@ -102,9 +103,24 @@ suite('ChatCollapsibleInputOutputContentPart', () => {
 				{ label: 'Duration', value: '43.5s', accessibleValue: null },
 				{ label: 'Image size', value: '5B', accessibleValue: null },
 				{ label: 'Tokens', value: '-', accessibleValue: 'Not reported' },
+				{ label: 'AI credits', value: 'Unavailable', accessibleValue: null },
 			],
 		});
 	});
+
+	for (const charge of [undefined, 0, 598_500_000]) {
+		test(`renders image tokens and exact reported credits without treating missing billing as zero (${charge})`, () => {
+			const part = renderImageDetails([{ type: 'embed', value: 'AQID', mimeType: 'image/png' }], 43_500, undefined, undefined, {
+				requestId: 'operation', inputTokens: 21, outputTokens: 196,
+				...(charge !== undefined ? { copilotUsage: { totalNanoAiu: charge } } : {}),
+			});
+			part.domNode.querySelector<HTMLElement>('.chat-confirmation-widget-title')!.click();
+			assert.deepStrictEqual(metadata(part).slice(-2), [
+				{ label: 'Tokens', value: '21 input / 196 output', accessibleValue: null },
+				{ label: 'AI credits', value: charge === undefined ? 'Unavailable' : String(charge / 1_000_000_000), accessibleValue: null },
+			]);
+		});
+	}
 
 	for (const width of [600, 180]) {
 		test(`left-aligns generated-image metadata within each row (${width}px)`, async () => {
@@ -170,11 +186,13 @@ suite('ChatCollapsibleInputOutputContentPart', () => {
 				{ label: 'Duration', value: '-', accessibleValue: 'Not reported' },
 				{ label: 'Image size', value: '-', accessibleValue: 'Not reported' },
 				{ label: 'Tokens', value: '-', accessibleValue: 'Not reported' },
+				{ label: 'AI credits', value: 'Unavailable', accessibleValue: null },
 			],
 			expanded: [
 				{ label: 'Duration', value: '-', accessibleValue: 'Not reported' },
 				{ label: 'Image size', value: '2.00KB', accessibleValue: null },
 				{ label: 'Tokens', value: '-', accessibleValue: 'Not reported' },
+				{ label: 'AI credits', value: 'Unavailable', accessibleValue: null },
 			],
 			disposed: [],
 		});

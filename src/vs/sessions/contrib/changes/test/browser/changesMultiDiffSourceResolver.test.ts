@@ -13,6 +13,7 @@ import { fromAgentHostUri, toAgentHostContentUri, toAgentHostUri } from '../../.
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { ISessionFileChange } from '../../../../services/sessions/common/session.js';
 import { ChangesMultiDiffSourceResolver } from '../../browser/changesMultiDiffSourceResolver.js';
+import { ChangesViewMode } from '../../common/changes.js';
 import { ISessionChangesService } from '../../common/sessionChangesService.js';
 import { IChangesViewService } from '../../common/changesViewService.js';
 
@@ -31,6 +32,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 			override readonly activeSessionResourceObs = observableValue<URI | undefined>(this, sessionResource);
 			override readonly activeSessionChangesObs = activeChanges;
 			override readonly activeSessionLoadingObs = loading;
+			override readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
 		}();
 		let resolver: IMultiDiffSourceResolver | undefined;
 		const resolverService = new class extends mock<IMultiDiffSourceResolverService>() {
@@ -71,6 +73,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionResourceObs = activeSessionResource;
 			override readonly activeSessionChangesObs = activeChanges;
+			override readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
 		}();
 		let resolver: IMultiDiffSourceResolver | undefined;
 		const resolverService = new class extends mock<IMultiDiffSourceResolverService>() {
@@ -96,6 +99,42 @@ suite('ChangesMultiDiffSourceResolver', () => {
 
 		assert.deepStrictEqual(observedChanges, [
 			['/workspace/branch.ts'],
+		]);
+	});
+
+	test('orders the diffs like the Changes view when its view mode changes', async () => {
+		const sessionResource = URI.parse('agent-host:test-session');
+		const viewMode = observableValue<ChangesViewMode>('viewMode', ChangesViewMode.List);
+		const resolver = disposables.add(new ChangesMultiDiffSourceResolver(
+			new class extends mock<IChangesViewService>() {
+				override readonly activeSessionResourceObs = observableValue<URI | undefined>(this, sessionResource);
+				override readonly activeSessionChangesObs = observableValue<readonly ISessionFileChange[]>(this, [
+					createChange('/workspace/src/b.ts'),
+					createChange('/workspace/a.ts'),
+					createChange('/workspace/src/lib/c.ts'),
+				]);
+				override readonly viewModeObs = viewMode;
+			}(),
+			new class extends mock<IMultiDiffSourceResolverService>() {
+				override registerResolver() { return Disposable.None; }
+			}(),
+			new class extends mock<ISessionChangesService>() {
+				override getSessionResource() { return sessionResource; }
+			}(),
+		));
+		const source = await resolver.resolveDiffSource(URI.parse('changes-multi-diff-source:test-session'));
+		const observedChanges: string[][] = [];
+		const recordChanges = () => observedChanges.push(source.resources.value.map(item => item.modifiedUri!.path));
+
+		recordChanges();
+		disposables.add(source.resources.onDidChange(recordChanges));
+		viewMode.set(ChangesViewMode.Tree, undefined);
+		viewMode.set(ChangesViewMode.List, undefined);
+
+		assert.deepStrictEqual(observedChanges, [
+			['/workspace/a.ts', '/workspace/src/b.ts', '/workspace/src/lib/c.ts'],
+			['/workspace/src/lib/c.ts', '/workspace/src/b.ts', '/workspace/a.ts'],
+			['/workspace/a.ts', '/workspace/src/b.ts', '/workspace/src/lib/c.ts'],
 		]);
 	});
 
@@ -126,6 +165,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 				new class extends mock<IChangesViewService>() {
 					override readonly activeSessionResourceObs = observableValue<URI | undefined>(this, sessionResource);
 					override readonly activeSessionChangesObs = changes;
+					override readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
 				}(),
 				new class extends mock<IMultiDiffSourceResolverService>() {
 					override registerResolver() { return Disposable.None; }

@@ -13,7 +13,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { isDark } from '../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { EditorInputCapabilities, GroupIdentifier, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
+import { EditorInputCapabilities, GroupIdentifier, IEditorPaneSelection, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IOverlayWebview } from '../../webview/browser/webview.js';
 
@@ -27,6 +27,10 @@ export interface WebviewInputInitInfo {
 export class WebviewInput extends EditorInput {
 
 	public async applyOptions(_options: IEditorOptions, _token: CancellationToken): Promise<void> { }
+
+	public getSelection(): IEditorPaneSelection | undefined {
+		return undefined;
+	}
 
 	public static typeId = 'workbench.editors.webviewInput';
 
@@ -50,7 +54,7 @@ export class WebviewInput extends EditorInput {
 
 	private _webview: IOverlayWebview;
 
-	private _hasTransfered = false;
+	private _hasTransferred = false;
 
 	get resource() {
 		return URI.from({
@@ -84,7 +88,7 @@ export class WebviewInput extends EditorInput {
 
 	override dispose() {
 		if (!this.isDisposed()) {
-			if (!this._hasTransfered) {
+			if (!this._hasTransferred) {
 				this._webview?.dispose();
 			}
 		}
@@ -157,10 +161,10 @@ export class WebviewInput extends EditorInput {
 	}
 
 	protected transfer(other: WebviewInput): WebviewInput | undefined {
-		if (this._hasTransfered) {
+		if (this._hasTransferred) {
 			return undefined;
 		}
-		this._hasTransfered = true;
+		this._hasTransferred = true;
 		other._webview = this._webview;
 		return other;
 	}

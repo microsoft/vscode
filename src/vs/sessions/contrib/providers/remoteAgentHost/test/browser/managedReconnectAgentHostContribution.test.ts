@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -25,7 +26,7 @@ import { RemoteAgentHostSessionsProvider } from '../../browser/remoteAgentHostSe
 suite('ManagedReconnectAgentHostContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('incompatible reconnect status reports the versions offered by the client', async () => {
+	function setup() {
 		const instantiation = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -37,6 +38,7 @@ suite('ManagedReconnectAgentHostContribution', () => {
 		const statuses: RemoteAgentHostConnectionStatus[] = [];
 		const provider = new class extends mock<RemoteAgentHostSessionsProvider>() {
 			override setConnectionStatus(status: RemoteAgentHostConnectionStatus): void { statuses.push(status); }
+			override unpublishCachedSessions(): void { }
 		}();
 		class TestContribution extends ManagedReconnectAgentHostContribution {
 			protected readonly _entryType = RemoteAgentHostEntryType.SSH;
@@ -55,22 +57,45 @@ suite('ManagedReconnectAgentHostContribution', () => {
 
 			protected _getProviderOptions() { return {}; }
 
-			attempt(): Promise<void> {
+			attempt(error: Error, pause = false, userInitiated = true): Promise<void> {
 				return this._attemptManagedReconnect({
-					kind: 'SSH', key: 'machine', address: 'ssh:machine', userInitiated: true,
+					kind: 'SSH', key: 'machine', address: 'ssh:machine', userInitiated,
 					reconnectPolicy: DEFAULT_RECONNECT_POLICY,
-					shouldPause: () => false,
-					doConnect: async () => { throw new ProtocolError(AHP_UNSUPPORTED_PROTOCOL_VERSION, 'Unsupported protocol version', { supportedVersions: ['2.0.0'] }); },
+					shouldPause: () => pause,
+					doConnect: async () => { throw error; },
 				});
 			}
 		}
 		const contribution = store.add(instantiation.createInstance(TestContribution));
-		await contribution.attempt();
+		return { contribution, statuses };
+	}
+
+	test('incompatible reconnect status reports the versions offered by the client', async () => {
+		const { contribution, statuses } = setup();
+		await contribution.attempt(new ProtocolError(AHP_UNSUPPORTED_PROTOCOL_VERSION, 'Unsupported protocol version', { supportedVersions: ['2.0.0'] }));
 		assert.deepStrictEqual(statuses, [
 			RemoteAgentHostConnectionStatus.connecting,
 			RemoteAgentHostConnectionStatus.disconnected,
 			RemoteAgentHostConnectionStatus.incompatible('Unsupported protocol version', ['1.0.0', '0.10.0', '0.9.0'], ['2.0.0']),
 		]);
+	});
+
+	test('provider status does not embed the last connection error', async () => {
+		const { contribution, statuses } = setup();
+		await contribution.attempt(new Error('connect ECONNREFUSED 127.0.0.1:43192'));
+		assert.deepStrictEqual(statuses.at(-1), RemoteAgentHostConnectionStatus.disconnected);
+	});
+
+	test('user cancellation keeps a plain disconnected status without an error warning', async () => {
+		const { contribution, statuses } = setup();
+		await contribution.attempt(new CancellationError(), true);
+		assert.deepStrictEqual(statuses, [RemoteAgentHostConnectionStatus.connecting, RemoteAgentHostConnectionStatus.disconnected]);
+	});
+
+	test('automatic reconnect failures do not surface an error message', async () => {
+		const { contribution, statuses } = setup();
+		await contribution.attempt(new Error('connect ECONNREFUSED 127.0.0.1:43192'), false, false);
+		assert.deepStrictEqual(statuses, [RemoteAgentHostConnectionStatus.disconnected]);
 	});
 });
 

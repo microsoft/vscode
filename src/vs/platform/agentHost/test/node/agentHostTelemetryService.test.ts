@@ -224,8 +224,11 @@ suite('AgentHostTelemetryService', () => {
 	test('uses the launch telemetry level before a client connects and only becomes more restrictive', () => {
 		const delegate = new TestTelemetryService();
 		const service = disposables.add(new AgentHostTelemetryService(delegate, undefined, undefined, undefined, TelemetryLevel.USAGE));
+		const levelChanges: TelemetryLevel[] = [];
+		disposables.add(service.onDidChangeTelemetryLevel(level => levelChanges.push(level)));
 
 		service.publicLog('beforeClientLevel', { count: 1 });
+		service.updateTelemetryLevel(TelemetryLevel.ERROR);
 		service.updateTelemetryLevel(TelemetryLevel.ERROR);
 		service.publicLog('afterClientLevel', { count: 2 });
 		service.publicLogError('afterClientLevelError', { count: 3 });
@@ -237,11 +240,13 @@ suite('AgentHostTelemetryService', () => {
 		assert.deepStrictEqual({
 			telemetryLevel: service.telemetryLevel,
 			sendErrorTelemetry: service.sendErrorTelemetry,
+			levelChanges,
 			events: delegate.events,
 			errorEvents: delegate.errorEvents,
 		}, {
 			telemetryLevel: TelemetryLevel.NONE,
 			sendErrorTelemetry: false,
+			levelChanges: [TelemetryLevel.ERROR, TelemetryLevel.NONE],
 			events: [{ eventName: 'beforeClientLevel', data: { count: 1 } }],
 			errorEvents: [{ eventName: 'afterClientLevelError', data: { count: 3 } }],
 		});

@@ -3,4 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { AgentHostSessionUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, isNativeAgentHost, supportsAgentHostSessionUris } from './vscode/agentHostSessionUrisMeta.js';
+export { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, isNativeAgentHost, supportsAgentHostChatUris, supportsAgentHostSessionUris } from './vscode/agentHostSessionUrisMeta.js';

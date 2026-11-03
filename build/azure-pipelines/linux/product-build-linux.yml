@@ -13,6 +13,12 @@ parameters:
   - name: VSCODE_RUN_TESTS
     type: boolean
     default: false
+  # Whether to include the steps and jobs that need a privileged service
+  # connection (signing, CDN uploads, Copilot test setup). Only
+  # sdk-validation-build.yml sets this to false.
+  - name: VSCODE_PRIVILEGED_CONNECTIONS
+    type: boolean
+    default: true
 
 # The product is built by Compile and Sign jobs in addition to the parallel CLI
 # job. The test jobs are declared next to this template (see
@@ -55,6 +61,7 @@ jobs:
           VSCODE_CIBUILD: false
           VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
           VSCODE_BUILD_ONLY: true
+          VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
       - ${{ if eq(parameters.VSCODE_ARCH, 'armhf') }}:
         - script: |
@@ -83,76 +90,101 @@ jobs:
               out-build
           displayName: Archive out-build
 
-  - job: Linux_${{ parameters.VSCODE_ARCH }}_Sign
-    displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }}) - Sign
-    dependsOn:
-      - Linux_${{ parameters.VSCODE_ARCH }}_Compile
-      - LinuxCLI_${{ parameters.VSCODE_ARCH }}
-    timeoutInMinutes: 90
-    cancelTimeoutInMinutes: 10
-    variables:
-      DISPLAY: ":10"
-      BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
-      NPM_ARCH: ${{ parameters.NPM_ARCH }}
-      VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
-    templateContext:
-      outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
-      outputs:
-        - output: pipelineArtifact
-          targetPath: $(Build.ArtifactStagingDirectory)/out/client/$(CLIENT_ARCHIVE_NAME)
-          artifactName: vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
-          displayName: Publish client archive
-          sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)
-          sbomPackageName: "VS Code Linux $(VSCODE_ARCH) (unsigned)"
-          sbomPackageVersion: $(Build.SourceVersion)
-        - ${{ if ne(parameters.VSCODE_ARCH, 'armhf') }}:
+  # Signing needs the ESRP connection, which the SDK validation pipeline
+  # (sdk-validation-build.yml) must not reference.
+  - ${{ if eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+    - job: Linux_${{ parameters.VSCODE_ARCH }}_Sign
+      displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }}) - Sign
+      dependsOn:
+        - Linux_${{ parameters.VSCODE_ARCH }}_Compile
+        - LinuxCLI_${{ parameters.VSCODE_ARCH }}
+      timeoutInMinutes: 90
+      cancelTimeoutInMinutes: 10
+      variables:
+        DISPLAY: ":10"
+        BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
+        NPM_ARCH: ${{ parameters.NPM_ARCH }}
+        VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+      templateContext:
+        outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
+        outputs:
           - output: pipelineArtifact
-            targetPath: $(Build.ArtifactStagingDirectory)/out/server/vscode-server-linux-$(VSCODE_ARCH).tar.gz
-            artifactName: vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
-            displayName: Publish server archive
-            sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)
-            sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Server"
+            targetPath: $(Build.ArtifactStagingDirectory)/out/client/$(CLIENT_ARCHIVE_NAME)
+            artifactName: vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
+            condition: and(succeeded(), ne(variables['CLIENT_ARCHIVE_PUBLISHED'], 'true'))
+            displayName: Publish client archive
+            sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)
+            sbomPackageName: "VS Code Linux $(VSCODE_ARCH) (unsigned)"
+            sbomPackageVersion: $(Build.SourceVersion)
+          - ${{ if ne(parameters.VSCODE_ARCH, 'armhf') }}:
+            - output: pipelineArtifact
+              targetPath: $(Build.ArtifactStagingDirectory)/out/server/vscode-server-linux-$(VSCODE_ARCH).tar.gz
+              artifactName: vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
+              condition: and(succeeded(), ne(variables['SERVER_ARCHIVE_PUBLISHED'], 'true'))
+              displayName: Publish server archive
+              sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)
+              sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Server"
+              sbomPackageVersion: $(Build.SourceVersion)
+            - output: pipelineArtifact
+              targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz
+              artifactName: vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
+              condition: and(succeeded(), ne(variables['WEB_ARCHIVE_PUBLISHED'], 'true'))
+              displayName: Publish web server archive
+              sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
+              sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Web"
+              sbomPackageVersion: $(Build.SourceVersion)
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/out/deb/$(DEB_PACKAGE_NAME)
+            artifactName: vscode_client_linux_$(VSCODE_ARCH)_deb-package
+            condition: and(succeeded(), ne(variables['DEB_PACKAGE_PUBLISHED'], 'true'))
+            displayName: Publish deb package
+            sbomBuildDropPath: .build/linux/deb
+            sbomPackageName: "VS Code Linux $(VSCODE_ARCH) DEB"
             sbomPackageVersion: $(Build.SourceVersion)
           - output: pipelineArtifact
-            targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz
-            artifactName: vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
-            displayName: Publish web server archive
-            sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
-            sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Web"
+            targetPath: $(Build.ArtifactStagingDirectory)/out/rpm/$(RPM_PACKAGE_NAME)
+            artifactName: vscode_client_linux_$(VSCODE_ARCH)_rpm-package
+            condition: and(succeeded(), ne(variables['RPM_PACKAGE_PUBLISHED'], 'true'))
+            displayName: Publish rpm package
+            sbomBuildDropPath: .build/linux/rpm
+            sbomPackageName: "VS Code Linux $(VSCODE_ARCH) RPM"
             sbomPackageVersion: $(Build.SourceVersion)
-        - output: pipelineArtifact
-          targetPath: $(Build.ArtifactStagingDirectory)/out/deb/$(DEB_PACKAGE_NAME)
-          artifactName: vscode_client_linux_$(VSCODE_ARCH)_deb-package
-          displayName: Publish deb package
-          sbomBuildDropPath: .build/linux/deb
-          sbomPackageName: "VS Code Linux $(VSCODE_ARCH) DEB"
-          sbomPackageVersion: $(Build.SourceVersion)
-        - output: pipelineArtifact
-          targetPath: $(Build.ArtifactStagingDirectory)/out/rpm/$(RPM_PACKAGE_NAME)
-          artifactName: vscode_client_linux_$(VSCODE_ARCH)_rpm-package
-          displayName: Publish rpm package
-          sbomBuildDropPath: .build/linux/rpm
-          sbomPackageName: "VS Code Linux $(VSCODE_ARCH) RPM"
-          sbomPackageVersion: $(Build.SourceVersion)
-        - ${{ if eq(parameters.VSCODE_BUILD_LINUX_SNAP, true) }}:
-          - output: pipelineArtifact
-            targetPath: $(Build.ArtifactStagingDirectory)/out/snap/$(SNAP_PACKAGE_NAME)
-            artifactName: vscode_client_linux_$(VSCODE_ARCH)_snap
-            displayName: Publish snap package
-            sbomBuildDropPath: $(SNAP_EXTRACTED_PATH)
-            sbomPackageName: "VS Code Linux $(VSCODE_ARCH) SNAP"
-            sbomPackageVersion: $(Build.SourceVersion)
-    steps:
-      - template: ./steps/product-build-linux-setup.yml@self
-        parameters:
-          VSCODE_CIBUILD: false
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX_SNAP, true) }}:
+            - output: pipelineArtifact
+              targetPath: $(Build.ArtifactStagingDirectory)/out/snap/$(SNAP_PACKAGE_NAME)
+              artifactName: vscode_client_linux_$(VSCODE_ARCH)_snap
+              condition: and(succeeded(), ne(variables['SNAP_PACKAGE_PUBLISHED'], 'true'))
+              displayName: Publish snap package
+              sbomBuildDropPath: $(SNAP_EXTRACTED_PATH)
+              sbomPackageName: "VS Code Linux $(VSCODE_ARCH) SNAP"
+              sbomPackageVersion: $(Build.SourceVersion)
+      steps:
+        - template: ./steps/product-build-linux-setup.yml@self
+          parameters:
+            VSCODE_CIBUILD: false
 
-      - template: ./steps/product-build-linux-download-compilation.yml@self
+        - template: ./steps/product-build-linux-download-compilation.yml@self
 
-      - template: ./steps/product-build-linux-package.yml@self
-        parameters:
-          VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
-          VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
-          VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
+        - template: ./steps/product-build-linux-package.yml@self
+          parameters:
+            VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+            VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+            VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
 
-      - template: ./steps/product-build-linux-package-finalize.yml@self
+        - template: ./steps/product-build-linux-package-finalize.yml@self
+
+        # Pipeline artifacts can't be overwritten, so a retry of this job must skip
+        # the artifacts that an earlier attempt already published, for example
+        # before timing out (see ../common/checkForArtifact.ts)
+        - script: >-
+            node build/azure-pipelines/common/checkForArtifact.ts
+            CLIENT_ARCHIVE_PUBLISHED vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
+            SERVER_ARCHIVE_PUBLISHED vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
+            WEB_ARCHIVE_PUBLISHED vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
+            DEB_PACKAGE_PUBLISHED vscode_client_linux_$(VSCODE_ARCH)_deb-package
+            RPM_PACKAGE_PUBLISHED vscode_client_linux_$(VSCODE_ARCH)_rpm-package
+            SNAP_PACKAGE_PUBLISHED vscode_client_linux_$(VSCODE_ARCH)_snap
+          env:
+            SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+          continueOnError: true
+          displayName: Check for artifacts published by an earlier attempt

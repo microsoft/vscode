@@ -58,6 +58,7 @@ suite('CanvasEditor telemetry', () => {
 				onDidChangeFocus: Event.None,
 				onDidChangeLoadingState: Event.None,
 				onDidNavigate: Event.None,
+				onDidRequestOpenExternal: Event.None,
 				onWillDispose: onWillDispose.event,
 				layout: async () => { },
 				dispose: () => {
@@ -82,6 +83,7 @@ suite('CanvasEditor telemetry', () => {
 		instantiationService.stub(ICanvasService, {
 			enabled: observableValue('canvasesEnabled', true),
 			isOwnerPresentable: (_reference, reader) => active.read(reader),
+			isPresentable: (_reference, reader) => active.read(reader),
 			resolveCanvasModel: async (_reference, source) => {
 				const sourceKey = source.toString();
 				if (retainedModel?.source === sourceKey) {

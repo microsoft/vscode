@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { NewChatModelPickerService } from '../../browser/newChatModelPicker.js';
+import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { createSessionModelCommands, NewChatModelPickerService } from '../../browser/newChatModelPicker.js';
+import { ISessionModelSelection } from '../../browser/sessionModelSelection.js';
 
 suite('NewChatModelPickerService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -75,4 +78,34 @@ suite('NewChatModelPickerService', () => {
 		assert.deepStrictEqual({ newest, fallback, active: modelPickers.activePicker }, { newest: true, fallback: true, active: undefined });
 	});
 
+});
+
+suite('createSessionModelCommands', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('cycles and switches only among visible, user-selectable models', () => {
+		const createModel = (id: string, name: string, isUserSelectable = true) => ({ identifier: `copilot/${id}`, metadata: { vendor: 'copilot', id, family: id, name, isUserSelectable } });
+		const models = [createModel('a', 'Alpha'), createModel('hidden', 'Beta'), createModel('b', 'Bravo'), createModel('internal', 'Delta', false)];
+		let currentModel = models[0];
+		const selection = upcastPartial<ISessionModelSelection>({
+			state: { get: () => ({ models, currentModel }) } as unknown as ISessionModelSelection['state'],
+			selectModel: identifier => {
+				currentModel = models.find(model => model.identifier === identifier)!;
+				return true;
+			},
+		});
+		const languageModelsService = upcastPartial<ILanguageModelsService>({ isModelHidden: identifier => identifier === 'copilot/hidden' });
+		const commands = createSessionModelCommands(selection, languageModelsService);
+		const selected: string[] = [];
+		const run = (action: () => void) => {
+			action();
+			selected.push(currentModel.metadata.name);
+		};
+
+		run(() => commands.switchToNextModel());
+		run(() => commands.switchToNextModel());
+		run(() => commands.switchModel({ vendor: 'copilot', id: 'internal', family: 'internal' }));
+
+		assert.deepStrictEqual(selected, ['Bravo', 'Alpha', 'Alpha']);
+	});
 });

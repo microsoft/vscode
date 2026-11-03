@@ -534,6 +534,22 @@ suite('MissionControlSessionMirror', () => {
 		assert.strictEqual(mirror.statistics.retainedFrames, 1);
 	});
 
+	test('fairly admits both namespaces and keeps a lifecycle marker between earlier and later frames', () => {
+		const { mirror, events, attach } = fixture();
+		mirror.reserveSdkSequences(sessionId, 0, 100);
+		mirror.enqueue(action(1), sessionId);
+		mirror.enqueueSdk(sessionId, { type: 'session.idle', data: {} }, at);
+		mirror.setLifecycle(sessionId, 'completed');
+		mirror.enqueue(action(2), sessionId);
+		mirror.enqueueSdk(sessionId, { type: 'session.idle', data: {} }, at);
+		attach();
+		clock.runAll();
+		assert.deepStrictEqual(events.map(event => event.event === 'sessionEvents'
+			? [event.data.ns, event.data.seq] : [event.data.kind]), [
+			['ahp', 0], ['sdk', 0], ['completed'], ['ahp', 1], ['sdk', 1],
+		]);
+	});
+
 	test('SDK overload coalesces a bounded truncation marker without mutating already-published frames', () => {
 		const { mirror, events, attach } = fixture({ maxSessionFrames: 1 });
 		mirror.reserveSdkSequences(sessionId, 0, 1024);

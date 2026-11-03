@@ -18,6 +18,7 @@ import { SideBySideEditorInput } from '../../common/editor/sideBySideEditorInput
 import { AbstractTextResourceEditorInput } from '../../common/editor/textResourceEditorInput.js';
 import { ChatEditorInput } from '../../contrib/chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { CustomEditorInput } from '../../contrib/customEditor/browser/customEditorInput.js';
+import { isCustomEditorCompatibleInput } from '../../contrib/customEditor/common/customEditor.js';
 import { InteractiveEditorInput } from '../../contrib/interactive/browser/interactiveEditorInput.js';
 import { MergeEditorInput } from '../../contrib/mergeEditor/browser/mergeEditorInput.js';
 import { MultiDiffEditorInput } from '../../contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
@@ -155,6 +156,15 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			return {
 				kind: TabInputKind.CustomEditorInput,
 				viewType: editor.viewType,
+				uri: editor.resource,
+			};
+		}
+
+		// Checked before webviews, since some of these inputs are webviews
+		if (isCustomEditorCompatibleInput(editor)) {
+			return {
+				kind: TabInputKind.CustomEditorInput,
+				viewType: editor.customEditorViewType,
 				uri: editor.resource,
 			};
 		}

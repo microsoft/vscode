@@ -22,6 +22,18 @@
 	color: var(--session-view-foreground);
 }
 
+.chat-group-view-surface {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+	background-color: inherit;
+}
+
+.chat-groups-view.chat-groups-view-has-gaps .chat-group-view {
+	border-color: var(--vscode-agents-background);
+	border-style: solid;
+}
+
 .chat-group-view-bar {
 	position: relative;
 	overflow: hidden;
@@ -39,10 +51,6 @@
 .agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session .interactive-input-part,
 .agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .chat-view > .monaco-progress-container {
 	max-width: none;
-}
-
-.agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session .chat-scroll-down {
-	right: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240));
 }
 
 .agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session > .interactive-list > .chat-transcript-context {

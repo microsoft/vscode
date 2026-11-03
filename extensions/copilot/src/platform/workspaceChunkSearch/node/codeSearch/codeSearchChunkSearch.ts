@@ -191,11 +191,9 @@ export class CodeSearchChunkSearch extends Disposable {
 			}));
 		}
 
-		this._register(Event.any(
-			this._authenticationService.onDidAdoAuthenticationChange,
-			this._adoCodeSearchService.onDidChangeIndexState
-		)(() => {
-			this.updateRepoStatuses('ado', new TelemetryCorrelationId('CodeSearchChunkSearch::onDidAdoChange'));
+		// AdoCodeSearchRepo handles auth changes; index notifications always refresh all ADO repositories.
+		this._register(this._adoCodeSearchService.onDidChangeIndexState(() => {
+			this.updateRepoStatuses('ado', new TelemetryCorrelationId('CodeSearchChunkSearch::onDidAdoIndexStateChange'));
 		}));
 
 		this._register(Event.any(

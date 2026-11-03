@@ -23,6 +23,8 @@ export interface IChatPillHoverContent {
 /** Resource-specific content and freshness; the shared presenter owns the hover lifecycle. */
 export interface IChatPillHoverContentProvider {
 	readonly fallback: string;
+	/** Preview panels reserve their width, including while loading; text hovers size to their content. */
+	readonly sizing?: 'content' | 'preview';
 	/** Creates a fresh content snapshot for an opening or refresh. */
 	readonly createContent: (density: 'default' | 'compact') => IChatPillHoverContent | undefined;
 	readonly resolve?: () => Promise<void>;
@@ -33,10 +35,11 @@ export interface IChatPillHoverContentProvider {
 type CreateHover = IChatPillHoverContentProvider['createContent'];
 type HoverPresentation = Pick<IChatPillEntry, 'hover' | 'pillHover' | 'toolbarActions' | 'hoverActions' | 'promotedAction'>;
 
-export function createChatPillHoverElement(className: string, density: 'default' | 'compact' = 'default'): HTMLElement {
+export function createChatPillHoverElement(className: string, density: 'default' | 'compact' = 'default', sizing: 'content' | 'preview' = 'preview'): HTMLElement {
 	const element = $('.chat-pill-hover-content');
 	element.classList.add(className);
 	element.classList.toggle('compact', density === 'compact');
+	element.classList.toggle('content-sized', sizing === 'content');
 	return element;
 }
 
@@ -50,13 +53,13 @@ export class ChatPillHoverCache extends Disposable {
 	private readonly _entries = new Map<string, CachedChatPillHover>();
 	private _scope: string | undefined;
 
-	get(key: string, entry: IChatPillEntry, createHover: CreateHover | undefined): HoverPresentation {
+	get(key: string, entry: IChatPillEntry, createHover: CreateHover | undefined, sizing: IChatPillHoverContentProvider['sizing'] = 'preview'): HoverPresentation {
 		let cached = this._entries.get(key);
 		if (!cached) {
 			cached = new CachedChatPillHover({ fallback: entry.tooltip ?? entry.label, createContent: () => undefined });
 			this._entries.set(key, cached);
 		}
-		return cached.update(entry, createHover);
+		return cached.update(entry, createHover, sizing);
 	}
 
 	retain(keys: ReadonlySet<string>, scope?: string): void {
@@ -98,9 +101,10 @@ class CachedChatPillHover {
 		contentOwnsPadding: true,
 	};
 
-	update(entry: IChatPillEntry, createHover: CreateHover | undefined): HoverPresentation {
-		this._provider = { fallback: entry.tooltip ?? entry.label, createContent: createHover ?? (() => undefined) };
+	update(entry: IChatPillEntry, createHover: CreateHover | undefined, sizing: IChatPillHoverContentProvider['sizing']): HoverPresentation {
+		this._provider = { fallback: entry.tooltip ?? entry.label, createContent: createHover ?? (() => undefined), sizing };
 		for (const [density, view] of this._views) {
+			view.element.classList.toggle('content-sized', sizing === 'content');
 			if (view.element.isConnected && createHover && (!view.resolved || view.liveElements?.length)) {
 				const content = createHover(density);
 				if (content) {
@@ -148,6 +152,7 @@ class CachedChatPillHover {
 			view.resolved = false;
 		}
 		view.element.classList.toggle('compact', density === 'compact');
+		view.element.classList.toggle('content-sized', this._provider.sizing === 'content');
 		if (this._provider.resolve && (!hover || !this._provider.isFresh?.())) {
 			const renderedView = view;
 			const provider = this._provider;
@@ -198,6 +203,7 @@ class CachedChatPillHover {
 	private _updateView(view: { element: HTMLElement; tabbableElements: readonly HTMLElement[]; liveElements?: readonly HTMLElement[]; resolved: boolean }, hover: IChatPillHoverContent): void {
 		view.element.className = hover.element.className;
 		view.element.classList.add('chat-pill-hover-content');
+		view.element.classList.toggle('content-sized', this._provider.sizing === 'content');
 		view.element.replaceChildren(...hover.element.childNodes);
 		view.tabbableElements = hover.tabbableElements;
 		view.liveElements = hover.liveElements;

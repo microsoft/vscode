@@ -190,26 +190,26 @@ suite('Product test checkpoint templates', () => {
 	test('every test task is registered, independently published and gated', async t => {
 		const windowsExpected = [
 			'unit-electron', 'unit-node', 'unit-browser-chromium',
-			'integration-electron', 'integration-browser-firefox', 'integration-remote',
-			'smoke-electron', 'smoke-browser-chromium', 'smoke-remote',
+			'integration-agent-host-e2e', 'integration-electron', 'integration-browser-firefox', 'integration-remote',
+			'smoke-electron', 'smoke-wsl-kerberos-proxy', 'smoke-browser-chromium', 'smoke-remote',
 			'copilot-extension', 'copilot-completions-core', 'copilot-sanity',
 		];
 		const linuxExpected = [
 			'unit-electron', 'unit-node', 'unit-browser-chromium',
-			'integration-electron', 'integration-browser-chromium', 'integration-remote',
+			'integration-agent-host-e2e', 'integration-electron', 'integration-browser-chromium', 'integration-remote',
 			'smoke-electron', 'smoke-browser-chromium', 'smoke-remote',
 			'copilot-extension', 'copilot-completions-core', 'copilot-sanity',
 		];
 		const darwinExpected = [
 			'unit-electron', 'unit-node', 'unit-browser-webkit',
-			'integration-electron', 'integration-browser-webkit', 'integration-remote',
+			'integration-agent-host-e2e', 'integration-electron', 'integration-browser-webkit', 'integration-remote',
 			'smoke-electron', 'smoke-agents-pac-proxy', 'smoke-agents-kerberos-pac-proxy', 'smoke-browser-chromium', 'smoke-remote',
 			'copilot-extension', 'copilot-completions-core', 'copilot-sanity',
 		];
 		const allExpected = [
 			'unit-electron', 'unit-node', 'unit-browser-chromium', 'unit-browser-webkit',
-			'integration-electron', 'integration-browser-chromium', 'integration-browser-firefox', 'integration-browser-webkit', 'integration-remote',
-			'smoke-electron', 'smoke-agents-pac-proxy', 'smoke-agents-kerberos-pac-proxy', 'smoke-browser-chromium', 'smoke-remote',
+			'integration-agent-host-e2e', 'integration-electron', 'integration-browser-chromium', 'integration-browser-firefox', 'integration-browser-webkit', 'integration-remote',
+			'smoke-electron', 'smoke-agents-pac-proxy', 'smoke-agents-kerberos-pac-proxy', 'smoke-wsl-kerberos-proxy', 'smoke-browser-chromium', 'smoke-remote',
 			'copilot-extension', 'copilot-completions-core', 'copilot-sanity',
 		];
 		const targets = [
@@ -323,7 +323,7 @@ suite('Product test checkpoint templates', () => {
 		assert.deepStrictEqual({
 			testIdsType: ci.parameters?.find(parameter => parameter.name === 'VSCODE_TEST_IDS')?.type,
 			jobDisplayName: job?.displayName,
-			displayNames: jobs.filter(job => ['Smoke', 'Integration', 'Unit', 'BrowserRemote'].includes(job.name))
+			displayNames: jobs.filter(job => ['Smoke', 'Integration', 'AgentHostE2E', 'Unit', 'UnitElectron', 'BrowserRemote'].includes(job.name))
 				.map(job => ({ name: job.name, displayName: job.displayName })),
 			sameJobsInEachPipeline: jobsByPipeline.every(pipelineJobs => JSON.stringify(pipelineJobs) === JSON.stringify(jobs)),
 			uniqueJobNames: new Set(jobs.map(job => job.name)).size === jobs.length,
@@ -349,9 +349,11 @@ suite('Product test checkpoint templates', () => {
 			testIdsType: 'object',
 			jobDisplayName: '${{ parameters.VSCODE_JOB_DISPLAY_NAME }}',
 			displayNames: [
-				{ name: 'Unit', displayName: 'Unit Tests' },
+				{ name: 'UnitElectron', displayName: 'Unit Tests (Electron)' },
+				{ name: 'Unit', displayName: 'Unit Tests (Node.js, Browser & Copilot)' },
 				{ name: 'BrowserRemote', displayName: 'Browser & Remote Tests' },
 				{ name: 'Integration', displayName: 'Integration Tests (Electron)' },
+				{ name: 'AgentHostE2E', displayName: 'Agent Host E2E Tests (Electron)' },
 				{ name: 'Smoke', displayName: 'Smoke Tests (Electron)' },
 			],
 			sameJobsInEachPipeline: true,
@@ -382,7 +384,7 @@ suite('Product test checkpoint templates', () => {
 		});
 	});
 
-	test('Windows x64 CI gives unit tests and Electron smoke tests 70 minutes', () => {
+	test('Windows x64 CI gives every job 70 minutes', () => {
 		const ci = readTemplate('win32/product-build-win32-ci.yml');
 		const job = records(ci).find(record => record.job === 'Windows${{ parameters.VSCODE_JOB_NAME }}');
 		assert.ok(job);
@@ -391,16 +393,13 @@ suite('Product test checkpoint templates', () => {
 			branches: Object.fromEntries(Object.entries(job).filter(([key]) => key.startsWith('${{ '))),
 			cancelTimeoutInMinutes: job.cancelTimeoutInMinutes,
 		}, {
-			timeout: undefined,
-			branches: {
-				'${{ if or(eq(parameters.VSCODE_JOB_NAME, \'Unit\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\')) }}': { timeoutInMinutes: 70 },
-				'${{ else }}': { timeoutInMinutes: 50 },
-			},
+			timeout: 70,
+			branches: {},
 			cancelTimeoutInMinutes: 10,
 		});
 	});
 
-	test('Linux and macOS CI assign every test ID to one of four jobs', () => {
+	test('Linux and macOS CI assign every test ID to one of six jobs', () => {
 		const pipelineFiles = ['product-build.yml', 'product-build-ado-ci.yml', 'product-build-template.yml'];
 		const observed = ([
 			{ platform: 'linux', testFile: linuxTestFile, jobPrefix: 'Linux' },
@@ -467,7 +466,7 @@ suite('Product test checkpoint templates', () => {
 					.map(parameter => parameter.name).filter(name => /^VSCODE_RUN_\w+_TESTS$/.test(name)),
 			};
 		});
-		const jobDisplayNames = ['Unit Tests', 'Browser & Remote Tests', 'Integration Tests (Electron)', 'Smoke Tests (Electron)'];
+		const jobDisplayNames = ['Unit Tests (Electron)', 'Unit Tests (Node.js, Browser & Copilot)', 'Browser & Remote Tests', 'Integration Tests (Electron)', 'Agent Host E2E Tests (Electron)', 'Smoke Tests (Electron)'];
 		const copilotCondition = '${{ if containsValue(parameters.VSCODE_TEST_IDS, \'copilot\') }}';
 		const remoteNodeCondition = '${{ if or(containsValue(parameters.VSCODE_TEST_IDS, \'integration-remote\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-remote\')) }}';
 		const runTests = '${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}';
@@ -646,19 +645,45 @@ suite('Product test checkpoint templates', () => {
 		});
 	});
 
-	test('the WSL Dev Container setup is skipped together with the Electron smoke tests', () => {
-		const smoke = readTemplate(windowsTestFile).steps.flatMap(step =>
-			Object.entries(step)
-				.filter(([key]) => key === '${{ if containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\') }}')
-				.flatMap(([, branch]) => branch as ScriptStep[])
-		);
-		const wsl = smoke.flatMap(step => (step['${{ if eq(parameters.VSCODE_ARCH, \'x64\') }}'] ?? []) as ScriptStep[]);
-		const gated = 'and(succeeded(), ne(variables[\'TEST_CHECKPOINT_SMOKE_ELECTRON_HIT\'], \'true\'))';
-		assert.deepStrictEqual(wsl.map(step => ({ displayName: step.displayName, condition: step.condition })), [
-			{ displayName: 'Set WSL kernel cache day', condition: gated },
-			{ displayName: 'Restore WSL kernel installer cache', condition: gated },
-			{ displayName: 'Prepare WSL Dev Container smoke tests', condition: gated },
-			{ displayName: 'Clean up WSL Dev Container smoke tests', condition: 'and(always(), ne(variables[\'WSL_SMOKE_ROOT\'], \'\'))' },
-		]);
+	test('the WSL Dev Container setup is skipped together with the smoke tests that use it', () => {
+		const wslKey = '${{ if and(eq(parameters.VSCODE_ARCH, \'x64\'), or(containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-wsl-kerberos-proxy\'))) }}';
+		const wslTestKeys = [
+			wslKey,
+			'${{ if containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\') }}',
+			'${{ if and(eq(parameters.VSCODE_ARCH, \'x64\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-wsl-kerberos-proxy\')) }}',
+		];
+		type SequenceEntry = { displayName?: string; condition?: string } | { testId: string };
+		const sequence = (items: unknown): SequenceEntry[] => (Array.isArray(items) ? items : [items]).flatMap((item: Record<string, unknown>) => {
+			if (typeof item.template === 'string' && item.template.endsWith('/run-test-with-checkpoint.yml@self')) {
+				return [{ testId: (item.parameters as CheckpointParameters).testId }];
+			}
+			if (typeof item.displayName === 'string') {
+				return [{ displayName: item.displayName, condition: item.condition as string | undefined }];
+			}
+			return Object.entries(item).filter(([key]) => key.startsWith('${{ ')).flatMap(([, branch]) => sequence(branch));
+		});
+		const steps = readTemplate(windowsTestFile).steps.flatMap(step => Object.entries(step).filter(([key]) => wslTestKeys.includes(key)).flatMap(([, branch]) => branch as unknown[]));
+		const linuxServerFlags = ['product-build.yml', 'product-build-template.yml'].map(file => records(readTemplate(file))
+			.filter(record => typeof record.template === 'string' && record.template.endsWith('win32/product-build-win32-test.yml@self'))
+			.flatMap(record => {
+				const parameters = record.parameters as { VSCODE_JOB_NAME: string; VSCODE_LINUX_X64_COMPILATION_ARTIFACT?: string };
+				return parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT ? [`${parameters.VSCODE_JOB_NAME}: ${parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT}`] : [];
+			}));
+		const gated = 'and(succeeded(), or(ne(variables[\'TEST_CHECKPOINT_SMOKE_ELECTRON_HIT\'], \'true\'), ne(variables[\'TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT\'], \'true\')))';
+		const kerberosGated = 'and(succeeded(), ne(variables[\'TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT\'], \'true\'))';
+		assert.deepStrictEqual({ sequence: sequence(steps), linuxServerFlags }, {
+			sequence: [
+				{ displayName: 'Restore WSL installer cache', condition: gated },
+				{ displayName: 'Prepare WSL Dev Container smoke tests', condition: gated },
+				{ testId: 'smoke-electron' },
+				{ displayName: 'Wait for the Linux x64 compilation artifact', condition: kerberosGated },
+				{ displayName: 'Download the Linux x64 compilation artifact', condition: kerberosGated },
+				{ displayName: 'Add the Linux x64 server to the WSL distribution', condition: kerberosGated },
+				{ testId: 'smoke-wsl-kerberos-proxy' },
+				{ displayName: 'Clean up WSL Dev Container smoke tests', condition: 'and(always(), ne(variables[\'WSL_SMOKE_ROOT\'], \'\'))' },
+			],
+			// Only the product build's smoke job opens an editor window with the server of this run's Linux x64 compile job
+			linuxServerFlags: [0, 1].map(() => ['Smoke: ${{ eq(variables[\'VSCODE_BUILD_STAGE_LINUX_X64\'], true) }}']),
+		});
 	});
 });

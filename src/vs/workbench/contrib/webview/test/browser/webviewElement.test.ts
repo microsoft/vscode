@@ -6,14 +6,17 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { isSafari } from '../../../../../base/browser/browser.js';
-import { addDisposableListener } from '../../../../../base/browser/dom.js';
-import { mainWindow } from '../../../../../base/browser/window.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { $, addDisposableListener, append, registerWindow } from '../../../../../base/browser/dom.js';
+import { Orientation, Sash } from '../../../../../base/browser/ui/sash/sash.js';
+import { ensureCodeWindow, mainWindow } from '../../../../../base/browser/window.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { Event, setGlobalLeakWarningThreshold } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { newWriteableStream, WriteableStream } from '../../../../../base/common/stream.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -27,23 +30,30 @@ import { FileService } from '../../../../../platform/files/common/fileService.js
 import { FileSystemProviderCapabilities, IFileReadStreamOptions, IFileService } from '../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IRemoteAuthorityResolverService } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { ITunnelService } from '../../../../../platform/tunnel/common/tunnel.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IRemoteAgentConnection, IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { TestFileService } from '../../../../test/common/workbenchTestServices.js';
+import { SashGrippersController } from '../../../sash/browser/sash.js';
 import { WebviewThemeDataProvider } from '../../browser/themeing.js';
 import { WebviewElement } from '../../browser/webviewElement.js';
-import { ToWebviewMessage } from '../../browser/webviewMessages.js';
+import { FromWebviewMessage, ToWebviewMessage } from '../../browser/webviewMessages.js';
+import { asWebviewUri, WebviewMouseActivity, webviewMouseActivityEvent, webviewRootResourceAuthority } from '../../common/webview.js';
 
 suite('WebviewElement', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	type WebviewMessage = { [K in keyof ToWebviewMessage]: { channel: K; args: ToWebviewMessage[K] } }[keyof ToWebviewMessage];
 
 	teardown(() => sinon.restore());
 
-	async function createWebview(extensionId?: string, platform = 'browser', connect = true) {
+	async function createWebview(extensionId?: string, platform = 'browser', connect = true, targetWindow = mainWindow) {
 		let initialized = new DeferredPromise<string>();
 		class TestWebviewElement extends WebviewElement {
 			public override get element(): HTMLIFrameElement | undefined { return super.element; }
@@ -67,6 +77,10 @@ suite('WebviewElement', () => {
 		instantiationService.stub(IWorkbenchEnvironmentService, {});
 		instantiationService.stub(ILogService, store.add(new NullLogService()));
 		instantiationService.stub(IRemoteAuthorityResolverService, {});
+		instantiationService.stub(IRemoteAgentService, {
+			getConnection: () => null,
+			getEnvironment: async () => null,
+		});
 		instantiationService.stub(ITunnelService, {});
 		instantiationService.stub(IAccessibilityService, {
 			onDidChangeReducedMotion: Event.None,
@@ -85,13 +99,13 @@ suite('WebviewElement', () => {
 			getWebviewThemeData: () => ({ styles: {}, activeTheme: 'vscode-dark', themeLabel: 'Dark', themeId: 'test' }),
 		})));
 		const container = document.createElement('div');
-		document.body.appendChild(container);
+		targetWindow.document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
 		assert.ok(webview.element);
 		const frame = webview.element;
 		// Capture the shell URL without navigating away from the test document.
 		const setSource = sinon.stub(frame, 'setAttribute').withArgs('src', sinon.match.string);
-		webview.mountTo(container, mainWindow);
+		webview.mountTo(container, targetWindow);
 		const origin = await initialized.p;
 
 		const channel = new MessageChannel();
@@ -110,11 +124,11 @@ suite('WebviewElement', () => {
 			ports: [port],
 		});
 		if (connect) {
-			mainWindow.dispatchEvent(new MessageEvent('message', createReadyEvent()));
+			targetWindow.dispatchEvent(new MessageEvent('message', createReadyEvent()));
 		}
 		channel.port2.start();
 		return {
-			webview, instantiationService, port: channel.port2, errorNotification, frame, createReadyEvent,
+			webview, instantiationService, port: channel.port2, errorNotification, frame, container, configurationService, createReadyEvent,
 			remount: async () => {
 				initialized = new DeferredPromise<string>();
 				webview.reinitializeAfterDismount();
@@ -122,6 +136,111 @@ suite('WebviewElement', () => {
 			},
 		};
 	}
+
+	const mouseMove: FromWebviewMessage['did-mouse-move'] = {
+		screenX: 120, screenY: 80,
+	};
+
+	async function sendWebviewMessage<K extends keyof FromWebviewMessage>(webview: WebviewElement, port: MessagePort, channel: K, data: FromWebviewMessage[K]): Promise<void> {
+		const disposables = new DisposableStore();
+		try {
+			const drained = Event.toPromise(webview.onMessage, disposables);
+			port.postMessage({ channel, data });
+			port.postMessage({ channel: 'onmessage', data: { message: 'done' } });
+			await drained;
+		} finally {
+			disposables.dispose();
+		}
+	}
+
+	async function sendMouseMove(webview: WebviewElement, port: MessagePort, event = mouseMove): Promise<void> {
+		await sendWebviewMessage(webview, port, 'did-mouse-move', event);
+	}
+
+	test('reports webview activity without synthesizing mouse input', async () => {
+		const { webview, port } = await createWebview();
+		const activities: WebviewMouseActivity[] = [];
+		let mouseInputEvents = 0;
+		store.add(addDisposableListener(mainWindow, webviewMouseActivityEvent, (event: CustomEvent<WebviewMouseActivity>) => {
+			activities.push(event.detail);
+		}));
+		store.add(addDisposableListener(mainWindow, 'mousemove', () => mouseInputEvents++));
+		await sendMouseMove(webview, port);
+		assert.deepStrictEqual({ activities, mouseInputEvents }, { activities: [mouseMove], mouseInputEvents: 0 });
+	});
+
+	for (const autoHideGrippers of [false, true]) {
+		test(`queued webview movement cannot resize an active sash (auto-hide ${autoHideGrippers})`, async () => {
+			const { webview, port, frame, container, configurationService } = await createWebview();
+			await configurationService.setUserConfiguration('workbench.sash.autoHideGrippers', autoHideGrippers);
+			await configurationService.setUserConfiguration('workbench.sash.autoHideGrippersDelay', 100);
+			store.add(new SashGrippersController(configurationService, upcastPartial<ILayoutService>({
+				containers: [container],
+				onDidAddContainer: Event.None,
+			})));
+			const sash = store.add(new Sash(container, { getVerticalSashLeft: () => 500 }, { orientation: Orientation.VERTICAL }));
+			const sashElement = container.querySelector<HTMLElement>('.monaco-sash');
+			assert.ok(sashElement);
+			const changes: { startX: number; currentX: number }[] = [];
+			store.add(sash.onDidChange(({ startX, currentX }) => changes.push({ startX, currentX })));
+			const endDrag = store.add(toDisposable(() => {
+				mainWindow.dispatchEvent(new MouseEvent('mouseup', { clientX: 510 }));
+			}));
+
+			const queuedMovement = { ...mouseMove, clientX: 250, clientY: 0, buttons: 0 };
+			const delivered = sendMouseMove(webview, port, queuedMovement);
+			sashElement.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, buttons: 1, clientX: 500 }));
+			await delivered;
+			const afterQueuedMovement = {
+				changes: changes.slice(),
+				dragging: sashElement.classList.contains('active'),
+				iframeBlocked: frame.classList.contains('pointer-events-disabled'),
+			};
+			mainWindow.dispatchEvent(new MouseEvent('mousemove', { clientX: 510, buttons: 1 }));
+			endDrag.dispose();
+
+			assert.deepStrictEqual({ afterQueuedMovement, afterRealMovement: changes }, {
+				afterQueuedMovement: { changes: [], dragging: true, iframeBlocked: true },
+				afterRealMovement: [{ startX: 500, currentX: 510 }],
+			});
+		});
+	}
+
+	test('webview mouse movement reveals grippers and resets only the owning window idle timer', async () => {
+		const auxiliaryFrame = append(document.body, $<HTMLIFrameElement>('iframe'));
+		store.add(toDisposable(() => auxiliaryFrame.remove()));
+		const targetWindow = auxiliaryFrame.contentWindow;
+		assert.ok(targetWindow);
+		ensureCodeWindow(targetWindow, 1001);
+		store.add(registerWindow(targetWindow));
+		const main = await createWebview();
+		const auxiliary = await createWebview(undefined, 'browser', true, targetWindow);
+		await main.configurationService.setUserConfiguration('workbench.sash.autoHideGrippers', true);
+		await main.configurationService.setUserConfiguration('workbench.sash.autoHideGrippersDelay', 100);
+		store.add(new SashGrippersController(main.configurationService, upcastPartial<ILayoutService>({
+			containers: [main.container, auxiliary.container],
+			onDidAddContainer: Event.None,
+		})));
+		const hidden = () => [main.container, auxiliary.container].map(container => container.classList.contains('sash-grippers-hidden'));
+		await timeout(120);
+		const idle = hidden();
+		await sendMouseMove(main.webview, main.port);
+		const mainMoving = hidden();
+		await timeout(60);
+		await sendMouseMove(main.webview, main.port, { ...mouseMove, screenX: mouseMove.screenX + 1 });
+		await timeout(60);
+		const mainStillMoving = hidden();
+		await timeout(60);
+		const idleAgain = hidden();
+		await sendMouseMove(auxiliary.webview, auxiliary.port);
+		assert.deepStrictEqual({ idle, mainMoving, mainStillMoving, idleAgain, auxiliaryMoving: hidden() }, {
+			idle: [true, true],
+			mainMoving: [false, true],
+			mainStillMoving: [false, true],
+			idleAgain: [true, true],
+			auxiliaryMoving: [true, false],
+		});
+	});
 
 	for (const invalid of [
 		{ name: 'wrong target', envelope: { target: 'another-webview' } },
@@ -264,6 +383,91 @@ suite('WebviewElement', () => {
 		});
 	}
 
+	suite('remote resource loading', () => {
+		async function loadRemoteResource(connectionAuthority: string | null, os: OperatingSystem | null, root: URI, resource: URI) {
+			const { webview, instantiationService, port } = await createWebview();
+			const remoteAgentService = instantiationService.get(IRemoteAgentService);
+			sinon.stub(remoteAgentService, 'getConnection').returns(connectionAuthority === null ? null : upcastPartial<IRemoteAgentConnection>({ remoteAuthority: connectionAuthority }));
+			const getEnvironment = sinon.stub(remoteAgentService, 'getEnvironment').resolves(os === null ? null : upcastPartial<IRemoteAgentEnvironment>({ os }));
+			const fileService = store.add(new TestFileService());
+			instantiationService.stub(IFileService, fileService);
+			instantiationService.stub(IUriIdentityService, store.add(new UriIdentityService(fileService)));
+			const readFileStream = sinon.spy(fileService, 'readFileStream');
+			webview.contentOptions = { localResourceRoots: [root] };
+
+			const response = new DeferredPromise<ToWebviewMessage['did-load-resource']>();
+			store.add(addDisposableListener(port, 'message', (event: MessageEvent<WebviewMessage>) => {
+				if (event.data.channel === 'did-load-resource') {
+					response.complete(event.data.args);
+				}
+			}));
+			const url = new URL(asWebviewUri(resource).toString());
+			port.postMessage({
+				channel: 'load-resource',
+				data: {
+					id: 1,
+					scheme: resource.scheme,
+					authority: url.hostname.slice(resource.scheme.length + 1, -(webviewRootResourceAuthority.length + 1)),
+					path: url.pathname,
+					query: url.search.slice(1),
+				},
+			});
+			const result = await response.p;
+			if ((result.status === 200 || result.status === 206) && result.stream) {
+				await new Response(result.stream).text();
+			}
+			return {
+				status: result.status,
+				environmentRequests: getEnvironment.callCount,
+				readResources: readFileStream.getCalls().map(call => call.args[0].toString()),
+			};
+		}
+
+		for (const { authority, os } of [
+			{ authority: 'wsl+Ubuntu', os: OperatingSystem.Linux },
+			{ authority: 'wsl+Ubuntu-24.04', os: OperatingSystem.Linux },
+			{ authority: 'wsl+Ubuntu-26.04', os: OperatingSystem.Linux },
+			{ authority: 'wsl+FedoraLinux-44', os: OperatingSystem.Linux },
+			{ authority: 'wsl+ubuntu', os: OperatingSystem.Linux },
+			{ authority: 'ssh-remote+WindowsHost', os: OperatingSystem.Windows },
+			{ authority: 'ssh-remote+MacHost', os: OperatingSystem.Macintosh },
+		]) {
+			test(`loads resources from ${authority} after the browser normalizes the hostname`, async () => {
+				const root = URI.from({ scheme: Schemas.vscodeRemote, authority, path: os === OperatingSystem.Windows ? '/c:/Project' : '/home/user/Project' });
+				const resource = URI.joinPath(root, 'media', 'Index.js');
+
+				assert.deepStrictEqual(await loadRemoteResource(authority, os, root, resource), {
+					status: 200,
+					environmentRequests: 1,
+					readResources: [URI.from({
+						scheme: Schemas.vscodeRemote,
+						authority: authority.toLowerCase(),
+						path: '/vscode-resource',
+						query: JSON.stringify({ requestResourcePath: resource.path }),
+					}).toString()],
+				});
+			});
+		}
+
+		const root = URI.from({ scheme: Schemas.vscodeRemote, authority: 'wsl+ubuntu', path: '/home/user/Project' });
+		const resource = URI.joinPath(root, 'media', 'Index.js');
+		for (const testCase of [
+			{ name: 'a different connection authority', authority: 'wsl+debian', os: OperatingSystem.Linux, root, resource, environmentRequests: 0 },
+			{ name: 'no remote connection', authority: null, os: OperatingSystem.Linux, root, resource, environmentRequests: 0 },
+			{ name: 'an unknown remote OS', authority: root.authority, os: null, root, resource, environmentRequests: 1 },
+			{ name: 'a different root authority', authority: root.authority, os: OperatingSystem.Linux, root: root.with({ authority: 'wsl+debian' }), resource, environmentRequests: 1 },
+			{ name: 'a path outside the allowed root', authority: root.authority, os: OperatingSystem.Linux, root, resource: resource.with({ path: '/home/user/Other/Index.js' }), environmentRequests: 1 },
+		]) {
+			test(`denies resources with ${testCase.name}`, async () => {
+				assert.deepStrictEqual(await loadRemoteResource(testCase.authority, testCase.os, testCase.root, testCase.resource), {
+					status: 401,
+					environmentRequests: testCase.environmentRequests,
+					readResources: [],
+				});
+			});
+		}
+	});
+
 	async function createResourceWebview(platform = 'electron') {
 		const { webview, instantiationService, port } = await createWebview(undefined, platform);
 		const reads: { stream: WriteableStream<Uint8Array>; token: CancellationToken }[] = [];
@@ -289,7 +493,6 @@ suite('WebviewElement', () => {
 
 		const pending = new Map<number, DeferredPromise<ToWebviewMessage['did-load-resource']>>();
 		const bodies = new Map<number, { chunks: VSBuffer[]; result: DeferredPromise<string> }>();
-		type WebviewMessage = { [K in keyof ToWebviewMessage]: { channel: K; args: ToWebviewMessage[K] } }[keyof ToWebviewMessage];
 		store.add(addDisposableListener(port, 'message', (event: MessageEvent<WebviewMessage>) => {
 			const message = event.data;
 			switch (message.channel) {

@@ -22,7 +22,7 @@ function createCache(data: readonly { readonly key: string; readonly embedding: 
 	}();
 	const instantiationService = new class extends mock<IInstantiationService>() { }();
 	instantiationService.createInstance = (() => embeddingsCache) as IInstantiationService['createInstance'];
-	return new PreComputedToolEmbeddingsCache(new TestLogService(), instantiationService, NullEnvService.Instance);
+	return new PreComputedToolEmbeddingsCache(EmbeddingType.metis_1024_I16_Binary, new TestLogService(), instantiationService, NullEnvService.Instance);
 }
 
 describe('PreComputedToolEmbeddingsCache', () => {

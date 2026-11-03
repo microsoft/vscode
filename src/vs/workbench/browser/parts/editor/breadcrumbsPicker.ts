@@ -57,8 +57,8 @@ export abstract class BreadcrumbsPicker<TInput, TElement> {
 	protected _fakeEvent = new UIEvent('fakeEvent');
 	protected _layoutInfo!: ILayoutInfo;
 
-	protected readonly _onWillPickElement = new Emitter<void>();
-	readonly onWillPickElement: Event<void> = this._onWillPickElement.event;
+	protected readonly _onWillPickElement = new Emitter<boolean>();
+	readonly onWillPickElement: Event<boolean> = this._onWillPickElement.event;
 
 	private readonly _previewDispoables = new MutableDisposable();
 
@@ -142,7 +142,9 @@ export abstract class BreadcrumbsPicker<TInput, TElement> {
 		this._tree.layout(treeHeight, this._layoutInfo.width);
 	}
 
-	restoreViewState(): void { }
+	restoreViewState(): void {
+		this._previewDispoables.clear();
+	}
 
 	protected abstract _setInput(element: FileElement | OutlineElement2): Promise<void>;
 	protected abstract _createTree(container: HTMLElement, input: unknown): Tree<TInput, TElement>;
@@ -267,7 +269,7 @@ class FileAccessibilityProvider implements IListAccessibilityProvider<IWorkspace
 
 class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 
-	private readonly _cachedExpressions = new Map<string, glob.ParsedExpression>();
+	private readonly _cachedExpressions = new Map<string, glob.IParsedExcludeExpression>();
 	private readonly _disposables = new DisposableStore();
 
 	constructor(
@@ -289,14 +291,15 @@ class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 					if (typeof excludesConfig[pattern] !== 'boolean') {
 						continue;
 					}
-					const patternAbs = pattern.indexOf('**/') !== 0
+					// exceptions stay relative because the filter matches folder-relative paths
+					const patternAbs = pattern.indexOf('**/') !== 0 && !glob.isExcludeException(pattern)
 						? posix.join(folder.uri.path, pattern)
 						: pattern;
 
 					adjustedConfig[patternAbs] = excludesConfig[pattern];
 				}
 				const ignoreCase = !fileService.hasCapability(folder.uri, FileSystemProviderCapabilities.PathCaseSensitive);
-				this._cachedExpressions.set(folder.uri.toString(), glob.parse(adjustedConfig, { ignoreCase }));
+				this._cachedExpressions.set(folder.uri.toString(), glob.parseExcludeExpression(adjustedConfig, { ignoreCase }));
 			});
 		};
 		update();
@@ -321,7 +324,30 @@ class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 		}
 
 		const expression = this._cachedExpressions.get(folder.uri.toString())!;
-		return !expression(relative(folder.uri.path, element.resource.path), basename(element.resource));
+		const path = relative(folder.uri.path, element.resource.path);
+		const name = basename(element.resource);
+		if (!expression.exceptions.length) {
+			return !expression.matches(path, name);
+		}
+
+		// the picker shows folders that lead to an exception, so their other children must stay excluded
+		return glob.evaluateExcludeTreeEntry(expression, {
+			path,
+			basename: name,
+			isDirectory: !!element.isDirectory,
+			isParentExcluded: this.isParentFolderExcluded(expression, path),
+		}).isVisited;
+	}
+
+	private isParentFolderExcluded(expression: glob.IParsedExcludeExpression, path: string): boolean {
+		const segments = path.split(/[\\/]/);
+		for (let i = 1; i < segments.length; i++) {
+			if (expression.matchesExclude(segments.slice(0, i).join('/'), segments[i - 1])) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 }
 
@@ -426,7 +452,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker<IWorkspace | URI, I
 
 	protected async _revealElement(element: IFileStat | IWorkspaceFolder, options: IEditorOptions, sideBySide: boolean): Promise<boolean> {
 		if (!isWorkspaceFolder(element) && element.isFile) {
-			this._onWillPickElement.fire();
+			this._onWillPickElement.fire(sideBySide);
 			await this._editorService.openEditor({ resource: element.resource, options }, sideBySide ? SIDE_GROUP : undefined);
 			return true;
 		}
@@ -487,7 +513,10 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker<IOutline<unknown
 	protected _setInput(input: OutlineElement2): Promise<void> {
 
 		const viewState = input.outline.captureViewState();
-		this.restoreViewState = () => { viewState.dispose(); };
+		this.restoreViewState = () => {
+			super.restoreViewState();
+			viewState.dispose();
+		};
 
 		const tree = this._tree as WorkbenchDataTree<IOutline<unknown>, unknown, FuzzyScore>;
 
@@ -507,7 +536,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker<IOutline<unknown
 	}
 
 	protected async _revealElement(element: unknown, options: IEditorOptions, sideBySide: boolean): Promise<boolean> {
-		this._onWillPickElement.fire();
+		this._onWillPickElement.fire(sideBySide);
 		const outline: IOutline<unknown> = this._tree.getInput()!;
 		await outline.reveal(element, options, sideBySide, false);
 		return true;

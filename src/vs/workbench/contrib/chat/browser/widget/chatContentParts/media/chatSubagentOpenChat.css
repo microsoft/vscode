@@ -171,7 +171,8 @@
 	min-width: 0;
 	min-height: var(--vscode-spacing-size240);
 	overflow: hidden;
-	margin-top: var(--vscode-spacing-size40);
+	/* Padding instead of margin keeps the raised connector inside the clipped padding box. */
+	padding-top: var(--vscode-spacing-size40);
 	margin-left: var(--vscode-spacing-size80);
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body2);
@@ -183,14 +184,15 @@
 }
 
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-active-tool-connector {
-	align-self: flex-start;
+	align-self: center;
 	flex: 0 0 var(--vscode-spacing-size80);
-	height: var(--vscode-spacing-size100);
-	margin-right: var(--vscode-spacing-size40);
+	height: var(--vscode-spacing-size160);
+	margin-right: var(--vscode-spacing-size60);
 	border-left: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
 	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
 	border-bottom-left-radius: var(--vscode-cornerRadius-small);
-	transform: translateY(calc(-1 * var(--vscode-spacing-size40)));
+	/* Center the horizontal stroke on the activity row. */
+	transform: translateY(calc(-50% + var(--vscode-strokeThickness) / 2));
 }
 
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-active-tool-icon {
@@ -205,65 +207,21 @@
 	line-height: var(--vscode-spacing-size120);
 }
 
-@supports ((background-clip: text) or (-webkit-background-clip: text)) {
-	.monaco-enable-motion .chat-subagent-pill-active-tool-label.chat-subagent-tool-fade-out,
-	.monaco-enable-motion .chat-subagent-pill-active-tool-label.chat-subagent-tool-fade-in {
-		-webkit-mask-repeat: no-repeat;
-		mask-repeat: no-repeat;
-		-webkit-mask-size: 300% 100%;
-		mask-size: 300% 100%;
+.interactive-session .interactive-response.chat-persistent-progress .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget {
+	.chat-subagent-pill-active-tool {
+		width: calc(100% - var(--chat-persistent-rail-left));
+		margin-left: var(--chat-persistent-rail-left);
 	}
 
-	.monaco-enable-motion .chat-subagent-pill-active-tool-label.chat-subagent-tool-fade-out {
-		-webkit-mask-image: linear-gradient(90deg, transparent 0%, transparent 33%, #000 66%, #000 100%);
-		mask-image: linear-gradient(90deg, transparent 0%, transparent 33%, #000 66%, #000 100%);
-		animation: chat-subagent-tool-fade-out 220ms ease-in forwards;
+	.chat-subagent-pill-active-tool-connector {
+		box-sizing: border-box;
+		flex-basis: var(--chat-persistent-hook-width);
+		margin-right: var(--vscode-spacing-size40);
+		border-bottom-left-radius: var(--vscode-cornerRadius-medium);
 	}
 
-	.monaco-enable-motion .chat-subagent-pill-active-tool-label.chat-subagent-tool-fade-in {
-		-webkit-mask-image: linear-gradient(90deg, #000 0%, #000 33%, transparent 66%, transparent 100%);
-		mask-image: linear-gradient(90deg, #000 0%, #000 33%, transparent 66%, transparent 100%);
-		background: linear-gradient(90deg,
-				var(--vscode-descriptionForeground) 0%,
-				var(--vscode-descriptionForeground) 30%,
-				var(--vscode-foreground) 50%,
-				var(--vscode-descriptionForeground) 70%,
-				var(--vscode-descriptionForeground) 100%);
-		background-size: 250% 100%;
-		background-clip: text;
-		-webkit-background-clip: text;
-		-webkit-text-fill-color: transparent;
-		animation: chat-subagent-tool-fade-in 480ms ease-out forwards;
-	}
-}
-
-@keyframes chat-subagent-tool-fade-out {
-	from {
-		-webkit-mask-position: 100% 0;
-		mask-position: 100% 0;
-		opacity: 1;
-	}
-
-	to {
-		-webkit-mask-position: 0% 0;
-		mask-position: 0% 0;
-		opacity: 0;
-	}
-}
-
-@keyframes chat-subagent-tool-fade-in {
-	from {
-		-webkit-mask-position: 100% 0;
-		mask-position: 100% 0;
-		background-position: 120% 0;
-		opacity: 0;
-	}
-
-	to {
-		-webkit-mask-position: 0% 0;
-		mask-position: 0% 0;
-		background-position: -20% 0;
-		opacity: 1;
+	.chat-subagent-pill-active-tool-icon {
+		margin-right: calc(var(--vscode-spacing-size240) - var(--chat-persistent-icon-left) - var(--vscode-codiconFontSize-compact));
 	}
 }
 

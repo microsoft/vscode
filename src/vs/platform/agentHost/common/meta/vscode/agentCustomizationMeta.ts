@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Mutable } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
 import type { AgentCustomization } from '../../state/protocol/state.js';
 
 /**
@@ -13,12 +14,16 @@ import type { AgentCustomization } from '../../state/protocol/state.js';
  * {@link readAgentCustomizationMeta} rather than indexing `_meta` directly.
  */
 export interface IAgentCustomizationMeta {
+	/** Identifies a host-provided read-only Ask mode independently of its name or URI. */
+	readonly 'vscode.chatMode'?: 'ask';
 	/**
 	 * Whether the user may invoke this custom agent directly (e.g. from the
 	 * agent picker). Absent is treated as `true` by convention — only an
 	 * explicit `false` hides the agent from direct user invocation.
 	 */
 	readonly userInvocable?: boolean;
+	/** Client-supplied file URI before host materialization, used only to recover local provenance. */
+	readonly 'vscode.sourceUri'?: string;
 }
 
 /**
@@ -28,10 +33,22 @@ export interface IAgentCustomizationMeta {
 export function readAgentCustomizationMeta(agent: AgentCustomization): IAgentCustomizationMeta {
 	const meta = agent._meta;
 	const result: Mutable<IAgentCustomizationMeta> = {};
+	if (meta?.['vscode.chatMode'] === 'ask') {
+		result['vscode.chatMode'] = 'ask';
+	}
 	if (agent.disableUserInvocation === true) {
 		result.userInvocable = false;
 	} else if (typeof meta?.userInvocable === 'boolean') {
 		result.userInvocable = meta.userInvocable;
+	}
+	const sourceUri = meta?.['vscode.sourceUri'];
+	if (typeof sourceUri === 'string') {
+		try {
+			URI.parse(sourceUri, true);
+			result['vscode.sourceUri'] = sourceUri;
+		} catch {
+			// Malformed optional provenance does not affect the agent's identity.
+		}
 	}
 	return result;
 }

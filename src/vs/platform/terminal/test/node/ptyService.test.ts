@@ -8,9 +8,11 @@ import { SerializeAddon } from '@xterm/addon-serialize';
 import pkg from '@xterm/headless';
 import { createSandbox } from 'sinon';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { XtermSerializer } from '../../node/ptyService.js';
+import { IProductService } from '../../../product/common/productService.js';
+import { PtyService, XtermSerializer } from '../../node/ptyService.js';
 
 suite('XtermSerializer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -61,5 +63,29 @@ suite('XtermSerializer', () => {
 		const serialize = sandbox.spy(SerializeAddon.prototype, 'serialize');
 		const replay = await serializer.generateReplayEvent(true, true);
 		deepStrictEqual({ disposed: dispose.callCount, serialized: serialize.callCount, screen: replay.events[0].data }, { disposed: 1, serialized: 0, screen: 'saved screen' });
+	});
+});
+
+suite('PtyService', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('attachToProcess only attaches when the expected pid matches', async () => {
+		const service = store.add(new PtyService(new NullLogService(), upcastPartial<IProductService>({}), { graceTime: 60000, shortGraceTime: 6000, scrollback: 100 }, 0));
+		let attachCount = 0;
+		// Stand in for a running persistent process to avoid spawning a pty
+		const ptys: Map<number, { pid: number; attach(): Promise<void>; shutdown(): void }> = Reflect.get(service, '_ptys');
+		ptys.set(1, { pid: 1234, attach: async () => { attachCount++; }, shutdown: () => { } });
+
+		async function attach(pid?: number): Promise<string> {
+			try {
+				await service.attachToProcess(1, pid);
+				return 'attached';
+			} catch {
+				return 'rejected';
+			}
+		}
+		const results = { otherPid: await attach(4321), samePid: await attach(1234), noPid: await attach() };
+
+		deepStrictEqual({ ...results, attachCount }, { otherPid: 'rejected', samePid: 'attached', noPid: 'attached', attachCount: 2 });
 	});
 });

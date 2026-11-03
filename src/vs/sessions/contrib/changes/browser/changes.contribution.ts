@@ -33,6 +33,7 @@ import { IChangesViewService } from '../common/changesViewService.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsChangesAccessibilityHelp } from './sessionsChangesAccessibilityHelp.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { ChangesActivityContribution } from './changesActivity.js';
 
 /**
  * Registers the custom desktop Changes editor (multi-diff pane with the header
@@ -66,6 +67,7 @@ class DesktopChangesEditorContribution extends Disposable implements IWorkbenchC
 }
 
 registerWorkbenchContribution2(DesktopChangesEditorContribution.ID, DesktopChangesEditorContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(ChangesActivityContribution.ID, ChangesActivityContribution, WorkbenchPhase.AfterRestored);
 
 AccessibleViewRegistry.register(new SessionsChangesAccessibilityHelp());
 

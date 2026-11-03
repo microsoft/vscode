@@ -5,8 +5,20 @@
 
 import { generateUuid } from '../../../base/common/uuid.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
+import { parseGitHubRequestId } from '../../github/common/client/headers.js';
 
-export interface IConnectionDiagnosticEvent {
+export { parseGitHubRequestId as getGitHubRequestId } from '../../github/common/client/headers.js';
+
+export interface IConnectionDiagnosticState {
+	readonly connectionState?: 'connecting' | 'connected' | 'reconnecting' | 'incompatible' | 'closed';
+	readonly authenticationRestorePending?: boolean;
+	readonly lastSuccessfulResponseAgeMs?: number;
+	readonly reconnectAttempt?: number;
+	readonly reconnectScheduled?: boolean;
+	readonly reconnectDelayMs?: number;
+}
+
+export interface IConnectionDiagnosticEvent extends IConnectionDiagnosticState {
 	readonly operationId: string;
 	readonly attemptId?: string;
 	readonly phase: string;
@@ -15,7 +27,15 @@ export interface IConnectionDiagnosticEvent {
 	readonly durationMs?: number;
 	readonly detail?: string;
 	readonly error?: IConnectionDiagnosticError;
+	readonly requestKind?: ConnectionDiagnosticRequestKind;
+	readonly connectionOperation?: 'connect' | 'recover';
+	readonly sessionResource?: string;
+	readonly chatResource?: string;
+	readonly turnId?: string;
+	readonly sessionState?: 'creating' | 'ready' | 'failed';
 }
+
+export type ConnectionDiagnosticRequestKind = 'listSessions' | 'createSession' | 'subscribeRoot' | 'subscribeSession' | 'subscribeChat' | 'subscribeOther';
 
 export interface IConnectionDiagnosticError {
 	readonly name: string;
@@ -28,7 +48,7 @@ export interface IConnectionDiagnosticError {
 
 export type ConnectionDiagnosticObserver = (event: IConnectionDiagnosticEvent) => void;
 
-export function emitConnectionDiagnostic(observer: ConnectionDiagnosticObserver | undefined, event: IConnectionDiagnosticEvent): void {
+export function emitConnectionDiagnostic<T extends IConnectionDiagnosticEvent>(observer: ((event: T) => void) | undefined, event: T): void {
 	try {
 		observer?.(event);
 	} catch (error) {
@@ -47,10 +67,6 @@ export function sanitizeConnectionDiagnosticText(value: string, limit = 1024): s
 		.replace(/\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\b/g, '[redacted token]')
 		.replace(/[\r\n\t]+/g, ' ')
 		.slice(0, limit);
-}
-
-export function getGitHubRequestId(header: string | readonly string[] | null | undefined): string | undefined {
-	return typeof header === 'string' && header.length <= 128 && /^[0-9A-Fa-f]{1,16}(?::[0-9A-Fa-f]{1,16}){4}$/.test(header) ? header : undefined;
 }
 
 interface IErrorFields {
@@ -110,7 +126,8 @@ export function getConnectionDiagnosticError(error: unknown, depth = 0): IConnec
 		message: typeof error.message === 'string' ? sanitizeConnectionDiagnosticText(error.message) : 'No error description available',
 		code: typeof error.code === 'number' || typeof error.code === 'string' ? sanitizeConnectionDiagnosticText(String(error.code), 80) : undefined,
 		status: typeof status === 'number' && Number.isInteger(status) && status >= 100 && status <= 599 ? status : undefined,
-		requestId: typeof requestId === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(requestId) && sanitizeConnectionDiagnosticText(requestId) === requestId ? requestId : undefined,
+		requestId: parseGitHubRequestId(typeof requestId === 'string' ? requestId : undefined)
+			?? (typeof requestId === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(requestId) && sanitizeConnectionDiagnosticText(requestId) === requestId ? requestId : undefined),
 		cause: depth < 2 && error.cause !== undefined && error.cause !== error ? getConnectionDiagnosticError(error.cause, depth + 1) : undefined,
 	};
 }
@@ -177,6 +194,9 @@ export class ConnectionDiagnosticBuffer {
 	private readonly events: IRemoteConnectionDiagnosticEvent[] = [];
 
 	record(address: string, event: IConnectionDiagnosticEvent): void {
+		if (event.outcome === 'info' && (event.phase === 'session.snapshot' || event.phase === 'chat.binding' || event.phase === 'turn.submit')) {
+			return;
+		}
 		this.events.push({ ...event, address });
 		if (this.events.length > 200) {
 			this.events.shift();

@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { ActionType, StateAction } from '../../common/state/sessionActions.js';
-import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, ResponsePartKind, ToolCallStatus, ToolResultContentType, type ISessionWithDefaultChat, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { isAhpChatChannel, ResponsePartKind, ToolCallStatus, ToolResultContentType, type ISessionWithDefaultChat, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { IAgentHostLocalTurns } from '../agentHostLocalTurns.js';
 import { IAgentHostPeerChatPersistenceService } from '../agentHostPeerChatStore.js';
 import { IAgentHostSessionTitleController } from '../agentHostSessionTitleController.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
+import { IAgentHostChatOwnershipService } from '../agentHostChatOwnershipService.js';
 
 /**
  * A just-started chat turn offered to the local-command dispatcher before it is
@@ -44,6 +45,10 @@ export interface ILocalChatCommandContext {
 	dispatch(channel: ProtocolURI, action: StateAction): void;
 	/** Read the merged session/chat state for a session or chat channel. */
 	getState(channel: ProtocolURI): ISessionWithDefaultChat | undefined;
+	/** The session a session or chat channel belongs to. */
+	getOwner(channel: ProtocolURI): ProtocolURI;
+	/** Whether `chat` is the recorded default chat of `session`. */
+	isDefaultChat(session: ProtocolURI, chat: ProtocolURI): boolean;
 	/** Rename a single chat (independently of the session title). */
 	updateChatTitle(session: ProtocolURI, chat: ProtocolURI, title: string): void;
 	/** Persist a session-metadata key/value pair (e.g. a custom title). */
@@ -111,8 +116,14 @@ export interface ILocalChatCommandCtor {
 class LocalChatCommandRegistryImpl {
 	private readonly _ctors: ILocalChatCommandCtor[] = [];
 
-	register(ctor: ILocalChatCommandCtor): void {
+	register(ctor: ILocalChatCommandCtor): IDisposable {
 		this._ctors.push(ctor);
+		return toDisposable(() => {
+			const index = this._ctors.indexOf(ctor);
+			if (index !== -1) {
+				this._ctors.splice(index, 1);
+			}
+		});
 	}
 
 	createAll(context: ILocalChatCommandContext): ILocalChatCommand[] {
@@ -146,6 +157,7 @@ export class AgentHostLocalCommands extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 		@IAgentHostPeerChatPersistenceService private readonly _chatPersistence: IAgentHostPeerChatPersistenceService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 		const context: ILocalChatCommandContext = {
@@ -153,10 +165,11 @@ export class AgentHostLocalCommands extends Disposable {
 			terminalManager: this._terminalManager,
 			dispatch: (channel, action) => this._stateManager.dispatchServerAction(channel, action),
 			getState: channel => this._stateManager.getSessionState(channel),
+			getOwner: channel => this._ownerOf(channel),
+			isDefaultChat: (session, chat) => this._chatOwnership.isDefaultChat(session, chat),
 			updateChatTitle: (session, chat, title) => this._stateManager.updateChatTitle(session, chat, title),
 			persistSessionFlag: (resource, key, value) => {
-				const owner = isAhpChatChannel(resource) ? parseRequiredSessionUriFromChatUri(resource) : resource;
-				void this._chatPersistence.persistMetadata(URI.parse(owner), URI.parse(resource), { [key]: value }).catch(error =>
+				void this._chatPersistence.persistMetadata(URI.parse(this._ownerOf(resource)), URI.parse(resource), { [key]: value }).catch(error =>
 					this._logService.warn(`[AgentHostLocalCommands] Failed to persist ${key}`, error));
 			},
 			markTitleRenamed: (session, chat, title) => this._titleController.markTitleRenamed(session, chat, title),
@@ -176,14 +189,16 @@ export class AgentHostLocalCommands extends Disposable {
 		for (const command of this._commands) {
 			const handling = command.tryHandle(request);
 			if (handling) {
-				void this._run(command, handling, request);
+				// Captured now: the chat may be removed while the command runs.
+				const owner = isAhpChatChannel(request.turnChannel) ? this._chatOwnership.getChatOwner(request.turnChannel) : request.turnChannel;
+				void this._run(command, handling, request, owner);
 				return handling;
 			}
 		}
 		return undefined;
 	}
 
-	private async _run(command: ILocalChatCommand, handling: ILocalChatCommandHandling, request: ILocalChatCommandRequest): Promise<void> {
+	private async _run(command: ILocalChatCommand, handling: ILocalChatCommandHandling, request: ILocalChatCommandRequest, owner: ProtocolURI | undefined): Promise<void> {
 		const stopWatch = StopWatch.create(false);
 		try {
 			await handling.run();
@@ -195,12 +210,19 @@ export class AgentHostLocalCommands extends Disposable {
 			// survives reload and anchors fork/truncate), then let the owner
 			// drain any messages queued behind it.
 			this._stateManager.dispatchServerAction(request.turnChannel, { type: ActionType.ChatTurnComplete, turnId: request.turnId, duration: Math.max(0, stopWatch.elapsed()) });
-			if (command.recordsLocalTurn) {
-				this._recordLocalTurn(request.turnChannel, request.turnId);
+			if (owner === undefined) {
+				this._logService.trace(`[AgentHostLocalCommands] No owner recorded for ${request.turnChannel}; skipping turn end`);
+			} else {
+				if (command.recordsLocalTurn) {
+					this._recordLocalTurn(request.turnChannel, request.turnId, owner);
+				}
+				this._chatContributions.turnEnd({ session: owner, channel: request.turnChannel, turnId: request.turnId, reason: { kind: 'localCommand' } });
 			}
-			const session = isAhpChatChannel(request.turnChannel) ? parseRequiredSessionUriFromChatUri(request.turnChannel) : request.turnChannel;
-			this._chatContributions.turnEnd({ session, channel: request.turnChannel, turnId: request.turnId, reason: { kind: 'localCommand' } });
 		}
+	}
+
+	private _ownerOf(channel: ProtocolURI): ProtocolURI {
+		return isAhpChatChannel(channel) ? this._chatOwnership.requireChatOwner(channel) : channel;
 	}
 
 	/**
@@ -210,9 +232,8 @@ export class AgentHostLocalCommands extends Disposable {
 	 * the turn is keyed by its chat channel. Live terminal references are
 	 * stripped from the payload (the PTY does not survive a reload).
 	 */
-	private _recordLocalTurn(turnChannel: ProtocolURI, turnId: string): void {
+	private _recordLocalTurn(turnChannel: ProtocolURI, turnId: string, session: ProtocolURI): void {
 		const chat = turnChannel;
-		const session = isAhpChatChannel(turnChannel) ? parseRequiredSessionUriFromChatUri(turnChannel) : turnChannel;
 		const turns = this._stateManager.getSessionState(turnChannel)?.turns;
 		if (!turns) {
 			return;

@@ -5,7 +5,7 @@
 
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { URI } from '../../../base/common/uri.js';
-import { parseChatUri } from './state/sessionState.js';
+import { isAhpChatChannel } from './state/sessionState.js';
 
 export const AHP_CANVAS_SCHEME = 'ahp-canvas';
 
@@ -28,7 +28,7 @@ export function parseCanvasChatUri(resource: URI): URI | undefined {
 	}
 	try {
 		const chat = URI.parse(decodeBase64(encodedChat).toString(), true);
-		return parseChatUri(chat) ? chat : undefined;
+		return isAhpChatChannel(chat.toString()) ? chat : undefined;
 	} catch {
 		return undefined;
 	}

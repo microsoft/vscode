@@ -8,6 +8,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
+import { intersectManagedDomainBoundaries } from '../common/agentHostManagedRules.js';
 
 export const IAgentHostManagedSettingsService = createDecorator<IAgentHostManagedSettingsService>('agentHostManagedSettingsService');
 
@@ -51,6 +52,7 @@ export class AgentHostManagedSettingsService extends Disposable implements IAgen
 		const permissions: IAgentHostManagedSettingsPermissions = {};
 		const deny = new Set<string>();
 		const ask = new Set<string>();
+		let limitTo: string[] | undefined;
 		for (const contribution of this._permissionsByClient.values()) {
 			if (contribution.disableBypassPermissionsMode === 'disable') {
 				permissions.disableBypassPermissionsMode = 'disable';
@@ -61,12 +63,16 @@ export class AgentHostManagedSettingsService extends Disposable implements IAgen
 			if (contribution.ask) {
 				contribution.ask.forEach(rule => ask.add(rule));
 			}
+			limitTo = intersectManagedDomainBoundaries(limitTo, contribution.limitTo);
 		}
 		if (deny.size > 0) {
 			permissions.deny = [...deny];
 		}
 		if (ask.size > 0) {
 			permissions.ask = [...ask];
+		}
+		if (limitTo !== undefined) {
+			permissions.limitTo = limitTo;
 		}
 		if (!equals(this._permissions, permissions)) {
 			this._permissions = permissions;

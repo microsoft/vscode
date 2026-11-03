@@ -6,7 +6,7 @@
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { IChatMLFetcher } from '../../chat/common/chatMLFetcher';
-import { CHAT_MODEL, IConfigurationService } from '../../configuration/common/configurationService';
+import { CHAT_MODEL, ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { IEnvService } from '../../env/common/envService';
 import { ILogService } from '../../log/common/logService';
 import { IFetcherService } from '../../networking/common/fetcherService';
@@ -52,9 +52,24 @@ export class CopilotChatEndpoint extends ChatEndpoint {
 		);
 	}
 
-	// Tool search relies on Metis embeddings, which are unavailable to anonymous users.
+	/**
+	 * CAPI serves no embeddings to anonymous tokens, so tool search stays off for them, except
+	 * when CAPI traffic (including embeddings) goes through an HMAC proxy that re-authenticates
+	 * server-side, e.g. evals. Token-mode overrides (smoke tests, mock servers) stay gated.
+	 */
 	public override get supportsToolSearch(): boolean | undefined {
-		return super.supportsToolSearch && !this._copilotAuthService.copilotToken?.isNoAuthUser;
+		if (!super.supportsToolSearch) {
+			return super.supportsToolSearch;
+		}
+		if (!this._copilotAuthService.copilotToken?.isNoAuthUser) {
+			return true;
+		}
+		if (!this._configurationService.getConfig(ConfigKey.Shared.DebugOverrideCAPIUrl)) {
+			return false;
+		}
+		// Only respect the auth type from user (global) settings so a workspace cannot opt in.
+		const authType = this._configurationService.inspectConfig(ConfigKey.Shared.DebugOverrideAuthType)?.globalValue ?? 'hmac';
+		return authType === 'hmac';
 	}
 
 	protected override getCompletionsCallback(): RawMessageConversionCallback | undefined {

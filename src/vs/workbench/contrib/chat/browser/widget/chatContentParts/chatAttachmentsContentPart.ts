@@ -21,6 +21,8 @@ import { IChatImageRevealOrigin } from '../../attachments/chatImageReveal.js';
 
 export interface IChatAttachmentsContentPartOptions {
 	readonly variables: readonly IChatRequestVariableEntry[];
+	/** The session of the chat that shows the attachments, `undefined` outside a chat session. */
+	readonly sessionResource: URI | undefined;
 	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
 	readonly modelId?: string;
 	readonly resolvedModelId?: string;
@@ -42,6 +44,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 	private _showingAll = false;
 
 	private _variables: readonly IChatRequestVariableEntry[];
+	private readonly sessionResource: URI | undefined;
 	private readonly contentReferences: ReadonlyArray<IChatContentReference>;
 	private readonly modelId?: string;
 	private readonly resolvedModelId?: string;
@@ -63,6 +66,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 	) {
 		super();
 		this._variables = options.variables;
+		this.sessionResource = options.sessionResource;
 		this.contentReferences = options.contentReferences ?? [];
 		this.modelId = options.modelId;
 		this.resolvedModelId = options.resolvedModelId;
@@ -276,7 +280,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 			// skip workspace attachments
 			return;
 		} else {
-			widget = this.chatAttachmentWidgetRegistry.createWidget(attachment, { shouldFocusClearButton: false, supportsDeletion: false }, container)
+			widget = this.chatAttachmentWidgetRegistry.createWidget(attachment, { shouldFocusClearButton: false, supportsDeletion: false }, container, this.sessionResource)
 				?? this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, correspondingContentReference, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
 		}
 

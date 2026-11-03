@@ -135,6 +135,28 @@ suite('computeSessionDiffs', () => {
 		assert.strictEqual(deleted.after, undefined, 'delete has no after');
 	});
 
+	test('counts no removed lines for a created file and no added lines for a deleted one', async () => {
+		const db = new TestSessionDatabase();
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc1', filePath: '/created.txt', kind: FileEditKind.Create,
+			addedLines: undefined, removedLines: undefined,
+			afterContent: encodeString('new'),
+		});
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc2', filePath: '/deleted.txt', kind: FileEditKind.Delete,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('bye'),
+		});
+
+		// A line diff against empty content counts its single empty line, as the real diff service does.
+		const result = await computeSessionDiffs(TEST_SESSION_URI, db, new TestDiffComputeService({ added: 1, removed: 1, changes: [] }));
+
+		assert.deepStrictEqual(result.map(diff => [getDiffUri(diff)?.split('/').at(-1), diff.diff]).sort(), [
+			['created.txt', { added: 1, removed: 0 }],
+			['deleted.txt', { added: 0, removed: 1 }],
+		]);
+	});
+
 	test('skips files with no net change', async () => {
 		const db = new TestSessionDatabase();
 		db.addEdit({
@@ -697,6 +719,32 @@ suite('computeUnionedDiffs', () => {
 			filePath: '/shared.txt',
 			part: 'after',
 		});
+	});
+
+	test('counts the edits a forked chat copied from its parent once, so they do not hide later edits', async () => {
+		const copiedEdit = {
+			turnId: 't1', toolCallId: 'tc1', filePath: '/shared.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('v1'), afterContent: encodeString('v2'),
+		};
+		const sessionDb = new TestSessionDatabase();
+		sessionDb.addEdit(copiedEdit);
+		sessionDb.addEdit({ ...copiedEdit, turnId: 't2', toolCallId: 'tc2', beforeContent: encodeString('v2'), afterContent: encodeString('v3\nv4') });
+		const forkDb = new TestSessionDatabase();
+		forkDb.addEdit(copiedEdit);
+
+		const result = await computeUnionedDiffs(
+			[
+				{ sessionUri: TEST_SESSION_URI, db: sessionDb },
+				{ sessionUri: PEER_CHAT_URI, db: forkDb },
+			],
+			createTestDiffService(),
+		);
+
+		assert.deepStrictEqual(result.map(diff => ({ ...simplify(diff), after: parseSessionDbUri(diff.after!.content.uri) })), [{
+			...simpleDiff('/shared.txt', 1, 0),
+			after: { sessionUri: TEST_SESSION_URI, toolCallId: 'tc2', filePath: '/shared.txt', part: 'after' },
+		}]);
 	});
 });
 

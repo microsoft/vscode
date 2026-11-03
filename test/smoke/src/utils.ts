@@ -52,7 +52,7 @@ export const MOCK_CONFIG_MODEL_DEFAULT_LABEL = 'Medium \u00b7 272K';
 
 /**
  * Every option `mock-config-model` declares in its configuration schema, in the
- * order the model details page renders them. The `Thinking Effort`
+ * order the model details page renders them. The `Effort Level`
  * options come from `capabilities.supports.reasoning_effort`, the `Context Size`
  * options from the `default` / `long_context` billing tiers (272000 and
  * `max_context_window_tokens - max_output_tokens` = 922000, which
@@ -63,7 +63,7 @@ export const MOCK_CONFIG_MODEL_DEFAULT_LABEL = 'Medium \u00b7 272K';
  */
 export const MOCK_CONFIG_MODEL_DEFAULT_SECTIONS: readonly IModelConfigSection[] = [
 	{
-		header: 'Thinking Effort',
+		header: 'Effort Level',
 		options: [
 			{ label: 'Low', checked: false },
 			{ label: 'Medium', checked: true },

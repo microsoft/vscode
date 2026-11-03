@@ -83,6 +83,10 @@ export class DesktopLayoutController extends BaseLayoutController {
 		return this._compositionKeyFor(session, reader);
 	}
 
+	protected override _isPanelVisibilitySharedAcrossChats(session: IActiveSession, reader?: IReader): boolean {
+		return this._compositionKeyFor(session, reader) === SHARED_EXISTING_VISIBILITY_KEY;
+	}
+
 	protected override _defaultPanelVisibility(key: URI): boolean {
 		const visible = this._layoutService.isVisible(Parts.PANEL_PART);
 		this._panelVisibilityBySession.set(key, visible);
@@ -110,6 +114,7 @@ export class DesktopLayoutController extends BaseLayoutController {
 				onDidEndSessionLayoutRestore: that.onDidEndSessionLayoutRestore,
 				get togglingSidePane() { return that._togglingSidePane; },
 				get multipleSessionsVisibleObs() { return that.multipleSessionsVisibleObs; },
+				get multipleChatsVisibleObs() { return that.multipleChatsVisibleObs; },
 				get activeSessionResourceObs() { return that.activeSessionResourceObs; },
 				hasSavedWorkingSet: sessionResource => that._workingSets.has(sessionResource),
 				completeChangesEditorTransition: () => {

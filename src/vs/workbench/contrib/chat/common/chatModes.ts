@@ -179,6 +179,7 @@ class ChatModes extends Disposable implements IChatModes {
 					const uri = URI.revive(cachedMode.uri);
 					const customChatMode: ICustomAgent = {
 						id: cachedMode.id,
+						kind: cachedMode.kind === ChatModeKind.Ask ? ChatModeKind.Ask : undefined,
 						uri,
 						name: cachedMode.name,
 						description: cachedMode.description,
@@ -195,7 +196,7 @@ class ChatModes extends Disposable implements IChatModes {
 						enabled: true
 					};
 					const instance = new CustomChatMode(customChatMode);
-					this._customModeInstances.set(uri.toString(), instance);
+					this._customModeInstances.set(instance.id, instance);
 				} catch (error) {
 					this.logService.error(error, 'Failed to revive cached custom agent');
 				}
@@ -249,17 +250,16 @@ class ChatModes extends Disposable implements IChatModes {
 			}
 
 			// Create a new set of mode instances, reusing existing ones where possible
-			const seenUris = new Set<string>();
+			const seenIds = new Set<string>();
 			for (const customMode of customModes) {
 				if (!customMode.visibility.userInvocable || !customMode.enabled) {
 					continue;
 				}
 
-				const uriString = customMode.uri.toString();
-				seenUris.add(uriString);
+				seenIds.add(customMode.id);
 
-				let modeInstance = this._customModeInstances.get(uriString);
-				if (modeInstance) {
+				let modeInstance = this._customModeInstances.get(customMode.id);
+				if (modeInstance && modeInstance.kind === (customMode.kind ?? ChatModeKind.Agent)) {
 					// Update existing instance with new data
 					if (modeInstance.updateData(customMode)) {
 						hasChanges = true;
@@ -267,15 +267,15 @@ class ChatModes extends Disposable implements IChatModes {
 				} else {
 					// Create new instance
 					modeInstance = new CustomChatMode(customMode);
-					this._customModeInstances.set(uriString, modeInstance);
+					this._customModeInstances.set(customMode.id, modeInstance);
 					hasChanges = true;
 				}
 			}
 
 			// Clean up instances for modes that no longer exist
-			for (const [uriString] of this._customModeInstances.entries()) {
-				if (!seenUris.has(uriString)) {
-					this._customModeInstances.delete(uriString);
+			for (const [id] of this._customModeInstances.entries()) {
+				if (!seenIds.has(id)) {
+					this._customModeInstances.delete(id);
 					hasChanges = true;
 				}
 			}
@@ -313,10 +313,9 @@ class ChatModes extends Disposable implements IChatModes {
 
 	private getCustomModes(): IChatMode[] {
 		// Show custom modes when agent mode is enabled OR when disabled by policy (to show them in the policy-managed group)
-		if (!this.chatAgentService.hasToolsAgent && !this.isAgentModeDisabledByPolicy()) {
-			return [];
-		}
-		return Array.from(this._customModeInstances.values()).sort((a, b) => a.label.get().localeCompare(b.label.get()));
+		return Array.from(this._customModeInstances.values())
+			.filter(mode => mode.kind === ChatModeKind.Ask || this.chatAgentService.hasToolsAgent || this.isAgentModeDisabledByPolicy())
+			.sort((a, b) => a.label.get().localeCompare(b.label.get()));
 	}
 
 	private isAgentModeDisabledByPolicy(): boolean {
@@ -415,6 +414,11 @@ export interface IChatMode {
 	readonly sessionTypes?: readonly string[];
 }
 
+/** Shows source information only when another offered mode has the same visible label. */
+export function getChatModeSourceLabel(mode: IChatMode, modes: readonly IChatMode[]): string | undefined {
+	return modes.some(other => other.id !== mode.id && other.label.get() === mode.label.get()) ? mode.source?.label : undefined;
+}
+
 export interface IVariableReference {
 	readonly name: string;
 	readonly range: IOffsetRange;
@@ -478,6 +482,7 @@ export class CustomChatMode implements IChatMode {
 	private readonly _agentsObservable: ISettableObservable<readonly string[] | undefined>;
 	private _source: IAgentSource;
 	private _sessionTypes: readonly string[] | undefined;
+	public readonly kind: ChatModeKind;
 
 	public readonly id: string;
 
@@ -490,7 +495,7 @@ export class CustomChatMode implements IChatMode {
 	}
 
 	get icon(): IObservable<ThemeIcon | undefined> {
-		return constObservable(undefined);
+		return this.kind === ChatModeKind.Ask ? ChatMode.Ask.icon : constObservable(undefined);
 	}
 
 	public get isBuiltin(): boolean {
@@ -518,7 +523,7 @@ export class CustomChatMode implements IChatMode {
 	}
 
 	get label(): IObservable<string> {
-		return this.name;
+		return this.kind === ChatModeKind.Ask ? ChatMode.Ask.label : this.name;
 	}
 
 	get handOffs(): IObservable<readonly IHandOff[] | undefined> {
@@ -545,12 +550,11 @@ export class CustomChatMode implements IChatMode {
 		return this._sessionTypes;
 	}
 
-	public readonly kind = ChatModeKind.Agent;
-
 	constructor(
 		customChatMode: ICustomAgent
 	) {
-		this.id = customChatMode.uri.toString();
+		this.id = customChatMode.id;
+		this.kind = customChatMode.kind ?? ChatModeKind.Agent;
 		this._nameObservable = observableValue('name', customChatMode.name);
 		this._descriptionObservable = observableValue('description', customChatMode.description);
 		this._customToolsObservable = observableValue('customTools', customChatMode.tools);
@@ -623,16 +627,20 @@ export class CustomChatMode implements IChatMode {
 	}
 }
 
-type IChatModeSourceData =
+type IChatModeSourceData = (
 	| { readonly storage: PromptsStorage.extension; readonly extensionId: string; type?: PromptFileSource.ExtensionContribution | PromptFileSource.ExtensionAPI }
 	| { readonly storage: PromptsStorage.local | PromptsStorage.user | PromptsStorage.builtIn }
-	| { readonly storage: PromptsStorage.plugin; readonly pluginUri: URI };
+	| { readonly storage: PromptsStorage.plugin; readonly pluginUri: URI }
+) & { readonly label?: string };
 
 function isChatModeSourceData(value: unknown): value is IChatModeSourceData {
 	if (typeof value !== 'object' || value === null) {
 		return false;
 	}
-	const data = value as { storage?: unknown; extensionId?: unknown; pluginUri?: unknown };
+	const data = value as { storage?: unknown; extensionId?: unknown; pluginUri?: unknown; label?: unknown };
+	if (data.label !== undefined && typeof data.label !== 'string') {
+		return false;
+	}
 	if (data.storage === PromptsStorage.extension) {
 		return typeof data.extensionId === 'string';
 	}
@@ -646,26 +654,28 @@ function serializeChatModeSource(source: IAgentSource | undefined): IChatModeSou
 	if (!source) {
 		return undefined;
 	}
+	const label = source.label !== undefined ? { label: source.label } : {};
 	if (source.storage === PromptsStorage.extension) {
-		return { storage: PromptsStorage.extension, extensionId: source.extensionId.value };
+		return { storage: PromptsStorage.extension, extensionId: source.extensionId.value, ...label };
 	}
 	if (source.storage === PromptsStorage.plugin) {
-		return { storage: PromptsStorage.plugin, pluginUri: source.pluginUri };
+		return { storage: PromptsStorage.plugin, pluginUri: source.pluginUri, ...label };
 	}
-	return { storage: source.storage };
+	return { storage: source.storage, ...label };
 }
 
 function reviveChatModeSource(data: IChatModeSourceData | undefined): IAgentSource | undefined {
 	if (!data) {
 		return undefined;
 	}
+	const label = data.label !== undefined ? { label: data.label } : {};
 	if (data.storage === PromptsStorage.extension) {
-		return { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(data.extensionId) };
+		return { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(data.extensionId), ...label };
 	}
 	if (data.storage === PromptsStorage.plugin) {
-		return { storage: PromptsStorage.plugin, pluginUri: URI.revive(data.pluginUri) };
+		return { storage: PromptsStorage.plugin, pluginUri: URI.revive(data.pluginUri), ...label };
 	}
-	return { storage: data.storage };
+	return { storage: data.storage, ...label };
 }
 
 export class BuiltinChatMode implements IChatMode {

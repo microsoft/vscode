@@ -65,8 +65,8 @@ export const IAgentHostFilterService = createDecorator<IAgentHostFilterService>(
 /**
  * Tracks the currently selected agent host used to scope the sessions list
  * and other workbench surfaces. The selection is always the {@link
- * IAgentHostFilterEntry.id} of a known entry, or `undefined` when no hosts
- * are known.
+ * IAgentHostFilterEntry.id} of a known entry. An offline selected host may
+ * remain the session scope while absent from the picker.
  */
 export interface IAgentHostFilterService {
 	readonly _serviceBrand: undefined;
@@ -88,7 +88,7 @@ export interface IAgentHostFilterService {
 	 */
 	readonly selectedHost: IAgentHostFilterEntry | undefined;
 
-	/** All known entries the user can switch between. */
+	/** Entries available in the picker; the selected session scope may be absent while offline. */
 	readonly hosts: readonly IAgentHostFilterEntry[];
 
 	/**

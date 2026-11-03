@@ -65,6 +65,14 @@
 	align-items: center;
 }
 
+.chat-getting-started-tip-container .chat-tip-widget .chat-tip-icon {
+	width: 16px;
+	height: 16px;
+	flex: 0 0 auto;
+	object-fit: cover;
+	border-radius: var(--vscode-cornerRadius-xSmall);
+}
+
 .chat-getting-started-tip-container .chat-tip-widget .rendered-markdown p {
 	margin: 0;
 }

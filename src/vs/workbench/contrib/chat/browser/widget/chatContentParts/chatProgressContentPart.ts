@@ -7,10 +7,12 @@ import { $, append, hide, isHTMLElement, setVisibility } from '../../../../../..
 import { IRenderedMarkdown, renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { alert, status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { Action } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../../../base/common/iconLabels.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -19,7 +21,7 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { localize } from '../../../../../../nls.js';
 import { IChatProgressMessage, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent, IChatWorkingProgress, isResponseVM } from '../../../common/model/chatViewModel.js';
-import { ChatTreeItem } from '../../chat.js';
+import { ChatTreeItem, IChatWidgetService } from '../../chat.js';
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { getToolApprovalMessage, isAskQuestionsToolInvocation } from './toolInvocationParts/chatToolPartUtilities.js';
@@ -33,8 +35,13 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { buildPhrasePool, defaultThinkingMessages, maybePickFunWorkingMessage } from './chatThinkingContentPart.js';
 import { getChatWorkingProgressIcon, getCompactCodicon } from '../../chatIcons.js';
 import { ChatWorkingProgressLogo } from '../chatWorkingLogo.js';
-import { autorun } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { Link } from '../../../../../../platform/opener/browser/link.js';
+import { animateChatProgress } from '../chatProgressAnimation.js';
+import { ChatDropdownPillActionViewItem } from '../../../../../browser/chatDropdownPill.js';
+import { ChatPillsWidget, type IChatPill } from '../../../../../browser/chatPills.js';
+import { sessionBackgroundShellsPillOptions, sessionSubagentsPillOptions } from '../../sessionChatPillOptions.js';
+import { SessionBackgroundShellsControl } from '../../sessionBackgroundShellsControl.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -45,6 +52,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	private useShimmer = false;
 	private readonly renderedMessage = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private readonly renderedOrigin = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private readonly shimmerAnimations = this._register(new MutableDisposable<IDisposable>());
 	private readonly _fileWidgetStore = this._register(new DisposableStore());
 	protected currentContent: IMarkdownString;
 	protected progressIconElement: HTMLElement | undefined;
@@ -99,7 +107,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		result.element.classList.add('progress-step');
 		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._fileWidgetStore);
 		if (this.useShimmer) {
-			syncShimmerPhase(this.applyShimmer(result.element));
+			this.applyShimmer(result.element);
 		}
 		this.renderToolOrigin(result.element);
 
@@ -110,6 +118,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		if (this.useShimmer) {
 			this.domNode.classList.add('shimmer-progress');
 		}
+		this.updateShimmerAnimations();
 		this.renderedMessage.value = result;
 		if (this.progressAction && this.showSpinner && (!this.persistentProgress || isWorkingProgress)) {
 			const detail = append(this.domNode, $('span.chat-progress-action'));
@@ -154,21 +163,17 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		append(messageElement, $('small.chat-progress-origin', undefined, this.renderedOrigin.value.element));
 	}
 
-	/**
-	 * Applies the shimmer treatment and returns the elements that actually animate, so their
-	 * animation phase can be synced. A partial shimmer wraps only the leading verb in spans;
-	 * otherwise the whole message paragraph shimmers.
-	 */
-	private applyShimmer(element: HTMLElement): readonly HTMLElement[] {
+	/** Limits partial shimmer to the stable leading text of the progress message. */
+	private applyShimmer(element: HTMLElement): void {
 		const firstChild = element.firstElementChild;
 		const messageElement = isHTMLElement(firstChild) && firstChild.tagName === 'P' ? firstChild : element;
 		const boundary = this.toolInvocation ? this.computeShimmerBoundary(messageElement) : -1;
 		if (boundary <= 0) {
-			return [messageElement];
+			return;
 		}
 
 		element.classList.add('chat-progress-partial-shimmer');
-		return this.wrapLeadingText(messageElement, boundary);
+		this.wrapLeadingText(messageElement, boundary);
 	}
 
 	/**
@@ -186,14 +191,13 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		return -1;
 	}
 
-	private wrapLeadingText(element: HTMLElement, length: number): HTMLElement[] {
-		const spans: HTMLElement[] = [];
+	private wrapLeadingText(element: HTMLElement, length: number): void {
 		let remaining = length;
 		const walker = element.ownerDocument.createTreeWalker(element, NodeFilter.SHOW_TEXT);
 		while (remaining > 0) {
 			const node = walker.nextNode();
 			if (!node) {
-				return spans;
+				return;
 			}
 
 			const text = node.nodeValue ?? '';
@@ -212,10 +216,8 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			} else {
 				node.parentNode?.removeChild(node);
 			}
-			spans.push(span);
 			remaining -= shimmerText.length;
 		}
-		return spans;
 	}
 
 	updateMessage(content: IMarkdownString): void {
@@ -232,7 +234,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		this._fileWidgetStore.clear();
 		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._fileWidgetStore);
 		if (this.persistentProgress && this.useShimmer) {
-			syncShimmerPhase(this.applyShimmer(result.element));
+			this.applyShimmer(result.element);
 		}
 		this.renderToolOrigin(result.element);
 
@@ -251,6 +253,14 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 
 		this.useShimmer = active;
 		this.domNode.classList.toggle('shimmer-progress', active);
+		this.updateShimmerAnimations();
+	}
+
+	private updateShimmerAnimations(): void {
+		this.shimmerAnimations.value = this.useShimmer ? animateChatProgress(this.domNode) : undefined;
+		if (!this.useShimmer) {
+			this.domNode.classList.remove('chat-progress-animation');
+		}
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
@@ -305,21 +315,6 @@ function leadingStableTextLength(messageElement: HTMLElement): number {
 		length--;
 	}
 	return length;
-}
-
-const SHIMMER_ANIMATION_DURATION_MS = 2000;
-const shimmerEpochMs = Date.now();
-
-/**
- * Aligns freshly-rendered shimmer elements to a shared timeline via a negative `animation-delay`.
- * Streaming progress recreates its DOM on every update, which would otherwise restart the CSS
- * animation from 0% and make the sweep appear frozen; a phase offset keeps it continuous.
- */
-function syncShimmerPhase(animatedElements: readonly HTMLElement[]): void {
-	const animationDelay = `-${(Date.now() - shimmerEpochMs) % SHIMMER_ANIMATION_DURATION_MS}ms`;
-	for (const element of animatedElements) {
-		element.style.animationDelay = animationDelay;
-	}
 }
 
 export class ChatProgressSubPart extends Disposable {
@@ -432,6 +427,8 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 	private readonly imageGenerationMessageScheduler: RunOnceScheduler | undefined;
 	private imageGeneration: boolean;
 	private imageGenerationMessageIndex = 0;
+	private readonly backgroundActivity = observableValue<IChatWorkingProgress['backgroundActivity']>(this, undefined);
+	private readonly backgroundActivityLabel = observableValue(this, '');
 
 	constructor(
 		workingProgress: IChatWorkingProgress,
@@ -442,6 +439,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		@IConfigurationService private readonly workingConfigurationService: IConfigurationService,
 		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
 		@IProductService productService: IProductService,
+		@IChatWidgetService chatWidgetService: IChatWidgetService,
 	) {
 		const explicitContent = workingProgress.content;
 		const isActive = workingProgress.isActive ?? true;
@@ -480,6 +478,77 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		this.progressStep = workingProgress.progressStep;
 		this.showDelayedProgressMessage = workingProgress.showDelayedProgressMessage ?? false;
 		this.contextElement = context.element;
+		transaction(tx => {
+			this.backgroundActivity.set(workingProgress.backgroundActivity, tx);
+			this.backgroundActivityLabel.set(this.workingLabel, tx);
+		});
+		if (this.workingLogo && context.backgroundActivityPillSections) {
+			const response = context.element;
+			const backgroundShells = this._register(instantiationService.createInstance(SessionBackgroundShellsControl, constObservable({
+				backgroundShells: context.backgroundActivityPillSections.backgroundShells,
+			})));
+			const sources = {
+				subagents: context.backgroundActivityPillSections.subagents,
+				backgroundShells: backgroundShells.sections,
+			};
+			const combinedPillOptions = {
+				...sessionBackgroundShellsPillOptions,
+				widgetId: 'chatBackgroundActivity',
+				title: localize('persistentProgress.backgroundActivity', "Background Activity"),
+			};
+			const activityPills = ([
+				['subagents', sessionSubagentsPillOptions],
+				['backgroundShells', sessionBackgroundShellsPillOptions],
+				['combined', combinedPillOptions],
+			] as const).map(([kind, pillOptions]) => {
+				const label = derived(reader => {
+					const activity = this.backgroundActivity.read(reader);
+					const combined = !!activity?.subagents && !!activity.backgroundShells;
+					return kind === 'combined'
+						? combined ? this.backgroundActivityLabel.read(reader) : undefined
+						: combined ? undefined : activity?.[kind];
+				});
+				const action = this._register(new Action(`chat.progress.${kind}`));
+				this._register(autorun(reader => {
+					action.label = label.read(reader) ?? '';
+				}));
+				const sections = derived(reader => {
+					if (!label.read(reader) || (isResponseVM(response) && !response.model.isIncomplete.read(reader))) {
+						return [];
+					}
+					if (kind !== 'combined') {
+						return sources[kind]?.read(reader) ?? [];
+					}
+					return (['subagents', 'backgroundShells'] as const).flatMap(source =>
+						(sources[source]?.read(reader) ?? []).map(section => ({
+							...section,
+							entries: section.entries.map(entry => ({ ...entry, id: `${source}:${entry.id}` })),
+						})));
+				});
+				const pill: IChatPill = {
+					action,
+					createActionViewItem: options => instantiationService.createInstance(ChatDropdownPillActionViewItem, action, options, sections, {
+						...pillOptions,
+						summaryLabel: () => action.label,
+						summaryAriaLabel: () => kind === 'subagents'
+							? localize('persistentProgress.showSubagents', "{0}. Show Subagents", action.label)
+							: kind === 'backgroundShells'
+								? localize('persistentProgress.showBackgroundShells', "{0}. Show Background Shells", action.label)
+								: localize('persistentProgress.showBackgroundActivity', "{0}. Show Background Activity", action.label),
+					}),
+				};
+				return { pill, sections };
+			});
+			const pills = this._register(instantiationService.createInstance(ChatPillsWidget, {
+				pills: derived(reader => activityPills.flatMap(({ pill, sections }) => sections.read(reader).some(section => section.entries.length > 0) ? [pill] : [])),
+			}, { ariaLabel: combinedPillOptions.title }));
+			pills.element.classList.add('chat-working-activities');
+			this.progressIconElement?.after(pills.element);
+			this._register(pills.onDidRemoveFocusedPill(() => chatWidgetService.getWidgetBySessionResource(response.sessionResource)?.focusInput()));
+			this._register(autorun(reader => {
+				this.domNode.classList.toggle('chat-working-progress-has-activities', pills.isVisible.read(reader));
+			}));
+		}
 		this.delayedProgressMessageScheduler = this.workingLogo
 			? this._register(new RunOnceScheduler(() => this.showDelayedProgress(), DELAYED_PROGRESS_MESSAGE_TIMEOUT_MS))
 			: undefined;
@@ -523,8 +592,10 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		return renderAsPlaintext(this.currentContent);
 	}
 
-	updateWorkingContent(content: IMarkdownString | undefined, isActive = this.isActive, announce: IChatWorkingProgress['announce'] = false, progressStep = this.progressStep, showDelayedProgressMessage = this.showDelayedProgressMessage, imageGeneration = false): void {
+	/** Returns whether the rendered progress changed. */
+	updateWorkingContent(content: IMarkdownString | undefined, isActive = this.isActive, announce: IChatWorkingProgress['announce'] = false, progressStep = this.progressStep, showDelayedProgressMessage = this.showDelayedProgressMessage, imageGeneration = false, backgroundActivity: IChatWorkingProgress['backgroundActivity'] = undefined): boolean {
 		this.showingUnresponsiveToolMessage = false;
+		const backgroundActivityChanged = !structuralEquals(backgroundActivity, this.backgroundActivity.get());
 		const previousExplicitContent = this.explicitContent;
 		const previousIsActive = this.isActive;
 		const previousImageGeneration = this.imageGeneration;
@@ -547,8 +618,8 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		this.updateDelayedProgressMessageScheduler(shouldResetDelayedProgress);
 		this.updateImageGenerationMessageScheduler();
 		const resolvedContent = this.resolveWorkingContent();
-		if (this.workingLogo && content?.value === previousExplicitContent?.value && resolvedContent.value === this.currentContent.value && isActive === previousIsActive) {
-			return;
+		if (this.workingLogo && content?.value === previousExplicitContent?.value && resolvedContent.value === this.currentContent.value && isActive === previousIsActive && !backgroundActivityChanged) {
+			return false;
 		}
 		const shouldAnnounce = announce && !!this.workingLogo
 			&& ((!!content && content.value !== previousExplicitContent?.value) || (this.imageGeneration && !previousImageGeneration))
@@ -557,6 +628,12 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 			this.updateActiveState();
 		}
 		this.updateMessage(resolvedContent);
+		transaction(tx => {
+			if (backgroundActivityChanged) {
+				this.backgroundActivity.set(backgroundActivity, tx);
+			}
+			this.backgroundActivityLabel.set(this.workingLabel, tx);
+		});
 		if (shouldAnnounce) {
 			const message = stripIcons(renderAsPlaintext(resolvedContent));
 			if (announce === 'polite') {
@@ -565,6 +642,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 				alert(message);
 			}
 		}
+		return true;
 	}
 
 	private updateActiveState(): void {
@@ -655,6 +733,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		return other.kind === 'working'
 			&& other.content?.value === this.explicitContent?.value
 			&& (other.isActive ?? true) === this.isActive
+			&& structuralEquals(other.backgroundActivity, this.backgroundActivity.get())
 			&& other.progressStep === this.progressStep
 			&& (other.showDelayedProgressMessage ?? false) === this.showDelayedProgressMessage;
 	}

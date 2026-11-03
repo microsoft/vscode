@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ContributedStatusBarItemController } from '../../../browser/contrib/cellStatusBar/contributedStatusBarItemController.js';
@@ -15,13 +15,7 @@ import { CellKind, INotebookCellStatusBarItemProvider } from '../../../common/no
 import { withTestNotebook } from '../testNotebookEditor.js';
 
 suite('Notebook Statusbar', () => {
-	const testDisposables = new DisposableStore();
-
-	teardown(() => {
-		testDisposables.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Calls item provider', async function () {
 		await withTestNotebook(

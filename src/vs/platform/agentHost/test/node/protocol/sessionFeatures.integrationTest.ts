@@ -8,7 +8,8 @@ import { timeout } from '../../../../../base/common/async.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import { ActionType, type IResponsePartAction, type ITurnStartedAction, type ITitleChangedAction } from '../../../common/state/sessionActions.js';
 import type { ListSessionsResult } from '../../../common/state/sessionProtocol.js';
-import { buildChatUri, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, type ChatState, type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
+import { newTestChatUri } from '../hostDefaultChats.js';
+import { MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, type ChatState, type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
 import { MOCK_AUTO_TITLE } from '../mockAgent.js';
 import {
 	createAndSubscribeSession,
@@ -191,7 +192,7 @@ suite('Protocol WebSocket — Session Features', function () {
 		this.timeout(10_000);
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-peer-chat-archive');
-		const peerChat = buildChatUri(sessionUri, 'peer-chat-archive');
+		const peerChat = newTestChatUri();
 		await client.call('createChat', { channel: sessionUri, chat: peerChat, title: 'Peer Chat' });
 		await client.call<SubscribeResult>('subscribe', { channel: peerChat });
 		client.clearReceived();
