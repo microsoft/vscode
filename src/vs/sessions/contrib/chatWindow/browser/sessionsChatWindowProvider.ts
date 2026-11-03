@@ -84,6 +84,7 @@ export function getChatWindowMainPartOptions(showTabs: string | undefined): Deep
 export const CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS: IEditorGroupViewOptions = {
 	menuIds: {
 		headerPrimary: Menus.SessionsEditorHeaderPrimary,
+		headerSecondary: Menus.SessionsEditorHeaderSecondary,
 		headerLayout: Menus.SessionsEditorHeaderLayout,
 		editorActions: Menus.SessionsEditorTitle,
 		tabsBarContext: Menus.SessionsEditorTabsBarContext,

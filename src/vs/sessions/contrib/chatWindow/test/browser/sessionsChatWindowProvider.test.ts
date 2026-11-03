@@ -39,7 +39,9 @@ import { ActiveSessionState, IChangesSessionObservables, IChangesViewService } f
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../../browser/parts/sessionActivityBar.js';
-import { alignChatWindowHeaderActions, focusChatWindowUnlessFocused, getChatWindowMainPartOptions, getChatWindowTitleHeight, isChatWindowStripInColumn, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';
+import { alignChatWindowHeaderActions, CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS, focusChatWindowUnlessFocused, getChatWindowMainPartOptions, getChatWindowTitleHeight, isChatWindowStripInColumn, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';
+import { DesktopMainEditorPart } from '../../../../browser/parts/desktopEditorPart.js';
+import { IEditorGroupViewOptions } from '../../../../../workbench/browser/parts/editor/editor.js';
 
 suite('Sessions chat window provider', () => {
 
@@ -281,5 +283,12 @@ suite('Sessions chat window provider', () => {
 			compactDensity: getChatWindowTitleHeight(false, false),
 			compactTabs: getChatWindowTitleHeight(true, true),
 		}, { cards: 33, compactDensity: 32, compactTabs: 29 });
+	});
+
+	test('the main part of a chat window shows the menus of the main window\'s editor area, such as the actions of the Changes editor in its header row', () => {
+		// Its menus only: the main window's options read nothing of the part for them.
+		const mainWindowOptions = (DesktopMainEditorPart.prototype as unknown as { getGroupViewOptions(this: object): IEditorGroupViewOptions }).getGroupViewOptions.call({});
+
+		assert.deepStrictEqual(CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS.menuIds, mainWindowOptions.menuIds);
 	});
 });

@@ -869,7 +869,7 @@ suite('Changes View Actions', () => {
 			return result;
 		};
 		// The menus of the editor parts of both windows: the tab row's actions and "…", and the header row.
-		const menus = { tabRow: Menus.SessionsEditorTitle, headerPrimary: Menus.SessionsEditorHeaderPrimary, headerLayout: Menus.SessionsEditorHeaderLayout };
+		const menus = { tabRow: Menus.SessionsEditorTitle, headerPrimary: Menus.SessionsEditorHeaderPrimary, headerSecondary: Menus.SessionsEditorHeaderSecondary, headerLayout: Menus.SessionsEditorHeaderLayout };
 		const shown = (values: Record<string, unknown>) => Object.fromEntries([false, true].map(allCollapsed => [allCollapsed ? 'allCollapsed' : 'expanded', Object.fromEntries(Object.entries(menus).map(([name, menu]) => [name, MenuRegistry.getMenuItems(menu)
 			.filter(item => item.when?.evaluate(context({ ...values, multiDiffEditorAllCollapsed: allCollapsed })) ?? true)
 			.sort((a, b) => (a.group ?? '').localeCompare(b.group ?? '') || (a.order ?? 0) - (b.order ?? 0))
@@ -879,18 +879,19 @@ suite('Changes View Actions', () => {
 		const chatWindow = shown({ [IsAuxiliaryWindowContext.key]: true, [MainEditorAreaVisibleContext.key]: true });
 		const hidden = shown({ [IsAuxiliaryWindowContext.key]: true, [MainEditorAreaVisibleContext.key]: false });
 
-		const ownActions = (state: typeof main) => Object.fromEntries(Object.entries(state).map(([key, lists]) => [key, (lists as Record<string, string[]>).tabRow.filter(entry => CHANGES_EDITOR_OWN_ACTIONS.includes(entry.slice(entry.indexOf(':') + 1)))]));
+		// Its own diff actions show in the header row above its diffs, not in the tab row.
+		const ownActions = (state: typeof main) => Object.fromEntries(Object.entries(state).map(([key, lists]) => [key, [...(lists as Record<string, string[]>).tabRow, ...(lists as Record<string, string[]>).headerSecondary].filter(entry => CHANGES_EDITOR_OWN_ACTIONS.includes(entry.slice(entry.indexOf(':') + 1)))]));
 		assert.deepStrictEqual({
 			chatWindow,
-			mainShowsRunCodeReview: main.expanded.tabRow.some(entry => entry.endsWith(':sessions.codeReview.run')),
-			ownActionsInTheTabRow: ownActions(chatWindow),
+			mainShowsRunCodeReview: main.expanded.headerSecondary.some(entry => entry.endsWith(':sessions.codeReview.run')),
+			ownActionsInTheHeaderRow: ownActions(chatWindow),
 			hiddenShowsNoOwnActions: Object.values(ownActions(hidden)).every(list => list.length === 0),
 		}, {
 			chatWindow: main,
 			mainShowsRunCodeReview: true,
-			ownActionsInTheTabRow: {
-				expanded: ['1_diff:workbench.action.agentSessions.collapseAllDiffs', '1_diff:workbench.action.agentSessions.toggleDiffEditorWordWrap', '1_diff:Diff View'],
-				allCollapsed: ['1_diff:workbench.action.agentSessions.expandAllDiffs', '1_diff:workbench.action.agentSessions.toggleDiffEditorWordWrap', '1_diff:Diff View'],
+			ownActionsInTheHeaderRow: {
+				expanded: ['secondary/1_diff:workbench.action.agentSessions.collapseAllDiffs', 'secondary/1_diff:workbench.action.agentSessions.toggleDiffEditorWordWrap', 'secondary/1_diff:Diff View'],
+				allCollapsed: ['secondary/1_diff:workbench.action.agentSessions.expandAllDiffs', 'secondary/1_diff:workbench.action.agentSessions.toggleDiffEditorWordWrap', 'secondary/1_diff:Diff View'],
 			},
 			hiddenShowsNoOwnActions: true,
 		});
