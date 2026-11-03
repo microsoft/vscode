@@ -114,8 +114,8 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 	private validateSynchronization(command: string, args: unknown[], resources: readonly URI[]): void {
 		const options: IFileSynchronizationOptions | undefined = command === 'writeFile' ? args[2] as IFileWriteOptions
 			: command === 'delete' || command === 'open' || command === 'mkdir' ? args[1] as IFileSynchronizationOptions
-			: command === 'rename' || command === 'copy' ? args[2] as IFileSynchronizationOptions
-			: command === 'write' ? this.openResources.get(args[0] as number) : undefined;
+				: command === 'rename' || command === 'copy' ? args[2] as IFileSynchronizationOptions
+					: command === 'write' ? this.openResources.get(args[0] as number) : undefined;
 		if (!options?.synchronization?.length) {
 			return;
 		}

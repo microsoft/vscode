@@ -170,10 +170,12 @@ suite('MainThreadChatAgents2', function () {
 		const originalResource = URI.file('/original/screenshot.png');
 		const request: IChatAgentRequest = {
 			...makeRequest('binary-request', URI.parse('vscode-local-chat-session:/binary')),
-			variables: { variables: [{
-				kind: 'image', id: 'image', name: 'screenshot.png', mimeType: 'image/png', isPasted: true,
-				value: restored.value, references: [{ kind: 'reference', reference: originalResource }],
-			}] },
+			variables: {
+				variables: [{
+					kind: 'image', id: 'image', name: 'screenshot.png', mimeType: 'image/png', isPasted: true,
+					value: restored.value, references: [{ kind: 'reference', reference: originalResource }],
+				}]
+			},
 		};
 		resolveInvoke({});
 		await agentImpl.invoke(request, () => { }, [], CancellationToken.None);

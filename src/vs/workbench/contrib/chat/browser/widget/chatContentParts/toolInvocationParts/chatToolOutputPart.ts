@@ -96,8 +96,8 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 				details = { output: { type: 'data', mimeType: output.mimeType, value: typeof output.base64Data === 'string' ? decodeBase64(output.base64Data) : await reference!.read(this._disposeCts.token) } };
 			}
 			return this.chatOutputItemRendererService.renderOutputPart(details.output.mimeType, details.output.value.buffer, parent, {
-			webviewState: partState.webviewState,
-			chatSessionResource: this.context.element.sessionResource,
+				webviewState: partState.webviewState,
+				chatSessionResource: this.context.element.sessionResource,
 			}, this._disposeCts.token);
 		};
 		render().then((renderedItem) => {

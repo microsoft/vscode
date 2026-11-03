@@ -1107,10 +1107,10 @@ export class ChatSessionResources extends Disposable {
 							? coerceImageBuffer(child) : undefined;
 						let transformed = attachmentBytes ? await store(VSBuffer.wrap(attachmentBytes), 'bytes', key === 'imageData' && typeof item.imageMimeType === 'string' ? item.imageMimeType : mime)
 							: binary && typeof child === 'string'
-							? await storeEncoded(child, 'base64', mime)
-							: key === 'value' && typeof child === 'string' && (markdownContext || item instanceof MarkdownString)
-								? await prepareMarkdown(child)
-								: await visit(child, mime, markdownProperties.has(key));
+								? await storeEncoded(child, 'base64', mime)
+								: key === 'value' && typeof child === 'string' && (markdownContext || item instanceof MarkdownString)
+									? await prepareMarkdown(child)
+									: await visit(child, mime, markdownProperties.has(key));
 						if (key === 'value' && item.type === 'embed' && URI.isUri(item.uri) && isRecord(transformed) && Object.hasOwn(transformed, binaryKey)) {
 							transformed = { [binaryKey]: { ...descriptor(transformed[binaryKey]), sourceUri: item.uri.toString() } };
 						}
