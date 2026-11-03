@@ -505,8 +505,6 @@ export class ChatWindowGrid extends Disposable {
 		const state = { grid: serializedGrid, hidden: [], parts: {}, created: Array.from(this._created.keys()) };
 		const partGrid = this._grid.value = PartGrid.restore(this._container, state, id => this._contentOf(id), this._editorGroupsService);
 		this._partFactoryRegistration.value = this._partFactory && partGrid.setPartFactory(this._partFactory);
-		// The parts of a chat window do not merge: a part dragged onto another only goes beside it
-		partGrid.setMergeAllowed(false);
 		// The title row of the window shows while the chat does not lead it, as the chat's own title stands in for it while
 		// it does: a part that moves shows where it goes with the title row as it will be
 		this._previewAdjusterRegistration.value = this._titleRow && partGrid.setMovePreviewAdjuster(preview => {

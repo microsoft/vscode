@@ -101,7 +101,7 @@ suite('Chat window grid', () => {
 		return { mode, grid, visible, userResize, container };
 	}
 
-	test('a part dragged onto the center of another part does not merge into it: it goes beside it, on its nearest side, as at its sides', () => {
+	test('a part dragged onto the center of another part merges into it, the whole part highlighted; at its sides, it goes beside it', () => {
 		const { container } = setup();
 		const cellOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!;
 		const pointer = (target: EventTarget, type: string, clientX: number, clientY: number) => target.dispatchEvent(new PointerEvent(type, { clientX, clientY, button: 0, pointerId: 1, bubbles: true, cancelable: true }));
@@ -113,13 +113,13 @@ suite('Chat window grid', () => {
 			const main = cellOf(ChatWindowGridCell.Main).getBoundingClientRect();
 			pointer(handle, 'pointermove', main.left + main.width * fraction, main.top + main.height / 2);
 			const indicator = container.querySelector<HTMLElement>('.part-grid-drop-indicator.part');
-			const shown = !!indicator && indicator.style.display !== 'none' && !indicator.classList.contains('merge');
+			const shown = !indicator || indicator.style.display === 'none' ? 'none' : indicator.classList.contains('merge') ? 'merge' : 'beside';
 			// Escape: the part goes nowhere
 			mainWindow.document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
 			return shown;
 		};
 
-		assert.deepStrictEqual({ center: dragChatOverMain(0.5), side: dragChatOverMain(0.9) }, { center: true, side: true });
+		assert.deepStrictEqual({ center: dragChatOverMain(0.5), side: dragChatOverMain(0.9) }, { center: 'merge', side: 'beside' });
 	});
 
 	test('the title row is above the chat while the main part is beside it, else across the window; the strip has a column of its own while the chat is below the main part or hidden', () => {
