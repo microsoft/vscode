@@ -125,15 +125,22 @@ function isPartSizes(value: unknown): value is ChatWindowPartSizes {
 		&& Object.values(sizes as Record<string, Partial<{ width: unknown; height: unknown }> | undefined>).every(size => typeof size?.width === 'number' && typeof size.height === 'number'));
 }
 
-/** Remembers, per chat and in the workspace, the sizes the parts of its chat window last showed with, so that they come back after a reload. */
+/** Remembers, per chat and in the workspace, the sizes the user gave the parts of its chat window, so that they come back after a reload. */
 export class ChatWindowChatSizes {
 
-	/** The key chat windows of the Agents window stored them under before they were built on parts. */
-	static readonly STORAGE_KEY = 'sessions.chatWindow.chatSizes';
+	/**
+	 * The key of the sizes the user gave the parts. Those stored under {@link OLD_STORAGE_KEYS} are the sizes the parts
+	 * showed with, also those the window forced them to, and are not read: the parts take their defaults instead.
+	 */
+	static readonly STORAGE_KEY = 'sessions.chatWindow.chatSizes.v2';
+	static readonly OLD_STORAGE_KEYS: readonly string[] = ['sessions.chatWindow.chatSizes'];
 
 	private readonly _memory: PerChatMemory<ChatWindowPartSizes>;
 
 	constructor(storageService: IStorageService) {
+		for (const key of ChatWindowChatSizes.OLD_STORAGE_KEYS) {
+			storageService.remove(key, StorageScope.WORKSPACE);
+		}
 		this._memory = new PerChatMemory(storageService, ChatWindowChatSizes.STORAGE_KEY, isPartSizes);
 	}
 

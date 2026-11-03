@@ -105,4 +105,13 @@ suite('ChatWindowState', () => {
 			kept: [false, false, true, true], invalid: undefined, sizes: { stacked: { chat: { width: 10, height: 20 } } },
 		});
 	});
+
+	test('sizes stored by earlier builds, which kept the sizes the window forced the parts to, are not read: the parts take their defaults', () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const [oldKey] = ChatWindowChatSizes.OLD_STORAGE_KEYS;
+		storage.store(oldKey, JSON.stringify([[chat.toString(), { terminals: { terminals: { width: 1192, height: 123 } } }]]), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const sizes = new ChatWindowChatSizes(storage);
+
+		assert.deepStrictEqual({ sizes: sizes.get(chat), oldKeyRemoved: storage.get(oldKey, StorageScope.WORKSPACE) === undefined }, { sizes: undefined, oldKeyRemoved: true });
+	});
 });
