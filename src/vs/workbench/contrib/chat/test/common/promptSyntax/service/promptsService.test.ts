@@ -4565,6 +4565,29 @@ suite('PromptsService', () => {
 			assert.strictEqual(discoveryInfo.files[0].status, 'skipped');
 			assert.strictEqual(discoveryInfo.files[0].skipReason, 'parse-error');
 		});
+
+		test('preserves Unicode characters in prompt slash command names', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
+
+			const name = '龩胤𬭳獫㰜〒６0D狛龫龨截茎疄盷㓝㏄ΩFe佨勵)エ㈱㑺惊龬㈨γ8傐𬨎';
+			const promptUri = URI.file(`/workspace/${name}.prompt.md`);
+			sinon.stub(service, 'listPromptFiles').callsFake(async (type: PromptsType) => {
+				return type === PromptsType.prompt
+					? [{ uri: promptUri, storage: PromptsStorage.local, type: PromptsType.prompt } as IPromptPath]
+					: [];
+			});
+			sinon.stub(service, 'parseNew').resolves(undefined);
+
+			const slashCommand = (await service.getPromptSlashCommands(CancellationToken.None)).find(command => command.uri.toString() === promptUri.toString());
+
+			assert.deepStrictEqual({
+				name: slashCommand?.name,
+				valid: service.isValidSlashCommandName(name),
+			}, {
+				name,
+				valid: true,
+			});
+		});
 	});
 
 	suite('getPromptSlashCommands - skills', () => {

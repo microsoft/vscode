@@ -18,7 +18,7 @@ import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynami
 
 export const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
 export const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
-export const slashReg = /^\/([\p{L}\d_\-\.:]+)(?=(\s|$|\b))/iu; // A / command
+export const slashReg = /^\/((?:(?!\/)[\p{L}\p{N}\p{M}\p{P}\p{S}\p{Co}])+)(?=(\s|$|\b))/iu; // A / command
 
 export interface IChatParserContext {
 	/** Used only as a disambiguator, when the query references an agent that has a duplicate with the same name. */

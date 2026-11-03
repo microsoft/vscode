@@ -667,7 +667,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public isValidSlashCommandName(command: string): boolean {
-		return command.match(/^[\p{L}\d_\-\.:]+$/u) !== null;
+		return /^[\p{L}\p{N}\p{M}\p{P}\p{S}\p{Co}]+$/u.test(command) && !command.includes('/');
 	}
 
 	public hasPromptSlashCommand(name: string): boolean {
@@ -707,7 +707,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	private asChatPromptSlashCommand(argumentHint: string | undefined, userInvocable: boolean | undefined, promptPath: IPromptPath): IChatPromptSlashCommand {
 		let name = promptPath.name ?? getCleanPromptName(promptPath.uri);
-		name = name.replace(/[^\p{L}\d_\-\.:]+/gu, '-'); // replace spaces with dashes
+		name = name.replace(/[^\p{L}\p{N}\p{M}\p{P}\p{S}\p{Co}]+/gu, '-');
 		return {
 			uri: promptPath.uri,
 			name: name,

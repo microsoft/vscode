@@ -385,6 +385,23 @@ suite('ChatRequestParser', () => {
 		await assertSnapshot(result);
 	});
 
+	test('prompt slash command with Unicode punctuation and symbols', () => {
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
+		slashCommandService.getCommands.returns([]);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
+
+		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
+		promptSlashCommandService.isValidSlashCommandName.returns(true);
+		instantiationService.stub(IPromptsService, promptSlashCommandService);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const name = '龩胤𬭳獫㰜〒６0D狛龫龨截茎疄盷㓝㏄ΩFe佨勵)エ㈱㑺惊龬㈨γ8傐𬨎';
+		const result = parser.parseChatRequest(testSessionUri, `/${name}`);
+		const promptPart = result.parts.find(part => part.kind === 'prompt');
+
+		assert.strictEqual(promptPart?.kind === 'prompt' ? promptPart.name : undefined, name);
+	});
+
 	test('prompt subcommand via space form resolves to colon-named prompt', () => {
 		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
 		slashCommandService.getCommands.returns([]);

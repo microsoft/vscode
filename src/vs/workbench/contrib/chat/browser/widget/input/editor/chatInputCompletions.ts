@@ -70,15 +70,14 @@ import { InputEditorCommandArgumentHint } from './chatInputCommandArgumentHint.j
 import { getAgentSessionProviderIcon, AgentSessionProviders } from '../../../agentSessions/agentSessions.js';
 
 /**
- * Regex matching a slash command word (e.g. `/foo`). Uses `\p{L}` for Unicode
- * letter matching, consistent with `isValidSlashCommandName`.
+ * Regex matching a slash command word (e.g. `/foo`) with Unicode characters.
  */
-const SlashCommandWord = /\/[\p{L}0-9_.:-]*/gu;
+const SlashCommandWord = /\/(?:(?!\/)[\p{L}\p{N}\p{M}\p{P}\p{S}\p{Co}])*/gu;
 
 /**
  * Regex matching an agent-or-slash command word (e.g. `@agent` or `/cmd`).
  */
-const AgentOrSlashCommandWord = /(@|\/)[\p{L}0-9_.:-]*/gu;
+const AgentOrSlashCommandWord = /(@[\p{L}0-9_.:-]*|\/(?:(?!\/)[\p{L}\p{N}\p{M}\p{P}\p{S}\p{Co}])*)/gu;
 const acceptCommandArgumentHintCommandId = '_chat.acceptCommandArgumentHint';
 
 interface IAcceptCommandArgumentHintContext {
