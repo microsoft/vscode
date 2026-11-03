@@ -35,7 +35,7 @@ import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { defaultWindowState, ICodeWindow, LoadReason } from '../../window/electron-main/window.js';
 import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
-import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
+import { defaultBrowserWindowOptions, isBackgroundThrottlingAllowed, isHiddenWindowMode, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -414,6 +414,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async maximizeWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // maximize() would reveal the window
+		}
+
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.win?.maximize();
 	}
@@ -535,7 +539,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		this.logService.trace(`Setting background throttling for window ${windowId} to '${allowed}'`);
 
-		window?.win?.webContents?.setBackgroundThrottling(allowed);
+		window?.win?.webContents?.setBackgroundThrottling(isBackgroundThrottlingAllowed(this.environmentMainService, allowed));
 	}
 
 	//#endregion

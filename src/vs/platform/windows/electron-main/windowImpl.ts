@@ -34,7 +34,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle, MenuSettings, getMacOSWindowControlsPosition } from '../../window/common/window.js';
-import { defaultBrowserWindowOptions, getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext, WindowStateValidator } from './windows.js';
+import { defaultBrowserWindowOptions, getAllWindowsExcludingOffscreen, isHiddenWindowMode, IWindowsMainService, OpenContext, WindowStateValidator } from './windows.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from '../../window/electron-main/window.js';
@@ -337,6 +337,11 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 		if (state.mode === WindowMode.Maximized || state.mode === WindowMode.Fullscreen) {
 
+			// maximize() and setFullScreen() would reveal a window that was never shown
+			if (isHiddenWindowMode(this.environmentMainService)) {
+				return;
+			}
+
 			// this call may or may not show the window, depends
 			// on the platform: currently on Windows and Linux will
 			// show the window as active. To be on the safe side,
@@ -412,6 +417,10 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	}
 
 	focus(options?: { mode: FocusMode }): void {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // focusing would show the window and activate the application
+		}
+
 		switch (options?.mode ?? FocusMode.Transfer) {
 			case FocusMode.Transfer:
 				this.doFocusWindow();
@@ -555,6 +564,10 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	private joinNativeFullScreenTransition: DeferredPromise<boolean> | undefined = undefined;
 
 	toggleFullScreen(): void {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // entering fullscreen would reveal the window (and switch Spaces on macOS)
+		}
+
 		this.setFullScreen(!this.isFullScreen, false);
 	}
 
