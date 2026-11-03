@@ -13,8 +13,11 @@ import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { SpotlightPresentation } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightPresentation.js';
 import { ISpotlightPayload } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
@@ -23,6 +26,7 @@ import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onb
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { CompareAgentsSpotlight, COMPARE_AGENTS_SPOTLIGHT_ID } from '../../browser/compareAgentsSpotlight.js';
+import { SessionComparisonModelSelection } from '../../browser/sessionComparisonModelSelection.js';
 import { COMPARE_AGENTS_SHOW_SPOTLIGHT_SETTING } from '../../common/constants.js';
 
 suite('CompareAgentsSpotlight', () => {
@@ -48,7 +52,30 @@ suite('CompareAgentsSpotlight', () => {
 		const entitlement = upcastPartial<IChatEntitlementService>({ sentiment: { hidden: !!options.hidden } });
 		const render = (reviewAvailable = true) => store.add(new CompareAgentsSpotlight(button, reviewAvailable, configuration, onboarding, entitlement));
 		const frame = () => new Promise<void>(resolve => store.add(scheduleAtNextAnimationFrame(getWindow(button), resolve)));
-		return { button, runs, configuration, render, frame };
+		return { button, runs, configuration, onboarding, entitlement, render, frame };
+	}
+
+	for (const previouslyOpened of [false, true]) {
+		test(`comparison discovery suppresses the spotlight across selection instances: ${previouslyOpened}`, async () => {
+			const { button, frame, runs, configuration, onboarding, entitlement } = createHarness({ enabled: true });
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.set(IConfigurationService, configuration);
+			instantiationService.set(IOnboardingScenarioService, onboarding);
+			instantiationService.set(IChatEntitlementService, entitlement);
+			instantiationService.set(IStorageService, store.add(new InMemoryStorageService()));
+			const createSelection = () => store.add(instantiationService.createInstance(SessionComparisonModelSelection, constObservable(true), undefined, undefined, undefined, undefined));
+			const selection = createSelection();
+			if (previouslyOpened) {
+				selection.start();
+				selection.cancel();
+				selection.reset();
+			}
+			selection.dispose();
+			const recreated = createSelection();
+			store.add(recreated.renderToggle(button));
+			await frame();
+			assert.deepStrictEqual(runs.map(run => run.id), previouslyOpened ? [] : [COMPARE_AGENTS_SPOTLIGHT_ID]);
+		});
 	}
 
 	for (const options of [{}, { enabled: false }, { enabled: true, hidden: true }, { enabled: true, eligible: false }, { enabled: true, presenting: true }]) {

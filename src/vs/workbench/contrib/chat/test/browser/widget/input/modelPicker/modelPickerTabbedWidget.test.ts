@@ -694,6 +694,10 @@ suite('TabbedModelPicker', () => {
 				getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
 			};
 			const { picker, popup, anchor, contextKeyService } = createPicker({ comparison, realContextView: true });
+			const toggle = element(popup, '[data-id="comparison"]');
+			toggle.focus();
+			// Hidden Electron test windows do not emit native focus events.
+			toggle.dispatchEvent(new FocusEvent('focus'));
 			const previousFocus = document.activeElement;
 			const layout = new class extends TestLayoutService {
 				override getContainer() { return document.body; }
@@ -720,8 +724,12 @@ suite('TabbedModelPicker', () => {
 			await shown.p;
 			const callout = element(document.body, '.spotlight-callout');
 			const next = element(callout, '.monaco-button:not([style*="display: none"])');
+			toggle.dispatchEvent(new FocusEvent('blur'));
 			await timeout(0);
-			const afterBlur = { pickerVisible: picker.isVisible, calloutVisible: callout.isConnected, guidanceDisposed };
+			const afterBlur = {
+				pickerVisible: picker.isVisible, calloutVisible: callout.isConnected,
+				focusInCallout: callout.contains(document.activeElement), guidanceDisposed,
+			};
 			if (dismiss === 'understood') {
 				next.click();
 			} else {
@@ -733,11 +741,13 @@ suite('TabbedModelPicker', () => {
 				pickerVisible: picker.isVisible, calloutVisible: callout.isConnected,
 				focusRestored: document.activeElement === previousFocus, guidanceDisposed,
 			};
-			element(popup, '[data-id="comparison"]').focus();
+			toggle.focus();
+			toggle.dispatchEvent(new FocusEvent('focus'));
 			anchor.focus();
+			toggle.dispatchEvent(new FocusEvent('blur'));
 			await timeout(0);
 			assert.deepStrictEqual({ afterBlur, outcome, afterDismiss, closedOnBlur: !picker.isVisible, guidanceDisposed }, {
-				afterBlur: { pickerVisible: true, calloutVisible: true, guidanceDisposed: 0 },
+				afterBlur: { pickerVisible: true, calloutVisible: true, focusInCallout: true, guidanceDisposed: 0 },
 				outcome: dismiss === 'understood' ? OnboardingOutcome.Completed : OnboardingOutcome.Skipped,
 				afterDismiss: { pickerVisible: true, calloutVisible: false, focusRestored: true, guidanceDisposed: 0 },
 				closedOnBlur: true, guidanceDisposed: 1,

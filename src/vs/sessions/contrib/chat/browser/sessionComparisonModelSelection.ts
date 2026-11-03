@@ -132,6 +132,7 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 	private readonly _committed = observableValue<IComparisonModelSelection | undefined>(this, undefined);
 	private readonly _draft = observableValue<IComparisonModelSelection | undefined>(this, undefined);
 	private readonly _step = observableValue<ComparisonStep>(this, 'attempts');
+	private readonly _discovered: IObservable<boolean>;
 
 	readonly label = localize('comparisonPicker.compare', "Compare Models");
 	readonly description = derived(this, reader => this._reviewAvailable.read(reader)
@@ -194,10 +195,10 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-		const discovered = observableFromEvent(this,
+		this._discovered = observableFromEvent(this,
 			_storageService.onDidChangeValue(StorageScope.APPLICATION, SessionComparisonModelSelection._discoveredStorageKey, this._store),
 			() => _storageService.getBoolean(SessionComparisonModelSelection._discoveredStorageKey, StorageScope.APPLICATION, false));
-		this.showPickerHint = derived(this, reader => showPickerHint.read(reader) && !discovered.read(reader));
+		this.showPickerHint = derived(this, reader => showPickerHint.read(reader) && !this._discovered.read(reader));
 		this._register(autorun(reader => {
 			if (!available.read(reader) && !configurationResolving.read(reader)) {
 				this.reset();
@@ -206,6 +207,9 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 	}
 
 	renderToggle(button: HTMLElement): IDisposable {
+		if (this._discovered.get()) {
+			return Disposable.None;
+		}
 		return this._instantiationService.createInstance(CompareAgentsSpotlight, button, this._reviewAvailable.get());
 	}
 
