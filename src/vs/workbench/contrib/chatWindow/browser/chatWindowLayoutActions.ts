@@ -15,6 +15,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IsSessionsWindowContext, LayoutModeContext, SplitLayoutContext } from '../../../common/contextkeys.js';
 import { isEditorCommandsContext } from '../../../common/editor.js';
+import { isWindowCommandContext } from '../../../common/windowCommandContext.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { ChatWindowLayoutMode } from '../common/chatWindowLayout.js';
 import { IChatWindow, IChatWindowService } from './chatWindow.js';
@@ -67,13 +68,21 @@ export const TOGGLE_CHAT_WINDOW_EDITOR_BY_KEY_COMMAND_ID = 'workbench.action.cha
 
 /**
  * The chat window a command acts on: the window of the editor group its arguments name, such as when it runs from the
- * title of a group of the window, else the chat window that has focus.
+ * title of a group of the window, or the window they name, such as when it runs from the Session Activity Bar of the
+ * window, else the chat window that has focus.
  */
 export function resolveChatWindow(accessor: ServicesAccessor, args: readonly unknown[]): IChatWindow | undefined {
 	const chatWindowService = accessor.get(IChatWindowService);
 	const context = args.find(isEditorCommandsContext);
 	if (context) {
 		const window = chatWindowService.windows.get().find(candidate => [candidate.mainPart, candidate.chatPart, candidate.terminalsPart.get()].some(part => part?.groups.some(group => group.id === context.groupId)));
+		if (window) {
+			return window;
+		}
+	}
+	const windowContext = args.find(isWindowCommandContext);
+	if (windowContext) {
+		const window = chatWindowService.getWindow(windowContext.windowId);
 		if (window) {
 			return window;
 		}
@@ -117,8 +126,8 @@ for (const choice of chatWindowLayoutModeChoices) {
 			});
 		}
 
-		override run(accessor: ServicesAccessor): void {
-			const window = accessor.get(IChatWindowService).activeWindow;
+		override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+			const window = resolveChatWindow(accessor, args);
 			if (window) {
 				showChatWindowLayout(window, choice.mode);
 			}
@@ -150,8 +159,8 @@ registerAction2(class ToggleChatWindowChatAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor): void {
-		const window = accessor.get(IChatWindowService).activeWindow;
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const window = resolveChatWindow(accessor, args);
 		if (window) {
 			togglePane(window, 'chat');
 		}
@@ -170,8 +179,8 @@ registerAction2(class ToggleChatWindowEditorAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor): void {
-		const window = accessor.get(IChatWindowService).activeWindow;
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const window = resolveChatWindow(accessor, args);
 		if (window) {
 			togglePane(window, 'editor');
 		}
@@ -190,8 +199,8 @@ registerAction2(class ToggleChatWindowArrangementAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor): void {
-		const window = accessor.get(IChatWindowService).activeWindow;
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const window = resolveChatWindow(accessor, args);
 		if (!window) {
 			return;
 		}

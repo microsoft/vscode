@@ -16,7 +16,7 @@ import { KeyCode } from '../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue, transaction } from '../../../base/common/observable.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
-import { Action, IAction, toAction } from '../../../base/common/actions.js';
+import { Action, ActionRunner, IAction, toAction } from '../../../base/common/actions.js';
 import { localize } from '../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -41,6 +41,7 @@ import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../common/sessionCommands.js';
 import { sessionActivityBarChatActionContext } from '../../common/contextkeys.js';
 import { LayoutModeContext } from '../../../workbench/common/contextkeys.js';
+import { IWindowCommandContext } from '../../../workbench/common/windowCommandContext.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { SubmenuFlyout } from './submenuFlyout.js';
 
@@ -81,11 +82,18 @@ export class SessionActivityBar extends Disposable {
 
 		// Like the workbench activity bar, once an entry's hover has shown, moving to another entry shows its hover instantly.
 		const hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, { position: { hoverPosition: HoverPosition.LEFT } }));
+		// In a window with layout modes, such as a chat window, the entries act on the window the strip is in, which the
+		// window that has focus is not yet as a click activates it. Read as an entry runs: the strip is created before it
+		// is in its window.
+		const actionRunner = this._register(new SessionActivityBarActionRunner(() => LayoutModeContext.getValue(scopedContextKeyService)
+			? { windowId: getWindow(this.element).vscodeWindowId } satisfies IWindowCommandContext
+			: undefined));
 		const toolbar = this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.element, Menus.SessionActivityBar, {
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: localize('sessionActivityBar', "Session Activity Bar"),
 			telemetrySource: 'sessionActivityBar',
 			hoverDelegate,
+			actionRunner,
 			// Entries hidden from the context menu leave the strip; a vertical strip has no overflow menu.
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			contextMenu: Menus.SessionActivityBarContext,
@@ -181,6 +189,18 @@ export class SessionActivityBar extends Disposable {
 
 	setChatActions(actions: IObservable<readonly IAction[]> | undefined): void {
 		this.chatActions.set(actions, undefined);
+	}
+}
+
+/** Runs the entries of the strip with the context it supplies to those that run without one of their own. */
+class SessionActivityBarActionRunner extends ActionRunner {
+
+	constructor(private readonly getContext: () => unknown) {
+		super();
+	}
+
+	protected override runAction(action: IAction, context?: unknown): Promise<void> {
+		return super.runAction(action, context ?? this.getContext());
 	}
 }
 
@@ -592,8 +612,8 @@ export class SessionActivityBarActionViewItem extends MenuEntryActionViewItem {
 	override getActionToRun(event: EventLike & { readonly altKey?: boolean; readonly shiftKey?: boolean }): IAction {
 		const command = this.getHideCommand();
 		if (command) {
-			const context = this._context;
-			return toAction({ id: command, label: this._menuItemAction.label, run: () => context === undefined ? this.commandService.executeCommand(command) : this.commandService.executeCommand(command, context) });
+			// With the context the strip runs its entries with, such as the window it is in.
+			return toAction({ id: command, label: this._menuItemAction.label, run: (context?: unknown) => context === undefined ? this.commandService.executeCommand(command) : this.commandService.executeCommand(command, context) });
 		}
 		return super.getActionToRun(event);
 	}

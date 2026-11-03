@@ -21,8 +21,8 @@ import { EditorsOrder } from '../../../../workbench/common/editor.js';
 import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { IChatWindow, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { ChatShownContext, ChatWindowLayoutCommandsContext, chatWindowLayoutModeChoices, EditorShownContext, showChatWindowLayout, StackedContext, TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
+import { IChatWindow } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { ChatShownContext, ChatWindowLayoutCommandsContext, chatWindowLayoutModeChoices, EditorShownContext, resolveChatWindow, showChatWindowLayout, StackedContext, TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { ChatWindowLayoutMode } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -268,9 +268,9 @@ for (const entry of chatWindowTabEntries) {
 			});
 		}
 
-		override async run(accessor: ServicesAccessor): Promise<void> {
-			// The chat window that has focus: the one the entry was invoked from.
-			const window = accessor.get(IChatWindowService).activeWindow;
+		override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+			// The chat window the entry was invoked from, which may not have focus yet.
+			const window = resolveChatWindow(accessor, args);
 			if (window) {
 				await openTabEntry(accessor, entry, window);
 			}
@@ -301,8 +301,9 @@ registerAction2(class CloseChatWindowEditorAreaAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor): void {
-		const window = accessor.get(IChatWindowService).activeWindow;
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		// The window of the empty group the button is in.
+		const window = resolveChatWindow(accessor, args);
 		if (window) {
 			showChatWindowLayout(window, ChatWindowLayoutMode.ChatOnly);
 		}

@@ -42,6 +42,7 @@ import { TestContextViewService } from './testContextViewService.js';
 import '../../../base/browser/ui/tree/media/tree.css';
 import '../../browser/parts/media/sessionView.css';
 import { LayoutModeContext } from '../../../workbench/common/contextkeys.js';
+import { IWindowCommandContext } from '../../../workbench/common/windowCommandContext.js';
 
 interface ITestEntry {
 	readonly id: string;
@@ -72,11 +73,13 @@ suite('Sessions - Session Activity Bar', () => {
 		const container = append(root, $('.content'));
 
 		const ran: string[] = [];
+		const ranWith: { readonly id: string; readonly args: unknown[] }[] = [];
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override readonly onWillExecuteCommand = Event.None;
 			override readonly onDidExecuteCommand = Event.None;
-			override async executeCommand<R>(id: string): Promise<R | undefined> {
+			override async executeCommand<R>(id: string, ...args: unknown[]): Promise<R | undefined> {
 				ran.push(id);
+				ranWith.push({ id, args });
 				return undefined;
 			}
 		});
@@ -169,6 +172,7 @@ suite('Sessions - Session Activity Bar', () => {
 			setLayout: (layout: AgentWorkbenchLayout) => agentWorkbenchLayout = layout,
 			layoutMainContainer: () => onDidLayoutMainContainer.fire({ width: 800, height: 600 }),
 			ran,
+			ranWith,
 			contextKeyService,
 			contextViewService,
 			contextMenus,
@@ -649,6 +653,30 @@ suite('Sessions - Session Activity Bar', () => {
 		}
 
 		assert.deepStrictEqual(ran, ['workbench.action.chatWindow.toggleEditor', 'test.terminal']);
+	});
+
+	test('in a window with layout modes, such as a chat window, the entries run with the window they are in, which the window that has focus may not be yet', async () => {
+		const files: ITestEntry = { id: 'test.files', title: 'Files', icon: Codicon.files, group: SessionActivityBarGroup.SidePanel, checked: true };
+		const terminal: ITestEntry = { id: 'test.terminal', title: 'Terminal', icon: Codicon.terminal, group: SessionActivityBarGroup.Panel };
+		for (const entry of [files, terminal]) {
+			store.add(MenuRegistry.appendMenuItem(Menus.SessionActivityBar, { command: { id: entry.id, title: entry.title }, group: entry.group }));
+		}
+		const { label, ranWith, contextKeyService } = createActivityBar(store, [files, terminal]);
+
+		label('Terminal').click();
+		await timeout(0);
+		LayoutModeContext.bindTo(contextKeyService).set('sideBySide');
+		for (const title of ['Terminal', 'Files']) {
+			label(title).click();
+			await timeout(0);
+		}
+
+		const context: IWindowCommandContext = { windowId: mainWindow.vscodeWindowId };
+		assert.deepStrictEqual(ranWith, [
+			{ id: 'test.terminal', args: [undefined] },
+			{ id: 'test.terminal', args: [context] },
+			{ id: 'workbench.action.chatWindow.toggleEditor', args: [context] },
+		]);
 	});
 
 	test('opens the Canvas submenu to the left on hover, click, and keyboard, and runs its items', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

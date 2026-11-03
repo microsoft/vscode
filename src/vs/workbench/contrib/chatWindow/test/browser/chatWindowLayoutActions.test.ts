@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -12,6 +13,7 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IsSessionsWindowContext, LayoutModeContext } from '../../../../common/contextkeys.js';
+import { IWindowCommandContext } from '../../../../common/windowCommandContext.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatWindow, IChatWindowService } from '../../browser/chatWindow.js';
 import { ChatWindowLayoutCommandsContext, chatWindowLayoutModeChoices, TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CONVERSATION_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_BY_KEY_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID } from '../../browser/chatWindowLayoutActions.js';
@@ -52,8 +54,10 @@ suite('Chat window layout actions', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IChatWindowService, new class extends mock<IChatWindowService>() {
 			override get activeWindow() { return active.window; }
+			override readonly windows = constObservable([a.window, b.window]);
+			override getWindow(windowId: number) { return [a.window, b.window].find(window => window.windowId === windowId); }
 		}());
-		const run = (id: string) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
+		const run = (id: string, ...args: unknown[]) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor, ...args));
 		return { a, b, active, run };
 	}
 
@@ -73,6 +77,24 @@ suite('Chat window layout actions', () => {
 		assert.deepStrictEqual({ a: [a.state.layoutMode.get(), a.state.inputOnly.get()], b: [b.state.layoutMode.get(), b.state.inputOnly.get()] }, {
 			a: [ChatWindowLayoutMode.EditorOnly, true],
 			b: [ChatWindowLayoutMode.Stacked, false],
+		});
+	});
+
+	test('a command run from a control of a chat window acts on that window, not on the window that has focus', () => {
+		const { a, b, active, run } = createEnvironment();
+		const sideBySide = chatWindowLayoutModeChoices.find(choice => choice.mode === ChatWindowLayoutMode.SideBySide)!.id;
+		const context: IWindowCommandContext = { windowId: b.window.windowId };
+
+		// As the first click in a window that does not have focus yet: the focused window is another one, or none.
+		active.window = a.window;
+		run(sideBySide, context);
+		run(TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, context);
+		active.window = undefined;
+		run(TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID, context);
+
+		assert.deepStrictEqual({ a: [a.state.layoutMode.get(), a.state.splitLayout.get()], b: [b.state.layoutMode.get(), b.state.splitLayout.get()] }, {
+			a: [ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.SideBySide],
+			b: [ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.Stacked],
 		});
 	});
 
