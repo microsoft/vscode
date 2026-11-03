@@ -124,9 +124,9 @@ suite('SessionPermissionManager', () => {
 		// keeps macOS `/var` -> `/private/var` consistent so the symlink-resolution
 		// checks compare like-for-like.
 		const baseTmp = process.env.AGENT_TEMPDIRECTORY || process.env.RUNNER_TEMP || tmpdir();
-		workDir = realpathSync(mkdtempSync(join(baseTmp, 'sesperm-work-')));
-		workDir2 = realpathSync(mkdtempSync(join(baseTmp, 'sesperm-work2-')));
-		outsideDir = realpathSync(mkdtempSync(join(baseTmp, 'sesperm-out-')));
+		workDir = URI.file(realpathSync(mkdtempSync(join(baseTmp, 'sesperm-work-')))).fsPath;
+		workDir2 = URI.file(realpathSync(mkdtempSync(join(baseTmp, 'sesperm-work2-')))).fsPath;
+		outsideDir = URI.file(realpathSync(mkdtempSync(join(baseTmp, 'sesperm-out-')))).fsPath;
 
 		manager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		configService = disposables.add(new AgentConfigurationService(manager, new NullLogService()));
@@ -980,6 +980,47 @@ suite('SessionPermissionManager', () => {
 			}
 		}
 		assert.deepStrictEqual(results, Array.from({ length: 10 }, () => ({ approved: undefined, options: [] })));
+	});
+
+	if (!isWindows) {
+		test('dangling file symlinks cannot inherit a folder grant or hide a protected target', async () => {
+			const alias = join(workDir2, 'alias');
+			symlinkSync(workDir, alias, directoryLinkType);
+			symlinkSync(join(outsideDir, '.mcp.json'), join(workDir, 'ordinary.txt'));
+			setPermissionRules([pathRule('Read', workDir, true)!, pathRule('Edit', workDir, true)!]);
+			const permissionPath = join(alias, 'ordinary.txt');
+			const results = [];
+			for (const permissionKind of [AgentPermissionKind.Read, AgentPermissionKind.Write]) {
+				const event = permissionKind === AgentPermissionKind.Write ? writeEvent(permissionPath) : readEvent(permissionPath);
+				results.push({
+					approved: await permissions.getAutoApproval(event, sessionUri),
+					options: await permissions.getPathConfirmationOptions(confirmationSignal({ permissionKind, permissionPath })),
+				});
+			}
+			assert.deepStrictEqual(results, [
+				{ approved: undefined, options: [] },
+				{ approved: undefined, options: [] },
+			]);
+		});
+	}
+
+	test('dangling directory links cannot be treated as missing creation directories', async () => {
+		const dangling = join(workDir, 'dangling');
+		symlinkSync(join(outsideDir, 'missing-target'), dangling, directoryLinkType);
+		setPermissionRules([pathRule('Read', workDir, true)!, pathRule('Edit', workDir, true)!]);
+		const permissionPath = join(dangling, 'new', 'deep', 'file.txt');
+		const results = [];
+		for (const permissionKind of [AgentPermissionKind.Read, AgentPermissionKind.Write]) {
+			const event = permissionKind === AgentPermissionKind.Write ? writeEvent(permissionPath) : readEvent(permissionPath);
+			results.push({
+				approved: await permissions.getAutoApproval(event, sessionUri),
+				options: await permissions.getPathConfirmationOptions(confirmationSignal({ permissionKind, permissionPath })),
+			});
+		}
+		assert.deepStrictEqual(results, [
+			{ approved: undefined, options: [] },
+			{ approved: undefined, options: [] },
+		]);
 	});
 
 	for (const exactFileGrant of [false, true]) {
