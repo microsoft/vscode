@@ -106,17 +106,19 @@ async function discoverMarketplaceProtectedResource(requestService: IRequestServ
 	let definitive = false;
 	const fetcher = createRequestFetcher(requestService, 'extensionGalleryAccountService.discoverProtectedResource');
 	try {
-		const { metadata } = await fetchResourceMetadata(serviceIndexUrl, undefined, { fetch: async (url, init) => {
-			try {
-				const response = await fetcher(url, init);
-				transient ||= isTransientStatus(response.status);
-				definitive ||= response.status !== 404 && response.status !== 410 && !isTransientStatus(response.status);
-				return response;
-			} catch (error) {
-				transient = true;
-				throw error;
+		const { metadata } = await fetchResourceMetadata(serviceIndexUrl, undefined, {
+			fetch: async (url, init) => {
+				try {
+					const response = await fetcher(url, init);
+					transient ||= isTransientStatus(response.status);
+					definitive ||= response.status !== 404 && response.status !== 410 && !isTransientStatus(response.status);
+					return response;
+				} catch (error) {
+					transient = true;
+					throw error;
+				}
 			}
-		} });
+		});
 		const authorizationServer = metadata.authorization_servers?.[0];
 		if (!authorizationServer) {
 			return undefined;
