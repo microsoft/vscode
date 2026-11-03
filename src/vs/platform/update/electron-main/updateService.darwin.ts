@@ -8,6 +8,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { memoize } from '../../../base/common/decorators.js';
 import { Event } from '../../../base/common/event.js';
 import { hash } from '../../../base/common/hash.js';
+import { dirname } from '../../../base/common/path.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { ILifecycleMainService, IRelaunchHandler, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
@@ -16,9 +17,10 @@ import { IProductService } from '../../product/common/productService.js';
 import { asJson, IRequestService } from '../../request/common/request.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { AvailableForDownload, IUpdate, State, StateType, UpdateType } from '../common/update.js';
+import { IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
+import { isElevationRequiredToInstallUpdate } from './darwinUpdateElevation.js';
 
 export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
@@ -33,6 +35,11 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 			timestamp: releaseDate instanceof Date ? releaseDate.getTime() || undefined : releaseDate
 		}));
 	}
+
+	/**
+	 * Whether installing an update requires administrator privileges, see {@link isElevationRequiredToInstallUpdate}.
+	 */
+	private elevationRequired = false;
 
 	constructor(
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
@@ -73,6 +80,22 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		this.onRawUpdateAvailable(this.onUpdateAvailable, this, this._store);
 		this.onRawUpdateDownloaded(this.onUpdateDownloaded, this, this._store);
 		this.onRawUpdateNotAvailable(this.onUpdateNotAvailable, this, this._store);
+	}
+
+	protected override async postInitialize(): Promise<void> {
+		// The application root is located at `<bundle>.app/Contents/Resources/app`
+		const bundlePath = dirname(dirname(dirname(this.environmentMainService.appRoot)));
+		const directContentsWrite = electron.systemPreferences.getUserDefault('SquirrelMacEnableDirectContentsWrite', 'boolean');
+		this.elevationRequired = await isElevationRequiredToInstallUpdate(bundlePath, directContentsWrite);
+
+		if (this.elevationRequired) {
+			this.logService.info('update#postInitialize - installing updates requires administrator privileges, updates will only be downloaded when explicitly requested');
+		}
+	}
+
+	protected override get supportsUpdateOverwrite(): boolean {
+		// Replacing a pending update would ask for administrator credentials once more
+		return super.supportsUpdateOverwrite && !this.elevationRequired;
 	}
 
 	private onCheckingForUpdate(): void {
@@ -127,7 +150,15 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		// When connection is metered and this is not an explicit check, avoid electron call as to not to trigger auto-download.
 		if (!explicit && this.meteredConnectionService.isConnectionMetered) {
 			this.logService.info('update#doCheckForUpdates - checking for update without auto-download because connection is metered');
-			this.checkForUpdateNoDownload(url);
+			this.checkForUpdateNoDownload(url, this.elevationRequired);
+			return;
+		}
+
+		// When installing requires administrator privileges, Squirrel.Mac asks for credentials as soon as an update is downloaded.
+		// Avoid prompting the user out of the blue from an automatic check and only download when explicitly requested.
+		if (!explicit && this.elevationRequired) {
+			this.logService.info('update#doCheckForUpdates - checking for update without auto-download because installing requires administrator privileges');
+			this.checkForUpdateNoDownload(url, true);
 			return;
 		}
 
@@ -137,10 +168,10 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 
 	/**
 	 * Manually check the update feed URL without triggering Electron's auto-download.
-	 * Used when connection is metered or in the embedded app.
-	 * @param canInstall When false, signals that the update cannot be installed from this app.
+	 * Used for automatic checks when connection is metered or when installing requires administrator privileges.
+	 * @param requiresElevation Whether installing the update requires administrator privileges.
 	 */
-	private async checkForUpdateNoDownload(url: string, canInstall?: boolean): Promise<void> {
+	private async checkForUpdateNoDownload(url: string, requiresElevation: boolean): Promise<void> {
 		const headers = getUpdateRequestHeaders(this.productService.version);
 		this.logService.trace('update#checkForUpdateNoDownload - checking update server', { url, headers });
 
@@ -150,17 +181,25 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 			this.logService.trace('update#checkForUpdateNoDownload - response', { statusCode });
 
 			const update = await asJson<IUpdate>(context);
+
+			// If updates were disabled mid-check, ignore the result so we don't leave the Disabled state.
+			if (this.state.type !== StateType.CheckingForUpdates) {
+				return;
+			}
+
 			if (!update || !update.url || !update.version || !update.productVersion) {
 				this.logService.trace('update#checkForUpdateNoDownload - no update available');
-				const notAvailable = this.state.type === StateType.CheckingForUpdates && this.state.explicit;
-				this.setState(State.Idle(UpdateType.Archive, undefined, notAvailable || undefined));
+				this.setState(State.Idle(UpdateType.Archive, undefined, this.state.explicit || undefined));
 			} else {
 				this.logService.trace('update#checkForUpdateNoDownload - update available', { version: update.version, productVersion: update.productVersion });
-				this.setState(State.AvailableForDownload(update, canInstall));
+				this.setState(State.AvailableForDownload(update, requiresElevation || undefined));
 			}
 		} catch (err) {
 			this.logService.error('update#checkForUpdateNoDownload - failed to check for update', err);
-			this.setState(State.Idle(UpdateType.Archive));
+
+			if (this.state.type === StateType.CheckingForUpdates) {
+				this.setState(State.Idle(UpdateType.Archive));
+			}
 		}
 	}
 
@@ -196,9 +235,10 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		this.setState(State.Idle(UpdateType.Archive, undefined, notAvailable || undefined));
 	}
 
-	protected override async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
-		// Rebuild feed URL and trigger download via Electron's auto-updater
-		this.buildUpdateFeedUrl(this.quality!, state.update.version, { internalOrg: this.getInternalOrg() });
+	protected override async doDownloadUpdate(): Promise<void> {
+		// Rebuild feed URL for the running build, since the update server only offers builds newer than the given commit,
+		// and trigger download via Electron's auto-updater.
+		this.buildUpdateFeedUrl(this.quality!, this.productService.commit!, { internalOrg: this.getInternalOrg() });
 		this.setState(State.CheckingForUpdates(true));
 		electron.autoUpdater.checkForUpdates();
 	}

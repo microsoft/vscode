@@ -129,6 +129,13 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		return this._state.state;
 	}
 
+	/**
+	 * Whether a pending update can be replaced by a newer one before it is installed.
+	 */
+	protected get supportsUpdateOverwrite(): boolean {
+		return this._supportsUpdateOverwrite;
+	}
+
 	protected setState(state: State, options?: { deferred?: boolean }): void {
 		if (state.type === StateType.Updating) {
 			this.logService.trace('update#setState', state.type);
@@ -145,12 +152,10 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		}
 
 		// Schedule 5-minute checks when in Ready state and overwrite is supported
-		if (this.supportsUpdateOverwrite) {
-			if (state.type === StateType.Ready) {
-				this.overwriteUpdatesCheckInterval.cancelAndSet(() => this.checkForOverwriteUpdates(), 5 * 60 * 1000);
-			} else {
-				this.overwriteUpdatesCheckInterval.cancel();
-			}
+		if (state.type === StateType.Ready && this.supportsUpdateOverwrite) {
+			this.overwriteUpdatesCheckInterval.cancelAndSet(() => this.checkForOverwriteUpdates(), 5 * 60 * 1000);
+		} else {
+			this.overwriteUpdatesCheckInterval.cancel();
 		}
 	}
 
@@ -170,7 +175,7 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		@ITelemetryService protected readonly telemetryService: ITelemetryService,
 		@IApplicationStorageMainService protected readonly applicationStorageMainService: IApplicationStorageMainService,
 		@IMeteredConnectionService protected readonly meteredConnectionService: IMeteredConnectionService,
-		protected readonly supportsUpdateOverwrite: boolean,
+		private readonly _supportsUpdateOverwrite: boolean,
 	) {
 		super();
 
