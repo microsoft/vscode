@@ -663,6 +663,30 @@ suite('MarkdownRenderer', () => {
 		assert.strictEqual(result.innerHTML, `<p><a href="" title="" draggable="false" data-href="command:doFoo">command1</a> <a href="" data-href="command:doFoo">command2</a></p>`);
 	});
 
+	test('Should not leave escape backslash at end of raw links (#137502)', () => {
+		const md = new MarkdownString('See https://example\\.com/page\\. and https://example.com/a\\\\');
+
+		const result = store.add(renderMarkdown(md)).element;
+		const links = [...result.querySelectorAll('a')].map(a => [a.dataset.href, a.textContent]);
+		assert.deepStrictEqual(links, [
+			['https://example.com/page', 'https://example.com/page'],
+			['https://example.com/a\\', 'https://example.com/a\\'],
+		]);
+		assert.strictEqual(result.textContent, 'See https://example.com/page. and https://example.com/a\\');
+	});
+
+	test('Should keep literal trailing backslashes in links (#137502)', () => {
+		const md = new MarkdownString('<https://example.com/a\\> https://example.com/b\\ end [https://example.com/c\\\\](https://example.com/c\\\\)');
+
+		const result = store.add(renderMarkdown(md)).element;
+		const links = [...result.querySelectorAll('a')].map(a => [a.dataset.href, a.textContent]);
+		assert.deepStrictEqual(links, [
+			['https://example.com/a\\', 'https://example.com/a\\'],
+			['https://example.com/b\\', 'https://example.com/b\\'],
+			['https://example.com/c\\', 'https://example.com/c\\'],
+		]);
+	});
+
 	test('Should remove relative links if there is no base url', () => {
 		const md = new MarkdownString(`[text](./foo) <a href="./bar">bar</a>`, {
 			isTrusted: true,
