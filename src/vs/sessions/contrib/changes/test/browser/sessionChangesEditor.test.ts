@@ -128,7 +128,7 @@ suite('SessionChangesEditor empty state layout', () => {
 suite('SessionChangesEditor spacing', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('only the leading Changes card drops its outer gutter while later cards and other editors retain theirs', () => {
+	test('the leading Changes card keeps the gap of the cards between them above it, as in other editors', () => {
 		const root = append(mainWindow.document.body, $('.monaco-workbench'));
 		root.style.cssText = '--vscode-spacing-size40: 4px; --vscode-spacing-size80: 8px; --vscode-spacing-size320: 32px; --vscode-strokeThickness: 1px;';
 		store.add(toDisposable(() => root.remove()));
@@ -161,7 +161,7 @@ suite('SessionChangesEditor spacing', () => {
 		}
 		assert.deepStrictEqual(results, results.map(result => ({
 			...result,
-			topMargin: result.cards && !result.sticky && !(result.changesEditor && result.first) ? '4px' : '0px',
+			topMargin: result.cards && !result.sticky ? '4px' : '0px',
 		})));
 	});
 
