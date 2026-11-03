@@ -315,6 +315,8 @@ suite('InboxNotificationsView', () => {
 		const result = {
 			before, automaticNavigation, hidden, created: newChatViews.length,
 			hasDuplicateNewSessionButton: Array.from(container.querySelectorAll('.monaco-button')).some(button => button.textContent === 'New Session'),
+			composerLabel: container.querySelector<HTMLElement>('.inbox-notifications-composer-label')!.textContent,
+			composerAriaLabel: composer.getAttribute('aria-label'),
 			options: newChatOptions.map(({ hostVisible, ...options }) => ({ ...options, hostVisible: hostVisible?.get() })),
 			requests: openNewSession.args, draft: input.value, focused: mainWindow.document.activeElement === input,
 			belowNotifications: composer.parentElement?.previousElementSibling === notifications,
@@ -324,6 +326,7 @@ suite('InboxNotificationsView', () => {
 		assert.deepStrictEqual({ ...result, disposed: newChatViews[0].disposed }, {
 			before: 1, automaticNavigation: 0, hidden: false, created: 1, options: [{ preserveCustomView: true, backgroundSend: true, renderChatPet: false, renderAquarium: false, hostVisible: true }],
 			hasDuplicateNewSessionButton: false,
+			composerLabel: '', composerAriaLabel: 'New session',
 			requests: Array.from({ length: 3 }, () => [{ preserveCustomView: true, cancelRestore: true }]),
 			draft: 'My new session draft', focused: true, belowNotifications: true, inputAtTop: true, disposed: true,
 		});
@@ -394,8 +397,10 @@ suite('InboxNotificationsView', () => {
 						: Math.abs(composer.getBoundingClientRect().left - evidence.left) <= 1 && Math.abs(composer.getBoundingClientRect().right - evidence.right) <= 1,
 					bottomAnchored: Math.abs(input.bottom - initial.bottom) <= 1,
 					bottomGap: Math.abs(composer.getBoundingClientRect().bottom - input.bottom) <= 1,
-					labelGap: content.top - label.getBoundingClientRect().bottom >= 4,
-					listGap: label.getBoundingClientRect().top - notifications.getBoundingClientRect().bottom >= 12,
+					labelVisible: label.getClientRects().length > 0,
+					labelText: label.textContent,
+					labelGap: newSession || content.top - label.getBoundingClientRect().bottom >= 4,
+					listGap: (newSession ? content.top : label.getBoundingClientRect().top) - notifications.getBoundingClientRect().bottom >= 12,
 				};
 			};
 			const bounds = [measure(newChatViews[0], true)];
@@ -413,8 +418,9 @@ suite('InboxNotificationsView', () => {
 			newChatViews[0].input.style.height = '80px';
 			resizeObserver.instance.callback([], resizeObserver.instance);
 			bounds.push(measure(newChatViews[0], true));
-			assert.deepStrictEqual(bounds, Array.from({ length: 5 }, () => ({
-				alignedWithTarget: true, bottomAnchored: true, bottomGap: true, labelGap: true, listGap: true,
+			assert.deepStrictEqual(bounds, Array.from({ length: 5 }, (_, index) => ({
+				alignedWithTarget: true, bottomAnchored: true, bottomGap: true, labelVisible: index === 1,
+				labelText: index === 1 ? 'Reply to Review changes' : '', labelGap: true, listGap: true,
 			})));
 		});
 	}
