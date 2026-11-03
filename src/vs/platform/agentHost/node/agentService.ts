@@ -11494,6 +11494,13 @@ export class AgentService extends Disposable implements IAgentService {
 		this._terminalManager.disposeTerminal(terminal.toString());
 	}
 
+	getSnapshot(resource: string): IStateSnapshot | undefined {
+		const terminal = this._terminalManager.getTerminalState(resource);
+		return terminal
+			? { resource, state: terminal, fromSeq: this._stateManager.serverSeq }
+			: this._stateManager.getSnapshot(resource);
+	}
+
 	async subscribe(resource: URI, clientId: string, isActive?: () => boolean, credentials?: IAgentHostCredentialSource, telemetryContext?: IAgentHostSessionSubscribeTelemetryContext): Promise<IStateSnapshot> {
 		if (resource.scheme === AHP_CANVAS_SCHEME) {
 			if (this._store.isDisposed || (isActive && !isActive())) {

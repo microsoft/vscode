@@ -1211,6 +1211,9 @@ export interface IAgentService {
 	 */
 	subscribe(resource: URI, clientId: string, isActive?: () => boolean, credentials?: IAgentHostCredentialSource, telemetryContext?: IAgentHostSessionSubscribeTelemetryContext): Promise<IStateSnapshot>;
 
+	/** Reads current resident state without restoring it or changing subscription ownership. */
+	getSnapshot(resource: string): IStateSnapshot | undefined;
+
 	/**
 	 * Counterpart to {@link subscribe}. Drops `clientId` from the refcount
 	 * for `resource`; when the last subscriber is removed, idle session state
