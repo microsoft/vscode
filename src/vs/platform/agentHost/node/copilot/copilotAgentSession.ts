@@ -10205,6 +10205,17 @@ export class CopilotAgentSession extends Disposable {
 		// clickable file link, matching the `view`-tool display style.
 		store.add(wrapper.onSkillInvoked(e => {
 			this._logService.info(`[Copilot:${sessionId}] Skill invoked: ${e.data.name} (${e.data.path})`);
+			this._telemetryReporter.skillInvoked({
+				clientContext: this._currentTurn.value?.clientContext,
+				telemetryContext: this._currentTurn.value?.telemetryContext,
+				provider: COPILOT_CLI_AGENT_PROVIDER_ID,
+				session: this.resourceUri.toString(),
+				owner: this._ownerSessionUri.toString(),
+				turnId: this._turnId,
+				sdkEventId: e.id,
+				trigger: e.data.trigger,
+				isSubagentInvocation: !!e.agentId,
+			});
 			this._resumeSubagentForEvent(e);
 			if (this._shouldDropUnmappedSubagentEvent(e, 'skill.invoked')) {
 				return;

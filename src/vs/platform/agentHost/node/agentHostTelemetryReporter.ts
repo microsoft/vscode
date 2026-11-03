@@ -1104,6 +1104,42 @@ export interface IAgentHostSkillContentReadReport {
 	pluginVersion: string | undefined;
 }
 
+const skillInvocationTriggers: ReadonlySet<string> = new Set(['agent-invoked', 'user-invoked', 'context-load']);
+
+export interface IAgentHostSkillInvokedReport extends IAgentHostTurnAttributedReport {
+	provider: string;
+	session: string;
+	/** Owning session, recorded when the turn or request started. */
+	owner: string;
+	turnId: string;
+	/** The SDK `skill.invoked` event id; equals `event_id` on the forwarded `copilotSdk/skill_invoked`. */
+	sdkEventId: string;
+	trigger: string | undefined;
+	isSubagentInvocation: boolean;
+}
+
+type IAgentHostSkillInvokedEvent = IAgentHostEventTelemetry & {
+	provider: string;
+	agentSessionId: string;
+	chatSessionId: string;
+	turnId: string;
+	sdkEventId: string;
+	trigger: string;
+	isSubagentInvocation: boolean;
+};
+
+type IAgentHostSkillInvokedClassification = IAgentHostEventClassification & {
+	owner: 'bhavyaus';
+	comment: 'Records what triggered each agent host skill invocation, to tell skills the agent chose apart from skills the user ran. Skill identity is on copilotSdk/skill_invoked, joined by sdkEventId.';
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host provider that invoked the skill.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the agent host session.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host turn in which the skill was invoked.' };
+	sdkEventId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The SDK skill invocation event identifier; equals event_id on copilotSdk/skill_invoked.' };
+	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What triggered the invocation: agent-invoked (the model chose the skill), user-invoked (slash command or UI), context-load (preloaded by a custom agent or subagent), or unknown.' };
+	isSubagentInvocation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a subagent, rather than the main agent, invoked the skill.' };
+};
+
 export type AgentHostRepoInfoResult = 'success' | 'filesChanged' | 'diffTooLarge' | 'noChanges' | 'tooManyChanges' | 'mergeBaseTooOld' | 'virtualFileSystem' | 'tooManyCommits';
 
 export interface IAgentHostRepoInfoReport {
@@ -1671,6 +1707,25 @@ export class AgentHostTelemetryReporter {
 		});
 		restricted.sendEnhancedGHTelemetryEvent('skillContentRead', plaintextProps);
 		restricted.sendInternalMSFTTelemetryEvent('skillContentRead', plaintextProps);
+	}
+
+	/**
+	 * Records what triggered a skill invocation. Skill identity (hashed name, plugin) stays on the
+	 * forwarded runtime `copilotSdk/skill_invoked`; join the two on `sdkEventId` = `event_id`.
+	 */
+	skillInvoked(report: IAgentHostSkillInvokedReport): void {
+		const agentSessionId = AgentSession.id(report.owner);
+		this._telemetryService.publicLog2<IAgentHostSkillInvokedEvent, IAgentHostSkillInvokedClassification>('agentHost.skillInvoked', {
+			...toInitiatorTelemetry(report.clientContext),
+			...toCopilotTelemetryData(report.telemetryContext),
+			provider: report.provider,
+			agentSessionId,
+			chatSessionId: getTelemetryChatSessionId(report.session),
+			turnId: report.turnId,
+			sdkEventId: report.sdkEventId,
+			trigger: report.trigger !== undefined && skillInvocationTriggers.has(report.trigger) ? report.trigger : 'unknown',
+			isSubagentInvocation: report.isSubagentInvocation,
+		});
 	}
 
 	async reportRepoInfo(context: IAgentHostRestrictedTelemetryContext, report: IAgentHostRepoInfoReport): Promise<void> {

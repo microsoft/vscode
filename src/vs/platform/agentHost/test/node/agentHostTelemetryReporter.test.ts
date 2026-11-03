@@ -1147,4 +1147,19 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.strictEqual(service.enhancedEvents[0].properties?.skillExtensionId, '');
 		assert.strictEqual(service.enhancedEvents[0].properties?.skillExtensionVersion, '');
 	});
+
+	test('skillInvoked reports the invocation trigger, bounding unknown values', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+		const base = { provider: 'copilotcli', session, owner: session, turnId: 'turn-1' };
+
+		reporter.skillInvoked({ ...base, sdkEventId: 'e1', trigger: 'agent-invoked', isSubagentInvocation: false, telemetryContext: { copilotSku: 'sku-a' } });
+		reporter.skillInvoked({ ...base, sdkEventId: 'e2', trigger: 'something-new', isSubagentInvocation: true });
+
+		const chatSessionId = getTelemetryChatSessionId(session);
+		assert.deepStrictEqual(service.standardEvents, [
+			{ eventName: 'agentHost.skillInvoked', data: { copilotSku: 'sku-a', provider: 'copilotcli', agentSessionId: 'abc', chatSessionId, turnId: 'turn-1', sdkEventId: 'e1', trigger: 'agent-invoked', isSubagentInvocation: false } },
+			{ eventName: 'agentHost.skillInvoked', data: { provider: 'copilotcli', agentSessionId: 'abc', chatSessionId, turnId: 'turn-1', sdkEventId: 'e2', trigger: 'unknown', isSubagentInvocation: true } },
+		]);
+	});
 });

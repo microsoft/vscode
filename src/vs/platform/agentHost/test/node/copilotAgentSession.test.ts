@@ -18395,6 +18395,23 @@ Use the attached image as context.
 			assert.strictEqual(ready?.toolInput, '{"skill":"plan"}');
 		});
 
+		test('skill invocations report their trigger with the SDK event id', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
+			session.resetTurnState('turn-skill');
+
+			mockSession.fire('skill.invoked', { name: 'commit', path: '/skills/commit/SKILL.md', content: '', trigger: 'agent-invoked' }, { id: 'skill-1' });
+			mockSession.fire('skill.invoked', { name: 'merge', path: '/skills/merge/SKILL.md', content: '', trigger: 'user-invoked' }, { id: 'skill-2' });
+
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.skillInvoked').map(event => {
+				const data = event.data as Record<string, unknown>;
+				return { sdkEventId: data.sdkEventId, turnId: data.turnId, trigger: data.trigger, isSubagentInvocation: data.isSubagentInvocation };
+			}), [
+				{ sdkEventId: 'skill-1', turnId: 'turn-skill', trigger: 'agent-invoked', isSubagentInvocation: false },
+				{ sdkEventId: 'skill-2', turnId: 'turn-skill', trigger: 'user-invoked', isSubagentInvocation: false },
+			]);
+		});
+
 		test('MCP permissions preserve the tool arguments for clients', async () => {
 			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables);
 			const args = { path: '/repo/image.png', query: 'theme' };
