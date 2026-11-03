@@ -154,6 +154,7 @@ suite('Sessions chat window provider', () => {
 				override readonly groups = [];
 				override readonly onDidAddGroup = Event.None;
 				override readonly onDidRemoveGroup = Event.None;
+				override readonly onDidMoveGroup = Event.None;
 			}();
 			override readonly layoutMode = constObservable(ChatWindowLayoutMode.SideBySide);
 			override readonly onDidClose = Event.None;

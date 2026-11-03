@@ -60,6 +60,7 @@ suite('Chat window', () => {
 			override readonly activeGroup = group;
 			override readonly onDidAddGroup = onDidAddGroup.event;
 			override readonly onDidRemoveGroup = Event.None;
+			override readonly onDidMoveGroup = Event.None;
 			override close() {
 				events.push(`close ${name}`);
 				if (options?.veto) {

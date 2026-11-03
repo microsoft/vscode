@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, getActiveWindow } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, getActiveWindow } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -54,6 +54,20 @@ export interface IChatWindowHost {
 	readonly terminalsVisible: IObservable<boolean>;
 	/** The chat's editor moved out of the window, such as into the main window or into an editor window. */
 	didMoveChatOut(): void;
+}
+
+/** The class of a chat window's element while something is dragged in one of `windows`. */
+const CHAT_WINDOW_DRAGGING_CLASS = 'dragging-editor';
+
+function bindDraggingClass(element: HTMLElement, windows: readonly Window[]): IDisposable {
+	const store = new DisposableStore();
+	for (const targetWindow of windows) {
+		store.add(addDisposableListener(targetWindow, EventType.DRAG_START, () => element.classList.add(CHAT_WINDOW_DRAGGING_CLASS), true));
+		for (const type of [EventType.DRAG_END, EventType.DROP]) {
+			store.add(addDisposableListener(targetWindow, type, () => element.classList.remove(CHAT_WINDOW_DRAGGING_CLASS), true));
+		}
+	}
+	return store;
 }
 
 /**
@@ -415,6 +429,9 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		if (look.className) {
 			host.classList.add(look.className);
 		}
+		// While something is dragged, such as an editor from this window or the main window, the window says so, so that
+		// regions that move the window, such as the empty space of a tab row at its top, take the drop instead.
+		disposables.add(bindDraggingClass(host, [auxiliaryWindow.window, mainWindow]));
 		const grid = disposables.add(new ChatWindowGrid(host, {
 			main: mainPart,
 			chat: chatPart,

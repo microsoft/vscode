@@ -38,6 +38,7 @@ suite('Chat window grid', () => {
 			override readonly groups = [group];
 			override readonly onDidAddGroup = Event.None;
 			override readonly onDidRemoveGroup = Event.None;
+			override readonly onDidMoveGroup = Event.None;
 			override readonly onWillClose = Event.None;
 			override layout() { }
 			override setVisible() { }
@@ -196,6 +197,7 @@ suite('Chat window grid', () => {
 			override readonly groups = [group];
 			override readonly onDidAddGroup = Event.None;
 			override readonly onDidRemoveGroup = Event.None;
+			override readonly onDidMoveGroup = Event.None;
 			override readonly onWillClose = Event.None;
 			override layout() { }
 			override setVisible() { }
@@ -362,6 +364,7 @@ suite('Chat window grid', () => {
 			override readonly groups = [new class extends mock<IEditorGroup>() { override readonly isEmpty = false; override readonly onDidModelChange = Event.None; }()];
 			override readonly onDidAddGroup = Event.None;
 			override readonly onDidRemoveGroup = Event.None;
+			override readonly onDidMoveGroup = Event.None;
 			override readonly onWillClose = Event.None;
 			override layout() { }
 			override setVisible() { }
@@ -525,6 +528,7 @@ suite('Chat window grid', () => {
 			override readonly groups = [new class extends mock<IEditorGroup>() { override readonly isEmpty = false; override readonly onDidModelChange = Event.None; }()];
 			override readonly onDidAddGroup = Event.None;
 			override readonly onDidRemoveGroup = Event.None;
+			override readonly onDidMoveGroup = Event.None;
 			override readonly onWillClose = Event.None;
 			override layout() { }
 			override setVisible() { }

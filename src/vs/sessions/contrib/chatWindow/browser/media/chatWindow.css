@@ -116,3 +116,16 @@
 .monaco-workbench .agents-chat-window .chat-window-title-row > .part.titlebar .titlebar-left > .window-controls-container {
 	margin-left: calc(-1 * var(--chat-window-outer-inset-left, 0px));
 }
+
+/*
+ * The tab rows at the top edge of the window: their empty space moves the window, as the title row of the window does.
+ * Their tabs and actions take clicks and drags; while an editor is dragged, the whole row takes it, as a drop target.
+ */
+.monaco-workbench .agents-chat-window .part-grid-cell-top-edge .editor-group-container.part-grid-top-edge-group > .title {
+	-webkit-app-region: drag;
+}
+
+.monaco-workbench .agents-chat-window .part-grid-cell-top-edge .editor-group-container.part-grid-top-edge-group > .title :is(.tab, .action-item, .monaco-button, .monaco-breadcrumbs, .title-label, input, a),
+.monaco-workbench .agents-chat-window.dragging-editor .part-grid-cell-top-edge .editor-group-container.part-grid-top-edge-group > .title {
+	-webkit-app-region: no-drag;
+}

@@ -14,13 +14,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IPartGridView, PartGrid } from '../../../../browser/parts/partGrid/partGrid.js';
+import { IPartGridView, PART_GRID_TOP_EDGE_CLASS, PART_GRID_TOP_EDGE_GROUP_CLASS, PartGrid } from '../../../../browser/parts/partGrid/partGrid.js';
+import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
 import { ContentPart } from '../../../../browser/parts/editor/contentPart.js';
 import { GRID_GAP_SASH_CLASS } from '../../../../browser/parts/partGrid/partGridGap.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
 import { IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
-import { IContentPart, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { GroupDirection, IContentPart, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { createEditorParts, registerTestEditor, TestEditorParts, TestFileEditorInput, workbenchInstantiationService } from '../../workbenchTestServices.js';
 
@@ -115,6 +116,42 @@ suite('Part Grid', () => {
 			'column(title, side, row(chat, bottom))',
 			'column(title, chat, row(side, bottom))'
 		]);
+	});
+
+	test('the groups whose title is at the top edge of the grid are marked, as parts move, split, show and hide, below a row of chrome or not', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		const main = createPart(parts);
+		const chat = createPart(parts);
+		const terminals = createPart(parts);
+		await Promise.all([openEditor(main, '/main.txt'), openEditor(chat, '/chat.txt'), openEditor(terminals, '/terminals.txt')]);
+		grid.addPart('chat', chat);
+		grid.addPart('main', main, { reference: 'chat', direction: Direction.Right });
+		grid.addPart('terminals', terminals, { edge: Direction.Down });
+		const lowerMainGroup = main.addGroup(main.activeGroup, GroupDirection.DOWN);
+		const topEdge = () => ({
+			cells: ['chat', 'main', 'terminals'].filter(id => mainWindow.document.querySelector(`[data-part-grid-cell="${id}"]`)?.classList.contains(PART_GRID_TOP_EDGE_CLASS)),
+			groups: [['chat', chat], ['main', main], ['terminals', terminals]].flatMap(([name, part]) => (part as IContentPart).groups
+				.filter(group => (group as IEditorGroupView).element.classList.contains(PART_GRID_TOP_EDGE_GROUP_CLASS))
+				.map(group => `${name}${group === lowerMainGroup ? ' (lower)' : ''}`)),
+		});
+
+		const sideBySide = topEdge();
+		// Move Part Up: the terminals across the top.
+		grid.moveCell('terminals', { edge: Direction.Up });
+		const terminalsMovedUp = topEdge();
+		grid.setCellVisible('terminals', false);
+		const terminalsHidden = topEdge();
+		// A row of chrome across the top, such as the title row of the window.
+		grid.addView('title', createView(), { edge: Direction.Up });
+		const belowTitleRow = topEdge();
+
+		assert.deepStrictEqual({ sideBySide, terminalsMovedUp, terminalsHidden, belowTitleRow }, {
+			sideBySide: { cells: ['chat', 'main'], groups: ['chat', 'main'] },
+			terminalsMovedUp: { cells: ['terminals'], groups: ['terminals'] },
+			terminalsHidden: { cells: ['chat', 'main'], groups: ['chat', 'main'] },
+			belowTitleRow: { cells: [], groups: [] },
+		});
 	});
 
 	test('a part shows while it has editors; once no part has editors, the grid says so', async () => {
