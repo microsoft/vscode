@@ -17,6 +17,20 @@
 	height: 100%;
 }
 
+.remotes-editor-content:not([hidden]) {
+	display: flex;
+	flex-direction: column;
+}
+
+.remotes-editor-this-computer {
+	flex-shrink: 0;
+}
+
+.remotes-editor-table {
+	flex: 1;
+	min-height: 0;
+}
+
 .remotes-editor-disabled {
 	color: var(--vscode-descriptionForeground);
 }
@@ -118,11 +132,23 @@
 
 .remotes-widget .remotes-name,
 .remotes-widget .remotes-empty-description,
-.remotes-widget .remotes-connection-state {
+.remotes-widget .remotes-connection-state,
+.remotes-widget .remotes-host-availability {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.remotes-widget .remotes-connection-content {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.remotes-widget .remotes-host-availability {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
 }
 
 .remotes-widget .remotes-name-content {

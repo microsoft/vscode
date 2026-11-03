@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
-import { derived, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, derived, observableValue } from '../../../../../../base/common/observable.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -38,7 +38,7 @@ import { IRemoteTunnelService, TunnelStatus } from '../../../../../../platform/r
 import { TestProgressService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IInputOptions, IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, LocalAgentHostRegistration } from '../../../../../common/agentHostSessionsProvider.js';
 import { DevContainerAgentHostEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IRemoteRefreshProgress, RemotesModel, remoteKinds } from '../../browser/remotesModel.js';
@@ -336,9 +336,10 @@ suite('RemotesModel', () => {
 					change: { keys: [key], overrides: [] }, affectsConfiguration: section => section === key,
 				});
 			},
-			addEnvironmentProvider: (id: string) => {
+			addEnvironmentProvider: (id: string, localRegistration?: LocalAgentHostRegistration) => {
 				const address = cloudSandboxAddress(id);
 				const provider = createProvider(address);
+				Object.assign(provider, { localRegistration: constObservable(localRegistration) });
 				providers.set(address, provider);
 				providersChanged.fire({ added: [], removed: [] });
 				return provider;
@@ -1493,6 +1494,34 @@ suite('RemotesModel', () => {
 		await model.setConnected(id, false);
 		assert.deepStrictEqual({ environmentConnections, connectionChanges, retained: model.remotes.get().some(remote => remote.id === id) }, {
 			environmentConnections: ['desktop'], connectionChanges: [{ id, connected: true }, { id, connected: false }], retained: true,
+		});
+	});
+
+	test('identifies this computer\'s registration and reports host availability separately from the connection', async () => {
+		const { model, configuration, environmentAvailable, environmentHosts, addEnvironmentProvider } = setup();
+		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentAvailable.set(true, undefined);
+		environmentHosts.set([
+			{ id: 'self', name: 'Workstation', kind: 'user-local', status: 'online' },
+			{ id: 'desktop', name: 'Desktop', kind: 'user-local', status: 'offline' },
+		], undefined);
+		addEnvironmentProvider('self', 'githubEnvironment');
+		addEnvironmentProvider('desktop');
+		const summarize = () => model.remotes.get()
+			.filter(remote => remote.kind === 'environment' || remote.kind === 'tunnel')
+			.map(({ name, connectionStatus, localRegistration, hostAvailability, unavailableReason, pickerUnavailableReason }) => ({ name, connection: connectionStatus.kind, localRegistration, hostAvailability, unavailableReason, pickerUnavailableReason }));
+		const cached = summarize();
+		await model.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ cached, discovered: summarize() }, {
+			cached: [
+				{ name: 'Desktop', connection: 'disconnected', localRegistration: undefined, hostAvailability: 'offline', unavailableReason: 'This environment is not online. Start its owning application before connecting.', pickerUnavailableReason: 'Available in the picker when the owning application is online.' },
+				{ name: 'Workstation', connection: 'disconnected', localRegistration: 'githubEnvironment', hostAvailability: 'online', unavailableReason: 'This is this computer\'s GitHub environment. Run sessions here with This Computer in the Environment picker.', pickerUnavailableReason: 'This computer appears as This Computer in the Environment picker.' },
+			],
+			discovered: [
+				{ name: 'Laptop', connection: 'disconnected', localRegistration: undefined, hostAvailability: 'online', unavailableReason: undefined, pickerUnavailableReason: undefined },
+				{ name: 'Desktop', connection: 'disconnected', localRegistration: undefined, hostAvailability: 'offline', unavailableReason: 'This environment is not online. Start its owning application before connecting.', pickerUnavailableReason: 'Available in the picker when the owning application is online.' },
+				{ name: 'Workstation', connection: 'disconnected', localRegistration: 'githubEnvironment', hostAvailability: 'online', unavailableReason: 'This is this computer\'s GitHub environment. Run sessions here with This Computer in the Environment picker.', pickerUnavailableReason: 'This computer appears as This Computer in the Environment picker.' },
+			],
 		});
 	});
 

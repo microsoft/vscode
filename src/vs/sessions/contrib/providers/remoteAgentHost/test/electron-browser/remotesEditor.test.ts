@@ -7,21 +7,25 @@ import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AccessibleViewType } from '../../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry } from '../../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
-import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOptions } from '../../../../../../platform/editor/common/editor.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ISharedProcessService } from '../../../../../../platform/ipc/electron-browser/services.js';
+import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, TunnelMode, TunnelStatus } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { EditorInputCapabilities, IVisibleEditorPane } from '../../../../../../workbench/common/editor.js';
 import { AICustomizationManagementEditorInput } from '../../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { ModelsManagementEditorInput } from '../../../../../../workbench/contrib/chat/browser/chatManagement/chatManagementEditorInput.js';
@@ -30,7 +34,7 @@ import { IChatEntitlementService } from '../../../../../../workbench/services/ch
 import { IEditorService } from '../../../../../../workbench/services/editor/common/editorService.js';
 import { IPreferencesService } from '../../../../../../workbench/services/preferences/common/preferences.js';
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
-import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../../../common/sessionCommands.js';
+import { OPEN_REMOTES_EDITOR_COMMAND_ID, TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID } from '../../../../../common/sessionCommands.js';
 import { IsPhoneLayoutContext } from '../../../../../common/contextkeys.js';
 import { Menus } from '../../../../../browser/menus.js';
 import { RemotesEditorInput } from '../../browser/remotesEditorInput.js';
@@ -71,6 +75,18 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	}
 }
 
+class TestRemoteTunnelService extends mock<IRemoteTunnelService>() {
+	private readonly onDidChangeStatusEmitter = new Emitter<TunnelStatus>();
+	override readonly onDidChangeTunnelStatus = this.onDidChangeStatusEmitter.event;
+	override readonly onDidChangeMode = Event.None;
+	override async getMode(): Promise<TunnelMode> { return INACTIVE_TUNNEL_MODE; }
+	override async getTunnelStatus(): Promise<TunnelStatus> { return { type: 'disconnected' }; }
+	override async getTunnelName(): Promise<string | undefined> { return 'my-workstation'; }
+	override async stopTunnel(): Promise<void> { }
+	fireStatus(status: TunnelStatus): void { this.onDidChangeStatusEmitter.fire(status); }
+	dispose(): void { this.onDidChangeStatusEmitter.dispose(); }
+}
+
 suite('RemotesEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -81,6 +97,16 @@ suite('RemotesEditor', () => {
 		instantiation.stub(ISSHRemoteAgentHostService, {});
 		instantiation.stub(IPreferencesService, {});
 		instantiation.stub(ISharedProcessService, { getChannel: () => ({ call: async (): Promise<never> => { throw new Error('Unexpected IPC call'); }, listen: () => Event.None }) });
+		const tunnel = store.add(new TestRemoteTunnelService());
+		instantiation.stub(IRemoteTunnelService, tunnel);
+		instantiation.stub(IMissionControlSharingService, new class extends mock<IMissionControlSharingService>() {
+			override readonly state = observableValue<'disabled' | 'connecting' | 'enabled'>(this, 'disabled');
+			override readonly environmentName = observableValue<string | undefined>(this, undefined);
+		}());
+		instantiation.stub(IMissionControlAvailabilityService, { available: observableValue('available', true) });
+		instantiation.stub(IAgentHostService, new class extends mock<IAgentHostService>() {
+			override async getMissionControlEnvironmentName() { return 'My Workstation (Code - OSS)'; }
+		}());
 		const model = store.add(new TestRemotesModel());
 		instantiation.stubInstance(RemotesModel, model);
 		const editor = store.add(instantiation.createInstance(RemotesEditor, new TestEditorGroupView(1)));
@@ -89,7 +115,7 @@ suite('RemotesEditor', () => {
 		editor.create(container);
 		editor.layout(new dom.Dimension(900, 600));
 		const input = store.add(new RemotesEditorInput());
-		return { editor, model, container, input, configuration, instantiation };
+		return { editor, model, container, input, configuration, instantiation, tunnel };
 	}
 
 	test('uses an independent singleton input that requires a modal', () => {
@@ -171,6 +197,37 @@ suite('RemotesEditor', () => {
 		});
 	});
 
+	test('This Computer shows how this computer is shared and turns on the chosen connection method', async () => {
+		const { editor, container, input, instantiation, tunnel, configuration } = createEditor();
+		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		const commands: string[] = [];
+		instantiation.stub(ICommandService, {
+			executeCommand: async (id: string) => {
+				commands.push(id);
+				tunnel.fireStatus({ type: 'connected', info: { tunnelName: 'my-workstation', isAttached: false }, serviceInstallFailed: false });
+				return undefined;
+			},
+		});
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+		await timeout(0);
+		const section = container.querySelector<HTMLElement>('.remotes-this-computer')!;
+		const options = () => [...section.querySelectorAll<HTMLElement>('.monaco-custom-radio > .monaco-button')];
+		const read = () => ({
+			name: section.querySelector('.remotes-this-computer-name')?.textContent,
+			options: options().map(button => button.getAttribute('aria-checked') === 'true' ? `${button.textContent} (selected)` : button.textContent),
+			status: section.querySelector('.remotes-this-computer-status')?.textContent,
+		});
+		const before = read();
+		options()[1].click();
+		await timeout(0);
+		assert.deepStrictEqual({ before, after: read(), commands, accessible: editor.getAccessibilityContent().split('\n\n')[0] }, {
+			before: { name: 'my-workstation', options: ['Off (selected)', 'Dev Tunnels', 'GitHub Environments (Preview)'], status: 'Remote connections are off.' },
+			after: { name: 'my-workstation', options: ['Off', 'Dev Tunnels (selected)', 'GitHub Environments (Preview)'], status: 'Remote connections are on via Dev Tunnels.' },
+			commands: [TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID],
+			accessible: 'This Computer\nSharing name: my-workstation\nRemote connections are on via Dev Tunnels.\nLocal sessions run directly here. Sharing lets other clients access agents and folders on this computer.',
+		});
+	});
+
 	test('loads only while visible and cancels discovery when hidden or cleared', async () => {
 		const { editor, model, container, input } = createEditor();
 		model.pendingRefresh = new DeferredPromise<readonly RemoteKind[]>();
@@ -189,7 +246,7 @@ suite('RemotesEditor', () => {
 			hiddenRefreshes, focused, canceledWhenHidden,
 			canceledWhenCleared: model.refreshTokens[1].isCancellationRequested,
 			disposed: model.disposed,
-			widgets: container.querySelectorAll('.remotes-widget').length,
+			widgets: container.querySelectorAll('.remotes-widget, .remotes-this-computer').length,
 			customizationEditors: container.querySelectorAll('.ai-customization-management-editor').length,
 		}, {
 			hiddenRefreshes: 0, focused: 'Search remotes', canceledWhenHidden: true,

@@ -13,7 +13,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxConnectOptions, ICloudSandboxEnvironment, IMissionControlEnvironment } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, IRemoteAgentHostConnectionInfo, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -61,8 +61,8 @@ suite('Mission Control inventory', () => {
 		const events: { eventName: string; data: ITelemetryData | undefined }[] = [];
 		let account: string | undefined = initialAccount;
 		let hidden = false;
-		let own = 'own';
-		let list: Promise<readonly IMissionControlEnvironment[]> = Promise.resolve([host('remote'), host('own'), { ...host('managed'), kind: 'managed-sandbox' }]);
+		let own: string | undefined = 'own';
+		let list: Promise<readonly IMissionControlEnvironment[]> = Promise.resolve([host('remote'), { ...host('managed'), kind: 'managed-sandbox' }]);
 		let discoveryToken: CancellationToken | undefined;
 		let listed = new DeferredPromise<void>();
 		let environment: Promise<ICloudSandboxEnvironment> = Promise.resolve({ id: 'remote', status: 'online' });
@@ -109,6 +109,10 @@ suite('Mission Control inventory', () => {
 		instantiation.stub(IAgentHostService, new class extends mock<IAgentHostService>() {
 			override async getMissionControlEnvironmentId() { return own; }
 		}());
+		const sharingState = observableValue<'disabled' | 'connecting' | 'enabled'>('sharingState', 'disabled');
+		instantiation.stub(IMissionControlSharingService, new class extends mock<IMissionControlSharingService>() {
+			override readonly state = sharingState;
+		}());
 		instantiation.stub(IStorageService, storage);
 		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(IEnvironmentService, { isBuilt: built, isExtensionDevelopment: extensionDevelopment });
@@ -134,7 +138,8 @@ suite('Mission Control inventory', () => {
 			setDeleting: (result: Promise<void>) => { deleting = result; },
 			changeAccount: (value: string | undefined) => { account = value; accountChanged.fire(value); },
 			disableAI: () => { hidden = true; sentimentChanged.fire(); },
-			setOwn: (id: string) => { own = id; },
+			setOwn: (id: string | undefined) => { own = id; },
+			setSharingState: (state: 'disabled' | 'connecting' | 'enabled') => sharingState.set(state, undefined),
 			setConnectionStatus: (status: RemoteAgentHostConnectionStatus) => { connectionStatus = status; },
 		};
 	}
@@ -161,13 +166,31 @@ suite('Mission Control inventory', () => {
 		]);
 	}));
 
-	test('discovers native hosts before connection and excludes self and managed compute', async () => {
-		const { service, calls } = fixture();
+	test('discovers native hosts before connection, identifies this computer and excludes managed compute', async () => {
+		const { service, calls, setList } = fixture();
+		void setList(Promise.resolve([host('remote'), host('own'), { ...host('managed'), kind: 'managed-sandbox' }]));
 		await service.refresh(CancellationToken.None);
-		assert.deepStrictEqual({ hosts: service.hosts.get(), calls }, {
-			hosts: [{ ...host('remote'), displayName: undefined }],
+		assert.deepStrictEqual({ hosts: service.hosts.get(), own: service.ownEnvironmentId.get(), calls }, {
+			hosts: [{ ...host('remote'), displayName: undefined }, { ...host('own'), displayName: undefined }],
+			own: 'own',
 			calls: { lists: 1, lookups: [], connects: [], disconnects: [], waits: [] },
 		});
+	});
+
+	test('remembers this computer while sharing is off and forgets it once its registration is gone', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const withOwn = [host('remote'), host('own')];
+		const first = fixture(storage);
+		void first.setList(Promise.resolve(withOwn));
+		await first.service.refresh(CancellationToken.None);
+		const second = fixture(storage);
+		second.setOwn(undefined);
+		void second.setList(Promise.resolve(withOwn));
+		await second.service.refresh(CancellationToken.None);
+		const remembered = second.service.ownEnvironmentId.get();
+		void second.setList(Promise.resolve([host('remote')]));
+		await second.service.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ remembered, forgotten: second.service.ownEnvironmentId.get() }, { remembered: 'own', forgotten: undefined });
 	});
 
 	for (const status of ['online', 'offline']) {
@@ -283,7 +306,7 @@ suite('Mission Control inventory', () => {
 		});
 	}
 
-	test('excludes a native host whose registration becomes ready during discovery', async () => {
+	test('identifies a native host whose registration becomes ready during discovery as this computer', async () => {
 		const { service, setList, setOwn, calls } = fixture();
 		const inventory = new DeferredPromise<readonly IMissionControlEnvironment[]>();
 		const listed = setList(inventory.p);
@@ -292,7 +315,7 @@ suite('Mission Control inventory', () => {
 		setOwn('remote');
 		await inventory.complete([host('remote')]);
 		await refresh;
-		assert.deepStrictEqual({ hosts: service.hosts.get(), connects: calls.connects }, { hosts: [], connects: [] });
+		assert.deepStrictEqual({ hosts: service.hosts.get().map(host => host.id), own: service.ownEnvironmentId.get(), connects: calls.connects }, { hosts: ['remote'], own: 'remote', connects: [] });
 	});
 
 	test('restores account/profile-local metadata before network and preserves rename on refresh', async () => {

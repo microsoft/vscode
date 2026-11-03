@@ -30,7 +30,7 @@ import { IProgress, IProgressService } from '../../../../../platform/progress/co
 import { IRemoteTunnelService, TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { DevContainerAgentHostEnabledSettingId, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
-import { IAgentHostSessionsProvider, isAgentHostProvider, isRemoteSessionCreationEnvironment } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider, isRemoteSessionCreationEnvironment, LocalAgentHostRegistration } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { changeRemoteAgentHostLocationPreference, confirmTunnelDeletion, disconnectSSHEntry, reconnectRemoteHost, removeRemoteHost, renameRemoteHost, sshConnectionKey, upgradeRemoteHost } from './remoteHostOptions.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from './remoteAgentHostPickerVisibility.js';
@@ -58,6 +58,10 @@ export interface ICustomizationRemote {
 	readonly unavailableReason?: string;
 	readonly hidden?: boolean;
 	readonly pickerUnavailableReason?: string;
+	/** Set when this remote is a sharing registration of the computer running this window. */
+	readonly localRegistration?: LocalAgentHostRegistration;
+	/** Last reported availability of the remote's host, independent of this window's connection. */
+	readonly hostAvailability?: 'online' | 'offline';
 }
 
 export type IRemoteRefreshProgress =
@@ -113,6 +117,8 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 	private tunnelDiscoveryVersion = 0;
 	private sshConfigAddresses: ReadonlySet<string> | undefined;
 	private sshDiscoveryVersion = 0;
+	/** Whether the last tunnel discovery succeeded, so discovered tunnels report their host availability. */
+	private tunnelAvailabilityKnown = false;
 
 	constructor(
 		private readonly discoverDevContainers: (token: CancellationToken) => Promise<readonly IDiscoveredDevContainer[]>,
@@ -147,6 +153,9 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		this._register(autorun(reader => {
 			providersChanged.read(reader);
 			environmentAvailabilityService.available.read(reader);
+			for (const provider of providersService.getProviders().filter(isAgentHostProvider)) {
+				provider.localRegistration?.read(reader);
+			}
 			this.update(reader);
 		}));
 		this._register(remoteAgentHostService.onDidChangeConnections(() => this.update()));
@@ -205,6 +214,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					}
 					if (kind === 'tunnel') {
 						this._tunnelAuthenticationRequired.set(undefined, undefined);
+						this.tunnelAvailabilityKnown = true;
 					}
 					this.update();
 				}
@@ -215,7 +225,9 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 						this.update();
 					}
 					if (kind === 'tunnel' && !this._store.isDisposed && this.enabled) {
+						this.tunnelAvailabilityKnown = false;
 						this._tunnelAuthenticationRequired.set(error instanceof TunnelAuthenticationRequiredError ? error.authProvider : undefined, undefined);
+						this.update();
 					}
 					this.logService.warn(`[Remotes] ${kind} discovery failed`, error);
 					failed = true;
@@ -608,6 +620,20 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		return getRemoteAgentHostPickerKey(this.getLocationPreferenceKey(target), target.kind === 'environment' ? target.account : undefined);
 	}
 
+	/** Reports the host's last known availability for tunnels and environments; undefined when unknown. */
+	private getHostAvailability(target: RemoteTarget, connectionStatus: RemoteAgentHostConnectionStatus): 'online' | 'offline' | undefined {
+		if (target.kind === 'tunnel') {
+			return RemoteAgentHostConnectionStatus.isConnected(connectionStatus) ? 'online'
+				: target.source === 'discovered' && this.tunnelAvailabilityKnown ? target.tunnel.hostConnectionCount > 0 ? 'online' : 'offline'
+					: undefined;
+		}
+		if (target.kind === 'environment') {
+			return RemoteAgentHostConnectionStatus.isConnected(connectionStatus) || target.host.status === 'online' ? 'online'
+				: target.host.status === 'offline' ? 'offline' : undefined;
+		}
+		return undefined;
+	}
+
 	private getLocationPreferenceKey(target: RemoteTarget): string {
 		if (target.kind === 'ssh' && target.entry.connection.type === RemoteAgentHostEntryType.SSH) {
 			const connection = target.entry.connection;
@@ -702,6 +728,12 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					break;
 			}
 			const provider = providersByAddress.get(id);
+			const localRegistration = provider?.localRegistration?.read(reader);
+			if (localRegistration === 'githubEnvironment') {
+				unavailableReason = localize('remotes.localEnvironment', "This is this computer's GitHub environment. Run sessions here with This Computer in the Environment picker.");
+			}
+			const connectionStatus = connectionStatuses.get(id) ?? RemoteAgentHostConnectionStatus.disconnected;
+			const hostAvailability = this.getHostAvailability(target, connectionStatus);
 			if (target.kind !== 'environment') {
 				name = this.remoteAgentHostService.getDisplayNameOverride(id) ?? (target.kind === 'tunnel' ? name : provider?.label ?? name);
 			}
@@ -709,6 +741,8 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			const hidden = this.pickerVisibility.isHidden(this.getPickerKey(target), reader);
 			remotes.push({
 				id, kind: target.kind, name, detail, canRemove, unavailableReason,
+				...(localRegistration ? { localRegistration } : {}),
+				...(hostAvailability ? { hostAvailability } : {}),
 				...(target.kind === 'tunnel' ? {
 					canDelete: this.tunnelService.canDeleteTunnels && !!this.remoteTunnelStatus
 						&& !isTunnelHosted(this.remoteTunnelStatus.type === 'connected' ? this.remoteTunnelStatus.info : undefined, target.tunnel),
@@ -716,8 +750,10 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				...(target.kind === 'ssh' ? {
 					canDelete: this.registered.has(id) && target.entry.connection.type === RemoteAgentHostEntryType.SSH && !this.isSSHHostConfigured(target.entry.connection),
 				} : {}),
-				hidden, pickerUnavailableReason: this.getPickerUnavailableReason(target, provider, hidden, reader),
-				connectionStatus: connectionStatuses.get(id) ?? RemoteAgentHostConnectionStatus.disconnected,
+				hidden, pickerUnavailableReason: localRegistration === 'githubEnvironment'
+					? localize('remotes.pickerLocalEnvironment', "This computer appears as This Computer in the Environment picker.")
+					: this.getPickerUnavailableReason(target, provider, hidden, reader),
+				connectionStatus,
 				...(connectionErrors.has(id) ? { lastConnectionError: connectionErrors.get(id) } : {}),
 			});
 		}

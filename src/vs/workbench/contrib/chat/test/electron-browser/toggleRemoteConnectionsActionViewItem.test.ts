@@ -35,7 +35,8 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IInputOptions, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { CONFIGURATION_KEY_HOST_NAME, INACTIVE_TUNNEL_MODE, IRemoteTunnelService, type ActiveTunnelMode, type TunnelMode, type TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
-import { getRemoteTunnelAccessState, RemoteConnectionsActionViewItem, ToggleRemoteConnectionsActionViewItem } from '../../electron-browser/toggleRemoteConnectionsActionViewItem.js';
+import { RemoteConnectionsActionViewItem, ToggleRemoteConnectionsActionViewItem } from '../../electron-browser/toggleRemoteConnectionsActionViewItem.js';
+import { getRemoteTunnelAccessState } from '../../electron-browser/remoteConnectionsSharing.js';
 import { executeToggleRemoteConnections, TUNNEL_HOST_SHARING_KEY, TunnelHostContribution } from '../../electron-browser/tunnelHost.contribution.js';
 import { IRemoteTunnelStartOptions, promptToRenameRemoteTunnel, RemoteTunnelCommandIds } from '../../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -161,7 +162,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => restore());
 
-	function fixture(backend: AgentHostRemoteConnectionsBackend = 'devTunnel', options: { quality?: IProductService['quality']; isChatInput?: boolean; precedingAction?: boolean } = { quality: 'insider' }) {
+	function fixture(backend: AgentHostRemoteConnectionsBackend = 'devTunnel', options: { quality?: IProductService['quality']; isChatInput?: boolean; precedingAction?: boolean; managementAction?: Action } = { quality: 'insider' }) {
 		const instantiation = store.add(new TestInstantiationService());
 		const availability = observableValue('availability', true);
 		instantiation.stub(IMissionControlAvailabilityService, { available: availability });
@@ -231,7 +232,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 
 		const run = stub().callsFake(() => instantiation.invokeFunction(accessor => executeToggleRemoteConnections(accessor)));
 		const action = store.add(new Action('test.toggleRemoteConnections', 'Toggle Remote Connections', undefined, true, run));
-		const viewItem = store.add(instantiation.createInstance(RemoteConnectionsActionViewItem, action, options.isChatInput ?? false));
+		const viewItem = store.add(instantiation.createInstance(RemoteConnectionsActionViewItem, action, options.isChatInput ?? false, { getManagementAction: () => options.managementAction }));
 		const container = dom.append(document.body, dom.$('div'));
 		store.add(toDisposable(() => container.remove()));
 		const actionBar = store.add(new ActionBar(container, { actionViewItemProvider: candidate => candidate === action ? viewItem : undefined }));
@@ -360,6 +361,27 @@ suite('RemoteConnectionsActionViewItem', () => {
 			{ id: 'remoteConnections.devTunnel', icon: 'radio-tower' },
 			{ id: 'remoteConnections.githubEnvironment', icon: 'github' },
 		]);
+	});
+
+	test('offers a separate management entry after the connection methods when provided', async () => {
+		const manage = stub().resolves(undefined);
+		const managementAction = store.add(new Action('test.manage', 'Manage Remote Environments...', undefined, true, manage));
+		const { openMenu, menuItems, sharing, executeCommand } = fixture('devTunnel', { quality: 'insider', managementAction });
+		const actions = openMenu();
+		await actions.find(action => action.id === 'test.manage')!.run();
+		assert.deepStrictEqual({
+			items: menuItems().map(item => item.label),
+			management: actions.filter(action => action.id === 'test.manage').map(action => ({ category: action.category?.label, icon: action.labelIcon?.id, checked: action.checked })),
+			managed: manage.callCount,
+			sharing: sharing.calls,
+			commands: executeCommand.callCount,
+		}, {
+			items: ['Off', 'Dev Tunnels', 'GitHub Environments', '', 'Manage Remote Environments...'],
+			management: [{ category: 'management', icon: Codicon.settingsGear.id, checked: undefined }],
+			managed: 1,
+			sharing: [],
+			commands: 0,
+		});
 	});
 
 	test('keeps the single titlebar button in the toolbar roving tab order', () => {
