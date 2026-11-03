@@ -81,6 +81,16 @@ run_suites() {
 		echo "Error: INTEGRATION_TEST_PARALLEL cannot be combined with INTEGRATION_TEST_APP_NAME" >&2
 		return 1
 	fi
+	# Each suite reports its own failure below. The EXIT trap of the script must not report it as the
+	# suite that ran before, such as the node.js integration tests.
+	CURRENT_SUITE=""
+	# Unless the caller prepared them, scripts/code.sh and scripts/node-electron.sh download Electron,
+	# compile and fetch the built-in extensions when they are missing or out of date, which can replace
+	# the Electron of another lane while it runs. Prepare them once, before the lanes start.
+	if [[ -z "$VSCODE_SKIP_PRELAUNCH" ]]; then
+		node "$ROOT/build/lib/preLaunch.ts"
+		export VSCODE_SKIP_PRELAUNCH=1
+	fi
 
 	# The groups, longest first.
 	local weights="" groups=() total
@@ -103,11 +113,20 @@ run_suites() {
 		run_lane "$state" "${groups[@]}" &
 		pids+=($!)
 	done
+	# A lane that stops, for example when it can't create the folders of a suite, doesn't run the rest
+	# of its group: fail the run, after waiting for the other lanes.
+	local failed=false status
 	for lane in "${pids[@]}"; do
-		wait "$lane" || true
+		wait "$lane" || {
+			status=$?
+			failed=true
+			echo "Integration tests failed: a parallel lane stopped with exit code $status before its suites finished." >&2
+			if [[ "$GITHUB_ACTIONS" == "true" ]]; then
+				echo "::error title=Integration tests failed::A parallel lane stopped with exit code $status before its suites finished"
+			fi
+		}
 	done
 
-	local failed=false
 	if [[ -s "$state/failed" ]]; then
 		failed=true
 		while IFS='|' read -r title status; do
