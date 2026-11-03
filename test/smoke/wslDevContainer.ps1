@@ -312,12 +312,14 @@ foreach ($line in Get-Content -LiteralPath (Join-Path $Root 'apt-uris.txt')) {
 	$algorithm = @{ SHA512 = 'SHA512'; SHA256 = 'SHA256'; SHA1 = 'SHA1'; MD5Sum = 'MD5' }[$Matches[4]]
 	$destination = Join-Path $debDirectory $name
 	$downloaded = $false
-	foreach ($candidate in @($url, ($url -replace '^http://azure\.archive\.ubuntu\.com/', 'http://archive.ubuntu.com/'))) {
+	# Each attempt opens a fresh connection: the Azure mirror twice, then the main Ubuntu archive.
+	$fallback = $url -replace '^http://azure\.archive\.ubuntu\.com/', 'http://archive.ubuntu.com/'
+	foreach ($candidate in @($url, $url, $fallback)) {
 		$remainingSeconds = [int]($hostDownloadDeadline - [DateTime]::UtcNow).TotalSeconds
 		if ($remainingSeconds -lt 10) {
 			break
 		}
-		curl.exe --fail --location --silent --show-error --retry 1 --retry-all-errors --connect-timeout 10 --max-time ([Math]::Min(120, $remainingSeconds)) --speed-limit 1048576 --speed-time 15 --output $destination $candidate
+		curl.exe --fail --location --silent --show-error --connect-timeout 10 --max-time ([Math]::Min(120, $remainingSeconds)) --speed-limit 1048576 --speed-time 15 --output $destination $candidate
 		if ($LASTEXITCODE -eq 0 -and (Get-Item -LiteralPath $destination).Length -eq $size -and (Get-FileHash -LiteralPath $destination -Algorithm $algorithm).Hash -eq $hash.ToUpperInvariant()) {
 			$downloaded = $true
 			break
