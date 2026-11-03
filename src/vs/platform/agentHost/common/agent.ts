@@ -16,7 +16,7 @@ import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
 import type { IAgentHostProcessExitEvent } from './agentHostProcessExit.js';
-import type { CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
+import type { AgentHostPrewarmSkipReason, CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
 import type { IChatSurfaceMeta } from './meta/agentChatSurfaceMeta.js';
 import type { IAgentChatUsage } from './meta/agentUsageMeta.js';
@@ -850,6 +850,12 @@ export interface IAgentChatContext {
 	 */
 	readonly reportPrewarmedSession?: (discardReason?: string) => void;
 	/**
+	 * Records, before progress can complete the addressed turn, that its send
+	 * materialized a deferred provider session without a pre-warmed one to
+	 * claim or discard, and the bounded reason.
+	 */
+	readonly reportPrewarmSkipped?: (reason: AgentHostPrewarmSkipReason) => void;
+	/**
 	 * The addressed chat's origin, taken verbatim from the host-owned chat
 	 * catalog, and exhaustive across every way a chat comes into existence:
 	 * a plainly user-created peer chat and the session-backed default chat
@@ -1248,6 +1254,13 @@ export interface IAgentChats {
 	 * doing work.
 	 */
 	warmChat?(chat: URI, context: IAgentChatContext): Promise<boolean>;
+
+	/**
+	 * Records why the host is not (yet) warming a deferred chat
+	 * ({@link warmChat}), so its first send can report it. The latest call
+	 * wins; a later warm launch supersedes it.
+	 */
+	noteWarmSkipped?(chat: URI, context: IAgentChatContext, reason: AgentHostPrewarmSkipReason): void;
 
 	/**
 	 * Create a fresh additional chat within an already-provisioned `session`,

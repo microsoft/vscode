@@ -787,6 +787,8 @@ const HOOK_TYPE_MAP: Record<string, string> = {
 	'userPromptTransformed': 'UserPromptTransformed',
 	'preToolUse': 'PreToolUse',
 	'postToolUse': 'PostToolUse',
+	'preCompact': 'PreCompact',
+	'subagentStart': 'SubagentStart',
 	'agentStop': 'Stop',
 	'subagentStop': 'SubagentStop',
 	'errorOccurred': 'ErrorOccurred',

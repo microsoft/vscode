@@ -11,7 +11,7 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
-import { constObservable, derived, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, derived, observableValue, type IObservable, type ISettableObservable } from '../../../../../../base/common/observable.js';
 import { ExtUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -23,7 +23,8 @@ import { IConfigurationService, IConfigurationValue } from '../../../../../../pl
 import { ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import type { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IAgentCreateSessionConfig, IAgentHostService, IAgentResolveSessionConfigParams } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostPrewarmSessionsSettingId, IAgentCreateSessionConfig, IAgentHostService, IAgentResolveSessionConfigParams } from '../../../../../../platform/agentHost/common/agentService.js';
+import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../../platform/agentHost/common/agent.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { AhpErrorCodes } from '../../../../../../platform/agentHost/common/state/protocol/errors.js';
@@ -272,6 +273,8 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let configurationService: TestConfigurationService;
 	let legacyApprovalRestricted: boolean;
 	let chatInputStates: ResourceMap<IChatModelInputState>;
+	/** Input states a test changes after the draft is created. */
+	let changingChatInputStates: ResourceMap<ISettableObservable<IChatModelInputState>>;
 
 	setup(async () => {
 		agentHost = ds.add(new MockAgentHostService());
@@ -307,15 +310,18 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			override warn(message: string): void { warnings.push(message); }
 		}());
 		chatInputStates = new ResourceMap();
+		changingChatInputStates = new ResourceMap();
 		insta.stub(IChatService, new class extends MockChatService {
 			override readonly onDidDisposeSession = onDidDisposeChatSession.event;
 			override readonly onDidCreateModel = onDidCreateChatModel.event;
 			override getSession(sessionResource: URI): IChatModel | undefined {
-				const state = chatInputStates.get(sessionResource);
-				if (!state) {
+				const changing = changingChatInputStates.get(sessionResource);
+				const maybeState = changing ?? (chatInputStates.has(sessionResource) ? constObservable(chatInputStates.get(sessionResource)!) : undefined);
+				if (!maybeState) {
 					return undefined;
 				}
-				const inputModel = new class extends mock<IInputModel>() { override readonly state = constObservable(state); }();
+				const state: IObservable<IChatModelInputState> = maybeState;
+				const inputModel = new class extends mock<IInputModel>() { override readonly state = state; }();
 				return new class extends mock<IChatModel>() { override readonly inputModel = inputModel; }();
 			}
 		}());
@@ -460,6 +466,28 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			assert.deepStrictEqual(agentHost.createCalls.map(call => call.model), [expected ? { id: expected, config: { reasoningEffort: 'high' } } : undefined]);
 		});
 	}
+
+	test('changing the selected model keeps the draft backend, and its session-scoped choices, while drafts are pre-warmed', async () => {
+		// Session-scoped customization choices, such as an MCP server disabled
+		// for this draft, belong to the backend session, so replacing it would lose them.
+		await configurationService.setUserConfiguration(AgentHostPrewarmSessionsSettingId, true);
+		const ui = untitledChatUri('model-change');
+		const state = (identifier: string): IChatModelInputState => ({
+			inputText: '', attachments: [], selections: [], contrib: {}, mode: { id: 'agent', kind: ChatModeKind.Agent },
+			selectedModel: { identifier, metadata: {} as ILanguageModelChatMetadata },
+		});
+		const input = observableValue<IChatModelInputState>('input', state('gpt-6-luna'));
+		changingChatInputStates.set(ui, input);
+		const backend = await provisional.getOrCreate(ui, COPILOT_CLI_AGENT_PROVIDER_ID, undefined);
+		input.set(state('claude-sonnet-5'), undefined);
+		const current = await provisional.waitForPending(ui);
+
+		assert.deepStrictEqual({
+			created: agentHost.createCalls.map(call => call.model?.id),
+			disposed: agentHost.disposed.length,
+			sameBackend: current?.toString() === backend?.toString(),
+		}, { created: ['gpt-6-luna'], disposed: 0, sameBackend: true });
+	});
 
 	test('a chip still showing a disposed draft does not recreate its backend', async () => {
 		// The chat view releases its old model before the widget shows the new

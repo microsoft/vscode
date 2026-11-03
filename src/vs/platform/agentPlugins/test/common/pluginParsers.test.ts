@@ -929,10 +929,20 @@ suite('pluginParsers', () => {
 			const groups = parse({
 				hooks: {
 					postToolUse: [{ hooks: [{ type: 'command', command: 'echo a' }] }],
+					preCompact: [{ type: 'command', command: 'echo compact' }],
+					subagentStart: [{ type: 'command', command: 'echo subagent' }],
 					bogusEvent: [{ hooks: [{ type: 'command', command: 'echo b' }] }],
 				},
 			});
-			assert.deepStrictEqual(groups.map(g => g.type), ['PostToolUse']);
+			assert.deepStrictEqual(groups.map(g => ({
+				type: g.type,
+				originalId: g.originalId,
+				commands: g.commands.map(c => c.command),
+			})), [
+				{ type: 'PostToolUse', originalId: 'postToolUse', commands: ['echo a'] },
+				{ type: 'PreCompact', originalId: 'preCompact', commands: ['echo compact'] },
+				{ type: 'SubagentStart', originalId: 'subagentStart', commands: ['echo subagent'] },
+			]);
 		});
 
 		test('recognizes a userPromptTransformed-only hook file', () => {
