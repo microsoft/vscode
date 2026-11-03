@@ -1241,6 +1241,10 @@ export class NewChatWidget extends Disposable {
 				return;
 			}
 			const environment = this._environment.get();
+			if (!environment && isSessionEnvironmentPickerEnabled(this.configurationService)) {
+				// Wait for the default environment instead of letting provider registration order choose it.
+				return;
+			}
 			const target = environment ? this._workspaceOptOutTarget.get() : undefined;
 			if (environment ? !!target : this.sessionsManagementService.isQuickChatTargetAvailable()) {
 				if (this._workspacePicker.isNoWorkspaceSelected()) {
