@@ -21,7 +21,7 @@ export interface IChatAttachmentWidgetInstance extends IDisposable {
 	readonly label?: { readonly element: HTMLElement };
 	/** Creates the detail preview used by the input editor's keyboard hover. */
 	getPreviewHoverContent?(): IChatPillHoverContent | undefined;
-	/** Whether activating the attachment opens its reference details instead of navigating. */
+	/** Whether the attachment provides a delayed reference preview. Activation still navigates. */
 	readonly supportsPreview?: boolean;
 	/** Fires when account changes invalidate displayed preview details. */
 	readonly onDidChangePreview?: event.Event<void>;

@@ -98,10 +98,10 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	get y(): number { return this._y; }
 
 	/**
-	 * Whether the hover is "locked" by holding the alt/option key. When locked, the hover will not
+	 * Whether the hover is temporarily hidden or "locked" by holding the alt/option key. When locked, the hover will not
 	 * hide and can be hovered regardless of whether the `hideOnHover` hover option is set.
 	 */
-	get isLocked(): boolean { return this._isLocked; }
+	get isLocked(): boolean { return this._isLocked || !this._isVisible; }
 	set isLocked(value: boolean) {
 		if (this._isLocked === value) {
 			return;
@@ -294,7 +294,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		}
 		const mouseTracker = this._mouseTracker = this._register(new CompositeMouseTracker(mouseTrackerTargets));
 		this._register(mouseTracker.onMouseOut(() => {
-			if (!this._isLocked) {
+			if (!this.isLocked) {
 				this.dispose();
 			}
 		}));
@@ -306,7 +306,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			const mouseTracker2Targets = [...this._target.targetElements, this._hoverContainer];
 			this._lockMouseTracker = this._register(new CompositeMouseTracker(mouseTracker2Targets));
 			this._register(this._lockMouseTracker.onMouseOut(() => {
-				if (!this._isLocked) {
+				if (!this.isLocked) {
 					this.dispose();
 				}
 			}));

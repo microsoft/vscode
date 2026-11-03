@@ -973,7 +973,7 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		attachment: IChatRequestVariableEntry,
 		correspondingContentReference: IChatContentReference | undefined,
 		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
-		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
+		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean; gitHubResourceDetailsResolver?: GitHubResourceDetailsResolver },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
@@ -1051,7 +1051,8 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 			const issue = parseGitHubReferenceTarget(link, 'issue');
 			const target = issue ?? parseGitHubReferenceTarget(link, 'pullRequest');
 			if (target) {
-				const resolver = this._register(this.instantiationService.createInstance(GitHubResourceDetailsResolver));
+				resource = link;
+				const resolver = options.gitHubResourceDetailsResolver ?? this._register(this.instantiationService.createInstance(GitHubResourceDetailsResolver));
 				const repository = URI.parse(`https://github.com/${target.owner}/${target.repo}`);
 				const open = (uri: URI) => { void this.openerService.open(uri, { openExternal: true }); };
 				const createHover = () => resolver.createHover(attachment, {
@@ -1086,7 +1087,7 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 				}));
 				this.element.setAttribute('aria-haspopup', 'dialog');
 				this.element.setAttribute('aria-expanded', 'false');
-				this.element.ariaLabel = this.appendDeletionHint(localize('chat.attachment.previewLabel', "Preview reference, {0}", attachment.name));
+				this.element.ariaLabel = this.appendDeletionHint(localize('chat.attachment.openReferenceLabel', "Open reference, {0}", attachment.name));
 			}
 		}
 

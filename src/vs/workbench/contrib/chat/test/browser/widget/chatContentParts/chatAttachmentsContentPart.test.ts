@@ -5,12 +5,14 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { timeout } from '../../../../../../../base/common/async.js';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { observableValue } from '../../../../../../../base/common/observable.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
@@ -20,7 +22,8 @@ import { TestFileService, workbenchInstantiationService } from '../../../../../.
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../../browser/labels.js';
 import { DefaultChatAttachmentWidget, getEffectiveImageOmittedState, ImageAttachmentWidget } from '../../../../browser/attachments/chatAttachmentWidgets.js';
 import { getGitHubIssueOrPullRequestAttachments } from '../../../../browser/widget/input/editor/chatPasteProviders.js';
-import { GitHubResourceDetailsResolver } from '../../../../../github/browser/githubResourceDetails.js';
+import { GitHubResourceDetailsResolver, LazyGitHubResourceState } from '../../../../../github/browser/githubResourceDetails.js';
+import { IGitHubIssueHoverModel } from '../../../../../github/browser/githubResourceHover.js';
 import { IWorkbenchGitHubService } from '../../../../../../services/github/common/githubService.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { IClipboardService } from '../../../../../../../platform/clipboard/common/clipboardService.js';
@@ -46,8 +49,44 @@ suite('ChatAttachmentsContentPart', () => {
 	});
 
 	suite('GitHub attachment previews', () => {
+		test('keeps the shared resolver cache across attachment widget recreation', async () => {
+			const resolver = disposables.add(instantiationService.createInstance(GitHubResourceDetailsResolver));
+			const state = observableValue<LazyGitHubResourceState<IGitHubIssueHoverModel>>(resolver, { status: 'idle' });
+			const issue: IGitHubIssueHoverModel = {
+				title: 'Cached issue',
+				body: 'Real details',
+				state: 'open',
+				author: { login: 'octocat' },
+				createdAt: '2026-11-03T00:00:00Z',
+			};
+			sinon.stub(resolver, 'getIssueState').returns(state);
+			sinon.stub(resolver, 'isFresh').callsFake(() => state.get().status === 'resolved');
+			const resolve = sinon.stub(resolver, 'resolveIssue').callsFake(async () => {
+				state.set({ status: 'resolved', value: issue }, undefined);
+				return issue;
+			});
+			const labels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+			const attachment = getGitHubIssueOrPullRequestAttachments('https://github.com/microsoft/vscode/issues/123')[0];
+			const createWidget = () => disposables.add(instantiationService.createInstance(DefaultChatAttachmentWidget,
+				undefined, undefined, attachment, undefined, undefined,
+				{ shouldFocusClearButton: false, supportsDeletion: true, gitHubResourceDetailsResolver: resolver }, dom.$('.chat-inline-attachment'), labels));
+			const first = createWidget();
+			const loading = first.getPreviewHoverContent();
+			const firstFallback = loading?.element.textContent;
+			await timeout(0);
+			first.dispose();
+			const second = createWidget();
+			const cached = second.getPreviewHoverContent();
+			await timeout(0);
+			assert.deepStrictEqual({
+				firstFallback,
+				resolvedTitle: cached?.element.querySelector('.sessions-issue-hover-title')?.textContent?.replace(/\s+/g, ' ').trim(),
+				requests: resolve.callCount,
+			}, { firstFallback: 'Issue #123', resolvedTitle: 'Cached issue #123', requests: 1 });
+		});
+
 		for (const [path, kind] of [['issues', 'issue'], ['pull', 'pullRequest']] as const) {
-			test(`provides the lazy ${kind} preview only to inline attachments`, () => {
+			test(`provides the lazy ${kind} preview only to inline attachments`, async () => {
 				instantiationService.stub(IWorkbenchGitHubService, upcastPartial<IWorkbenchGitHubService>({
 					onDidChangeDefaultClient: Event.None,
 				}));
@@ -109,6 +148,10 @@ suite('ChatAttachmentsContentPart', () => {
 					copied: ['main', 'feature/preview'],
 					opened: [{ resource: `https://github.com/microsoft/vscode/${path}/123`, options: { openExternal: true } }],
 				});
+				opened.length = 0;
+				copyWidget.element.click();
+				await timeout(0);
+				assert.deepStrictEqual(opened.map(item => item.resource), [`https://github.com/microsoft/vscode/${path}/123`]);
 				copyWidget.dispose();
 			});
 

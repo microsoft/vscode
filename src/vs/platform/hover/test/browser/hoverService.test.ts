@@ -129,6 +129,24 @@ suite('HoverService', () => {
 		});
 	});
 
+	test('hidden non-sticky previews suspend mouse-leave and Alt-release dismissal', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const target = createTarget();
+		const hover = showHover('Preview', target);
+		hover.setVisible?.(false);
+		target.dispatchEvent(new MouseEvent('mouseleave'));
+		await timeout(201);
+		const afterMouseLeave = hover.isDisposed;
+		document.dispatchEvent(new KeyboardEvent('keyup', { key: 'Alt', bubbles: true }));
+		const afterAltRelease = hover.isDisposed;
+		hoverService.hideHover();
+		const afterContextMenuDismissal = hover.isDisposed;
+		hover.setVisible?.(true);
+		document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		assert.deepStrictEqual({ afterMouseLeave, afterAltRelease, afterContextMenuDismissal, afterRestore: hover.isDisposed }, {
+			afterMouseLeave: false, afterAltRelease: false, afterContextMenuDismissal: false, afterRestore: true,
+		});
+	}));
+
 	function createTarget(): HTMLElement {
 		const target = document.createElement('div');
 		target.style.width = '100px';
