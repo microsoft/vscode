@@ -28,7 +28,7 @@ import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition
 import { ChatWindowChatLayouts, ChatWindowChatSizes, ChatWindowDefaults, ChatWindowState } from '../common/chatWindowState.js';
 import { IChatWindow, IChatWindowContent, IChatWindowEditors, IChatWindowOpenOptions, IChatWindowProvider, IChatWindowService } from './chatWindow.js';
 import { bindWindowLayoutContext, bindWindowTerminalsContext } from './chatWindowContextKeys.js';
-import { deserializeChatWindowEditors, serializeChatWindowEditors } from './chatWindowEditors.js';
+import { deserializeChatWindowEditors, reopenChatWindow, serializeChatWindowEditors } from './chatWindowEditors.js';
 import { InFlightOperations, openCleaningUpOnFailure } from './chatWindowOpening.js';
 import { bindMainPartVisible, moveEditorsToChatWindow, showChatInsteadOfEmptyMainPart, trackMainPartEditors } from './chatWindowParts.js';
 import { ChatWindowGrid } from './chatWindowGrid.js';
@@ -485,20 +485,20 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 
 	/**
 	 * The chat's editor of `window` moved out of it: into the main window, the chat moves to the main window, as Move to
-	 * Main Window does; into another window, such as an editor window, the chat shows in a chat window of its own again.
-	 * Either way the editor that moved, a view of the chat, closes where it moved to.
+	 * Main Window does; into another window, such as an editor window, the chat shows in a chat window of its own again,
+	 * with the editors and terminals the window showed. Either way the editor that moved, a view of the chat, closes where
+	 * it moved to.
 	 */
 	private async _didMoveChatOut(window: ChatWindow): Promise<void> {
 		const input = window.content.input;
-		const chat = window.chat.get();
 		const group = this._editorGroupsService.parts.flatMap(part => part.groups).find(candidate => candidate.contains(input));
 		if (group) {
 			await group.closeEditor(input);
 		}
 		if (group?.windowId === mainWindow.vscodeWindowId) {
 			await this.moveToMainWindow(window);
-		} else if (window.close()) {
-			await this.open(chat);
+		} else {
+			await reopenChatWindow(window, this._instantiationService, (chat, options) => this.open(chat, options));
 		}
 	}
 

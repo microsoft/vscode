@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { IChatWindow, IChatWindowOpenOptions } from './chatWindow.js';
 
 /** An editor of a chat window's main part, serialized with the serializer of its editor type. */
 export interface ISerializedChatWindowEditor {
@@ -46,6 +48,20 @@ export function deserializeChatWindowEditors(instantiationService: IInstantiatio
 		}
 	}
 	return { editors: inputs, activeEditor };
+}
+
+/**
+ * Closes `window` to open its chat in a chat window of its own again, with what it showed besides its chat: the editors
+ * of its main part and its terminals.
+ */
+export async function reopenChatWindow(window: IChatWindow, instantiationService: IInstantiationService, open: (chat: URI, options: IChatWindowOpenOptions) => Promise<unknown>): Promise<void> {
+	const chat = window.chat.get();
+	// Serialized, as closing the window disposes them, and opened again in the new window.
+	const editors = window.mainPart.groups.flatMap(group => serializeChatWindowEditors(group));
+	const showTerminals = window.terminalsVisible.get();
+	if (window.close()) {
+		await open(chat, { editors: deserializeChatWindowEditors(instantiationService, editors), showTerminals });
+	}
 }
 
 /** Whether `value`, read from storage, is a serialized chat window editor. */
