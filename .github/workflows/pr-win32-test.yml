@@ -581,10 +581,13 @@ jobs:
       TEST_SELECTION: 'true'
     steps: *steps
 
+  # Browser and Remote (smoke) are the slowest Windows jobs that run on every pull request, so they run
+  # on 16-core runners. That pool allows 20 jobs at a time, and each of these two jobs ran at most 9 at a
+  # time, so keep other jobs off it.
   browser:
     name: Browser
     if: ${{ inputs.browser_affected }}
-    runs-on: vscode-large-runners-windows-8-core
+    runs-on: vscode-large-runners-windows-16-core
     env:
       ARTIFACT_NAME: browser
       BROWSER_TESTS: 'true'
@@ -607,7 +610,8 @@ jobs:
   remote-smoke:
     name: Remote (smoke)
     if: ${{ inputs.remote_affected }}
-    runs-on: vscode-large-runners-windows-8-core
+    # Runs on 16-core runners, see the Browser job.
+    runs-on: vscode-large-runners-windows-16-core
     env:
       ARTIFACT_NAME: remote-smoke
       REMOTE_TESTS: 'true'
