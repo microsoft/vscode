@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
@@ -666,34 +666,61 @@ suite('MarkdownRenderer', () => {
 	test('appendLink: no target or title can change the link structure', () => {
 		// Deterministic fuzzing with the pieces that matter to the Markdown parser.
 		const pieces = [
-			'\\', '\\\\', '(', ')', '[', ']', '<', '>', '"', '\'', '`', '*', '_', '!', '#', '&#41;', '&', ' ', '\t',
+			'\\', '\\\\', '(', ')', '[', ']', '<', '>', '"', '\'', '`', '*', '_', '!', '#', '&#41;', '&quot;', '&', ' ', '\t',
 			'\n', '\n\n', '\r\n', '\u00a0', '\u2028', '\u000b', '\u0000', 'a', 'command:foo', '[run](command:foo)', 'https://x.y/',
 		];
-		let seed = 0x5eed;
-		const random = (max: number) => {
-			seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-			return seed % max;
+		let state = 0x5eed;
+		const random = (max: number) => { // mulberry32
+			state = (state + 0x6d2b79f5) | 0;
+			let t = Math.imul(state ^ (state >>> 15), 1 | state);
+			t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+			return ((t ^ (t >>> 14)) >>> 0) % max;
 		};
 		const generate = () => Array.from({ length: random(8) }, () => pieces[random(pieces.length)]).join('');
 
-		const failures: unknown[] = [];
 		const knownTargets = [
 			'https://safe.example/\\\\)[run](command:foo#\\\\)',
 			'https://safe.example/a\t[run](command:foo',
 			'https://safe.example/a\u00a0[run](command:foo',
 		];
+		const knownTitles = ['C:\\temp\\', 'a\\"b', '"', '\\'];
+		// Text after the link that a title or target could swallow
+		const suffix = ' and foo") and "bar") (suffix)';
+
+		const failures: unknown[] = [];
+		let generatedTargets = 0;
+		let generatedTitles = 0;
 		for (let i = 0; i < 2000; i++) {
-			const target = knownTargets[i] ?? 'https://safe.example/' + generate();
-			const title = random(2) ? generate() : undefined;
-			const md = new MarkdownString('', true).appendLink(target, 'label', title).appendMarkdown(' (suffix)');
-			const anchors = [...store.add(renderMarkdown(md)).element.querySelectorAll('a')]
-				.map(a => ({ text: a.textContent, href: a.dataset.href }));
+			const path = generate();
+			const target = knownTargets[i] ?? `https://safe.example/${path}`;
+			const title = knownTitles[i] ?? (random(2) ? generate() : undefined);
+			generatedTargets += path ? 1 : 0;
+			generatedTitles += title ? 1 : 0;
+
+			const md = new MarkdownString('', true).appendLink(target, 'label', title).appendMarkdown(suffix);
+			const element = store.add(renderMarkdown(md)).element;
+			const anchors = [...element.querySelectorAll('a')].map(a => ({ text: a.textContent, href: a.dataset.href, title: a.getAttribute('title') }));
+			// The renderer unescapes hrefs once more, and titles lose surrounding whitespace. The
+			// sanitizer removes attributes that look like the end of a comment or CDATA section;
+			// without its href, the link is rendered as plain text.
+			const removedBySanitizer = (value: string) => /((--!?|\])>)|<\/(style|title)/i.test(value);
 			const expectedHref = removeMarkdownEscapes(target.replace(/[\s\x00-\x1f\x7f]/g, ch => encodeURIComponent(ch)));
-			if (anchors.length !== 1 || anchors[0].text !== 'label' || anchors[0].href !== expectedHref) {
-				failures.push({ target, title, markdown: md.value, anchors });
+			const normalizedTitle = title?.replace(/\r\n|[\r\n]/g, ' ').replace(/\0/g, '\uFFFD').trim();
+			const expectedTitle = normalizedTitle && removedBySanitizer(normalizedTitle) ? null : normalizedTitle;
+			const expected = {
+				text: `label${suffix}`,
+				anchors: removedBySanitizer(expectedHref) ? [] : [{
+					text: 'label',
+					href: expectedHref,
+					title: title ? expectedTitle : anchors[0]?.title,
+				}],
+			};
+			const actual = { text: element.textContent, anchors };
+			if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+				failures.push({ target, title, markdown: md.value, actual, expected });
 			}
 		}
-		assert.deepStrictEqual(failures.slice(0, 3), []);
+		assert.deepStrictEqual({ failures: failures.slice(0, 3), failureCount: failures.length, coverage: generatedTargets > 1500 && generatedTitles > 700 }, { failures: [], failureCount: 0, coverage: true });
 	});
 
 	test('Should remove relative links if there is no base url', () => {
@@ -1381,7 +1408,7 @@ suite('MarkdownRenderer', () => {
 			test('codespan inside <body> wrapped markdown', () => {
 				// The chat content renderer wraps `supportHtml` markdown in
 				// `<body>...</body>` so dompurify keeps leading comments. That
-				// makes `</body>` the literal last token — the paragraph with
+				// makes `</body>` the literal last token â€” the paragraph with
 				// the bare backtick is no longer at the end. The fixup must
 				// still close the codespan while preserving the trailing html.
 				const text = '<body>\n\nCreated isolated worktree for branch `xyz\n\n</body>';

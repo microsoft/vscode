@@ -50,7 +50,7 @@ suite('MarkdownString', () => {
 			'[hello\\]](foo\\))',
 			'[hello\\]](foo\\\\\\))',
 			'[hell\\]o](fo\\)o)',
-			'[hello\\]](foo\\) "title\\"")',
+			'[hello\\]](foo\\) "title&#34;")',
 		]);
 	});
 
@@ -67,14 +67,16 @@ suite('MarkdownString', () => {
 			link('a', 't\\\\"u'),
 			link('a', 't\\'),
 			link('a', 'b\n\nc\r\nd(e)'),
+			link('a', 'x&#41;&amp;y'),
 		], [
 			'[x](a\\\\\\\\\\)b)',
 			'[x](a\\\\)',
 			'[x](a\\<b\\>c)',
 			'[x](a%20b%09c%C2%A0d%0Ae%E2%80%A8f%00g)',
-			'[x](a "t\\\\\\\\\\"u")',
-			'[x](a "t\\\\")',
-			'[x](a "b  c d\\(e\\)")',
+			'[x](a "t&#92;&#92;&#34;u")',
+			'[x](a "t&#92;")',
+			'[x](a "b  c d&#40;e&#41;")',
+			'[x](a "x&#38;#41;&#38;amp;y")',
 		]);
 	});
 
@@ -99,7 +101,7 @@ suite('MarkdownString', () => {
 		const start = Date.now();
 		const value = new MarkdownString().appendLink(`${backslashes}a`, `${backslashes}b`, `${backslashes}c`).value;
 		assert.ok(Date.now() - start < 1000, 'escaping must not be quadratic');
-		assert.strictEqual(value, `[${backslashes}b](${backslashes}${backslashes}a "${backslashes}${backslashes}c")`);
+		assert.strictEqual(value, `[${backslashes}b](${backslashes}${backslashes}a "${'&#92;'.repeat(200_000)}c")`);
 	});
 
 	test('lift', () => {

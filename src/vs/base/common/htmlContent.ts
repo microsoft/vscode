@@ -138,12 +138,16 @@ function escapeMarkdownLinkDestination(target: string): string {
 
 /**
  * Escapes a string for use as a double-quoted Markdown link title. Line breaks are replaced,
- * because an empty line would end the paragraph and with it the link.
+ * because an empty line would end the paragraph and with it the link. Characters that the
+ * Markdown parser interprets in titles are written as character references, not backslash
+ * escapes: marked reads `\\"` as an escaped quote, so a title ending in a backslash would
+ * otherwise extend into the following text.
  */
 function escapeMarkdownLinkTitle(title: string): string {
 	return title
 		.replace(/\r\n|[\r\n]/g, ' ')
-		.replace(/[\\"()]/g, '\\$&');
+		.replace(/\0/g, '\uFFFD') // HTML cannot represent NUL
+		.replace(/[&\\"()\t]/g, ch => `&#${ch.charCodeAt(0)};`);
 }
 
 export function isEmptyMarkdownString(oneOrMany: IMarkdownString | IMarkdownString[] | null | undefined): boolean {
