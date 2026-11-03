@@ -1568,6 +1568,7 @@ suite('PromptsService', () => {
 						'description: \'VS Code specialized agent.\'',
 						'target: \'vscode\'',
 						'model: \'gpt-4\'',
+						'reasoning-effort: low',
 						'---',
 						'I am specialized for VS Code editor tasks.',
 					]
@@ -1613,6 +1614,7 @@ suite('PromptsService', () => {
 					description: 'VS Code specialized agent.',
 					target: Target.VSCode,
 					model: ['gpt-4'],
+					reasoningEffort: 'low',
 					agentInstructions: {
 						content: 'I am specialized for VS Code editor tasks.',
 						toolReferences: [],

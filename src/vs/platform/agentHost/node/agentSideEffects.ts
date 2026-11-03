@@ -27,7 +27,7 @@ import { captureCredentialSource, type IAgentHostCredentialSource } from '../com
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
 import { isRenameChatTool } from '../common/serverToolNames.js';
-import { type CodexModelProvider, AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { type AgentHostPrewarmSkipReason, type CodexModelProvider, AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentPermissionKind, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type AgentSubagentKind, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal, type IAgentSubagentStartedSignal } from '../common/agent.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
@@ -2259,10 +2259,15 @@ export class AgentSideEffects extends Disposable {
 			// preparation is only logged: `sendMessage` then prepares as usual and
 			// surfaces any error exactly as it would without the overlap.
 			let providerPreparation: Promise<void> | undefined;
+			// Preparation can materialize the deferred session, so it reports how the send found its warm launch.
+			const prewarmReporters = {
+				reportPrewarmedSession: (discardReason?: string) => this._turnTracker.markPrewarmedSession(turnChannel, turnId, discardReason),
+				reportPrewarmSkipped: (reason: AgentHostPrewarmSkipReason) => this._turnTracker.markPrewarmSkipped(turnChannel, turnId, reason),
+			};
 			if (agent.chats.prepareTurn) {
 				this._overlapExperimentTrigger.report();
 				if (this._agentConfigService.getRootValue(platformRootSchema, AgentHostOverlapProviderPreparationConfigKey) === true) {
-					providerPreparation = agent.chats.prepareTurn(chatUri, turnId, resolvedWorkingDirectories, clientOperationContext).catch(err => {
+					providerPreparation = agent.chats.prepareTurn(chatUri, turnId, resolvedWorkingDirectories, { ...clientOperationContext, ...prewarmReporters }).catch(err => {
 						this._logService.warn(`[AgentSideEffects] Turn preparation failed for ${chat}; sending will prepare again`, err);
 					});
 				}
@@ -2278,7 +2283,7 @@ export class AgentSideEffects extends Disposable {
 				...clientOperationContext,
 				turnTelemetryCorrelation: { agentSessionId: AgentSession.id(sessionChannel), chatSessionId: getTelemetryChatSessionId(turnChannel), turnId },
 				reportCodexModelProvider: (provider: CodexModelProvider) => this._turnTracker.setCodexModelProvider(turnChannel, turnId, provider),
-				reportPrewarmedSession: (discardReason?: string) => this._turnTracker.markPrewarmedSession(turnChannel, turnId, discardReason),
+				...prewarmReporters,
 				...(turnTelemetryContext ? { turnTelemetryContext } : {}),
 				...(contribution.instructions?.length ? { hostInstructions: contribution.instructions } : {}),
 				sendStageRecorder: this._turnTracker.createProviderStageRecorder(turnChannel, turnId),

@@ -22,6 +22,10 @@ export interface IAgentCustomizationMeta {
 	 * explicit `false` hides the agent from direct user invocation.
 	 */
 	readonly userInvocable?: boolean;
+	/** Ordered authored model preferences, including alternatives to the standard `model` field. */
+	readonly 'vscode.models'?: readonly string[];
+	/** Authored reasoning preference; omitted means inherit the selected model's configuration. */
+	readonly 'vscode.reasoningEffort'?: string;
 	/** Client-supplied file URI before host materialization, used only to recover local provenance. */
 	readonly 'vscode.sourceUri'?: string;
 }
@@ -33,6 +37,13 @@ export interface IAgentCustomizationMeta {
 export function readAgentCustomizationMeta(agent: AgentCustomization): IAgentCustomizationMeta {
 	const meta = agent._meta;
 	const result: Mutable<IAgentCustomizationMeta> = {};
+	const models = meta?.['vscode.models'];
+	if (Array.isArray(models) && models.every((model): model is string => typeof model === 'string')) {
+		result['vscode.models'] = models;
+	}
+	if (typeof meta?.['vscode.reasoningEffort'] === 'string') {
+		result['vscode.reasoningEffort'] = meta['vscode.reasoningEffort'];
+	}
 	if (meta?.['vscode.chatMode'] === 'ask') {
 		result['vscode.chatMode'] = 'ask';
 	}
