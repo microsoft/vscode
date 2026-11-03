@@ -61,15 +61,34 @@ function validateCopyright(name: string, licenseText: string, source: string): v
 }
 
 /**
- * Find a LICENSE file in the given package directory.
+ * Picks the license file among the file names of a package directory, or returns `undefined` if
+ * there is none. A plain `LICENSE`/`LICENCE` file (optionally `.md`, `.txt`, …) wins. Otherwise a
+ * `LICENSE-<name>` file is used (`LICENSE-MIT`, `LICENSE-MIT.txt`, …), as `punycode` and `ignore`
+ * ship. With several, which happens for dual licenses (`MIT OR CC0-1.0` in `type-fest`, with
+ * `license-mit` and `license-cc0`), either license's text suffices: the MIT one is preferred,
+ * otherwise the first in case-insensitive order, so the choice doesn't depend on the directory
+ * listing order.
+ */
+export function pickLicenseFileName(fileNames: readonly string[]): string | undefined {
+	const plain = fileNames.find(f =>
+		/^license(\.md|\.txt|\.mit|\.bsd|\.apache)?$/i.test(f) ||
+		/^licence(\.md|\.txt)?$/i.test(f)
+	);
+	if (plain) {
+		return plain;
+	}
+	const named = fileNames
+		.filter(f => /^licen[cs]e-[a-z0-9]+(?:-[a-z0-9]+|\.[0-9]+)*(?:\.md|\.txt)?$/i.test(f))
+		.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+	return named.find(f => /^licen[cs]e-mit(?:\.md|\.txt)?$/i.test(f)) ?? named[0];
+}
+
+/**
+ * Find a LICENSE file in the given package directory (see {@link pickLicenseFileName}).
  */
 function findLicenseFile(pkgDir: string): string | undefined {
 	try {
-		const files = fs.readdirSync(pkgDir);
-		const licenseFile = files.find(f =>
-			/^license(\.md|\.txt|\.mit|\.bsd|\.apache)?$/i.test(f) ||
-			/^licence(\.md|\.txt)?$/i.test(f)
-		);
+		const licenseFile = pickLicenseFileName(fs.readdirSync(pkgDir));
 		return licenseFile ? path.join(pkgDir, licenseFile) : undefined;
 	} catch {
 		return undefined;
