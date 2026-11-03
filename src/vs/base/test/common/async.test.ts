@@ -2040,6 +2040,27 @@ suite('Async', () => {
 
 			assert.deepStrictEqual(result, values);
 		});
+
+		test('does not retain consumed values when replay is disabled', async function () {
+			if (typeof globalThis.gc !== 'function') {
+				this.skip();
+			}
+
+			const source = new async.AsyncIterableSource<object>(undefined, { replay: false });
+			const valueRef = (() => {
+				const value = { payload: new ArrayBuffer(1024) };
+				source.emitOne(value);
+				return new WeakRef(value);
+			})();
+			source.resolve();
+			await (async () => {
+				for await (const _value of source.asyncIterable) { }
+			})();
+			await async.timeout(0);
+			await globalThis.gc!({ type: 'major', execution: 'async' });
+
+			assert.strictEqual(valueRef.deref(), undefined);
+		});
 	});
 
 	suite('cancellableIterable', () => {

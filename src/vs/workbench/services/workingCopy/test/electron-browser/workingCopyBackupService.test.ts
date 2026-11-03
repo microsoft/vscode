@@ -17,7 +17,7 @@ import { FileService } from '../../../../../platform/files/common/fileService.js
 import { LogLevel, NullLogService } from '../../../../../platform/log/common/log.js';
 import { NativeWorkbenchEnvironmentService } from '../../../environment/electron-browser/environmentService.js';
 import { toBufferOrReadable } from '../../../textfile/common/textfiles.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileSystemProviderCapabilities, IFileService } from '../../../../../platform/files/common/files.js';
 import { NativeWorkingCopyBackupService } from '../../electron-browser/workingCopyBackupService.js';
 import { FileUserDataProvider } from '../../../../../platform/userData/common/fileUserDataProvider.js';
 import { bufferToReadable, bufferToStream, streamToBuffer, VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../../base/common/buffer.js';
@@ -90,6 +90,12 @@ export class TestNativeWorkbenchEnvironmentService extends NativeWorkbenchEnviro
 	}
 }
 
+class AtomicInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
+	override get capabilities(): FileSystemProviderCapabilities {
+		return super.capabilities | FileSystemProviderCapabilities.FileAtomicWrite;
+	}
+}
+
 export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupService {
 
 	private backupResourceJoiners: Function[];
@@ -107,7 +113,7 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 		const lifecycleService = new TestLifecycleService();
 		super(environmentService, fileService, logService, lifecycleService);
 
-		const fsp = new InMemoryFileSystemProvider();
+		const fsp = new AtomicInMemoryFileSystemProvider();
 		fileService.registerProvider(Schemas.inMemory, fsp);
 		const uriIdentityService = new UriIdentityService(fileService);
 		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService);

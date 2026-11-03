@@ -2305,7 +2305,7 @@ export function createCancelableAsyncIterableProducer<T>(callback: (token: Cance
 export class AsyncIterableSource<T> {
 
 	private readonly _deferred = new DeferredPromise<void>();
-	private readonly _asyncIterable: AsyncIterableObject<T>;
+	private readonly _asyncIterable: AsyncIterable<T>;
 
 	private _errorFn: (error: Error) => void;
 	private _emitOneFn: (item: T) => void;
@@ -2317,21 +2317,27 @@ export class AsyncIterableSource<T> {
 	 * has finished by the consumer, e.g the for-await-loop has be existed (break, return) early.
 	 * This is NOT called when resolving this source by its owner.
 	 */
-	constructor(onReturn?: () => Promise<void> | void) {
-		this._asyncIterable = new AsyncIterableObject(emitter => {
-
+	constructor(onReturn?: () => Promise<void> | void, options: { replay?: boolean } = {}) {
+		const executor: AsyncIterableExecutor<T> = emitter => {
 			if (earlyError) {
-				emitter.reject(earlyError);
+				const error = earlyError;
+				earlyError = undefined;
+				emitter.reject(error);
 				return;
 			}
 			if (earlyItems) {
-				emitter.emitMany(earlyItems);
+				const items = earlyItems;
+				earlyItems = undefined;
+				emitter.emitMany(items);
 			}
 			this._errorFn = (error: Error) => emitter.reject(error);
 			this._emitOneFn = (item: T) => emitter.emitOne(item);
 			this._emitManyFn = (items: T[]) => emitter.emitMany(items);
 			return this._deferred.p;
-		}, onReturn);
+		};
+		this._asyncIterable = options.replay === false
+			? new AsyncIterableProducer(executor, onReturn)
+			: new AsyncIterableObject(executor, onReturn);
 
 		let earlyError: Error | undefined;
 		let earlyItems: T[] | undefined;
@@ -2357,7 +2363,7 @@ export class AsyncIterableSource<T> {
 		};
 	}
 
-	get asyncIterable(): AsyncIterableObject<T> {
+	get asyncIterable(): AsyncIterable<T> {
 		return this._asyncIterable;
 	}
 

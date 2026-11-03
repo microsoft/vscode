@@ -9,7 +9,7 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { equals, deepClone } from '../../../../base/common/objects.js';
 import { Promises, ResourceQueue } from '../../../../base/common/async.js';
 import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from './workingCopyBackup.js';
-import { IFileService, FileOperationError, FileOperationResult } from '../../../../platform/files/common/files.js';
+import { IFileService, FileOperationError, FileOperationResult, FileSystemProviderCapabilities } from '../../../../platform/files/common/files.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { isReadableStream, peekStream } from '../../../../base/common/stream.js';
 import { bufferToStream, prefixedBufferReadable, prefixedBufferStream, readableToBuffer, streamToBuffer, VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../base/common/buffer.js';
@@ -276,8 +276,10 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 				backupBuffer = VSBuffer.concat([preambleBuffer, VSBuffer.fromString('')]);
 			}
 
-			// Write backup via file service
-			await this.fileService.writeFile(backupResource, backupBuffer);
+			const atomic = this.fileService.hasCapability(backupResource, FileSystemProviderCapabilities.FileAtomicWrite)
+				? { postfix: '.vsctmp' }
+				: false;
+			await this.fileService.writeFile(backupResource, backupBuffer, { atomic });
 
 			//
 			// Update model
