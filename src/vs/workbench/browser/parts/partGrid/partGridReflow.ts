@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append, getWindow, prepend } from '../../../../base/browser/dom.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import type { IPartGridRect } from './partGrid.js';
 import { hasNativeContent, unclipCells } from './partGridMotion.js';
 
@@ -38,6 +38,12 @@ export interface IPartGridReflowCell {
 	 * rather than in it, while its card moves as a plain card.
 	 */
 	setContentVisible(visible: boolean): void;
+
+	/**
+	 * Lays the cell out at a size, moved by `dx`/`dy`, while its card makes
+	 * way; without one, as its grid lays it out.
+	 */
+	layoutPreview(preview: { readonly width: number; readonly height: number; readonly dx: number; readonly dy: number } | undefined): void;
 }
 
 /**
@@ -87,6 +93,12 @@ export interface IPartGridReflowCellState {
 
 	/** The card under the cell's content that shows where its card is going. */
 	frame?: HTMLElement;
+
+	/** Where its card shows, or goes in a slide. */
+	shown: IPartGridRect;
+
+	/** The size its card is laid out at. */
+	laidOut: { readonly width: number; readonly height: number };
 }
 
 /**
@@ -114,6 +126,7 @@ export class PartGridReflow extends Disposable {
 	get shown(): ReadonlyMap<string, IPartGridRect> { return this._shown; }
 
 	private readonly visuals = this._register(new DisposableStore());
+	private readonly settled = this._register(new MutableDisposable());
 	private frameLayer: HTMLElement | undefined;
 	private slot: HTMLElement | undefined;
 	private watermark: HTMLElement | undefined;
@@ -138,7 +151,8 @@ export class PartGridReflow extends Disposable {
 
 		// Where everything is, and how it looks, read once, before anything is written
 		for (const cell of cells) {
-			this._states.set(cell.id, { cell, start: rectOf(cell.card), cellStart: rectOf(cell.element), native: motion && hasNativeContent(cell.element), look: readLook(cell.card) });
+			const start = rectOf(cell.card);
+			this._states.set(cell.id, { cell, start, cellStart: rectOf(cell.element), native: motion && hasNativeContent(cell.element), look: readLook(cell.card), shown: start, laidOut: { width: start.width, height: start.height } });
 		}
 		this._shown = this.getPartRects(new Map(Array.from(this._states.values(), state => [state.cell.id, state.start])));
 
@@ -215,11 +229,27 @@ export class PartGridReflow extends Disposable {
 			}
 
 			const rect = target.get(state.cell.id);
+			if (rect) {
+				// Laid out for real, as large as where it was and where it goes, so that what it shows fills the card as it slides: it shows the rest once the slide ends
+				const size = { width: Math.max(state.shown.width, rect.width), height: Math.max(state.shown.height, rect.height) };
+				state.shown = rect;
+				this.layOut(state, size);
+			}
 			this.placeCell(state, rect);
 			if (state.frame) {
 				this.placeFrame(state.frame, rect);
 			}
 		}
+
+		// Once the cards slid, each is laid out where it shows, exactly
+		const timer = setTimeout(() => {
+			for (const state of this._states.values()) {
+				if (state.cell.id !== this.movingId) {
+					this.layOut(state, state.shown);
+				}
+			}
+		}, PART_GRID_REFLOW_DURATION + 20);
+		this.settled.value = toDisposable(() => clearTimeout(timer));
 
 		const moving = this.movingId !== undefined ? this._states.get(this.movingId) : undefined;
 		this.placeSlot(mergeId !== undefined ? undefined : rects ? (slotId !== undefined ? rects.get(slotId) : undefined) : moving?.start);
@@ -245,8 +275,36 @@ export class PartGridReflow extends Disposable {
 	}
 
 	/**
+	 * Lays a cell out with its card at a size, unless it is already, as its
+	 * grid lays it out at the size its card had. What draws over the window
+	 * is hidden meanwhile, and lays out once it shows again.
+	 */
+	private layOut(state: IPartGridReflowCellState, size: { readonly width: number; readonly height: number }): void {
+		if (state.native || (Math.round(size.width) === Math.round(state.laidOut.width) && Math.round(size.height) === Math.round(state.laidOut.height))) {
+			return;
+		}
+
+		state.laidOut = { width: size.width, height: size.height };
+		const start = state.start;
+		if (Math.round(size.width) === Math.round(start.width) && Math.round(size.height) === Math.round(start.height)) {
+			state.cell.layoutPreview(undefined);
+			return;
+		}
+
+		// The cell keeps the room it had around its card
+		state.cell.layoutPreview({
+			width: size.width + state.cellStart.width - start.width,
+			height: size.height + state.cellStart.height - start.height,
+			dx: state.shown.left - start.left,
+			dy: state.shown.top - start.top
+		});
+	}
+
+	/**
 	 * Shows the content of a cell over a rect: moved there, and clipped to
-	 * its size there if smaller. Its card frame shows the rest.
+	 * the rect's size, from its top left, whatever size it is laid out at,
+	 * so that the clip slides from size to size as the cell lays out at
+	 * another. Its card frame shows the rest.
 	 */
 	placeCell(state: IPartGridReflowCellState, rect: IPartGridRect | undefined): void {
 		const style = state.cell.element.style;
@@ -263,9 +321,7 @@ export class PartGridReflow extends Disposable {
 
 		const insetLeft = start.left - state.cellStart.left;
 		const insetTop = start.top - state.cellStart.top;
-		const right = state.cellStart.width - insetLeft - Math.min(start.width, rect.width);
-		const bottom = state.cellStart.height - insetTop - Math.min(start.height, rect.height);
-		style.clipPath = `inset(${insetTop}px ${right}px ${bottom}px ${insetLeft}px round var(--part-grid-frame-radius, 0px))`;
+		style.clipPath = `inset(${insetTop}px calc(100% - ${insetLeft + rect.width}px) calc(100% - ${insetTop + rect.height}px) ${insetLeft}px round var(--part-grid-frame-radius, 0px))`;
 	}
 
 	private showMergeTarget(rect: IPartGridRect | undefined): void {
@@ -350,6 +406,7 @@ export class PartGridReflow extends Disposable {
 	}
 
 	private cleanUp(): void {
+		this.settled.clear();
 		const container = this.container;
 		container.classList.remove('part-grid-reflowing', 'part-grid-settling', 'part-grid-card-dragging');
 		for (const state of this._states.values()) {
@@ -358,6 +415,8 @@ export class PartGridReflow extends Disposable {
 			const style = element.style;
 			style.translate = style.scale = style.clipPath = style.opacity = style.transformOrigin = style.visibility = '';
 			style.removeProperty('--part-grid-frame-radius');
+			// As the grid lays it out, unless it did already, such as with a move
+			state.cell.layoutPreview(undefined);
 			if (state.native) {
 				state.cell.setContentVisible(true);
 			}

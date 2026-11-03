@@ -504,10 +504,11 @@ class CardDragSession extends Disposable {
 	private finish(): void {
 		const drop = this.pendingDrop;
 		this.pendingDrop = undefined;
-		this.cleanUp();
+		// The move lays out the cards where they show; what it does not lay out, the clean up does
 		if (drop) {
 			this.host.drop(this.draggedCell.id, drop);
 		}
+		this.cleanUp();
 		this.onDidEnd();
 	}
 

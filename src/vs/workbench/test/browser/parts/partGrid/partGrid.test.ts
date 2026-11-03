@@ -752,6 +752,29 @@ suite('Part Grid', () => {
 		});
 	});
 
+	test('the cards that make way are laid out for real where they go, as large as where they were while they slide, and as before once Escape put them back', async () => {
+		const { grid, container, cellOf } = await createRowOfThree(true);
+		const target = grid.previewArrangement('c', { location: { edge: Direction.Down } })!.get('a')!;
+		const laidOut = (id: string) => { const card = cellOf(id).querySelector<HTMLElement>('.part-grid-card')!; return [card.offsetWidth, card.offsetHeight]; };
+		const before = laidOut('a');
+
+		// c to the bottom edge of the window: a goes wider and lower
+		dragCard(container, 'c', [[450, 596]], { hold: true });
+		const sliding = laidOut('a');
+		await timeout(PART_GRID_REFLOW_DURATION + 60);
+		const slid = laidOut('a');
+		pressEscape();
+		await timeout(PART_GRID_REFLOW_DURATION + 80);
+		pointer(mainWindow.document.body, 'pointerup', 450, 596);
+
+		assert.deepStrictEqual({ sliding, slid, afterEscape: laidOut('a'), shape: grid.describe() }, {
+			sliding: [Math.round(target.width), before[1]],
+			slid: [Math.round(target.width), Math.round(target.height)],
+			afterEscape: before,
+			shape: 'row(a, b, c)'
+		});
+	});
+
 	test('Escape puts the dragged card and the others back, and moves nothing', async () => {
 		const { grid, container, translates, start, middleY: y, arrangementChanges } = await createRowOfThree(true);
 		const before = grid.describe();

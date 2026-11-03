@@ -467,8 +467,9 @@ export class PartGridDropTarget extends Disposable {
 
 	private finish(editors: readonly IEditorIdentifier[], location: PartGridLocation): void {
 		this.settling = false;
-		this.reflow.clear();
+		// The new part lays out the cards where they show; what it does not lay out, the clean up does
 		this.host.moveEditorsIntoNewPart(editors, location);
+		this.reflow.clear();
 	}
 
 	private reset(): void {
