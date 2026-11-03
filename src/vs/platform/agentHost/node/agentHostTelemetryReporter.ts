@@ -33,6 +33,22 @@ import { toCopilotTelemetryData } from './shared/copilotSkuTelemetry.js';
 import { getCodexAccountTelemetryData, type CodexAccountTelemetryClassification } from './codex/codexAccountTelemetry.js';
 import { groupAgentHostProviderTimings, sanitizeAgentHostProviderTiming, type AgentHostProviderTimingMeasurement, type AgentHostProviderTimingMeasurements, type IAgentHostProviderTiming } from '../common/agentHostProviderTiming.js';
 
+/* __GDPR__
+	"copilot-chat/conversation.messageText": {
+		"owner": "amunger",
+		"comment": "SDK conversation correlation on existing restricted user and model text events.",
+		"${include}": [ "${AgentHostRestrictedSdkSession}" ]
+	}
+*/
+
+/* __GDPR__
+	"copilot-chat/request.options.tools": {
+		"owner": "amunger",
+		"comment": "SDK conversation correlation on the existing restricted offered-tools event.",
+		"${include}": [ "${AgentHostRestrictedSdkSession}" ]
+	}
+*/
+
 type AgentHostProviderTimingEvent = IAgentHostEventTelemetry & AgentHostProviderTimingMeasurements & {
 	schemaVersion: number;
 	group: string;
@@ -1403,13 +1419,14 @@ export class AgentHostTelemetryReporter {
 	 * @param clientRequestId The model call's client-minted `x-request-id`, mapped to the extension's `headerRequestId`. No-ops when absent (e.g. providers that don't surface it).
 	 * @param tools The tool definitions offered to the model for this call.
 	 */
-	async assistantMessageReceived(session: string, chat: string, clientType: AgentHostClientType, clientRequestId: string | undefined, tools: readonly ToolDefinition[]): Promise<void> {
+	async assistantMessageReceived(session: string, chat: string, clientType: AgentHostClientType, clientRequestId: string | undefined, tools: readonly ToolDefinition[], sdkSessionId?: string): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted || !clientRequestId || tools.length === 0) {
 			return;
 		}
 		restricted.sendEnhancedGHTelemetryEvent('request.options.tools', await multiplexProperties({
 			headerRequestId: clientRequestId,
+			...(sdkSessionId ? { sdkSessionId } : {}),
 			conversationId: AgentSession.id(session),
 			chatSessionId: getTelemetryChatSessionId(chat),
 			initiatorClientType: clientType,
@@ -1430,13 +1447,14 @@ export class AgentHostTelemetryReporter {
 	 * @param content The user's prompt text. No-ops when empty.
 	 * @param turnIndex The 0-based ordinal of the turn this message belongs to, matching the extension's numeric `turnIndex` (`conversation.turns.length`). CTS parses `turn_index` as an integer, so a numeric ordinal is required here (a non-numeric id lands empty).
 	 */
-	async userMessageText(session: string, chat: string, clientType: AgentHostClientType, content: string, turnIndex: number): Promise<void> {
+	async userMessageText(session: string, chat: string, clientType: AgentHostClientType, content: string, turnIndex: number, sdkSessionId?: string): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted || !content) {
 			return;
 		}
 		const properties = await multiplexProperties({
 			source: 'user',
+			...(sdkSessionId ? { sdkSessionId } : {}),
 			conversationId: AgentSession.id(session),
 			chatSessionId: getTelemetryChatSessionId(chat),
 			initiatorClientType: clientType,
@@ -1459,13 +1477,14 @@ export class AgentHostTelemetryReporter {
 	 * @param turnIndex The 0-based ordinal of the turn this message belongs to, matching the extension's numeric `turnIndex` (`conversation.turns.length`). CTS parses `turn_index` as an integer, so a numeric ordinal is required here.
 	 * @param clientRequestId The model call's client-minted `x-request-id`, mapped to `headerRequestId`.
 	 */
-	async modelMessageText(session: string, chat: string, clientType: AgentHostClientType, content: string, turnIndex: number, clientRequestId: string | undefined): Promise<void> {
+	async modelMessageText(session: string, chat: string, clientType: AgentHostClientType, content: string, turnIndex: number, clientRequestId: string | undefined, sdkSessionId?: string): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted || !content) {
 			return;
 		}
 		const properties = await multiplexProperties({
 			source: 'model',
+			...(sdkSessionId ? { sdkSessionId } : {}),
 			conversationId: AgentSession.id(session),
 			chatSessionId: getTelemetryChatSessionId(chat),
 			initiatorClientType: clientType,
