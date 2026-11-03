@@ -16,7 +16,7 @@ import { chatProgressConfigurationProperties, legacyChatThinkingConfigurationPro
 import { customizationMarketplaceConfigurationProperties, isAgentFinderPublicFeedAvailable, isCustomizationMarketplaceValueFromDefault } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
 import { AgentHostCopilotPolicyHelperSettingId, CopilotCliConfigKey, CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
 import '../../browser/agentSessionsConfiguration.js';
-import '../../browser/chat.shared.contribution.js';
+import { copilotPolicyHelperConfigurationProperties } from '../../browser/copilotPolicyHelperConfiguration.js';
 import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
@@ -37,8 +37,8 @@ suite('Chat configuration', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('registers a hidden machine-local policy helper with serializable removal', () => {
-		const setting = configurationProperties[AgentHostCopilotPolicyHelperSettingId];
+	test('defines a hidden machine-local policy helper with serializable removal', () => {
+		const setting = copilotPolicyHelperConfigurationProperties[AgentHostCopilotPolicyHelperSettingId];
 		assert.deepStrictEqual({
 			type: setting.type,
 			default: setting.default,
