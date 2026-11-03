@@ -348,7 +348,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.fontSize': {
 			type: 'number',
-			description: nls.localize('chat.fontSize', "Controls the font size in pixels in chat messages."),
+			description: nls.localize('chat.fontSize', "Controls the font size in pixels in chat messages and the chat input."),
 			default: 13,
 			minimum: 6,
 			maximum: 100
