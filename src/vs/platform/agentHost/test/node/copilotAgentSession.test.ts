@@ -19772,13 +19772,14 @@ Use the attached image as context.
 			].join('\n');
 			for (const chat of [buildDefaultChatUri(sessionUri), buildChatUri(sessionUri, 'peer')]) {
 				for (const agentId of [undefined, 'agent-1']) {
+					const telemetryContext = { copilotSku: 'sku-a', copilotTrackingId: 'account-a' };
 					const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
-						workingDirectory, sessionUri, chatChannelUri: URI.parse(chat),
+						workingDirectory, sessionUri, chatChannelUri: URI.parse(chat), telemetryContext,
 					});
 					const sessionInternals = session as unknown as ISessionInternalsForTest;
-					const taken: { path: string; chat: string | undefined; isSubagent: boolean }[] = [];
-					sessionInternals._editTracker.takeCompletedEdit = async (_turnId, _toolCallId, path, _toolName, _toolInput, _modelId, isSubagent, _clientContext, chat) => {
-						taken.push({ path, chat, isSubagent });
+					const taken: { path: string; chat: string | undefined; isSubagent: boolean; copilotTrackingId: string | undefined }[] = [];
+					sessionInternals._editTracker.takeCompletedEdit = async (_turnId, _toolCallId, path, _toolName, _toolInput, _modelId, isSubagent, _clientContext, chat, _autoTier, _fusionModel, copilotTrackingId) => {
+						taken.push({ path, chat, isSubagent, copilotTrackingId });
 						return undefined;
 					};
 					session.resetTurnState('turn-apply-patch');
@@ -19790,6 +19791,7 @@ Use the attached image as context.
 					mockSession.fire('tool.execution_start', {
 						toolCallId: 'tc-apply-patch', toolName: 'apply_patch', arguments: patch,
 					} as unknown as SessionEventPayload<'tool.execution_start'>['data'], { agentId });
+					telemetryContext.copilotTrackingId = 'account-b';
 					mockSession.fire('tool.execution_complete', {
 						toolCallId: 'tc-apply-patch', success: true,
 					} as SessionEventPayload<'tool.execution_complete'>['data'], { agentId });
@@ -19800,10 +19802,38 @@ Use the attached image as context.
 						path: join(workingDirectory.fsPath, path),
 						chat: agentId ? buildSubagentChatUri(sessionUri, 'task') : chat,
 						isSubagent: agentId !== undefined,
+						copilotTrackingId: 'account-a',
 					})));
 				}
 			}
 		});
+
+		for (const copilotTrackingId of ['account-a', undefined]) {
+			test(`tool_complete preserves the spawning subagent account after the root changes (${copilotTrackingId})`, async () => {
+				const options = { telemetryContext: { copilotSku: 'sku-a', copilotTrackingId } };
+				const { session, mockSession, waitForSignal } = await createAgentSession(disposables, options);
+				const sessionInternals = session as unknown as ISessionInternalsForTest;
+				const taken: (string | undefined)[] = [];
+				sessionInternals._editTracker.takeCompletedEdit = async (_turnId, _toolCallId, _path, _toolName, _toolInput, _modelId, _isSubagent, _clientContext, _chat, _autoTier, _fusionModel, trackingId) => {
+					taken.push(trackingId);
+					return undefined;
+				};
+				session.resetTurnState('turn-1');
+				mockSession.fire('subagent.started', {
+					toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+				} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+				options.telemetryContext = { copilotSku: 'sku-b', copilotTrackingId: 'account-b' };
+				session.resetTurnState('turn-2');
+				mockSession.fire('tool.execution_start', {
+					toolCallId: 'child-edit', toolName: 'apply_patch', arguments: '*** Begin Patch\n*** Update File: foo.ts\n@@\n+new\n*** End Patch',
+				} as unknown as SessionEventPayload<'tool.execution_start'>['data'], { agentId: 'agent-1' });
+				mockSession.fire('tool.execution_complete', {
+					toolCallId: 'child-edit', success: true,
+				} as SessionEventPayload<'tool.execution_complete'>['data'], { agentId: 'agent-1' });
+				await waitForSignal(s => isAction(s, ActionType.ChatToolCallComplete));
+				assert.deepStrictEqual(taken, [copilotTrackingId]);
+			});
+		}
 
 		test('tool_complete snapshots the committed Auto tier per edit without subagent inheritance', async () => {
 			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
@@ -19926,17 +19956,19 @@ Use the attached image as context.
 		});
 
 		test('tool_complete attributes unattributed edits inside a running HydraFusion phase to the turn\'s HydraFusion model', async () => {
-			const { session, mockSession, waitForSignal } = await createAgentSession(disposables);
+			const telemetryContext = { copilotSku: 'sku-a', copilotTrackingId: 'account-a' };
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, { telemetryContext });
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
-			const taken: { toolCallId: string; fusionModel: string | undefined }[] = [];
-			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, _modelId, _isSubagent, _clientContext, _chat, _autoTier, fusionModel) => {
-				taken.push({ toolCallId, fusionModel });
+			const taken: { toolCallId: string; fusionModel: string | undefined; copilotTrackingId: string | undefined }[] = [];
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, _modelId, _isSubagent, _clientContext, _chat, _autoTier, fusionModel, copilotTrackingId) => {
+				taken.push({ toolCallId, fusionModel, copilotTrackingId });
 				return undefined;
 			};
 			const edit = async (toolCallId: string) => {
 				mockSession.fire('tool.execution_start', {
 					toolCallId, toolName: 'apply_patch', arguments: '*** Begin Patch\n*** Update File: foo.ts\n@@\n+new\n*** End Patch',
 				} as unknown as SessionEventPayload<'tool.execution_start'>['data']);
+				telemetryContext.copilotTrackingId = 'account-b';
 				mockSession.fire('tool.execution_complete', { toolCallId, success: true } as SessionEventPayload<'tool.execution_complete'>['data']);
 				await waitForSignal(s => s.kind === 'action' && s.action.type === ActionType.ChatToolCallComplete && s.action.toolCallId === toolCallId);
 			};
@@ -19949,8 +19981,8 @@ Use the attached image as context.
 			await edit('plain-edit');
 
 			assert.deepStrictEqual(taken, [
-				{ toolCallId: 'phase-edit', fusionModel: 'hydrafusion-max' },
-				{ toolCallId: 'plain-edit', fusionModel: undefined },
+				{ toolCallId: 'phase-edit', fusionModel: 'hydrafusion-max', copilotTrackingId: 'account-a' },
+				{ toolCallId: 'plain-edit', fusionModel: undefined, copilotTrackingId: 'account-b' },
 			]);
 		});
 
