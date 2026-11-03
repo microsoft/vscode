@@ -6,7 +6,7 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ITableColumn, ITableRenderer } from '../../../../base/browser/ui/table/table.js';
@@ -14,7 +14,6 @@ import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { Action } from '../../../../base/common/actions.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -30,7 +29,6 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../platform
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchTable } from '../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -54,7 +52,7 @@ const WORKTREE_ROW_HEIGHT = 44;
 const WORKTREE_HEADER_HEIGHT = 36;
 const WORKTREE_TABLE_MIN_WIDTH = 900;
 
-type WorktreeColumn = 'selection' | 'title' | 'workspace' | 'lastUsed' | 'storage' | 'status' | 'actions';
+type WorktreeColumn = 'selection' | 'title' | 'workspace' | 'lastUsed' | 'storage' | 'status';
 
 function getWorktreePath(worktree: ISessionWorktree): string {
 	return worktree.unlinkedWorktree ? URI.parse(worktree.unlinkedWorktree.worktree).path
@@ -110,7 +108,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	private readonly tableScrollables = new Map<WorkbenchTable<string>, DomScrollableElement>();
 	private readonly controlsScrollables: { element: HTMLElement; scrollable: DomScrollableElement }[] = [];
 	private readonly cellHoverOptions = { groupId: generateUuid() };
-	private readonly rowActionHoverDelegate = this._register(createInstantHoverDelegate());
 	private selectAllCheckbox: Checkbox | undefined;
 	private workspaceOptionsSignature = '';
 	private container: HTMLElement | undefined;
@@ -272,7 +269,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		eligibilityInfo.appendChild(renderIcon(Codicon.info));
 		const eligibilityHover = this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), eligibilityInfo, localize(
 			'sessionWorktreeCleanup.eligibilityDetails',
-			"Select worktrees to clean up, or use a row's Clean Up action. Failed worktrees and worktrees without an available cleanup action are hidden. Hiding a worktree does not confirm its files were removed. Pending cleanup and completed results remain available for tracking. Done sessions and worktrees without a listed session are not measured. Disk usage is an estimate, not guaranteed freed space.",
+			"Select worktrees, then use Clean Up Worktrees to clean up the selection. Failed worktrees and worktrees without an available cleanup action are hidden. Hiding a worktree does not confirm its files were removed. Pending cleanup and completed results remain available for tracking. Done sessions and worktrees without a listed session are not measured. Disk usage is an estimate, not guaranteed freed space.",
 		)));
 		this.editorDisposables.add(dom.addDisposableListener(eligibilityInfo, dom.EventType.CLICK, () => eligibilityHover.show(true)));
 		this.cleanupButton = this.editorDisposables.add(new Button(summaryRow, defaultButtonStyles));
@@ -302,6 +299,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			this.selectedSessionIds = selectAll.checked ? new Set(selectable.map(worktree => getWorktreeCleanupId(worktree))) : new Set();
 			this.renderRows();
 		}));
+		this.renderAutomaticCleanup(this.createControlsScrollable(content));
 		this.list = dom.append(content, dom.$('.session-worktree-cleanup-list'));
 		this.mainWorktreeTable = this.createWorktreeTable(this.list, localize('sessionWorktreeCleanup.tableLabel', "Agent session worktrees"));
 		this.emptyState = dom.append(content, dom.$('.session-worktree-cleanup-empty', { role: 'status' }));
@@ -309,7 +307,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		emptyStateIcon.setAttribute('aria-hidden', 'true');
 		this.emptyStateMessage = dom.append(this.emptyState, dom.$('span'));
 		this.emptyState.classList.add('hidden');
-		this.renderAutomaticCleanup(this.createControlsScrollable(content));
 	}
 
 	private createControlsScrollable(content: HTMLElement): HTMLElement {
@@ -577,7 +574,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			{ label: localize('sessionWorktreeCleanup.activityColumn', "Last Session Activity"), weight: 0.2, minimumWidth: 120, templateId: 'lastUsed', project: sessionId => sessionId },
 			{ label: localize('sessionWorktreeCleanup.diskUsageColumn', "Disk Usage"), weight: 0.2, minimumWidth: 100, templateId: 'storage', project: sessionId => sessionId },
 			{ label: localize('sessionWorktreeCleanup.statusColumn', "Status"), weight: 0.3, minimumWidth: 160, templateId: 'status', project: sessionId => sessionId },
-			{ label: localize('sessionWorktreeCleanup.actionsColumn', "Actions"), weight: 0.2, minimumWidth: 140, templateId: 'actions', project: sessionId => sessionId },
 		];
 		const body = dom.$('.session-worktree-cleanup-table-body');
 		const scrollable = this.editorDisposables.add(new DomScrollableElement(body, {
@@ -866,7 +862,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 				table.reveal(index);
 				if (focusedTable) {
 					table.domFocus();
-				} else if (!activeElement?.isConnected || !this.renderedCells.get(nextFocusedId)?.get('actions')?.container.contains(activeElement)) {
+				} else {
 					const cells = this.renderedCells.get(nextFocusedId);
 					const checkbox = focusedCheckbox ? cells?.get('selection')?.focusTarget : undefined;
 					(checkbox?.isConnected ? checkbox : cells?.get('title')?.focusTarget)?.focus();
@@ -958,17 +954,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 				} else {
 					titleLink.removeAttribute('aria-description');
 				}
-			};
-		} else if (column === 'actions') {
-			render = worktree => {
-				dynamicDisposables.clear();
-				dom.clearNode(container);
-				const toolbar = dynamicDisposables.add(this.instantiationService.createInstance(WorkbenchToolBar, container, { icon: false, label: true, hoverDelegate: this.rowActionHoverDelegate }));
-				const actions: Action[] = [];
-				if (this.canScheduleCleanup(worktree) && !worktree.isMeasuring) {
-					actions.push(dynamicDisposables.add(new Action('worktreeCleanup.clean', localize('sessionWorktreeCleanup.clean', "Clean Up"), undefined, !this.isSchedulingCleanup, () => this.cleanupSelected([worktree]))));
-				}
-				toolbar.setActions(actions.slice(0, 1), actions.slice(1));
 			};
 		} else {
 			render = worktree => {
@@ -1090,7 +1075,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			worktree.cleanupStatusError,
 			worktree.worktreeExists,
 			worktree.worktreeCheckError,
-			this.isSchedulingCleanup,
 			batch?.state,
 			batch?.schedulingError,
 			this.isWorktreeSelected(worktree),
@@ -1306,9 +1290,8 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		}
 	}
 
-	private async cleanupSelected(selected = this.getSelected()): Promise<void> {
-		const selectableIds = new Set(this.getVisibleWorktrees().filter(worktree => this.isManuallySelectable(worktree)).map(getWorktreeCleanupId));
-		selected = selected.filter(candidate => selectableIds.has(getWorktreeCleanupId(candidate)));
+	private async cleanupSelected(): Promise<void> {
+		const selected = this.getSelected();
 		if (this.isSchedulingCleanup || selected.length === 0) {
 			return;
 		}

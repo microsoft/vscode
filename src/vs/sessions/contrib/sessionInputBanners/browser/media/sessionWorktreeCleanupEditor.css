@@ -147,11 +147,6 @@
 	margin: var(--vscode-spacing-size160) 0 var(--vscode-spacing-size80);
 }
 
-.session-worktree-cleanup-row .actions {
-	display: flex;
-	align-items: center;
-}
-
 .session-worktree-cleanup-force-remove {
 	width: auto;
 }
@@ -219,14 +214,6 @@
 	line-height: 44px;
 }
 
-.session-worktree-cleanup-row .actions {
-	align-items: center;
-}
-
-.session-worktree-cleanup-row .actions .action-label {
-	padding: var(--vscode-spacing-size40);
-}
-
 .session-worktree-cleanup-row .selection {
 	align-items: center;
 }
@@ -260,7 +247,7 @@
 }
 
 .session-worktree-cleanup-automatic {
-	margin-top: var(--vscode-spacing-size120);
+	margin-bottom: var(--vscode-spacing-size120);
 }
 
 .session-worktree-cleanup-automatic > summary {

@@ -86,11 +86,6 @@ suite('SessionWorktreeCleanupEditor', () => {
 		return row.querySelector('.status')?.textContent?.replace(/^(?:Has session|No matching session): /, '');
 	}
 
-	function rowAction(container: HTMLElement, title: string, label: string): HTMLElement {
-		const row = [...container.querySelectorAll('.session-worktree-cleanup-row')].find(row => row.querySelector('.session-worktree-cleanup-session-link')?.textContent === title)!;
-		return [...row.querySelectorAll<HTMLElement>('.actions .action-label')].find(action => action.textContent === label)!;
-	}
-
 	test('shows ownership once for idle worktrees and hides failed worktrees without hiding progress', async () => {
 		const { container } = await openEditor([
 			createWorktree('ready', '/repos/app'),
@@ -164,7 +159,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		});
 		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
 		await timeout(0);
-		rowAction(container, 'failed', 'Clean Up').click();
+		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
 		await timeout(0);
 		const afterFailure = {
 			rows: container.querySelectorAll('.session-worktree-cleanup-row').length,
@@ -250,17 +245,20 @@ suite('SessionWorktreeCleanupEditor', () => {
 		}, { rows: 0, focusedAgeFilter: true });
 	}));
 
-	test('row Clean Up submits only its worktree and preserves other checkbox choices', async () => {
+	test('cleans up one checked worktree without per-row actions', async () => {
 		const worktrees = [createWorktree('selected', '/repos/app'), createWorktree('unchecked', '/repos/app'), createWorktree('active', '/repos/app', 'active')];
 		const { container, cleaned } = await openEditor(worktrees);
-		container.querySelectorAll<HTMLElement>('.session-worktree-cleanup-row [role="checkbox"]')[1].click();
-		rowAction(container, 'active', 'Clean Up').click();
+		const checkboxes = container.querySelectorAll<HTMLElement>('.session-worktree-cleanup-row [role="checkbox"]');
+		checkboxes[0].click();
+		checkboxes[1].click();
+		checkboxes[2].click();
+		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
 		await timeout(0);
 		assert.deepStrictEqual({
 			cleaned,
 			checked: [...container.querySelectorAll('.session-worktree-cleanup-row [role="checkbox"]')].map(checkbox => checkbox.getAttribute('aria-checked')),
-			toolbar: !!rowAction(container, 'active', 'Clean Up').closest('.monaco-toolbar'),
-		}, { cleaned: [['active']], checked: ['true', 'false', 'false'], toolbar: true });
+			rowActions: container.querySelectorAll('.session-worktree-cleanup-row .actions, .session-worktree-cleanup-row .monaco-toolbar').length,
+		}, { cleaned: [['active']], checked: ['false', 'false', 'true'], rowActions: 0 });
 	});
 
 	test('has one virtualized table and no outer vertical scroll container', async () => {
@@ -307,7 +305,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		});
 		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
 		await timeout(0);
-		rowAction(container, 'first', 'Clean Up').click();
+		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
 		editor.clearInput();
 		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
 		await timeout(100);
@@ -363,7 +361,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		});
 		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
 		await timeout(0);
-		rowAction(container, 'first', 'Clean Up').click();
+		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
 		editor.clearInput();
 		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
 		await timeout(100);
@@ -392,11 +390,15 @@ suite('SessionWorktreeCleanupEditor', () => {
 		});
 		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
 		await timeout(0);
-		rowAction(container, 'restored', 'Clean Up').click();
+		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
 		await timeout(100);
 		operations.set([], undefined);
 		await timeout(100);
-		rowAction(container, 'restored', 'Clean Up').click();
+		const checkbox = container.querySelector<HTMLElement>('.session-worktree-cleanup-row [role="checkbox"]')!;
+		if (checkbox.getAttribute('aria-checked') !== 'true') {
+			checkbox.click();
+		}
+		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
 		await timeout(0);
 		assert.deepStrictEqual({ requests, selectableRows: container.querySelectorAll('.session-worktree-cleanup-row [role="checkbox"]').length }, { requests: 2, selectableRows: 0 });
 	}));
@@ -419,12 +421,13 @@ suite('SessionWorktreeCleanupEditor', () => {
 		assert.deepStrictEqual({
 			regionBounds,
 			settingsVisible: settings.getBoundingClientRect().bottom <= root.getBoundingClientRect().bottom,
+			settingsAboveInventory: settings.getBoundingClientRect().bottom <= inventory.getBoundingClientRect().top,
 			inventoryVisible: inventory.clientHeight >= 80,
 			inventoryOutsideControls: !inventory.closest('.session-worktree-cleanup-controls-content'),
 			virtualized: container.querySelectorAll('.session-worktree-cleanup-row').length < 20,
 		}, {
 			regionBounds: [{ scrollable: true, lastControlReachable: true }, { scrollable: true, lastControlReachable: true }],
-			settingsVisible: true, inventoryVisible: true, inventoryOutsideControls: true, virtualized: true,
+			settingsVisible: true, settingsAboveInventory: true, inventoryVisible: true, inventoryOutsideControls: true, virtualized: true,
 		});
 	});
 
@@ -1039,8 +1042,9 @@ suite('SessionWorktreeCleanupEditor', () => {
 		assert.ok(table instanceof WorkbenchTable);
 		const tableNode = table.getHTMLElement();
 		const headers = [...tableNode.querySelectorAll<HTMLElement>('.monaco-table-th')];
-		const cells = [...tableNode.querySelectorAll<HTMLElement>('.session-worktree-cleanup-row:first-child .monaco-table-td')].slice(0, 7);
-		const aligned = () => headers.length === 7 && cells.length === 7 && headers.every((header, index) => {
+		const row = tableNode.querySelector('.session-worktree-cleanup-row')!;
+		const cells = [...row.querySelectorAll<HTMLElement>('.monaco-table-td')];
+		const aligned = () => headers.length === 6 && cells.length === 6 && headers.every((header, index) => {
 			const heading = header.getBoundingClientRect();
 			const cell = cells[index].getBoundingClientRect();
 			return heading.width > 0 && Math.abs(heading.width - cell.width) < 1 && Math.abs(heading.left - cell.left) < 1;
@@ -1065,7 +1069,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 			narrow,
 			wideAligned: aligned(),
 		}, {
-			columns: ['', 'Session', 'Workspace', 'Last Session Activity', 'Disk Usage', 'Status', 'Actions'],
+			columns: ['', 'Session', 'Workspace', 'Last Session Activity', 'Disk Usage', 'Status'],
 			resized: true,
 			narrow: { overflows: true, scrolled: true, aligned: true, sameCell: true },
 			wideAligned: true,
@@ -2350,7 +2354,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		});
 	});
 
-	test('keeps the introduction compact without a command paragraph and places collapsed settings below inventory', () => {
+	test('keeps the introduction compact without a command paragraph and places collapsed settings above inventory', () => {
 		const { container } = createEditor();
 		const settings = container.querySelector<HTMLDetailsElement>('details')!;
 		const inventory = container.querySelector('.session-worktree-cleanup-list')!;
@@ -2359,12 +2363,12 @@ suite('SessionWorktreeCleanupEditor', () => {
 			introParagraphs: container.querySelectorAll('.session-worktree-cleanup-intro').length,
 			boldParagraphs: container.querySelectorAll('.session-worktree-cleanup-content > p strong').length,
 			settingsCollapsed: !settings.open,
-			settingsAfterInventory: !!(inventory.compareDocumentPosition(settings) & mainWindow.Node.DOCUMENT_POSITION_FOLLOWING),
+			settingsBeforeInventory: !!(settings.compareDocumentPosition(inventory) & mainWindow.Node.DOCUMENT_POSITION_FOLLOWING),
 		}, {
 			introParagraphs: 1,
 			boldParagraphs: 0,
 			settingsCollapsed: true,
-			settingsAfterInventory: true,
+			settingsBeforeInventory: true,
 		});
 	});
 
