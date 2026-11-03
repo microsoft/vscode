@@ -384,9 +384,10 @@ suite('Sessions - Titlebar Part', () => {
 			setFullscreen(false, mainWindow);
 			setFullscreen(false, auxiliaryWindow);
 		}));
-		const coverScreen = () => {
+		const coverScreen = (options?: { belowNotch?: boolean }) => {
 			size.width = screen.width;
-			size.height = screen.height;
+			// In full screen on a display with a camera notch, the window is below the notch.
+			size.height = options?.belowNotch ? screen.height - 38 : screen.height;
 		};
 		// Only native macOS reserves a spacer for the traffic lights.
 		const hasTrafficLightSpacer = isMacintosh && isNative;
@@ -442,6 +443,19 @@ suite('Sessions - Titlebar Part', () => {
 			reserved: { fullscreenClass: false, spacer: hasTrafficLightSpacer ? '' : 'absent' },
 			flaggedButWindowed: { fullscreenClass: false, spacer: hasTrafficLightSpacer ? '' : 'absent' },
 			fullscreen: { fullscreenClass: true, spacer: hasTrafficLightSpacer ? 'none' : 'absent' },
+		});
+	});
+
+	test('gives up the traffic-light inset for an auxiliary window in fullscreen below the camera notch of its display, which is less tall than its screen', () => {
+		const { auxiliaryWindow, coverScreen, read, hasTrafficLightSpacer } = createAuxiliaryTitlebar({ createdBeforeInWindow: true });
+		coverScreen({ belowNotch: true });
+		setFullscreen(true, auxiliaryWindow);
+		const fullscreen = read();
+		setFullscreen(false, auxiliaryWindow);
+
+		assert.deepStrictEqual({ fullscreen, windowed: read() }, {
+			fullscreen: { fullscreenClass: true, spacer: hasTrafficLightSpacer ? 'none' : 'absent' },
+			windowed: { fullscreenClass: false, spacer: hasTrafficLightSpacer ? '' : 'absent' },
 		});
 	});
 

@@ -44,7 +44,7 @@ const DEFAULT_SESSIONS_TITLEBAR_HEIGHT = 44;
 /**
  * Whether the window hosting the title bar is in full screen, where the
  * traffic lights are hidden. The full-screen state of an auxiliary window is
- * only trusted when the window also covers its whole screen, so that a wrong
+ * only trusted when the window also spans the width of its screen, so that a wrong
  * state never removes the space reserved for visible traffic lights.
  */
 function isTitlebarWindowFullscreen(targetWindow: CodeWindow): boolean {
@@ -56,7 +56,9 @@ function isTitlebarWindowFullscreen(targetWindow: CodeWindow): boolean {
 		return true;
 	}
 
-	return targetWindow.outerWidth >= targetWindow.screen.width && targetWindow.outerHeight >= targetWindow.screen.height;
+	// Across the width of its screen: in full screen on a display with a camera notch, the window is below the notch, so
+	// less tall than its screen.
+	return targetWindow.outerWidth >= targetWindow.screen.width;
 }
 
 /**
