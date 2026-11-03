@@ -204,9 +204,9 @@ suite('Sessions - Grid Layout', () => {
 			pointerEvents: mainWindow.getComputedStyle(sash).pointerEvents
 		}));
 		const visible = snapshot();
-		workbench.classList.add('sash-grippers-hidden');
+		workbench.setAttribute('data-sash-grippers-hidden', '');
 		const hidden = snapshot();
-		workbench.classList.remove('sash-grippers-hidden');
+		workbench.removeAttribute('data-sash-grippers-hidden');
 		const restored = snapshot();
 		const transitions = () => sashes.map(sash => {
 			const style = mainWindow.getComputedStyle(sash, '::after');
@@ -214,9 +214,9 @@ suite('Sessions - Grid Layout', () => {
 		});
 		workbench.classList.add('monaco-enable-motion');
 		const motionEnabled = transitions();
-		workbench.classList.add('sash-grippers-hidden');
+		workbench.setAttribute('data-sash-grippers-hidden', '');
 		const fadeOut = transitions();
-		workbench.classList.remove('sash-grippers-hidden');
+		workbench.removeAttribute('data-sash-grippers-hidden');
 		const fadeIn = transitions();
 		workbench.classList.replace('monaco-enable-motion', 'monaco-reduce-motion');
 		assert.deepStrictEqual({ visible, hidden, restored, motionEnabled, fadeOut, fadeIn, reducedMotion: transitions() }, {
