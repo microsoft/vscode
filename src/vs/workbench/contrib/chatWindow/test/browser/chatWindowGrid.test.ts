@@ -29,6 +29,7 @@ suite('Chat window grid', () => {
 		const group = new class extends mock<IEditorGroup>() {
 			override readonly isEmpty = false;
 			override readonly onDidModelChange = Event.None;
+			override getEditors() { return []; }
 		}();
 		return new class extends mock<IContentPart>() {
 			override readonly element = $(`.${name}`);
@@ -97,8 +98,25 @@ suite('Chat window grid', () => {
 		grid.layout(1000, 800);
 		const visible = () => [ChatWindowGridCell.TitleRow, ChatWindowGridCell.Chat, ChatWindowGridCell.Main, ChatWindowGridCell.Strip].filter(cell => grid.partGrid!.isCellVisible(cell));
 		const userResize = (cell: ChatWindowGridCell, edge: 'top' | 'right', size: number) => drag(container, grid, cell, edge, size);
-		return { mode, grid, visible, userResize };
+		return { mode, grid, visible, userResize, container };
 	}
+
+	test('a part dragged onto the center of another part does not merge into it: the center is not a drop target, the sides are', () => {
+		const { container } = setup();
+		const cellOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!;
+		const indicator = container.querySelector<HTMLElement>('.part-grid-drop-indicator')!;
+		const dragChatOverMain = (fraction: number) => {
+			const handle = cellOf(ChatWindowGridCell.Chat).querySelector('.part-grid-drag-handle')!;
+			handle.dispatchEvent(new DragEvent('dragstart', { dataTransfer: new DataTransfer(), bubbles: true, cancelable: true }));
+			const main = cellOf(ChatWindowGridCell.Main).getBoundingClientRect();
+			cellOf(ChatWindowGridCell.Main).dispatchEvent(new DragEvent('dragover', { dataTransfer: new DataTransfer(), clientX: main.left + main.width * fraction, clientY: main.top + main.height / 2, bubbles: true, cancelable: true }));
+			const shown = indicator.style.display !== 'none' && !indicator.classList.contains('merge');
+			handle.dispatchEvent(new DragEvent('dragend', { dataTransfer: new DataTransfer(), bubbles: true, cancelable: true }));
+			return shown;
+		};
+
+		assert.deepStrictEqual({ center: dragChatOverMain(0.5), side: dragChatOverMain(0.9) }, { center: false, side: true });
+	});
 
 	test('the title row is above the chat while the main part is beside it, else across the window; the strip has a column of its own while the chat is below the main part or hidden', () => {
 		const { mode, grid, visible } = setup();
