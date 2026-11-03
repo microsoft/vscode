@@ -36,6 +36,8 @@ steps:
           powershell: .\scripts\test.bat --build --tfs "Unit Tests"
           env:
             VSCODE_SKIP_PRELAUNCH: '1'
+            VSCODE_TEST_ISOLATION_RESET: '1'
+            VSCODE_TEST_ISOLATION_REPORT: $(Agent.TempDirectory)/isolation.jsonl
           displayName: 🧪 Run unit tests (Electron)
           timeoutInMinutes: 30
 
@@ -58,8 +60,15 @@ steps:
         testId: unit-browser-chromium
         testStep:
           powershell: pnpm run test-browser-no-install --build --browser chromium --tfs "Browser Unit Tests"
+          env:
+            VSCODE_TEST_ISOLATION_RESET: '1'
+            VSCODE_TEST_ISOLATION_REPORT: $(Agent.TempDirectory)/isolation.jsonl
           displayName: 🧪 Run unit tests (Browser, Chromium)
           timeoutInMinutes: 30
+
+  - powershell: if (Test-Path "$(Agent.TempDirectory)/isolation.jsonl") { Get-Content "$(Agent.TempDirectory)/isolation.jsonl" } else { 'no isolation findings' }
+    displayName: PROOF ONLY - print isolation findings
+    condition: always()
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -123,6 +132,8 @@ steps:
             exec { .\scripts\test-agent-host-e2e.bat --build --tfs "Integration Tests" }
           env:
             VSCODE_SKIP_PRELAUNCH: '1'
+            VSCODE_TEST_ISOLATION_RESET: '1'
+            VSCODE_TEST_ISOLATION_REPORT: $(Agent.TempDirectory)/isolation.jsonl
           displayName: 🧪 Run Agent Host E2E tests (Electron)
           timeoutInMinutes: 30
 
@@ -146,6 +157,8 @@ steps:
             exec { .\scripts\test-integration.bat --build --tfs "Integration Tests" }
           env:
             VSCODE_SKIP_PRELAUNCH: '1'
+            VSCODE_TEST_ISOLATION_RESET: '1'
+            VSCODE_TEST_ISOLATION_REPORT: $(Agent.TempDirectory)/isolation.jsonl
           displayName: 🧪 Run integration tests (Electron)
           timeoutInMinutes: 30
 
@@ -179,6 +192,8 @@ steps:
             exec { .\scripts\test-remote-integration.bat }
           env:
             VSCODE_SKIP_PRELAUNCH: '1'
+            VSCODE_TEST_ISOLATION_RESET: '1'
+            VSCODE_TEST_ISOLATION_REPORT: $(Agent.TempDirectory)/isolation.jsonl
           displayName: 🧪 Run integration tests (Remote)
           timeoutInMinutes: 30
 

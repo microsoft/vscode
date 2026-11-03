@@ -64,6 +64,8 @@ steps:
           script: ./scripts/test.sh --build --tfs "Unit Tests"
           env:
             VSCODE_SKIP_PRELAUNCH: '1'
+            VSCODE_TEST_ISOLATION_RESET: '1'
+            VSCODE_TEST_ISOLATION_REPORT: $(Agent.TempDirectory)/isolation.jsonl
           displayName: 🧪 Run unit tests (Electron)
           timeoutInMinutes: 30
 
@@ -89,8 +91,14 @@ steps:
           script: pnpm run test-browser-no-install --build --browser chromium --tfs "Browser Unit Tests"
           env:
             DEBUG: "*browser*"
+            VSCODE_TEST_ISOLATION_RESET: '1'
+            VSCODE_TEST_ISOLATION_REPORT: $(Agent.TempDirectory)/isolation.jsonl
           displayName: 🧪 Run unit tests (Browser, Chromium)
           timeoutInMinutes: 30
+
+  - script: cat "$(Agent.TempDirectory)/isolation.jsonl" || echo 'no isolation findings'
+    displayName: PROOF ONLY - print isolation findings
+    condition: always()
 
   - script: |
       set -e
