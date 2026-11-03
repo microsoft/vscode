@@ -1297,6 +1297,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
 				uri: folder,
 				message: localize('sessionsService.trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
+				remoteHostLabel: this.sessionsManagementService.getRemoteHostLabel(workspace, session.providerId),
 			});
 			if (!trusted) {
 				return false;
@@ -1643,6 +1644,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
 					uri: folderUri,
 					message: localize('sessionsService.trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
+					remoteHostLabel: this.sessionsManagementService.getRemoteHostLabel(resolved.workspace, resolved.providerId),
 				});
 				if (token.isCancellationRequested) {
 					return { session: undefined, trustDeclined: false };

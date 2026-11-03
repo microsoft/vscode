@@ -210,14 +210,17 @@ suite('LocalAgentHostServiceClient events', () => {
 		});
 	});
 
-	test('installs, rotates and removes sandbox certificates through Management rather than the disabled AHP extension route', async () => {
+	test('manages and refreshes sandbox certificates through Management rather than the disabled AHP extension route', async () => {
 		const { service } = createService();
 		const channels: string[] = [];
 		const calls: [string, string, string][] = [];
+		const hostOperations: [string, string][] = [];
 		const channel = ProxyChannel.fromService({
+			manageHostSandboxCertificate: async (provider: string, operation: string) => { hostOperations.push([provider, operation]); },
 			installSandboxCertificate: async (chat: string, scopeId: string) => { calls.push(['install', chat, scopeId]); },
 			rotateSandboxCertificate: async (chat: string, scopeId: string) => { calls.push(['rotate', chat, scopeId]); },
 			removeSandboxCertificate: async (chat: string, scopeId: string) => { calls.push(['remove', chat, scopeId]); },
+			refreshSandboxCertificate: async (chat: string, scopeId: string) => { calls.push(['refresh', chat, scopeId]); },
 		}, disposables.add(new DisposableStore()));
 		const client: IChannelClient = {
 			getChannel: <T extends IChannel>(name: string): T => {
@@ -229,12 +232,17 @@ suite('LocalAgentHostServiceClient events', () => {
 		const managementClient = sinon.stub(LocalAgentHostManagementConnection.prototype, 'client').resolves(client);
 		disposables.add({ dispose: () => managementClient.restore() });
 		const chat = 'conversation://host/a%2Fb?revision%3D2#entry';
+		for (const operation of ['install', 'rotate', 'remove'] as const) {
+			await service.manageHostSandboxCertificate('copilotcli', operation);
+		}
 		await service.installSandboxCertificate(chat, 'runtime');
 		await service.rotateSandboxCertificate(chat, 'runtime');
 		await service.removeSandboxCertificate(chat, 'runtime');
-		assert.deepStrictEqual({ supported: [service.sandboxCertificateInstallationSupported.get(), service.sandboxCertificateRotationSupported.get(), service.sandboxCertificateRemovalSupported.get()], channels, calls }, {
-			supported: [true, true, true], channels: ['agentHostManagement', 'agentHostManagement', 'agentHostManagement'],
-			calls: [['install', chat, 'runtime'], ['rotate', chat, 'runtime'], ['remove', chat, 'runtime']],
+		await service.refreshSandboxCertificate(chat, 'runtime');
+		assert.deepStrictEqual({ supported: [service.sandboxCertificateInstallationSupported.get(), service.sandboxCertificateRotationSupported.get(), service.sandboxCertificateRemovalSupported.get(), service.sandboxCertificateRefreshSupported.get()], channels, calls, hostOperations }, {
+			supported: [true, true, true, true], channels: Array(7).fill('agentHostManagement'),
+			calls: [['install', chat, 'runtime'], ['rotate', chat, 'runtime'], ['remove', chat, 'runtime'], ['refresh', chat, 'runtime']],
+			hostOperations: [['copilotcli', 'install'], ['copilotcli', 'rotate'], ['copilotcli', 'remove']],
 		});
 	});
 

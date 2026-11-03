@@ -284,6 +284,24 @@ suite('Sash grippers', () => {
 		});
 	});
 
+	test('idle styling does not reach elements outside the sashes', () => {
+		// The class toggles on every idle/active transition; inherited state on the root would restyle the whole workbench.
+		const { container } = createController(false);
+		const sash = append(container, $('.monaco-sash.vertical'));
+		const content = append(append(container, $('.part')), $('.content'));
+		const targetWindow = getWindow(container);
+		const snapshot = () => ({
+			content: targetWindow.getComputedStyle(content).getPropertyValue('--sash-grip-opacity'),
+			sash: targetWindow.getComputedStyle(sash).getPropertyValue('--sash-grip-opacity'),
+		});
+		const visible = snapshot();
+		container.classList.add('sash-grippers-hidden');
+		assert.deepStrictEqual({ visible, hidden: snapshot() }, {
+			visible: { content: '', sash: '' },
+			hidden: { content: '', sash: '0' },
+		});
+	});
+
 	test('fades in both directions and respects reduced motion on the workbench root', () => {
 		const { container } = createController(false);
 		container.classList.add('monaco-enable-motion');
