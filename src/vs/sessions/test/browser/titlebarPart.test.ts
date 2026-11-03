@@ -362,7 +362,7 @@ suite('Sessions - Titlebar Part', () => {
 		assert.deepStrictEqual({ initial, fullscreen, restored: parent.classList.contains('titlebar-fullscreen') }, { initial: false, fullscreen: true, restored: false });
 	});
 
-	function createAuxiliaryTitlebar() {
+	function createAuxiliaryTitlebar(options?: { createdBeforeInWindow?: boolean }) {
 		const iframe = mainWindow.document.body.appendChild(mainWindow.document.createElement('iframe'));
 		store.add(toDisposable(() => iframe.remove()));
 		const auxiliaryWindow = iframe.contentWindow!;
@@ -374,8 +374,12 @@ suite('Sessions - Titlebar Part', () => {
 		Object.defineProperty(auxiliaryWindow, 'outerWidth', { configurable: true, get: () => size.width });
 		Object.defineProperty(auxiliaryWindow, 'outerHeight', { configurable: true, get: () => size.height });
 		const { part } = createTitlebar();
-		const parent = auxiliaryWindow.document.body.appendChild(auxiliaryWindow.document.createElement('div'));
+		// Created before it is in its window, as the title row of a chat view is, it moves there.
+		const parent = options?.createdBeforeInWindow ? mainWindow.document.createElement('div') : auxiliaryWindow.document.body.appendChild(auxiliaryWindow.document.createElement('div'));
 		(part as unknown as { createContentArea(parent: HTMLElement): HTMLElement }).createContentArea(parent);
+		if (options?.createdBeforeInWindow) {
+			auxiliaryWindow.document.body.appendChild(parent);
+		}
 		store.add(toDisposable(() => {
 			setFullscreen(false, mainWindow);
 			setFullscreen(false, auxiliaryWindow);
@@ -407,6 +411,21 @@ suite('Sessions - Titlebar Part', () => {
 		const auxiliaryRestoredWhileMainFullscreen = read().fullscreenClass;
 
 		assert.deepStrictEqual({ mainFullscreen, auxiliaryFullscreen, auxiliaryRestoredWhileMainFullscreen }, { mainFullscreen: false, auxiliaryFullscreen: true, auxiliaryRestoredWhileMainFullscreen: false });
+	});
+
+	test('a title bar created before it is in its window, such as the title row of a chat view, gives up the traffic-light inset while that window is fullscreen, and takes it back as it leaves fullscreen', () => {
+		const { auxiliaryWindow, coverScreen, read, hasTrafficLightSpacer } = createAuxiliaryTitlebar({ createdBeforeInWindow: true });
+		coverScreen();
+		const windowed = read();
+		setFullscreen(true, auxiliaryWindow);
+		const fullscreen = read();
+		setFullscreen(false, auxiliaryWindow);
+
+		assert.deepStrictEqual({ windowed, fullscreen, windowedAgain: read() }, {
+			windowed: { fullscreenClass: false, spacer: hasTrafficLightSpacer ? '' : 'absent' },
+			fullscreen: { fullscreenClass: true, spacer: hasTrafficLightSpacer ? 'none' : 'absent' },
+			windowedAgain: { fullscreenClass: false, spacer: hasTrafficLightSpacer ? '' : 'absent' },
+		});
 	});
 
 	test('keeps the traffic-light inset for an auxiliary window flagged fullscreen that does not cover its screen', () => {

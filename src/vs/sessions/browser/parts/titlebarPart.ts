@@ -12,7 +12,7 @@ import { hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, T
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { agentsBackground, agentsPanelForeground } from '../../common/theme.js';
 import { isLinux, isMacintosh, isWeb, isNative, platformLocale } from '../../../base/common/platform.js';
@@ -123,6 +123,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	get rightWindowControlsContainer(): HTMLElement | undefined { return this.windowControlsContainer; }
 
 	private leftSpacerWidth: number = 0;
+	/** Follows the fullscreen state of the window the title bar is in now. */
+	private trackFullscreenOfWindow: () => void = () => { };
 
 	private centerActionsContainer!: HTMLElement;
 	private sessionActionsContainer!: HTMLElement;
@@ -262,27 +264,34 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		this.element = parent;
 		this.rootContainer = append(parent, $('.titlebar-container.sessions-titlebar-container.has-center'));
 
-		// Track fullscreen of the window hosting this part (main or auxiliary)
-		const targetWindow = getWindow(parent);
-		const targetWindowId = getWindowId(targetWindow);
+		// Track fullscreen of the window hosting this part (main or auxiliary): the window it is in, which may change from
+		// the one it was created in, such as for a title bar created before it is in its window, as the title row of a
+		// chat view is.
 		let trafficLightSpacer: HTMLElement | undefined;
 		const updateFullscreen = () => {
-			const fullscreen = isTitlebarWindowFullscreen(targetWindow);
+			const fullscreen = isTitlebarWindowFullscreen(getWindow(parent));
 			parent.classList.toggle('titlebar-fullscreen', fullscreen);
 			if (trafficLightSpacer) {
 				trafficLightSpacer.style.display = fullscreen ? 'none' : '';
 				this.leftSpacerWidth = fullscreen ? 0 : 70;
 			}
 		};
-		updateFullscreen();
+		const windowResize = this._register(new MutableDisposable());
+		let trackedWindow: CodeWindow | undefined;
+		this.trackFullscreenOfWindow = () => {
+			const targetWindow = getWindow(parent);
+			if (targetWindow !== trackedWindow) {
+				trackedWindow = targetWindow;
+				windowResize.value = targetWindow !== mainWindow ? addDisposableListener(targetWindow, EventType.RESIZE, () => updateFullscreen()) : undefined;
+			}
+			updateFullscreen();
+		};
+		this.trackFullscreenOfWindow();
 		this._register(onDidChangeFullscreen(windowId => {
-			if (windowId === targetWindowId) {
+			if (windowId === getWindowId(getWindow(parent))) {
 				updateFullscreen();
 			}
 		}));
-		if (targetWindow !== mainWindow) {
-			this._register(addDisposableListener(targetWindow, EventType.RESIZE, () => updateFullscreen()));
-		}
 		// Measure in the render phase so DOM reads do not force layout during startup.
 		this.titleBarToolBarOverflowScheduler = this._register(new AnimationFrameScheduler(this.rootContainer, () => this.updateTitleBarToolBarOverflow()));
 
@@ -480,6 +489,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	override layout(width: number, height: number): void {
+		// Laid out in the window it is in, which it may have been moved to since it was created.
+		this.trackFullscreenOfWindow();
 		this.updateLayout();
 		super.layoutContents(width, height);
 		this.titleBarToolBarOverflowScheduler.schedule();
