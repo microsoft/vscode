@@ -4537,6 +4537,40 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('does not reserve one restored provider instance for two concurrent resource opens', async () => {
+			const chat = URI.parse('ahp-chat:/owner/peer');
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				resume: true,
+				chatChannelUri: chat,
+				configureMockSession: mock => mock.openCanvases.push(restored),
+			});
+			const firstResponse = new DeferredPromise<typeof live>();
+			const secondResponse = new DeferredPromise<typeof live>();
+			mockSession.rpc.canvas.open = async request => {
+				mockSession.canvasOpenCalls.push(request);
+				return mockSession.canvasOpenCalls.length === 1 ? firstResponse.p : secondResponse.p;
+			};
+			const firstResource = buildCanvasUri(chat, 'first-lifetime').toString();
+			const secondResource = buildCanvasUri(chat, 'second-lifetime').toString();
+			const first = session.openCanvas({ resourceId: firstResource, extensionId: preview.extensionId, canvasId: preview.canvasId });
+			const second = session.openCanvas({ resourceId: secondResource, extensionId: preview.extensionId, canvasId: preview.canvasId });
+			assert.strictEqual(mockSession.canvasOpenCalls.length, 2);
+			const secondInstanceId = mockSession.canvasOpenCalls[1].instanceId;
+			assert.notStrictEqual(secondInstanceId, preview.instanceId);
+
+			firstResponse.complete(live);
+			secondResponse.complete({ ...live, instanceId: secondInstanceId });
+			await Promise.all([first, second]);
+
+			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'canvas').map(signal => ({
+				resource: signal.resource.toString(),
+				instanceId: signal.state.instanceId,
+			})), [
+				{ resource: firstResource, instanceId: preview.instanceId },
+				{ resource: secondResource, instanceId: secondInstanceId },
+			]);
+		});
+
 		for (const eventOrder of ['before response', 'after response', 'no event'] as const) {
 			test(`projects only the explicitly reopened canvas with ${eventOrder}`, async () => {
 				const chat = URI.parse('ahp-chat:/owner/peer');

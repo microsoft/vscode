@@ -1476,6 +1476,33 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		}
 
+		test('a foreign Canvas sponsor cannot execute in an isolated session', async () => {
+			let openCalls = 0;
+			class ScopedAgent extends MockAgent {
+				readonly supportsScopedCredentials = true;
+				override openSessionCanvas: NonNullable<IAgent['openSessionCanvas']> = async () => {
+					openCalls++;
+				};
+			}
+			const scopedService = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const provider = disposables.add(new ScopedAgent('copilot'));
+			provider.setCapabilities({ multipleChats: { fork: true }, canvases: {} });
+			registerTestAgentProvider(scopedService, provider);
+			getTestAgentServiceComposition(scopedService).configurationService.updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
+			const owner = source('1');
+			await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'owner' }, owner);
+			const session = await scopedService.createSession({ legacyChatUris: false, provider: 'copilot', credentials: owner });
+			const chat = URI.parse(hostDefaultChat(scopedService, session));
+			const foreign = source('2');
+			await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'foreign' }, foreign);
+
+			await assert.rejects(
+				scopedService.openSessionCanvas(session, { canvasId: 'preview', instanceId: 'preview' }, chat, foreign),
+				{ code: AhpErrorCodes.PermissionDenied },
+			);
+			assert.strictEqual(openCalls, 0);
+		});
+
 		test('fresh authentication reaches cold default-chat history before restore tries to read it', async () => {
 			const historyCredentials: (string | undefined)[] = [];
 			class ScopedAgent extends MockAgent {

@@ -129,6 +129,50 @@ suite('AgentHost canvases', () => {
 		});
 	});
 
+	test('refreshes an unavailable advertised canvas through its existing resource', async () => {
+		const calls: unknown[] = [];
+		const connection = new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
+			override getSubscription<T extends StateComponents>(_kind: T, channel: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
+				assert.strictEqual(channel.toString(), resource.toString());
+				return {
+					object: {
+						value: { ...state, url: undefined } as ComponentToState[T],
+						verifiedValue: { ...state, url: undefined } as ComponentToState[T],
+						onDidChange: Event.None,
+						onWillApplyAction: Event.None,
+						onDidApplyAction: Event.None,
+					},
+					dispose() { },
+				};
+			}
+			override async openCanvas(params: { readonly channel: string; readonly chat: string; readonly extensionId: string; readonly canvasId: string }): Promise<void> {
+				calls.push(params);
+			}
+		}();
+		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, undefined, new NullLogService()));
+		const chat = constObservable<ChatState | undefined>(upcastPartial<ChatState>({
+			canvasRegistry: {
+				extensions: [{
+					extensionId: state.extensionId,
+					canvases: [{ canvasId: state.canvasId, title: 'Preview', description: 'Preview.', requiresInput: false }],
+				}],
+			},
+		}));
+		const context = collection.createContext(owner, constObservable([{ resource: resource.toString() }]), chat, Event.None, true);
+		const definitions = await context.definitionProvider?.listCanvases();
+		assert.ok(definitions && definitions.length === 1);
+
+		await context.definitionProvider?.openCanvas(definitions[0], 'preview');
+
+		assert.deepStrictEqual(calls, [{
+			channel: resource.toString(),
+			chat: owner.chat.toString(),
+			extensionId: state.extensionId,
+			canvasId: state.canvasId,
+		}]);
+	});
+
 	test('requests registry materialization when subscribed state is unsettled', async () => {
 		const dispatched: unknown[] = [];
 		const connection = new class extends mock<IAgentConnection>() {

@@ -108,12 +108,16 @@ export class AgentHostCanvasCollection extends Disposable {
 					}
 					return getAgentHostCanvasDefinitions(registry);
 				},
-				openCanvas: (canvas: ICanvasDefinition, _instanceId: string) => this.connection.openCanvas!({
-					channel: buildCanvasUri(owner.chat, generateUuid()).toString(),
-					chat: owner.chat.toString(),
-					canvasId: canvas.canvasId,
-					extensionId: canvas.extensionId,
-				}),
+				openCanvas: (canvas: ICanvasDefinition, _instanceId: string) => {
+					const unavailable = canvases.get()?.find(candidate => candidate.source === undefined
+						&& candidate.extensionId === canvas.extensionId && candidate.canvasId === canvas.canvasId);
+					return this.connection.openCanvas!({
+						channel: (unavailable?.resource ?? buildCanvasUri(owner.chat, generateUuid())).toString(),
+						chat: owner.chat.toString(),
+						canvasId: canvas.canvasId,
+						extensionId: canvas.extensionId,
+					});
+				},
 			}
 			: undefined;
 		const closeCanvas = supportsCommands && this.connection.disposeCanvas

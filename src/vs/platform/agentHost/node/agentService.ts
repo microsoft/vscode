@@ -6875,6 +6875,7 @@ export class AgentService extends Disposable implements IAgentService {
 	async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI, credentials?: IAgentHostCredentialSource): Promise<void> {
 		this._assertCanvasesEnabled();
 		await this._restoreSessionChat(session, chat, 'Canvas operation');
+		this._checkCredentialPrincipal(session.toString(), credentials);
 		this._assertCanvasCommandsSupported(chat.toString());
 		const provider = this._providerService.getProviderForChat(session, chat);
 		if (!provider?.openSessionCanvas) {

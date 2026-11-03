@@ -5039,6 +5039,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const restored = !existingResource && request.instanceId === undefined
 			? wrapper.session.openCanvases.find(canvas => this._ignoredRestoredCanvasInstanceIds.has(canvas.instanceId)
+				&& !this._pendingCanvasOpens.has(canvas.instanceId)
 				&& (request.extensionId === undefined || canvas.extensionId === request.extensionId)
 				&& canvas.canvasId === request.canvasId)
 			: undefined;
