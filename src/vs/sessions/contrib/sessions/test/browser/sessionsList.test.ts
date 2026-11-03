@@ -302,6 +302,22 @@ suite('Sessions - SessionsList', () => {
 			});
 		}
 
+		test('repeated focus-style refreshes only reread the local catalogue', async () => {
+			const fixture = await createFixture();
+			for (let index = 0; index < 3; index++) {
+				fixture.management.sessions = [createTestSession(`Latest ${index}`).session];
+				fixture.list.refresh();
+			}
+			const immediate = fixture.counts();
+			await nextFrame();
+
+			assert.deepStrictEqual({
+				immediate, settled: fixture.counts(), titles: fixture.titles(),
+			}, {
+				immediate: { reads: 3, updates: 3 }, settled: { reads: 3, updates: 3 }, titles: ['Latest 2'],
+			});
+		});
+
 		test('does not render a hidden list and refreshes its latest catalogue when shown', async () => {
 			const fixture = await createFixture();
 			fixture.invalidateCatalogue();
