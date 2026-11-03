@@ -19,7 +19,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatTip, IChatTipProvider, IChatTipService } from '../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { OPEN_AGENTS_WINDOW_COMMAND_ID } from '../../../../workbench/contrib/chat/common/constants.js';
-import { selectSystemWideKeybindings } from '../../../../workbench/contrib/keybindings/electron-browser/systemWideKeybindings.js';
+import { ISystemWideKeybindingCandidate, selectSystemWideKeybindings } from '../../../../workbench/contrib/keybindings/electron-browser/systemWideKeybindings.js';
 import { IKeybindingEditingService } from '../../../../workbench/services/keybinding/common/keybindingEditing.js';
 import { createKeybindingCommandQuery } from '../../../../workbench/services/preferences/browser/keybindingsEditorModel.js';
 import { AgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
@@ -37,8 +37,10 @@ export class OpenAgentsWindowSystemWideKeybindingTip extends Disposable implemen
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private _enabled: boolean;
+	private _enabledKeybindingLabel: string | undefined;
 	private _dismissed: boolean;
 	private _showEnabledConfirmation = false;
+	private _sessionGeneration = 0;
 	private _enablement: Promise<void> | undefined;
 
 	constructor(
@@ -52,7 +54,9 @@ export class OpenAgentsWindowSystemWideKeybindingTip extends Disposable implemen
 	) {
 		super();
 
-		this._enabled = this._hasSystemWideKeybinding();
+		const enabledKeybinding = this._getOpenAgentsWindowSystemWideKeybinding();
+		this._enabled = !!enabledKeybinding;
+		this._enabledKeybindingLabel = this._getKeybindingLabel(enabledKeybinding);
 		this._dismissed = this._storageService.getBoolean(OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING_TIP_DISMISSED, StorageScope.APPLICATION, false);
 
 		this._register(this._chatTipService.registerTipProvider(this));
@@ -65,13 +69,14 @@ export class OpenAgentsWindowSystemWideKeybindingTip extends Disposable implemen
 			return undefined;
 		}
 
-		const keybindingLabel = this._keybindingService.resolveUserBinding(OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING)[0]?.getLabel()
+		const defaultKeybindingLabel = this._keybindingService.resolveUserBinding(OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING)[0]?.getLabel()
 			?? localize('openAgentsWindowSystemWideKeybinding.label', "Ctrl+Cmd+A");
 		if (this._enabled) {
 			if (!this._showEnabledConfirmation) {
 				return undefined;
 			}
 
+			const keybindingLabel = this._enabledKeybindingLabel ?? defaultKeybindingLabel;
 			const commandArgs = encodeURIComponent(JSON.stringify([createKeybindingCommandQuery(OPEN_AGENTS_WINDOW_COMMAND_ID)]));
 			const content = new MarkdownString('', {
 				isTrusted: { enabledCommands: [OPEN_GLOBAL_KEYBINDINGS_COMMAND_ID] },
@@ -90,7 +95,7 @@ export class OpenAgentsWindowSystemWideKeybindingTip extends Disposable implemen
 			isTrusted: { enabledCommands: [ENABLE_OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING_COMMAND_ID] },
 		});
 		content.appendMarkdown(localize('openAgentsWindowSystemWideKeybinding.tipPrefix', "**Tip:** "));
-		content.appendLink(`command:${ENABLE_OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING_COMMAND_ID}`, localize('openAgentsWindowSystemWideKeybinding.enable', "Enable {0}", keybindingLabel));
+		content.appendLink(`command:${ENABLE_OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING_COMMAND_ID}`, localize('openAgentsWindowSystemWideKeybinding.enable', "Enable {0}", defaultKeybindingLabel));
 		content.appendMarkdown(localize('openAgentsWindowSystemWideKeybinding.tipSuffix', " to open the Agents Window from any app while VS Code is running."));
 
 		return {
@@ -101,6 +106,7 @@ export class OpenAgentsWindowSystemWideKeybindingTip extends Disposable implemen
 	}
 
 	resetSession(): void {
+		this._sessionGeneration++;
 		this._showEnabledConfirmation = false;
 	}
 
@@ -121,18 +127,31 @@ export class OpenAgentsWindowSystemWideKeybindingTip extends Disposable implemen
 	}
 
 	private _updateEnabled(): void {
-		const enabled = this._hasSystemWideKeybinding();
-		if (this._enabled === enabled) {
-			return;
-		}
-
+		const enabledKeybinding = this._getOpenAgentsWindowSystemWideKeybinding();
+		const enabled = !!enabledKeybinding;
+		const enabledKeybindingLabel = this._getKeybindingLabel(enabledKeybinding);
+		const didChange = this._enabled !== enabled
+			|| (this._showEnabledConfirmation && this._enabledKeybindingLabel !== enabledKeybindingLabel);
 		this._enabled = enabled;
-		this._onDidChange.fire();
+		this._enabledKeybindingLabel = enabledKeybindingLabel;
+		if (!enabled) {
+			this._showEnabledConfirmation = false;
+		}
+		if (didChange) {
+			this._onDidChange.fire();
+		}
 	}
 
-	private _hasSystemWideKeybinding(): boolean {
+	private _getOpenAgentsWindowSystemWideKeybinding(): ISystemWideKeybindingCandidate | undefined {
 		return selectSystemWideKeybindings(this._keybindingService.getKeybindings()).candidates
-			.some(keybinding => keybinding.commandId === OPEN_AGENTS_WINDOW_COMMAND_ID);
+			.find(keybinding => keybinding.commandId === OPEN_AGENTS_WINDOW_COMMAND_ID);
+	}
+
+	private _getKeybindingLabel(keybinding: ISystemWideKeybindingCandidate | undefined): string | undefined {
+		if (!keybinding) {
+			return undefined;
+		}
+		return this._keybindingService.resolveUserBinding(keybinding.userSettingsLabel)[0]?.getLabel() ?? keybinding.userSettingsLabel;
 	}
 
 	private _enable(): Promise<void> {
@@ -146,6 +165,7 @@ export class OpenAgentsWindowSystemWideKeybindingTip extends Disposable implemen
 	}
 
 	private async _doEnable(): Promise<void> {
+		const sessionGeneration = this._sessionGeneration;
 		const resolvedKeybinding = this._keybindingService.resolveUserBinding(OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING)[0];
 		const accelerator = resolvedKeybinding?.getElectronAccelerator();
 		if (!accelerator) {
@@ -185,7 +205,8 @@ export class OpenAgentsWindowSystemWideKeybindingTip extends Disposable implemen
 		}
 
 		this._enabled = true;
-		this._showEnabledConfirmation = true;
+		this._enabledKeybindingLabel = resolvedKeybinding.getLabel() ?? localize('openAgentsWindowSystemWideKeybinding.label', "Ctrl+Cmd+A");
+		this._showEnabledConfirmation = sessionGeneration === this._sessionGeneration;
 		status(localize('openAgentsWindowSystemWideKeybinding.enabledStatus', "Shortcut {0} enabled. Press it from any app to open the Agents Window.", resolvedKeybinding.getAriaLabel() ?? resolvedKeybinding.getLabel() ?? localize('openAgentsWindowSystemWideKeybinding.label', "Ctrl+Cmd+A")));
 		this._onDidChange.fire();
 	}
