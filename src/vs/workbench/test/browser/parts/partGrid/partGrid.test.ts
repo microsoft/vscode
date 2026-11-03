@@ -663,50 +663,75 @@ suite('Part Grid', () => {
 		const start = Object.fromEntries(['a', 'b', 'c'].map(id => [id, cellOf(id).getBoundingClientRect()]));
 		// Where a card shows while the dragged card is held: where it was, moved by its translate
 		const shownLeft = (id: string) => start[id].left + (parseFloat(cellOf(id).style.translate) || 0);
+		// Where the pointer holds c, by its grabber, for the center of the lifted card to be at the middle of the window
+		const middleY = 300 - (motion ? (start.c.height / 2 - 4) * 0.6 : 0);
 
-		return { grid, container, cellOf, translates, start, shownLeft, previews: () => previews, arrangementChanges: () => arrangementChanges };
+		return { grid, container, cellOf, translates, start, shownLeft, middleY, previews: () => previews, arrangementChanges: () => arrangementChanges };
 	}
 
 	test('a dragged card finds where the cards go once for each place, in zones where the cards show, and drops there once', async () => {
-		const { grid, container, cellOf, translates, start, shownLeft, previews, arrangementChanges } = await createRowOfThree(true);
+		const { grid, container, cellOf, translates, start, shownLeft, middleY: y, previews, arrangementChanges } = await createRowOfThree(true);
 		const width = Math.round(start.c.width);
 
-		// c over the left side of a, by small moves: the others make way at once, with one dry run
-		dragCard(container, 'c', [[30, 300], [32, 302], [28, 298], [31, 305]], { hold: true });
+		// c, its center, over the left side of a, by small moves: the others make way at once, with one dry run
+		dragCard(container, 'c', [[30, y], [32, y + 2], [28, y - 2], [31, y + 5]], { hold: true });
 		const overA = { previews: previews(), translates: translates(), lifted: cellOf('c').classList.contains('part-grid-lifted'), slot: !!container.querySelector('.part-grid-frame.slot') };
 
 		// The left side of a where it shows, not where it was, is where c goes already
 		const x = shownLeft('a') + (shownLeft('b') - shownLeft('a')) * 0.1;
 		const inShownZoneOnly = x > start.a.left + start.a.width * 0.25;
-		pointer(mainWindow.document.body, 'pointermove', x, 300);
+		pointer(mainWindow.document.body, 'pointermove', x, y);
 		const overShownA = { inShownZoneOnly, previews: previews(), translates: translates() };
 
-		pointer(mainWindow.document.body, 'pointerup', x, 300);
-		const dropped = { shape: grid.describe(), arrangementChanges: arrangementChanges() };
+		// Dropped, the card settles into its slot first; the part moves once it settled, once
+		pointer(mainWindow.document.body, 'pointerup', x, y);
+		const settling = { shape: grid.describe(), arrangementChanges: arrangementChanges() };
 		await timeout(PART_GRID_REFLOW_DURATION + 80);
+		const dropped = { shape: grid.describe(), arrangementChanges: arrangementChanges() };
 
-		assert.deepStrictEqual({ overA, overShownA, dropped, settled: { translates: translates(), moving: container.querySelectorAll('.part-grid-lifted, .part-grid-reflow, .part-grid-settle, .part-grid-frame-layer').length } }, {
+		assert.deepStrictEqual({ overA, overShownA, settling, dropped, settled: { translates: translates(), moving: container.querySelectorAll('.part-grid-lifted, .part-grid-reflow, .part-grid-settle, .part-grid-frame-layer').length } }, {
 			overA: { previews: 1, translates: { a: [width], b: [width] }, lifted: true, slot: true },
 			overShownA: { inShownZoneOnly: true, previews: 1, translates: { a: [width], b: [width] } },
+			settling: { shape: 'row(a, b, c)', arrangementChanges: 0 },
 			dropped: { shape: 'row(c, a, b)', arrangementChanges: 1 },
 			settled: { translates: { a: [], b: [] }, moving: 0 }
 		});
 	});
 
+	test('a dragged card goes beside a part by where its center is, and to an edge of the window where the pointer pushes it, also over its own slot once it left it', async () => {
+		const { grid, container, translates, start, arrangementChanges } = await createRowOfThree(true);
+		const width = Math.round(start.c.width);
+
+		// The pointer over the top of a, the center of the card, below it, over its left side: c goes left of a
+		dragCard(container, 'c', [[start.a.left + start.a.width * 0.2, 60]], { hold: true });
+		const byCenter = translates();
+
+		// Up to the top edge of the window, over where c shows now
+		pointer(mainWindow.document.body, 'pointermove', start.a.left + 20, 4);
+		pointer(mainWindow.document.body, 'pointerup', start.a.left + 20, 4);
+		await timeout(PART_GRID_REFLOW_DURATION + 80);
+
+		assert.deepStrictEqual({ byCenter, shape: grid.describe(), arrangementChanges: arrangementChanges() }, {
+			byCenter: { a: [width], b: [width] },
+			shape: 'column(c, row(a, b))',
+			arrangementChanges: 1
+		});
+	});
+
 	test('a card sliding to where the dragged card makes way changes course without starting over, and only past the border of a zone', async () => {
-		const { container, cellOf, shownLeft, previews } = await createRowOfThree(true);
+		const { container, cellOf, shownLeft, middleY: y, previews } = await createRowOfThree(true);
 
 		// Every style b had, in order
 		const styles: string[] = [];
 		const observer = new MutationObserver(records => styles.push(...records.map(record => record.oldValue ?? '')));
 		observer.observe(cellOf('b'), { attributes: true, attributeFilter: ['style'], attributeOldValue: true });
 
-		dragCard(container, 'c', [[30, 300]], { hold: true });
+		dragCard(container, 'c', [[30, y]], { hold: true });
 		const translateFirst = cellOf('b').style.translate;
 
 		// Just past the left side of a, where it shows, toward its center, then well into the bottom edge of the window below b
 		const aWidth = shownLeft('b') - shownLeft('a');
-		pointer(mainWindow.document.body, 'pointermove', shownLeft('a') + aWidth * 0.25 + 4, 300);
+		pointer(mainWindow.document.body, 'pointermove', shownLeft('a') + aWidth * 0.25 + 4, y);
 		const nearBorder = previews();
 		pointer(mainWindow.document.body, 'pointermove', shownLeft('b') + 20, 600 - 4);
 		const translateSecond = cellOf('b').style.translate;
@@ -728,11 +753,11 @@ suite('Part Grid', () => {
 	});
 
 	test('Escape puts the dragged card and the others back, and moves nothing', async () => {
-		const { grid, container, translates, start, arrangementChanges } = await createRowOfThree(true);
+		const { grid, container, translates, start, middleY: y, arrangementChanges } = await createRowOfThree(true);
 		const before = grid.describe();
 		const width = Math.round(start.c.width);
 
-		dragCard(container, 'c', [[30, 300]], { hold: true });
+		dragCard(container, 'c', [[30, y]], { hold: true });
 		const dragging = translates();
 		pressEscape();
 		const cancelling = container.classList.contains('part-grid-settling');
@@ -759,7 +784,7 @@ suite('Part Grid', () => {
 		});
 	});
 
-	test('a part dropped on the center of another merges into it, the whole part highlighted, unless the window says parts do not merge', async () => {
+	test('a part dropped on the center of another merges into it, the whole part highlighted; where parts do not merge, it goes beside it, on its nearest side', async () => {
 		const parts = await createParts();
 		const container = boxAt(0, 0, 1000, 800);
 		const grid = disposables.add(new PartGrid(container, parts));
@@ -788,8 +813,8 @@ suite('Part Grid', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual({ notMerging, merging, leftEditors: left.activeGroup.editors.map(editor => editor === leftFile ? 'left' : editor === rightFile ? 'right' : 'other') }, {
-			notMerging: { feedback: 'none', shape: 'row(left, right)', rightVisible: true },
-			merging: { feedback: { merge: true, wholeTarget: true }, shape: 'row(left, right)', rightVisible: false },
+			notMerging: { feedback: { merge: false, wholeTarget: false }, shape: 'row(right, left)', rightVisible: true },
+			merging: { feedback: { merge: true, wholeTarget: true }, shape: 'row(right, left)', rightVisible: false },
 			leftEditors: ['left', 'right']
 		});
 	});

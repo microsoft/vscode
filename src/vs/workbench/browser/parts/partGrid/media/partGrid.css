@@ -178,9 +178,11 @@
  * that show where each card goes. A running slide changes course from where
  * it is, as transitions do. Dropped, the cards settle by the same means.
  */
-.part-grid-card-dragging,
-.part-grid-card-dragging * {
-	cursor: grabbing !important;
+.part-grid-drag-cursor {
+	position: fixed;
+	inset: 0;
+	z-index: 9998;
+	cursor: grabbing;
 }
 
 .part-grid-frame-layer {
@@ -204,13 +206,28 @@
 	clip-path: var(--part-grid-frame-fill-clip);
 }
 
-/* Where the dragged card goes: an empty slot, framed as a card is. */
-.part-grid-frame-layer > .part-grid-frame.slot {
-	background-color: var(--vscode-focusBorder);
+/* Where the dragged card goes: an empty card, with the watermark of an empty editor. */
+.part-grid-frame-layer > .part-grid-slot-watermark {
+	position: fixed;
+	width: 128px;
+	height: 128px;
+	transform-origin: center;
+	background-image: url('../../editor/media/letterpress-light.svg');
+	background-size: contain;
+	background-position: center;
+	background-repeat: no-repeat;
 }
 
-.part-grid-frame-layer > .part-grid-frame.slot > .part-grid-frame-fill {
-	background-color: var(--vscode-editorGroup-dropBackground);
+.monaco-workbench.vs-dark .part-grid-frame-layer > .part-grid-slot-watermark {
+	background-image: url('../../editor/media/letterpress-dark.svg');
+}
+
+.monaco-workbench.hc-light .part-grid-frame-layer > .part-grid-slot-watermark {
+	background-image: url('../../editor/media/letterpress-hcLight.svg');
+}
+
+.monaco-workbench.hc-black .part-grid-frame-layer > .part-grid-slot-watermark {
+	background-image: url('../../editor/media/letterpress-hcDark.svg');
 }
 
 /* The cards leave their looks to their frames, which take the size of where they go. */
@@ -239,6 +256,11 @@
 .part-grid-settling .part-grid-frame-layer > .part-grid-frame,
 .part-grid-settling .part-grid-frame-layer > .part-grid-frame > .part-grid-frame-fill {
 	transition: clip-path 200ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.part-grid-reflowing .part-grid-frame-layer > .part-grid-slot-watermark,
+.part-grid-settling .part-grid-frame-layer > .part-grid-slot-watermark {
+	transition: translate 200ms cubic-bezier(0.22, 1, 0.36, 1), scale 200ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .part-grid-reflowing .part-grid-cell.part-grid-reflow {

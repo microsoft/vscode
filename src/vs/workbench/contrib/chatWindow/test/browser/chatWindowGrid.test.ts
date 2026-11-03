@@ -101,7 +101,7 @@ suite('Chat window grid', () => {
 		return { mode, grid, visible, userResize, container };
 	}
 
-	test('a part dragged onto the center of another part does not merge into it: the center is not a drop target, the sides are', () => {
+	test('a part dragged onto the center of another part does not merge into it: it goes beside it, on its nearest side, as at its sides', () => {
 		const { container } = setup();
 		const cellOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!;
 		const pointer = (target: EventTarget, type: string, clientX: number, clientY: number) => target.dispatchEvent(new PointerEvent(type, { clientX, clientY, button: 0, pointerId: 1, bubbles: true, cancelable: true }));
@@ -119,7 +119,7 @@ suite('Chat window grid', () => {
 			return shown;
 		};
 
-		assert.deepStrictEqual({ center: dragChatOverMain(0.5), side: dragChatOverMain(0.9) }, { center: false, side: true });
+		assert.deepStrictEqual({ center: dragChatOverMain(0.5), side: dragChatOverMain(0.9) }, { center: true, side: true });
 	});
 
 	test('the title row is above the chat while the main part is beside it, else across the window; the strip has a column of its own while the chat is below the main part or hidden', () => {

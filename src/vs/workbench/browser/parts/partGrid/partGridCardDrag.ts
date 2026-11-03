@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, EventHelper, EventType, getWindow, prepend } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventHelper, EventType, getWindow, prepend, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -25,6 +25,13 @@ export const PART_GRID_REFLOW_DURATION = 200;
 export const PART_GRID_DRAG_THRESHOLD = 4;
 
 /**
+ * How far, in pixels, the pointer moves from where it lifted the card before
+ * an edge of the window under the card takes it: the grabber of a card can be
+ * at an edge of the window, which it does not go to as it lifts.
+ */
+export const PART_GRID_LIFT_DISTANCE = 32;
+
+/**
  * How far, in pixels, the pointer goes past the border of the zone of
  * where a card goes before it goes elsewhere, so that it does not flip
  * between two places at their border.
@@ -32,9 +39,15 @@ export const PART_GRID_DRAG_THRESHOLD = 4;
 export const PART_GRID_DROP_HYSTERESIS = 8;
 
 /**
- * The scale of a lifted card.
+ * The scale of a lifted card, about where the pointer holds it.
  */
-const LIFT_SCALE = 0.98;
+const LIFT_SCALE = 0.6;
+
+/**
+ * The size of the watermark in the slot of a dragged card, in pixels, at
+ * most.
+ */
+const SLOT_WATERMARK_SIZE = 128;
 
 /**
  * Where a dragged card goes: to a location in the grid, or into the part of
@@ -145,8 +158,26 @@ interface ICellState {
 	/** Whether what it shows draws over the window, hidden while its card moves as a plain card. */
 	readonly native: boolean;
 
+	/** The look of its card, read as the drag starts. */
+	readonly look: ICardLook;
+
 	/** The card under the cell's content that shows where its card is going. */
 	frame?: HTMLElement;
+}
+
+interface ICardLook {
+	readonly radius: string;
+	readonly background: string | undefined;
+	readonly border: string | undefined;
+}
+
+function readLook(card: HTMLElement): ICardLook {
+	const look = getWindow(card).getComputedStyle(card);
+	return {
+		radius: look.borderTopLeftRadius,
+		background: isTransparent(look.backgroundColor) ? undefined : look.backgroundColor,
+		border: parseFloat(look.borderTopWidth) > 0 && !isTransparent(look.borderTopColor) ? look.borderTopColor : undefined
+	};
 }
 
 type Resolved =
@@ -157,10 +188,6 @@ const NONE = 'none';
 
 function keyOf(drop: PartGridCardDrop): string {
 	return JSON.stringify(drop);
-}
-
-function sameRect(a: IPartGridRect, b: IPartGridRect): boolean {
-	return Math.abs(a.left - b.left) < 1 && Math.abs(a.top - b.top) < 1 && Math.abs(a.width - b.width) < 1 && Math.abs(a.height - b.height) < 1;
 }
 
 function rectOf(element: HTMLElement): IPartGridRect {
@@ -213,6 +240,14 @@ class CardDragSession extends Disposable {
 	private liftedGhost: HTMLElement | undefined;
 	private settleTimer: ReturnType<typeof setTimeout> | undefined;
 	private radius = '0px';
+	private watermark: HTMLElement | undefined;
+
+	/**
+	 * From the pointer to the center of the lifted card, where it shows: where
+	 * the card goes is found there, not under the pointer, which holds the
+	 * card by its edge.
+	 */
+	private centerOffset = { x: 0, y: 0 };
 
 	constructor(
 		private readonly host: IPartGridCardDragHost,
@@ -246,7 +281,8 @@ class CardDragSession extends Disposable {
 				this.cancel();
 			}
 		}, true));
-		this._register(toDisposable(() => this.cleanUp()));
+		// A drop that still settles, such as when another drag starts, moves the part at once
+		this._register(toDisposable(() => this.pendingDrop ? this.finish() : this.cleanUp()));
 	}
 
 	get isDragging(): boolean {
@@ -302,17 +338,25 @@ class CardDragSession extends Disposable {
 		this.motion = this.host.isMotionEnabled();
 		this.containerRect = rectOf(this.host.container);
 
-		// Where everything is as the drag starts, read once
+		// Where everything is as the drag starts, and how it looks, read once, before anything is written
 		for (const cell of this.host.getVisibleCells()) {
-			const state: ICellState = { cell, start: rectOf(cell.card), cellStart: rectOf(cell.element), native: this.motion && hasNativeContent(cell.element) };
+			const state: ICellState = { cell, start: rectOf(cell.card), cellStart: rectOf(cell.element), native: this.motion && hasNativeContent(cell.element), look: readLook(cell.card) };
 			this.states.set(cell.id, state);
 		}
 		this.dragged = this.states.get(this.draggedCell.id);
 		this.visual = this.getPartRects(new Map(Array.from(this.states.values(), state => [state.cell.id, state.start])));
+		this.radius = this.dragged?.look.radius ?? '0px';
+		if (this.motion && this.dragged) {
+			const start = this.dragged.start;
+			this.centerOffset = { x: (start.left + start.width / 2 - this.startX) * LIFT_SCALE, y: (start.top + start.height / 2 - this.startY) * LIFT_SCALE };
+		}
 
-		this.radius = getWindow(this.draggedCell.card).getComputedStyle(this.draggedCell.card).borderTopLeftRadius;
 		this.host.container.classList.add('part-grid-card-dragging');
 		this.visuals.add(toDisposable(() => this.host.container.classList.remove('part-grid-card-dragging')));
+
+		// The cursor grabs over the whole window: one layer over it, rather than a cursor on every element
+		const cursor = append(this.host.container, $('.part-grid-drag-cursor'));
+		this.visuals.add(toDisposable(() => cursor.remove()));
 
 		if (!this.motion) {
 			this.indicator = append(this.host.container, $('.part-grid-drop-indicator.part'));
@@ -338,17 +382,21 @@ class CardDragSession extends Disposable {
 				state.cell.setContentVisible(false);
 				state.cell.element.style.visibility = 'hidden';
 			}
+			state.cell.element.style.setProperty('--part-grid-frame-radius', state.look.radius);
 			if (state !== dragged) {
-				state.cell.element.style.setProperty('--part-grid-frame-radius', getWindow(state.cell.card).getComputedStyle(state.cell.card).borderTopLeftRadius);
-				state.frame = this.createFrame(state.cell.card);
+				state.frame = this.createFrame(state.look);
 				this.placeFrame(state.frame, state.start);
 				state.cell.element.classList.add('part-grid-reflow');
 			}
 		}
 
-		this.slot = this.createFrame(undefined);
+		// Where it goes: an empty card, with the watermark of an empty editor
+		this.slot = this.createFrame(dragged.look);
 		this.slot.classList.add('slot');
-		this.placeFrame(this.slot, dragged.start);
+		this.watermark = append(this.frameLayer, $('.part-grid-slot-watermark'));
+		this.watermark.style.left = `${this.containerRect.left}px`;
+		this.watermark.style.top = `${this.containerRect.top}px`;
+		this.placeSlot(dragged.start);
 
 		// The lifted card: the cell itself, which shows what it shows as it moves, or, for what draws over the window, a plain card
 		if (dragged.native) {
@@ -359,10 +407,22 @@ class CardDragSession extends Disposable {
 			element.classList.add('part-grid-lifted');
 		}
 
-		// With one style flush, everything starts where it is, then moves
-		void this.host.container.offsetWidth;
+		// Everything starts where it is; the card lifts in the next frame, from where it is
 		this.host.container.classList.add('part-grid-reflowing');
-		this.getLifted().style.scale = `${LIFT_SCALE}`;
+		this.visuals.add(scheduleAtNextAnimationFrame(this.targetWindow, () => {
+			if (this.phase === 'dragging') {
+				this.getLifted().style.scale = `${LIFT_SCALE}`;
+			}
+		}));
+	}
+
+	/**
+	 * Where the center of the lifted card is for a pointer, inside the window.
+	 */
+	private probe(x: number, y: number): [number, number] {
+		const bounds = this.containerRect;
+		const clamp = (value: number, min: number, size: number) => Math.min(Math.max(value, min), min + size);
+		return [clamp(x + this.centerOffset.x, bounds.left, bounds.width), clamp(y + this.centerOffset.y, bounds.top, bounds.height)];
 	}
 
 	private getLifted(): HTMLElement {
@@ -394,19 +454,29 @@ class CardDragSession extends Disposable {
 	}
 
 	/**
-	 * Where the card goes for a point of the window, among the cards where
-	 * they show: over where it shows itself, or over the center of a part it does not merge
-	 * into, or outside the window, where it goes does not change.
+	 * Where the card goes for the pointer, among the cards where they show:
+	 * to an edge of the window where the pointer is near it, else beside or
+	 * into the part under the center of the card. Over where it shows itself,
+	 * or outside the window, where it goes does not change.
 	 */
 	private resolve(x: number, y: number): Resolved {
 		const id = this.draggedCell.id;
-		const slot = this.visual.get(id);
-		if (slot && x >= slot.left && x <= slot.left + slot.width && y >= slot.top && y <= slot.top + slot.height) {
-			return { kind: 'keep' }; // over itself, also at an edge of the window: it is there already
+		const rects = Array.from(this.visual, ([cellId, rect]) => ({ id: cellId, rect }));
+		const canMerge = (targetId: string) => targetId === id || this.host.canMerge(id, targetId);
+
+		// An edge of the window, where the pointer pushes the card; over itself, only once it first left where it started, as it lifts there
+		const atPointer = getPartGridDropAt(x, y, this.containerRect, rects);
+		if (atPointer && hasKey(atPointer, { location: true }) && hasKey(atPointer.location, { edge: true })) {
+			return this.isOverSlot(x, y) && !this.leftStart ? { kind: 'keep' } : { kind: 'drop', key: keyOf({ location: atPointer.location }), drop: { location: atPointer.location } };
 		}
 
-		const rects = Array.from(this.visual, ([cellId, rect]) => ({ id: cellId, rect }));
-		const drop = getPartGridDropAt(x, y, this.containerRect, rects, undefined, targetId => targetId === id || this.host.canMerge(id, targetId));
+		// Beside or into a part: where the center of the card is
+		const [cx, cy] = this.probe(x, y);
+		if (this.isOverSlot(cx, cy)) {
+			return { kind: 'keep' }; // over itself, it is there already
+		}
+
+		const drop = getPartGridDropAt(cx, cy, this.containerRect, rects, undefined, canMerge);
 		if (!drop) {
 			return { kind: 'keep' };
 		}
@@ -422,11 +492,22 @@ class CardDragSession extends Disposable {
 		return { kind: 'drop', key: keyOf({ location: drop.location }), drop: { location: drop.location } };
 	}
 
+	private leftStart = false;
+
+	private isOverSlot(x: number, y: number): boolean {
+		const slot = this.visual.get(this.draggedCell.id);
+		return !!slot && x >= slot.left && x <= slot.left + slot.width && y >= slot.top && y <= slot.top + slot.height;
+	}
+
 	/**
 	 * Goes elsewhere only once the pointer is {@link PART_GRID_DROP_HYSTERESIS}
 	 * away from the zone of where it goes now.
 	 */
 	private retarget(x: number, y: number): void {
+		if (!this.leftStart && (Math.hypot(x - this.startX, y - this.startY) > PART_GRID_LIFT_DISTANCE || !this.isOverSlot(...this.probe(x, y)))) {
+			this.leftStart = true;
+		}
+
 		const candidate = this.resolve(x, y);
 		if (candidate.kind === 'keep' || candidate.key === this.current.key) {
 			return;
@@ -502,9 +583,7 @@ class CardDragSession extends Disposable {
 
 		const drop = this.current.drop;
 		const merge = drop && hasKey(drop, { merge: true }) ? drop.merge : undefined;
-		if (this.slot) {
-			this.placeFrame(this.slot, merge === undefined ? rects.get(this.draggedCell.id) : undefined);
-		}
+		this.placeSlot(merge === undefined ? rects.get(this.draggedCell.id) : undefined);
 		this.showMergeTarget(merge !== undefined ? rects.get(merge) : undefined);
 	}
 
@@ -553,7 +632,7 @@ class CardDragSession extends Disposable {
 	 * of the card, or, without one, of a plain card. What draws over the
 	 * window hides meanwhile, so that the frames of its cards show.
 	 */
-	private createFrame(card: HTMLElement | undefined): HTMLElement {
+	private createFrame(look: ICardLook | undefined): HTMLElement {
 		const frame = append(this.frameLayer!, $('.part-grid-frame'));
 		append(frame, $('.part-grid-frame-fill'));
 		const bounds = this.containerRect;
@@ -562,18 +641,21 @@ class CardDragSession extends Disposable {
 		frame.style.width = `${bounds.width}px`;
 		frame.style.height = `${bounds.height}px`;
 
-		const look = card ? getWindow(card).getComputedStyle(card) : undefined;
 		if (look) {
-			frame.style.setProperty('--part-grid-frame-radius', look.borderTopLeftRadius);
-			if (!isTransparent(look.backgroundColor)) {
-				frame.style.setProperty('--part-grid-frame-background', look.backgroundColor);
-			}
-			if (parseFloat(look.borderTopWidth) > 0 && !isTransparent(look.borderTopColor)) {
-				frame.style.setProperty('--part-grid-frame-border', look.borderTopColor);
-			}
+			this.applyLook(frame, look);
 		}
 
 		return frame;
+	}
+
+	private applyLook(frame: HTMLElement, look: ICardLook): void {
+		frame.style.setProperty('--part-grid-frame-radius', look.radius);
+		if (look.background) {
+			frame.style.setProperty('--part-grid-frame-background', look.background);
+		}
+		if (look.border) {
+			frame.style.setProperty('--part-grid-frame-border', look.border);
+		}
 	}
 
 	private placeFrame(frame: HTMLElement, rect: IPartGridRect | undefined): void {
@@ -592,12 +674,33 @@ class CardDragSession extends Disposable {
 		frame.style.setProperty('--part-grid-frame-fill-clip', `inset(${top + 1}px ${right + 1}px ${bottom + 1}px ${left + 1}px round max(0px, calc(var(--part-grid-frame-radius, 0px) - 1px)))`);
 	}
 
+	private placeSlot(rect: IPartGridRect | undefined): void {
+		if (this.slot) {
+			this.placeFrame(this.slot, rect);
+		}
+
+		const watermark = this.watermark;
+		if (!watermark) {
+			return;
+		}
+		if (!rect) {
+			watermark.style.opacity = '0';
+			return;
+		}
+
+		// Centered in the slot, by a transform, as large as a third of the slot, at most its size
+		const scale = Math.min(1, Math.min(rect.width, rect.height) / 3 / SLOT_WATERMARK_SIZE);
+		const bounds = this.containerRect;
+		watermark.style.opacity = '';
+		watermark.style.translate = `${rect.left - bounds.left + rect.width / 2 - SLOT_WATERMARK_SIZE / 2}px ${rect.top - bounds.top + rect.height / 2 - SLOT_WATERMARK_SIZE / 2}px`;
+		watermark.style.scale = `${scale}`;
+	}
+
 	private createGhost(state: ICellState): HTMLElement {
 		const ghost = append(this.topLayer!, $(`.part-grid-motion-card.part-grid-lifted-card.${PART_GRID_MOTION_CLASS}`));
-		const look = getWindow(state.cell.card).getComputedStyle(state.cell.card);
-		ghost.style.setProperty('--part-grid-motion-radius', look.borderTopLeftRadius);
-		if (!isTransparent(look.backgroundColor)) {
-			ghost.style.setProperty('--part-grid-motion-background', look.backgroundColor);
+		ghost.style.setProperty('--part-grid-motion-radius', state.look.radius);
+		if (state.look.background) {
+			ghost.style.setProperty('--part-grid-motion-background', state.look.background);
 		}
 		ghost.style.left = `${state.start.left}px`;
 		ghost.style.top = `${state.start.top}px`;
@@ -613,8 +716,9 @@ class CardDragSession extends Disposable {
 	//#region Drop
 
 	/**
-	 * Moves the part once, then settles the cards from where they show to
-	 * where the move put them.
+	 * Settles the dropped card into its slot, where the other cards already
+	 * show as they will be, then moves the part, once: what lays out again
+	 * with the move, which can take a while, does so once nothing moves.
 	 */
 	private commit(drop: PartGridCardDrop): void {
 		const id = this.draggedCell.id;
@@ -626,89 +730,71 @@ class CardDragSession extends Disposable {
 		}
 
 		this.phase = 'settling';
+		this.pendingDrop = drop;
+		const lifted = this.dragged;
+		if (!lifted) {
+			this.finish();
+			return;
+		}
+
+		this.host.container.classList.add('part-grid-settling');
 		const merge = hasKey(drop, { merge: true }) ? drop.merge : undefined;
 
-		// Where the cards show, read once before the move
-		const shown = new Map<string, IPartGridRect>();
-		for (const state of this.states.values()) {
-			shown.set(state.cell.id, rectOf(state === this.dragged && this.liftedGhost ? this.liftedGhost : state.cell.card));
-		}
-
-		// A part that merges goes away with the move: a plain card goes into the part it merges into
-		const lifted = this.dragged;
-		if (merge !== undefined && lifted && !this.liftedGhost) {
-			this.liftedGhost = this.createGhost(lifted);
-			const from = shown.get(id)!;
-			this.liftedGhost.style.transformOrigin = '0 0';
-			this.liftedGhost.style.translate = `${from.left - lifted.start.left}px ${from.top - lifted.start.top}px`;
-			this.liftedGhost.style.scale = `${LIFT_SCALE}`;
-			lifted.cell.element.style.visibility = 'hidden';
-		}
-
-		this.host.drop(id, drop);
-
-		// The cards that are where they show stay; those still sliding glide on from where they show
-		const container = this.host.container;
-		container.classList.remove('part-grid-reflowing', 'part-grid-card-dragging');
-		this.slot?.remove();
-		for (const state of this.states.values()) {
-			if (!state.native) {
-				state.frame?.remove(); // the card shows its own look again
+		if (merge !== undefined) {
+			// A part that merges goes away: a plain card goes into the part it merges into, and fades
+			const target = this.visual.get(merge) ?? this.states.get(merge)?.start;
+			if (!this.liftedGhost) {
+				this.liftedGhost = this.createGhost(lifted);
+				this.liftedGhost.style.translate = lifted.cell.element.style.translate;
+				this.liftedGhost.style.scale = `${LIFT_SCALE}`;
+				lifted.cell.element.style.visibility = 'hidden';
 			}
-		}
-		this.indicator?.remove();
-		this.indicator = undefined;
-
-		const moved: { readonly element: HTMLElement; readonly from: IPartGridRect; readonly card: HTMLElement; readonly lifted: boolean }[] = [];
-		for (const state of this.states.values()) {
-			const style = state.cell.element.style;
-			state.cell.element.classList.remove('part-grid-reflow', 'part-grid-lifted');
-			style.translate = style.scale = style.clipPath = style.opacity = style.transformOrigin = '';
-			if (state.native && state !== this.dragged) {
-				continue; // shows again once settled
+			if (target) {
+				this.settleGhost(this.liftedGhost, lifted.start, target);
 			}
-			if (state === this.dragged && (merge !== undefined || this.liftedGhost)) {
-				continue;
+			this.liftedGhost.style.opacity = '0';
+		} else {
+			const slot = this.visual.get(id);
+			if (slot && this.liftedGhost) {
+				this.settleGhost(this.liftedGhost, lifted.start, slot);
+			} else if (slot) {
+				// Its content shows over its slot as the other cards' does, until the move lays it out there
+				lifted.cell.element.style.scale = '';
+				this.placeCell(lifted, slot);
 			}
-			moved.push({ element: state.cell.element, from: shown.get(state.cell.id)!, card: state.cell.card, lifted: state === this.dragged });
-		}
-
-		// Read where they went once, then write where each starts
-		const settled = moved.map(entry => ({ ...entry, to: rectOf(entry.card), cell: rectOf(entry.element) }));
-		for (const { element, from, to, cell, lifted } of settled) {
-			if (!lifted && sameRect(from, to)) {
-				continue;
-			}
-
-			// Scaled about the top left of its card, uniformly, so that what it shows is not stretched
-			const scale = lifted ? Math.min(from.width / Math.max(1, to.width), from.height / Math.max(1, to.height)) : 1;
-			element.style.transformOrigin = `${to.left - cell.left}px ${to.top - cell.top}px`;
-			element.style.translate = `${from.left - to.left}px ${from.top - to.top}px`;
-			element.style.scale = scale !== 1 ? `${scale}` : '';
-			element.classList.add('part-grid-settle');
-		}
-
-		const ghost = this.liftedGhost;
-		const ghostTarget = merge !== undefined ? this.states.get(merge)?.start : undefined;
-		const draggedTo = lifted && this.liftedGhost && merge === undefined ? rectOf(lifted.cell.card) : undefined;
-
-		void container.offsetWidth;
-		container.classList.add('part-grid-settling');
-		for (const { element } of settled) {
-			element.style.translate = element.style.scale = '';
-		}
-
-		if (ghost && lifted) {
-			const to = merge !== undefined ? (ghostTarget ?? lifted.start) : draggedTo ?? lifted.start;
-			ghost.style.transformOrigin = '0 0';
-			ghost.style.translate = `${to.left - lifted.start.left}px ${to.top - lifted.start.top}px`;
-			ghost.style.scale = `${to.width / Math.max(1, lifted.start.width)} ${to.height / Math.max(1, lifted.start.height)}`;
-			if (merge !== undefined) {
-				ghost.style.opacity = '0';
+			// The slot is its card now
+			if (this.watermark) {
+				this.watermark.style.opacity = '0';
 			}
 		}
 
-		this.settleTimer = setTimeout(() => this.onDidEnd(), PART_GRID_REFLOW_DURATION + 30);
+		this.settleTimer = setTimeout(() => this.finish(), PART_GRID_REFLOW_DURATION + 30);
+	}
+
+	private pendingDrop: PartGridCardDrop | undefined;
+
+	/**
+	 * Moves the part, as dropped, and shows the cards as laid out: they are
+	 * where they show already.
+	 */
+	private finish(): void {
+		const drop = this.pendingDrop;
+		this.pendingDrop = undefined;
+		this.cleanUp();
+		if (drop) {
+			this.host.drop(this.draggedCell.id, drop);
+		}
+		this.onDidEnd();
+	}
+
+	/**
+	 * Moves a plain card that was over `start` to over `target`, scaled
+	 * about its top left.
+	 */
+	private settleGhost(ghost: HTMLElement, start: IPartGridRect, target: IPartGridRect): void {
+		ghost.style.transformOrigin = '0 0';
+		ghost.style.translate = `${target.left - start.left}px ${target.top - start.top}px`;
+		ghost.style.scale = `${target.width / Math.max(1, start.width)} ${target.height / Math.max(1, start.height)}`;
 	}
 
 	/**
@@ -732,9 +818,7 @@ class CardDragSession extends Disposable {
 				}
 			}
 		}
-		if (this.dragged && this.slot) {
-			this.placeFrame(this.slot, this.dragged.start);
-		}
+		this.placeSlot(this.dragged?.start);
 		this.showMergeTarget(undefined);
 
 		const lifted = this.getLifted().style;
@@ -772,6 +856,7 @@ class CardDragSession extends Disposable {
 		this.indicator = undefined;
 		this.liftedGhost = undefined;
 		this.slot = undefined;
+		this.watermark = undefined;
 		this.visuals.clear();
 	}
 

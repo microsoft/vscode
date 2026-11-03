@@ -39,7 +39,7 @@ export type IPartGridDrop = ({ readonly location: PartGridLocation } | { readonl
 /**
  * How far into a part, as a share of its size from each side, a dropped
  * part goes beside it. Further in, its center, the part merges into it, if
- * parts merge, else it does not go there.
+ * they merge, else it goes beside it on the side nearest to the point.
  */
 export const PART_GRID_SIDE_ZONE = 0.25;
 
@@ -131,9 +131,9 @@ export function getPartGridDropAt(x: number, y: number, container: IRect, cells:
 		];
 		const [direction, distance] = sides.reduce((nearest, side) => side[1] < nearest[1] ? side : nearest);
 
-		// The center of a part: the dropped part merges into it, if parts merge
-		if (canMerge && distance > PART_GRID_SIDE_ZONE) {
-			return canMerge(cell.id) ? { merge: cell.id, indicator: rect } : undefined;
+		// The center of a part: the dropped part merges into it, if they merge; else it goes beside it, on its nearest side
+		if (canMerge && distance > PART_GRID_SIDE_ZONE && canMerge(cell.id)) {
+			return { merge: cell.id, indicator: rect };
 		}
 
 		return { location: { reference: cell.id, direction }, indicator: half(rect, direction) };
