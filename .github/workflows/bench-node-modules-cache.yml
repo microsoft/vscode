@@ -68,6 +68,8 @@ jobs:
       - name: Benchmark archive formats
         if: steps.cache-node-modules.outputs.cache-hit == 'true'
         run: node .github/workflows/node_modules_cache/bench.ts
+        env:
+          BENCH_SCRIPTS_ONLY: '1'
 
   linux:
     name: Linux
@@ -91,6 +93,8 @@ jobs:
       - name: Benchmark archive formats
         if: steps.cache-node-modules.outputs.cache-hit == 'true'
         run: node .github/workflows/node_modules_cache/bench.ts
+        env:
+          BENCH_SCRIPTS_ONLY: '1'
 
   macos:
     name: macOS
@@ -114,3 +118,5 @@ jobs:
       - name: Benchmark archive formats
         if: steps.cache-node-modules.outputs.cache-hit == 'true'
         run: node .github/workflows/node_modules_cache/bench.ts
+        env:
+          BENCH_SCRIPTS_ONLY: '1'
