@@ -223,6 +223,35 @@ suite('Chat window grid', () => {
 		});
 	});
 
+	test('the chat and the main part keep their widths as the terminals walk through every position, show and hide, after a mode round trip, a resize and a change of density', () => {
+		const { mode, position, grid, open, terminalsPart } = setupWithTerminals();
+		open();
+		grid.partGrid!.resizeCell(ChatWindowGridCell.Chat, { width: 400, height: 500 });
+		const widths: number[] = [];
+		const read = () => widths.push(grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width);
+		for (const terminalPosition of [ChatWindowTerminalPosition.UnderChat, ChatWindowTerminalPosition.UnderEditor, ChatWindowTerminalPosition.FullWidth, ChatWindowTerminalPosition.UnderEditor, ChatWindowTerminalPosition.UnderChat]) {
+			position.set(terminalPosition, undefined);
+			read();
+		}
+		terminalsPart.setEmpty(true);
+		read();
+		terminalsPart.setEmpty(false);
+		read();
+		mode.set(ChatWindowLayoutMode.ChatOnly, undefined);
+		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
+		read();
+		grid.layout(1100, 800);
+		grid.layout(1000, 800);
+		read();
+		// Default density to compact and back: the outer insets go and come back.
+		grid.setOuterInsets({ top: 0, left: 0, right: 0, bottom: 0 });
+		read();
+		grid.setOuterInsets({ top: 0, left: 4, right: 4, bottom: 4 });
+		read();
+
+		assert.deepStrictEqual(widths, [400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400]);
+	});
+
 	test('closing the editor area, which shows only the chat, with the terminals under the editor keeps the terminals, across the window and as tall, and they go back under the editor as it shows again', () => {
 		const { mode, position, grid, open, height } = setupWithTerminals();
 		position.set(ChatWindowTerminalPosition.UnderEditor, undefined);
