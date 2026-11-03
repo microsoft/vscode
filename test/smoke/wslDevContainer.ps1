@@ -301,7 +301,9 @@ apt-get install -y -qq --print-uris --no-install-recommends $aptPackages > '$lin
 # package files to the distribution at about 120 KB/s for minutes while its index files stay fast, and apt keeps such
 # a connection rather than giving up on it. Here a transfer that stays below 1 MB/s for 15 seconds is abandoned and
 # retried on a fresh connection, then on the main Ubuntu archive. apt checks each file against the index when it installs.
+# The host gives up after 4 minutes in total, leaving the packages it did not get to apt, within the step's timeout.
 $debCount = 0
+$hostDownloadDeadline = [DateTime]::UtcNow.AddMinutes(4)
 foreach ($line in Get-Content -LiteralPath (Join-Path $Root 'apt-uris.txt')) {
 	if ($line -notmatch "^'(https?://[^']+)' ([A-Za-z0-9_.+~%-]+\.deb) (\d+) (SHA512|SHA256|SHA1|MD5Sum):([0-9a-f]+)") {
 		continue
@@ -311,7 +313,11 @@ foreach ($line in Get-Content -LiteralPath (Join-Path $Root 'apt-uris.txt')) {
 	$destination = Join-Path $debDirectory $name
 	$downloaded = $false
 	foreach ($candidate in @($url, ($url -replace '^http://azure\.archive\.ubuntu\.com/', 'http://archive.ubuntu.com/'))) {
-		curl.exe --fail --location --silent --show-error --retry 2 --retry-all-errors --connect-timeout 15 --max-time 300 --speed-limit 1048576 --speed-time 15 --output $destination $candidate
+		$remainingSeconds = [int]($hostDownloadDeadline - [DateTime]::UtcNow).TotalSeconds
+		if ($remainingSeconds -lt 10) {
+			break
+		}
+		curl.exe --fail --location --silent --show-error --retry 1 --retry-all-errors --connect-timeout 10 --max-time ([Math]::Min(120, $remainingSeconds)) --speed-limit 1048576 --speed-time 15 --output $destination $candidate
 		if ($LASTEXITCODE -eq 0 -and (Get-Item -LiteralPath $destination).Length -eq $size -and (Get-FileHash -LiteralPath $destination -Algorithm $algorithm).Hash -eq $hash.ToUpperInvariant()) {
 			$downloaded = $true
 			break
@@ -326,6 +332,8 @@ foreach ($line in Get-Content -LiteralPath (Join-Path $Root 'apt-uris.txt')) {
 	$debCount++
 }
 Write-Host "Downloaded $debCount packages on the host."
+# A failed curl above must not become the exit code of this script.
+$global:LASTEXITCODE = 0
 
 Invoke-Wsl @"
 export DEBIAN_FRONTEND=noninteractive
