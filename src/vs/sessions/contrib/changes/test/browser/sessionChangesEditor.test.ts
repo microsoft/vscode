@@ -221,6 +221,13 @@ suite('SessionChangesEditor changed files list', () => {
 		const hostContextKeyService = store.add(store.add(new ContextKeyService(instantiationService.get(IConfigurationService))).createScoped(parent));
 		instantiationService.stub(IContextKeyService, hostContextKeyService);
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const activeSession = constObservable<IActiveSession | undefined>(undefined);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = activeSession;
+			override readonly mainWindowActiveSession = activeSession;
+			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+		}());
+		instantiationService.stub(ISessionScope, { session: activeSession });
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
 			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
 		}());

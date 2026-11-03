@@ -33,6 +33,7 @@ import { ISessionsService, IShowSessionInWindowOptions } from '../../../../servi
 import { IChat, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../common/chatWindows.js';
+import { SessionChangesEditorFileListContext } from '../../../changes/common/changes.js';
 import { SessionChangesetOperationsContext } from '../../../changes/browser/changesActions.js';
 import { ActiveSessionState, IChangesSessionObservables, IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -174,7 +175,13 @@ suite('Sessions chat window provider', () => {
 		const scope = content.services!.get(ISessionScope) as ISessionScope;
 		content.didShow!(window, true);
 		const contextKeyService = windowInstantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
-		const bound = { scope: scope.session.get()?.sessionId, hasWorkspace: contextKeyService.getContextKeyValue(SessionHasWorkspaceContext.key), changesetOperations: contextKeyService.getContextKeyValue(SessionChangesetOperationsContext.key) };
+		const bound = {
+			scope: scope.session.get()?.sessionId,
+			hasWorkspace: contextKeyService.getContextKeyValue(SessionHasWorkspaceContext.key),
+			changesetOperations: contextKeyService.getContextKeyValue(SessionChangesetOperationsContext.key),
+			// The Changes editor of the window shows the list of the changed files, as the main window's, which sets no key, does not.
+			changesFileList: contextKeyService.getContextKeyValue(SessionChangesEditorFileListContext.key),
+		};
 		ofSession?.dispose();
 		content.dispose();
 
@@ -182,7 +189,7 @@ suite('Sessions chat window provider', () => {
 			unknown: undefined,
 			ofSession: '/main',
 			beforeBind: { chat: '/second', title: 'second', events: [] },
-			bound: { scope: 'session', hasWorkspace: false, changesetOperations: ['resource:discard'] },
+			bound: { scope: 'session', hasWorkspace: false, changesetOperations: ['resource:discard'], changesFileList: true },
 			events: ['show session /second', 'active session', 'close session'],
 		});
 	});

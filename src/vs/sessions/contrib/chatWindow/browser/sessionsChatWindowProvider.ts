@@ -46,6 +46,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { ISession } from '../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { bindSessionScopeContextKeys } from '../../changes/browser/sessionActionsHost.js';
+import { SessionChangesEditorFileListContext } from '../../changes/common/changes.js';
 import { IChangesViewService } from '../../changes/common/changesViewService.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../common/chatWindows.js';
@@ -228,6 +229,9 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 		// The keys of the session it shows on the window's context, as the main window binds those of its own session.
 		const contextKeyService = instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
 		CustomViewVisibleContext.bindTo(contextKeyService).set(false);
+		// Its Changes editor shows the list of the changed files beside the diffs, in whichever of its parts it shows; the
+		// main window's does not.
+		SessionChangesEditorFileListContext.bindTo(contextKeyService).set(true);
 		// Those of its changes too, such as the changeset operations its Changes editor shows.
 		store.add(bindSessionScopeContextKeys(this._instantiationService, { session: this._session, changes: this._changesViewService.getSessionChanges(this._session) }, contextKeyService));
 
