@@ -5480,11 +5480,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 					default: true,
 					markdownDescription: nls.localize('editor.suggest.showReferences', "When enabled IntelliSense shows `reference`-suggestions.")
 				},
-				'editor.suggest.showCustomcolors': {
-					type: 'boolean',
-					default: true,
-					markdownDescription: nls.localize('editor.suggest.showCustomcolors', "When enabled IntelliSense shows `customcolor`-suggestions.")
-				},
 				'editor.suggest.showFolders': {
 					type: 'boolean',
 					default: true,

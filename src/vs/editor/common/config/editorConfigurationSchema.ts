@@ -113,19 +113,10 @@ const editorConfiguration: IConfigurationNode = {
 			description: nls.localize('editor.experimental.asyncTokenizationVerification', "Controls whether async tokenization should be verified against legacy background tokenization. Might slow down tokenization. For debugging only."),
 			tags: ['experimental'],
 		},
-		'editor.experimental.treeSitterTelemetry': {
-			type: 'boolean',
-			default: false,
-			markdownDescription: nls.localize('editor.experimental.treeSitterTelemetry', "Controls whether tree sitter parsing should be turned on and telemetry collected. Setting `#editor.experimental.preferTreeSitter#` for specific languages will take precedence."),
-			tags: ['experimental'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
 		'editor.experimental.preferTreeSitter.css': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.css', "Controls whether tree sitter parsing should be turned on for css. This will take precedence over `#editor.experimental.treeSitterTelemetry#` for css."),
+			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.css', "Controls whether tree sitter parsing should be turned on for css."),
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -134,7 +125,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.experimental.preferTreeSitter.typescript': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.typescript', "Controls whether tree sitter parsing should be turned on for typescript. This will take precedence over `#editor.experimental.treeSitterTelemetry#` for typescript."),
+			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.typescript', "Controls whether tree sitter parsing should be turned on for typescript."),
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -143,7 +134,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.experimental.preferTreeSitter.ini': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.ini', "Controls whether tree sitter parsing should be turned on for ini. This will take precedence over `#editor.experimental.treeSitterTelemetry#` for ini."),
+			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.ini', "Controls whether tree sitter parsing should be turned on for ini."),
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -152,7 +143,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.experimental.preferTreeSitter.regex': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.regex', "Controls whether tree sitter parsing should be turned on for regex. This will take precedence over `#editor.experimental.treeSitterTelemetry#` for regex."),
+			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.regex', "Controls whether tree sitter parsing should be turned on for regex."),
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -198,11 +189,6 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'number',
 			default: diffEditorDefaultOptions.maxComputationTime,
 			description: nls.localize('maxComputationTime', "Timeout in milliseconds after which diff computation is cancelled. Use 0 for no timeout.")
-		},
-		'diffEditor.maxFileSize': {
-			type: 'number',
-			default: diffEditorDefaultOptions.maxFileSize,
-			description: nls.localize('maxFileSize', "Maximum file size in MB for which to compute diffs. Use 0 for no limit.")
 		},
 		'diffEditor.renderSideBySide': {
 			type: 'boolean',

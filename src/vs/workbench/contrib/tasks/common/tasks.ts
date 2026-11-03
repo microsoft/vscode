@@ -1371,7 +1371,6 @@ export const enum TaskSettingId {
 	SaveBeforeRun = 'task.saveBeforeRun',
 	ShowDecorations = 'task.showDecorations',
 	ProblemMatchersNeverPrompt = 'task.problemMatchers.neverPrompt',
-	SlowProviderWarning = 'task.slowProviderWarning',
 	QuickOpenHistory = 'task.quickOpen.history',
 	QuickOpenDetail = 'task.quickOpen.detail',
 	QuickOpenSkip = 'task.quickOpen.skip',

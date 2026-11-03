@@ -497,23 +497,6 @@ configurationRegistry.registerConfiguration({
 			enum: ['on', 'off'],
 			default: 'on'
 		},
-		[TaskSettingId.SlowProviderWarning]: {
-			markdownDescription: nls.localize('task.slowProviderWarning', "Configures whether a warning is shown when a provider is slow"),
-			'oneOf': [
-				{
-					type: 'boolean',
-					markdownDescription: nls.localize('task.slowProviderWarning.boolean', 'Sets the slow provider warning for all tasks.')
-				},
-				{
-					type: 'array',
-					items: {
-						type: 'string',
-						markdownDescription: nls.localize('task.slowProviderWarning.array', 'An array of task types to never show the slow provider warning.')
-					}
-				}
-			],
-			default: true
-		},
 		[TaskSettingId.QuickOpenHistory]: {
 			markdownDescription: nls.localize('task.quickOpen.history', "Controls the number of recent items tracked in task quick open dialog."),
 			type: 'number',

@@ -3447,11 +3447,6 @@
             "readOnly": true
           }
         },
-        "git.confirmCommittedDelete": {
-          "type": "boolean",
-          "description": "%config.confirmCommittedDelete%",
-          "default": true
-        },
         "git.countBadge": {
           "type": "string",
           "enum": [
