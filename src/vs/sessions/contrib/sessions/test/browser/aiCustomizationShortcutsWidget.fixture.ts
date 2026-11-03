@@ -32,6 +32,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentHostCustomizationService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AICustomizationMcpServerCountService, IAICustomizationMcpServerCountService } from '../../browser/customizationMcpServerCount.js';
+import { IAgentsWindowExtensionSuggestionsService } from '../../../extensions/browser/agentsWindowExtensionSuggestions.js';
 
 // Ensure color registrations are loaded
 import '../../../../common/theme.js';
@@ -181,7 +182,7 @@ function createMockHarnessService(hiddenSections: readonly string[] = []): ICust
 // Render helper
 // ============================================================================
 
-function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?: number; counts?: ICustomizationCounts; hiddenSections?: readonly string[]; height?: number }): void {
+function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?: number; counts?: ICustomizationCounts; hiddenSections?: readonly string[]; height?: number; extensionSuggestions?: boolean; collapsed?: boolean }): void {
 	ctx.container.style.width = '300px';
 	ctx.container.style.height = `${options?.height ?? 260}px`;
 	ctx.container.style.backgroundColor = 'var(--vscode-sideBar-background)';
@@ -223,6 +224,9 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 			reg.defineInstance(IAutomationService, new class extends mock<IAutomationService>() {
 				override readonly automations = observableValue<readonly never[]>('mockAutomations', []);
 			}());
+			reg.defineInstance(IAgentsWindowExtensionSuggestionsService, new class extends mock<IAgentsWindowExtensionSuggestionsService>() {
+				override readonly showBadge = constObservable(options?.extensionSuggestions ?? false);
+			}());
 		},
 	});
 
@@ -236,6 +240,9 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 	ctx.disposableStore.add(
 		instantiationService.createInstance(AICustomizationShortcutsWidget, ctx.container, undefined)
 	);
+	if (options?.collapsed) {
+		ctx.container.querySelector<HTMLElement>('.ai-customization-header')?.click();
+	}
 }
 
 // ============================================================================
@@ -269,6 +276,20 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		render: (ctx) => renderWidget(ctx, {
 			mcpServerCount: 2,
 			counts: { agents: 2, skills: 30, instructions: 16, hooks: 4 },
+		}),
+	}),
+
+	WithExtensionSuggestions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (ctx) => renderWidget(ctx, { extensionSuggestions: true, height: 340 }),
+	}),
+
+	CollapsedWithExtensionSuggestions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (ctx) => renderWidget(ctx, {
+			extensionSuggestions: true,
+			collapsed: true,
+			counts: { skills: 30, instructions: 16 },
 		}),
 	}),
 

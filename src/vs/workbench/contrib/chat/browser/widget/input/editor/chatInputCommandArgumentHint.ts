@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../../../../base/common/resources.js';
+import { URI } from '../../../../../../../base/common/uri.js';
+import { ICodeEditor } from '../../../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../../../editor/browser/services/codeEditorService.js';
 import { IRange, Range } from '../../../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../../../editor/common/editorCommon.js';
@@ -15,26 +18,35 @@ import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariab
 import { IChatWidget } from '../../../chat.js';
 import { ChatWidget } from '../../chatWidget.js';
 import { getInputPlaceholderColor, getRangeForPlaceholder } from './chatInputPlaceholderDecoration.js';
+import { registerChatInputReferenceDecorationType } from './chatInputReferenceDecorations.js';
 
 const decorationDescription = 'chat';
 const commandArgumentHintDecorationType = 'chat-command-argument-hint';
+const localCommandPrefixDecorationType = 'chat-local-command-prefix';
+
+interface ILocalCommandArgumentHint {
+	readonly sessionResource: URI;
+	readonly model: ITextModel;
+	readonly range: Range;
+	readonly prefix: string;
+	readonly argumentHint: string;
+}
 
 /**
- * Renders an inline placeholder (ghost text) argument hint after an accepted
- * agent-host slash-command or skill completion (e.g. `/rename `). The hint text is
- * carried on the completion's dynamic-variable reference `_meta` (see
- * {@link getCommandArgumentHint}); it is shown only while the command reference
- * is the sole content followed by a single trailing space, i.e. before any
- * argument has been typed.
+ * Renders hints for accepted Agent Host commands and skills, plus presentation-only hints and styling for local command prefixes.
  *
  * Reads the accepted references directly from {@link ChatDynamicVariableModel}
  * rather than the parsed input, because the chat request parser resolves a
  * leading `/command` as a slash-prompt part (which carries no `_meta`) before
  * dynamic-variable parsing runs.
  */
-class InputEditorCommandArgumentHint extends Disposable {
+export class InputEditorCommandArgumentHint extends Disposable {
 
-	public readonly id = 'inputEditorCommandArgumentHint';
+	public static readonly ID = 'inputEditorCommandArgumentHint';
+
+	public readonly id = InputEditorCommandArgumentHint.ID;
+
+	private readonly _editorListeners = this._register(new MutableDisposable<DisposableStore>());
 
 	/**
 	 * Subscription to {@link ChatDynamicVariableModel.onDidChangeReferences}.
@@ -45,6 +57,8 @@ class InputEditorCommandArgumentHint extends Disposable {
 	 * reference present — this event is what triggers the hint on accept.
 	 */
 	private readonly _referencesListener = this._register(new MutableDisposable());
+	private editor: ICodeEditor | undefined;
+	private localHint: ILocalCommandArgumentHint | undefined;
 
 	constructor(
 		private readonly widget: IChatWidget,
@@ -54,16 +68,83 @@ class InputEditorCommandArgumentHint extends Disposable {
 		super();
 
 		this._register(this.codeEditorService.registerDecorationType(decorationDescription, commandArgumentHintDecorationType, {}));
-
-		this.update();
+		this._register(registerChatInputReferenceDecorationType(this.codeEditorService, localCommandPrefixDecorationType));
 		this._register(this.widget.onDidChangeParsedInput(() => this.update()));
-		this._register(this.widget.inputEditor.onDidChangeModelContent(() => this.update()));
+		this._register(this.widget.onDidChangeViewModel(() => this.clearLocalHint()));
+		this._register(this.widget.onDidChangeActiveInputEditor(() => {
+			this.localHint = undefined;
+			this.rebindEditor();
+		}));
+		this.rebindEditor();
+	}
+
+	override dispose(): void {
+		this.clearDecorations(this.editor);
+		super.dispose();
+	}
+
+	showLocalHint(sessionResource: URI, model: ITextModel, range: IRange, prefix: string, argumentHint: string): void {
+		const editor = this.editor;
+		const widgetSessionResource = this.widget.viewModel?.model.sessionResource;
+		if (!editor || editor.getModel() !== model || !widgetSessionResource || !isEqual(widgetSessionResource, sessionResource)) {
+			return;
+		}
+
+		this.localHint = {
+			sessionResource,
+			model,
+			range: Range.lift(range),
+			prefix,
+			argumentHint,
+		};
+		this.update();
+	}
+
+	private rebindEditor(): void {
+		this.clearDecorations(this.editor);
+		this.editor = this.widget.inputEditor;
+		const editorListeners = new DisposableStore();
+		this._editorListeners.value = editorListeners;
+		editorListeners.add(this.editor.onDidChangeModelContent(e => {
+			if (e.isFlush || e.changes.some(change => this.doesChangeTouchLocalHint(change.range))) {
+				this.localHint = undefined;
+			}
+			this.update();
+		}));
+		editorListeners.add(this.editor.onDidChangeModel(() => {
+			this.localHint = undefined;
+			this.update();
+		}));
+		this.update();
+	}
+
+	private clearLocalHint(): void {
+		this.localHint = undefined;
+		this.update();
 	}
 
 	private update(): void {
 		this._ensureSubscribedToReferences();
-		const decoration = this.getArgumentHintDecoration();
-		this.widget.inputEditor.setDecorationsByType(decorationDescription, commandArgumentHintDecorationType, decoration ? [decoration] : []);
+		const editor = this.editor;
+		if (!editor || !editor.hasModel()) {
+			return;
+		}
+
+		const decoration = this.getArgumentHintDecoration(editor.getModel()!);
+		editor.setDecorationsByType(decorationDescription, commandArgumentHintDecorationType, decoration ? [decoration] : []);
+		editor.setDecorationsByType(decorationDescription, localCommandPrefixDecorationType, this.localHint ? [{ range: this.localHint.range }] : []);
+	}
+
+	private clearDecorations(editor: ICodeEditor | undefined): void {
+		if (editor?.hasModel()) {
+			editor.setDecorationsByType(decorationDescription, commandArgumentHintDecorationType, []);
+			editor.setDecorationsByType(decorationDescription, localCommandPrefixDecorationType, []);
+		}
+	}
+
+	private doesChangeTouchLocalHint(range: IRange): boolean {
+		const localHint = this.localHint;
+		return !!localHint && Range.intersectRanges(range, localHint.range) !== null;
 	}
 
 	private _ensureSubscribedToReferences(): void {
@@ -76,10 +157,16 @@ class InputEditorCommandArgumentHint extends Disposable {
 		}
 	}
 
-	private getArgumentHintDecoration(): IDecorationOptions | undefined {
-		const model = this.widget.inputEditor.getModel();
-		if (!model) {
-			return undefined;
+	private getArgumentHintDecoration(model: ITextModel): IDecorationOptions | undefined {
+		const localHint = this.localHint;
+		if (localHint) {
+			const localDecoration = this.getLocalHintDecoration(model, localHint);
+			if (localDecoration === undefined && this.localHint === localHint) {
+				return undefined;
+			}
+			if (localDecoration) {
+				return localDecoration;
+			}
 		}
 
 		const dynamicVariableModel = this.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID);
@@ -103,18 +190,46 @@ class InputEditorCommandArgumentHint extends Disposable {
 				return undefined;
 			}
 
-			return {
-				range: getRangeForPlaceholder(ref.range),
-				renderOptions: {
-					after: {
-						contentText: argumentHint,
-						color: getInputPlaceholderColor(this.themeService),
-					}
-				}
-			};
+			return this.createDecoration(ref.range, argumentHint);
 		}
 
 		return undefined;
+	}
+
+	private getLocalHintDecoration(model: ITextModel, hint: ILocalCommandArgumentHint): IDecorationOptions | undefined {
+		const sessionResource = this.widget.viewModel?.model.sessionResource;
+		if (model !== hint.model || !sessionResource || !isEqual(sessionResource, hint.sessionResource) || model.getValueInRange(hint.range) !== hint.prefix) {
+			this.localHint = undefined;
+			return undefined;
+		}
+
+		const beforeRange = new Range(1, 1, hint.range.startLineNumber, hint.range.startColumn);
+		if (model.getValueInRange(beforeRange).trim().length > 0) {
+			this.localHint = undefined;
+			return undefined;
+		}
+
+		const fullRange = model.getFullModelRange();
+		const afterRange = new Range(hint.range.endLineNumber, hint.range.endColumn, fullRange.endLineNumber, fullRange.endColumn);
+		const textAfterPrefix = model.getValueInRange(afterRange);
+		if (!textAfterPrefix.startsWith(' ')) {
+			this.localHint = undefined;
+			return undefined;
+		}
+
+		return textAfterPrefix === ' ' ? this.createDecoration(hint.range, hint.argumentHint) : undefined;
+	}
+
+	private createDecoration(range: IRange, argumentHint: string): IDecorationOptions {
+		return {
+			range: getRangeForPlaceholder(range),
+			renderOptions: {
+				after: {
+					contentText: argumentHint,
+					color: getInputPlaceholderColor(this.themeService),
+				}
+			}
+		};
 	}
 
 	private isCommandOnlyContent(model: ITextModel, range: IRange): boolean {

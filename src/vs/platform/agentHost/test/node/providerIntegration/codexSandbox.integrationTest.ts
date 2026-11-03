@@ -11,7 +11,6 @@ import { isMacintosh } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar } from '../../../common/agentService.js';
-import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { CodexSessionConfigKey, type CodexPermissionsPreset } from '../../../common/codexSessionConfigKeys.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { customizationId, CustomizationType, MessageKind, ROOT_STATE_URI, type ClientPluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
@@ -303,13 +302,6 @@ suite('Agent Host Provider Integration — Codex Sandbox', function () {
 
 	test('keeps every workspace root accessible from a nested cwd without downgrading a workspace skill', async function () {
 		this.timeout(90_000);
-		await client.call('subscribe', { channel: ROOT_STATE_URI });
-		client.dispatch({
-			channel: ROOT_STATE_URI,
-			clientSeq: ++clientSeq,
-			action: { type: ActionType.RootConfigChanged, config: { [AgentHostCodexMultiRootEnabledConfigKey]: true } },
-		});
-		await client.waitForNotification(notification => isActionNotification(notification, ActionType.RootConfigChanged));
 		const session = await createSession([], 'auto-review', [workspace, secondaryWorkspace]);
 		const result = await probe(session, 'codex-sandbox-workspaces');
 		assert.deepStrictEqual({

@@ -290,11 +290,22 @@ async function setupRepository(): Promise<void> {
 		}
 	} else {
 		if (!fs.existsSync(workspacePath)) {
-			logger.log('Cloning test project repository...');
-			const res = cp.spawnSync('git', ['clone', testRepoUrl, workspacePath], { stdio: 'inherit' });
-			if (!fs.existsSync(workspacePath)) {
-				throw new Error(`Clone operation failed: ${res.stderr.toString()}`);
-			}
+			// The clone goes over the network, which is occasionally unavailable on CI
+			// machines for a few seconds (e.g. `Could not resolve host: github.com`).
+			// Stalled transfers are aborted after 30s so that the retries fit within
+			// the timeout of the root `before` hook.
+			await retry(async () => {
+				logger.log('Cloning test project repository...');
+				const res = cp.spawnSync('git', ['-c', 'http.lowSpeedLimit=1000', '-c', 'http.lowSpeedTime=30', 'clone', testRepoUrl, workspacePath], { stdio: 'inherit' });
+				if (res.status !== 0 || !fs.existsSync(workspacePath)) {
+					const reason = res.error?.message ?? (res.signal ? `signal ${res.signal}` : `exit code ${res.status}`);
+					logger.log(`Clone operation failed: ${reason}`);
+					throw new Error(`Clone operation failed: ${reason}`);
+				}
+			}, 5000, 5, async () => {
+				logger.log('Retrying to clone test project repository...');
+				fs.rmSync(workspacePath, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
+			});
 		} else {
 			logger.log('Cleaning test project repository...');
 			cp.spawnSync('git', ['fetch'], { cwd: workspacePath, stdio: 'inherit' });

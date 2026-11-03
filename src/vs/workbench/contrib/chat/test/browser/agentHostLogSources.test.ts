@@ -28,7 +28,7 @@ import { IStat } from '../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
-import { TestPathService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestCopilotHomeService } from '../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { AgentHostLogSourceKind, enumerateAgentHostLogSources, findRelevantCopilotLogs, getRemoteConnectionForSession, IAgentHostLogSourceServices, MAX_COPILOT_LOG_SCAN_FILE_SIZE, readAgentHostLogSourceContent } from '../../browser/chatDebug/agentHostLogSources.js';
 import { COPILOT_CLI_LOCAL_AH_SCHEME } from '../../browser/copilotCliEventsUri.js';
 import { isWireLogLoggingEnabled } from '../../browser/chatDebug/chatDebugEnablement.js';
@@ -110,7 +110,7 @@ suite('AgentHostLogSources', () => {
 			})),
 		});
 		const services = new class extends mock<IAgentHostLogSourceServices>() {
-			override readonly pathService = new TestPathService(URI.from({ scheme: Schemas.inMemory, path: '/home' }));
+			override readonly copilotHomeService = new TestCopilotHomeService(URI.file('/home'));
 			override readonly remoteAgentHostService = new class extends mock<IRemoteAgentHostService>() {
 				override readonly connections = [{ address, name: 'Native', status: RemoteAgentHostConnectionStatus.connected }];
 				override getConnection() { return connection; }
@@ -150,7 +150,7 @@ suite('AgentHostLogSources', () => {
 			await log.flush();
 		}
 		const services = new class extends mock<IAgentHostLogSourceServices>() {
-			override readonly pathService = new TestPathService(URI.from({ scheme: Schemas.inMemory, path: '/home' }));
+			override readonly copilotHomeService = new TestCopilotHomeService(URI.file('/home'));
 			override readonly remoteAgentHostService = new class extends mock<IRemoteAgentHostService>() {
 				override readonly connections = [];
 				override getConnection() { return undefined; }
@@ -252,7 +252,7 @@ suite('AgentHostLogSources', () => {
 		}
 
 		const services = new class extends mock<IAgentHostLogSourceServices>() {
-			override readonly pathService = new TestPathService(URI.from({ scheme: Schemas.inMemory, path: '/home' }));
+			override readonly copilotHomeService = new TestCopilotHomeService(URI.file('/home'));
 			override readonly agentHostService = new class extends mock<IAgentHostService>() {
 				override readonly clientId = logId;
 			}();

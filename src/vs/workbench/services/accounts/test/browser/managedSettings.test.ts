@@ -198,6 +198,27 @@ suite('adaptManagedSettings', () => {
 		});
 	});
 
+	test('adapts managed telemetry file paths through ordinary normalization', () => {
+		const validPath: IManagedSettingsResponse = { telemetry: { filePath: '/managed/copilot.jsonl' } };
+		const nullPath = JSON.parse('{"telemetry":{"filePath":null,"enabled":false,"capture":{"identity":false},"resourceAttributes":{"service.namespace":"acme"}}}') as IManagedSettingsResponse;
+		const numberPath = JSON.parse('{"telemetry":{"filePath":1,"enabled":false}}') as IManagedSettingsResponse;
+		assert.deepStrictEqual({
+			valid: adaptManagedSettings(validPath),
+			nullPath: adaptManagedSettings(nullPath),
+			numberPath: adaptManagedSettings(numberPath),
+		}, {
+			valid: { managedSettings: { 'telemetry.filePath': '/managed/copilot.jsonl' } },
+			nullPath: {
+				managedSettings: {
+					'telemetry.enabled': false,
+					'telemetry.capture.identity': false,
+					'telemetry.resourceAttributes': '{"service.namespace":"acme"}',
+				},
+			},
+			numberPath: { managedSettings: { 'telemetry.filePath': 1, 'telemetry.enabled': false } },
+		});
+	});
+
 	test('encodes github marketplaces as a { name: shorthand } JSON dict', () => {
 		assert.deepStrictEqual(adaptManagedSettings({
 			extraKnownMarketplaces: {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import type { IFileEditContent, IFileEditRecord, ISessionDatabase } from '../common/sessionDataService.js';
 import { FileEditKind } from '../common/state/sessionState.js';
@@ -39,6 +40,35 @@ export function spanFileEditRevertSteps(steps: readonly IFileEditRevertStep[]): 
 }
 
 /**
+ * Returns steps not undone by a full-turn discard, leaving partial Working Set discards and restored accepted changes revertible.
+ * A turn in `acceptedTurns` has earlier accepted records omitted, so its discard rows must also be reverted.
+ */
+export function getUndiscardedFileEditRevertSteps(records: readonly IFileEditRecord[], steps: readonly IFileEditRevertStep[], acceptedTurns?: ReadonlySet<string>): IFileEditRevertStep[] {
+	const turnStarts = new Map<string, Uint8Array | undefined>();
+	records.forEach((record, index) => {
+		if (!turnStarts.has(record.turnId)) {
+			turnStarts.set(record.turnId, steps[index].start);
+		}
+	});
+	const discardedTurns = new Set<string>();
+	const undiscarded: IFileEditRevertStep[] = [];
+	for (let index = records.length - 1; index >= 0; index--) {
+		const record = records[index];
+		const start = turnStarts.get(record.turnId);
+		const end = steps[index].end;
+		const restoresTurnStart = start === undefined
+			? end === undefined
+			: end !== undefined && VSBuffer.wrap(start).equals(VSBuffer.wrap(end));
+		if (record.toolCallId.startsWith(FILE_EDIT_DISCARD_TOOL_CALL_ID_PREFIX) && !acceptedTurns?.has(record.turnId) && restoresTurnStart) {
+			discardedTurns.add(record.turnId);
+		} else if (!discardedTurns.has(record.turnId)) {
+			undiscarded.push(steps[index]);
+		}
+	}
+	return undiscarded.reverse();
+}
+
+/**
  * Builds the edit row that records a discard: an edit from the turn's end
  * content back to its start content, given by `span`. Appended after the
  * turn's own rows, it makes the turn's net change to the file empty, so the
@@ -63,4 +93,26 @@ export function createFileEditDiscardRecord(turnId: string, filePath: string, sp
 		addedLines: undefined,
 		removedLines: undefined,
 	};
+}
+
+/**
+ * Builds the rows that record discarding every turn's changes to a file,
+ * given the file's edit records and one step per record: one row per turn
+ * spanning that turn's records, including earlier discard rows. They're
+ * ordered newest turn first, so the last row restores the content the file
+ * had before its first recorded edit. Rows that change nothing are kept for
+ * that reason.
+ */
+export function createSessionFileEditDiscardRecords(records: readonly IFileEditRecord[], steps: readonly IFileEditRevertStep[]): (IFileEditRecord & IFileEditContent)[] {
+	const turns = new Map<string, IFileEditRevertStep[]>();
+	records.forEach((record, index) => {
+		let turnSteps = turns.get(record.turnId);
+		if (!turnSteps) {
+			turnSteps = [];
+			turns.set(record.turnId, turnSteps);
+		}
+		turnSteps.push(steps[index]);
+	});
+	const filePath = records[records.length - 1].filePath;
+	return [...turns].map(([turnId, turnSteps]) => createFileEditDiscardRecord(turnId, filePath, spanFileEditRevertSteps(turnSteps))).reverse();
 }

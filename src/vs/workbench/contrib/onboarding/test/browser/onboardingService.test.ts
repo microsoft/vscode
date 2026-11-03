@@ -9,18 +9,23 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { Memento } from '../../../../common/memento.js';
 import { IAssignmentFilter, IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
+import { DialogService } from '../../../../services/dialogs/common/dialogService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { TestLifecycleService } from '../../../../test/common/workbenchTestServices.js';
 import { runWithOnboardingPresentation } from '../../browser/onboardingPresentationQueue.js';
 import { OnboardingScenarioService } from '../../browser/onboardingService.js';
@@ -122,9 +127,39 @@ class FakeAssignmentService extends NullWorkbenchAssignmentService {
 	}
 }
 
+/**
+ * Assignment service test double whose treatments change when assignments are refetched, like
+ * experiments served by an account endpoint that only becomes known after startup. A read
+ * returns the treatments current when it started, after the optional `pause` settles.
+ */
+class RefetchingAssignmentService extends NullWorkbenchAssignmentService {
+	readonly reads: string[] = [];
+	pause: Promise<void> | undefined;
+	override readonly onDidRefetchAssignments: Event<void>;
+	constructor(private treatments: Record<string, string | number | boolean>, private readonly refetched: Emitter<void>) {
+		super();
+		this.onDidRefetchAssignments = refetched.event;
+	}
+	override async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
+		this.reads.push(name);
+		const value = this.treatments[name] as T | undefined;
+		await this.pause;
+		return value;
+	}
+	refetch(treatments: Record<string, string | number | boolean>): void {
+		this.treatments = treatments;
+		this.refetched.fire();
+	}
+}
+
 suite('OnboardingScenarioService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	let dialogService: DialogService;
+
+	setup(() => {
+		dialogService = disposables.add(new DialogService(new class extends mock<IWorkbenchEnvironmentService>() { }(), new NullLogService()));
+	});
 
 	teardown(() => {
 		// The Memento maintains a static cache keyed by id; clear it so each test
@@ -166,6 +201,7 @@ suite('OnboardingScenarioService', () => {
 			lifecycle,
 			assignment ?? new NullWorkbenchAssignmentService(),
 			telemetry,
+			dialogService,
 		));
 		return { service, contextKeyService, config, lifecycle };
 	}
@@ -251,6 +287,114 @@ suite('OnboardingScenarioService', () => {
 		assert.deepStrictEqual(presentation.runs, ['when-1']);
 	});
 
+	test('waits for all modal dialogs, including dialogs opened before the service was created', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({ id: 'dialog-1', trigger: { kind: 'auto' }, presentation: { kind: presentation.kind, payload: undefined } });
+		const first = dialogService.model.show({ confirmArgs: { confirmation: { message: 'First modal' } } });
+		const second = dialogService.model.show({ inputArgs: { input: { message: 'Second modal', inputs: [] } } });
+		const { service } = createService();
+		service.start();
+		await timeout(0);
+		const snapshot = () => ({
+			hasDialog: dialogService.hasDialog,
+			runs: [...presentation.runs],
+			shown: service.hasBeenShown('dialog-1'),
+		});
+		const beforeClosing = snapshot();
+
+		first.item.close({ confirmed: true });
+		await first.result;
+		await timeout(0);
+		const afterFirst = snapshot();
+		second.item.close({ confirmed: false });
+		await second.result;
+		await timeout(0);
+
+		assert.deepStrictEqual({ beforeClosing, afterFirst, afterLast: snapshot() }, {
+			beforeClosing: { hasDialog: true, runs: [], shown: false },
+			afterFirst: { hasDialog: true, runs: [], shown: false },
+			afterLast: { hasDialog: false, runs: ['dialog-1'], shown: true },
+		});
+	});
+
+	test('an observable trigger waits for a modal dialog to close', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		const signal = observableValue<boolean>('dialog-trigger', false);
+		registerScenario({ id: 'dialog-observable', trigger: { kind: 'observable', signal }, presentation: { kind: presentation.kind, payload: undefined } });
+		const { service } = createService();
+		service.start();
+		const dialog = dialogService.model.show({ promptArgs: { prompt: { message: 'Workspace trust' } } });
+		signal.set(true, undefined);
+		await timeout(0);
+		const whileOpen = { runs: [...presentation.runs], shown: service.hasBeenShown('dialog-observable') };
+
+		dialog.item.close();
+		await dialog.result;
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileOpen, runs: presentation.runs }, {
+			whileOpen: { runs: [], shown: false },
+			runs: ['dialog-observable'],
+		});
+	});
+
+	test('rechecks modal dialogs after waiting for the presentation slot', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({ id: 'dialog-queued', trigger: { kind: 'auto' }, presentation: { kind: presentation.kind, payload: undefined } });
+		const finish = new DeferredPromise<void>();
+		const occupant = runWithOnboardingPresentation(mainWindow, CancellationToken.None, () => finish.p);
+		const { service } = createService();
+		service.start();
+		await timeout(0);
+		const dialog = dialogService.model.show({ confirmArgs: { confirmation: { message: 'Modal opened while queued' } } });
+		await finish.complete();
+		await occupant;
+		await timeout(0);
+		const whileOpen = { runs: [...presentation.runs], shown: service.hasBeenShown('dialog-queued'), pending: service.isPresenting.get() };
+
+		dialog.item.close();
+		await dialog.result;
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileOpen, runs: presentation.runs }, {
+			whileOpen: { runs: [], shown: false, pending: true },
+			runs: ['dialog-queued'],
+		});
+	});
+
+	test('shutdown cancels a tour waiting for a modal and releases the presentation slot', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({ id: 'dialog-shutdown', trigger: { kind: 'auto' }, presentation: { kind: presentation.kind, payload: undefined } });
+		const finish = new DeferredPromise<void>();
+		const occupant = runWithOnboardingPresentation(mainWindow, CancellationToken.None, () => finish.p);
+		const { service, lifecycle } = createService();
+		service.start();
+		await timeout(0);
+		const dialog = dialogService.model.show({});
+		await finish.complete();
+		await occupant;
+		await timeout(0);
+		const pending = service.isPresenting.get();
+
+		lifecycle.fireShutdown();
+		const later = await runWithOnboardingPresentation(mainWindow, CancellationToken.None, async () => 'released');
+		dialog.item.close();
+		await dialog.result;
+		await timeout(0);
+
+		assert.deepStrictEqual({ pending, later, runs: presentation.runs, shown: service.hasBeenShown('dialog-shutdown'), afterShutdown: service.isPresenting.get() }, {
+			pending: true,
+			later: 'released',
+			runs: [],
+			shown: false,
+			afterShutdown: false,
+		});
+	});
+
 	test('runs higher-priority scenarios before lower-priority ones', async () => {
 		const order: string[] = [];
 		const presentation = new RecordingPresentation(uniqueKind(), OnboardingOutcome.Completed);
@@ -295,6 +439,49 @@ suite('OnboardingScenarioService', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual(presentation.runs, ['observable-1']);
+	});
+
+	test('an automatic run that waited behind another presentation is dropped once it is no longer eligible', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		const signal = observableValue<boolean>('onboardingTestSignal', true);
+		registerScenario({ id: 'stale-1', trigger: { kind: 'observable', signal }, presentation: { kind: presentation.kind, payload: undefined } });
+		const finish = new DeferredPromise<void>();
+		const occupant = runWithOnboardingPresentation(mainWindow, CancellationToken.None, () => finish.p);
+		const { service } = createService();
+		service.start();
+		await timeout(0);
+		signal.set(false, undefined);
+		finish.complete();
+		await occupant;
+		await timeout(0);
+		const whileIneligible = { runs: [...presentation.runs], shown: service.hasBeenShown('stale-1') };
+		signal.set(true, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileIneligible, runs: presentation.runs }, {
+			whileIneligible: { runs: [], shown: false },
+			runs: ['stale-1'],
+		});
+	});
+
+	test('an explicit request that joins an automatic run waiting for the presentation slot keeps it running', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		const signal = observableValue<boolean>('onboardingTestSignal', true);
+		registerScenario({ id: 'joined-1', trigger: { kind: 'observable', signal }, presentation: { kind: presentation.kind, payload: undefined } });
+		const finish = new DeferredPromise<void>();
+		const occupant = runWithOnboardingPresentation(mainWindow, CancellationToken.None, () => finish.p);
+		const { service } = createService();
+		service.start();
+		await timeout(0);
+		const explicit = service.runScenario('joined-1');
+		signal.set(false, undefined);
+		finish.complete();
+		await occupant;
+		await explicit;
+
+		assert.deepStrictEqual(presentation.runs, ['joined-1']);
 	});
 
 	test('command-triggered scenarios never run automatically', async () => {
@@ -375,6 +562,32 @@ suite('OnboardingScenarioService', () => {
 		const [a, b] = await Promise.all([first, second]);
 
 		assert.deepStrictEqual({ runs, a, b }, { runs: ['inflight-1'], a: OnboardingOutcome.Completed, b: OnboardingOutcome.Completed });
+	});
+
+	test('isPresenting is true while a scenario is queued or running', async () => {
+		let release!: () => void;
+		const gate = new Promise<void>(resolve => { release = resolve; });
+		const kind = uniqueKind();
+		registerPresentation({
+			kind,
+			async run(): Promise<IOnboardingRunResult> {
+				await gate;
+				return completedResult();
+			}
+		});
+		registerScenario({ id: 'presenting-1', trigger: { kind: 'command', commandId: 'noop' }, presentation: { kind, payload: undefined } });
+
+		const { service } = createService();
+		service.start();
+		const before = service.isPresenting.get();
+		const run = service.runScenario('presenting-1');
+		const queued = service.isPresenting.get();
+		await timeout(0);
+		const running = service.isPresenting.get();
+		release();
+		await run;
+
+		assert.deepStrictEqual({ before, queued, running, after: service.isPresenting.get() }, { before: false, queued: true, running: true, after: false });
 	});
 
 	test('runScenario does not enqueue an already cancelled request', async () => {
@@ -564,6 +777,64 @@ suite('OnboardingScenarioService', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual(presentation.runs, []);
+	});
+
+	test('reads unresolved experiment flags again when assignments are refetched, then keeps the resolved arm', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({
+			id: 'exp-refetch',
+			experiment: { behaviorFlag: 'exp.show', assignmentContextIdFlag: 'exp.id' },
+			trigger: { kind: 'auto' },
+			presentation: { kind: presentation.kind, payload: undefined }
+		});
+		const assignment = new RefetchingAssignmentService({}, disposables.add(new Emitter<void>()));
+		const { service } = createService({}, assignment);
+
+		service.start();
+		await timeout(0);
+		const runsAtStartup = [...presentation.runs];
+		assignment.refetch({ 'exp.show': true, 'exp.id': 'onb-refetch' });
+		await timeout(0);
+		await timeout(0);
+		const runsAfterRefetch = [...presentation.runs];
+		assignment.refetch({ 'exp.show': false, 'exp.id': 'onb-other' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ runsAtStartup, runsAfterRefetch, reads: assignment.reads }, {
+			runsAtStartup: [],
+			runsAfterRefetch: ['exp-refetch'],
+			reads: ['exp.show', 'exp.id', 'exp.show', 'exp.id'],
+		});
+	});
+
+	test('a refetch during an unresolved read reads the experiment flags again once that read settles', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({
+			id: 'exp-inflight',
+			experiment: { behaviorFlag: 'exp.show', assignmentContextIdFlag: 'exp.id' },
+			trigger: { kind: 'auto' },
+			presentation: { kind: presentation.kind, payload: undefined }
+		});
+		const assignment = new RefetchingAssignmentService({}, disposables.add(new Emitter<void>()));
+		const firstRead = new DeferredPromise<void>();
+		assignment.pause = firstRead.p;
+		const { service } = createService({}, assignment);
+
+		service.start();
+		assignment.pause = undefined;
+		assignment.refetch({ 'exp.show': true, 'exp.id': 'onb-inflight' });
+		const readsWhileInFlight = [...assignment.reads];
+		await firstRead.complete();
+		await timeout(0);
+		await timeout(0);
+
+		assert.deepStrictEqual({ readsWhileInFlight, reads: assignment.reads, runs: presentation.runs }, {
+			readsWhileInFlight: ['exp.show', 'exp.id'],
+			reads: ['exp.show', 'exp.id', 'exp.show', 'exp.id'],
+			runs: ['exp-inflight'],
+		});
 	});
 
 	for (const { name, treatments, developerMode, enabled, expected } of [
@@ -909,7 +1180,7 @@ suite('OnboardingScenarioService', () => {
 		const config = new TestConfigurationService();
 		const contextKeyService = store.add(new ContextKeyService(config));
 		const lifecycle = store.add(new TestLifecycleService());
-		const service = store.add(new OnboardingScenarioService(storage, contextKeyService, config as unknown as IConfigurationService, lifecycle, new NullWorkbenchAssignmentService(), NullTelemetryService as unknown as ITelemetryService));
+		const service = store.add(new OnboardingScenarioService(storage, contextKeyService, config as unknown as IConfigurationService, lifecycle, new NullWorkbenchAssignmentService(), NullTelemetryService as unknown as ITelemetryService, dialogService));
 		service.start();
 		store.dispose();
 		assert.ok(true);

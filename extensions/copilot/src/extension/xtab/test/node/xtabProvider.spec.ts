@@ -1188,7 +1188,10 @@ describe('XtabProvider integration', () => {
 		});
 
 		it('retries with default model after NotFound response', async () => {
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, false);
 			const provider = createProvider();
+			mockModelService.setSelectedConfig({ reasoningEffort: 'low', maxCompletionTokens: 8192 });
+			mockModelService.setDefaultConfig({ reasoningEffort: 'none', maxCompletionTokens: 2048 });
 
 			const lines = ['const x = 1;'];
 			const request = createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'a' });
@@ -1206,8 +1209,13 @@ describe('XtabProvider integration', () => {
 			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
 			await AsyncIterUtils.drainUntilReturn(gen);
 
-			// Should have made two calls - first failed with NotFound, second retried
-			expect(streamingFetcher.callCount).toBe(2);
+			expect(streamingFetcher.capturedOptions.map(options => ({
+				reasoning_effort: options.requestOptions?.reasoning_effort,
+				max_completion_tokens: options.requestOptions?.max_completion_tokens,
+			}))).toEqual([
+				{ reasoning_effort: 'low', max_completion_tokens: 8192 },
+				{ reasoning_effort: 'none', max_completion_tokens: 2048 },
+			]);
 		});
 
 		it('does not loop infinitely on repeated NotFound', async () => {
@@ -2382,6 +2390,55 @@ describe('XtabProvider integration', () => {
 	// ========================================================================
 
 	describe('prompt construction', () => {
+		it.each([
+			{ useMaxTokens: true, usePrediction: false },
+			{ useMaxTokens: false, usePrediction: false },
+			{ useMaxTokens: true, usePrediction: true },
+			{ useMaxTokens: false, usePrediction: true },
+		])('sends model request arguments with useMaxTokens=$useMaxTokens and usePrediction=$usePrediction', async ({ useMaxTokens, usePrediction }) => {
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUseMaxTokens, useMaxTokens);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, usePrediction);
+			mockModelService.setSelectedConfig({ reasoningEffort: 'low', maxCompletionTokens: 8192 });
+			const lines = ['const x = 1;'];
+			streamingFetcher.setStreamingLines(lines);
+			const request = createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'a' });
+			await AsyncIterUtils.drainUntilReturn(createProvider().provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None));
+			const options = streamingFetcher.capturedOptions[0].requestOptions!;
+			expect({
+				reasoning_effort: options.reasoning_effort,
+				...('max_completion_tokens' in options ? { max_completion_tokens: options.max_completion_tokens } : {}),
+				...('max_tokens' in options ? { max_tokens: options.max_tokens } : {}),
+			}).toEqual({
+				reasoning_effort: 'low',
+				...(!usePrediction ? {
+					max_tokens: undefined,
+					...(useMaxTokens ? { max_completion_tokens: 8192 } : {}),
+				} : {}),
+			});
+		});
+
+		it.each([
+			{ reasoningEffort: 'none' as const },
+			{ maxCompletionTokens: 8192 },
+			{},
+		])('only adds configured model request arguments: %j', async modelConfig => {
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, false);
+			mockModelService.setSelectedConfig(modelConfig);
+			const lines = ['const x = 1;'];
+			streamingFetcher.setStreamingLines(lines);
+			const request = createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'a' });
+			await AsyncIterUtils.drainUntilReturn(createProvider().provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None));
+			const options = streamingFetcher.capturedOptions[0].requestOptions!;
+			expect({
+				...('reasoning_effort' in options ? { reasoning_effort: options.reasoning_effort } : {}),
+				...('max_completion_tokens' in options ? { max_completion_tokens: options.max_completion_tokens } : {}),
+				...('max_tokens' in options ? { max_tokens: options.max_tokens } : {}),
+			}).toEqual({
+				...('reasoningEffort' in modelConfig ? { reasoning_effort: modelConfig.reasoningEffort } : {}),
+				...('maxCompletionTokens' in modelConfig ? { max_completion_tokens: modelConfig.maxCompletionTokens, max_tokens: undefined } : {}),
+			});
+		});
+
 		it.each([
 			{ useMaxTokens: undefined, usePrediction: false, expected: {} },
 			{ useMaxTokens: true, usePrediction: false, expected: {} },

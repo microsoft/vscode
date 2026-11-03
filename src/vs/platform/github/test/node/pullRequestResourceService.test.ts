@@ -137,10 +137,6 @@ class TestGitHubCredentialService implements IGitHubCredentials {
 		return this.credential;
 	}
 
-	resolveCredential(): Promise<GitHubCredential> {
-		return Promise.resolve(this.credential);
-	}
-
 	handleRequestError(): void { }
 
 	invalidate(reason: GitHubCredentialInvalidation['reason']): void {
@@ -732,6 +728,25 @@ suite('PullRequestResourceService', () => {
 		clock.advanceBy(10_000);
 		await flushAsync();
 		assert.deepStrictEqual(queries.calls, []);
+		subscription.dispose();
+	});
+
+	test('polls checks soon while a required check has not reported', async () => {
+		const { clock, queries, service } = setup();
+		queries.handlers.set('checks', () => ({
+			fragment: 'checks',
+			value: { headSha: 'head-1', requirednessComplete: true, requiredContexts: ['PR Gate'], expectedSuites: [], expectedSuitesComplete: true, checks: [] },
+			complete: true,
+			headSha: 'head-1',
+		}));
+		const subscription = service.subscribePullRequest(ref, { priority: 'background', core: true, checks: { required: true } });
+		await subscription.refresh('core');
+		await subscription.refresh('checks');
+
+		queries.calls.length = 0;
+		clock.advanceBy(policy.checksPendingBackground);
+		await flushAsync();
+		assert.deepStrictEqual(queries.calls.map(call => call.fragment), ['checks']);
 		subscription.dispose();
 	});
 });

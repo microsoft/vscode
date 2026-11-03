@@ -53,11 +53,18 @@ const TASK_SESSION_POLL_TIMEOUT_MS = 60_000;
  */
 const CLOUD_CODING_AGENT_SLUGS: ReadonlySet<string> = new Set(['copilot-developer', 'copilot-swe-agent']);
 
+interface TaskClient {
+	readonly integration_id: string;
+	readonly slug: string;
+	readonly creator: boolean;
+}
+
 /**
- * CMC task-list environment metadata, not yet modeled by `@vscode/copilot-api`'s `AgentTask`.
+ * CMC task metadata not yet modeled by `@vscode/copilot-api`'s `AgentTask`.
  */
 interface TaskWithEnvironment extends AgentTask {
 	readonly current_environment?: { readonly kind?: string } | null;
+	readonly clients?: readonly TaskClient[];
 }
 
 /**
@@ -161,10 +168,11 @@ function taskToDiffRefs(
 	return { owner: repo.owner, repo: repo.name, baseRef: branch.data.base_ref, headRef: branch.data.head_ref };
 }
 
-function taskToSessionData(task: AgentTask & { readonly automation_id?: string | null }, repo: CloudSessionData['repo']): CloudSessionData {
+function taskToSessionData(task: TaskWithEnvironment & { readonly automation_id?: string | null }, repo: CloudSessionData['repo']): CloudSessionData {
 	return {
 		taskId: task.id,
 		eventType: 'event_type' in task && typeof task.event_type === 'string' ? task.event_type : undefined,
+		application: task.clients?.find(client => client.creator === true)?.slug,
 		...(typeof task.automation_id === 'string' && task.automation_id ? { automationId: task.automation_id } : {}),
 		title: task.name ?? '',
 		state: task.state,

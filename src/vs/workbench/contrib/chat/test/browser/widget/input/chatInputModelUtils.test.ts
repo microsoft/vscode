@@ -14,6 +14,7 @@ import {
 	filterModelsForSession,
 	findBestMatchingModel,
 	getAgentHostByokManageModelsIdentifier,
+	getNextModelInCycle,
 	hasModelsTargetingSession,
 	isModelHiddenInPicker,
 	isModelSupportedForInlineChat,
@@ -1573,6 +1574,33 @@ suite('ChatInputModelUtils', () => {
 				shouldDropAgnosticDraftModel(agentHostOpus, allMerged, undefined),
 				shouldDropAgnosticDraftModel(agentHostOpus, allMerged, sessionType),
 			], [true, true, false]);
+		});
+	});
+
+	suite('getNextModelInCycle', () => {
+		const models = [createModel('a', 'A'), createModel('b', 'B'), createModel('c', 'C')];
+		const next = (current: string | undefined, pinned?: string[]) => getNextModelInCycle(models, current, pinned)?.identifier;
+
+		test('cycles through all models or only pinned ones, wrapping around', () => {
+			assert.deepStrictEqual({
+				fromFirst: next('copilot/a'),
+				fromLast: next('copilot/c'),
+				fromUnknown: next(undefined),
+				pinnedFromPinned: next('copilot/c', ['copilot/c', 'copilot/a']),
+				pinnedFromUnpinned: next('copilot/b', ['copilot/c', 'copilot/a']),
+				pinnedSkipsUnavailable: next('copilot/a', ['copilot/missing', 'copilot/a', 'copilot/b']),
+				noPinned: next('copilot/a', []),
+				noModels: getNextModelInCycle([], 'copilot/a'),
+			}, {
+				fromFirst: 'copilot/b',
+				fromLast: 'copilot/a',
+				fromUnknown: 'copilot/a',
+				pinnedFromPinned: 'copilot/a',
+				pinnedFromUnpinned: 'copilot/c',
+				pinnedSkipsUnavailable: 'copilot/b',
+				noPinned: undefined,
+				noModels: undefined,
+			});
 		});
 	});
 

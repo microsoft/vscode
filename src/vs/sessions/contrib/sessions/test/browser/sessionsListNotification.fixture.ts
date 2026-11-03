@@ -30,7 +30,7 @@ function renderNotification(context: ComponentFixtureContext, width: number, mes
 	container.style.background = 'var(--vscode-sideBar-background)';
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
 	const notification = disposableStore.add(instantiationService.createInstance(SessionsListNotification, container, () => { }));
-	const show = () => notification.show(message, async () => { });
+	const show = () => notification.show({ message, help: '', undo: async () => { } });
 	show();
 	if (animated) {
 		addReplayButton(context, show);
@@ -77,7 +77,7 @@ async function renderNotificationOverSessions(context: ComponentFixtureContext, 
 	};
 	const show = () => {
 		setDone(true);
-		notification.show('3 marked done', async () => setDone(false));
+		notification.show({ message: '3 marked done', help: '', undo: async () => setDone(false) });
 	};
 	show();
 	if (animated) {

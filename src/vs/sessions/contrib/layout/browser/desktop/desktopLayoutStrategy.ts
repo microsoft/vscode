@@ -50,8 +50,8 @@ export interface IDesktopLayoutContext {
  * Shared mechanics (the managed-tabs reconcile pipeline + editor-area collapse and the Existing
  * Editor-visibility-profile storage) live in non-strategy coordinator classes in this
  * folder — see `desktopDockedTabsCoordinator.ts`, `desktopDetailPanelCoordinator.ts`, and
- * `desktopVisibilityProfileStore.ts`. The shared detail coordinator owns only content selection
- * and context publication; each lifecycle strategy owns Auxiliary Bar visibility. The shared mechanics are owned by
+ * `desktopVisibilityProfileStore.ts`. The shared detail coordinator retains content selection,
+ * context publication, and transient hide state; each lifecycle strategy decides Auxiliary Bar visibility. The shared mechanics are owned by
  * {@link import('./desktopExistingSessionStrategy.js').DesktopExistingSessionStrategy}
  * (the docked-tabs coordinator, since its reconcile pipeline is shared across the New→Existing
  * submit transition) or by the controller (the visibility-profile store, since it backs one
@@ -67,5 +67,14 @@ export abstract class DesktopLayoutStrategy extends Disposable {
 			? this._ctx.multipleChatsVisibleObs
 			: this._ctx.multipleSessionsVisibleObs;
 		return reader ? observable.read(reader) : observable.get();
+	}
+
+	/**
+	 * Whether a chat of another session is shown alongside the active one. Chats of the same
+	 * session share its main editor part, and mounted sessions whose chats are not shown (e.g.
+	 * while a chat is maximized) do not count.
+	 */
+	protected _otherSessionShown(): boolean {
+		return this._ctx.multipleSessionsVisibleObs.get() && this._multipleLayoutOwnersVisible();
 	}
 }

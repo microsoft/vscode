@@ -26,6 +26,7 @@ import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/commo
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionEnvelope, ActionType, ChatPendingMessageSetAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { chatTurnComplete, chatTurnStarted } from '../../../../../platform/agentHost/test/common/chatActionBuilders.js';
 import { ChatInteractivity as ProtocolChatInteractivity } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { chatReducer } from '../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatState, ComponentToState, MessageKind, parseChatUri, PendingMessageKind, RootState, SessionState, SessionStatus, StateComponents, withSessionSpawnDepth, withSessionWorkspaceless } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -534,10 +535,7 @@ suite('RemoteSessionMessageRouter', () => {
 		const { router, first, sessions } = setup();
 		const channel = buildDefaultChatUri(backendSession);
 		const state = first.chatStates.get(channel)!;
-		state.set(chatReducer(state.verifiedValue!, {
-			type: ActionType.ChatTurnStarted, turnId: 'busy', startedAt: new Date(0).toISOString(),
-			message: { text: 'Busy', origin: { kind: MessageKind.User } },
-		}));
+		state.set(chatReducer(state.verifiedValue!, chatTurnStarted('busy', 'Busy', new Date(0).toISOString())));
 		state.set(chatReducer(state.verifiedValue!, {
 			type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Queued, id: 'existing',
 			message: { text: 'Existing', origin: { kind: MessageKind.User } },
@@ -860,7 +858,7 @@ suite('RemoteSessionMessageRouter', () => {
 			const pendingOnly = { retained: backgroundState.references, active: active.get(), queued: pending.length };
 			first.acknowledgeDispatch(0);
 			const running = { retained: backgroundState.references, active: active.get(), queued: pending.length };
-			chat.set(chatReducer(chat.verifiedValue!, { type: ActionType.ChatTurnComplete, turnId: chat.verifiedValue!.activeTurn!.id, duration: 1 }));
+			chat.set(chatReducer(chat.verifiedValue!, chatTurnComplete(chat.verifiedValue!.activeTurn!.id, 1)));
 			assert.deepStrictEqual({
 				pendingOnly, running, released: backgroundState.references, dispatches: first.dispatched.length,
 			}, {

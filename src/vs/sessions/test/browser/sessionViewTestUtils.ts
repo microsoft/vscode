@@ -22,7 +22,7 @@ import { workbenchInstantiationService } from '../../../workbench/test/browser/w
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
 import { SessionsPart } from '../../browser/parts/sessionsPart.js';
 import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
-import { SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../common/contextkeys.js';
+import { SessionBranchPickerVisibleContext, SessionEnvironmentPickerVisibleContext, SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionSyncActionVisibleContext, SessionWorkspacePickerVisibleContext, SessionWorktreePickerVisibleContext } from '../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../services/chatBackground/browser/chatBackgroundService.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
@@ -197,5 +197,9 @@ export function getSessionPickerVisibility(contextKeyService: IContextKeyService
 		workspace: value(SessionWorkspacePickerVisibleContext.key),
 		harness: value(SessionHarnessPickerVisibleContext.key),
 		isolation: value(SessionIsolationPickerVisibleContext.key),
+		environment: value(SessionEnvironmentPickerVisibleContext.key),
+		branch: value(SessionBranchPickerVisibleContext.key),
+		worktree: value(SessionWorktreePickerVisibleContext.key),
+		sync: value(SessionSyncActionVisibleContext.key),
 	};
 }

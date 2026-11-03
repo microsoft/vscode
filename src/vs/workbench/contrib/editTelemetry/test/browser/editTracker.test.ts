@@ -235,8 +235,8 @@ class TestAnnotatedDocument extends Disposable implements IDocumentWithAnnotated
 		this._value.set(edit.applyOnText(this._value.get()), undefined, { edit: edit.mapData(() => data) });
 	}
 
-	waitForQueue(): Promise<void> {
-		return Promise.resolve();
+	waitForQueue(onDrained?: () => void | Promise<void>): Promise<void> {
+		return Promise.resolve(onDrained?.());
 	}
 }
 

@@ -53,18 +53,16 @@ suite('GitHub system scheduler', () => {
 		assert.deepStrictEqual({ firstWake, dispatchTimes }, { firstWake: MAX_TIMEOUT_DELAY, dispatchTimes: [serverDelay] });
 	});
 
-	test('inactive-account cleanup retains the full cooldown beyond the native timer maximum', async () => {
+	test('inactive-account cleanup retains the full cooldown beyond the native timer maximum', () => runWithFakedTimers({}, async () => {
 		const observations: { delay: number; retained: boolean }[] = [];
-		await runWithFakedTimers({}, async () => {
-			const coordinator = disposables.add(new GitHubRateLimitCoordinator(systemRequestScheduler));
-			coordinator.updateFromResponse(account, limitedResponse());
-			coordinator.releaseAccount(account);
-			const signal = new AbortController().signal;
-			await schedulerDelay(systemRequestScheduler, MAX_TIMEOUT_DELAY, signal);
-			observations.push({ delay: coordinator.getDelay(account, 'core'), retained: coordinator.getState(account, 'core') !== undefined });
-			await schedulerDelay(systemRequestScheduler, serverDelay - MAX_TIMEOUT_DELAY, signal);
-			observations.push({ delay: coordinator.getDelay(account, 'core'), retained: coordinator.getState(account, 'core') !== undefined });
-		});
+		const coordinator = disposables.add(new GitHubRateLimitCoordinator(systemRequestScheduler));
+		coordinator.updateFromResponse(account, limitedResponse());
+		coordinator.releaseAccount(account);
+		const signal = new AbortController().signal;
+		await schedulerDelay(systemRequestScheduler, MAX_TIMEOUT_DELAY, signal);
+		observations.push({ delay: coordinator.getDelay(account, 'core'), retained: coordinator.getState(account, 'core') !== undefined });
+		await schedulerDelay(systemRequestScheduler, serverDelay - MAX_TIMEOUT_DELAY, signal);
+		observations.push({ delay: coordinator.getDelay(account, 'core'), retained: coordinator.getState(account, 'core') !== undefined });
 		assert.deepStrictEqual(observations, [{ delay: serverDelay - MAX_TIMEOUT_DELAY, retained: true }, { delay: 0, retained: false }]);
-	});
+	}));
 });

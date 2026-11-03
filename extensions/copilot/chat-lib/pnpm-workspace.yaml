@@ -1,0 +1,22 @@
+# Generated from the npm configuration by build/npm/pnpm/convert.ts during the npm to pnpm migration.
+# Setting names must be in knownSettingNames in build/npm/pnpm/workspaceConfig.ts.
+nodeLinker: hoisted
+strictPeerDependencies: false
+autoInstallPeers: false
+dedupePeerDependents: false
+fetchTimeout: 180000
+engineStrict: false
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - '@anthropic-ai/*'
+  - '@vscode/*'
+  - typescript
+strictDepBuilds: true
+sideEffectsCache: false
+verifyDepsBeforeRun: false
+pmOnFail: ignore
+skills:
+  dirs: []
+allowBuilds:
+  esbuild@0.28.1: true
+  fsevents@2.3.3: true

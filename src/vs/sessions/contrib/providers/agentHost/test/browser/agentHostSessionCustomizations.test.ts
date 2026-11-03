@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../base/common/errors.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { CustomizationType, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, type Customization, type ResponsePart } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionCustomizationKind } from '../../../../../services/sessions/common/session.js';
@@ -82,6 +84,47 @@ suite('Agent Host Session Customizations', () => {
 			{ id: 'hook-1', kind: SessionCustomizationKind.Hook },
 		]);
 	});
+
+	test('maps an opaque customization URI from a remote host', () => {
+		const id = 'mcp-top-level:copilotcli:session-1:github';
+		const index = new CustomizationIndex([{
+			id,
+			type: CustomizationType.McpServer,
+			uri: id,
+			name: 'github',
+			state: { kind: McpServerStatus.Stopped },
+		}], [], uri => toAgentHostUri(uri, 'remote-host'));
+
+		assert.deepStrictEqual(index.resolve({ kind: CustomizationRefKind.Mcp, value: id }), {
+			id,
+			kind: SessionCustomizationKind.McpServer,
+			name: 'github',
+			uri: toAgentHostUri(URI.parse(id), 'remote-host'),
+		});
+	});
+
+	for (const kind of agentHostConnectionKinds) {
+		test(`maps host-authored children independently of their publishing client and hides foreign container resources (${kind.name})`, () => {
+			const mapper = kind.resourceUris;
+			const plugins: Customization[] = ['vscode', 'foreign'].map(clientId => ({
+				type: CustomizationType.Plugin, id: clientId, name: clientId, clientId,
+				uri: `vscode-agent-host-file:///plugins/${clientId}`,
+				children: [{ type: CustomizationType.Skill, id: `${clientId}-skill`, name: `${clientId}-skill`, uri: `file:///cache/${clientId}/SKILL.md` }],
+			}));
+			const index = new CustomizationIndex(plugins, [], mapper.fromAgentHost, undefined, 'vscode');
+			assert.deepStrictEqual([
+				index.resolve({ kind: CustomizationRefKind.Path, value: '/plugins/vscode' }),
+				index.resolve({ kind: CustomizationRefKind.Path, value: '/plugins/foreign' }),
+				index.resolve({ kind: CustomizationRefKind.Skill, value: 'vscode-skill' }),
+				index.resolve({ kind: CustomizationRefKind.Skill, value: 'foreign-skill' }),
+			].map(item => item && { id: item.id, uri: item.uri?.toString() }), [
+				{ id: 'vscode', uri: kind.toClient(URI.file('/plugins/vscode')).toString() },
+				undefined,
+				{ id: 'vscode-skill', uri: kind.toClient(URI.file('/cache/vscode/SKILL.md')).toString() },
+				{ id: 'foreign-skill', uri: kind.toClient(URI.file('/cache/foreign/SKILL.md')).toString() },
+			]);
+		});
+	}
 
 	test('de-duplicates a customization reached through different references', () => {
 		assert.deepStrictEqual(resolve([

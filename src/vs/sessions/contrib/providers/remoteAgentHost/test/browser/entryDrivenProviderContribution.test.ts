@@ -4,21 +4,58 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { IWSLRemoteAgentHostService } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { EntryDrivenProviderContribution, IEntryDrivenProviderOptions } from '../../browser/entryDrivenProviderContribution.js';
 import { RemoteAgentHostSessionsProvider } from '../../browser/remoteAgentHostSessionsProvider.js';
+import { SSHAgentHostContribution } from '../../browser/sshAgentHost.contribution.js';
+import { WSLAgentHostContribution } from '../../browser/wslAgentHost.contribution.js';
 
 suite('Entry-driven remote provider lifecycle', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('SSH and WSL reconcile offline registrations without a connection event', async () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const changes = store.add(new Emitter<void>());
+		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiation.stub(IConfigurationService, configuration);
+		instantiation.stub(IRemoteAgentHostService, { onDidChangeConfiguredEntries: changes.event, onDidChangeConnections: Event.None });
+		instantiation.stub(ISSHRemoteAgentHostService, {});
+		instantiation.stub(IWSLRemoteAgentHostService, {});
+		instantiation.stub(ISessionsProvidersService, {});
+		instantiation.stub(INotificationService, new TestNotificationService());
+		instantiation.stub(ILogService, new NullLogService());
+		instantiation.stub(ITelemetryService, NullTelemetryService);
+		const reconciled: string[] = [];
+		class TestSSHContribution extends SSHAgentHostContribution {
+			protected override _reconcile() { reconciled.push('ssh'); }
+		}
+		class TestWSLContribution extends WSLAgentHostContribution {
+			protected override _reconcile() { reconciled.push('wsl'); }
+		}
+		store.add(instantiation.createInstance(TestSSHContribution));
+		store.add(instantiation.createInstance(TestWSLContribution));
+		reconciled.length = 0;
+		changes.fire();
+		await timeout(0);
+		assert.deepStrictEqual(reconciled, ['ssh', 'wsl']);
+	});
 
 	for (const kind of [RemoteAgentHostEntryType.SSH, RemoteAgentHostEntryType.WSL]) {
 		test(`${kind} name changes rebuild the connect callback rather than reconnecting with a stale name`, async () => {

@@ -218,7 +218,7 @@ export function isBuiltinPromptPath(obj: IPromptPath): obj is IBuiltinPromptPath
 	return obj.storage === PromptsStorage.builtIn;
 }
 
-export type IAgentSource = {
+export type IAgentSource = ({
 	readonly storage: PromptsStorage.extension;
 	readonly extensionId: ExtensionIdentifier;
 } | {
@@ -226,6 +226,8 @@ export type IAgentSource = {
 } | {
 	readonly storage: PromptsStorage.plugin;
 	readonly pluginUri: URI;
+}) & {
+	readonly label?: string;
 };
 
 export namespace IAgentSource {
@@ -246,7 +248,7 @@ export namespace IAgentSource {
 		if (!a || !b) {
 			return false;
 		}
-		if (a.storage !== b.storage) {
+		if (a.storage !== b.storage || a.label !== b.label) {
 			return false;
 		}
 		if (a.storage === PromptsStorage.extension && b.storage === PromptsStorage.extension) {

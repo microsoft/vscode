@@ -5,7 +5,7 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { getCopilotHomePath } from '../../../../environment/common/copilotHome.js';
+import { ICopilotHomeService } from '../../../../environment/common/copilotHome.js';
 import { INativeEnvironmentService } from '../../../../environment/common/environment.js';
 import { createDecorator } from '../../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../../log/common/log.js';
@@ -74,6 +74,7 @@ export class LocalModelSetupService extends Disposable implements ILocalModelSet
 		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@IProductService private readonly _productService: IProductService,
+		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
 	) {
 		super();
 	}
@@ -117,7 +118,7 @@ export class LocalModelSetupService extends Disposable implements ILocalModelSet
 			storage: this._storageService,
 			telemetry: this._telemetryService,
 			log: this._logService,
-			copilotHome: getCopilotHomePath(environment.userHome.fsPath, process.env),
+			copilotHome: this._copilotHomeService.home.fsPath,
 			userDataPath: environment.userDataPath,
 			homeDir: environment.userHome.fsPath,
 			tempDir: environment.tmpDir.fsPath,

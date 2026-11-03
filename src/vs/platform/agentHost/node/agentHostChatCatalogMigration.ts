@@ -15,6 +15,9 @@ import type { AgentHostDatabaseChatV2WriteResult, IAgentHostDatabase, IAgentHost
 import { CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY } from './agentHostPeerChatStore.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, parseSessionWorkingDirectories } from './shared/persistSessionMetadata.js';
 
+/** A legacy catalog converts only from a verified session aggregate whose re-projection is not pending. */
+export const chatCatalogAwaitsReprojection = { status: 'notReady', reason: 'the session aggregate is unverified or awaits its re-projection', awaitsReprojection: true } as const satisfies AgentHostDatabaseChatV2WriteResult;
+
 /** Prepares metadata-only legacy input; the database revalidates its receipt before activation. */
 export async function migrateChatCatalogV2(
 	database: IAgentHostDatabase,
@@ -46,7 +49,7 @@ export async function migrateChatCatalogV2(
 		database.getSessionChatCatalog(sessionKey),
 	]);
 	if (!source?.verified || source.payloadDirty !== 0) {
-		return { status: 'notReady', reason: 'the session aggregate is unverified or awaits its re-projection', awaitsReprojection: true };
+		return chatCatalogAwaitsReprojection;
 	}
 	const decoded = decodeAgentHostCatalogPayload(source.payload);
 	if (!decoded.ok) {

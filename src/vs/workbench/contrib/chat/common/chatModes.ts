@@ -414,6 +414,11 @@ export interface IChatMode {
 	readonly sessionTypes?: readonly string[];
 }
 
+/** Shows source information only when another offered mode has the same visible label. */
+export function getChatModeSourceLabel(mode: IChatMode, modes: readonly IChatMode[]): string | undefined {
+	return modes.some(other => other.id !== mode.id && other.label.get() === mode.label.get()) ? mode.source?.label : undefined;
+}
+
 export interface IVariableReference {
 	readonly name: string;
 	readonly range: IOffsetRange;
@@ -622,16 +627,20 @@ export class CustomChatMode implements IChatMode {
 	}
 }
 
-type IChatModeSourceData =
+type IChatModeSourceData = (
 	| { readonly storage: PromptsStorage.extension; readonly extensionId: string; type?: PromptFileSource.ExtensionContribution | PromptFileSource.ExtensionAPI }
 	| { readonly storage: PromptsStorage.local | PromptsStorage.user | PromptsStorage.builtIn }
-	| { readonly storage: PromptsStorage.plugin; readonly pluginUri: URI };
+	| { readonly storage: PromptsStorage.plugin; readonly pluginUri: URI }
+) & { readonly label?: string };
 
 function isChatModeSourceData(value: unknown): value is IChatModeSourceData {
 	if (typeof value !== 'object' || value === null) {
 		return false;
 	}
-	const data = value as { storage?: unknown; extensionId?: unknown; pluginUri?: unknown };
+	const data = value as { storage?: unknown; extensionId?: unknown; pluginUri?: unknown; label?: unknown };
+	if (data.label !== undefined && typeof data.label !== 'string') {
+		return false;
+	}
 	if (data.storage === PromptsStorage.extension) {
 		return typeof data.extensionId === 'string';
 	}
@@ -645,26 +654,28 @@ function serializeChatModeSource(source: IAgentSource | undefined): IChatModeSou
 	if (!source) {
 		return undefined;
 	}
+	const label = source.label !== undefined ? { label: source.label } : {};
 	if (source.storage === PromptsStorage.extension) {
-		return { storage: PromptsStorage.extension, extensionId: source.extensionId.value };
+		return { storage: PromptsStorage.extension, extensionId: source.extensionId.value, ...label };
 	}
 	if (source.storage === PromptsStorage.plugin) {
-		return { storage: PromptsStorage.plugin, pluginUri: source.pluginUri };
+		return { storage: PromptsStorage.plugin, pluginUri: source.pluginUri, ...label };
 	}
-	return { storage: source.storage };
+	return { storage: source.storage, ...label };
 }
 
 function reviveChatModeSource(data: IChatModeSourceData | undefined): IAgentSource | undefined {
 	if (!data) {
 		return undefined;
 	}
+	const label = data.label !== undefined ? { label: data.label } : {};
 	if (data.storage === PromptsStorage.extension) {
-		return { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(data.extensionId) };
+		return { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(data.extensionId), ...label };
 	}
 	if (data.storage === PromptsStorage.plugin) {
-		return { storage: PromptsStorage.plugin, pluginUri: URI.revive(data.pluginUri) };
+		return { storage: PromptsStorage.plugin, pluginUri: URI.revive(data.pluginUri), ...label };
 	}
-	return { storage: data.storage };
+	return { storage: data.storage, ...label };
 }
 
 export class BuiltinChatMode implements IChatMode {

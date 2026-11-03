@@ -17,6 +17,7 @@ export class OrganizationsClient implements IOrganizationsClient {
 
 	async get(org: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Organization> {
 		return this._client.request({
+			domain: 'organizations',
 			method: 'GET',
 			path: `/orgs/${pathSegment(org)}`,
 			authentication: 'optional',
@@ -28,6 +29,7 @@ export class OrganizationsClient implements IOrganizationsClient {
 	async listForAuthenticatedUser(signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly OrganizationSummary[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
+			domain: 'organizations',
 			method: 'GET',
 			path: withQuery('/user/orgs', { ...query }),
 			authentication: 'required',
@@ -39,6 +41,7 @@ export class OrganizationsClient implements IOrganizationsClient {
 	async listForUser(username: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly OrganizationSummary[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
+			domain: 'organizations',
 			method: 'GET',
 			path: withQuery(`/users/${pathSegment(username)}/orgs`, { ...query }),
 			authentication: 'optional',
@@ -49,6 +52,7 @@ export class OrganizationsClient implements IOrganizationsClient {
 
 	async getAuthenticatedMembership(org: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<OrganizationMembership> {
 		return this._client.request({
+			domain: 'organizations',
 			method: 'GET',
 			path: `/user/memberships/orgs/${pathSegment(org)}`,
 			authentication: 'required',
@@ -59,6 +63,7 @@ export class OrganizationsClient implements IOrganizationsClient {
 
 	async getMembership(org: string, username: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<OrganizationMembership> {
 		return this._client.request({
+			domain: 'organizations',
 			method: 'GET',
 			path: `/orgs/${pathSegment(org)}/memberships/${pathSegment(username)}`,
 			authentication: 'required',
@@ -70,6 +75,7 @@ export class OrganizationsClient implements IOrganizationsClient {
 	async listTeams(org: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly TeamDetails[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
+			domain: 'organizations',
 			method: 'GET',
 			path: withQuery(`/orgs/${pathSegment(org)}/teams`, { ...query }),
 			authentication: 'required',
@@ -80,6 +86,7 @@ export class OrganizationsClient implements IOrganizationsClient {
 
 	async getTeam(org: string, teamSlug: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<TeamDetails> {
 		return this._client.request({
+			domain: 'organizations',
 			method: 'GET',
 			path: teamPath(org, teamSlug),
 			authentication: 'required',
@@ -91,6 +98,7 @@ export class OrganizationsClient implements IOrganizationsClient {
 	async listTeamsForAuthenticatedUser(signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly UserTeam[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
+			domain: 'organizations',
 			method: 'GET',
 			path: withQuery('/user/teams', { ...query }),
 			authentication: 'required',
@@ -102,6 +110,7 @@ export class OrganizationsClient implements IOrganizationsClient {
 	async listTeamMembers(org: string, teamSlug: string, signal: AbortSignal, options?: ListTeamMembersOptions): Promise<readonly Account[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
+			domain: 'organizations',
 			method: 'GET',
 			path: withQuery(`${teamPath(org, teamSlug)}/members`, { ...query }),
 			authentication: 'required',

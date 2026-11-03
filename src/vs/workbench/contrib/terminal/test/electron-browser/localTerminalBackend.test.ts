@@ -10,11 +10,32 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ILocalPtyService, ITerminalChildProcess, ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ExtensionIdentifier, type IExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { EnvironmentVariableMutatorType, type ISerializableEnvironmentVariableCollections } from '../../../../../platform/terminal/common/environmentVariable.js';
+import { ILocalPtyService, ITerminalChildProcess, ITerminalLogService, type ISerializedTerminalState } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { IConfigurationResolverService } from '../../../../services/configurationResolver/common/configurationResolver.js';
+import { IHistoryService } from '../../../../services/history/common/history.js';
+import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
+import { EnvironmentVariableService } from '../../common/environmentVariableService.js';
+import { ITerminalProfileResolverService } from '../../common/terminal.js';
+import { TerminalStorageKeys } from '../../common/terminalStorageKeys.js';
+import { TestContextService, TestHistoryService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { LocalPty } from '../../electron-browser/localPty.js';
 import { LocalTerminalBackend } from '../../electron-browser/localTerminalBackend.js';
+
+class RecordingLogService extends NullLogService {
+	readonly warnings: { message: string; args: unknown[] }[] = [];
+
+	override warn(message: string, ...args: unknown[]): void {
+		this.warnings.push({ message, args });
+	}
+}
 
 suite('LocalTerminalBackend', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -80,6 +101,108 @@ suite('LocalTerminalBackend', () => {
 			originalWithNegativePid: { attachedId: 3, requests: [[3, undefined]] },
 			originalMissing: { attachedId: undefined, requests: [[4, 404]] },
 			attachById: { attachedId: 3, requests: [[3, undefined]] },
+		});
+	});
+
+	test('revival refreshes both the environment and collection options before sending persisted state to the pty host', async () => {
+		let revivedState: ISerializedTerminalState[] | undefined;
+		const instantiationService = store.add(new TestInstantiationService());
+		const storageService = store.add(new TestStorageService());
+		const logService = new RecordingLogService();
+		const registeredExtensions: readonly IExtensionDescription[] = [
+			upcastPartial<IExtensionDescription>({
+				identifier: new ExtensionIdentifier('foreign.extension')
+			})
+		];
+		instantiationService.stub(IWorkspaceContextService, new TestContextService());
+		instantiationService.stub(ITerminalLogService, logService);
+		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(IExtensionService, upcastPartial<IExtensionService>({
+			whenInstalledExtensionsRegistered: async () => true,
+			onDidChangeExtensions: Event.None,
+			extensions: registeredExtensions
+		}));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IConfigurationResolverService, upcastPartial<IConfigurationResolverService>({
+			resolveWithEnvironment: async (_environment, _folder, value) => value
+		}));
+		instantiationService.stub(IHistoryService, new TestHistoryService());
+		instantiationService.stub(IProductService, upcastPartial<IProductService>({ version: 'test' }));
+		instantiationService.stub(ITerminalProfileResolverService, upcastPartial<ITerminalProfileResolverService>({
+			getEnvironment: async () => ({ PATH: '/base/bin' })
+		}));
+		const environmentVariableService = store.add(instantiationService.createInstance(EnvironmentVariableService));
+		const foreignCollection = {
+			remoteAuthority: 'ssh-remote+foreign-host',
+			map: new Map([
+				['foreign-path', { variable: 'PATH', value: '/foreign/bin:', type: EnvironmentVariableMutatorType.Prepend }],
+				['shared-value', { variable: 'SHARED_VALUE', value: 'available', type: EnvironmentVariableMutatorType.Replace }]
+			])
+		};
+		environmentVariableService.set('foreign.extension', { ...foreignCollection, persistent: false });
+		instantiationService.stub(IEnvironmentVariableService, environmentVariableService);
+		instantiationService.stub(ILocalPtyService, upcastPartial<ILocalPtyService>({
+			onPtyHostExit: Event.None,
+			onPtyHostStart: Event.None,
+			onPtyHostUnresponsive: Event.None,
+			onPtyHostResponsive: Event.None,
+			onPtyHostRequestResolveVariables: Event.None,
+			getEnvironment: async () => ({ PATH: '/base/bin' }),
+			reviveTerminalProcesses: async (_workspaceId, state) => {
+				revivedState = state;
+			},
+			getTerminalLayoutInfo: async () => undefined
+		}));
+
+		const staleOptions: ISerializableEnvironmentVariableCollections = [[
+			'foreign.extension',
+			[['foreign-path', { variable: 'PATH', value: '/foreign/bin:', type: EnvironmentVariableMutatorType.Prepend }]],
+			[]
+		]];
+		storageService.store(TerminalStorageKeys.TerminalBufferState, JSON.stringify({
+			version: 1,
+			state: [{
+				id: 1,
+				shellLaunchConfig: {},
+				processLaunchConfig: {
+					env: { PATH: '/stale/bin:/foreign/bin' },
+					executableEnv: {},
+					options: {
+						shellIntegration: { enabled: false, suggestEnabled: false, nonce: '' },
+						windowsUseConptyDll: false,
+						environmentVariableCollections: staleOptions,
+						isScreenReaderOptimized: false
+					}
+				}
+			}]
+		}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+
+		const backend = store.add(instantiationService.createInstance(LocalTerminalBackend));
+		await backend.getTerminalLayoutInfo();
+		deepStrictEqual({
+			revivedStateLength: revivedState?.length,
+			warnings: logService.warnings
+		}, {
+			revivedStateLength: 1,
+			warnings: []
+		});
+		if (!revivedState) {
+			throw new Error('Expected persisted terminal state to be revived');
+		}
+
+		deepStrictEqual({
+			env: {
+				PATH: revivedState[0].processLaunchConfig.env.PATH,
+				SHARED_VALUE: revivedState[0].processLaunchConfig.env.SHARED_VALUE
+			},
+			collections: revivedState[0].processLaunchConfig.options.environmentVariableCollections
+		}, {
+			env: { PATH: '/base/bin', SHARED_VALUE: 'available' },
+			collections: [[
+				'foreign.extension',
+				[['shared-value', { variable: 'SHARED_VALUE', value: 'available', type: EnvironmentVariableMutatorType.Replace }]],
+				[]
+			]]
 		});
 	});
 });

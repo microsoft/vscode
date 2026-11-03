@@ -5,8 +5,8 @@
 
 import * as inspector from 'node:inspector';
 
-import type { Project, Snapshot } from '@typescript/native/unstable/async';
-import type { SourceFile } from '@typescript/native/unstable/ast';
+import type { Project, Snapshot } from '@typescript/native/async';
+import type { SourceFile } from '@typescript/native/ast';
 import * as vscode from 'vscode';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
@@ -47,7 +47,7 @@ export class TS7NesRenameService implements vscode.Disposable {
 			return no;
 		}
 		api.clearSourceFileCache();
-		const snapshot = await api.updateSnapshot();
+		const snapshot = await api.createSnapshot();
 		try {
 			const state = await this.getProjectState(snapshot, document);
 			if (state === undefined) {
@@ -78,7 +78,7 @@ export class TS7NesRenameService implements vscode.Disposable {
 			return [];
 		}
 		api.clearSourceFileCache();
-		const snapshot = await api.updateSnapshot();
+		const snapshot = await api.createSnapshot();
 		try {
 			const state = await this.getProjectState(snapshot, document);
 			if (state === undefined) {

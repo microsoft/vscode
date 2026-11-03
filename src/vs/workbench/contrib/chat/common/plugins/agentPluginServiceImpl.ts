@@ -254,6 +254,7 @@ interface IPluginSource {
 	readonly watchPluginContents?: boolean;
 	/** Called when remove is invoked on the plugin; absent for policy-managed plugins */
 	remove?(): Promise<boolean>;
+	setEnabled?(enabled: boolean): Promise<void>;
 }
 
 /**
@@ -317,7 +318,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 					if (!this._isCurrentRefresh(version)) {
 						return [];
 					}
-					const plugin = await this._toPlugin(source.uri, format, source.fromMarketplace, source.copilotCliInstallation, source.repositoryUri, source.watchPluginContents !== false, source.remove, version);
+					const plugin = await this._toPlugin(source.uri, format, source.fromMarketplace, source.copilotCliInstallation, source.repositoryUri, source.watchPluginContents !== false, source.remove, source.setEnabled, version);
 					seenPluginUris.add(key);
 					plugins.push(plugin);
 				} catch (error) {
@@ -338,7 +339,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		return version === this._discoverVersion && !this._store.isDisposed;
 	}
 
-	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, copilotCliInstallation: ICopilotCliPluginInstallation | undefined, repositoryUri: URI | undefined, watchPluginContents: boolean, removeCallback: (() => Promise<boolean>) | undefined, version: number): Promise<IAgentPlugin> {
+	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, copilotCliInstallation: ICopilotCliPluginInstallation | undefined, repositoryUri: URI | undefined, watchPluginContents: boolean, removeCallback: (() => Promise<boolean>) | undefined, setEnabled: ((enabled: boolean) => Promise<void>) | undefined, version: number): Promise<IAgentPlugin> {
 		const key = uri.toString();
 		const existing = this._pluginEntries.get(key);
 		if (existing) {
@@ -350,6 +351,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 				this._pluginEntries.delete(key);
 			} else {
 				existing.plugin.remove = removeCallback;
+				existing.plugin.setEnabled = setEnabled;
 				return existing.plugin;
 			}
 		}
@@ -505,6 +507,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			policyEnablement,
 			policyBlocked,
 			remove: removeCallback,
+			setEnabled,
 			hooks,
 			commands,
 			skills,
@@ -1199,6 +1202,13 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 						source: installedPlugin.source,
 					},
 					watchPluginContents: false,
+					setEnabled: canUninstall ? async enabled => {
+						if (!this._agentHostService.setPluginEnabled) {
+							throw new Error(localize('pluginRuntimeEnablementUnavailable', "Runtime plugin enablement is unavailable."));
+						}
+						const target = installedPlugin.directSourceId ?? `${installedPlugin.name}@${installedPlugin.marketplace}`;
+						await this._agentHostService.setPluginEnabled(COPILOT_CLI_AGENT_PROVIDER_ID, target, enabled);
+					} : undefined,
 					remove: this._agentHostService.uninstallPlugin && canUninstall ? async () => {
 						await this._agentHostService.uninstallPlugin!(COPILOT_CLI_AGENT_PROVIDER_ID, {
 							name: installedPlugin.name,

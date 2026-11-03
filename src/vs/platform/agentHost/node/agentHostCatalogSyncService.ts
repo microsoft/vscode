@@ -31,7 +31,7 @@ export type AgentHostCatalogDatabaseReference = IReference<ISessionDatabase>;
 
 export type AgentHostCatalogSyncResult =
 	| { readonly status: 'acknowledged'; readonly sourceRevision: number }
-	| { readonly status: 'pending'; readonly sourceRevision: number; readonly reason: AgentHostDatabaseSessionV2UpsertResult | 'upsertFailed' | 'acknowledgementSuperseded' };
+	| { readonly status: 'pending'; readonly sourceRevision: number; readonly reason: AgentHostDatabaseSessionV2UpsertResult | 'upsertFailed' | 'acknowledgementSuperseded' | 'acknowledgementFailed' };
 
 export type AgentHostCatalogPendingReplayOutcome =
 	| { readonly session: string; readonly status: 'succeeded'; readonly reason: 'pendingReplayed'; readonly sourceRevision: number }
@@ -542,8 +542,16 @@ export class AgentHostCatalogSyncService {
 			};
 			traceStage('acknowledgeLocalReceipt');
 			await validate?.();
-			if (!await ref.object.acknowledgeCatalogSyncSnapshot(acknowledgement)
-				&& !isCatalogReceiptAcknowledged(await ref.object.getCatalogSyncSnapshot(), acknowledgement)) {
+			let acknowledged: boolean;
+			try {
+				acknowledged = await ref.object.acknowledgeCatalogSyncSnapshot(acknowledgement)
+					|| isCatalogReceiptAcknowledged(await ref.object.getCatalogSyncSnapshot(), acknowledgement);
+			} catch (error) {
+				// The catalog row is committed: the receipt stays pending for reconciliation to replay and acknowledge.
+				this._logService.warn(`[AgentHostCatalogSync] Failed to acknowledge the catalog sync receipt for ${sessionKey}`, error);
+				return { status: 'pending', sourceRevision, reason: 'acknowledgementFailed' };
+			}
+			if (!acknowledged) {
 				return { status: 'pending', sourceRevision, reason: 'acknowledgementSuperseded' };
 			}
 			traceStage('acknowledged');
@@ -656,11 +664,14 @@ export class AgentHostCatalogSyncService {
 	 * Adopts the request's store-owned values into central state, then runs the
 	 * session.db write (mirror and outbox in one transaction) and records what it mirrored.
 	 * A replayed write leaves session.db's values untouched, so its entries stay dirty for the store to mirror.
+	 * Any other write that session.db did not take (cancelled because it was superseded, or a generation mismatch) has
+	 * its adoption undone, so the store does not mirror its values either and a retry starts from the previous values.
 	 */
 	private async _writeThroughCentral<T extends string>(exclusive: ISessionStateExclusive | undefined, request: IAgentHostCatalogSyncRequest, writeValidator: (() => boolean) | undefined, write: () => Promise<T>): Promise<T> {
 		if (!exclusive || writeValidator?.() === false) {
 			return write();
 		}
+		const previous = this._sessionStateStore.legacyMetadata(URI.parse(exclusive.snapshot.session), Object.keys(request.legacyMetadata)).values;
 		let adopted: Awaited<ReturnType<ISessionStateExclusive['writeLegacyMetadata']>>;
 		try {
 			adopted = await exclusive.writeLegacyMetadata(request.legacyMetadata, SessionStateMirrorFlush.Coalesced);
@@ -674,8 +685,21 @@ export class AgentHostCatalogSyncService {
 		const result = await write();
 		if (result === 'applied') {
 			exclusive.noteMirrored(adopted.revision, adopted.entries);
+		} else if (result !== 'replayed') {
+			await this._undoAdoption(exclusive, previous);
 		}
 		return result;
+	}
+
+	private async _undoAdoption(exclusive: ISessionStateExclusive, previous: Readonly<Record<string, string | undefined>>): Promise<void> {
+		try {
+			await exclusive.writeLegacyMetadata(Object.fromEntries(Object.entries(previous).map(([key, value]) => [key, value ?? null])), SessionStateMirrorFlush.Coalesced);
+		} catch (error) {
+			if (!(error instanceof SessionStateDeletedError)) {
+				throw error;
+			}
+			// A session being deleted has no central state left to restore.
+		}
 	}
 
 	private async _storePending(
