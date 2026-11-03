@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { EntraTokenProviderArgs } from '@github/copilot-sdk';
+import type { EntraTokenProvider, EntraTokenProviderArgs } from '@github/copilot-sdk';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { autorun, waitForState } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -35,7 +35,8 @@ suite('Copilot Entra authentication', () => {
 		const bridge = store.add(new CopilotEntraAuthentication(connections));
 		const provider = bridge.options.tokenProvider;
 		assert.ok(provider);
-		const acquire = (request: EntraTokenProviderArgs, token = CancellationToken.None) => Promise.resolve(provider(request, token));
+		// The SDK declares a generic event payload; cancellation tokens only signal cancellation.
+		const acquire = (request: EntraTokenProviderArgs, token = CancellationToken.None) => Promise.resolve(provider(request, token as Parameters<EntraTokenProvider>[1]));
 		const credential = (resource = copilotEntraDiscoveryResource, scopes = ['User.Read'], accountId = 'selected'): AuthenticateParams => ({
 			resource,
 			scopes,
