@@ -547,6 +547,54 @@ suite('TokensStore', () => {
 		assert.strictEqual(lineTokens.getEndOffset(1), 10, 'Semantic token should end at offset 10');
 	});
 
+	test('addSparseTokens skips overlapping semantic tokens that produce backward endOffsets', () => {
+		// This test reproduces a rendering glitch where characters are duplicated in the DOM.
+		// When typing at a semantic token boundary, `acceptInsertText` can expand a token
+		// and create overlapping ranges (e.g., token '+' at (3,5) and token '2' at (4,5)).
+		// The merge in `addSparseTokens` must not produce backward endOffset sequences,
+		// otherwise `LineTokens.withInserted` re-copies characters causing duplication.
+		const codec = new LanguageIdCodec();
+		const store = new SparseTokensStore(codec);
+
+		// Simulate overlapping semantic tokens after an edit:
+		// Original: f=1+2 with tokens at (0,1), (1,2), (2,3), (3,4), (4,5)
+		// After inserting 'a' at offset 4: token (3,4) expands to (3,5), token (4,5) stays
+		// This creates overlap: (3,5) and (4,5)
+		const semanticMeta1 = (1 << MetadataConsts.FOREGROUND_OFFSET) | MetadataConsts.SEMANTIC_USE_FOREGROUND;
+		const semanticMeta2 = (2 << MetadataConsts.FOREGROUND_OFFSET) | MetadataConsts.SEMANTIC_USE_FOREGROUND;
+		store.set([
+			SparseMultilineTokens.create(1, new Uint32Array([
+				// deltaLine, startChar, endChar, metadata
+				0, 0, 1, semanticMeta1,  // 'f' at (0,1)
+				0, 1, 2, semanticMeta2,  // '=' at (1,2)
+				0, 2, 3, semanticMeta1,  // '1' at (2,3)
+				0, 3, 5, semanticMeta2,  // '+a' at (3,5) - expanded after edit
+				0, 4, 5, semanticMeta1,  // overlapping: 'a' at (4,5) - stale position
+			]))
+		], true);
+
+		const tmMeta = (3 << MetadataConsts.FOREGROUND_OFFSET) >>> 0;
+		const lineTokens = store.addSparseTokens(1, new LineTokens(new Uint32Array([
+			6, tmMeta, // entire line "f=1+a2" covered by one TM token
+		]), `f=1+a2`, codec));
+
+		// Verify endOffsets are monotonically increasing (no backward sequences)
+		const endOffsets: number[] = [];
+		for (let i = 0; i < lineTokens.getCount(); i++) {
+			endOffsets.push(lineTokens.getEndOffset(i));
+		}
+		for (let i = 1; i < endOffsets.length; i++) {
+			assert.ok(endOffsets[i] > endOffsets[i - 1],
+				`endOffset[${i}]=${endOffsets[i]} should be > endOffset[${i - 1}]=${endOffsets[i - 1]}`);
+		}
+
+		// When used with injected text, the resulting LineTokens must not duplicate characters.
+		// Simulate injected text "  " at offset 0 (like the repro's `before: { content: "  " }`)
+		const withInjected = lineTokens.withInserted([{ offset: 0, text: '  ', tokenMetadata: LineTokens.defaultTokenMetadata }]);
+		assert.strictEqual(withInjected.getLineContent(), '  f=1+a2',
+			'withInserted must not duplicate characters when semantic tokens overlap');
+	});
+
 	test('piece with startLineNumber 0 and endLineNumber -1 after encompassing deletion', () => {
 		const codec = new LanguageIdCodec();
 		const store = new SparseTokensStore(codec);

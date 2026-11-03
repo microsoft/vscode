@@ -21,7 +21,6 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { IMergeConflictService } from '../../../git/common/mergeConflictService';
 import { TestMergeConflictServiceImpl } from '../../../git/vscode/mergeConflictServiceImpl';
 import { IIntentService, IntentService } from '../../../intents/node/intentService';
-import { INewWorkspacePreviewContentManager, NewWorkspacePreviewContentManagerImpl } from '../../../intents/node/newIntent';
 import { createExtensionTestingServices } from '../../../test/vscode-node/services';
 import { ConversationFeature } from '../conversationFeature';
 
@@ -33,7 +32,6 @@ suite('Conversation feature test suite', function () {
 	function createAccessor() {
 		const testingServiceCollection = createExtensionTestingServices();
 		testingServiceCollection.define(ICombinedEmbeddingIndex, new SyncDescriptor(VSCodeCombinedIndexImpl, [/*useRemoteCache*/ false]));
-		testingServiceCollection.define(INewWorkspacePreviewContentManager, new SyncDescriptor(NewWorkspacePreviewContentManagerImpl));
 		testingServiceCollection.define(IGitCommitMessageService, new NoopGitCommitMessageService());
 		testingServiceCollection.define(IDevContainerConfigurationService, new FailingDevContainerConfigurationService());
 		testingServiceCollection.define(IIntentService, new SyncDescriptor(IntentService));
@@ -131,6 +129,45 @@ suite('Conversation feature test suite', function () {
 			setCopilotToken(accessor.get(IAuthenticationService), copilotToken);
 
 			assert.deepStrictEqual(conversationFeature.activated, true);
+		} finally {
+			conversationFeature.dispose();
+		}
+	});
+
+	test('The feature activates without a Copilot token when a non-copilot (BYOK) language model is available', async function () {
+		sandbox.stub(vscode.lm, 'selectChatModels').resolves([
+			{ vendor: 'ollama', id: 'llama3', name: 'llama3', family: 'llama3' } as unknown as vscode.LanguageModelChat
+		]);
+		sandbox.stub(vscode.lm, 'onDidChangeChatModels').returns({ dispose: () => { } });
+
+		const conversationFeature = instaService.createInstance(ConversationFeature);
+		try {
+			// No Copilot token is set; activation and enablement should be driven by BYOK availability.
+			await conversationFeature.activationBlocker;
+			assert.deepStrictEqual(conversationFeature.activated, true);
+			assert.deepStrictEqual(conversationFeature.enabled, true);
+		} finally {
+			conversationFeature.dispose();
+		}
+	});
+
+	test('activationBlocker resolves on an auth change even when the BYOK query never settles', async function () {
+		// Reproduces the air-gapped startup deadlock: the BYOK detection query (which itself
+		// activates this extension's language-model providers) can hang until extension
+		// activation completes, while extension activation is waiting for `activationBlocker`.
+		// The auth-change event must unconditionally unblock activation regardless of token
+		// or BYOK availability.
+		sandbox.stub(vscode.lm, 'selectChatModels').returns(new Promise<vscode.LanguageModelChat[]>(() => { /* never resolves */ }));
+		sandbox.stub(vscode.lm, 'onDidChangeChatModels').returns({ dispose: () => { } });
+
+		const conversationFeature = instaService.createInstance(ConversationFeature);
+		try {
+			const authService = accessor.get(IAuthenticationService) as unknown as { fireAuthenticationChange(source: string): void };
+			authService.fireAuthenticationChange('test');
+
+			await conversationFeature.activationBlocker;
+			assert.deepStrictEqual(conversationFeature.activated, false);
+			assert.deepStrictEqual(conversationFeature.enabled, false);
 		} finally {
 			conversationFeature.dispose();
 		}

@@ -76,16 +76,15 @@ export class ExplorerFileNestingTrie {
 			if (seen.has(file)) { return []; }
 			seen.add(file);
 			const attributes = this.getAttributes(file, dirname);
-			const ancestors = parentFinder.get(file, attributes);
-			if (ancestors.length === 0) {
+			// A file may match its own child patterns (possibly several times, e.g. `${basename}.*`
+			// and `${basename}*.${extname}`), but it should never be treated as its own parent.
+			const ancestors = new Set(parentFinder.get(file, attributes));
+			ancestors.delete(file);
+			if (ancestors.size === 0) {
 				return [file];
 			}
 
-			if (ancestors.length === 1 && ancestors[0] === file) {
-				return [file];
-			}
-
-			return ancestors.flatMap(a => findAllRootAncestors(a, seen));
+			return [...ancestors].flatMap(a => findAllRootAncestors(a, seen));
 		};
 
 		const result = new Map<string, Set<string>>();

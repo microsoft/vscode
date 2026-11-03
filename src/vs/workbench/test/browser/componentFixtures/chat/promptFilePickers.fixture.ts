@@ -215,51 +215,32 @@ async function renderPromptFilePickerFixture({ container, disposableStore, theme
 	});
 
 	const pickers = instantiationService.createInstance(PromptFilePickers);
+	const shown = Event.toPromise(instantiationService.get(IQuickInputService).onShow, disposableStore);
 
 	void pickers.selectPromptFile({
 		placeholder,
 		type,
 	});
 
-	// Wait for the quickpick widget to render and have dimensions
-	const quickInputWidget = await waitForElement<HTMLElement>(
-		quickInputHost,
-		'.quick-input-widget',
-		el => el.offsetWidth > 0 && el.offsetHeight > 0
-	);
-
-	if (quickInputWidget) {
-		// Reset positioning
-		quickInputWidget.style.position = 'relative';
-		quickInputWidget.style.top = '0';
-		quickInputWidget.style.left = '0';
-
-		// Move widget to container and remove host
-		container.appendChild(quickInputWidget);
-		quickInputHost.remove();
-
-		// Set explicit dimensions on container to match widget
-		const rect = quickInputWidget.getBoundingClientRect();
-		container.style.width = `${rect.width}px`;
-		container.style.height = `${rect.height}px`;
+	// Wait for the quickpick to show, then one more frame for its layout to complete
+	await shown;
+	await new Promise(resolve => mainWindow.requestAnimationFrame(resolve));
+	const quickInputWidget = quickInputHost.querySelector<HTMLElement>('.quick-input-widget');
+	if (!quickInputWidget || quickInputWidget.offsetWidth === 0 || quickInputWidget.offsetHeight === 0) {
+		throw new Error('The quick pick did not render');
 	}
-}
 
-async function waitForElement<T extends HTMLElement>(
-	root: HTMLElement,
-	selector: string,
-	condition: (el: T) => boolean,
-	timeout = 2000
-): Promise<T | null> {
-	const start = Date.now();
-	while (Date.now() - start < timeout) {
-		const el = root.querySelector<T>(selector);
-		if (el && condition(el)) {
-			// Wait one more frame to ensure layout is complete
-			await new Promise(resolve => mainWindow.requestAnimationFrame(resolve));
-			return el;
-		}
-		await new Promise(resolve => setTimeout(resolve, 10));
-	}
-	return root.querySelector<T>(selector);
+	// Reset positioning
+	quickInputWidget.style.position = 'relative';
+	quickInputWidget.style.top = '0';
+	quickInputWidget.style.left = '0';
+
+	// Move widget to container and remove host
+	container.appendChild(quickInputWidget);
+	quickInputHost.remove();
+
+	// Set explicit dimensions on container to match widget
+	const rect = quickInputWidget.getBoundingClientRect();
+	container.style.width = `${rect.width}px`;
+	container.style.height = `${rect.height}px`;
 }

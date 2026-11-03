@@ -7,6 +7,8 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
 /** Source of an Integrated Browser open event. */
 export type IntegratedBrowserOpenSource =
+	/** Created as an unlisted backing view for a session canvas. */
+	| 'canvas'
 	/** Created via CDP, such as by the agent using Playwright tools. */
 	| 'cdpCreated'
 	/** Opened via a (non-agentic) chat tool invocation. */
@@ -37,7 +39,11 @@ export type IntegratedBrowserOpenSource =
 	 * (e.g., Shift+click). */
 	| 'browserLinkNewWindow'
 	/** Opened when the user copies a browser editor to a new window via "Copy into New Window". */
-	| 'copyToNewWindow';
+	| 'copyToNewWindow'
+	/** Opened via the "Open in Integrated Browser" command for a local file. */
+	| 'openFileCommand'
+	/** Opened by resolving a local file resource to the Integrated Browser editor. */
+	| 'fileResource';
 
 type IntegratedBrowserOpenEvent = {
 	source: IntegratedBrowserOpenSource;

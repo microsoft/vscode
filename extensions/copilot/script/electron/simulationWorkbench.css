@@ -193,6 +193,11 @@
 	box-shadow: 0 0 0 2pt #0000004b;
 }
 
+/* Only the focused adhoc editor should show a text caret. */
+.adhoc-request-editor .monaco-editor:not(.focused) .cursors-layer .cursor {
+	display: none !important;
+}
+
 .file-editor-draggable-border {
 	height: 5px;
 	width: 95%;
@@ -210,22 +215,6 @@
 	font-size: 1.1em;
 	font-weight: bold;
 	margin-top: 5px;
-}
-
-.error-comparison {
-	font-family: Arial, 'Segoe UI';
-	margin-left: 30px;
-	margin-top: 10px;
-	margin-bottom: 10px;
-}
-
-.error-comparison .title {
-	font-size: 1em;
-	font-weight: bold;
-}
-
-.error-comparison .category {
-	font-weight: bold;
 }
 
 .diagnostics-comparison {
@@ -275,26 +264,6 @@
 	font-family: Monaco;
 	color: red;
 } */
-
-.scorecard-container {
-	margin-top: 10px;
-	margin-bottom: 10px;
-}
-
-.scorecard-title {
-	font-size: 1.25em;
-}
-
-.scorecard-table {
-	border: 1px solid black;
-	border-collapse: collapse;
-}
-
-.scorecard-table td,
-.scorecard-table th {
-	border: 1px solid black;
-	padding: 4px;
-}
 
 .tooltip .tooltiptext {
 	visibility: hidden;

@@ -9,6 +9,7 @@ import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js'
 import * as platform from '../../../base/common/platform.js';
 import * as nls from '../../../nls.js';
 import { IExternalTerminalService } from '../../../platform/externalTerminal/common/externalTerminal.js';
+import { ILogService } from '../../../platform/log/common/log.js';
 import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from '../../../platform/externalTerminal/node/externalTerminalService.js';
 import { ISignService } from '../../../platform/sign/common/sign.js';
 import { SignService } from '../../../platform/sign/node/signService.js';
@@ -45,13 +46,14 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		@IExtHostVariableResolverProvider variableResolver: IExtHostVariableResolverProvider,
 		@IExtHostCommands commands: IExtHostCommands,
 		@IExtHostTesting testing: IExtHostTesting,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super(extHostRpcService, workspaceService, extensionService, configurationService, editorTabs, variableResolver, commands, testing);
 	}
 
 	protected override createDebugAdapter(adapter: vscode.DebugAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
 		if (adapter instanceof DebugAdapterExecutable) {
-			return new ExecutableDebugAdapter(this.convertExecutableToDto(adapter), session.type);
+			return new ExecutableDebugAdapter(this.convertExecutableToDto(adapter), session.type, message => this._logService.debug(`[debug adapter] ${message}`));
 		} else if (adapter instanceof DebugAdapterServer) {
 			return new SocketDebugAdapter(this.convertServerToDto(adapter));
 		} else if (adapter instanceof DebugAdapterNamedPipeServer) {

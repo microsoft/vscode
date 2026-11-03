@@ -41,7 +41,8 @@ import { isICommandActionToggleInfo } from '../../../../platform/action/common/a
 import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { defaultMenuStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { ActivityBarPosition } from '../../../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, isCompactMenuInTitlebar } from '../../../services/layout/browser/layoutService.js';
+import { truncateMiddle } from '../../../../base/common/strings.js';
 
 export type IOpenRecentAction = IAction & { uri: URI; remoteAuthority?: string };
 
@@ -52,6 +53,7 @@ export abstract class MenubarControl extends Disposable {
 		'window.enableMenuBarMnemonics',
 		'window.customMenuBarAltFocus',
 		'workbench.sideBar.location',
+		'workbench.activityBar.location',
 		'window.nativeTabs'
 	];
 
@@ -69,6 +71,7 @@ export abstract class MenubarControl extends Disposable {
 	protected menuUpdater: RunOnceScheduler;
 
 	protected static readonly MAX_MENU_RECENT_ENTRIES = 10;
+	protected static readonly MAX_MENU_RECENT_LABEL_LENGTH = 120;
 
 	constructor(
 		protected readonly menuService: IMenuService,
@@ -252,7 +255,7 @@ export abstract class MenubarControl extends Disposable {
 		}
 
 		const ret = toAction({
-			id: commandId, label: unmnemonicLabel(label), run: (browserEvent: KeyboardEvent) => {
+			id: commandId, label: unmnemonicLabel(truncateMiddle(label, MenubarControl.MAX_MENU_RECENT_LABEL_LENGTH)), run: (browserEvent: KeyboardEvent) => {
 				const openInNewWindow = browserEvent && ((!isMacintosh && (browserEvent.ctrlKey || browserEvent.shiftKey)) || (isMacintosh && (browserEvent.metaKey || browserEvent.altKey)));
 
 				return this.hostService.openWindow([openable], {
@@ -409,6 +412,9 @@ export class CustomMenubarControl extends MenubarControl {
 			case StateType.Updating:
 				return toAction({ id: 'update.updating', label: localize('installingUpdate', "Installing Update..."), enabled: false, run: () => { } });
 
+			case StateType.Cancelling:
+				return toAction({ id: 'update.cancelling', label: localize('cancellingUpdate', "Cancelling Update..."), enabled: false, run: () => { } });
+
 			case StateType.Ready:
 				return toAction({
 					id: 'update.restart', label: localize({ key: 'restartToUpdate', comment: ['&& denotes a mnemonic'] }, "Restart to &&Update"), enabled: true, run: () =>
@@ -472,7 +478,12 @@ export class CustomMenubarControl extends MenubarControl {
 			return undefined;
 		}
 
-		// Menu bar lives in activity bar and should flow based on its location
+		// Menu bar lives in the title bar when the activity bar is at the top or bottom
+		if (isCompactMenuInTitlebar(this.configurationService)) {
+			return { horizontal: HorizontalDirection.Right, vertical: VerticalDirection.Below };
+		}
+
+		// Otherwise menu bar lives in activity bar and should flow based on its location
 		const currentSidebarLocation = this.configurationService.getValue<string>('workbench.sideBar.location');
 		const horizontalDirection = currentSidebarLocation === 'right' ? HorizontalDirection.Left : HorizontalDirection.Right;
 

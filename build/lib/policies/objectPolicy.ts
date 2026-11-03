@@ -13,7 +13,11 @@ export class ObjectPolicy extends BasePolicy {
 	static from(category: CategoryDto, policy: PolicyDto): ObjectPolicy | undefined {
 		const { type, name, minimumVersion, localization } = policy;
 
-		if (type !== 'object' && type !== 'array') {
+		// `type` may be a single type or a union (e.g. `['array', 'null']`, where `null`
+		// models the unset default). Object- and array-typed settings are carried as JSON
+		// and render as a multiText element.
+		const types = Array.isArray(type) ? type : [type];
+		if (!types.includes('object') && !types.includes('array')) {
 			return undefined;
 		}
 

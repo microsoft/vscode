@@ -6,11 +6,10 @@
 import * as vscode from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { AGENT_FILE_EXTENSION } from '../../../platform/customInstructions/common/promptTypes';
-import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
-import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
-import { ILogService } from '../../../platform/log/common/logService';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
+import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { AgentConfig, buildAgentMarkdown, DEFAULT_READ_TOOLS } from './agentTypes';
+import { CachedAgentFileWriter } from './cachedAgentFileWriter';
 
 /**
  * Fallback model priority list for the Explore agent.
@@ -55,14 +54,14 @@ export class ExploreAgentProvider extends Disposable implements vscode.ChatCusto
 
 	private readonly _onDidChangeCustomAgents = this._register(new vscode.EventEmitter<void>());
 	readonly onDidChangeCustomAgents = this._onDidChangeCustomAgents.event;
+	private readonly _cacheFileWriter: CachedAgentFileWriter;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IVSCodeExtensionContext private readonly _extensionContext: IVSCodeExtensionContext,
-		@IFileSystemService private readonly _fileSystemService: IFileSystemService,
-		@ILogService private readonly _logService: ILogService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		this._cacheFileWriter = instantiationService.createInstance(CachedAgentFileWriter, ExploreAgentProvider.CACHE_DIR, ExploreAgentProvider.AGENT_FILENAME, 'ExploreAgentProvider');
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('chat.exploreAgent.defaultModel') ||
@@ -78,26 +77,8 @@ export class ExploreAgentProvider extends Disposable implements vscode.ChatCusto
 	): Promise<vscode.ChatResource[]> {
 		const config = this._buildCustomizedConfig();
 		const content = buildAgentMarkdown(config);
-		const fileUri = await this._writeCacheFile(content);
+		const fileUri = await this._cacheFileWriter.write(content);
 		return [{ uri: fileUri, sessionTypes: ['local'] }];
-	}
-
-	private async _writeCacheFile(content: string): Promise<vscode.Uri> {
-		const cacheDir = vscode.Uri.joinPath(
-			this._extensionContext.globalStorageUri,
-			ExploreAgentProvider.CACHE_DIR
-		);
-
-		try {
-			await this._fileSystemService.stat(cacheDir);
-		} catch {
-			await this._fileSystemService.createDirectory(cacheDir);
-		}
-
-		const fileUri = vscode.Uri.joinPath(cacheDir, ExploreAgentProvider.AGENT_FILENAME);
-		await this._fileSystemService.writeFile(fileUri, new TextEncoder().encode(content));
-		this._logService.trace(`[ExploreAgentProvider] Wrote agent file: ${fileUri.toString()}`);
-		return fileUri;
 	}
 
 	static buildAgentBody(): string {

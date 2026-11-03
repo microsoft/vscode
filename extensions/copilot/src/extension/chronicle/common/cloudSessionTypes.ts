@@ -91,9 +91,14 @@ export interface WorkingDirectoryContext {
 }
 
 /** Reason why session creation failed. */
-export type CreateSessionFailureReason = 'policy_blocked' | 'error';
+export type CreateSessionFailureReason = 'policy_blocked' | 'rate_limited' | 'error';
 
 /** Result of attempting to create a cloud session. */
 export type CreateSessionResult =
 	| { ok: true; response: CreateSessionResponse }
 	| { ok: false; reason: CreateSessionFailureReason };
+
+/** Result of attempting to submit a batch of session events. */
+export type SubmitSessionEventsResult =
+	| { ok: true }
+	| { ok: false; reason: 'policy_blocked' | 'rate_limited' | 'error' };

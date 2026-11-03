@@ -8,7 +8,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { ITimelineService, Timeline, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvider } from '../../timeline/common/timeline.js';
+import { ITimelineService, Timeline, TimelineItem, TimelineOptions, TimelineProvider } from '../../timeline/common/timeline.js';
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryService } from '../../../services/workingCopy/common/workingCopyHistory.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
@@ -37,7 +37,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 
 	readonly scheme = '*'; // we try to show local history for all schemes if possible
 
-	private readonly _onDidChange = this._register(new Emitter<TimelineChangeEvent>());
+	private readonly _onDidChange = this._register(new Emitter<readonly URI[] | undefined>());
 	readonly onDidChange = this._onDidChange.event;
 
 	private readonly timelineProviderDisposable = this._register(new MutableDisposable());
@@ -95,11 +95,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 	private onDidChangeWorkingCopyHistoryEntry(entry: IWorkingCopyHistoryEntry | undefined): void {
 
 		// Re-emit as timeline change event
-		this._onDidChange.fire({
-			id: this.id,
-			uri: entry?.workingCopy.resource,
-			reset: true // there is no other way to indicate that items might have been replaced/removed
-		});
+		this._onDidChange.fire(entry ? [entry.workingCopy.resource] : undefined);
 	}
 
 	async provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken): Promise<Timeline> {
@@ -156,6 +152,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 			timestamp: entry.timestamp,
 			themeIcon: LOCAL_HISTORY_ICON_ENTRY,
 			contextValue: LOCAL_HISTORY_MENU_CONTEXT_VALUE,
+			resourceUri: LocalHistoryFileSystemProvider.toLocalHistoryFileSystem({ location: entry.location, associatedResource: entry.workingCopy.resource }),
 			command: {
 				id: API_OPEN_DIFF_EDITOR_COMMAND_ID,
 				title: COMPARE_WITH_FILE_LABEL.value,

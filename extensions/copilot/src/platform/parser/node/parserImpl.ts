@@ -18,7 +18,7 @@ import Parser = require('web-tree-sitter');
 export { _getDocumentableNodeIfOnIdentifier, _getNodeToDocument, NodeToDocumentContext } from './docGenParsing';
 export { _dispose } from './parserWithCaching';
 export { _getNodeMatchingSelection } from './selectionParsing';
-export { _findLastTest, _getTestableNode, _getTestableNodes } from './testGenParsing';
+export { _findLastTest } from './testGenParsing';
 
 function queryCoarseScopes(language: WASMLanguage, root: Parser.SyntaxNode): Parser.QueryMatch[] {
 	const queries = coarseScopesQuery[language];

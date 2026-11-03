@@ -221,8 +221,8 @@ suite('Terminal Contrib Shell Integration Recordings', () => {
 						const promptInputModel = capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel;
 						if (promptInputModel && promptInputModel.getCombinedString() !== event.data) {
 							await Promise.race([
-								await timeout(1000).then(() => { throw new Error(`Prompt input change timed out current="${promptInputModel.getCombinedString()}", expected="${event.data}"`); }),
-								await new Promise<void>(r => {
+								timeout(1000).then(() => { throw new Error(`Prompt input change timed out current="${promptInputModel.getCombinedString()}", expected="${event.data}"`); }),
+								new Promise<void>(r => {
 									const d = promptInputModel.onDidChangeInput(() => {
 										if (promptInputModel.getCombinedString() === event.data) {
 											d.dispose();

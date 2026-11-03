@@ -10,6 +10,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { CopilotChatAttr, emitToolCallEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiToolType, StdAttr, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
+import { extractToolParameters } from '../../../platform/otel/node/extractToolParameters';
 import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { equals as arraysEqual } from '../../../util/vs/base/common/arrays';
@@ -136,10 +137,12 @@ export class ToolsService extends BaseToolsService {
 			parentTraceContext,
 			attributes: {
 				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.EXECUTE_TOOL,
+				...(chatSessionId ? { [GenAiAttr.CONVERSATION_ID]: chatSessionId } : {}),
 				[GenAiAttr.TOOL_NAME]: String(name),
 				[GenAiAttr.TOOL_TYPE]: isMcpTool ? GenAiToolType.EXTENSION : GenAiToolType.FUNCTION,
 				[GenAiAttr.TOOL_CALL_ID]: (options as { chatStreamToolCallId?: string }).chatStreamToolCallId ?? '',
 				...(toolInfo?.description ? { [GenAiAttr.TOOL_DESCRIPTION]: toolInfo.description } : {}),
+				...(chatSessionId ? { [CopilotChatAttr.SESSION_ID]: chatSessionId } : {}),
 				...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}),
 				...(parentChatSessionId ? { [CopilotChatAttr.PARENT_CHAT_SESSION_ID]: parentChatSessionId } : {}),
 				...(debugLogLabel ? { [CopilotChatAttr.DEBUG_LOG_LABEL]: debugLogLabel } : {}),
@@ -151,6 +154,20 @@ export class ToolsService extends BaseToolsService {
 				span.setAttribute(GenAiAttr.TOOL_CALL_ARGUMENTS, truncateForOTel(JSON.stringify(options.input), this._otelService.config.maxAttributeSizeChars));
 			} catch { /* swallow serialization errors */ }
 		}
+
+		// Structured `github.copilot.tool.parameters.*`. Hashes and edit_type emit
+		// unconditionally; raw paths, commands, and MCP names are gated.
+		try {
+			const { attrs: paramAttrs, gatedAttrs: gatedParamAttrs } = extractToolParameters(String(name), options.input);
+			for (const [k, v] of Object.entries(paramAttrs)) {
+				span.setAttribute(k, v);
+			}
+			if (this._otelService.config.captureContent) {
+				for (const [k, v] of Object.entries(gatedParamAttrs)) {
+					span.setAttribute(k, v);
+				}
+			}
+		} catch { /* swallow extraction errors */ }
 
 		// For runSubagent tool, store this execute_tool span's trace context so the subagent's
 		// invoke_agent span can be parented to THIS tool call (not the grandparent invoke_agent).
@@ -291,6 +308,15 @@ export class ToolsService extends BaseToolsService {
 					return false;
 				}
 
+				// For changed_files_tool, disable experimentally for gemini-3.
+				if (
+					tool.name === ToolName.GetScmChanges
+					&& endpoint.family.toLowerCase().includes('gemini-3')
+					&& !this._configurationService.getExperimentBasedConfig(ConfigKey.EnableGemini3GetChangedFilesTool, this._experimentationService)
+				) {
+					return false;
+				}
+
 				// For read_file_tool, disable experimentally for gpt-5.5.
 				if (
 					tool.name === ToolName.ReadFile
@@ -318,12 +344,6 @@ export class ToolsService extends BaseToolsService {
 					if (usedTool?.tags.includes(`enable_other_tool_${tool.name}`)) {
 						return true;
 					}
-				}
-
-				// 3. If this tool is neither enabled nor disabled, then consumer didn't have opportunity to enable/disable it.
-				// This can happen when a tool is added during another tool call (e.g. installExt tool installs an extension that contributes tools).
-				if (toolPickerSelection === undefined && tool.tags.includes('extension_installed_by_tool')) {
-					return true;
 				}
 
 				// Tool was enabled via tool picker

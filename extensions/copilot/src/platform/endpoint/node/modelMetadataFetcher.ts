@@ -19,7 +19,10 @@ import { ILogService } from '../../log/common/logService';
 import { getRequest } from '../../networking/common/networking';
 import { IRequestLogger } from '../../requestLogger/common/requestLogger';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
+import { getModelCapabilityOverride } from '../common/chatModelCapabilities';
 import { IChatModelInformation, ICompletionModelInformation, IEmbeddingModelInformation, IModelAPIResponse, isChatModelInformation, isCompletionModelInformation, isEmbeddingModelInformation } from '../common/endpointProvider';
+
+export type EmbeddingsModelFamily = 'text-embedding-3-small' | 'metis';
 
 export interface IModelMetadataFetcher {
 
@@ -66,7 +69,7 @@ export interface IModelMetadataFetcher {
 	 * Retrieves an embeddings model by its family name
 	 * @param family The family of the model to fetch
 	 */
-	getEmbeddingsModel(family: 'text-embedding-3-small'): Promise<IEmbeddingModelInformation>;
+	getEmbeddingsModel(family: EmbeddingsModelFamily): Promise<IEmbeddingModelInformation>;
 }
 
 /**
@@ -174,7 +177,10 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 		await this._taskSingler.getOrCreate(ModelMetadataFetcher.ALL_MODEL_KEY, this._fetchModels.bind(this));
 		const resolvedModel = this._copilotUtilityModel;
 		if (!resolvedModel || !isChatModelInformation(resolvedModel)) {
-			throw new Error(await this._getErrorMessage('Unable to resolve Copilot utility chat model (server did not mark a chat fallback model)'));
+			// If the model fetch itself failed (e.g. an expired token returning HTTP 401), surface that
+			// underlying error rather than the misleading "no fallback model" message, which only makes
+			// sense when the fetch succeeded but the server genuinely marked no chat fallback.
+			throw this._lastFetchError ?? new Error(await this._getErrorMessage('Unable to resolve Copilot utility chat model (server did not mark a chat fallback model)'));
 		}
 		return resolvedModel;
 	}
@@ -183,19 +189,25 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 		await this._taskSingler.getOrCreate(ModelMetadataFetcher.ALL_MODEL_KEY, this._fetchModels.bind(this));
 		const resolvedModel = this._familyMap.get(family)?.[0];
 		if (!resolvedModel || !isChatModelInformation(resolvedModel)) {
-			throw new Error(await this._getErrorMessage(`Unable to resolve chat model with CAPI family selection: ${family}`));
+			throw this._lastFetchError ?? new Error(await this._getErrorMessage(`Unable to resolve chat model with CAPI family selection: ${family}`));
 		}
 		return resolvedModel;
 	}
 
 	public async getChatModelFromApiModel(apiModel: LanguageModelChat): Promise<IChatModelInformation | undefined> {
 		await this._taskSingler.getOrCreate(ModelMetadataFetcher.ALL_MODEL_KEY, this._fetchModels.bind(this));
+		// `apiModel.family` may have been rewritten by a configured capability
+		// override (see `chat.modelCapabilityOverrides`). When an override is
+		// configured for this model id, drop the family check entirely and rely
+		// on id + version to uniquely identify the CAPI model (the picker would
+		// otherwise carry the overridden family and never re-match the real one).
+		const hasOverride = getModelCapabilityOverride(apiModel.id, this._configService)?.family !== undefined;
 		let resolvedModel: IModelAPIResponse | undefined;
 		for (const models of this._familyMap.values()) {
 			resolvedModel = models.find(model =>
 				model.id === apiModel.id &&
 				model.version === apiModel.version &&
-				model.capabilities.family === apiModel.family);
+				(hasOverride || model.capabilities.family === apiModel.family));
 			if (resolvedModel) {
 				break;
 			}
@@ -209,11 +221,11 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 		return resolvedModel;
 	}
 
-	public async getEmbeddingsModel(family: 'text-embedding-3-small'): Promise<IEmbeddingModelInformation> {
+	public async getEmbeddingsModel(family: EmbeddingsModelFamily): Promise<IEmbeddingModelInformation> {
 		await this._taskSingler.getOrCreate(ModelMetadataFetcher.ALL_MODEL_KEY, this._fetchModels.bind(this));
 		const resolvedModel = this._familyMap.get(family)?.[0];
 		if (!resolvedModel || !isEmbeddingModelInformation(resolvedModel)) {
-			throw new Error(await this._getErrorMessage(`Unable to resolve embeddings model with family selection: ${family}`));
+			throw this._lastFetchError ?? new Error(await this._getErrorMessage(`Unable to resolve embeddings model with family selection: ${family}`));
 		}
 		return resolvedModel;
 	}
@@ -247,7 +259,16 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 		}
 		const requestStartTime = Date.now();
 
-		const copilotToken = (await this._authService.getCopilotToken()).token;
+		let copilotToken: string;
+		try {
+			copilotToken = (await this._authService.getCopilotToken()).token;
+		} catch (e) {
+			// No Copilot auth (e.g. signed-out BYOK-only mode).
+			this._lastFetchTime = Date.now();
+			this._lastFetchError = e;
+			return;
+		}
+
 		const requestId = generateUuid();
 		const requestMetadata: RequestMetadata = { type: RequestType.Models, isModelLab: this._isModelLab };
 
@@ -321,6 +342,15 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 		// If there's an experiment that takes precedence over what comes back from CAPI
 		if (experimentalOverrides[chatModelInfo.id]) {
 			modelLimit += experimentalOverrides[chatModelInfo.id];
+			return modelLimit;
+		}
+
+		// When a long context tier exists, use max_context_window_tokens as the
+		// prompt token basis so users can opt into the full context window via
+		// the model picker. The configurationSchema default (defaultContextMax)
+		// ensures users aren't billed at the long-context rate without explicit opt-in.
+		if (chatModelInfo.billing?.token_prices?.long_context && chatModelInfo.capabilities?.limits?.max_context_window_tokens) {
+			modelLimit += chatModelInfo.capabilities.limits.max_context_window_tokens;
 			return modelLimit;
 		}
 

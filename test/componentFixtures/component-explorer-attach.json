@@ -1,0 +1,13 @@
+{
+	"$schema": "../../node_modules/@vscode/component-explorer-cli/dist/component-explorer-config.schema.json",
+	"screenshotDir": ".screenshots",
+	"sessions": [
+		{
+			"name": "current"
+		}
+	],
+	"server": {
+		"type": "http",
+		"url": "http://localhost:5123"
+	}
+}

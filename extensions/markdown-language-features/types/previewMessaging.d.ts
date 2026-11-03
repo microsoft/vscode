@@ -25,8 +25,12 @@ export interface MarkdownPreviewChangeIndicator {
 	readonly originalLineCount: number;
 	/** The original text content that was deleted or replaced */
 	readonly originalContent: string;
+	/** Character-level changes within originalContent, using originalContent-relative line numbers */
+	readonly originalInnerChanges?: readonly MarkdownPreviewInnerChange[];
 	/** The modified text content (for modifications) */
 	readonly modifiedContent: string;
+	/** Character-level changes within modifiedContent, using modifiedContent-relative line numbers */
+	readonly modifiedInnerChanges?: readonly MarkdownPreviewInnerChange[];
 	/** Whether this is a pure deletion or a modification of existing lines */
 	readonly type: 'deletion' | 'modification';
 }

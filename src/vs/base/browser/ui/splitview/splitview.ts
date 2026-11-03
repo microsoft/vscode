@@ -76,6 +76,18 @@ export interface IView<TLayoutContext = undefined> {
 	readonly proportionalLayout?: boolean;
 
 	/**
+	 * Whether this view's layout depends only on the most recent size and
+	 * context it received. When every view of a {@link SplitView} sets this,
+	 * an intermediate layout that is immediately superseded can be skipped.
+	 *
+	 * @remarks Views with nested layout state, such as nested split views,
+	 * must not set this.
+	 *
+	 * @defaultValue `false`
+	 */
+	readonly pathIndependentLayout?: boolean;
+
+	/**
 	 * Whether the view will snap whenever the user reaches its minimum size or
 	 * attempts to grow it beyond the minimum size.
 	 *
@@ -700,9 +712,9 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 				sashItem.disposable.dispose();
 			}
 
-			this.relayout();
-
-			if (sizing?.type === 'distribute') {
+			const distribute = sizing?.type === 'distribute';
+			this.relayout(undefined, undefined, distribute);
+			if (distribute) {
 				this.distributeViewSizes();
 			}
 
@@ -1017,7 +1029,13 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 			this.layoutViews();
 		} else {
 			item.size = size;
-			this.relayout([index], undefined);
+
+			// Absorb the change by layout priority, like `resizeView` does, so a neighbour with a size of its own is not squeezed (see #334167)
+			const indexes = range(this.viewItems.length).filter(i => i !== index);
+			const lowPriorityIndexes = [...indexes.filter(i => this.viewItems[i].priority === LayoutPriority.Low), index];
+			const highPriorityIndexes = indexes.filter(i => this.viewItems[i].priority === LayoutPriority.High);
+
+			this.relayout(lowPriorityIndexes, highPriorityIndexes);
 		}
 	}
 
@@ -1210,12 +1228,11 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 			}
 
 			if (!skipLayout) {
-				this.relayout([index], highPriorityIndexes);
-			}
-
-
-			if (!skipLayout && typeof size !== 'number' && size.type === 'distribute') {
-				this.distributeViewSizes();
+				const distribute = typeof size !== 'number' && size.type === 'distribute';
+				this.relayout([index], highPriorityIndexes, distribute);
+				if (distribute) {
+					this.distributeViewSizes();
+				}
 			}
 
 		} finally {
@@ -1223,13 +1240,16 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 		}
 	}
 
-	private relayout(lowPriorityIndexes?: number[], highPriorityIndexes?: number[]): void {
+	private relayout(lowPriorityIndexes?: number[], highPriorityIndexes?: number[], skipLayout = false): void {
 		const contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
 
 		this.resize(this.viewItems.length - 1, this.size - contentSize, undefined, lowPriorityIndexes, highPriorityIndexes);
 		this.distributeEmptySpace();
-		this.layoutViews();
-		this.saveProportions();
+		// The caller lays the views out again, unless a view depends on this intermediate layout.
+		if (!skipLayout || !this.viewItems.every(item => item.view.pathIndependentLayout)) {
+			this.layoutViews();
+			this.saveProportions();
+		}
 	}
 
 	private resize(

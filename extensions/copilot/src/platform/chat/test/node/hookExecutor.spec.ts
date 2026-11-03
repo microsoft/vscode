@@ -11,7 +11,7 @@ import { URI } from '../../../../util/vs/base/common/uri';
 import { TestLogService } from '../../../testing/common/testLogService';
 import { HookCommandResultKind } from '../../common/hookExecutor';
 import { IHooksOutputChannel } from '../../common/hooksOutputChannel';
-import { NodeHookExecutor } from '../../node/hookExecutor';
+import { getShellCommand, NodeHookExecutor } from '../../node/hookExecutor';
 
 let mockChild: MockChildProcess;
 
@@ -208,5 +208,43 @@ describe('NodeHookExecutor', () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	describe('getShellCommand', () => {
+
+		test('uses shell: true on non-Windows', () => {
+			const result = getShellCommand('echo hello', false);
+			expect(result).toEqual({ command: 'echo hello', args: [], shell: true });
+		});
+
+		test('uses PowerShell with -ExecutionPolicy Bypass on Windows when ComSpec is cmd.exe', () => {
+			const origComSpec = process.env.ComSpec;
+			const origSystemRoot = process.env.SystemRoot;
+			try {
+				process.env.ComSpec = 'C:\\Windows\\system32\\cmd.exe';
+				process.env.SystemRoot = 'C:\\Windows';
+
+				const result = getShellCommand('echo hello', true);
+				expect(result.command).toContain('powershell.exe');
+				expect(result.args).toEqual(['-ExecutionPolicy', 'Bypass', '-NoProfile', '-NoLogo', '-Command', 'echo hello']);
+				expect(result.env).toEqual({ POWERSHELL_UPDATECHECK: 'Off' });
+				expect(result.shell).toBeUndefined();
+			} finally {
+				process.env.ComSpec = origComSpec;
+				process.env.SystemRoot = origSystemRoot;
+			}
+		});
+
+		test('uses shell: true on Windows when ComSpec is not cmd.exe', () => {
+			const origComSpec = process.env.ComSpec;
+			try {
+				process.env.ComSpec = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe';
+
+				const result = getShellCommand('echo hello', true);
+				expect(result).toEqual({ command: 'echo hello', args: [], shell: true });
+			} finally {
+				process.env.ComSpec = origComSpec;
+			}
+		});
 	});
 });

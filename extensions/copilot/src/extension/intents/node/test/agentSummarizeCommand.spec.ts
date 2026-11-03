@@ -66,8 +66,8 @@ describe('AgentIntent /summarize command', () => {
 		onCancellationRequested: Event.None,
 	};
 
-	async function runSummarize(conversation: Conversation) {
-		const intent = instantiationService.createInstance(AgentIntent);
+	async function runSummarize(conversation: Conversation, intent?: AgentIntent) {
+		intent ??= instantiationService.createInstance(AgentIntent);
 		const request = new TestChatRequest('');
 		request.command = 'compact';
 		const stream = new MockChatResponseStream();
@@ -94,7 +94,7 @@ describe('AgentIntent /summarize command', () => {
 			() => false
 		);
 
-		return { result, stream };
+		return { result, stream, intent };
 	}
 
 	function createEditFileToolCall(idx: number): IToolCall {
@@ -174,5 +174,48 @@ describe('AgentIntent /summarize command', () => {
 
 		// Should have output with "Nothing to compact" message
 		expect(stream.output.some(msg => msg.toLowerCase().includes('nothing to compact'))).toBe(true);
+	});
+
+	test('cancels any pending background summarizer for the session', async () => {
+		const intent = instantiationService.createInstance(AgentIntent);
+
+		// Prime a background summarizer for this session before /compact runs.
+		// Its identity is what we want to see disappear from the map afterward.
+		const before = intent.getOrCreateBackgroundSummarizer('sessionId', 100_000, 'test-model');
+
+		const conversation = createConversationWithHistory();
+		await runSummarize(conversation, intent);
+
+		// After /compact, a follow-up get must create a fresh instance — the
+		// pre-existing summarizer was cancelled and removed so its (potentially
+		// stale) result can't overwrite the user-initiated compaction on the
+		// next render.
+		const after = intent.getOrCreateBackgroundSummarizer('sessionId', 100_000, 'test-model');
+		expect(after).not.toBe(before);
+	});
+
+	test('endpoint switch on the same session cancels the previous summarizer', () => {
+		const intent = instantiationService.createInstance(AgentIntent);
+
+		const onModelA = intent.getOrCreateBackgroundSummarizer('sessionId', 100_000, 'model-a');
+			expect(onModelA.endpointId).toBe('model-a');
+		// Switching the endpoint identity must hand back a different instance
+		// (the previous one's pending/completed state is for the old prefix
+		// and would surprise the user on the new model).
+		const onModelB = intent.getOrCreateBackgroundSummarizer('sessionId', 200_000, 'model-b');
+		expect(onModelB).not.toBe(onModelA);
+			expect(onModelB.endpointId).toBe('model-b');
+		// Re-asking for model A must NOT return the old instance — it was
+		// dropped from the map when we switched away.
+		const onModelAAgain = intent.getOrCreateBackgroundSummarizer('sessionId', 100_000, 'model-a');
+		expect(onModelAAgain).not.toBe(onModelA);
+	});
+
+	test('same endpoint returns the same summarizer instance', () => {
+		const intent = instantiationService.createInstance(AgentIntent);
+
+		const first = intent.getOrCreateBackgroundSummarizer('sessionId', 100_000, 'model-a');
+		const second = intent.getOrCreateBackgroundSummarizer('sessionId', 100_000, 'model-a');
+		expect(second).toBe(first);
 	});
 });

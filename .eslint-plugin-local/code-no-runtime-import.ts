@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TSESTree } from '@typescript-eslint/typescript-estree';
+import { TSESTree } from '@typescript-eslint/utils';
 import * as eslint from 'eslint';
 import { dirname, join, relative } from 'path';
 import minimatch from 'minimatch';
@@ -30,7 +30,7 @@ export default new class implements eslint.Rule.RuleModule {
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		let fileRelativePath = relative(dirname(import.meta.dirname), context.getFilename());
+		let fileRelativePath = relative(dirname(import.meta.dirname), context.filename);
 		if (!fileRelativePath.endsWith('/')) {
 			fileRelativePath += '/';
 		}
@@ -45,7 +45,7 @@ export default new class implements eslint.Rule.RuleModule {
 		const restrictedImports = ruleArgs[matchingKey];
 		return createImportRuleListener((node, path) => {
 			if (path[0] === '.') {
-				path = join(dirname(context.getFilename()), path);
+				path = join(dirname(context.filename), path);
 			}
 
 			if ((

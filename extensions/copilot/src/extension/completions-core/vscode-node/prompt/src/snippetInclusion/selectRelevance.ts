@@ -4,28 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DocumentInfo, DocumentInfoWithOffset, SimilarFileInfo } from '../prompt';
+import { LRUCache } from '../../../../../../util/common/cache';
 import { CursorContextInfo } from './cursorContext';
 import { SnippetProviderType, SnippetSemantics, SnippetWithProviderInfo } from './snippets';
-
-class FifoCache<T> {
-	private keys: string[] = [];
-	private cache: { [key: string]: T } = {};
-	private size: number;
-	constructor(size: number) {
-		this.size = size;
-	}
-	put(key: string, value: T) {
-		this.cache[key] = value;
-		if (this.keys.length > this.size) {
-			this.keys.push(key);
-			const leavingKey = this.keys.shift() ?? '';
-			delete this.cache[leavingKey];
-		}
-	}
-	get(key: string): T | undefined {
-		return this.cache[key];
-	}
-}
 
 export interface ScoredSnippetMarker {
 	score: number;
@@ -41,6 +22,20 @@ export interface ScoredSnippetMarker {
 export interface ScoredSnippet extends ScoredSnippetMarker {
 	snippet: string;
 	relativePath?: string;
+	/**
+	 * The URI of the source document the snippet came from, when known. Unlike
+	 * {@link relativePath} this is unambiguous, so consumers should prefer it to
+	 * identify a snippet's provenance (e.g. in multi-root workspaces where two
+	 * documents can share a relative path).
+	 */
+	uri?: string;
+	/**
+	 * Whether the snippet's source document is a language-service "related" file
+	 * rather than an open tab. Optional here because snippets produced by the matcher
+	 * don't yet carry provenance; `getSimilarSnippets` normalizes it and guarantees it
+	 * on its return type.
+	 */
+	isFromRelatedFile?: boolean;
 }
 
 export enum SortOptions {
@@ -68,7 +63,7 @@ class Tokenizer {
  * WINDOWED_TOKEN_SET_CACHE(doc)[0]
  * holds the tokens in the first 10 lines of the document.
  */
-const WINDOWED_TOKEN_SET_CACHE = new FifoCache<Set<string>[]>(20);
+const WINDOWED_TOKEN_SET_CACHE = new LRUCache<Set<string>[]>(20);
 
 /**
  * For a given document, extracts the best matching snippets from other documents

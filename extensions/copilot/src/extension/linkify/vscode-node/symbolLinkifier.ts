@@ -12,7 +12,7 @@ import { Limiter } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { isEqualOrParent } from '../../../util/vs/base/common/resources';
 import { SymbolInformation, Uri } from '../../../vscodeTypes';
-import { LinkifiedPart, LinkifiedText, LinkifySymbolAnchor } from '../common/linkifiedText';
+import { LinkifiedPart, LinkifiedText, LinkifySymbolAnchor, singleMatch } from '../common/linkifiedText';
 import { IContributedLinkifier, LinkifierContext } from '../common/linkifyService';
 import { findBestSymbolByPath } from './findSymbol';
 import { findSymbolLocationInFile, type SymbolFileCache } from './findWord';
@@ -162,7 +162,7 @@ export class SymbolLinkifier implements IContributedLinkifier {
 			}
 			return this.exists(uri).then(exists => exists ? uri : undefined);
 		}));
-		return results.find((uri): uri is Uri => uri !== undefined);
+		return singleMatch(results);
 	}
 
 	private async exists(uri: Uri) {

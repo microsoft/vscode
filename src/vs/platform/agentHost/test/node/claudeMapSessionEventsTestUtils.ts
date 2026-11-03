@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { SDKAssistantMessage, SDKPartialAssistantMessage, SDKResultSuccess, SDKSystemMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { SDKAssistantMessage, SDKPartialAssistantMessage, SDKResultError, SDKResultSuccess, SDKSystemMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 
 // Beta event-stream type aliases. The `Anthropic` namespace re-exports
 // these from `@anthropic-ai/sdk/resources/beta/messages.js`, but
@@ -82,6 +82,25 @@ export function makeResultSuccess(sessionId: string): SDKResultSuccess {
 		usage: makeNonNullableUsage(),
 		modelUsage: {},
 		permission_denials: [],
+		uuid: TEST_UUID,
+		session_id: sessionId,
+	};
+}
+
+export function makeResultError(sessionId: string, errors: string[]): SDKResultError {
+	return {
+		type: 'result',
+		subtype: 'error_during_execution',
+		duration_ms: 0,
+		duration_api_ms: 0,
+		is_error: true,
+		num_turns: 1,
+		stop_reason: null,
+		total_cost_usd: 0,
+		usage: makeNonNullableUsage(),
+		modelUsage: {},
+		permission_denials: [],
+		errors,
 		uuid: TEST_UUID,
 		session_id: sessionId,
 	};
@@ -228,6 +247,7 @@ export function makeAssistantMessage(
 			content,
 			stop_reason: 'end_turn',
 			stop_sequence: null,
+			stop_details: null,
 			container: null,
 			context_management: null,
 			usage: {
@@ -254,7 +274,7 @@ export function makeAssistantMessage(
  * the SDK delivers as the response to a previously-emitted `tool_use`.
  * Phase 7 §3.3.4 — the mapper detects this by walking
  * `message.content` for `tool_result` blocks and emits a
- * `SessionToolCallComplete` per match. The `content` field is the SDK's
+ * `ChatToolCallComplete` per match. The `content` field is the SDK's
  * `string | (TextBlockParam | ImageBlockParam | ...)[]` shape; the
  * helper accepts a string or pre-built block array verbatim.
  */

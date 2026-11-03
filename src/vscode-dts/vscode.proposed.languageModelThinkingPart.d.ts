@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 1
-
 declare module 'vscode' {
+
+	export interface LanguageModelChatRequestOptions {
+		/** Whether to include opaque reasoning state needed to replay the response in later requests. */
+		includeEncryptedThinking?: boolean;
+	}
 
 	/**
 	 * A language model response part containing thinking/reasoning content.

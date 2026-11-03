@@ -400,6 +400,40 @@ suite('OutputMonitor', () => {
 		});
 	});
 
+	test('sudo -S password prompt fires onDidDetectInputNeeded and not onDidDetectSensitiveInputNeeded', async () => {
+		return runWithFakedTimers({}, async () => {
+			execution.getOutput = () => '[sudo] password for jdoe: ';
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'ssh host && echo hunter2 | sudo -S systemctl restart myservice'));
+
+			let inputNeededFired = false;
+			let sensitiveFired = false;
+			store.add(monitor.onDidDetectInputNeeded(() => { inputNeededFired = true; }));
+			store.add(monitor.onDidDetectSensitiveInputNeeded(() => { sensitiveFired = true; }));
+
+			await Event.toPromise(monitor.onDidFinishCommand);
+
+			assert.strictEqual(inputNeededFired, true, 'sudo -S prompts should be treated as normal input-needed so the non-interactive flow can continue');
+			assert.strictEqual(sensitiveFired, false, 'sudo -S prompts should not be treated as sensitive interactive prompts');
+		});
+	});
+
+	test('plain sudo password prompt still fires onDidDetectSensitiveInputNeeded', async () => {
+		return runWithFakedTimers({}, async () => {
+			execution.getOutput = () => '[sudo] password for jdoe: ';
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'sudo systemctl restart myservice'));
+
+			let inputNeededFired = false;
+			let sensitiveFired = false;
+			store.add(monitor.onDidDetectInputNeeded(() => { inputNeededFired = true; }));
+			store.add(monitor.onDidDetectSensitiveInputNeeded(() => { sensitiveFired = true; }));
+
+			await Event.toPromise(monitor.onDidFinishCommand);
+
+			assert.strictEqual(sensitiveFired, true, 'interactive sudo prompts should still be treated as sensitive');
+			assert.strictEqual(inputNeededFired, false, 'interactive sudo prompts must not be routed to the agent');
+		});
+	});
+
 	test('detectsSensitiveInputPrompt matches common secret prompts', () => {
 		assert.strictEqual(detectsSensitiveInputPrompt('Password: '), true);
 		assert.strictEqual(detectsSensitiveInputPrompt('[sudo] password for jdoe: '), true);

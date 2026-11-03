@@ -692,3 +692,30 @@ registerAction2(class CopyExpression extends ViewAction<WatchExpressionsView> {
 		}
 	}
 });
+
+export const COPY_ALL_WATCH_EXPRESSIONS_COMMAND_ID = 'workbench.debug.viewlet.action.copyAllWatchExpressions';
+
+registerAction2(class CopyAllWatchExpressions extends ViewAction<WatchExpressionsView> {
+	constructor() {
+		super({
+			id: COPY_ALL_WATCH_EXPRESSIONS_COMMAND_ID,
+			title: localize('copyAllWatchExpressions', "Copy All"),
+			f1: false,
+			viewId: WATCH_VIEW_ID,
+			precondition: CONTEXT_WATCH_EXPRESSIONS_EXIST,
+			menu: {
+				id: MenuId.DebugWatchContext,
+				order: 45,
+				group: '3_modification'
+			}
+		});
+	}
+
+	runInView(accessor: ServicesAccessor): void {
+		const clipboardService = accessor.get(IClipboardService);
+		const debugService = accessor.get(IDebugService);
+		const watches = debugService.getModel().getWatchExpressions();
+		const lines = watches.map(w => `${w.name}: ${w.value}`);
+		clipboardService.writeText(lines.join('\n'));
+	}
+});
