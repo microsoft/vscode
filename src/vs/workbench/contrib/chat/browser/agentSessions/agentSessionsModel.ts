@@ -40,6 +40,13 @@ export { ChatSessionStatus as AgentSessionStatus, isSessionInProgressStatus } fr
 
 type AgentSessionRefreshReason = Exclude<ChatSessionRefreshReason, 'initial'>;
 
+/** Keeps refresh intent and errors in the same batch across the delayer and throttler queues. */
+interface IProviderResolution {
+	refreshReason: AgentSessionRefreshReason | undefined;
+	resolveItems: boolean;
+	readonly errors: unknown[];
+}
+
 export interface IAgentSessionsModel {
 
 	readonly onWillResolve: Event<string /* provider */>;
@@ -538,9 +545,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			.filter(session => session.metadata?.isAutomation !== true);
 	}
 
-	private readonly resolvers = this._register(new DisposableMap<string, ThrottledDelayer<readonly unknown[]>>());
-	private readonly providersToRefresh = new Map<string, AgentSessionRefreshReason>();
-	private readonly providersToResolveItems = new Set<string>();
+	private readonly resolvers = this._register(new DisposableMap<string, ThrottledDelayer<void>>());
+	private readonly pendingResolutions = new Map<string, IProviderResolution>();
 
 	private readonly cache: AgentSessionsCache;
 	private readonly logger: AgentSessionsLogger;
@@ -688,45 +694,49 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		}
 	}
 
-	private resolveProvider(provider: string, options: { refreshReason?: AgentSessionRefreshReason; resolveItems?: boolean }): Promise<readonly unknown[]> {
+	private async resolveProvider(provider: string, options: { refreshReason?: AgentSessionRefreshReason; resolveItems?: boolean }): Promise<readonly unknown[]> {
 		if (this.chatEntitlementService.sentiment.hidden) {
-			return Promise.resolve([]); // don't resolve if AI features are disabled
+			return []; // don't resolve if AI features are disabled
 		}
 
+		const resolution: IProviderResolution = this.pendingResolutions.get(provider) ?? { refreshReason: undefined, resolveItems: false, errors: [] };
+		this.pendingResolutions.set(provider, resolution);
+
 		// A later automatic refresh or cache reread must not replace a queued manual refresh.
-		if (options.refreshReason !== undefined && this.providersToRefresh.get(provider) !== 'manual') {
-			this.providersToRefresh.set(provider, options.refreshReason);
+		if (options.refreshReason !== undefined && resolution.refreshReason !== 'manual') {
+			resolution.refreshReason = options.refreshReason;
 		}
 		if (options.resolveItems) {
-			this.providersToResolveItems.add(provider);
+			resolution.resolveItems = true;
 		}
 
 		let resolver = this.resolvers.get(provider);
 		if (!resolver) {
-			resolver = new ThrottledDelayer<readonly unknown[]>(500);
+			resolver = new ThrottledDelayer<void>(500);
 			this.resolvers.set(provider, resolver);
 		}
 
-		return resolver.trigger(async token => {
-			const refreshReason = this.providersToRefresh.get(provider);
-			this.providersToRefresh.delete(provider);
-			const resolveItems = this.providersToResolveItems.delete(provider);
+		await resolver.trigger(async token => {
+			// An earlier queued task may have completed this batch before this caller's delay expires.
+			if (this.pendingResolutions.get(provider) !== resolution) {
+				return;
+			}
+			this.pendingResolutions.delete(provider);
 			if (token.isCancellationRequested || this.lifecycleService.willShutdown) {
-				return [];
+				return;
 			}
 
-			const errors: unknown[] = [];
 			try {
 				this._onWillResolve.fire(provider);
-				await this.doResolveProvider(provider, { refreshReason, resolveItems }, token, error => errors.push(error));
+				await this.doResolveProvider(provider, resolution, token, error => resolution.errors.push(error));
 			} catch (error) {
 				this.logger.logIfTrace(`Error resolving sessions for provider ${provider}: ${error instanceof Error ? error.stack : String(error)}`);
-				errors.push(error);
+				resolution.errors.push(error);
 			} finally {
 				this._onDidResolve.fire(provider);
 			}
-			return errors;
 		});
+		return resolution.errors;
 	}
 
 	private async doResolveProvider(provider: string, options: { refreshReason: AgentSessionRefreshReason | undefined; resolveItems: boolean }, token: CancellationToken, onError: (error: unknown) => void): Promise<void> {

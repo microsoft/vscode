@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -546,6 +546,83 @@ suite('AgentSessions', () => {
 				assert.deepStrictEqual(reasons, ['initial', 'manual']);
 			}));
 		}
+
+		for (const followUpRefresh of [false, true]) {
+			test(`preserves manual refresh errors consumed by a queued reread${followUpRefresh ? ' with a later successful refresh' : ''}`, () => runWithFakedTimers({}, async () => {
+				const runningStarted = new DeferredPromise<void>();
+				const finishRunning = new DeferredPromise<void>();
+				const queuedStarted = new DeferredPromise<void>();
+				const finishQueued = new DeferredPromise<void>();
+				const refreshError = new Error('refresh failed');
+				const reasons: (ChatSessionRefreshReason | undefined)[] = [];
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, {
+					onDidChangeChatSessionItems: Event.None,
+					items: [],
+					async refresh(_token, reason) {
+						reasons.push(reason);
+						if (reasons.length === 2) {
+							void runningStarted.complete();
+							await finishRunning.p;
+						} else if (reasons.length === 3) {
+							void queuedStarted.complete();
+							await finishQueued.p;
+							throw refreshError;
+						}
+					},
+				}));
+				viewModel = createViewModel();
+
+				const running = viewModel.resolve(chatSessionTestType);
+				await runningStarted.p;
+				mockChatSessionsService.fireDidChangeItemsProviders({ chatSessionType: chatSessionTestType });
+				await timeout(501);
+
+				const manual = viewModel.resolve(chatSessionTestType, error => { throw error; });
+				const settled = Promise.allSettled([running, manual]);
+				await finishRunning.complete();
+				await queuedStarted.p;
+				const followUp = followUpRefresh ? viewModel.resolve(chatSessionTestType, error => { throw error; }) : undefined;
+				await finishQueued.complete();
+				await followUp;
+				const results = await settled;
+
+				assert.deepStrictEqual({ reasons, results }, {
+					reasons: followUpRefresh ? ['initial', 'manual', 'manual', 'manual'] : ['initial', 'manual', 'manual'],
+					results: [
+						{ status: 'fulfilled', value: undefined },
+						{ status: 'rejected', reason: refreshError },
+					],
+				});
+			}));
+		}
+
+		test('reports coalesced refresh errors once to each caller', () => runWithFakedTimers({}, async () => {
+			const refreshError = new Error('refresh failed');
+			let refreshCount = 0;
+			disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, {
+				onDidChangeChatSessionItems: Event.None,
+				items: [],
+				async refresh() {
+					if (++refreshCount > 1) {
+						throw refreshError;
+					}
+				},
+			}));
+			viewModel = createViewModel();
+			const firstErrors: unknown[] = [];
+			const secondErrors: unknown[] = [];
+
+			await Promise.all([
+				viewModel.resolve(chatSessionTestType, error => firstErrors.push(error)),
+				viewModel.resolve(chatSessionTestType, error => secondErrors.push(error)),
+			]);
+
+			assert.deepStrictEqual({ refreshCount, firstErrors, secondErrors }, {
+				refreshCount: 2,
+				firstErrors: [refreshError],
+				secondErrors: [refreshError],
+			});
+		}));
 
 		test('should respond to onDidChangeAvailability event', async () => {
 			return runWithFakedTimers({}, async () => {
