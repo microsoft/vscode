@@ -36,7 +36,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
+import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
 import type { ISessionOptionsIconOnlyPickers } from '../../browser/iconOnlySessionPickers.js';
 import { getNewSessionWelcomePhrases } from '../../common/welcomePhrases.js';
 import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
@@ -60,6 +60,8 @@ import { createSessionViewTestServices, createTestActiveSession } from '../../..
 import { getDefaultSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment } from '../../browser/sessionEnvironmentPicker.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -408,6 +410,7 @@ interface ICanSendRequestToWorkspaceHarness {
 }
 
 interface IRestoreNoWorkspaceDraftHarness {
+	readonly configurationService: IConfigurationService;
 	_workspaceSelectionCleared: boolean;
 	readonly _environment: IObservable<ISessionCreationEnvironment | undefined>;
 	readonly _pickedEnvironment: IObservable<ISessionCreationEnvironment | undefined>;
@@ -1889,21 +1892,24 @@ suite('NewChatWidget', () => {
 	}
 
 	suite('workspace-less fallback', () => {
-		function createRestoreHarness() {
+		function createRestoreHarness(environmentPickerEnabled = false) {
 			const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 			const initialRestoreComplete = observableValue('initialRestoreComplete', true);
 			const opened: string[] = [];
+			const openedTargets: (ICreateNewSessionOptions | undefined)[] = [];
 			let quickChatAvailable = true;
 			let noWorkspaceSelected = false;
 			let selectedFolderUri: URI | undefined;
 			let workspaceRestored = Promise.resolve(true);
-			const open = (kind: string): IActiveSession => {
+			const open = (kind: string, options?: ICreateNewSessionOptions): IActiveSession => {
 				opened.push(kind);
-				const session = upcastPartial<IActiveSession>({ sessionId: `quick-chat-${opened.length}` });
+				openedTargets.push(options);
+				const session = upcastPartial<IActiveSession>({ sessionId: `quick-chat-${opened.length}`, providerId: options?.providerId ?? 'cloud' });
 				activeSession.set(session, undefined);
 				return session;
 			};
 			const harness: IRestoreNoWorkspaceDraftHarness = {
+				configurationService: new TestConfigurationService({ [ENVIRONMENT_PICKER_SETTING]: environmentPickerEnabled }),
 				_workspaceSelectionCleared: false,
 				_environment: constObservable(undefined),
 				_pickedEnvironment: constObservable(undefined),
@@ -1919,13 +1925,13 @@ suite('NewChatWidget', () => {
 				sessionsService: {
 					activeSession,
 					initialRestoreComplete,
-					openQuickChat: (_options, preserveNavigation) => open(preserveNavigation ? 'automatic' : 'explicit'),
+					openQuickChat: (options, preserveNavigation) => open(preserveNavigation ? 'automatic' : 'explicit', options),
 				},
 				sessionsManagementService: { isQuickChatTargetAvailable: () => quickChatAvailable },
-				selectNoWorkspace: () => { open('checked'); },
+				selectNoWorkspace: options => { open('checked', options); },
 			};
 			return {
-				harness, activeSession, initialRestoreComplete, opened,
+				harness, activeSession, initialRestoreComplete, opened, openedTargets,
 				set quickChatAvailable(value: boolean) { quickChatAvailable = value; },
 				set noWorkspaceSelected(value: boolean) { noWorkspaceSelected = value; },
 				set selectedFolderUri(value: URI | undefined) { selectedFolderUri = value; },
@@ -1933,6 +1939,53 @@ suite('NewChatWidget', () => {
 				restore: () => restoreNoWorkspaceDraft.call(harness),
 			};
 		}
+
+		for (const previouslySelected of [false, true]) {
+			test(`waits for This Computer when Cloud registers first (previously selected Chat: ${previouslySelected})`, async () => {
+				if (isWeb) {
+					return;
+				}
+				const state = createRestoreHarness(true);
+				state.noWorkspaceSelected = previouslySelected;
+				const local: ISessionCreationEnvironment = { id: 'local', kind: 'local', label: 'This Computer', icon: Codicon.deviceDesktop, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] };
+				const cloud: ISessionCreationEnvironment = { id: 'cloud', kind: 'cloud', label: 'Cloud', icon: Codicon.cloud, providerIds: ['cloud'] };
+				const environments = observableValue('environments', [cloud]);
+				const environment = derived(reader => getDefaultSessionCreationEnvironment(environments.read(reader), undefined, state.activeSession.read(reader)?.providerId));
+				Object.assign(state.harness, {
+					_environment: environment,
+					_workspaceOptOutTarget: derived(reader => {
+						const selected = environment.read(reader);
+						return selected ? { providerId: selected.providerIds[0] } : undefined;
+					}),
+				});
+
+				await state.restore();
+				const afterCloud = [...state.openedTargets];
+				environments.set([cloud, local], undefined);
+				await state.restore();
+
+				assert.deepStrictEqual({ afterCloud, afterLocal: state.openedTargets, environment: environment.get()?.id }, {
+					afterCloud: [],
+					afterLocal: [{ providerId: LOCAL_AGENT_HOST_PROVIDER_ID }],
+					environment: 'local',
+				});
+			});
+		}
+
+		test('restores an explicitly selected Cloud quick chat without waiting for This Computer', async () => {
+			const state = createRestoreHarness(true);
+			state.noWorkspaceSelected = true;
+			const cloud: ISessionCreationEnvironment = { id: 'cloud', kind: 'cloud', label: 'Cloud', icon: Codicon.cloud, providerIds: ['cloud'] };
+			Object.assign(state.harness, {
+				_environment: constObservable(cloud),
+				_pickedEnvironment: constObservable(cloud),
+				_workspaceOptOutTarget: constObservable({ providerId: 'cloud' }),
+			});
+
+			await state.restore();
+
+			assert.deepStrictEqual(state.openedTargets, [{ providerId: 'cloud' }]);
+		});
 
 		test('does not select Chat after explicitly clearing the workspace, including later provider changes', async () => {
 			const state = createRestoreHarness();
