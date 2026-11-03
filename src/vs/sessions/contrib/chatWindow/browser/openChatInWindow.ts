@@ -15,6 +15,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { IChatWindowOpenOptions, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { Menus, SessionHeaderMenus } from '../../../browser/menus.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { SessionIsCreatedContext, SessionItemIsMultiSelectionContext } from '../../../common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -44,6 +45,7 @@ export async function openChatInWindow(accessor: ServicesAccessor, session: ISes
 	const chatWindowService = accessor.get(IChatWindowService);
 	const sessionsService = accessor.get(ISessionsService);
 	const editorGroupsService = accessor.get(IEditorGroupsService);
+	const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 
 	const shown = sessionsService.visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId && !candidate.scopedChatResource);
 	const chatResource = chat ?? shown?.activeChat.get().resource;
@@ -51,10 +53,17 @@ export async function openChatInWindow(accessor: ServicesAccessor, session: ISes
 	const mainActive = sessionsService.mainWindowActiveSession.get();
 	const ownsEditors = mainActive?.sessionId === session.sessionId
 		&& (!chatResource || isEqual(mainActive.activeChat.get().resource, chatResource));
-	await chatWindowService.open(chatResource ?? session.resource, {
-		...options,
-		editors: { ...options?.editors, moveFrom: ownsEditors ? editorGroupsService.mainPart.groups : [] },
-	});
+	// The editors moving out empty the main window's editor part: that is not the user closing them, so the main window
+	// keeps its side pane as it is, for the session it shows next, as when it switches sessions.
+	const suppression = ownsEditors ? layoutService.suppressEditorPartAutoVisibility() : undefined;
+	try {
+		await chatWindowService.open(chatResource ?? session.resource, {
+			...options,
+			editors: { ...options?.editors, moveFrom: ownsEditors ? editorGroupsService.mainPart.groups : [] },
+		});
+	} finally {
+		suppression?.dispose();
+	}
 }
 
 registerAction2(class OpenSessionInChatWindowAction extends Action2 {
