@@ -251,9 +251,34 @@
 }
 
 .session-worktree-cleanup-automatic > summary {
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	width: fit-content;
+	max-width: 100%;
 	cursor: pointer;
+	list-style: none;
+	color: var(--vscode-foreground);
+	background: var(--vscode-editorWidget-background);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-editorWidget-border));
+	border-radius: var(--vscode-cornerRadius-small);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-worktree-cleanup-automatic > summary::-webkit-details-marker {
+	display: none;
+}
+
+.session-worktree-cleanup-automatic > summary > .codicon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize);
 	color: var(--vscode-descriptionForeground);
-	padding: var(--vscode-spacing-size40) 0;
+}
+
+.session-worktree-cleanup-automatic > summary:hover {
+	background: var(--vscode-toolbar-hoverBackground);
 }
 
 .session-worktree-cleanup-automatic > summary:focus-visible {

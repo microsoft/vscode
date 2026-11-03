@@ -139,7 +139,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 			message: container.querySelector('.session-worktree-cleanup-empty')?.textContent,
 			batchHidden: container.querySelector('.session-worktree-cleanup-batch')?.classList.contains('hidden'),
 			settings: container.querySelector('summary')?.textContent,
-		}, { rows: 0, empty: false, message: 'No worktrees to clean up.', batchHidden: true, settings: 'Cleanup Settings' });
+		}, { rows: 0, empty: false, message: 'No worktrees to clean up.', batchHidden: true, settings: 'Automatic Cleanup' });
 	});
 
 	test('a scheduling failure stays hidden after refresh and reopening without retry controls or failure counters', async () => {
@@ -824,7 +824,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 				pickerDisabled: container.querySelector<HTMLSelectElement>('select')?.disabled,
 			}, {
 				opened: true,
-				heading: 'Cleanup Settings',
+				heading: 'Automatic Cleanup',
 				loading: 'Measuring worktree storage...',
 				pickerDisabled: true,
 			});
@@ -1731,19 +1731,34 @@ suite('SessionWorktreeCleanupEditor', () => {
 		});
 	}
 
-	test('shows a text-only settings heading and no configure actions', () => {
+	test('shows a gear-labeled automatic cleanup disclosure without separate configure actions', () => {
 		const { container } = createEditor();
-
+		const section = container.querySelector<HTMLDetailsElement>('details')!;
+		const summary = section.querySelector<HTMLElement>('summary')!;
+		const states = [section.open];
+		focusElement(summary);
+		summary.click();
+		states.push(section.open);
+		summary.click();
+		states.push(section.open);
 		assert.deepStrictEqual({
-			heading: container.querySelector('details > summary')?.textContent,
+			heading: summary.textContent,
 			headingIcons: container.querySelectorAll('h2 .codicon').length,
 			gears: container.querySelectorAll('.codicon-settings-gear').length,
+			decorativeIcon: summary.querySelector('.codicon-settings-gear')?.getAttribute('aria-hidden'),
+			display: mainWindow.getComputedStyle(summary).display,
+			states,
+			focused: dom.getActiveElement() === summary,
 			configureActions: container.querySelectorAll('.session-worktree-cleanup-configure').length,
 			intro: container.querySelector('.session-worktree-cleanup-intro')?.textContent,
 		}, {
-			heading: 'Cleanup Settings',
+			heading: 'Automatic Cleanup',
 			headingIcons: 0,
-			gears: 0,
+			gears: 1,
+			decorativeIcon: 'true',
+			display: 'flex',
+			states: [false, true, false],
+			focused: true,
 			configureActions: 0,
 			intro: 'Free disk space by cleaning up worktrees. Normal cleanup saves changes and keeps branches and session history.',
 		});

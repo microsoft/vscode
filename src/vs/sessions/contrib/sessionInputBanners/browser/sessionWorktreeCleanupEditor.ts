@@ -1362,7 +1362,10 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 	private renderAutomaticCleanup(content: HTMLElement): void {
 		const section = dom.append(content, dom.$<HTMLDetailsElement>('details.session-worktree-cleanup-automatic'));
-		dom.append(section, dom.$('summary', undefined, localize('sessionWorktreeCleanup.automaticHeading', "Cleanup Settings")));
+		const summary = dom.append(section, dom.$('summary'));
+		const icon = dom.append(summary, renderIcon(Codicon.settingsGear));
+		icon.setAttribute('aria-hidden', 'true');
+		dom.append(summary, dom.$('span', undefined, localize('sessionWorktreeCleanup.automaticHeading', "Automatic Cleanup")));
 		this.editorDisposables.add(dom.addDisposableListener(section, 'toggle', () => this.updateScrollDimensions()));
 		this.renderAutomaticSetting(section, ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays,
 			localize('sessionWorktreeCleanup.autoMark', "Mark merged sessions as done after"),
