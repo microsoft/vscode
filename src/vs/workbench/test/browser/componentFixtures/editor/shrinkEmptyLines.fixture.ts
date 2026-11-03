@@ -56,6 +56,7 @@ function renderShrinkEmptyLines(context: ComponentFixtureContext, multiplier: nu
 			allowVariableLineHeights: true,
 			allowVariableFonts: true,
 			shrinkEmptyLines: multiplier,
+			shrinkEmptyLinesKind: 'punctuation',
 			glyphMargin: false,
 			lineNumbers: 'on',
 			minimap: { enabled: false },

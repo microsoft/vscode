@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { AccessibilitySupport } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { CodeEditorWidget } from '../../../../browser/widget/codeEditor/codeEditorWidget.js';
-import { EditorOption, EditorOptions } from '../../../../common/config/editorOptions.js';
+import { EditorOption, EditorOptions, IEditorOptions } from '../../../../common/config/editorOptions.js';
 import { Range } from '../../../../common/core/range.js';
 import { ITextModel } from '../../../../common/model.js';
 import { createCodeEditorServices, instantiateTestCodeEditor, ITestCodeEditor, TestCodeEditorCreationOptions } from '../../../../test/browser/testCodeEditor.js';
@@ -66,24 +66,109 @@ suite('Shrink Empty Lines', () => {
 		assert.deepStrictEqual(getLineHeights(editor), [19, 19, 19, 19, 19]);
 	});
 
-	test('shrinks lines without letters or numbers using arbitrary multipliers', () => {
+	test('shrinks only blank lines by default after edits and model resets', () => {
+		const { editor, model } = createEditor('if (x) {\n\n \t \n\u00a0\u2003\n}\n{\n//\n0', { shrinkEmptyLines: 0.5 });
+		const results = [getLineHeights(editor)];
+
+		model.applyEdits([
+			{ range: new Range(2, 1, 2, 1), text: '}' },
+			{ range: new Range(5, 1, 5, 2), text: '   ' },
+		]);
+		results.push(getLineHeights(editor));
+		model.setValue('{\n \t \n}\n0');
+		results.push(getLineHeights(editor));
+
+		assert.deepStrictEqual({
+			kind: editor.getOption(EditorOption.shrinkEmptyLinesKind),
+			lineHeights: results,
+			fontSizes: getLineFontSizes(editor),
+		}, {
+			kind: 'blank',
+			lineHeights: [
+				[19, 10, 10, 10, 19, 19, 19, 19],
+				[19, 19, 10, 10, 10, 19, 19, 19],
+				[19, 10, 19, 19],
+			],
+			fontSizes: ['14px', '14px', '14px', '14px'],
+		});
+	});
+
+	test('shrinks blank lines using arbitrary multipliers', () => {
 		const { editor } = createEditor('a\n\n \n{}', {
 			shrinkEmptyLines: 0.5,
 		});
 
-		assert.deepStrictEqual(getLineHeights(editor), [19, 10, 10, 10]);
+		assert.deepStrictEqual(getLineHeights(editor), [19, 10, 10, 19]);
 
 		editor.updateOptions({ shrinkEmptyLines: 0.25 });
 
-		assert.deepStrictEqual(getLineHeights(editor), [19, 5, 5, 5]);
+		assert.deepStrictEqual(getLineHeights(editor), [19, 5, 5, 19]);
 
 		editor.updateOptions({ shrinkEmptyLines: 0.7 });
 
-		assert.deepStrictEqual(getLineHeights(editor), [19, 13, 13, 13]);
+		assert.deepStrictEqual(getLineHeights(editor), [19, 13, 13, 19]);
+	});
+
+	test('reclassifies line heights and punctuation fonts when the line kind changes', () => {
+		const { editor } = createEditor('\n \t \n{}\ncode', { shrinkEmptyLines: 0.5 });
+		const results = [{ lineHeights: getLineHeights(editor), fontSizes: getLineFontSizes(editor) }];
+
+		for (const shrinkEmptyLinesKind of ['punctuation', 'blank', 'punctuation'] as const) {
+			editor.updateOptions({ shrinkEmptyLinesKind });
+			results.push({ lineHeights: getLineHeights(editor), fontSizes: getLineFontSizes(editor) });
+		}
+
+		assert.deepStrictEqual(results, [
+			{ lineHeights: [10, 10, 19, 19], fontSizes: ['14px', '14px', '14px', '14px'] },
+			{ lineHeights: [10, 10, 10, 19], fontSizes: ['14px', '14px', '7px', '14px'] },
+			{ lineHeights: [10, 10, 19, 19], fontSizes: ['14px', '14px', '14px', '14px'] },
+			{ lineHeights: [10, 10, 10, 19], fontSizes: ['14px', '14px', '7px', '14px'] },
+		]);
+	});
+
+	test('applies line-kind changes together with font options and while shrinking is disabled', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const editor = disposables.add(instantiationService.createInstance(CodeEditorWidget, container, {
+			fontSize: 14,
+			lineHeight: 19,
+			shrinkEmptyLines: 0.5,
+			minimap: { enabled: false },
+		}, { contributions: [] }));
+		const model = disposables.add(instantiateTextModel(instantiationService, '\n{}\ncode'));
+		editor.setModel(model);
+		disposables.add(new ShrinkEmptyLinesController(editor));
+		editor.layout({ width: 400, height: 200 });
+		const lineNumbers = [1, 2, 3];
+		const getSizes = () => ({
+			lineHeights: lineNumbers.map(lineNumber => editor.getLineHeightForPosition({ lineNumber, column: 1 })),
+			fontSizes: lineNumbers.map(lineNumber => editor.getFontSizeAtPosition({ lineNumber, column: 1 })),
+		});
+		const results = [getSizes()];
+		const options: IEditorOptions[] = [
+			{ shrinkEmptyLinesKind: 'punctuation', shrinkEmptyLines: 0.25, fontSize: 24, lineHeight: 40 },
+			{ shrinkEmptyLinesKind: 'blank', allowVariableLineHeights: false },
+			{ shrinkEmptyLinesKind: 'punctuation' },
+			{ allowVariableLineHeights: true },
+		];
+
+		for (const option of options) {
+			editor.updateOptions(option);
+			results.push(getSizes());
+		}
+
+		assert.deepStrictEqual(results, [
+			{ lineHeights: [10, 19, 19], fontSizes: ['14px', '14px', '14px'] },
+			{ lineHeights: [10, 10, 40], fontSizes: ['24px', '6px', '24px'] },
+			{ lineHeights: [40, 40, 40], fontSizes: ['24px', '24px', '24px'] },
+			{ lineHeights: [40, 40, 40], fontSizes: ['24px', '24px', '24px'] },
+			{ lineHeights: [10, 10, 40], fontSizes: ['24px', '6px', '24px'] },
+		]);
 	});
 
 	test('scales punctuation fonts and uses variable-font measurements only on compressed lines', () => {
-		const { editor } = createEditor('a\n{}\n//\n0', { shrinkEmptyLines: 0.5 });
+		const { editor } = createEditor('a\n{}\n//\n0', { shrinkEmptyLines: 0.5, shrinkEmptyLinesKind: 'punctuation' });
 		const viewModel = editor.getViewModel();
 		assert.ok(viewModel);
 
@@ -97,7 +182,7 @@ suite('Shrink Empty Lines', () => {
 	});
 
 	test('reuses classified ranges when the multiplier changes', () => {
-		const { editor, model } = createEditor(Array.from({ length: 1000 }, () => '{}').join('\n'), { shrinkEmptyLines: 0.5 });
+		const { editor, model } = createEditor(Array.from({ length: 1000 }, () => '{}').join('\n'), { shrinkEmptyLines: 0.5, shrinkEmptyLinesKind: 'punctuation' });
 		const decorationIds = getShrinkingDecorations(model).map(decoration => decoration.id);
 		const getLineContent = spy(model, 'getLineContent');
 		disposables.add(toDisposable(() => getLineContent.restore()));
@@ -125,6 +210,7 @@ suite('Shrink Empty Lines', () => {
 			fontSize: 20,
 			lineHeight: 30,
 			shrinkEmptyLines: 0.5,
+			shrinkEmptyLinesKind: 'punctuation',
 			minimap: { enabled: false },
 		}, { contributions: [] }));
 		const model = disposables.add(instantiateTextModel(instantiationService, 'a\n{}\n0'));
@@ -189,6 +275,7 @@ suite('Shrink Empty Lines', () => {
 			fontSize: 20,
 			lineHeight: 30,
 			shrinkEmptyLines: 0.5,
+			shrinkEmptyLinesKind: 'punctuation',
 			renderWhitespace: 'none',
 			minimap: { enabled: false },
 		}, { contributions: [] }));
@@ -237,6 +324,7 @@ suite('Shrink Empty Lines', () => {
 		disposables.add(toDisposable(() => container.remove()));
 		const editor = disposables.add(instantiationService.createInstance(CodeEditorWidget, container, {
 			cursorBlinking: 'solid',
+			shrinkEmptyLinesKind: 'punctuation',
 			minimap: { enabled: false },
 		}, { contributions: [] }));
 		const model = disposables.add(instantiateTextModel(instantiationService, 'code\n    { }\ncode'));
@@ -318,7 +406,7 @@ suite('Shrink Empty Lines', () => {
 			'        get { return this.Current; }',
 			'    }',
 			'}',
-		].join('\n'), { shrinkEmptyLines: 0.5 });
+		].join('\n'), { shrinkEmptyLines: 0.5, shrinkEmptyLinesKind: 'punctuation' });
 
 		assert.deepStrictEqual(getLineHeights(editor), [
 			19, 10, 19, 10, 19, 10, 19, 10, 10, 19,
@@ -348,7 +436,7 @@ suite('Shrink Empty Lines', () => {
 			'\u2163',
 			'\u00b2',
 			'\u{1d7d8}',
-		].join('\n'), { shrinkEmptyLines: 0.5 });
+		].join('\n'), { shrinkEmptyLines: 0.5, shrinkEmptyLinesKind: 'punctuation' });
 
 		assert.deepStrictEqual(getLineHeights(editor), [
 			10, 10, 10, 10, 10, 10, 10, 10, 10,
@@ -373,8 +461,23 @@ suite('Shrink Empty Lines', () => {
 		});
 	});
 
+	test('accepts blank and punctuation line kinds and defaults invalid values to blank', () => {
+		const option = EditorOptions.shrinkEmptyLinesKind;
+		assert.deepStrictEqual({
+			type: option.schema?.type,
+			default: option.defaultValue,
+			values: option.schema?.enum,
+			validated: [undefined, null, 'invalid', 0, 'blank', 'punctuation'].map(value => option.validate(value)),
+		}, {
+			type: 'string',
+			default: 'blank',
+			values: ['blank', 'punctuation'],
+			validated: ['blank', 'blank', 'blank', 'blank', 'blank', 'punctuation'],
+		});
+	});
+
 	test('clamps multipliers to 0.25 through 1 and preserves regular height at 1', () => {
-		const { editor } = createEditor('a\n{\n}', { shrinkEmptyLines: 0.4 });
+		const { editor } = createEditor('a\n{\n}', { shrinkEmptyLines: 0.4, shrinkEmptyLinesKind: 'punctuation' });
 		const results = [];
 		for (const multiplier of [0.4, 1, 0.5, 0, 0.02, 0.249, -0.5, 1.5, 0.25]) {
 			editor.updateOptions({ shrinkEmptyLines: multiplier });
@@ -399,7 +502,7 @@ suite('Shrink Empty Lines', () => {
 	test('clamps initial multipliers below 0.25', () => {
 		const multipliers = [-0.5, 0, 0.02, 0.249, 0.25];
 		const results = multipliers.map(shrinkEmptyLines => {
-			const { editor } = createEditor('a\n\n{}', { shrinkEmptyLines });
+			const { editor } = createEditor('a\n\n{}', { shrinkEmptyLines, shrinkEmptyLinesKind: 'punctuation' });
 			return {
 				multiplier: editor.getOption(EditorOption.shrinkEmptyLines),
 				lineHeights: getLineHeights(editor),
@@ -430,7 +533,7 @@ suite('Shrink Empty Lines', () => {
 	});
 
 	test('updates punctuation font ranges without changing line height', () => {
-		const { editor, model } = createEditor('a\n{ }\n0', { shrinkEmptyLines: 0.5 });
+		const { editor, model } = createEditor('a\n{ }\n0', { shrinkEmptyLines: 0.5, shrinkEmptyLinesKind: 'punctuation' });
 
 		model.applyEdits([{ range: new Range(2, 4, 2, 4), text: ';' }]);
 
@@ -446,6 +549,7 @@ suite('Shrink Empty Lines', () => {
 	test('updates wrapped line heights when punctuation is appended', () => {
 		const { editor, model } = createEditor('{}\na', {
 			shrinkEmptyLines: 0.5,
+			shrinkEmptyLinesKind: 'punctuation',
 			wordWrap: 'wordWrapColumn',
 			wordWrapColumn: 2,
 			wrappingIndent: 'none',
@@ -456,7 +560,7 @@ suite('Shrink Empty Lines', () => {
 	});
 
 	test('merges edits on the same line without creating duplicate decorations', () => {
-		const { editor, model } = createEditor('a\n{}\n0', { shrinkEmptyLines: 0.5 });
+		const { editor, model } = createEditor('a\n{}\n0', { shrinkEmptyLines: 0.5, shrinkEmptyLinesKind: 'punctuation' });
 
 		model.applyEdits([
 			{ range: new Range(2, 1, 2, 1), text: ' ' },
@@ -498,7 +602,7 @@ suite('Shrink Empty Lines', () => {
 	});
 
 	test('does not leave code lines shrunk after deleting multiple lines', () => {
-		const { editor, model } = createEditor('x\n\ny\n}\nz', { shrinkEmptyLines: 0.5 });
+		const { editor, model } = createEditor('x\n\ny\n}\nz', { shrinkEmptyLines: 0.5, shrinkEmptyLinesKind: 'punctuation' });
 
 		model.applyEdits([
 			{ range: new Range(2, 1, 3, 1), text: '' },
@@ -515,7 +619,7 @@ suite('Shrink Empty Lines', () => {
 	});
 
 	test('shrinks punctuation shifted by an earlier multiline replacement', () => {
-		const { editor, model } = createEditor('a\nb\nx\nc', { shrinkEmptyLines: 0.5 });
+		const { editor, model } = createEditor('a\nb\nx\nc', { shrinkEmptyLines: 0.5, shrinkEmptyLinesKind: 'punctuation' });
 
 		model.applyEdits([
 			{ range: new Range(1, 1, 1, 2), text: 'a\n\n' },
@@ -534,7 +638,7 @@ suite('Shrink Empty Lines', () => {
 	});
 
 	test('restores regular height and font size for code shifted by an earlier deletion', () => {
-		const { editor, model } = createEditor('a\n\nb\n}\nz', { shrinkEmptyLines: 0.5 });
+		const { editor, model } = createEditor('a\n\nb\n}\nz', { shrinkEmptyLines: 0.5, shrinkEmptyLinesKind: 'punctuation' });
 
 		model.applyEdits([
 			{ range: new Range(2, 1, 3, 1), text: '' },
@@ -553,7 +657,7 @@ suite('Shrink Empty Lines', () => {
 	});
 
 	test('accounts for intermediate line shifts when the total line count is unchanged', () => {
-		const { editor, model } = createEditor('a\nb\nx\nc\n\nz', { shrinkEmptyLines: 0.5 });
+		const { editor, model } = createEditor('a\nb\nx\nc\n\nz', { shrinkEmptyLines: 0.5, shrinkEmptyLinesKind: 'punctuation' });
 
 		model.applyEdits([
 			{ range: new Range(1, 2, 1, 2), text: '\n' },
@@ -634,7 +738,7 @@ suite('Shrink Empty Lines', () => {
 	});
 
 	test('updates punctuation-only lines after edits, undo and redo', async () => {
-		const { editor, model } = createEditor('{\n}\n// comment', { shrinkEmptyLines: 0.5 });
+		const { editor, model } = createEditor('{\n}\n// comment', { shrinkEmptyLines: 0.5, shrinkEmptyLinesKind: 'punctuation' });
 		const results = [{ lineHeights: getLineHeights(editor), fontSizes: getLineFontSizes(editor) }];
 
 		model.pushEditOperations([], [
@@ -661,6 +765,7 @@ suite('Shrink Empty Lines', () => {
 	test('respects variable-font settings outside accessibility mode', () => {
 		const { editor } = createEditor('a\n}', {
 			shrinkEmptyLines: 0.5,
+			shrinkEmptyLinesKind: 'punctuation',
 			allowVariableFonts: false,
 			envConfig: { accessibilitySupport: AccessibilitySupport.Disabled },
 		});
@@ -684,6 +789,7 @@ suite('Shrink Empty Lines', () => {
 	test('respects the variable-font override in accessibility mode', () => {
 		const { editor } = createEditor('a\n}', {
 			shrinkEmptyLines: 0.5,
+			shrinkEmptyLinesKind: 'punctuation',
 			allowVariableFonts: true,
 			allowVariableFontsInAccessibilityMode: false,
 			envConfig: { accessibilitySupport: AccessibilitySupport.Enabled },
@@ -722,6 +828,7 @@ suite('Shrink Empty Lines', () => {
 	test('does not shrink fold headers for hidden punctuation-only lines', () => {
 		const { editor } = createEditor('header\n{\n}', {
 			shrinkEmptyLines: 0.5,
+			shrinkEmptyLinesKind: 'punctuation',
 		});
 
 		assert.deepStrictEqual(getLineHeights(editor), [19, 10, 10]);
@@ -734,7 +841,7 @@ suite('Shrink Empty Lines', () => {
 	});
 
 	test('retains shrinking decorations when folding and unfolding', () => {
-		const { editor, model } = createEditor('header\n{\n}\nfooter', { shrinkEmptyLines: 0.5 });
+		const { editor, model } = createEditor('header\n{\n}\nfooter', { shrinkEmptyLines: 0.5, shrinkEmptyLinesKind: 'punctuation' });
 		const getDecorationIds = () => model.getAllDecorations()
 			.filter(decoration => decoration.options.description.startsWith('shrink-empty-line-'))
 			.map(decoration => decoration.id)
@@ -755,7 +862,7 @@ suite('Shrink Empty Lines', () => {
 	});
 
 	test('updates folded lines without shrinking the fold header', () => {
-		const { editor, model } = createEditor('header\n{\n}', { shrinkEmptyLines: 0.5 });
+		const { editor, model } = createEditor('header\n{\n}', { shrinkEmptyLines: 0.5, shrinkEmptyLinesKind: 'punctuation' });
 		const results = [];
 		editor.setHiddenAreas([new Range(2, 1, 3, 2)]);
 		editor.updateOptions({ shrinkEmptyLines: 0.25 });
@@ -776,6 +883,7 @@ suite('Shrink Empty Lines', () => {
 	test('reacts to variable line height setting changes', () => {
 		const { editor } = createEditor('a\n}', {
 			shrinkEmptyLines: 0.5,
+			shrinkEmptyLinesKind: 'punctuation',
 		});
 
 		assert.deepStrictEqual(getLineHeights(editor), [19, 10]);

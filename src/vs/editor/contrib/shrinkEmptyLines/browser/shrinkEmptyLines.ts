@@ -34,6 +34,7 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 		}));
 		this._register(this.editor.onDidChangeConfiguration(event => {
 			if (event.hasChanged(EditorOption.effectiveShrinkEmptyLines)
+				|| event.hasChanged(EditorOption.shrinkEmptyLinesKind)
 				|| event.hasChanged(EditorOption.fontInfo)
 				|| event.hasChanged(EditorOption.lineHeight)) {
 				this._updateDecorationOptions(event);
@@ -79,7 +80,7 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 			fontSize: fontSizeOptions,
 		};
 		this._decorationOptions = decorationOptions;
-		if (!previousOptions) {
+		if (!previousOptions || event?.hasChanged(EditorOption.shrinkEmptyLinesKind)) {
 			this._updateAllDecorations();
 			return;
 		}
@@ -103,19 +104,17 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 		});
 	}
 
-	private _shouldShrinkLine(lineContent: string): boolean {
-		return !/[\p{L}\p{N}]/u.test(lineContent);
-	}
-
 	private _getDecorations(model: ITextModel, ranges: readonly LineRange[]): IModelDeltaDecoration[] {
 		const decorations: IModelDeltaDecoration[] = [];
 		if (!this._decorationOptions) {
 			return decorations;
 		}
+		const nonShrinkingContentPattern = this.editor.getOption(EditorOption.shrinkEmptyLinesKind) === 'blank'
+			? /\S/ : /[\p{L}\p{N}]/u;
 		for (const range of ranges) {
 			for (let lineNumber = range.startLineNumber; lineNumber < range.endLineNumberExclusive; lineNumber++) {
 				const lineContent = model.getLineContent(lineNumber);
-				if (this._shouldShrinkLine(lineContent)) {
+				if (!nonShrinkingContentPattern.test(lineContent)) {
 					decorations.push({
 						range: new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber)),
 						options: this._decorationOptions.lineHeight,

@@ -38,8 +38,26 @@ suite('GhostTextView', () => {
 		assert.deepStrictEqual(results, [
 			{ inline: ['10px'], additional: ['20px'] },
 			{ inline: ['10px'], additional: ['20px'] },
+			{ inline: ['20px'], additional: ['20px'] },
+			{ inline: ['20px'], additional: ['20px'] },
+		]);
+	});
+
+	test('updates suggestion sizes when the line kind changes', () => {
+		const context = createGhostTextViewContext(store, '{}');
+		context.setGhostText(new GhostText(1, [new GhostTextPart(3, 'suggested()\ncontinuation()', false)]));
+		const results = [context.getRenderedFontSizes()];
+
+		for (const shrinkEmptyLinesKind of ['punctuation', 'blank', 'punctuation'] as const) {
+			context.editor.updateOptions({ shrinkEmptyLinesKind });
+			results.push(context.getRenderedFontSizes());
+		}
+
+		assert.deepStrictEqual(results, [
+			{ inline: ['20px'], additional: ['20px'] },
 			{ inline: ['10px'], additional: ['20px'] },
 			{ inline: ['20px'], additional: ['20px'] },
+			{ inline: ['10px'], additional: ['20px'] },
 		]);
 	});
 
@@ -113,6 +131,7 @@ suite('GhostTextView', () => {
 
 	test('preserves indentation and measures the smaller injected text correctly', () => {
 		const context = createGhostTextViewContext(store, '    }');
+		context.editor.updateOptions({ shrinkEmptyLinesKind: 'punctuation' });
 		context.setGhostText(new GhostText(1, [new GhostTextPart(5, 'suggested()', false)]));
 		context.editor.render(true);
 
@@ -137,8 +156,13 @@ suite('GhostTextView', () => {
 	test('centers suggestions and preserves their whitespace widths on compressed lines', () => {
 		const context = createGhostTextViewContext(store, '');
 
-		for (const fontSize of [20, 40]) {
-			context.editor.updateOptions({ fontSize, lineHeight: fontSize * 1.5 });
+		for (const [shrinkEmptyLinesKind, fontSize] of [
+			['blank', 20],
+			['blank', 40],
+			['punctuation', 20],
+			['punctuation', 40],
+		] as const) {
+			context.editor.updateOptions({ shrinkEmptyLinesKind, fontSize, lineHeight: fontSize * 1.5 });
 			for (const [text, column, suggestion, preview] of [
 				['', 1, '    }', false],
 				['', 1, '\t}', true],
@@ -171,12 +195,14 @@ suite('GhostTextView', () => {
 				const acceptedLeft = context.editor.getOffsetForColumn(1, column + suggestion.search(/\S/));
 
 				assert.deepStrictEqual({
+					shrinkEmptyLinesKind,
 					fontSize,
 					suggestion,
 					centered,
 					whitespaceUsesRegularFont,
 					indentationMatchesAcceptedText: Math.abs(suggestionLeft - acceptedLeft) < 1,
 				}, {
+					shrinkEmptyLinesKind,
 					fontSize,
 					suggestion,
 					centered: true,
@@ -185,6 +211,16 @@ suite('GhostTextView', () => {
 				});
 			}
 		}
+	});
+
+	test('keeps whitespace-only suggestions at the regular font size on blank lines', () => {
+		const context = createGhostTextViewContext(store, '    ');
+		context.setGhostText(new GhostText(1, [new GhostTextPart(5, '\t  ', false)]));
+
+		assert.deepStrictEqual(context.getRenderedFontSizes(), {
+			inline: ['20px'],
+			additional: [],
+		});
 	});
 
 	test('accepting a multi-line insertion preserves the viewport', async () => {
