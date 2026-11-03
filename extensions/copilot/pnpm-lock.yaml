@@ -85,6 +85,9 @@ importers:
       '@sinclair/typebox':
         specifier: ^0.34.41
         version: 0.34.41
+      '@unicode/unicode-15.0.0':
+        specifier: 2.1.0
+        version: 2.1.0
       '@vscode/copilot-api':
         specifier: ^0.5.2
         version: 0.5.2
@@ -2090,6 +2093,10 @@ packages:
   '@typespec/ts-http-runtime@0.3.9':
     resolution: {integrity: sha512-edSdeAqkdxBVzA1yL1LrLCml1YjyCVvPMtMqJpbF+6K609tHe8V6sQUzFQSGcYNhcuhOceZtjvN32+mpIth30A==}
     engines: {node: '>=22.0.0'}
+
+  '@unicode/unicode-15.0.0@2.1.0':
+    resolution: {integrity: sha512-+41aWxdo9REQqi/ttFP+9kGVFCuUnADLl5RLti0Xkh7kI/r6BeDlTQNwF0WZpXv6C7BmxMmdXfXd9cCy9lnpAA==}
+    engines: {node: '>=12'}
 
   '@vitest/expect@4.1.11':
     resolution: {integrity: sha512-VX2x5vNJXET47KAFzwERI+KRMtTTCSWTfSMKsW7JsUsXV4psq++e3DvZpuTDOpHcxytiDs6p2nhVb2tVDiiUYw==}
@@ -7579,6 +7586,8 @@ snapshots:
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
+
+  '@unicode/unicode-15.0.0@2.1.0': {}
 
   '@vitest/expect@4.1.11':
     dependencies:
