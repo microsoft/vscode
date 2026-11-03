@@ -423,7 +423,11 @@ export interface IPreparedChatWorkingDirectory {
 export interface IAgentServiceSessionServerToolAccessor {
 	readonly getCredentialSource: (chat: URI) => IAgentHostCredentialSource | undefined;
 	readonly getAutomaticTitleGenerationStrategy: (session?: ProtocolURI) => AutomaticTitleGenerationStrategy;
-	readonly isWorkspaceless: (session: URI) => boolean;
+	/**
+	 * Whether the session is workspace-less, or was seen as workspace-less in this
+	 * process before `set_workspace` attached a workspace.
+	 */
+	readonly startedWorkspaceless: (session: URI) => boolean;
 	readonly canConvertWorkspace: (session: URI) => boolean;
 	/**
 	 * Whether the session's provider supports multiple working directories, so a
@@ -2248,7 +2252,8 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					? definition
 					: { ...definition, description: definition.description?.replace(chatsSentence, `${harnessSentence}${moves ? moveSessionLinksSentence : ''}`) };
 			}
-			if (definition.name === SessionServerToolName.SetWorkspace && accessor?.isWorkspaceless(URI.parse(sessionUri)) === true) {
+			// Stays loaded after conversion: changing the tool list would miss the whole prompt cache.
+			if (definition.name === SessionServerToolName.SetWorkspace && accessor?.startedWorkspaceless(URI.parse(sessionUri)) === true) {
 				return { ...definition, deferLoading: false };
 			}
 			if (definition.name === SessionServerToolName.CreateSession) {

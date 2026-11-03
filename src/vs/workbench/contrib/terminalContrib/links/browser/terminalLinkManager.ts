@@ -488,25 +488,22 @@ export class TerminalLinkManager extends DisposableStore {
 		}
 
 		const markdown = new MarkdownString('', true);
-		// Escapes markdown in label & uri
+		// Escapes markdown in the label. appendLink uses the target as is.
+		const rawLabel = label || fallbackLabel;
 		if (label) {
 			label = markdown.appendText(label).value;
-			markdown.value = '';
-		}
-		if (uri) {
-			uri = markdown.appendText(uri).value;
 			markdown.value = '';
 		}
 
 		label = label || fallbackLabel;
 		// Use the label when uri is '' so the link displays correctly
-		uri = uri || label;
+		let target = uri || rawLabel;
 		// Although if there is a space in the uri, just replace it completely
-		if (/(\s|&nbsp;)/.test(uri)) {
-			uri = nls.localize('followLinkUrl', 'Link');
+		if (/\s/.test(target)) {
+			target = nls.localize('followLinkUrl', 'Link');
 		}
 
-		return markdown.appendLink(uri, label).appendMarkdown(` (${clickLabel})`);
+		return markdown.appendLink(target, label).appendMarkdown(` (${clickLabel})`);
 	}
 }
 

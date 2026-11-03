@@ -12,8 +12,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ContextKeyValue, IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { getCanvasReferenceKey } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { IChatSessionFileChange } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasWorkspaceContext, SessionIsActiveContext, SessionIsCreatedContext, SessionIsReadContext, SessionProviderIdContext, SessionSupportsSideChatContext, SessionWorkspaceIsVirtualContext } from '../../../../common/contextkeys.js';
+import { SessionActiveChatCanArchiveContext, SessionActiveChatCanvasReferenceKeysContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasWorkspaceContext, SessionIsActiveContext, SessionIsCreatedContext, SessionIsReadContext, SessionProviderIdContext, SessionSupportsSideChatContext, SessionWorkspaceIsVirtualContext } from '../../../../common/contextkeys.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionWorkspace, SessionStatus } from '../../common/session.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 import { setActiveSessionContextKeys, setSessionContextKeys } from '../../common/sessionContextKeys.js';
@@ -227,6 +228,47 @@ suite('Session Context Keys', () => {
 			hasWorkspace: true,
 			isVirtualWorkspace: true,
 			hasGitRepository: true,
+		});
+	});
+
+	test('publishes the active chat Canvas references', () => {
+		const contextKeyService = store.add(new MockContextKeyService());
+		const canvas = {
+			resource: URI.parse('canvas:/first'),
+			instanceId: 'first',
+			title: 'First',
+			source: URI.parse('https://example.test/first'),
+		};
+		const canvases = observableValue('canvases', [canvas]);
+		const activeChat = { ...stubChat, canvases };
+		const session = upcastPartial<IActiveSession>({
+			...stubSession({
+				sessionId: 'canvases',
+				chats: constObservable([activeChat]),
+				mainChat: constObservable(activeChat),
+			}),
+			isCreated: constObservable(true),
+			sticky: constObservable(false),
+			activeChat: constObservable(activeChat),
+			visibleChatTabs: constObservable([activeChat]),
+			shouldShowChatTabs: constObservable(false),
+		});
+
+		store.add(autorun(reader => setActiveSessionContextKeys(session, contextKeyService, reader)));
+		const initial = SessionActiveChatCanvasReferenceKeysContext.getValue(contextKeyService);
+		canvases.set([], undefined);
+
+		assert.deepStrictEqual({
+			initial,
+			removed: SessionActiveChatCanvasReferenceKeysContext.getValue(contextKeyService),
+		}, {
+			initial: [getCanvasReferenceKey({
+				providerId: session.providerId,
+				session: session.resource,
+				chat: activeChat.resource,
+				canvas: canvas.resource,
+			})],
+			removed: [],
 		});
 	});
 

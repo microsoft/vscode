@@ -13,7 +13,7 @@ import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../.
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mapsStrictEqualIgnoreOrder, ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { deepClone, equals } from '../../../../../base/common/objects.js';
-import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, mapObservableArrayCached, observableFromEvent, observableSignal, observableSignalFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, mapObservableArrayCached, observableFromEvent, observableSignal, observableSignalFromEvent, observableValueOpts, recomputeInitiallyAndOnChange, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { basename, dirname, extUriIgnorePathCase, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { themeColorFromId, ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -58,6 +58,7 @@ import { observableConfigValue } from '../../../../../platform/observable/common
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { readAgentCustomizationMeta } from '../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
+import { resolveAgentModelPreference, resolveAgentReasoningEffort } from '../../../../../workbench/contrib/chat/common/promptSyntax/languageProviders/promptModelResolver.js';
 import { readAgentHeadBranchPullRequest, toAgentHeadBranchPullRequestMeta } from '../../../../../platform/agentHost/common/meta/agentSessionGitHubReferences.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin, type IRemoteSessionOrigin } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { getLegacySessionInitiator, readSessionInitiator, withSessionInitiator, SESSION_INITIATOR_METADATA_KEY } from '../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
@@ -3247,6 +3248,52 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		};
 	}
 
+	/**
+	 * Observes the canvases of one chat of this session without the active-session gate, so
+	 * a pinned canvas can find its live canvas again without showing its chat. The host counts
+	 * the chat subscription as a subscriber of this session, so holding the reference keeps it resident.
+	 */
+	observeChatCanvases(backendChat: URI): IReference<IObservable<readonly ISessionCanvas[] | undefined>> {
+		const { canvases, observeCanvases } = this._createChatCanvases(backendChat);
+		const observing = observeCanvases();
+		const keepAlive = recomputeInitiallyAndOnChange(canvases);
+		return {
+			object: canvases,
+			dispose: () => {
+				keepAlive.dispose();
+				observing.dispose();
+			},
+		};
+	}
+
+	/**
+	 * Observes one canvas of this session without the active-session gate. The host
+	 * counts the canvas subscription as a subscriber of its owning session, so holding
+	 * the reference keeps that session resident.
+	 */
+	observeCanvas(canvasResource: URI): IReference<IObservable<ISessionCanvas | undefined>> {
+		const subscription = derived(reader => {
+			const connection = this._options.getConnection(reader);
+			if (!connection) {
+				return undefined;
+			}
+			const reference = reader.store.add(connection.getSubscription(StateComponents.Canvas, canvasResource, 'AgentHostObservedCanvas'));
+			return observableFromEvent(Event.any(reference.object.onDidChange, reference.object.onDidError ?? Event.None),
+				() => reference.object.value as CanvasState | Error | undefined);
+		});
+		const canvas = derived<ISessionCanvas | undefined>(reader => {
+			const state = subscription.read(reader);
+			if (!state) {
+				return undefined;
+			}
+			const value = state.read(reader);
+			// A pending subscription yields a canvas without an instance ID or source.
+			return value instanceof Error ? undefined : this._options.instantiationService.createInstance(AgentHostCanvas, canvasResource, value);
+		});
+		const keepAlive = recomputeInitiallyAndOnChange(canvas);
+		return { object: canvas, dispose: () => keepAlive.dispose() };
+	}
+
 }
 
 /**
@@ -3679,12 +3726,16 @@ class NewSession extends Disposable {
 	/** Untitled skeleton title used until the first request commits the session. */
 	get untitledTitle(): string { return this._kind.untitledTitle; }
 	setSelectedAgent(agent: ISessionAgentRef | undefined, source: ISessionAgentRef | undefined = agent): void {
+		if (source?.uri !== this._selectedAgentSource?.uri) {
+			this.agentModelPreferenceApplied = false;
+		}
 		this._selectedAgent = agent;
 		this._selectedAgentSource = source;
 		this._mode.set(agent ? { id: agent.uri, kind: AGENT_MODE_KIND } : undefined, undefined);
 	}
 
 	getSelectedAgent(): ISessionAgentRef | undefined { return this._selectedAgent; }
+	agentModelPreferenceApplied = false;
 	getSelectedAgentSource(): ISessionAgentRef | undefined { return this._selectedAgentSource ?? this._selectedAgent; }
 	getInitialSessionTemplate(): IAutomationSessionTemplate | undefined { return this._initialSessionTemplate; }
 	clearSelectedAgent(): void {
@@ -4687,7 +4738,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/** Backend chats active in a visible session, whose config subscriptions are held without an idle timer. */
 	private readonly _pinnedChatConfigs = new Set<string>();
 	private readonly _runningSessionConfigResolveSeq = new Map<string, number>();
-	private readonly _runningModelConfigurations = this._register(new DisposableMap<string, AutomationModelConfiguration>());
+	private readonly _runningModelConfigurations = this._register(new DisposableMap<string, DisposableMap<string, AutomationModelConfiguration>>());
 	/**
 	 * Model configuration a side chat inherited from its source chat's turn, keyed by chat
 	 * resource. Per chat rather than per session so it cannot change the session's other chats;
@@ -4851,6 +4902,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._languageModelsService.onDidChangeLanguageModels,
 			this._languageModelsService.onDidChangeModelVisibility,
 		), false, this._store);
+		this._register(this.onDidChangeModels(() => {
+			for (const draft of this._newSessions.values()) {
+				this._reconcileNewSessionAgent(draft);
+			}
+		}));
 		this._downloadProgress = this._register(this._instantiationService.createInstance(AgentHostDownloadProgress));
 		this._register(toDisposable(() => {
 			for (const cached of this._sessionCache.values()) {
@@ -6172,10 +6228,25 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return draft.modelConfiguration;
 		}
 		const rawId = this._sessionKeyFromChatId(sessionId);
-		if (!this._runningModelConfigurations.has(sessionId) && rawId && this._sessionCache.has(rawId)) {
-			this._runningModelConfigurations.set(sessionId, new AutomationModelConfiguration(this._languageModelsService));
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!cached) {
+			return undefined;
 		}
-		return this._runningModelConfigurations.get(sessionId);
+		const configurations = this._getRunningModelConfigurations(cached.sessionId);
+		const key = this._activeChatResource(cached).toString();
+		if (!configurations.has(key)) {
+			configurations.set(key, new AutomationModelConfiguration(this._languageModelsService));
+		}
+		return configurations.get(key);
+	}
+
+	private _getRunningModelConfigurations(sessionId: string): DisposableMap<string, AutomationModelConfiguration> {
+		let configurations = this._runningModelConfigurations.get(sessionId);
+		if (!configurations) {
+			configurations = new DisposableMap<string, AutomationModelConfiguration>();
+			this._runningModelConfigurations.set(sessionId, configurations);
+		}
+		return configurations;
 	}
 
 	async getAutomationSessionConfiguration(sessionId: string): Promise<IAutomationSessionConfiguration | undefined> {
@@ -7223,6 +7294,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._assertSessionAvailable(sessionId);
 		const newSession = this._getNewSession(sessionId);
 		if (newSession) {
+			if (source === ChatModelSource.Chosen && newSession.getSelectedAgent()) {
+				newSession.agentModelPreferenceApplied = true;
+			}
 			const previousModelId = newSession.getSelectedModelId();
 			if (previousModelId && previousModelId !== modelId) {
 				const resolution = this.getModelsSnapshot(sessionId, previousModelId).desiredModelResolution;
@@ -7271,8 +7345,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const connection = this.connection;
 		if (cached && rawId && connection) {
 			const chatResource = this._activeChatResource(cached);
+			const preference = agent && cached.getChatMode(chatResource)?.id !== agent.uri
+				? this._getAgentModelPreference(sessionId, chatResource, agent.uri, cached.getChatModelId(chatResource))
+				: undefined;
+			if (preference) {
+				if (preference.configuration) {
+					void this.getAutomationModelConfiguration(sessionId)?.setModelConfiguration(preference.model.identifier, preference.configuration, false)
+						.catch(error => this._logService.error(`[${this.id}] Failed to apply custom agent model configuration`, error));
+				}
+				cached.setChatModelId(chatResource, preference.model.identifier, ChatModelSource.Chosen);
+			}
 			cached.setChatAgent(chatResource, agent);
-			this._updateChatSessionState(chatResource, cached.getChatModelId(chatResource), agent?.uri).catch(err => this._logService.error(`[${this.id}] Failed to update chat model state for ${chatResource.toString()}`, err));
+			this._updateChatSessionState(chatResource, cached.getChatModelId(chatResource), agent?.uri, { modelConfiguration: preference?.configuration }).catch(err => this._logService.error(`[${this.id}] Failed to update chat model state for ${chatResource.toString()}`, err));
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
 	}
@@ -7330,7 +7414,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return newSession
 			? this._resolvePublishedDraftAgent(newSession,
 				selected && isEqual(URI.parse(selected.uri), URI.parse(uri)) ? newSession.getSelectedAgentSource() ?? { uri, name: '' } : { uri, name: '' }, published)
-			: published.find(agent => isEqual(URI.parse(agent.uri), URI.parse(uri)));
+			: published.find(agent => isEqual(URI.parse(agent.uri), URI.parse(uri)) || isEqual(this._toClientAgentUri(agent), URI.parse(uri)));
 	}
 
 	private _reconcileNewSessionAgent(newSession: NewSession): void {
@@ -7345,6 +7429,40 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (resolved && resolvedUri && !isEqual(resolvedUri, URI.parse(selected.uri))) {
 			newSession.setSelectedAgent({ uri: resolvedUri.toString(), name: resolved.name }, source);
 		}
+		if (!newSession.agentModelPreferenceApplied) {
+			const preference = this._getAgentModelPreference(newSession.sessionId, newSession.session.resource, source.uri, newSession.getSelectedModelId());
+			if (preference) {
+				// Apply once per agent choice, so later picker choices remain authoritative.
+				newSession.agentModelPreferenceApplied = true;
+				if (preference.configuration) {
+					void newSession.modelConfiguration.setModelConfiguration(preference.model.identifier, preference.configuration, false)
+						.catch(error => this._logService.error(`[${this.id}] Failed to apply custom agent model configuration`, error));
+				}
+				newSession.setSelectedModelId(preference.model.identifier, ChatModelSource.Chosen);
+			}
+		}
+	}
+
+	private _getAgentModelPreference(sessionId: string, chatResource: URI, uri: string, currentModelId: string | undefined) {
+		const agent = this.resolveCustomAgent(sessionId, uri) ?? this.getCustomAgents(sessionId).find(agent => agent.uri === uri);
+		if (!agent) {
+			return undefined;
+		}
+		const meta = readAgentCustomizationMeta(agent);
+		const preferences = meta['vscode.models'] ?? (agent.model ? [agent.model] : undefined);
+		const effort = meta['vscode.reasoningEffort'];
+		if (!preferences?.length && !effort) {
+			return undefined;
+		}
+		const models = this.getModelsSnapshot(sessionId, currentModelId, chatResource).models;
+		const model = preferences?.length ? resolveAgentModelPreference(preferences, models) : models.find(model => model.identifier === currentModelId);
+		if (!model) {
+			if (models.length > 0) {
+				this._logService.warn(`[${this.id}] Custom agent model preference is not available`);
+			}
+			return undefined;
+		}
+		return { model, configuration: resolveAgentReasoningEffort(effort, model.metadata) };
 	}
 
 	getCustomizations(sessionId: string): Customization[] {
@@ -7621,6 +7739,22 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(localize('closeCanvasUnavailable', "Closing canvases is unavailable for this session."));
 		}
 		await connection.closeSessionCanvas(target.session, { resource: canvas.resource }, target.chat);
+	}
+
+	observeCanvas(sessionId: string, chatResource: URI, canvasResource: URI): IReference<IObservable<ISessionCanvas | undefined>> {
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!cached || !this.getBackendChatResource(chatResource)) {
+			return { object: constObservable(undefined), dispose: () => { } };
+		}
+		return cached.observeCanvas(canvasResource);
+	}
+
+	observeChatCanvases(sessionId: string, chatResource: URI): IReference<IObservable<readonly ISessionCanvas[] | undefined>> | undefined {
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const backendChat = this.getBackendChatResource(chatResource);
+		return cached && backendChat ? cached.observeChatCanvases(backendChat) : undefined;
 	}
 
 	/** Resolves the host-supplied backend session and chat that a canvas operation addresses. */
@@ -8136,6 +8270,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// `cached.chats`.
 		this._keepSessionStateAlive(cached.sessionId);
 		await connection.disposeChat(ahpChatUri);
+		this._runningModelConfigurations.get(cached.sessionId)?.deleteAndDispose(chatUri.toString());
 		return true;
 	}
 
@@ -8567,7 +8702,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._carriedOverChatModelConfigurations.delete(chatResource.toString());
 		const selectedModelConfiguration = carriedOverConfiguration && carriedOverConfiguration.modelId === selectedModelId
 			? carriedOverConfiguration.configuration
-			: this._runningModelConfigurations.get(cached.sessionId)?.getModelConfigurationForRequest(selectedModelId);
+			: this._runningModelConfigurations.get(cached.sessionId)?.get(chatResource.toString())?.getModelConfigurationForRequest(selectedModelId);
 		const selectedAgentUri = cached.getChatMode(chatResource)?.id;
 
 		const sendOptions: IChatSendRequestOptions = {
@@ -8627,7 +8762,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return cached;
 	}
 
-	private async _updateChatSessionState(chatResource: URI, modelId: string | undefined, agentUri: string | undefined, options?: { readonly clearDraft?: boolean }): Promise<void> {
+	private async _updateChatSessionState(chatResource: URI, modelId: string | undefined, agentUri: string | undefined, options?: { readonly clearDraft?: boolean; readonly modelConfiguration?: IAutomationSessionTemplate['modelConfiguration'] }): Promise<void> {
 		const modelRef = await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
 		if (!modelRef) {
 			return;
@@ -8675,9 +8810,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (modelId) {
 			const languageModel = this._languageModelsService.lookupLanguageModel(modelId);
 			if (languageModel) {
+				const state = inputModel.state.get();
+				const existingConfiguration = state?.selectedModel?.identifier === modelId ? state.modelConfiguration : undefined;
 				inputModel.setState({
 					selectedModel: { identifier: modelId, metadata: languageModel },
-					modelConfiguration: options?.modelConfiguration,
+					modelConfiguration: options?.modelConfiguration ? { ...existingConfiguration, ...options.modelConfiguration } : existingConfiguration,
 				});
 			}
 		}
@@ -8905,7 +9042,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		modelConfiguration: IAutomationSessionTemplate['modelConfiguration'],
 	): void {
 		if (modelConfiguration !== undefined) {
-			this._runningModelConfigurations.set(committedAdapter.sessionId, new AutomationModelConfiguration(this._languageModelsService, {
+			this._getRunningModelConfigurations(committedAdapter.sessionId).set(committedAdapter.resource.toString(), new AutomationModelConfiguration(this._languageModelsService, {
 				modelId,
 				modelConfiguration,
 			}, true));
@@ -9325,7 +9462,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				if (model) {
 					if (model.config !== undefined) {
 						const modelId = `${cached.resource.scheme}:${model.id}`;
-						this._runningModelConfigurations.set(cached.sessionId, new AutomationModelConfiguration(this._languageModelsService, {
+						this._getRunningModelConfigurations(cached.sessionId).set(cached.resource.toString(), new AutomationModelConfiguration(this._languageModelsService, {
 							modelId,
 							modelConfiguration: model.config,
 						}, true));

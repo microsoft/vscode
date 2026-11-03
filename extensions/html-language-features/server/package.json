@@ -21,12 +21,12 @@
     "@types/node": "24.x"
   },
   "scripts": {
-    "compile": "npx gulp compile-extension:html-language-features-server",
-    "watch": "npx gulp watch-extension:html-language-features-server",
-    "install-service-next": "npm install vscode-css-languageservice@next && npm install vscode-html-languageservice@next",
-    "install-service-local": "npm install vscode-css-languageservice && npm install vscode-html-languageservice",
-    "install-server-next": "npm install vscode-languageserver@next",
-    "install-server-local": "npm install vscode-languageserver",
-    "test": "npm run compile && node ./test/index.js"
+    "compile": "pnpm exec gulp compile-extension:html-language-features-server",
+    "watch": "pnpm exec gulp watch-extension:html-language-features-server",
+    "install-service-next": "pnpm add vscode-css-languageservice@next && pnpm add vscode-html-languageservice@next",
+    "install-service-local": "pnpm add vscode-css-languageservice && pnpm add vscode-html-languageservice",
+    "install-server-next": "pnpm add vscode-languageserver@next",
+    "install-server-local": "pnpm add vscode-languageserver",
+    "test": "pnpm run compile && node ./test/index.js"
   }
 }

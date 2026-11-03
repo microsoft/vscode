@@ -350,7 +350,7 @@ At minimum:
 6. Test setup actions without executing them automatically.
 7. For cross-window examples, test cancellation, supersession, destination validation, and one-shot delivery.
 8. For native browser targets, verify the real `WebContentsView` is hidden behind overlays.
-9. Run the smallest relevant unit suites, layer validation for import changes, and `npm run build-fast` when broad product validation is appropriate.
+9. Run the smallest relevant unit suites, layer validation for import changes, and `pnpm run build-fast` when broad product validation is appropriate.
 10. Test that the feature's normal controls, commands, and automatic-tour targets work without registering its tryout adapter.
 11. Test broken availability providers, overlapping automatic tours, cancellation while waiting for presentation, and registration without initializing execution services.
 

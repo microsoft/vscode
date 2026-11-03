@@ -11,9 +11,9 @@ Automate VS Code Insiders with the Copilot Chat extension using `@playwright/cli
 
 ## Prerequisites
 
-- **`@playwright/cli` is available via devDependencies.** Run `npm install` at the repo root, then use `npx @playwright/cli` to invoke commands. Alternatively, install globally with `npm install -g @playwright/cli`.
+- **`@playwright/cli` is available via devDependencies.** Run `pnpm install` at the repo root, then use `npx @playwright/cli` to invoke commands. Alternatively, install globally with `npm install -g @playwright/cli`.
 - **`code-insiders` is required.** This extension uses 58 proposed VS Code APIs and targets `vscode ^1.110.0-20260223`. VS Code Stable will **not** activate it — you must use VS Code Insiders.
-- **The extension must be compiled first.** Use `npm run compile` for a one-shot build, or `npm run watch` for iterative development.
+- **The extension must be compiled first.** Use `pnpm run compile` for a one-shot build, or `pnpm run watch` for iterative development.
 - **CSS selectors are internal implementation details.** Selectors like `.interactive-input-part`, `.monaco-editor`, and `.view-line` are VS Code internals that may change across versions. If automation breaks after a VS Code update, re-snapshot and check for selector changes.
 
 ## Core Workflow
@@ -44,7 +44,7 @@ Automate VS Code Insiders with the Copilot Chat extension using `@playwright/cli
 
 ```bash
 # Build and launch with the extension
-npm run compile
+pnpm run compile
 # Use a PERSISTENT user-data-dir so auth state is preserved across sessions.
 # .vscode-ext-debug is relative to the project root — works in worktrees and is gitignored.
 code-insiders --extensionDevelopmentPath="$PWD" --remote-debugging-port=9223 --user-data-dir="$PWD/.vscode-ext-debug"
@@ -87,7 +87,7 @@ To debug a VS Code extension via npx @playwright/cli, launch VS Code Insiders wi
 
 ```bash
 # Build the extension first (from the repo root)
-npm run compile
+pnpm run compile
 
 # Launch VS Code Insiders with the extension and CDP
 # IMPORTANT: Use a persistent directory (not /tmp) so auth state is preserved.
@@ -129,7 +129,7 @@ npx @playwright/cli snapshot
 
 ```bash
 # 1. Recompile
-npm run compile
+pnpm run compile
 
 # 2. Kill the VS Code instance tied to this project's debug profile, then relaunch
 # macOS / Linux:
@@ -149,7 +149,7 @@ for i in 1 2 3 4 5; do npx @playwright/cli attach --cdp=http://127.0.0.1:9223 2>
 npx @playwright/cli snapshot
 ```
 
-> **Tip:** If you're iterating frequently, run `npm run watch` in a separate terminal so compilation happens automatically. You still need to kill and relaunch VS Code to load the new bundle.
+> **Tip:** If you're iterating frequently, run `pnpm run watch` in a separate terminal so compilation happens automatically. You still need to kill and relaunch VS Code to load the new bundle.
 
 ## Interacting with Monaco Editor (Chat Input, Code Editors)
 

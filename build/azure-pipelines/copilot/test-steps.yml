@@ -9,51 +9,51 @@ steps:
       azureSubscription: 'VS Code Development WIF'
       scriptType: 'bash'
       scriptLocation: 'inlineScript'
-      inlineScript: npm run setup
+      inlineScript: pnpm run setup
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Setup copilot test environment
     # The Azure login and secret fetch can fail transiently. `npm run setup`
     # replaces its .env entries by key, so a retry is safe.
     retryCountOnTaskFailure: 2
 
-  - script: npm run setup:dotnet
+  - script: pnpm run setup:dotnet
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Install dotnet cli
 
-  - script: npm run typecheck
+  - script: pnpm run typecheck
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Typecheck
 
-  - script: npm run lint
+  - script: pnpm run lint
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Lint
 
-  - script: npm run compile
+  - script: pnpm run compile
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Compile
 
-  - script: npm run test:unit
+  - script: pnpm run test:unit
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Run vitest unit tests
 
-  - script: npm run simulate-ci
+  - script: pnpm run simulate-ci
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Run simulation tests
 
   - ${{ if eq(parameters.runIntegrationTests, true) }}:
-    - script: xvfb-run -a npm run test:extension
+    - script: xvfb-run -a pnpm run test:extension
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
       displayName: Run extension tests
 
-  - script: npm run test:prompt
+  - script: pnpm run test:prompt
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Run prompt tests
 
   - ${{ if eq(parameters.runIntegrationTests, true) }}:
-    - script: xvfb-run -a npm run test:completions-core
+    - script: xvfb-run -a pnpm run test:completions-core
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
       displayName: Run completions core tests
 
-    - script: xvfb-run -a npm run test:sanity
+    - script: xvfb-run -a pnpm run test:sanity
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
       displayName: Run sanity tests

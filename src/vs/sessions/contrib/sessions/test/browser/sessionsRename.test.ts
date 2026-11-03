@@ -29,6 +29,8 @@ import { IChatEntitlementService } from '../../../../../workbench/services/chat/
 import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { ISessionsListPresentation, SessionNameKind } from '../../../../services/presentation/browser/sessionsListPresentation.js';
+import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -564,6 +566,97 @@ suite('Sessions rename', () => {
 				beforeFocus: undefined,
 				whileFocused: [session.sessionId],
 				afterBlur: undefined,
+			});
+		});
+	});
+
+	suite('list presentation', () => {
+		function createPresentationHarness() {
+			const baseSession = createTestSession('Session').session;
+			const mainChat = baseSession.mainChat.get();
+			const peerChat = new class extends mock<IChat>() {
+				override readonly resource = URI.parse('test-chat:///peer');
+				override readonly workspace = constObservable(undefined);
+				override readonly title = constObservable('Peer chat');
+				override readonly updatedAt = constObservable(new Date());
+				override readonly status = constObservable(SessionStatus.Completed);
+				override readonly description = constObservable(undefined);
+				override readonly interactivity = constObservable(ChatInteractivity.Full);
+				override readonly isArchived = constObservable(false);
+				override readonly isRead = constObservable(true);
+				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
+			}();
+			const session: ISession = { ...baseSession, chats: constObservable([mainChat, peerChat]) };
+			const group = { id: 'group', name: 'Group', createdAt: 1 };
+			const harness = createListHarness(disposables, [session], { groups: [group] });
+			const renamedGroups: { groupId: string; name: string }[] = [];
+			harness.instantiationService.stub(ISessionGroupsService, 'renameGroup', (groupId: string, name: string) => {
+				renamedGroups.push({ groupId, name });
+			});
+			const pending = new Map<SessionNameKind, (value: string) => void | Promise<void>>();
+			const editName: ISessionsListPresentation['editName'] = (kind, _value, _editInline, accept) => {
+				pending.set(kind, accept);
+				return true;
+			};
+			harness.instantiationService.stub(ISessionsListPresentation, 'editName', editName);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			list.createSubgroup(group.id);
+			list.beginRenameGroup(group.id);
+			list.beginRenameSession(session);
+			list.beginRenameChat({ session, chat: peerChat });
+
+			return {
+				list,
+				async accept(value: string) {
+					assert.deepStrictEqual([...pending.keys()], ['newGroup', 'group', 'session', 'chat']);
+					for (const complete of pending.values()) {
+						await complete(value);
+					}
+				},
+				snapshot: () => ({
+					createdGroups: harness.createdGroups,
+					renamedGroups,
+					renamedSessions: harness.managementService.renamed.map(({ title }) => title),
+					renamedChats: harness.managementService.renamedChats.map(({ title }) => title),
+				}),
+			};
+		}
+
+		for (const { label, input, expected } of [
+			{ label: 'trims surrounding whitespace', input: ' \tRenamed title \n ', expected: 'Renamed title' },
+			{ label: 'rejects whitespace-only renames and defaults new group names', input: ' \t\n ', expected: undefined },
+			{ label: 'rejects empty renames and defaults new group names', input: '', expected: undefined },
+		]) {
+			test(label, async () => {
+				const harness = createPresentationHarness();
+
+				await harness.accept(input);
+
+				assert.deepStrictEqual(harness.snapshot(), {
+					createdGroups: [{ name: expected ?? 'New Group', sessionIds: [], parentId: 'group' }],
+					renamedGroups: expected ? [{ groupId: 'group', name: expected }] : [],
+					renamedSessions: expected ? [expected] : [],
+					renamedChats: expected ? [expected] : [],
+				});
+			});
+		}
+
+		test('ignores prompted names after the list is disposed', async () => {
+			const harness = createPresentationHarness();
+			harness.list.dispose();
+
+			await harness.accept(' Renamed title ');
+
+			assert.deepStrictEqual(harness.snapshot(), {
+				createdGroups: [],
+				renamedGroups: [],
+				renamedSessions: [],
+				renamedChats: [],
 			});
 		});
 	});

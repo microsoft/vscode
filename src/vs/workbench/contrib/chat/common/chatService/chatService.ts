@@ -266,6 +266,8 @@ export interface IChatMarkdownContent {
 	kind: 'markdownContent';
 	content: IMarkdownString;
 	inlineReferences?: Record<string, IChatContentInlineReference>;
+	/** Structured metadata for a standalone file block synthesized by the annotation renderer. */
+	codeblockUri?: IChatResponseCodeblockUriPart;
 }
 
 export interface IChatTreeData {
@@ -437,6 +439,8 @@ export interface IChatResponseCodeblockUriPart {
 	isEdit?: boolean;
 	undoStopId?: string;
 	subAgentInvocationId?: string;
+	/** A file reference with no surrounding streamed Markdown code fence. */
+	isStandalone?: boolean;
 }
 
 export interface IChatAgentMarkdownContentWithVulnerability {

@@ -8,7 +8,7 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IChatMarkdownContent, IChatResponseCodeblockUriPart } from '../../../common/chatService/chatService.js';
+import { IChatMarkdownContent, IChatResponseCodeblockUriPart, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { annotateSpecialMarkdownContent, extractCodeblockUrisFromText, extractEditCodeblockUrisFromText, extractSubAgentInvocationIdFromText, extractVulnerabilitiesFromText, hasEditCodeblockUriTag, isInsideCodeContext } from '../../../common/widget/annotations.js';
 
 function content(str: string): IChatMarkdownContent {
@@ -17,6 +17,126 @@ function content(str: string): IChatMarkdownContent {
 
 suite('Annotations', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('standalone subagent metadata does not interrupt parent code or introduce marker text', () => {
+		const reference: IChatResponseCodeblockUriPart = { kind: 'codeblockUri', uri: URI.file('/workspace/child.ts'), isEdit: true, isStandalone: true, subAgentInvocationId: 'agent/" & %' };
+		const result = annotateSpecialMarkdownContent([
+			content('```ts\nconst value = '),
+			reference,
+			content('1;\n```'),
+		]);
+		assert.deepStrictEqual(result.map(part => part.kind === 'markdownContent' ? { text: part.content.value, metadata: part.codeblockUri } : undefined), [
+			{ text: '```ts\nconst value = 1;\n```', metadata: undefined },
+			{ text: '```\n\n```', metadata: reference },
+		]);
+	});
+
+	test('restored merged empty fences become independently attributed file blocks', () => {
+		const references: IChatResponseCodeblockUriPart[] = ['agent/one', 'agent-two', 'agent/one'].map((subAgentInvocationId, index) => ({
+			kind: 'codeblockUri', uri: URI.file(`/workspace/${index}.ts`), isEdit: true, subAgentInvocationId,
+		}));
+		const result = annotateSpecialMarkdownContent([content('```\n```\n\n```\n\n```\n'), ...references]);
+		assert.deepStrictEqual(result, references.map(codeblockUri => ({ ...content('```\n\n```'), codeblockUri })));
+	});
+
+	test('legacy scaffolding starts a new Markdown block after non-Markdown content', () => {
+		const references: IChatResponseCodeblockUriPart[] = [1, 2].map(index => ({
+			kind: 'codeblockUri', uri: URI.file(`/workspace/${index}.ts`), isEdit: true, subAgentInvocationId: 'agent',
+		}));
+		const result = annotateSpecialMarkdownContent([
+			content('I will delegate.'),
+			{ kind: 'progressMessage', content: new MarkdownString('Delegating') },
+			content('```\n'),
+			...references,
+			content('\n```\n\n'),
+		]);
+		assert.deepStrictEqual(result.filter(part => part.kind === 'markdownContent').map(part => ({ text: part.content.value, uri: part.codeblockUri?.uri.toString() })), [
+			{ text: 'I will delegate.', uri: undefined },
+			{ text: '```\n\n```', uri: 'file:///workspace/1.ts' },
+			{ text: '```\n\n```', uri: 'file:///workspace/2.ts' },
+		]);
+	});
+
+	test('legacy scaffolding spans nested tool calls without consuming trailing parent prose', () => {
+		const parentTool: IChatToolInvocationSerialized = {
+			kind: 'toolInvocationSerialized', toolId: 'task', toolCallId: 'agent', invocationMessage: 'Delegating',
+			presentation: undefined, originMessage: undefined, pastTenseMessage: undefined, source: undefined, isConfirmed: true, isComplete: true,
+		};
+		const references: IChatResponseCodeblockUriPart[] = [1, 2].map(index => ({
+			kind: 'codeblockUri', uri: URI.file(`/workspace/${index}.ts`), isEdit: true, subAgentInvocationId: 'agent',
+		}));
+		const result = annotateSpecialMarkdownContent([
+			content('Go.'), parentTool,
+			{ ...parentTool, toolId: 'edit', toolCallId: 'edit1', subAgentInvocationId: 'agent' },
+			content('```\n'),
+			{ kind: 'undoStop', id: 'edit1' }, references[0],
+			{ kind: 'textEditGroup', uri: references[0].uri, edits: [], state: undefined, done: true },
+			{ ...parentTool, toolId: 'edit', toolCallId: 'edit2', subAgentInvocationId: 'agent' },
+			{ kind: 'undoStop', id: 'edit2' }, references[1],
+			{ kind: 'notebookEditGroup', uri: references[1].uri, edits: [], state: undefined, done: true },
+			content('\n```\n\nDone.'),
+		]);
+		assert.deepStrictEqual(result.filter(part => part.kind === 'markdownContent').map(part => ({ text: part.content.value, uri: part.codeblockUri?.uri.toString() })), [
+			{ text: 'Go.', uri: undefined },
+			{ text: '```\n\n```', uri: 'file:///workspace/1.ts' },
+			{ text: '```\n\n```', uri: 'file:///workspace/2.ts' },
+			{ text: '\n\nDone.', uri: undefined },
+		]);
+	});
+
+	for (const realContent of [
+		{ kind: 'markdownVuln' as const, content: new MarkdownString('const actual = 42;'), vulnerabilities: [{ title: 'Test', description: 'Test vulnerability' }] },
+		{ kind: 'inlineReference' as const, inlineReference: URI.file('/workspace/actual.ts') },
+	]) {
+		test(`legacy scaffolding preserves structured ${realContent.kind} inside real code`, () => {
+			const child: IChatResponseCodeblockUriPart = { kind: 'codeblockUri', uri: URI.file('/workspace/child.ts'), isEdit: true, subAgentInvocationId: 'agent' };
+			const result = annotateSpecialMarkdownContent([content('```\n'), realContent, content('\n```\n\n```\n'), child]);
+			const code = result.find(part => part.kind === 'markdownContent' && !part.codeblockUri);
+			assert.ok(code?.kind === 'markdownContent');
+			assert.deepStrictEqual({
+				code: extractVulnerabilitiesFromText(code.content.value).newText.trim(),
+				child: result.filter(part => part.kind === 'markdownContent' && part.codeblockUri).map(part => part.kind === 'markdownContent' ? part.codeblockUri : undefined),
+			}, { code: `\`\`\`\n${realContent.kind === 'markdownVuln' ? 'const actual = 42;' : 'actual.ts'}\n\`\`\``, child: [child] });
+		});
+	}
+
+	test('legacy annotations preserve nonempty code and literal marker examples', () => {
+		const reference: IChatResponseCodeblockUriPart = { kind: 'codeblockUri', uri: URI.file('/workspace/child.ts'), isEdit: true, subAgentInvocationId: 'agent' };
+		const literal = '```html\n<vscode_codeblock_uri isEdit subAgentInvocationId="example">file:///example.ts</vscode_codeblock_uri>\n```';
+		const result = annotateSpecialMarkdownContent([content('```\n'), reference, content('\nconst value = 1;\n```')]);
+		assert.deepStrictEqual({
+			code: result.map(part => part.kind === 'markdownContent' ? part.content.value : ''),
+			literal: annotateSpecialMarkdownContent([content(literal)]),
+		}, {
+			code: ['```\n<vscode_codeblock_uri isEdit subAgentInvocationId="agent">file:///workspace/child.ts</vscode_codeblock_uri>\nconst value = 1;\n```'],
+			literal: [content(literal)],
+		});
+	});
+
+	for (const parentFirst of [true, false]) {
+		for (const newline of ['\n', '\r\n']) {
+			test(`legacy scaffolding preserves adjacent real code fences (parentFirst=${parentFirst}, newline=${JSON.stringify(newline)})`, () => {
+				const parent: IChatResponseCodeblockUriPart = { kind: 'codeblockUri', uri: URI.file('/workspace/parent.ts') };
+				const child: IChatResponseCodeblockUriPart = { kind: 'codeblockUri', uri: URI.file('/workspace/child.ts'), isEdit: true, subAgentInvocationId: 'agent' };
+				const markdown = (value: string) => content(value.replace(/\n/g, newline));
+				const result = annotateSpecialMarkdownContent(parentFirst
+					? [markdown('```ts\nconst real = 1;\n'), parent, markdown('\n```\n\n```\n'), child]
+					: [markdown('```\n'), child, markdown('\n```\n\n```\n'), parent, markdown('\nconst real = 1;\n```')]);
+				const code = result.find(part => part.kind === 'markdownContent' && !part.codeblockUri);
+				assert.ok(code?.kind === 'markdownContent');
+				const extracted = extractCodeblockUrisFromText(code.content.value);
+				assert.deepStrictEqual({
+					resource: extracted?.uri.toString(),
+					code: extracted?.textWithoutResult.replace(/\r\n/g, '\n').trim(),
+					child: result.filter(part => part.kind === 'markdownContent' && part.codeblockUri).map(part => part.kind === 'markdownContent' ? part.codeblockUri : undefined),
+				}, {
+					resource: parent.uri.toString(),
+					code: parentFirst ? '```ts\nconst real = 1;\n\n```' : '```\n\nconst real = 1;\n```',
+					child: [child],
+				});
+			});
+		}
+	}
 
 	test('extracts every edit resource without counting non-edit codeblocks', () => {
 		const first = URI.file('/workspace/First.ts');
@@ -88,7 +208,7 @@ suite('Annotations', function () {
 				isEdit: true,
 				subAgentInvocationId: subAgentId
 			};
-			const annotated = annotateSpecialMarkdownContent([content('code'), codeblockUriPart]);
+			const annotated = annotateSpecialMarkdownContent([content('```ts\nconst code = 1;\n'), codeblockUriPart]);
 			const markdown = annotated[0] as IChatMarkdownContent;
 
 			const result = extractSubAgentInvocationIdFromText(markdown.content.value);
@@ -102,7 +222,7 @@ suite('Annotations', function () {
 				uri,
 				isEdit: true
 			};
-			const annotated = annotateSpecialMarkdownContent([content('code'), codeblockUriPart]);
+			const annotated = annotateSpecialMarkdownContent([content('```ts\nconst code = 1;\n'), codeblockUriPart]);
 			const markdown = annotated[0] as IChatMarkdownContent;
 
 			const result = extractSubAgentInvocationIdFromText(markdown.content.value);
@@ -123,7 +243,7 @@ suite('Annotations', function () {
 				isEdit: true,
 				subAgentInvocationId: subAgentId
 			};
-			const annotated = annotateSpecialMarkdownContent([content('code'), codeblockUriPart]);
+			const annotated = annotateSpecialMarkdownContent([content('```ts\nconst code = 1;\n'), codeblockUriPart]);
 			const markdown = annotated[0] as IChatMarkdownContent;
 
 			const result = extractSubAgentInvocationIdFromText(markdown.content.value);
@@ -149,7 +269,7 @@ suite('Annotations', function () {
 				isEdit: true,
 				subAgentInvocationId: subAgentId
 			};
-			const annotated = annotateSpecialMarkdownContent([content('code'), codeblockUriPart]);
+			const annotated = annotateSpecialMarkdownContent([content('```ts\nconst code = 1;\n'), codeblockUriPart]);
 			const markdown = annotated[0] as IChatMarkdownContent;
 
 			const result = extractCodeblockUrisFromText(markdown.content.value);
@@ -177,7 +297,7 @@ suite('Annotations', function () {
 				isEdit: true,
 				subAgentInvocationId: subAgentId
 			};
-			const annotated = annotateSpecialMarkdownContent([content('code'), codeblockUriPart]);
+			const annotated = annotateSpecialMarkdownContent([content('```ts\nconst code = 1;\n'), codeblockUriPart]);
 			const markdown = annotated[0] as IChatMarkdownContent;
 
 			const extracted = extractCodeblockUrisFromText(markdown.content.value);

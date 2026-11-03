@@ -4494,14 +4494,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (part.kind !== 'markdownContent') {
 			return false;
 		}
-		return hasEditCodeblockUriTag(part.content.value);
+		return !!part.codeblockUri?.isEdit || hasEditCodeblockUriTag(part.content.value);
 	}
 
 	private isCodeblockComplete(part: IChatRendererContent, element: ChatTreeItem): boolean {
 		if (part.kind !== 'markdownContent') {
 			return true;
 		}
-		return !isResponseVM(element) || element.isComplete || codeblockHasClosingBackticks(part.content.value);
+		return !!part.codeblockUri || !isResponseVM(element) || element.isComplete || codeblockHasClosingBackticks(part.content.value);
 	}
 
 	// todo @justschen initially split up each of the checks to easily see what should be pinned/not pinned, we can probably consolidate this down by a lot once we're more confident in the logic.
@@ -6059,7 +6059,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const hasPendingEditCodeblock = isResponseVM(element) && !element.isComplete
 			&& hasCodeblockUriTag(markdown.content.value)
 			&& !codeblockHasClosingBackticks(markdown.content.value);
-		if (!this.hasEditCodeblockUri(markdown) && !isBlankMarkdown && !hasPendingEditCodeblock) {
+		if (!markdown.codeblockUri?.subAgentInvocationId && !this.hasEditCodeblockUri(markdown) && !isBlankMarkdown && !hasPendingEditCodeblock) {
 			this.finalizeCurrentThinkingPart(context, templateData);
 		}
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);
@@ -6118,14 +6118,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.handleRenderedCodeblocks(element, markdownPart, codeBlockStartIndex, templateData);
 		}
 
-		const collapsedToolsMode = this.getCollapsedToolsMode();
-		if (isResponseVM(context.element) && collapsedToolsMode !== CollapsedToolsDisplayMode.Off) {
-
-			// append to thinking part when the codeblock is complete
-			const isComplete = this.isCodeblockComplete(markdown, context.element);
-
-			// Check if this markdown should be routed to a subagent content part
-			const subAgentInvocationId = extractSubAgentInvocationIdFromText(markdown.content.value);
+		const isComplete = this.isCodeblockComplete(markdown, context.element);
+		if (isResponseVM(context.element)) {
+			const subAgentInvocationId = markdown.codeblockUri?.subAgentInvocationId ?? extractSubAgentInvocationIdFromText(markdown.content.value);
 			if (subAgentInvocationId) {
 				const subagentPart = this.getSubagentPart(templateData.renderedParts, subAgentInvocationId);
 				if (subagentPart && markdownPart?.domNode && isComplete) {
@@ -6138,12 +6133,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					const shim = this.renderNoContent(other =>
 						other.kind === 'markdownContent'
 						&& other.content.value === markdown.content.value
-						&& extractSubAgentInvocationIdFromText(other.content.value) === subAgentInvocationId);
+						&& (other.codeblockUri?.subAgentInvocationId ?? extractSubAgentInvocationIdFromText(other.content.value)) === subAgentInvocationId
+						&& other.codeblockUri === markdown.codeblockUri);
 					this.subagentEditItems.set(shim, { subagentPart, partId: markdownPart.codeblocksPartId });
 					return shim;
 				}
 			}
+		}
 
+		const collapsedToolsMode = this.getCollapsedToolsMode();
+		if (isResponseVM(context.element) && collapsedToolsMode !== CollapsedToolsDisplayMode.Off) {
 			const shouldPin = this.shouldPinPart(markdown, context.element);
 			if (markdownPart?.domNode && shouldPin && isComplete) {
 				// create thinking part if it doesn't exist yet
@@ -6388,7 +6387,7 @@ export function getWorkingProgressRelevantParts(parts: readonly IChatRendererCon
 		if (part.kind === 'hook' || part.kind === 'externalEdit') {
 			return !part.subAgentInvocationId;
 		}
-		return part.kind !== 'markdownContent' || !extractSubAgentInvocationIdFromText(part.content.value);
+		return part.kind !== 'markdownContent' || !(part.codeblockUri?.subAgentInvocationId ?? extractSubAgentInvocationIdFromText(part.content.value));
 	});
 }
 
@@ -6408,7 +6407,7 @@ function isNestedSubagentContent(part: IChatRendererContent): boolean {
 	if (part.kind === 'hook' || part.kind === 'externalEdit') {
 		return !!part.subAgentInvocationId;
 	}
-	return part.kind === 'markdownContent' && !!extractSubAgentInvocationIdFromText(part.content.value);
+	return part.kind === 'markdownContent' && !!(part.codeblockUri?.subAgentInvocationId ?? extractSubAgentInvocationIdFromText(part.content.value));
 }
 
 export function endsWithCompletedQuestionInteraction(parts: readonly IChatRendererContent[]): boolean {

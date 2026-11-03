@@ -357,6 +357,7 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 		renderCategoryTriggers(container: HTMLElement, triggers: readonly { readonly label?: string; readonly tooltip?: string; readonly icon?: { readonly id: string }; readonly attachesContext?: boolean; readonly clearable?: IObservable<boolean> }[]): HTMLElement;
 	};
 	_renderSessionTypePicker(container: HTMLElement, isQuickChat: boolean): void;
+	_renderPlaceRow(container: HTMLElement, chipRow: HTMLElement): IDisposable;
 	_workspacePickerRow: HTMLElement | undefined;
 	_workspaceSessionOptionsHost: HTMLElement | undefined;
 	readonly _sessionOptionsExpanded: ReturnType<typeof observableValue<boolean>>;
@@ -1420,6 +1421,7 @@ suite('NewChatWidget', () => {
 					sessionTypePicker: { render: () => { } },
 				},
 				_renderSessionTypePicker: () => { },
+				_renderPlaceRow: () => toDisposable(() => { }),
 				_workspacePickerRow: undefined,
 				_workspaceSessionOptionsHost: undefined,
 				_sessionOptionsExpanded: observableValue('expanded', true),
@@ -1534,6 +1536,13 @@ suite('NewChatWidget', () => {
 				},
 			},
 			_renderSessionTypePicker: (target, isQuickChat) => renderSessionTypePicker.call(harness, target, isQuickChat),
+			_renderPlaceRow: (target, chipRow) => {
+				const placeRow = document.createElement('div');
+				placeRow.className = 'sessions-new-session-place-row';
+				placeRow.textContent = 'Cloud';
+				target.insertBefore(placeRow, chipRow);
+				return toDisposable(() => placeRow.remove());
+			},
 			_workspacePickerRow: undefined,
 			_workspaceSessionOptionsHost: undefined,
 			_sessionOptionsExpanded: observableValue('sessionOptionsExpanded', false),
@@ -1567,6 +1576,7 @@ suite('NewChatWidget', () => {
 		const collapsedAgain = snapshot();
 
 		assert.deepStrictEqual({
+			placeRow: container.firstElementChild?.className,
 			workspace: harness._workspacePickerRow?.firstElementChild?.textContent,
 			items: Array.from(details.children, element => ({
 				label: element.textContent,
@@ -1580,6 +1590,7 @@ suite('NewChatWidget', () => {
 			controlsTarget: toggle.getAttribute('aria-controls') === details.id,
 			sameDetails: details === harness._workspaceSessionOptionsHost,
 		}, {
+			placeRow: 'sessions-new-session-place-row',
 			workspace: isWeb ? 'Select Repository' : 'Workspace',
 			items: [
 				{ label: 'WorktreeBranch', className: 'new-chat-repository-controls-host' },
