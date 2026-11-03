@@ -10,7 +10,7 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ITableColumn, ITableRenderer } from '../../../../base/browser/ui/table/table.js';
-import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
+import { Checkbox, TriStateCheckbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
@@ -29,7 +29,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { WorkbenchTable } from '../../../../platform/list/browser/listService.js';
+import { RawWorkbenchListFocusContextKey, WorkbenchTable } from '../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -95,8 +95,8 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	private readonly tableFocusElements = new WeakMap<WorkbenchTable<string>, HTMLElement>();
 	private readonly tableScrollables = new Map<WorkbenchTable<string>, DomScrollableElement>();
 	private readonly cellHoverOptions = { groupId: generateUuid() };
-	private selectAllCheckbox: Checkbox | undefined;
-	private forceSelectAllCheckbox: Checkbox | undefined;
+	private selectAllCheckbox: TriStateCheckbox | undefined;
+	private forceSelectAllCheckbox: TriStateCheckbox | undefined;
 	private forceSelectionRow: HTMLElement | undefined;
 	private forceCleanupButton: Button | undefined;
 	private readonly selectedForceSessionIds = new Set<string>();
@@ -256,45 +256,37 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			void this.cleanupSelected(candidates, candidates.some(worktree => this.canForceCleanup(worktree)) ? candidates : undefined);
 		}));
 
-		const selection = dom.$('.session-worktree-cleanup-select-all');
-		summaryRow.insertBefore(selection, this.cleanupButton.element);
-		const selectAll = this.selectAllCheckbox = this.editorDisposables.add(new Checkbox(
+		const selectAll = this.selectAllCheckbox = this.editorDisposables.add(new TriStateCheckbox(
 			localize('sessionWorktreeCleanup.selectAll', "Select all worktrees that can be cleaned up"),
 			false,
 			defaultCheckboxStyles,
 		));
-		selection.appendChild(selectAll.domNode);
-		const selectAllLabel = dom.append(selection, dom.$('span', undefined, localize('sessionWorktreeCleanup.selectAllLabel', "Select All")));
-		this.editorDisposables.add(dom.addDisposableListener(selectAllLabel, dom.EventType.CLICK, () => selectAll.domNode.click()));
 		this.editorDisposables.add(selectAll.onChange(() => {
 			const selectable = this.getVisibleWorktrees().filter(worktree => this.isManuallySelectable(worktree));
+			const checked = selectAll.checked === true;
 			for (const worktree of selectable) {
-				this.explicitSelections.set(getWorktreeCleanupId(worktree), selectAll.checked);
+				this.explicitSelections.set(getWorktreeCleanupId(worktree), checked);
 			}
-			this.selectedSessionIds = selectAll.checked ? new Set(selectable.map(worktree => getWorktreeCleanupId(worktree))) : new Set();
+			this.selectedSessionIds = checked ? new Set(selectable.map(worktree => getWorktreeCleanupId(worktree))) : new Set();
 			this.renderRows();
 		}));
 		this.list = dom.append(content, dom.$('.session-worktree-cleanup-list'));
-		this.mainWorktreeTable = this.createWorktreeTable(this.list, localize('sessionWorktreeCleanup.tableLabel', "Agent session worktrees"));
+		this.mainWorktreeTable = this.createWorktreeTable(this.list, localize('sessionWorktreeCleanup.tableLabel', "Agent session worktrees"), selectAll);
 		if (this.progressSection) {
 			this.list.after(this.progressSection);
 		}
 		this.unavailableSection = dom.append(content, dom.$<HTMLDetailsElement>('details.session-worktree-cleanup-unavailable.hidden'));
 		this.unavailableSummary = dom.append(this.unavailableSection, dom.$('summary'));
 		this.forceSelectionRow = dom.append(this.unavailableSection, dom.$('.session-worktree-cleanup-summary-row'));
-		const forceSelection = dom.append(this.forceSelectionRow, dom.$('.session-worktree-cleanup-select-all'));
-		const forceSelectAll = this.forceSelectAllCheckbox = this.editorDisposables.add(new Checkbox(
+		const forceSelectAll = this.forceSelectAllCheckbox = this.editorDisposables.add(new TriStateCheckbox(
 			localize('sessionWorktreeCleanup.forceSelectAll', "Select all worktrees that can be forcibly removed in Needs attention"),
 			false,
 			defaultCheckboxStyles,
 		));
-		forceSelection.appendChild(forceSelectAll.domNode);
-		const forceSelectAllLabel = dom.append(forceSelection, dom.$('span', undefined, localize('sessionWorktreeCleanup.selectAllLabel', "Select All")));
-		this.editorDisposables.add(dom.addDisposableListener(forceSelectAllLabel, dom.EventType.CLICK, () => forceSelectAll.domNode.click()));
 		this.editorDisposables.add(forceSelectAll.onChange(() => {
 			for (const worktree of this.getVisibleWorktrees().filter(worktree => this.canForceCleanup(worktree))) {
 				const id = getWorktreeCleanupId(worktree);
-				if (forceSelectAll.checked) {
+				if (forceSelectAll.checked === true) {
 					this.selectedForceSessionIds.add(id);
 				} else {
 					this.selectedForceSessionIds.delete(id);
@@ -313,7 +305,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			this.updateScrollDimensions();
 		}));
 		this.unavailableList = dom.append(this.unavailableSection, dom.$('.session-worktree-cleanup-list.session-worktree-cleanup-unavailable-list'));
-		this.unavailableWorktreeTable = this.createWorktreeTable(this.unavailableList, localize('sessionWorktreeCleanup.unavailableTableLabel', "Worktrees needing attention"));
+		this.unavailableWorktreeTable = this.createWorktreeTable(this.unavailableList, localize('sessionWorktreeCleanup.unavailableTableLabel', "Worktrees needing attention"), forceSelectAll);
 		this.emptyState = dom.append(content, dom.$('.session-worktree-cleanup-empty', { role: 'status' }));
 		const emptyStateIcon = dom.append(this.emptyState, renderIcon(Codicon.info));
 		emptyStateIcon.setAttribute('aria-hidden', 'true');
@@ -563,7 +555,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		}
 	}
 
-	private createWorktreeTable(container: HTMLElement, label: string): WorkbenchTable<string> {
+	private createWorktreeTable(container: HTMLElement, label: string, selectAll?: TriStateCheckbox): WorkbenchTable<string> {
 		const columns: (ITableColumn<string, string> & { templateId: WorktreeColumn })[] = [
 			{ label: '', weight: 0, minimumWidth: 40, maximumWidth: 40, templateId: 'selection', project: sessionId => sessionId },
 			{ label: localize('sessionWorktreeCleanup.sessionColumn', "Session"), weight: 0.4, minimumWidth: 140, templateId: 'title', project: sessionId => sessionId },
@@ -597,6 +589,14 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 				alwaysConsumeMouseWheel: false,
 			},
 		));
+		if (selectAll) {
+			// eslint-disable-next-line no-restricted-syntax -- Table does not expose a header renderer.
+			const selectionHeader = table.getHTMLElement().querySelector<HTMLElement>('.monaco-table-th[data-col-index="0"]')!;
+			selectionHeader.classList.add('session-worktree-cleanup-select-all');
+			const headerContext = this.editorDisposables.add(this.contextKeyService.createScoped(selectionHeader));
+			RawWorkbenchListFocusContextKey.bindTo(headerContext).set(false);
+			selectionHeader.appendChild(selectAll.domNode);
+		}
 		this.tableScrollables.set(table, scrollable);
 		this.editorDisposables.add(table.onDidFocus(() => {
 			const activeElement = dom.getActiveElement();
@@ -830,7 +830,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		if (this.summaryMessage.textContent !== summary) {
 			this.summaryMessage.textContent = summary;
 		}
-		this.selectAllCheckbox.checked = selectable.length > 0 && selectable.every(worktree => this.selectedSessionIds.has(getWorktreeCleanupId(worktree)));
 		if (selectable.length === 0) {
 			this.selectAllCheckbox.disable();
 		} else {
@@ -1019,10 +1018,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		}
 
 		this.renderWorktreeCells(worktree);
-		if (this.selectAllCheckbox) {
-			const selectable = this.getVisibleWorktrees().filter(worktree => this.isManuallySelectable(worktree));
-			this.selectAllCheckbox.checked = selectable.length > 0 && selectable.every(worktree => this.selectedSessionIds.has(getWorktreeCleanupId(worktree)));
-		}
 		this.updateCleanupButton();
 		this.updateScrollDimensions();
 	}
@@ -1188,7 +1183,17 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		}
 	}
 
+	private updateSelectAllCheckbox(checkbox: TriStateCheckbox, selectable: readonly ISessionWorktree[], selectedIds: ReadonlySet<string>): void {
+		const selectedCount = selectable.filter(worktree => selectedIds.has(getWorktreeCleanupId(worktree))).length;
+		const state = selectedCount === 0 ? false : selectedCount === selectable.length ? true : 'mixed';
+		checkbox.checked = state;
+		checkbox.domNode.setAttribute('aria-checked', String(state));
+	}
+
 	private updateCleanupButton(): void {
+		if (this.selectAllCheckbox) {
+			this.updateSelectAllCheckbox(this.selectAllCheckbox, this.getVisibleWorktrees().filter(worktree => this.isManuallySelectable(worktree)), this.selectedSessionIds);
+		}
 		if (this.forceCleanupButton && this.forceSelectAllCheckbox) {
 			const selectable = this.getVisibleWorktrees().filter(worktree => this.canForceCleanup(worktree));
 			const selected = this.getSelectedForForceCleanup();
@@ -1199,7 +1204,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 					? localize('sessionWorktreeCleanup.forceRemoveOne', "Force Remove 1 Worktree")
 					: localize('sessionWorktreeCleanup.forceRemoveMany', "Force Remove {0} Worktrees", count);
 			this.forceCleanupButton.enabled = !this.isSchedulingCleanup && count > 0;
-			this.forceSelectAllCheckbox.checked = selectable.length > 0 && selected.length === selectable.length;
+			this.updateSelectAllCheckbox(this.forceSelectAllCheckbox, selectable, this.selectedForceSessionIds);
 			if (selectable.length === 0 || this.isSchedulingCleanup) {
 				this.forceSelectAllCheckbox.disable();
 			} else {
