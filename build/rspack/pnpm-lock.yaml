@@ -24,13 +24,6 @@ importers:
       '@rspack/dev-server':
         specifier: ^2.1.0
         version: 2.1.0(@rspack/core@2.1.2)
-      '@vscode/esm-url-webpack-plugin':
-        specifier: ^1.0.1-3
-        version: 1.0.1-5
-      source-map-loader:
-        specifier: ^5.0.0
-        version: 5.0.0
-
 packages:
 
   '@emnapi/core@1.11.1':
@@ -168,11 +161,6 @@ packages:
   '@vscode/component-explorer@0.2.1-161':
     resolution: {integrity: sha512-uu77irXrCz+WB/A8Pt9liKu7VZd+QAICfzeFInAgfOzGN1nFud4J7V9pb1A7uwNmAgIIcL6tX0MNpC4p8KuINg==}
 
-  '@vscode/esm-url-webpack-plugin@1.0.1-5':
-    resolution: {integrity: sha512-XnPSKzCW1Lti9pfc/qAvXwlp7gbFGGJmtXiurzqRrWJS8cm/g87dDoSbh45eioynUSDR6EwCW/kFbKmIR54RhQ==}
-    peerDependencies:
-      webpack: ^5.0.0
-
   fdir@6.5.0:
     resolution: {integrity: sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg==}
     engines: {node: '>=12.0.0'}
@@ -181,10 +169,6 @@ packages:
     peerDependenciesMeta:
       picomatch:
         optional: true
-
-  iconv-lite@0.6.3:
-    resolution: {integrity: sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw==}
-    engines: {node: '>=0.10.0'}
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
@@ -206,21 +190,8 @@ packages:
     resolution: {integrity: sha512-wS+hAgJShR0KhEvPJArfuPVN1+Hz1t0Y6n5jLrGQbkb4urgPE/0Rve+1kMB1v/oWgHgm4WIcV+i7F2pTVj+2iQ==}
     engines: {node: '>=0.10.0'}
 
-  safer-buffer@2.1.2:
-    resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
-
   scheduler@0.23.2:
     resolution: {integrity: sha512-UOShsPwz7NrMUqhR6t0hWjFduvOzbtv7toDH1/hIrfRNIDBnnBWd0CwJTGvTpngVlmwGCdP9/Zl/tVrDqcuYzQ==}
-
-  source-map-js@1.2.2:
-    resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
-    engines: {node: '>=0.10.0'}
-
-  source-map-loader@5.0.0:
-    resolution: {integrity: sha512-k2Dur7CbSLcAH73sBcIkV5xjPV4SzqO1NJ7+XaQl8if3VODDUj3FNchNGpqgJSKbvUfJuhVdv8K2Eu8/TNl2eA==}
-    engines: {node: '>= 18.12.0'}
-    peerDependencies:
-      webpack: ^5.72.1
 
   tinyglobby@0.2.16:
     resolution: {integrity: sha512-pn99VhoACYR8nFHhxqix+uvsbXineAasWm5ojXoN8xEwK5Kd3/TrhNn1wByuD52UxWRLy8pu+kRMniEi6Eq9Zg==}
@@ -347,15 +318,9 @@ snapshots:
       react-dom: 18.3.1(react@18.3.1)
       zod: 4.4.3
 
-  '@vscode/esm-url-webpack-plugin@1.0.1-5': {}
-
   fdir@6.5.0(picomatch@4.0.4):
     optionalDependencies:
       picomatch: 4.0.4
-
-  iconv-lite@0.6.3:
-    dependencies:
-      safer-buffer: 2.1.2
 
   js-tokens@4.0.0: {}
 
@@ -375,18 +340,9 @@ snapshots:
     dependencies:
       loose-envify: 1.4.0
 
-  safer-buffer@2.1.2: {}
-
   scheduler@0.23.2:
     dependencies:
       loose-envify: 1.4.0
-
-  source-map-js@1.2.2: {}
-
-  source-map-loader@5.0.0:
-    dependencies:
-      iconv-lite: 0.6.3
-      source-map-js: 1.2.2
 
   tinyglobby@0.2.16:
     dependencies:

@@ -38,12 +38,6 @@ importers:
       '@malept/cross-spawn-promise':
         specifier: ^2.0.0
         version: 2.0.0
-      '@types/ansi-colors':
-        specifier: ^3.2.0
-        version: 3.2.0
-      '@types/byline':
-        specifier: ^4.2.32
-        version: 4.2.32
       '@types/debounce':
         specifier: ^1.0.0
         version: 1.0.0
@@ -53,9 +47,6 @@ importers:
       '@types/fancy-log':
         specifier: ^1.3.0
         version: 1.3.0
-      '@types/fs-extra':
-        specifier: ^9.0.12
-        version: 9.0.13
       '@types/glob':
         specifier: ^7.1.1
         version: 7.1.1
@@ -143,9 +134,6 @@ importers:
       ansi-colors:
         specifier: ^3.2.3
         version: 3.2.4
-      byline:
-        specifier: ^5.0.0
-        version: 5.0.0
       debug:
         specifier: ^4.3.2
         version: 4.4.3
@@ -575,12 +563,6 @@ packages:
   '@textlint/types@15.7.1':
     resolution: {integrity: sha512-Vye/GmFNBTgVzZFtIFJTmLB+s2A7oIADxNG6r9UhfPuY+Czv0z5G3xeyFZZudPlfxURsKUyPIU5XsjOFqVp33A==}
 
-  '@types/ansi-colors@3.2.0':
-    resolution: {integrity: sha512-0caWAhXht9N2lOdMzJLXybsSkYCx1QOdxx6pae48tswI9QV3DFX26AoOpy0JxwhCb+zISTqmd6H8t9Zby9BoZg==}
-
-  '@types/byline@4.2.32':
-    resolution: {integrity: sha512-qtlm/J6XOO9p+Ep/ZB5+mCFEDhzWDDHWU4a1eReN7lkPZXW9rkloq2jcAhvKKmlO5tL2GSvKROb+PTsNVhBiyQ==}
-
   '@types/cacheable-request@6.0.3':
     resolution: {integrity: sha512-IQ3EbTzGxIigb1I3qPZc1rWJnH0BmSKv5QYTalEwweFvyBDLSAe24zP0le/hyi7ecGfZVlIVAg4BZqb8WBwKqw==}
 
@@ -598,9 +580,6 @@ packages:
 
   '@types/fancy-log@1.3.0':
     resolution: {integrity: sha512-mQjDxyOM1Cpocd+vm1kZBP7smwKZ4TNokFeds9LV7OZibmPJFEzY3+xZMrKfUdNT71lv8GoCPD6upKwHxubClw==}
-
-  '@types/fs-extra@9.0.13':
-    resolution: {integrity: sha512-nEnwB++1u5lVDM2UI4c1+5R+FYaKfaAzS4OococimjVm3nQw3TuzH5UNsocrcTBbhnerblyHj4A49qXbIiZdpA==}
 
   '@types/glob-stream@6.1.0':
     resolution: {integrity: sha512-RHv6ZQjcTncXo3thYZrsbAVwoy4vSKosSWhuhuQxLOTv74OJuFQxXkmUuZCr3q9uNBEVCvIzmZL/FeRNbHZGUg==}
@@ -924,10 +903,6 @@ packages:
   bundle-name@4.1.0:
     resolution: {integrity: sha512-tjwM5exMg6BGRI+kNmTntNsvdZS1X8BFYS6tnJ2hdH0kVxM6/eVZ2xy+FqStSWvYmtfFMDLIxurorHwDKfDz5Q==}
     engines: {node: '>=18'}
-
-  byline@5.0.0:
-    resolution: {integrity: sha512-s6webAy+R4SR8XVuJWt2V2rGvhnrhxN+9S15GNuTK3wKPOXFF6RNc+8ug2XhH+2s4f+uudG4kUVYmYOQWL2g0Q==}
-    engines: {node: '>=0.10.0'}
 
   cacheable-lookup@5.0.4:
     resolution: {integrity: sha512-2/kNscPhpcxrOigMZzbiWF7dz8ilhb/nIHU3EyZiXWXpeq/au8qJ8VhdftMkty3n7Gj6HIGalQG8oiBNB3AJgA==}
@@ -2702,12 +2677,6 @@ snapshots:
     dependencies:
       '@textlint/ast-node-types': 15.7.1
 
-  '@types/ansi-colors@3.2.0': {}
-
-  '@types/byline@4.2.32':
-    dependencies:
-      '@types/node': 24.12.4
-
   '@types/cacheable-request@6.0.3':
     dependencies:
       '@types/http-cache-semantics': 4.0.4
@@ -2726,10 +2695,6 @@ snapshots:
   '@types/expect@1.20.4': {}
 
   '@types/fancy-log@1.3.0': {}
-
-  '@types/fs-extra@9.0.13':
-    dependencies:
-      '@types/node': 24.12.4
 
   '@types/glob-stream@6.1.0':
     dependencies:
@@ -3098,8 +3063,6 @@ snapshots:
   bundle-name@4.1.0:
     dependencies:
       run-applescript: 7.1.0
-
-  byline@5.0.0: {}
 
   cacheable-lookup@5.0.4: {}
 
