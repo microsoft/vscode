@@ -197,6 +197,12 @@ export interface IAgentChatHistoryChange {
 /** Returns the candidate session URI keys already present in the host registry. */
 export type IAgentKnownSessionsFilter = (sessions: readonly URI[]) => Promise<ReadonlySet<string>>;
 
+/** Options for {@link IAgent.startChatDiscovery}. */
+export interface IAgentChatDiscoveryOptions {
+	/** The host's startup-frozen gate for publishing adoptable legacy chats. */
+	readonly migrateLegacyChats: boolean;
+}
+
 /** Lightweight ordered chat metadata for session-list presentation. */
 export interface IAgentSessionChatMetadata {
 	readonly chat: URI;
@@ -288,6 +294,7 @@ export interface IAgentMaterializeChatEvent {
 }
 
 export type AgentProvider = string;
+export type AgentSandboxCertificateOperation = 'install' | 'rotate' | 'remove';
 
 export interface IAgentPluginUninstallRequest {
 	readonly name: string;
@@ -1925,12 +1932,16 @@ export interface IAgent {
 	 * stoppable. Resolves false when the entry is unknown or had already finished.
 	 */
 	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
+	/** Manages the host's sandbox CA from saved runtime settings without creating a chat. */
+	manageHostSandboxCertificate?(operation: AgentSandboxCertificateOperation): Promise<void>;
 	/** Installs the live chat runtime's sandbox certificate after explicit client consent, preserving the advertised chat string. */
 	installSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 	/** Replaces the live runtime's sandbox CA after explicit client consent. */
 	rotateSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 	/** Removes OS trust for the live runtime's sandbox CA after explicit client consent, retaining the stored CA. */
 	removeSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
+	/** Rechecks the live runtime without changing trust and publishes updated certificate diagnostics. */
+	refreshSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 
 	/**
 	 * Changes the working directory of an exact chat's existing provider-native
@@ -2025,8 +2036,12 @@ export interface IAgent {
 	 */
 	watchChatBackgroundWork?(chat: URI, published: () => readonly BackgroundWork[]): IDisposable;
 
-	/** Starts provider-owned native chat discovery; repeated calls are idempotent. */
-	startChatDiscovery?(): Promise<void>;
+	/**
+	 * Starts provider-owned native chat discovery; repeated calls are idempotent.
+	 * The host passes its own startup-frozen legacy-migration gate so discovery
+	 * and listing always agree on whether legacy chats are adoptable.
+	 */
+	startChatDiscovery?(options?: IAgentChatDiscoveryOptions): Promise<void>;
 
 	/** Lets discovery drop registered candidates before per-session I/O. */
 	setKnownSessionsFilter?(filter: IAgentKnownSessionsFilter): void;
@@ -2035,6 +2050,13 @@ export interface IAgent {
 
 	/** Optional adoption hook for providers with a predecessor-owned on-disk format. */
 	ensureChatAdopted?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult>;
+
+	/**
+	 * The worktree a predecessor recorded for a session it still owns (one not
+	 * adopted yet), so deleting the session removes it as the predecessor's
+	 * delete did. `undefined` once the session has Agent Host metadata.
+	 */
+	readLegacyChatWorktree?(session: URI): Promise<IAgentAdoptedWorktree | undefined>;
 
 	/** Optional recovery hook for providers with historical backings but no persisted provider data. */
 	recoverLegacyChat?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult | void>;

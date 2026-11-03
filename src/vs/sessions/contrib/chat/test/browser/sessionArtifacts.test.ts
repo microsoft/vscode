@@ -264,7 +264,7 @@ suite('Session Artifacts', () => {
 	}
 
 	test('adds generated images to the artifacts pill as the tool completes and opens the originating conversation', async () => {
-		const { presentation, chat, chatModels, openedImages } = createPresentation([]);
+		const { presentation, chat, chatModels, openedImages, telemetryEvents } = createPresentation([]);
 		const resource = chat.get()!.resource;
 		const { model, invocation } = createImageModel(resource);
 		chatModels.set([model], undefined);
@@ -291,11 +291,13 @@ suite('Session Artifacts', () => {
 				sessionResource: opened.options?.sessionResource,
 				additionalImages: opened.options?.additionalImages?.map(image => ({ uri: image.uri, mimeType: image.mimeType })),
 			})),
+			telemetry: telemetryEvents.map(event => (event.data as { itemSource?: string }).itemSource),
 		}, {
 			before: 0,
 			images: [{ resource: imageUri, removable: false }],
 			references: [],
 			opened: [{ resource: imageUri, sessionResource: resource, additionalImages: [{ uri: imageUri, mimeType: 'image/png' }] }],
+			telemetry: ['generatedImage'],
 		});
 	});
 
@@ -748,17 +750,21 @@ suite('Session Artifacts', () => {
 			{
 				name: 'agents/sessionArtifactOpen',
 				data: {
+					surface: 'agentsWindow',
 					agentSessionId: hashSessionIdForTelemetry('provider:session'),
 					itemCategory: 'artifact',
 					itemKind: 'file',
+					itemSource: 'recorded',
 				},
 			},
 			{
 				name: 'agents/sessionArtifactOpen',
 				data: {
+					surface: 'agentsWindow',
 					agentSessionId: hashSessionIdForTelemetry('provider:session'),
 					itemCategory: 'reference',
 					itemKind: 'website',
+					itemSource: 'recorded',
 				},
 			},
 		]);

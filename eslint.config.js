@@ -151,6 +151,15 @@ export default defineConfig(
 			]
 		},
 	},
+	{
+		files: [
+			'src/vs/workbench/**/*.ts',
+			'src/vs/sessions/**/*.ts',
+		],
+		rules: {
+			'local/code-agent-host-uri-mapping': 'error',
+		},
+	},
 	// Production filesystem operations must not block the event loop.
 	{
 		files: [

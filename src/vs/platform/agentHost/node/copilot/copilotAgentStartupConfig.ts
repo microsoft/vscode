@@ -11,9 +11,6 @@ export class CopilotAgentStartupConfig {
 	constructor(
 		readonly rubberDuck: boolean,
 		readonly claudeAdvisor: boolean,
-		readonly hydraFusion: boolean,
-		readonly hydraFusionV2: boolean,
-		readonly hydraFusionMultiRoot: boolean,
 		readonly localMemory: boolean,
 		readonly skillCharBudget: number,
 		readonly copilotSdkLogLevel: CopilotSdkLogLevelSetting,
@@ -30,7 +27,6 @@ export class CopilotAgentStartupConfig {
 		readonly localModel = false,
 		readonly executionSubagent = false,
 		readonly executionSubagentModel = DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL,
-		readonly dynamicAutoTiers = false,
 		/** `chat.agentHost.computerUse.enabled`: built-in plugins can only be registered before any session exists. */
 		readonly computerUse = false,
 	) { }

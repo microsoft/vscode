@@ -713,6 +713,8 @@ const ALWAYS_CHECKED_EDIT_PATTERNS: Readonly<Record<string, boolean>> = {
 	'**/.mcp.json': false,
 	'**/.npmrc': false,
 	'**/.vscode/*.json': false,
+	'**/.github/copilot/settings.json': false,
+	'**/.github/copilot/settings.local.json': false,
 	// Markdown files in these folders are loaded as custom agents; their
 	// frontmatter can declare a `hooks:` block that runs shell commands during
 	// the agent lifecycle, so writing them must always be confirmed.
@@ -823,12 +825,9 @@ export function makeUriConfirmationChecker(configuration: IConfigurationService,
 				// Ensure patterns have proper glob prefix to match within workspace
 				const normalizedPattern = pattern.startsWith('**/') || pattern.startsWith('/') ? pattern : '**/' + pattern;
 				hookFilesPatterns[normalizedPattern] = false;
-				// If the pattern looks like a folder (no file extension), also match JSON files within it
-				const lastSegment = normalizedPattern.split('/').pop() || '';
-				if (!lastSegment.includes('.')) {
-					const folderJsonPattern = normalizedPattern.endsWith('/') ? normalizedPattern + '*.json' : normalizedPattern + '/*.json';
-					hookFilesPatterns[folderJsonPattern] = false;
-				}
+				// Locations can be directories regardless of their filename suffix.
+				const folderJsonPattern = normalizedPattern.endsWith('/') ? normalizedPattern + '*.json' : normalizedPattern + '/*.json';
+				hookFilesPatterns[folderJsonPattern] = false;
 			}
 		}
 	}

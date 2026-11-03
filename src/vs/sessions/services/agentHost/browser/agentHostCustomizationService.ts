@@ -80,6 +80,7 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		}
 		return {
 			backendSession,
+			clientId: provider.getClientId?.(),
 			customizations: provider.getCustomizations(session.sessionId),
 			resourceUris: {
 				fromAgentHost: resource => provider.mapAgentHostResource(resource),

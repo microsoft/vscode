@@ -33,6 +33,7 @@ import { IPickedSessionType, IPreferredSessionType } from '../../browser/session
 import { NewChatWidget, shouldShowNewSessionChatTip } from '../../browser/newChatWidget.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
@@ -356,6 +357,7 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 		renderCategoryTriggers(container: HTMLElement, triggers: readonly { readonly label?: string; readonly tooltip?: string; readonly icon?: { readonly id: string }; readonly attachesContext?: boolean; readonly clearable?: IObservable<boolean> }[]): HTMLElement;
 	};
 	_renderSessionTypePicker(container: HTMLElement, isQuickChat: boolean): void;
+	_renderPlaceRow(container: HTMLElement, chipRow: HTMLElement): IDisposable;
 	_workspacePickerRow: HTMLElement | undefined;
 	_workspaceSessionOptionsHost: HTMLElement | undefined;
 	readonly _sessionOptionsExpanded: ReturnType<typeof observableValue<boolean>>;
@@ -371,14 +373,18 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 
 interface ISelectNoWorkspaceHarness {
 	readonly _preserveCustomView?: boolean;
+	readonly _session?: IObservable<IActiveSession | undefined>;
+	readonly sessionsManagementService?: Pick<ISessionsManagementService, 'createQuickChat'>;
 	readonly _environment: IObservable<ISessionCreationEnvironment | undefined>;
 	readonly _workspaceOptOutTarget: IObservable<ICreateNewSessionOptions | undefined>;
 	readonly _pendingPreferredUpgrade: MutableDisposable<IDisposable>;
 	readonly _newSessionCreation: MutableDisposable<IDisposable>;
 	readonly _workspacePicker: { selectNoWorkspace(userSelection?: boolean): void };
 	readonly sessionsService: { openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean, preserveFocus?: boolean): { readonly sessionId: string } };
-	readonly logService: { trace(message: string): void };
+	readonly logService: Pick<ILogService, 'trace' | 'error'>;
 	_openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): { readonly sessionId: string } | undefined;
+	_createQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): { readonly sessionId: string } | undefined;
+	_reconcileWorkspaceEnvironment?(options: { providerId: string }): void;
 }
 
 interface INoWorkspaceOptionHarness {
@@ -453,6 +459,7 @@ const noIconOnlyPickers: IRenderWorkspacePickerHarness['_iconOnlyPickers'] = {
 const renderSessionTypePicker = Reflect.get(NewChatWidget.prototype, '_renderSessionTypePicker') as (this: IRenderSessionTypePickerHarness, container: HTMLElement, isQuickChat: boolean) => void;
 const selectNoWorkspace = NewChatWidget.prototype.selectNoWorkspace as (this: ISelectNoWorkspaceHarness, options?: ICreateNewSessionOptions, selectionOptions?: ISelectNoWorkspaceOptions) => void;
 const openQuickChat = Reflect.get(NewChatWidget.prototype, '_openQuickChat') as ISelectNoWorkspaceHarness['_openQuickChat'];
+const createQuickChat = Reflect.get(NewChatWidget.prototype, '_createQuickChat') as ISelectNoWorkspaceHarness['_createQuickChat'];
 const getNoWorkspaceOption = Reflect.get(NewChatWidget.prototype, '_getNoWorkspaceOption') as (this: INoWorkspaceOptionHarness) => IWorkspacePickerNoWorkspaceOption | undefined;
 const getWorkspaceRoots = Reflect.get(NewChatWidget.prototype, '_getWorkspaceRoots') as (this: IWorkspaceRootsHarness, session: ISession) => readonly URI[];
 const canSendRequestToWorkspace = Reflect.get(NewChatWidget.prototype, '_canSendRequestToWorkspace') as (this: ICanSendRequestToWorkspaceHarness, session: ISession, environment: ISessionCreationEnvironment, reader: IReader) => boolean;
@@ -1414,6 +1421,7 @@ suite('NewChatWidget', () => {
 					sessionTypePicker: { render: () => { } },
 				},
 				_renderSessionTypePicker: () => { },
+				_renderPlaceRow: () => toDisposable(() => { }),
 				_workspacePickerRow: undefined,
 				_workspaceSessionOptionsHost: undefined,
 				_sessionOptionsExpanded: observableValue('expanded', true),
@@ -1528,6 +1536,13 @@ suite('NewChatWidget', () => {
 				},
 			},
 			_renderSessionTypePicker: (target, isQuickChat) => renderSessionTypePicker.call(harness, target, isQuickChat),
+			_renderPlaceRow: (target, chipRow) => {
+				const placeRow = document.createElement('div');
+				placeRow.className = 'sessions-new-session-place-row';
+				placeRow.textContent = 'Cloud';
+				target.insertBefore(placeRow, chipRow);
+				return toDisposable(() => placeRow.remove());
+			},
 			_workspacePickerRow: undefined,
 			_workspaceSessionOptionsHost: undefined,
 			_sessionOptionsExpanded: observableValue('sessionOptionsExpanded', false),
@@ -1561,6 +1576,7 @@ suite('NewChatWidget', () => {
 		const collapsedAgain = snapshot();
 
 		assert.deepStrictEqual({
+			placeRow: container.firstElementChild?.className,
 			workspace: harness._workspacePickerRow?.firstElementChild?.textContent,
 			items: Array.from(details.children, element => ({
 				label: element.textContent,
@@ -1574,6 +1590,7 @@ suite('NewChatWidget', () => {
 			controlsTarget: toggle.getAttribute('aria-controls') === details.id,
 			sameDetails: details === harness._workspaceSessionOptionsHost,
 		}, {
+			placeRow: 'sessions-new-session-place-row',
 			workspace: isWeb ? 'Select Repository' : 'Workspace',
 			items: [
 				{ label: 'WorktreeBranch', className: 'new-chat-repository-controls-host' },
@@ -1781,7 +1798,8 @@ suite('NewChatWidget', () => {
 				},
 			},
 			_openQuickChat: (options, preserveNavigation) => openQuickChat.call(harness, options, preserveNavigation),
-			logService: { trace: () => { } },
+			_createQuickChat: createQuickChat,
+			logService: { trace: () => { }, error: () => assert.fail('Unexpected quick-chat preparation error') },
 		};
 		selectNoWorkspace.call(harness, { providerId: 'agenthost-remote-test' });
 
@@ -1816,7 +1834,8 @@ suite('NewChatWidget', () => {
 				},
 			},
 			_openQuickChat: (options, preserve) => openQuickChat.call(harness, options, preserve),
-			logService: { trace: () => { } },
+			_createQuickChat: createQuickChat,
+			logService: { trace: () => { }, error: () => assert.fail('Unexpected quick-chat preparation error') },
 		};
 
 		selectNoWorkspace.call(harness, undefined, { userSelection: false, preserveNavigation: true });
@@ -1826,6 +1845,48 @@ suite('NewChatWidget', () => {
 			preserveNavigation: [true],
 		});
 	});
+
+	for (const kind of ['cloud', 'container'] as const) {
+		for (const preserveCustomView of [false, true]) {
+			test(`explicit No workspace can leave ${kind} without a compatible target (custom view: ${preserveCustomView})`, () => {
+				const draft = upcastPartial<IActiveSession>({ sessionId: 'quick', providerId: 'fallback' });
+				const prepared: (ICreateNewSessionOptions | undefined)[] = [];
+				const opened: (ICreateNewSessionOptions | undefined)[] = [];
+				const reconciled: string[] = [];
+				const harness: ISelectNoWorkspaceHarness = {
+					_preserveCustomView: preserveCustomView,
+					_session: constObservable(draft),
+					_environment: constObservable<ISessionCreationEnvironment>({ id: kind, kind, label: kind, icon: Codicon.remote, providerIds: ['original'] }),
+					_workspaceOptOutTarget: constObservable(undefined),
+					_pendingPreferredUpgrade: disposables.add(new MutableDisposable()),
+					_newSessionCreation: disposables.add(new MutableDisposable()),
+					_workspacePicker: { selectNoWorkspace: () => { } },
+					sessionsManagementService: {
+						createQuickChat: options => {
+							prepared.push(options);
+							return draft;
+						},
+					},
+					sessionsService: {
+						openQuickChat: options => {
+							opened.push(options);
+							return draft;
+						},
+					},
+					_openQuickChat: openQuickChat,
+					_createQuickChat: createQuickChat,
+					_reconcileWorkspaceEnvironment: options => reconciled.push(options.providerId),
+					logService: { trace: () => { }, error: () => assert.fail('Unexpected quick-chat preparation error') },
+				};
+				selectNoWorkspace.call(harness);
+				assert.deepStrictEqual({ prepared, opened, reconciled }, {
+					prepared: preserveCustomView ? [undefined] : [],
+					opened: preserveCustomView ? [] : [undefined],
+					reconciled: ['fallback'],
+				});
+			});
+		}
+	}
 
 	suite('workspace-less fallback', () => {
 		function createRestoreHarness() {
@@ -2804,7 +2865,8 @@ suite('NewChatWidget', () => {
 	test('a custom-view composer preserves its host when preparing workspace and quick-chat drafts', async () => {
 		const folder = URI.file('/project');
 		const requests: IOpenNewSessionOptions[] = [];
-		const quickChatNavigation: { preserveNavigation: boolean | undefined; preserveFocus: boolean | undefined }[] = [];
+		const prepared: (ICreateNewSessionOptions | undefined)[] = [];
+		const draft = upcastPartial<IActiveSession>({ sessionId: 'quick' });
 		const harness: ICreateSessionNowHarness = {
 			_preserveCustomView: true,
 			_environment: constObservable(undefined),
@@ -2822,17 +2884,22 @@ suite('NewChatWidget', () => {
 		await createSessionNow.call(harness, folder, undefined, CancellationToken.None);
 		openQuickChat.call(upcastPartial<ISelectNoWorkspaceHarness>({
 			_preserveCustomView: true,
+			_createQuickChat: createQuickChat,
 			_environment: constObservable(undefined),
-			sessionsService: {
-				openQuickChat: (_options, preserveNavigation, preserveFocus) => {
-					quickChatNavigation.push({ preserveNavigation, preserveFocus });
-					return { sessionId: 'quick' };
+			_session: constObservable(draft),
+			sessionsManagementService: {
+				createQuickChat: options => {
+					prepared.push(options);
+					return draft;
 				},
 			},
+			sessionsService: {
+				openQuickChat: () => assert.fail('Preparing a custom-view draft must not navigate'),
+			},
 		}));
-		assert.deepStrictEqual({ requests, quickChatNavigation }, {
+		assert.deepStrictEqual({ requests, prepared }, {
 			requests: [{ folderUri: folder, preserveNavigation: true, preserveCustomView: true, providerId: 'local' }],
-			quickChatNavigation: [{ preserveNavigation: true, preserveFocus: true }],
+			prepared: [undefined],
 		});
 	});
 

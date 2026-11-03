@@ -42,8 +42,8 @@
 		]
 	},
 	"scripts": {
-		"compile": "npx gulp compile-extension:notebook-renderers && npm run build-notebook",
-		"watch": "npx gulp compile-watch:notebook-renderers",
+		"compile": "pnpm exec gulp compile-extension:notebook-renderers && pnpm run build-notebook",
+		"watch": "pnpm exec gulp compile-watch:notebook-renderers",
 		"build-notebook": "node ./esbuild.notebook.mts"
 	},
 	"devDependencies": {

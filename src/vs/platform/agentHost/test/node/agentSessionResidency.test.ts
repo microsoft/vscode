@@ -17,7 +17,8 @@ import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { buildBranchChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, type SessionSummary } from '../../common/state/sessionState.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
+import { SessionStatus, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentSessionResidency, type IAgentSessionReleaseDelegate } from '../../node/agentSessionResidency.js';
@@ -91,9 +92,9 @@ suite('AgentSessionResidency', () => {
 		};
 		stateManager.createSession(summary);
 		const chat = buildDefaultChatUri(session);
-		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: `turn-${id}`, startedAt: '2025-01-01T00:00:00.000Z', message: { text: id, origin: { kind: MessageKind.User } } });
+		stateManager.dispatchServerAction(chat, chatTurnStarted(`turn-${id}`, id, '2025-01-01T00:00:00.000Z'));
 		if (complete) {
-			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: `turn-${id}`, duration: 1 });
+			stateManager.dispatchServerAction(chat, chatTurnComplete(`turn-${id}`, 1));
 		}
 		residency.touch(session);
 		return session;
@@ -182,7 +183,7 @@ suite('AgentSessionResidency', () => {
 
 		await residency.reconcile();
 		const residentWhileRunning = [first, second, third].map(session => stateManager.getSessionState(session.toString()) !== undefined);
-		stateManager.dispatchServerAction(buildDefaultChatUri(first), { type: ActionType.ChatTurnComplete, turnId: 'turn-first', duration: 1 });
+		stateManager.dispatchServerAction(buildDefaultChatUri(first), chatTurnComplete('turn-first', 1));
 		await waitForEviction(first);
 
 		assert.deepStrictEqual({

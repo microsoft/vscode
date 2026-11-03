@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -207,15 +208,19 @@ suite('agentHostAgentPicker', () => {
 		});
 	});
 
-	for (const scheme of ['agent-host-copilotcli', 'custom-host']) {
-		for (const rememberedSource of [false, true]) {
-			test(`restores the last-used agent after an automatic fallback for ${scheme}${rememberedSource ? ' using its draft source' : ''}`, () => {
+	for (const kind of agentHostConnectionKinds) {
+		for (const [scheme, clientId, rememberedSource] of ([['agent-host-copilotcli', undefined], ['custom-host', undefined], ['custom-host', 'vscode'], ['custom-host', 'foreign']] as const).flatMap(([scheme, clientId]) => [[scheme, clientId, false], [scheme, clientId, true]] as const)) {
+			test(`restores the last-used agent after an automatic fallback for ${scheme}${rememberedSource ? ' using its draft source' : ''} (${clientId ?? 'host'}, ${kind.name})`, () => {
 				const storage = disposables.add(new TestStorageService());
+				const fromHost = (uri: URI) => kind.resourceUris.fromAgentHost(uri);
+				const alpha = { ...agents[0], uri: 'file:///agents/alpha.agent.md' };
+				const beta = { ...agents[1], uri: 'file:///agents/beta.agent.md' };
+				const clientAlpha = kind.toClient(URI.parse(alpha.uri)).toString();
 				const key = agentHostAgentPickerStorageKey(scheme);
 				const rememberedUri = rememberedSource ? 'client-agent:/alpha' : alpha.uri;
 				storage.store(key, rememberedUri, StorageScope.PROFILE, StorageTarget.MACHINE);
 				const createSession = (id: string, agent: AgentCustomization | undefined, status: SessionStatus) => {
-					const mode = observableValue<ReturnType<ISession['mode']['get']>>('mode', agent ? { id: agent.uri, kind: 'agent' } : undefined);
+					const mode = observableValue<ReturnType<ISession['mode']['get']>>('mode', agent ? { id: kind.toClient(URI.parse(agent.uri)).toString(), kind: 'agent' } : undefined);
 					const session = upcastPartial<IActiveSession>({
 						sessionId: id,
 						resource: URI.from({ scheme, path: `/${id}` }),
@@ -235,6 +240,10 @@ suite('agentHostAgentPicker', () => {
 					id: LOCAL_AGENT_HOST_PROVIDER_ID,
 					getCustomAgents: () => availableAgents,
 					resolveCustomAgent: (_id, uri) => rememberedSource && uri === rememberedUri ? availableAgents.find(agent => agent.uri === alpha.uri) : undefined,
+					getCustomizations: () => clientId !== undefined
+						? [{ type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///client/plugin', name: 'Plugin', clientId, children: [...availableAgents] }]
+						: [{ type: CustomizationType.Directory, id: 'agents', uri: 'file:///agents', name: 'Agents', contents: CustomizationType.Agent, enabled: true, writable: true, children: [...availableAgents] }],
+					mapAgentHostResource: fromHost,
 					onDidChangeCustomAgents: agentsChanged.event,
 					setAgent: (id, agent) => sessions.get(id)?.mode.set(agent ? { id: agent.uri, kind: 'agent' } : undefined, undefined),
 				});
@@ -266,13 +275,13 @@ suite('agentHostAgentPicker', () => {
 				const afterFallback = snapshot();
 				activeSession.set(draft.session, undefined);
 				const beforeDiscovery = snapshot();
-				availableAgents = agents;
+				availableAgents = [alpha, beta];
 				agentsChanged.fire();
 
 				assert.deepStrictEqual({ afterFallback, beforeDiscovery, afterDiscovery: snapshot() }, {
 					afterFallback: { mode: undefined, remembered: rememberedUri },
 					beforeDiscovery: { mode: undefined, remembered: rememberedUri },
-					afterDiscovery: { mode: alpha.uri, remembered: rememberedUri },
+					afterDiscovery: { mode: clientAlpha, remembered: rememberedUri },
 				});
 			});
 		}

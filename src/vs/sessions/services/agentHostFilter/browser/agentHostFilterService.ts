@@ -227,11 +227,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 		}));
 	}
 
-	/**
-	 * Resolve a selection against the live entry list. A selection made by the
-	 * fallback is provisional and is replaced once a connectable entry shows
-	 * up; an explicit user choice is always kept.
-	 */
+	/** Replace automatic selections only when a better-ranked entry appears; preserve explicit choices. */
 	private _validate(hostId: string | undefined): { readonly id: string | undefined; readonly automatic: boolean } {
 		const preferred = this._hosts.find(h => h.id === this._preferredHostId);
 		if (preferred) {
@@ -241,12 +237,20 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 			return { id: undefined, automatic: false };
 		}
 		const current = hostId === undefined ? undefined : this._hosts.find(h => h.id === hostId);
-		if (current && (!this._selectionIsAutomatic || current.connectable)) {
-			return { id: current.id, automatic: this._selectionIsAutomatic };
+		if (current && !this._selectionIsAutomatic) {
+			return { id: current.id, automatic: false };
 		}
-		const connectable = this._pickerHosts.find(h => h.connectable);
-		const fallback = connectable ?? current ?? this._pickerHosts[0];
+		const bestRank = Math.min(...this._pickerHosts.map(host => this.automaticSelectionRank(host)));
+		if (current && this.automaticSelectionRank(current) <= bestRank) {
+			return { id: current.id, automatic: true };
+		}
+		const fallback = this._pickerHosts.find(host => this.automaticSelectionRank(host) === bestRank) ?? current;
 		return { id: fallback?.id, automatic: fallback !== undefined };
+	}
+
+	/** Entries may customize automatic preference without changing explicit selection or persistence. */
+	protected automaticSelectionRank(entry: IAgentHostFilterEntry): number {
+		return entry.connectable ? 0 : 1;
 	}
 
 	/**

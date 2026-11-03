@@ -86,7 +86,7 @@ const sectionOrder: readonly { readonly kind: SessionArtifactKind; readonly titl
 
 /** What an artifact entry needs from the surrounding surface to be activated. */
 export interface ISessionArtifactActions {
-	recordOpen(artifact: ISessionArtifact): void;
+	recordOpen(artifact: ISessionArtifactPresentation): void;
 	openExternal(link: URI): void;
 	openResource(uri: URI): void;
 	openImages(images: readonly ISessionArtifactImage[], startIndex: number): void;
@@ -175,6 +175,7 @@ const revealInOSLabel = isWindows
  * wraps its files in agent host URIs, which still name files on this device.
  */
 function toLocalFileUri(uri: URI): URI | undefined {
+	// eslint-disable-next-line local/code-agent-host-uri-mapping -- unwraps only legacy local artifact filesystem URIs for OS reveal actions
 	const resource = uri.scheme === AGENT_HOST_SCHEME && uri.authority === LOCAL_AGENT_HOST_AUTHORITY ? fromAgentHostUri(uri) : uri;
 	return resource.scheme === Schemas.file ? resource : undefined;
 }
@@ -268,7 +269,7 @@ function withRemoveAction(artifact: ISessionArtifactPresentation, entry: IChatPi
 	};
 }
 
-function openArtifact(artifact: ISessionArtifact, actions: ISessionArtifactActions, open: () => void): void {
+function openArtifact(artifact: ISessionArtifactPresentation, actions: ISessionArtifactActions, open: () => void): void {
 	open();
 	actions.recordOpen(artifact);
 }
@@ -906,7 +907,7 @@ export class SessionArtifacts extends Disposable {
 
 	private _actions(session: IActiveSession, chatResource: URI, reader: IReader): ISessionArtifactActions {
 		return {
-			recordOpen: artifact => logSessionArtifactOpen(this._telemetryService, session.sessionId, artifact.kind, artifact.isArtifact),
+			recordOpen: artifact => logSessionArtifactOpen(this._telemetryService, session.sessionId, artifact.kind, artifact.isArtifact, artifact.generatedImageMimeType ? 'generatedImage' : 'recorded'),
 			// Contributed openers make a link behave the same here as in the response
 			// markdown it came from, so a localhost page lands in the integrated
 			// browser rather than the system one.

@@ -83,7 +83,7 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	readonly cancelRestore?: boolean;
 	/** Keep the current navigation intent when the composer creates or updates its own draft. */
 	readonly preserveNavigation?: boolean;
-	/** Prepare a draft without navigating away from its hosting custom view. */
+	/** Prepare a draft without changing the Sessions grid or navigation, or hiding its hosting custom view. */
 	readonly preserveCustomView?: boolean;
 
 	/**
@@ -1297,6 +1297,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
 				uri: folder,
 				message: localize('sessionsService.trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
+				remoteHostLabel: this.sessionsManagementService.getRemoteHostLabel(workspace, session.providerId),
 			});
 			if (!trusted) {
 				return false;
@@ -1643,6 +1644,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
 					uri: folderUri,
 					message: localize('sessionsService.trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
+					remoteHostLabel: this.sessionsManagementService.getRemoteHostLabel(resolved.workspace, resolved.providerId),
 				});
 				if (token.isCancellationRequested) {
 					return { session: undefined, trustDeclined: false };
@@ -1655,8 +1657,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 			if (token.isCancellationRequested) {
 				return { session: undefined, trustDeclined: false };
 			}
-			this._beginNavigation(intent, token, options?.preserveNavigation);
-			this._startOpenSession();
+			if (!options?.preserveCustomView) {
+				this._beginNavigation(intent, token, options?.preserveNavigation);
+				this._startOpenSession();
+			}
 			try {
 				const session = this.sessionsManagementService.createNewSession(folderUri, options);
 				if (options?.requireDevContainer) {
@@ -1672,7 +1676,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 						throw error;
 					}
 				}
-				this._activateOrInsert(session, options?.toSide, intent, options?.preserveCustomView);
+				if (!options?.preserveCustomView) {
+					this._activateOrInsert(session, options?.toSide, intent);
+				}
 				if (intent === 'explicit' && !options?.preserveNavigation) {
 					this._navigation.recordOpened({ kind: 'newSession' });
 				}
@@ -1683,6 +1689,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 				// through to the folder-less composer view.
 				this.logService.trace(`[SessionsView] openNewSession: createNewSession failed for folder ${folderUri.toString()}, falling back to composer view`);
 			}
+		}
+
+		if (options?.preserveCustomView) {
+			return { session: this.sessionsManagementService.newSession.get(), trustDeclined: false };
 		}
 
 		// Without a folder (or when folder resolution failed above): switch to

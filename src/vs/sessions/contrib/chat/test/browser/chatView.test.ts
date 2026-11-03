@@ -582,44 +582,52 @@ suite('Sessions - Chat View', () => {
 		]);
 	});
 
-	test('reads the widget offset only for a visible external banner and follows changes in its height', () => {
-		const element = dom.$('.chat-view-chat');
-		const banner = dom.append(element, dom.$('.external-session-banner.hidden'));
-		const progress = dom.append(element, dom.$('.monaco-progress-container'));
-		const widgetContainer = dom.append(element, dom.$('.chat-view-widget'));
-		const layouts: number[][] = [];
-		const progressOffsets: string[] = [];
-		let offsetReads = 0;
-		let bannerHeight = 35;
-		Object.defineProperty(widgetContainer, 'offsetTop', { get: () => { offsetReads++; return bannerHeight; } });
-		const view: { _layoutChatWidget(): void } = Object.assign(Object.create(ChatView.prototype), {
-			element,
-			_lastLayout: { width: 500, height: 400 },
-			_externalSessionBanner: { domNode: banner },
-			_widgetContainer: widgetContainer,
-			_widget: { layout: (height: number, width: number) => layouts.push([height, width]) },
-			_comparisonResult: { layout: () => { } },
-			_layoutStickyScrollBackground: () => { },
+	for (const inputOnly of [false, true]) {
+		test(`reads the widget offset only for a visible external banner and keeps input sizing independent for input-only hosts: ${inputOnly}`, () => {
+			const element = dom.$('.chat-view-chat');
+			const banner = dom.append(element, dom.$('.external-session-banner.hidden'));
+			const progress = dom.append(element, dom.$('.monaco-progress-container'));
+			const widgetContainer = dom.append(element, dom.$('.chat-view-widget'));
+			const layouts: number[][] = [];
+			const inputMaxHeights: number[] = [];
+			const progressOffsets: string[] = [];
+			let offsetReads = 0;
+			let bannerHeight = 35;
+			Object.defineProperty(widgetContainer, 'offsetTop', { get: () => { offsetReads++; return bannerHeight; } });
+			const view: { _layoutChatWidget(): void } = Object.assign(Object.create(ChatView.prototype), {
+				element,
+				_lastLayout: { width: 500, height: 400 },
+				_inputOnly: inputOnly,
+				_externalSessionBanner: { domNode: banner },
+				_widgetContainer: widgetContainer,
+				_widget: {
+					layout: (height: number, width: number) => layouts.push([height, width]),
+					setInputPartMaxHeightOverride: (height: number) => inputMaxHeights.push(height),
+				},
+				_comparisonResult: { layout: () => { } },
+				_layoutStickyScrollBackground: () => { },
+			});
+			view._layoutChatWidget();
+			const hiddenReads = offsetReads;
+			progressOffsets.push(progress.style.top);
+			banner.classList.remove('hidden');
+			view._layoutChatWidget();
+			progressOffsets.push(progress.style.top);
+			bannerHeight = 60;
+			view._layoutChatWidget();
+			progressOffsets.push(progress.style.top);
+			banner.classList.add('hidden');
+			view._layoutChatWidget();
+			progressOffsets.push(progress.style.top);
+			assert.deepStrictEqual({ hiddenReads, offsetReads, layouts, inputMaxHeights, progressOffsets, viewportWidth: widgetContainer.style.width }, {
+				hiddenReads: 0, offsetReads: 2,
+				layouts: [[400, 500], [365, 500], [340, 500], [400, 500]],
+				inputMaxHeights: inputOnly ? Array.from({ length: 4 }, () => Number.POSITIVE_INFINITY) : [],
+				progressOffsets: ['0px', '35px', '60px', '0px'],
+				viewportWidth: '500px',
+			});
 		});
-		view._layoutChatWidget();
-		const hiddenReads = offsetReads;
-		progressOffsets.push(progress.style.top);
-		banner.classList.remove('hidden');
-		view._layoutChatWidget();
-		progressOffsets.push(progress.style.top);
-		bannerHeight = 60;
-		view._layoutChatWidget();
-		progressOffsets.push(progress.style.top);
-		banner.classList.add('hidden');
-		view._layoutChatWidget();
-		progressOffsets.push(progress.style.top);
-		assert.deepStrictEqual({ hiddenReads, offsetReads, layouts, progressOffsets, viewportWidth: widgetContainer.style.width }, {
-			hiddenReads: 0, offsetReads: 2,
-			layouts: [[400, 500], [365, 500], [340, 500], [400, 500]],
-			progressOffsets: ['0px', '35px', '60px', '0px'],
-			viewportWidth: '500px',
-		});
-	});
+	}
 
 	test('centers chat content in the width its host lays it out with, to the left of the Session Activity Bar\'s column, and keeps the scrollbar at its right edge', async () => {
 		const root = dom.append(dom.getActiveDocument().body, dom.$('.monaco-workbench.agent-sessions-workbench'));
