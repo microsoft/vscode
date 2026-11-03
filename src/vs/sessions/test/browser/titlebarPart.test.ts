@@ -537,12 +537,14 @@ suite('Sessions - Titlebar Part', () => {
 		input.style.width = '90px';
 		const renameInput = at(center(input), input);
 
+		// The app region is read only where the browser computes it, as Electron's does; a headless browser may not.
+		const region = (value: string) => mainWindow.CSS.supports('-webkit-app-region', value) ? value : undefined;
 		assert.deepStrictEqual({ dragRegion: !!dragRegion, ...before, renameInput, empty }, {
 			dragRegion: true,
-			title: { reaches: true, appRegion: 'no-drag' },
-			titleActions: { reaches: true, appRegion: 'no-drag' },
-			renameInput: { reaches: true, appRegion: 'no-drag' },
-			empty: { reaches: true, appRegion: 'drag' },
+			title: { reaches: true, appRegion: region('no-drag') },
+			titleActions: { reaches: true, appRegion: region('no-drag') },
+			renameInput: { reaches: true, appRegion: region('no-drag') },
+			empty: { reaches: true, appRegion: region('drag') },
 		});
 	});
 
