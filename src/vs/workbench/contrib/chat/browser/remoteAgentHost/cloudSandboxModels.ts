@@ -8,7 +8,7 @@ import { isCancellationError, onUnexpectedError } from '../../../../../base/comm
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
-import { ICloudSandboxApiService, ICloudSandboxModelCatalog } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxAuthenticationRequiredError, ICloudSandboxApiService, ICloudSandboxModelCatalog } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
@@ -80,6 +80,10 @@ export class CloudSandboxModelCatalogService extends Disposable implements IClou
 				this._onDidChange.fire();
 			} catch (error) {
 				if (isCancellationError(error) || this._store.isDisposed || generation !== this._generation) {
+					return;
+				}
+				if (error instanceof CloudSandboxAuthenticationRequiredError) {
+					this._logService.debug('[CloudSandboxModels] Waiting for GitHub sign-in before loading cloud models');
 					return;
 				}
 				this._logService.error('[CloudSandboxModels] Failed to load cloud models', error);
