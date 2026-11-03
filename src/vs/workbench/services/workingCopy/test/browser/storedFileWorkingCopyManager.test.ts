@@ -38,7 +38,7 @@ suite('StoredFileWorkingCopyManager', () => {
 			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService,
 			accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService,
-			accessor.progressService
+			accessor.progressService, accessor.editorResolverService
 		));
 	});
 

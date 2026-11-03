@@ -39,6 +39,7 @@ import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../.
 import { Codicon } from '../../../../base/common/codicons.js';
 import { listErrorForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
+import { IEditorResolverService } from '../../editor/common/editorResolverService.js';
 
 export interface IFileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyManager<S | U, IFileWorkingCopy<S | U>> {
 
@@ -164,7 +165,8 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IDecorationsService private readonly decorationsService: IDecorationsService,
-		@IProgressService progressService: IProgressService
+		@IProgressService progressService: IProgressService,
+		@IEditorResolverService editorResolverService: IEditorResolverService
 	) {
 		super();
 
@@ -174,7 +176,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 			this.storedWorkingCopyModelFactory,
 			fileService, lifecycleService, labelService, logService, workingCopyFileService,
 			workingCopyBackupService, uriIdentityService, filesConfigurationService, workingCopyService,
-			notificationService, workingCopyEditorService, editorService, elevatedFileService, progressService
+			notificationService, workingCopyEditorService, editorService, elevatedFileService, progressService, editorResolverService
 		));
 
 		// Untitled file working copies manager

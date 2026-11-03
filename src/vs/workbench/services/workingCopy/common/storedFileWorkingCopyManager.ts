@@ -31,6 +31,7 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { SnapshotContext } from './fileWorkingCopy.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
+import { IEditorResolverService } from '../../editor/common/editorResolverService.js';
 
 /**
  * The only one that should be dealing with `IStoredFileWorkingCopy` and handle all
@@ -188,7 +189,8 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IElevatedFileService private readonly elevatedFileService: IElevatedFileService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService
 	) {
 		super(fileService, logService, workingCopyBackupService);
 
@@ -536,7 +538,7 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 				async options => { await this.resolve(resource, { ...options, reload: { async: false } }); },
 				this.fileService, this.logService, this.workingCopyFileService, this.filesConfigurationService,
 				this.workingCopyBackupService, this.workingCopyService, this.notificationService, this.workingCopyEditorService,
-				this.editorService, this.elevatedFileService, this.progressService
+				this.editorService, this.elevatedFileService, this.progressService, this.editorResolverService
 			);
 
 			workingCopyResolve = workingCopy.resolve(resolveOptions);

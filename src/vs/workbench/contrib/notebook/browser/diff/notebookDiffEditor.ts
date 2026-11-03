@@ -500,14 +500,23 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		this._layoutCancellationTokenSource = new CancellationTokenSource();
 
-		this._modifiedResourceDisposableStore.add(Event.any(this._model.original.notebook.onDidChangeContent, this._model.modified.notebook.onDidChangeContent)(e => {
-			// If the user has made changes to the notebook whilst in the diff editor,
-			// then do not re-compute the diff of the notebook,
-			// As change will result in re-computing diff and re-building entire diff view.
-			if (this._model !== null && this.editorService.activeEditor !== input) {
+		const recomputeDiff = () => {
+			if (this._model !== null) {
 				this._layoutCancellationTokenSource?.dispose();
 				this._layoutCancellationTokenSource = new CancellationTokenSource();
 				this.updateLayout(this._layoutCancellationTokenSource.token);
+			}
+		};
+
+		// The original side can't be edited in the diff editor, so its changes come from outside (e.g. the file on disk changed)
+		this._modifiedResourceDisposableStore.add(this._model.original.notebook.onDidChangeContent(() => recomputeDiff()));
+
+		this._modifiedResourceDisposableStore.add(this._model.modified.notebook.onDidChangeContent(() => {
+			// If the user has made changes to the notebook whilst in the diff editor,
+			// then do not re-compute the diff of the notebook,
+			// As change will result in re-computing diff and re-building entire diff view.
+			if (this.editorService.activeEditor !== input) {
+				recomputeDiff();
 			}
 		}));
 

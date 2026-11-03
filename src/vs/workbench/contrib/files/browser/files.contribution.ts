@@ -10,7 +10,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { IFileEditorInput, IEditorFactoryRegistry, EditorExtensions } from '../../../common/editor.js';
-import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, FILES_READONLY_FROM_PERMISSIONS_CONFIG } from '../../../../platform/files/common/files.js';
+import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, FILES_READONLY_FROM_PERMISSIONS_CONFIG, IFileService } from '../../../../platform/files/common/files.js';
 import { SortOrder, LexicographicOptions, FILE_EDITOR_INPUT_ID, BINARY_TEXT_FILE_MODE, UndoConfirmLevel, IFilesConfiguration } from '../common/files.js';
 import { TextFileEditorTracker } from './editors/textFileEditorTracker.js';
 import { TextFileSaveErrorHandler } from './editors/textFileSaveErrorHandler.js';
@@ -36,6 +36,8 @@ import { FileEditorInputSerializer, FileEditorWorkingCopyEditorHandler } from '.
 import { ModesRegistry } from '../../../../editor/common/languages/modesRegistry.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { TextFileEditor } from './editors/textFileEditor.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { FileOnDiskFileSystemProvider } from '../../../services/workingCopy/common/fileOnDiskFileSystemProvider.js';
 
 class FileUriLabelContribution implements IWorkbenchContribution {
 
@@ -53,6 +55,17 @@ class FileUriLabelContribution implements IWorkbenchContribution {
 				workspaceSuffix: ''
 			}
 		});
+	}
+}
+
+class FileOnDiskFileSystemProviderContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.fileOnDiskFileSystemProvider';
+
+	constructor(@IFileService fileService: IFileService) {
+		super();
+
+		this._register(fileService.registerProvider(FileOnDiskFileSystemProvider.SCHEME, this._register(new FileOnDiskFileSystemProvider(fileService))));
 	}
 }
 
@@ -108,6 +121,9 @@ registerWorkbenchContribution2(TextFileEditorTracker.ID, TextFileEditorTracker, 
 
 // Register Text File Save Error Handler
 registerWorkbenchContribution2(TextFileSaveErrorHandler.ID, TextFileSaveErrorHandler, WorkbenchPhase.BlockStartup);
+
+// Register readonly file system for comparing a file on disk with its unsaved working copy
+registerWorkbenchContribution2(FileOnDiskFileSystemProviderContribution.ID, FileOnDiskFileSystemProviderContribution, WorkbenchPhase.BlockStartup);
 
 // Register uri display for file uris
 registerWorkbenchContribution2(FileUriLabelContribution.ID, FileUriLabelContribution, WorkbenchPhase.BlockStartup);
