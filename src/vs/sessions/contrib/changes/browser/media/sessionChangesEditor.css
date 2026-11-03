@@ -15,6 +15,19 @@
 	position: relative;
 }
 
+/* While the changed files list shows, the header above the diffs gets a bottom border that the list's separator continues. */
+.session-changes-editor-body.file-list-visible::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	z-index: 10;
+	height: var(--vscode-strokeThickness);
+	background: var(--vscode-multiDiffEditor-border);
+	pointer-events: none;
+}
+
 .session-changes-editor-empty-state {
 	position: absolute;
 	inset: 0;

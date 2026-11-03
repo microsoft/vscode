@@ -11,7 +11,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derivedObservableWithCache, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedObservableWithCache, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
@@ -22,7 +22,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { bindContextKey, observableContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -44,7 +44,7 @@ import { ITextResourceConfigurationService } from '../../../../editor/common/ser
 import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { Menus } from '../../../browser/menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { ActiveSessionContextKeys } from '../common/changes.js';
+import { ActiveSessionContextKeys, SessionChangesEditorFileListContext } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { ChangesActionsBar } from './changesView.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
@@ -192,6 +192,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	private widget: MultiDiffEditorWidget | undefined;
 	private fileListWidget: MultiDiffEditorWithFileListWidget | undefined;
+	/** Whether the host of this editor enables the changed files list, see {@link SessionChangesEditorFileListContext}. */
+	private fileListAvailable: IObservable<boolean> | undefined;
 	private viewModel: MultiDiffEditorViewModel | undefined;
 	get hasViewModel(): boolean { return this.viewModel !== undefined; }
 	private bodyContainer: HTMLElement | undefined;
@@ -297,7 +299,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		const paneInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, this.contextKeyService])));
 		const variant = observableWorkbenchMultiDiffEditorVariant(this, this.configurationService);
-		// The changed files list shows beside the diffs, unless the user hides it with Toggle Files.
+		// The changed files list shows beside the diffs when the host enables it, unless the user hides it with Toggle Files.
 		this.fileListWidget = this._register(this.createFileListWidget(
 			paneInstantiationService,
 			paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs),
@@ -307,6 +309,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			},
 		));
 		this.widget = this.fileListWidget.multiDiffEditorWidget;
+		const fileListWidget = this.fileListWidget;
+		this._register(autorun(reader => this.bodyContainer?.classList.toggle('file-list-visible', fileListWidget.isFileListVisible.read(reader))));
 		this._register(autorun(reader => this.widget?.setVariant(variant.read(reader))));
 		this._register(this.widget.onDidChangeActiveControl(() => this._onDidChangeControl.fire()));
 		this.widget.setPaddingBottom(CHANGES_LIST_BOTTOM_PADDING_PX);
@@ -330,10 +334,12 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	}
 
 	private createFileListWidget(instantiationService: IInstantiationService, uiElementFactory: IWorkbenchUIElementFactory, widgetOptions: IMultiDiffEditorWidgetOptions): MultiDiffEditorWithFileListWidget {
-		const fileListVisible = observableMultiDiffEditorFileListHidden(this, this.storageService, this._store).map(this, hidden => !hidden);
+		const fileListAvailable = this.fileListAvailable = observableContextKey<boolean>(SessionChangesEditorFileListContext.key, this.contextKeyService).map(this, enabled => !!enabled);
+		const fileListHidden = observableMultiDiffEditorFileListHidden(this, this.storageService, this._store);
+		const fileListVisible = derived(this, reader => fileListAvailable.read(reader) && !fileListHidden.read(reader));
 		const fileListViewMode = observableMultiDiffEditorFileListViewMode(this, this.storageService, this._store);
 		const fileListPosition = observableMultiDiffEditorFileListPosition(this, this.storageService, this._store);
-		this._register(bindContextKey(MultiDiffEditorFileListAvailableContext, this.contextKeyService, () => true));
+		this._register(bindContextKey(MultiDiffEditorFileListAvailableContext, this.contextKeyService, reader => fileListAvailable.read(reader)));
 		this._register(bindContextKey(MultiDiffEditorFileListEnabledContext, this.contextKeyService, reader => fileListVisible.read(reader)));
 		this._register(bindContextKey(MultiDiffEditorFileListViewModeContext, this.contextKeyService, reader => fileListViewMode.read(reader)));
 		this._register(bindContextKey(MultiDiffEditorFileListPositionContext, this.contextKeyService, reader => fileListPosition.read(reader)));
@@ -345,8 +351,11 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	/** It offers Toggle Files in the More Actions menu of its tab bar. */
 	readonly togglesFileListFromEditorTitle = true;
 
-	/** Moves focus into the changed files list, showing it first when hidden. */
+	/** Moves focus into the changed files list, showing it first when hidden. Does nothing unless the host enables the list. */
 	focusFileList(): void {
+		if (!this.fileListAvailable?.get()) {
+			return;
+		}
 		if (!MultiDiffEditorFileListEnabledContext.getValue(this.contextKeyService)) {
 			toggleMultiDiffEditorFileList(this.storageService);
 		}
