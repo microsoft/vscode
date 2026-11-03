@@ -84,8 +84,16 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 		}));
 	}
 
+	/**
+	 * The owner shows where its chat does, whichever window has focus: in the chat window that shows its chat, else in
+	 * the main window while it shows the chat.
+	 */
 	isOwnerVisible(owner: ICanvasOwner, reader?: IReader): boolean {
-		const session = this.sessionsService.activeSession.read(reader);
+		const chatWindowSession = this.getChatWindowSession(owner, reader);
+		if (chatWindowSession) {
+			return chatWindowSession.capabilities.read(reader).supportsCanvases === true;
+		}
+		const session = this.sessionsService.mainWindowActiveSession.read(reader);
 		return !!session
 			&& !this.customViewService.activeCustomView.read(reader)
 			&& session.capabilities.read(reader).supportsCanvases === true
@@ -94,15 +102,25 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 	}
 
 	getContext(owner: ICanvasOwner, reader?: IReader): ICanvasContext | undefined {
-		const session = this.sessionsService.activeSession.read(reader);
+		const chatWindowSession = this.getChatWindowSession(owner, reader);
+		const session = chatWindowSession ?? this.sessionsService.mainWindowActiveSession.read(reader);
 		if (!session || session.capabilities.read(reader).supportsCanvases !== true || !ownsSession(owner, session)) {
 			return this.getPinnedOwnerContext(owner, reader);
 		}
-		const activeChat = session.activeChat.read(reader);
-		const chat: IChat | undefined = isEqual(activeChat.resource, owner.chat)
+		const activeChat = chatWindowSession ? undefined : this.sessionsService.mainWindowActiveSession.read(reader)?.activeChat.read(reader);
+		const chat: IChat | undefined = activeChat && isEqual(activeChat.resource, owner.chat)
 			? activeChat
 			: session.chats.read(reader).find(candidate => isEqual(candidate.resource, owner.chat));
 		return { owner, canvases: chat?.canvases ?? constObservable(undefined) };
+	}
+
+	/** The session of the owner while a chat window shows its chat. */
+	private getChatWindowSession(owner: ICanvasOwner, reader: IReader | undefined): ISession | undefined {
+		if (!this.chatWindowChats.read(reader).some(chat => isEqual(chat, owner.chat))) {
+			return undefined;
+		}
+		const session = this.sessionsManagementService.getSession(owner.session);
+		return session && ownsSession(owner, session) ? session : undefined;
 	}
 
 	getTrackedCanvas(reference: ICanvasReference, reader?: IReader): ICanvas | undefined {
