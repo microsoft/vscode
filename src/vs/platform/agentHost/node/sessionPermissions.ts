@@ -178,22 +178,16 @@ async function resolveRealPathForNonexistent(resource: URI, realpath: (fsPath: s
 	const tail: string[] = [path.basename(fsPath)];
 	let current = path.dirname(fsPath);
 	while (true) {
-		const parent = path.dirname(current);
-		if (parent === current) {
-			// Reached the filesystem root without finding an existing ancestor.
-			return resource;
-		}
 		try {
 			const resolved = await realpath(current);
 			return URI.file(path.join(resolved, ...tail));
 		} catch (e) {
-			const code = (e as NodeJS.ErrnoException).code;
-			if (code !== 'ENOENT' && code !== 'ENOTDIR') {
+			if ((e as NodeJS.ErrnoException).code !== 'ENOENT' || path.dirname(current) === current) {
 				throw e;
 			}
 		}
 		tail.unshift(path.basename(current));
-		current = parent;
+		current = path.dirname(current);
 	}
 }
 
@@ -299,7 +293,8 @@ export class SessionPermissionManager extends Disposable {
 				return undefined;
 			}
 			if (e.permissionKind !== AgentPermissionKind.Shell) {
-				matchingAllowRules = permissions.allow.filter(rule => requests.every(candidate => matchesPermissionRule(rule, candidate, context)));
+				const canonicalRequest = requests[requests.length - 1];
+				matchingAllowRules = permissions.allow.filter(rule => matchesPermissionRule(rule, canonicalRequest, context));
 			}
 		}
 		if (writeResources && !matchingAllowRules.some(isExactAbsolutePathRule)
@@ -809,11 +804,7 @@ export class SessionPermissionManager extends Disposable {
 		return false;
 	}
 
-	/**
-	 * Returns the literal path plus, for absolute paths, the symlink-resolved
-	 * real path. Returns `undefined` when the path cannot be resolved due to
-	 * missing permissions, signalling that confirmation is required.
-	 */
+	/** Returns the literal path followed by its canonical path, if different; resolution failures require confirmation. */
 	private async _resolveResourcesForApproval(resource: URI): Promise<URI[] | undefined> {
 		const resourcesToCheck = [resource];
 		if (resource.scheme !== Schemas.file) {
@@ -825,12 +816,8 @@ export class SessionPermissionManager extends Disposable {
 				resourcesToCheck.push(resolved);
 			}
 		} catch (e) {
-			const code = (e as NodeJS.ErrnoException).code;
-			if (code === 'EPERM' || code === 'EACCES') {
-				// No permission to resolve the path — require confirmation.
-				return undefined;
-			}
-			// Otherwise fall back to checking the literal resource only.
+			this._logService.warn(`[SessionPermissionManager] Cannot resolve path for approval: ${resource.fsPath}`, e);
+			return undefined;
 		}
 		return resourcesToCheck;
 	}
@@ -927,36 +914,39 @@ export class SessionPermissionManager extends Disposable {
 		return { workingDirectory: directory ? URI.parse(directory).fsPath : undefined, homeDirectory: homedir(), ignorePathCase: isWindows || isMacintosh };
 	}
 
-	/** Builds exact-file grants and, for unprotected targets, nearest Git-root or parent-folder grants. */
+	/** Builds canonical exact-file grants and, for unprotected targets, canonical Git-root or parent-folder grants. */
 	async getPathConfirmationOptions(e: IAgentToolPendingConfirmationSignal): Promise<readonly ConfirmationOption[]> {
 		if ((e.permissionKind !== AgentPermissionKind.Read && e.permissionKind !== AgentPermissionKind.Write) || !e.permissionPath || !e.state.confirmationTitle
 			|| e.managedApprovalRequired || e.requestSandboxBypass || e.requestSandboxPermissive) {
 			return [];
 		}
 		const tool = e.permissionKind === AgentPermissionKind.Write ? 'Edit' : 'Read';
-		const fileRule = pathRule(tool, e.permissionPath, false);
 		const pathLib = path.win32.isAbsolute(e.permissionPath) && !path.posix.isAbsolute(e.permissionPath) ? path.win32 : path.posix;
 		if (!pathLib.isAbsolute(e.permissionPath)) {
 			return [];
 		}
+		const resources = await this._resolveResourcesForApproval(URI.file(e.permissionPath));
+		if (!resources) {
+			return [];
+		}
+		const canonicalResource = resources[resources.length - 1];
+		const fileRule = pathRule(tool, canonicalResource.fsPath, false);
 		const options: ConfirmationOption[] = [];
+		const alwaysOptions: ConfirmationOption[] = [];
 		if (fileRule) {
 			const basename = pathLib.basename(e.permissionPath) || e.permissionPath;
 			options.push(permissionGrantOption(e.permissionKind === AgentPermissionKind.Write
 				? localize('sessionPermissions.allowFileEdits', "Allow Edits to {0} in this Session", basename)
 				: localize('sessionPermissions.allowFileReads', "Allow Reading {0} in this Session", basename), [fileRule]));
+			alwaysOptions.push(permissionGrantOption(e.permissionKind === AgentPermissionKind.Write
+				? localize('sessionPermissions.alwaysAllowFileEdits', "Always Allow Edits to {0}", basename)
+				: localize('sessionPermissions.alwaysAllowFileReads', "Always Allow Reading {0}", basename), [fileRule], PermissionGrantScope.Host));
 		}
 		if (e.permissionKind === AgentPermissionKind.Write) {
-			const resources = await this._resolveResourcesForApproval(URI.file(e.permissionPath));
-			if (!resources) {
-				return [];
-			}
 			const sessionKey = e.chat.toString();
 			const workingDirectories = getEffectiveWorkingDirectories(this._stateManager, sessionKey)?.map(directory => URI.parse(directory));
 			if (await this._requiresEditConfirmation(resources, workingDirectories, sessionKey)) {
-				return fileRule && resources.every(resource => matchesPermissionRule(fileRule, {
-					kind: e.permissionKind, toolName: e.state.toolName, path: resource.fsPath,
-				}, this._permissionContext(sessionKey))) ? options : [];
+				return [...options, ...alwaysOptions];
 			}
 		}
 		const parent = pathLib.dirname(e.permissionPath);
@@ -970,14 +960,22 @@ export class SessionPermissionManager extends Disposable {
 				break;
 			}
 		}
-		const folderRule = pathRule(tool, folder, true);
-		if (folderRule) {
+		const folderResources = await this._resolveResourcesForApproval(URI.file(folder));
+		if (!folderResources) {
+			return [...options, ...alwaysOptions];
+		}
+		const canonicalFolder = folderResources[folderResources.length - 1];
+		const folderRule = pathRule(tool, canonicalFolder.fsPath, true);
+		if (folderRule && this._isResourceInDirectory(canonicalResource, canonicalFolder)) {
 			const basename = pathLib.basename(folder) || folder;
 			options.push(permissionGrantOption(e.permissionKind === AgentPermissionKind.Write
 				? localize('sessionPermissions.allowFolderEdits', "Allow Edits in {0} in this Session", basename)
 				: localize('sessionPermissions.allowFolderReads', "Allow Reading Files in {0} in this Session", basename), [folderRule]));
+			alwaysOptions.push(permissionGrantOption(e.permissionKind === AgentPermissionKind.Write
+				? localize('sessionPermissions.alwaysAllowFolderEdits', "Always Allow Edits in {0}", basename)
+				: localize('sessionPermissions.alwaysAllowFolderReads', "Always Allow Reading Files in {0}", basename), [folderRule], PermissionGrantScope.Host));
 		}
-		return options;
+		return [...options, ...alwaysOptions];
 	}
 
 	private _scopedConfirmationOptions(e: IAgentToolPendingConfirmationSignal, sessionKey: ProtocolURI, pathOptions: readonly ConfirmationOption[]): ConfirmationOption[] | undefined {
