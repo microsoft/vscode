@@ -6830,7 +6830,6 @@
     "@types/react-dom": "^18.2.17",
     "@types/sinon": "^17.0.4",
     "@types/source-map-support": "^0.5.10",
-    "@types/tar": "^6.1.13",
     "@types/vscode-webview": "^1.57.5",
     "@types/ws": "^8.5.3",
     "@types/yargs": "^17.0.24",

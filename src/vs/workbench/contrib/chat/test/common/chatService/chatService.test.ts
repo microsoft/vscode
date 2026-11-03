@@ -11,6 +11,7 @@ import { DeferredPromise, disposableTimeout, installFakeRunWhenIdle, raceTimeout
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { createTestArtifactRequestPresentation } from '../../../../../../platform/artifactIntegrations/test/common/artifactIntegrationTestUtils.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -76,7 +77,7 @@ import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/c
 import { ChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
-import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
+import { IConfiguredHooksInfo, ICustomAgent, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
@@ -1986,6 +1987,66 @@ suite('ChatService', () => {
 		assert.strictEqual(model.getPendingRequests().length, 0, 'no pending requests should remain after the flush');
 	});
 
+	for (const savedAgent of [false, true]) {
+		for (const explicitModel of [undefined, 'opus']) {
+			test(`required agent forwards the validated ${explicitModel ? 'explicit' : 'saved'} model (${savedAgent ? 'restored' : 'submitted'} agent)`, async () => {
+				const uri = URI.file('/workspace/required.agent.md');
+				const prompts = new MockPromptsService();
+				prompts.setCustomModes([upcastPartial<ICustomAgent>({ uri, enabled: true, model: ['sonnet', 'opus'], modelPolicy: 'required' })]);
+				instantiationService.stub(IPromptsService, prompts);
+				const metadata: ILanguageModelChatMetadata = {
+					id: 'sonnet', name: 'Sonnet', vendor: 'copilot', version: '1.0', family: 'sonnet',
+					extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024,
+					isDefaultForLocation: {},
+				};
+				instantiationService.stub(ILanguageModelsService, new class extends NullLanguageModelsService {
+					override getLanguageModelIds(): string[] { return ['sonnet', 'opus']; }
+					override lookupLanguageModel(id: string): ILanguageModelChatMetadata | undefined {
+						return ['sonnet', 'opus'].includes(id) ? { ...metadata, id, name: id } : undefined;
+					}
+				});
+				const receivedModels: (string | undefined)[] = [];
+				const agentId = 'requiredModelAgent';
+				testDisposables.add(chatAgentService.registerAgent(agentId, { ...getAgentData(agentId), isDefault: true, modes: [ChatModeKind.Ask, ChatModeKind.Agent] }));
+				testDisposables.add(chatAgentService.registerAgentImplementation(agentId, {
+					async invoke(request) {
+						receivedModels.push(request.userSelectedModelId);
+						return {};
+					},
+				}));
+				const service = createChatService();
+				const model = startSessionModel(service).object;
+				model.inputModel.setState({
+					selectedModel: { identifier: 'sonnet', metadata },
+					...(savedAgent ? { mode: { id: uri.toString(), kind: ChatModeKind.Agent } } : {}),
+				});
+				const result = await service.sendRequest(model.sessionResource, 'Send with the required model', {
+					agentId, userSelectedModelId: explicitModel,
+					...(savedAgent ? {} : {
+						modeInfo: { kind: ChatModeKind.Agent, isBuiltin: false, modeInstructions: { uri, name: 'Required', content: '', toolReferences: [] }, telemetryModeId: 'custom', applyCodeBlockSuggestionId: undefined },
+					}),
+				});
+				ChatSendResult.assertSent(result);
+				await result.data.responseCompletePromise;
+				assert.deepStrictEqual(receivedModels, [explicitModel ?? 'sonnet']);
+			});
+		}
+
+		test(`required agent blocks a direct send without changing the draft (${savedAgent ? 'restored' : 'submitted'} agent)`, async () => {
+			const uri = URI.file('/workspace/required.agent.md');
+			const prompts = new MockPromptsService();
+			prompts.setCustomModes([upcastPartial<ICustomAgent>({ uri, enabled: true, model: ['sonnet'], modelPolicy: 'required' })]);
+			instantiationService.stub(IPromptsService, prompts);
+			const service = createChatService();
+			const model = startSessionModel(service).object;
+			model.inputModel.setState({ inputText: 'Keep my draft', ...(savedAgent ? { mode: { id: uri.toString(), kind: ChatModeKind.Agent } } : {}) });
+			await assert.rejects(() => service.sendRequest(model.sessionResource, 'Do not send', savedAgent ? {} : {
+				modeInfo: { kind: ChatModeKind.Agent, isBuiltin: false, modeInstructions: { uri, name: 'Required', content: '', toolReferences: [] }, telemetryModeId: 'custom', applyCodeBlockSuggestionId: undefined },
+			}), /No model required by the selected agent is currently available/);
+			assert.deepStrictEqual({ draft: model.inputModel.state.get()?.inputText, requests: model.getRequests().length }, { draft: 'Keep my draft', requests: 0 });
+		});
+	}
+
 	test('disabled Claude hooks hint is shown once per workspace (fix for #295079)', async () => {
 		// Set up a prompts service that reports disabled Claude hooks
 		const mockPromptsService = new class extends MockPromptsService {
@@ -2723,6 +2784,93 @@ suite('ChatService', () => {
 			pendingMessages: ['queued message'],
 		});
 	});
+
+	for (const outcome of ['delayed', 'existing', 'failed', 'canceled', 'removed', 'disposed', 'disposedBeforeStart', 'removedFromQueue'] as const) {
+		test(`correlates a consumed server queue entry with its exact response: ${outcome}`, async () => {
+			const sessionType = 'remote-neat-cat-copilotcli';
+			const sessionResource = URI.from({ scheme: sessionType, path: '/consumed-queue' });
+			const mockSessionsService = new MockChatSessionsService();
+			mockSessionsService.setContributions([{
+				type: sessionType, name: 'Remote Agent Host', displayName: 'Remote Agent Host',
+				description: 'Remote Agent Host', agentHostProviderId: 'copilotcli',
+			}]);
+			testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+				provideChatSessionContent: async resource => ({
+					sessionResource: resource, history: [], onWillDispose: Event.None, dispose: () => { },
+				}),
+			}));
+			instantiationService.stub(IChatSessionsService, mockSessionsService);
+			const agent = { ...getAgentData(sessionType), isDefault: true };
+			testDisposables.add(chatAgentService.registerAgent(sessionType, agent));
+			testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, {
+				async invoke() { assert.fail('The server-managed queue must not be sent locally'); },
+			}));
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const model = ref.object as ChatModel;
+			const queued = await service.sendRequest(sessionResource, 'queued', { agentIdSilent: sessionType, queue: ChatRequestQueueKind.Queued });
+			assert.ok(ChatSendResult.isQueued(queued));
+			const pendingId = model.getPendingRequests()[0].request.id;
+			const addRequest = (id: string) => model.addRequest(
+				{ parts: [], text: id }, { variables: [] }, 0, undefined, agent,
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, id,
+			);
+			const existing = outcome === 'existing' ? addRequest('server-turn') : undefined;
+			existing?.response!.complete();
+			if (outcome !== 'removedFromQueue') {
+				service.consumePendingRequest(sessionResource, pendingId, 'server-turn');
+			}
+			service.syncPendingRequestsFromRemote(sessionResource, []);
+			if (outcome === 'disposedBeforeStart' || outcome === 'removedFromQueue') {
+				if (outcome === 'disposedBeforeStart') {
+					model.dispose();
+				}
+				assert.strictEqual((await queued.deferred).kind, 'rejected');
+				return;
+			}
+			let resolved = false;
+			void queued.deferred.then(() => { resolved = true; });
+			addRequest('unrelated').response!.complete();
+			await timeout(0);
+			const resolvedBeforeMatchingRequest = resolved;
+			const request = existing ?? addRequest('server-turn');
+			const sent = await queued.deferred;
+			ChatSendResult.assertSent(sent);
+			const response = await sent.data.responseCreatedPromise;
+			let complete = false;
+			const completion = sent.data.responseCompletePromise.then(() => {
+				complete = true;
+				return 'complete';
+			}, error => {
+				assert.ok(isCancellationError(error));
+				return 'canceled';
+			});
+			await timeout(0);
+			const completeBeforeResponse = complete;
+			if (outcome === 'removed') {
+				model.removeRequest(request.id);
+			} else if (outcome === 'disposed') {
+				model.dispose();
+			} else if (outcome === 'canceled') {
+				model.cancelRequest(request);
+			} else if (outcome !== 'existing') {
+				if (outcome === 'failed') {
+					model.setResponse(request, { errorDetails: { message: 'Remote failure' } });
+				}
+				request.response!.complete();
+			}
+			assert.deepStrictEqual({
+				resolvedBeforeMatchingRequest, completeBeforeResponse, exactResponse: response === request.response,
+				completion: await completion, canceled: response.isCanceled, error: response.result?.errorDetails?.message,
+			}, {
+				resolvedBeforeMatchingRequest: outcome === 'existing', completeBeforeResponse: outcome === 'existing', exactResponse: true,
+				completion: outcome === 'removed' || outcome === 'disposed' ? 'canceled' : 'complete',
+				canceled: outcome === 'canceled', error: outcome === 'failed' ? 'Remote failure' : undefined,
+			});
+		});
+	}
 
 	test('does not locally dequeue an agent host queue when a streamed turn completes after its contribution is unregistered', async () => {
 		// When a remote connection is replaced, its session contribution is

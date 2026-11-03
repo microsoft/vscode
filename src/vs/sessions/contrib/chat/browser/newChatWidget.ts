@@ -803,7 +803,9 @@ export class NewChatWidget extends Disposable {
 		}));
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => void this._refreshGitHubProfileName()));
 
-		this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
+		if (this.options.renderAquarium !== false) {
+			this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
+		}
 		const aquariumAction = this._register(new Action(
 			'sessions.aquarium.showAction',
 			localize('aquariumAction', "Aquarium"),
@@ -833,7 +835,10 @@ export class NewChatWidget extends Disposable {
 				menuId: Menus.SessionChatBackgroundContext,
 				contextKeyService: this.contextKeyService,
 				getAnchor: () => anchor,
-				getActions: () => [aquariumAction, petAction],
+				getActions: () => [
+					...(this.options.renderAquarium !== false ? [aquariumAction] : []),
+					...(this.options.renderChatPet !== false ? [petAction] : []),
+				],
 				getCheckedActionsRepresentation: () => 'checkbox',
 			});
 		}));
@@ -2096,6 +2101,14 @@ export class NewChatWidget extends Disposable {
 		const session = this._session.get();
 		if (!session) {
 			this._workspacePicker.showPicker();
+			return false;
+		}
+		const workspaceValid = await this._workspacePicker.validateSelectedWorkspace().catch(error => {
+			this.logService.error('Failed to validate workspace:', error);
+			this.notificationService.error(localize('newSession.workspaceValidationFailed', "Could not check the session's workspace: {0}", toErrorMessage(error)));
+			return false;
+		});
+		if (!workspaceValid || session !== this._session.get()) {
 			return false;
 		}
 		const feedbackItems = [...this._feedbackItems.get()];

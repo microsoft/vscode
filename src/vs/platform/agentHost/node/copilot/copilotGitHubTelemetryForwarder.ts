@@ -240,6 +240,33 @@ type ModelCallTurnCorrelatedClassification = {
 */
 
 /* __GDPR__
+	"copilotSdk/auto_approval_decision": {
+		"owner": "justschen",
+		"comment": "Runtime telemetry forwarded by the SDK for a permission request that Assisted permissions reviewed: the review and the final decision. Plaintext rationale and the user's optional feedback appear on restricted rows only.",
+		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
+		"evaluation_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime identifier of the Assisted permissions evaluation." },
+		"reason_code": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Bounded reason for the evaluation outcome." },
+		"judge_status": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the reviewer completed, failed, or was not run." },
+		"evaluation_stage": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Stage of the evaluation that decided the outcome." },
+		"judge_attempted": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the reviewer was attempted, encoded as a string boolean." },
+		"permission_mode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Permission mode of the session." },
+		"agent_mode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent mode of the session." },
+		"recommendation": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The reviewer's recommendation." },
+		"kind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Kind of permission request." },
+		"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Bounded outcome of the decision." },
+		"tool_call_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Tool call that requested the permission." },
+		"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Who decided the request, such as a person or host policy." },
+		"surface": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Surface that answered the request." },
+		"response_capability": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the answering client could ask a person." },
+		"reason_present": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the reviewer gave a rationale, encoded as a string boolean." },
+		"permission_request_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime identifier of the permission request." },
+		"user_decision": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Bounded result of a person's decision." },
+		"rationale": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "The reviewer's rationale; restricted telemetry only." },
+		"user_feedback": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "Optional feedback the user wrote with their decision on an Assisted permissions prompt; restricted telemetry only. VS Code offers the feedback field only while restricted telemetry is enabled for the account and never persists or logs it." }
+	}
+*/
+
+/* __GDPR__
 	"copilotSdk/skill_invoked": {
 		"owner": "jruales",
 		"comment": "Existing runtime skill-invocation telemetry forwarded by the SDK. Standard rows identify skills by hash, including create-canvas; plaintext metadata is restricted telemetry only.",

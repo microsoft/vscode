@@ -24,7 +24,7 @@ import { createInMemoryFileService } from '../../../files/test/common/inMemoryFi
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentPermissionKind, AgentSession, AgentSignal, IAgent, resolveAgentHostInstructions, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
+import { AgentPermissionKind, AgentSession, AgentSignal, IAgent, resolveAgentHostInstructions, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext, type IAgentPermissionResponseContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
@@ -5795,6 +5795,84 @@ suite('AgentSideEffects', () => {
 				permissions: agent.respondToPermissionCalls,
 			}, { status: ToolCallStatus.PendingConfirmation, permissions: [] });
 		});
+
+		for (const autoApproved of [false, true]) {
+			test(`unattended permission requests are never shown as confirmations (autoApproved=${autoApproved})`, async () => {
+				setupSession();
+				if (autoApproved) {
+					stateManager.setSessionConfig(sessionUri.toString(), {
+						schema: { type: 'object', properties: {} }, values: { autoApprove: 'autoApprove' },
+					});
+				}
+				startTurn('turn-1');
+				disposables.add(sideEffects.registerProgressListener(agent));
+				const response = new DeferredPromise<{ approved: boolean; context: IAgentPermissionResponseContext | undefined }>();
+				agent.respondToPermissionRequest = (_requestId: string, approved: boolean, context?: IAgentPermissionResponseContext) => { void response.complete({ approved, context }); };
+				agent.fireProgress({
+					kind: 'pending_confirmation', chat: URI.parse(defaultChatUri), unattended: true,
+					state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'unattended-tool', toolName: 'host_tool', displayName: 'Host Tool', invocationMessage: 'Run the host tool', confirmationTitle: 'Run the host tool?' },
+				});
+				assert.deepStrictEqual({
+					response: await response.p,
+					pendingConfirmations: stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts.filter(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.PendingConfirmation).length,
+				}, {
+					response: autoApproved
+						? { approved: true, context: { decisionSource: 'host_policy' } }
+						: { approved: false, context: { decisionSource: 'unattended_fallback', userNotAvailable: true } },
+					pendingConfirmations: 0,
+				});
+			});
+		}
+
+		for (const client of [false, true]) {
+			test(`an unattended permission request ${client ? 'leaves a started client tool for its client' : 'settles a started tool so its failure lands'}`, async () => {
+				setupSession();
+				startTurn('turn-1');
+				disposables.add(sideEffects.registerProgressListener(agent));
+				const response = new DeferredPromise<boolean>();
+				agent.respondToPermissionRequest = (_requestId: string, approved: boolean) => { void response.complete(approved); };
+				const envelopes: ActionEnvelope[] = [];
+				disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+				const contributor = client ? { kind: ToolCallContributorKind.Client, clientId: 'test-client' } as const : undefined;
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(defaultChatUri),
+					action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-unattended', toolName: 'shell', displayName: 'Shell', contributor },
+				});
+				agent.fireProgress({
+					kind: 'pending_confirmation', chat: URI.parse(defaultChatUri), unattended: true,
+					state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tc-unattended', toolName: 'shell', displayName: 'Shell', invocationMessage: 'Run command', confirmationTitle: 'Allow command?', contributor },
+					permissionKind: AgentPermissionKind.Shell, permissionPath: undefined,
+				});
+				const approved = await response.p;
+				const toolCallStatus = () => {
+					const part = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+					return part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined;
+				};
+				const afterResponse = toolCallStatus();
+				if (!client) {
+					agent.fireProgress({
+						kind: 'action', resource: URI.parse(defaultChatUri),
+						action: { type: ActionType.ChatToolCallComplete, turnId: 'turn-1', toolCallId: 'tc-unattended', result: { success: false, pastTenseMessage: 'Denied command', error: { message: 'The user is not available to approve this command.' } } },
+					});
+				}
+				assert.deepStrictEqual({
+					approved,
+					afterResponse,
+					final: toolCallStatus(),
+					readyActions: envelopes.flatMap(envelope => envelope.action.type === ActionType.ChatToolCallReady ? [envelope.action.confirmed] : []),
+				}, client ? {
+					approved: false,
+					afterResponse: ToolCallStatus.Streaming,
+					final: ToolCallStatus.Streaming,
+					readyActions: [],
+				} : {
+					approved: false,
+					afterResponse: ToolCallStatus.Running,
+					final: ToolCallStatus.Completed,
+					readyActions: [ToolCallConfirmationReason.NotNeeded],
+				});
+			});
+		}
 
 		test('tool_ready for a non-permission tool dispatches ChatToolCallReady and advances state from Streaming to Running', async () => {
 			setupSession();

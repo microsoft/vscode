@@ -38,7 +38,7 @@ import { chatPersistentContentVisibleClass, ChatWidget } from '../../../../workb
 import { SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING } from '../../../../workbench/contrib/chat/browser/widget/chatOptions.js';
 import { IChatRespondent, isResponseSelectionSupported, setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatOpen, IChatOpenDiagnosticsService } from '../../../../workbench/contrib/chat/common/chatOpenDiagnosticsService.js';
-import { IChatModelReference, IChatService, ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatSendResult, IChatModelReference, IChatService, ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { isChatTranscriptContextVariableEntry, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatModel, IChatModel, IInputModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { isInConversationModelChoice } from '../../../../workbench/contrib/chat/common/modelSelection.js';
@@ -53,7 +53,7 @@ import { getChatSessionType, getNewChatSessionResource } from '../../../../workb
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatSessionHistoryStatus } from '../../../../platform/chat/common/chatSessionHistory.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
 import { IsPhoneLayoutContext, SessionUsesExperimentalComposerLayoutContext } from '../../../common/contextkeys.js';
 import { ChatInteractivity, getChatHarness, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
@@ -123,6 +123,17 @@ export function getSessionComparisonRequestSummary(comparisons: readonly ISessio
  */
 export function isFocusChatPillsKeyDown(event: Pick<IKeyboardEvent, 'keyCode' | 'shiftKey' | 'ctrlKey' | 'metaKey' | 'altKey'>): boolean {
 	return event.keyCode === KeyCode.Tab && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey;
+}
+
+export async function getChatRequestOutcome(result: ChatSendResult): Promise<IChatViewRequestOutcome> {
+	while (ChatSendResult.isQueued(result)) {
+		result = await result.deferred;
+	}
+	if (ChatSendResult.isRejected(result)) {
+		return { error: result.reason };
+	}
+	const [response] = await Promise.all([result.data.responseCreatedPromise, result.data.responseCompletePromise]);
+	return { error: response.result?.errorDetails?.message, canceled: response.isCanceled };
 }
 
 /**
@@ -327,7 +338,7 @@ export class ChatView extends AbstractChatView {
 	}
 
 	private readonly _widget: ChatWidget;
-	override readonly onDidSubmitRequest: Event<URI>;
+	override readonly onDidSubmitRequest: Event<IChatViewRequestSubmission>;
 	private readonly _widgetContainer: HTMLElement;
 	private readonly _externalSessionBanner: ExternalSessionBanner;
 
@@ -494,7 +505,9 @@ export class ChatView extends AbstractChatView {
 			},
 			this._buildStyles(this._isActive)
 		));
-		this.onDidSubmitRequest = this._widget.onDidAcceptRequest;
+		this.onDidSubmitRequest = Event.map(this._widget.onDidAcceptRequest, ({ sessionResource, result }) => ({
+			sessionResource, completion: getChatRequestOutcome(result),
+		}));
 		this._widget.setMaximumWidth(AGENTS_CENTERED_CONTENT_MAX_WIDTH);
 		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
 		const updateExperimentalComposerLayout = () => {

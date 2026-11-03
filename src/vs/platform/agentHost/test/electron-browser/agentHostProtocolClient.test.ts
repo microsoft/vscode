@@ -10,7 +10,7 @@ import sinon from 'sinon';
 import { CancelablePromise, DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { CancellationError, getErrorCode, transformErrorForSerialization, transformErrorFromSerialization } from '../../../../base/common/errors.js';
+import { CancellationError, errorHandler, getErrorCode, setUnexpectedErrorHandler, transformErrorForSerialization, transformErrorFromSerialization } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
@@ -35,10 +35,12 @@ import { getAgentHostArtifactIntegrationsCapability } from '../../common/meta/ag
 import { agentHostAuthority, createEditorRemoteAgentHostResourceUriMapper, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 import { ChatProvidersConfigKey, ChatProvidersSettingId } from '../../common/agentHostChatProviders.js';
+import { agentHostStateReceiveLimits } from '../../common/agentHostChannel.js';
 import { negotiateAgentHostProtocolVersion } from '../../common/agentHostProtocolCompatibility.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { CODEX_SESSION_MODEL_META_KEY, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
+import { toAgentPermissionResponseMeta } from '../../common/meta/agentPermissionResponseMeta.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
@@ -49,11 +51,11 @@ import { isActionKnownToVersion, PROTOCOL_VERSION } from '../../common/state/pro
 import { ActionType, AuthRequiredReason, type ActionEnvelope, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { chatReducer } from '../../common/state/sessionReducers.js';
-import { AuthenticateTargetKind, ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
+import { AuthenticateTargetKind, ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChatState, type Message, type SessionState } from '../../common/state/sessionState.js';
-import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChatState, type Message, type SessionState } from '../../common/state/sessionState.js';
+import { AgentHostTransportFailureReason, NonReconnectableTransportError, parseProtocolMessage, type IClientTransport, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { LegacyDynamicAutoTiersConfigKey } from '../../common/copilotCliConfig.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
@@ -249,6 +251,10 @@ class TestProtocolTransport extends Disposable implements IProtocolTransport {
 
 	fireMessage(message: ProtocolMessage): void {
 		this._onMessage.fire(message);
+	}
+
+	fireWireMessage(message: ProtocolTransportMessage): void {
+		this.fireMessage(parseProtocolMessage(JSON.stringify(message)));
 	}
 
 	fireData(): void {
@@ -920,6 +926,270 @@ suite('AgentHostProtocolClient', () => {
 				{ kind: 'capabilities', accepts: ['batch'] },
 			]);
 		});
+	});
+
+	suite('windowed state delivery', () => {
+		const channel = 'session-store://tenant/sessions/windowed?generation%3D2';
+		const flowControl = {
+			clientReceive: agentHostStateReceiveLimits,
+			hostReceive: { windowBytes: 64 * 1024, maximumFrameBytes: 1024 },
+		};
+		const state: SessionState = {
+			provider: 'other-agent', title: 'Initial', status: SessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
+		};
+
+		test('offers windowing only for non-root state subscriptions and accepts an ordinary snapshot', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const offered: unknown[] = [];
+			const snapshots: IStateSnapshot[] = [];
+			for (const snapshot of [
+				{ resource: channel, state, fromSeq: 5 },
+				{ resource: ROOT_STATE_URI, state: { agents: [] }, fromSeq: 6 },
+			]) {
+				const pending = client.subscribe(URI.parse(snapshot.resource));
+				const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+				offered.push(request.params);
+				transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, result: { snapshot } });
+				snapshots.push(await pending);
+			}
+			const stateless = client.subscribeStateless(URI.parse('ahp-otlp://host/opaque-logs'));
+			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+			offered.push(request.params);
+			transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, result: {} });
+			await stateless;
+			client.dispatch(channel, { type: ActionType.SessionTitleChanged, title: 'Ordinary' });
+			assert.deepStrictEqual({ offered, snapshots, dispatch: transport.sentMessages.at(-1) }, {
+				offered: [
+					{ channel, flowControl: { receive: agentHostStateReceiveLimits } },
+					{ channel: URI.parse(ROOT_STATE_URI).toString() },
+					{ channel: 'ahp-otlp://host/opaque-logs' },
+				],
+				snapshots: [{ resource: channel, state, fromSeq: 5 }, { resource: ROOT_STATE_URI, state: { agents: [] }, fromSeq: 6 }],
+				dispatch: { jsonrpc: '2.0', method: 'dispatchAction', params: { channel, clientSeq: 1, action: { type: ActionType.SessionTitleChanged, title: 'Ordinary' } } },
+			});
+		});
+
+		test('cancels a late subscribe reply after unsubscribe and starts fresh counters', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const closed = sinon.spy(transport, 'dispose');
+			const resource = URI.parse(AUTOMATION_CATALOG_URI);
+			const automationChannel = resource.toString();
+			const stale = assert.rejects(client.subscribe(resource), error => error instanceof CancellationError);
+			const first = transport.sentMessages.at(-1) as JsonRpcRequest;
+			client.unsubscribe(resource);
+			const fresh = client.subscribe(resource);
+			const second = transport.sentMessages.at(-1) as JsonRpcRequest;
+			const snapshot = { resource: automationChannel, state: { entries: [] }, fromSeq: 2 };
+			const text = JSON.stringify({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel: automationChannel, snapshot } });
+			transport.fireWireMessage({ jsonrpc: '2.0', id: first.id, result: { flowControl } });
+			transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/frame', params: { channel: automationChannel, data: text.slice(0, 40), final: false } });
+			transport.fireWireMessage({ jsonrpc: '2.0', id: second.id, result: { flowControl } });
+			const frames = [text.slice(0, 40), text.slice(40)].map((data, index) => ({
+				jsonrpc: '2.0' as const, method: 'channel/frame', params: { channel: automationChannel, data, final: index === 1 },
+			}));
+			const credited = Event.toPromise(Event.filter(transport.onDidSend, () => transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'channel/credit')));
+			for (const frame of frames) {
+				transport.fireWireMessage(frame);
+			}
+			await stale;
+			const result = await fresh;
+			client['_windowedChannels'].get(automationChannel)?.flushCredit();
+			await credited;
+			assert.deepStrictEqual({ result, closed: closed.called, credit: transport.sentMessages.at(-1) }, {
+				result: snapshot, closed: false,
+				credit: { jsonrpc: '2.0', method: 'channel/credit', params: { channel: automationChannel, consumedBytes: frames.reduce((bytes, frame) => bytes + JSON.stringify(frame).length * 2, 0) } },
+			});
+		});
+
+		for (const reply of ['accepted', 'declined', 'failed'] as const) {
+			test(`holds dispatches until a windowed subscribe is ${reply}`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport);
+				const closed = sinon.spy(transport, 'dispose');
+				const chat = 'chat-store://tenant/conversations/opaque';
+				const pending = client.subscribe(URI.parse(chat));
+				const rejected = reply === 'failed' ? assert.rejects(pending, /Subscription failed/) : undefined;
+				const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+				// Equal sizes: the window fits exactly one whole dispatch, so the second waits for credit.
+				const dispatches = [1, 2].map(clientSeq => ({
+					jsonrpc: '2.0' as const, method: 'dispatchAction',
+					params: { channel: chat, clientSeq, action: { type: ActionType.ChatIsReadChanged, isRead: true } },
+				} as const));
+				for (const message of dispatches) {
+					client.dispatch(chat, message.params.action);
+				}
+				const getDispatches = () => transport.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === 'dispatchAction' && (message.params as DispatchActionParams).channel === chat);
+				const beforeReply = getDispatches();
+				const snapshot = { resource: chat, state: createChatState({ resource: chat, title: 'Chat', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString() }), fromSeq: 0 };
+				if (reply === 'failed') {
+					transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, error: { code: JsonRpcErrorCodes.InternalError, message: 'Subscription failed' } });
+				} else {
+					transport.fireWireMessage({
+						jsonrpc: '2.0', id: request.id, result: reply === 'accepted'
+							? { flowControl: { ...flowControl, hostReceive: { ...flowControl.hostReceive, windowBytes: JSON.stringify(dispatches[0]).length * 2 } } }
+							: { snapshot }
+					});
+				}
+				await flushMicrotasks();
+				const afterReply = getDispatches();
+				if (reply === 'accepted') {
+					transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/credit', params: { channel: chat, consumedBytes: JSON.stringify(dispatches[0]).length * 2 } });
+					transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel: chat, snapshot } });
+				}
+				await (rejected ?? pending);
+				await flushMicrotasks();
+				assert.deepStrictEqual({ beforeReply, afterReply, dispatches: getDispatches(), closed: closed.called }, {
+					beforeReply: [], afterReply: reply === 'accepted' ? dispatches.slice(0, 1) : dispatches, dispatches, closed: false,
+				});
+			});
+		}
+
+		test('drops dispatches held by a subscribe when the transport closes', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const rejected = assert.rejects(client.subscribe(URI.parse(channel)), error => error instanceof ProtocolError && error.code === -32000);
+			client.dispatch(channel, { type: ActionType.SessionTitleChanged, title: 'Lost' });
+			transport.fireClose();
+			await rejected;
+			assert.deepStrictEqual({
+				state: client.connectionState,
+				dispatches: transport.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === 'dispatchAction' && (message.params as DispatchActionParams).channel === channel),
+			}, { state: AgentHostClientState.Closed, dispatches: [] });
+		});
+
+		test('reports a throwing notification handler without closing the windowed transport', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const closed = sinon.spy(transport, 'dispose');
+			const pending = client.subscribe(URI.parse(channel));
+			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, result: { flowControl } });
+			transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state, fromSeq: 5 } } });
+			await pending;
+			const error = new Error('Notification handler failed');
+			const errors: Error[] = [];
+			const previousHandler = errorHandler.getUnexpectedErrorHandler();
+			const handler = sinon.stub(client['_devContainerService'], 'handleNotification').throws(error);
+			setUnexpectedErrorHandler(error => errors.push(error));
+			try {
+				transport.fireWireMessage({ jsonrpc: '2.0', method: 'action', params: { channel, serverSeq: 6, action: { type: ActionType.SessionTitleChanged, title: 'Throwing' } } });
+			} finally {
+				handler.restore();
+				setUnexpectedErrorHandler(previousHandler);
+			}
+			const actions: ActionEnvelope[] = [];
+			disposables.add(client.onDidAction(action => actions.push(action)));
+			const next = { channel, serverSeq: 7, action: { type: ActionType.SessionTitleChanged, title: 'Still connected' } } as const;
+			transport.fireWireMessage({ jsonrpc: '2.0', method: 'action', params: next });
+			assert.deepStrictEqual({ errors, actions, closed: closed.called }, { errors: [error], actions: [next], closed: false });
+		});
+
+		for (const fragmented of [false, true]) {
+			test(`waits for ${fragmented ? 'a fragmented' : 'an immediate same-batch'} snapshot and credits subsequent actions`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport);
+				const subscription = disposables.add(client.getSubscription<SessionState>(StateComponents.Session, URI.parse(channel), 'test'));
+				await flushMicrotasks();
+				const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+				transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, result: { flowControl } });
+				const beforeSnapshot = subscription.object.verifiedValue;
+				const snapshot = { resource: channel, state: { ...state, title: 'Snapshot' }, fromSeq: 5 };
+				const message = { jsonrpc: '2.0' as const, method: 'channel/snapshot', params: { channel, snapshot } };
+				const messages: JsonRpcNotification[] = [];
+				if (fragmented) {
+					const text = JSON.stringify(message);
+					for (let offset = 0; offset < text.length; offset += 100) {
+						messages.push({ jsonrpc: '2.0', method: 'channel/frame', params: { channel, data: text.slice(offset, offset + 100), final: offset + 100 >= text.length } });
+					}
+				} else {
+					messages.push(message);
+				}
+				messages.push({ jsonrpc: '2.0', method: 'action', params: { channel, serverSeq: 6, action: { type: ActionType.SessionTitleChanged, title: 'Updated' } } });
+				const credited = Event.toPromise(Event.filter(transport.onDidSend, () => transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'channel/credit')));
+				for (const message of messages) {
+					transport.fireWireMessage(message);
+				}
+				client['_windowedChannels'].get(channel)?.flushCredit();
+				await credited;
+				await flushMicrotasks();
+				const credit = transport.sentMessages.findLast(message => hasKey(message, { method: true }) && message.method === 'channel/credit');
+				assert.deepStrictEqual({ beforeSnapshot, state: subscription.object.verifiedValue, credit }, {
+					beforeSnapshot: undefined,
+					state: { ...state, title: 'Updated' },
+					credit: { jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: messages.reduce((bytes, message) => bytes + JSON.stringify(message).length * 2, 0) } },
+				});
+			});
+		}
+
+		test('waits after acceptance, resolves all snapshot waiters, and fragments outgoing dispatches', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			let completed = 0;
+			const pending = [0, 1].map(async () => {
+				const snapshot = await client.subscribe(URI.parse(channel));
+				completed++;
+				return snapshot;
+			});
+			for (const request of transport.sentMessages.filter((message): message is JsonRpcRequest => 'method' in message && message.method === 'subscribe' && 'id' in message)) {
+				transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, result: { flowControl } });
+			}
+			await flushMicrotasks();
+			const beforeSnapshot = completed;
+			const snapshot = { resource: channel, state, fromSeq: 5 };
+			transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot } });
+			const snapshots = await Promise.all(pending);
+			const action = { type: ActionType.SessionTitleChanged, title: 'x'.repeat(1000) } as const;
+			client.dispatch(channel, action);
+			await flushMicrotasks();
+			const frames = transport.sentMessages.filter((message): message is JsonRpcNotification => 'method' in message && message.method === 'channel/frame');
+			assert.deepStrictEqual({ beforeSnapshot, snapshots, fragmented: frames.length > 1, dispatch: JSON.parse(frames.map(frame => (frame.params as { data: string }).data).join('')) }, {
+				beforeSnapshot: 0, snapshots: [snapshot, snapshot], fragmented: true,
+				dispatch: { jsonrpc: '2.0', method: 'dispatchAction', params: { channel, clientSeq: 1, action } },
+			});
+		});
+
+		for (const connectionKind of [AgentHostClientConnectionKind.WebPubSub, AgentHostClientConnectionKind.MissionControl]) {
+			test(`does not offer state windows on ${connectionKind}`, async () => {
+				const { client, transport } = createClient(disposables.add(new TestProtocolTransport(connectionKind)));
+				await connectClient(client, transport);
+				const pending = client.subscribe(URI.parse(channel));
+				const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+				const snapshot = { resource: channel, state, fromSeq: 5 };
+				transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, result: { snapshot } });
+				assert.deepStrictEqual({ params: request.params, snapshot: await pending }, { params: { channel }, snapshot });
+			});
+		}
+
+		for (const limit of ['windowBytes', 'maximumFrameBytes'] as const) {
+			test(`rejects a host that increases the offered ${limit}`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport);
+				const rejected = assert.rejects(client.subscribe(URI.parse(channel)), /Host increased requested state receive limits/);
+				const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+				transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, result: { flowControl: { ...flowControl, clientReceive: { ...agentHostStateReceiveLimits, [limit]: agentHostStateReceiveLimits[limit] + 1 } } } });
+				await rejected;
+			});
+		}
+
+		for (const unsubscribe of [false, true]) {
+			test(`${unsubscribe ? 'unsubscribe' : 'transport loss'} rejects a pending channel snapshot`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport);
+				const rejected = assert.rejects(client.subscribe(URI.parse(channel)), error => unsubscribe ? error instanceof CancellationError : error instanceof ProtocolError && error.code === -32000);
+				const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+				transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, result: { flowControl } });
+				await flushMicrotasks();
+				if (unsubscribe) {
+					client.unsubscribe(URI.parse(channel));
+				} else {
+					transport.fireClose();
+				}
+				await rejected;
+			});
+		}
 	});
 
 	suite('confirmed dispatch', () => {
@@ -1936,7 +2206,7 @@ suite('AgentHostProtocolClient', () => {
 		}, {
 			session, provider: 'third-party', meta: undefined,
 			chats: [[chat, 'default']],
-			subscribe: { channel: chat },
+			subscribe: { channel: chat, flowControl: { receive: agentHostStateReceiveLimits } },
 			stateResource: chat,
 			dispatchChannel: chat,
 		});
@@ -2104,7 +2374,7 @@ suite('AgentHostProtocolClient', () => {
 				transport.fireMessage({ jsonrpc: '2.0', method: 'action', params: envelope });
 				await flushMicrotasks();
 			}
-			const expected = { subscription: { channel: session }, chat, peer: peerStatus, unrelated: 'preserved' };
+			const expected = { subscription: { channel: session, flowControl: { receive: agentHostStateReceiveLimits } }, chat, peer: peerStatus, unrelated: 'preserved' };
 			assert.deepStrictEqual({ initial, updates, extraRequests: transport.sentMessages.length - requestsBefore }, {
 				initial: { ...expected, certificate },
 				updates: [{ ...expected, certificate: installed }, { ...expected, certificate: undefined }],
@@ -2119,7 +2389,7 @@ suite('AgentHostProtocolClient', () => {
 		] as const) {
 			test(`treats ${name} optional metadata as unavailable without failing the subscription`, async () => {
 				const { read } = await subscribe(meta);
-				assert.deepStrictEqual(read(), { subscription: { channel: session }, chat, certificate: undefined, peer: undefined, unrelated: undefined });
+				assert.deepStrictEqual(read(), { subscription: { channel: session, flowControl: { receive: agentHostStateReceiveLimits } }, chat, certificate: undefined, peer: undefined, unrelated: undefined });
 			});
 		}
 	});
@@ -2807,7 +3077,7 @@ suite('AgentHostProtocolClient', () => {
 		});
 		await timeout(0);
 		assert.deepStrictEqual({ params: request.params, state: reference.object.value }, {
-			params: { channel: resource.toString() },
+			params: { channel: resource.toString(), flowControl: { receive: agentHostStateReceiveLimits } },
 			state: { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', url: 'https://example.test/preview' },
 		});
 	});
@@ -5118,6 +5388,56 @@ suite('AgentHostProtocolClient', () => {
 			assert.strictEqual(sub.object.verifiedValue?.workingDirectories, undefined);
 			assert.strictEqual((sub.object.value as { workingDirectories?: readonly string[] }).workingDirectories, undefined);
 			sub.dispose();
+		});
+	});
+
+	suite('permission feedback dispatch', () => {
+
+		test('sends Assisted permissions feedback to the host without applying it to client state', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const chat = 'copilot:/test-session/chat';
+			const subscription = disposables.add(client.getSubscription<ChatState>(StateComponents.Chat, URI.parse(chat), 'test'));
+			await flushMicrotasks();
+			const subscribeRequest = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'subscribe');
+			assert.ok(subscribeRequest);
+			transport.fireMessage({
+				jsonrpc: '2.0', id: subscribeRequest.id,
+				result: {
+					snapshot: {
+						resource: chat, fromSeq: 0,
+						state: {
+							...createChatState({ resource: chat, title: 'Chat', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString() }),
+							activeTurn: {
+								id: 'turn-1', startedAt: new Date(0).toISOString(), message: { text: 'Push the branch', origin: { kind: MessageKind.User } },
+								responseParts: [{
+									kind: ResponsePartKind.ToolCall,
+									toolCall: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tc-push', toolName: 'shell', displayName: 'Shell', invocationMessage: 'Run git push', confirmationTitle: 'Allow git push?' },
+								}],
+								usage: undefined,
+							},
+						},
+					},
+				},
+			});
+			await flushMicrotasks();
+
+			client.dispatch(chat, {
+				type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'tc-push', approved: true, confirmed: ToolCallConfirmationReason.UserAction,
+				_meta: toAgentPermissionResponseMeta({ decisionSource: 'human_response', userFeedback: 'Pushes to feature branches are fine.' }),
+			});
+			const dispatch = transport.sentMessages.findLast((message): message is JsonRpcNotification => hasKey(message, { method: true }) && message.method === 'dispatchAction');
+			assert.ok(dispatch);
+			const state = subscription.object.value;
+			assert.ok(state && !(state instanceof Error));
+			const part = state.activeTurn?.responseParts[0];
+			assert.deepStrictEqual({
+				sent: (dispatch.params as { action: { _meta?: Record<string, unknown> } }).action._meta,
+				optimistic: part?.kind === ResponsePartKind.ToolCall ? { status: part.toolCall.status, _meta: part.toolCall._meta } : undefined,
+			}, {
+				sent: toAgentPermissionResponseMeta({ decisionSource: 'human_response', userFeedback: 'Pushes to feature branches are fine.' }),
+				optimistic: { status: ToolCallStatus.Running, _meta: toAgentPermissionResponseMeta({ decisionSource: 'human_response' }) },
+			});
 		});
 	});
 
@@ -7780,6 +8100,222 @@ suite('AgentHostProtocolClient', () => {
 			});
 		});
 
+		suite('windowed state recovery', () => {
+			const channel = 'session-store://tenant/sessions/windowed?generation%3D2';
+			const flowControl = { clientReceive: agentHostStateReceiveLimits, hostReceive: { windowBytes: 64 * 1024, maximumFrameBytes: 1024 } };
+			const window = { channel, flowControl, recovery: 'snapshot' };
+			const offer = { channel, flowControl: { receive: agentHostStateReceiveLimits } };
+			const state: SessionState = {
+				provider: 'other-agent', title: 'Initial', status: SessionStatus.Idle,
+				lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
+			};
+
+			async function fixture() {
+				const { client, transports } = createFactoryClient();
+				await completeHandshake(transports[0], client.connect());
+				const subscription = disposables.add(client.getSubscription<SessionState>(StateComponents.Session, URI.parse(channel), 'test'));
+				const request = await waitForRequestAtWithin(transports[0], 'subscribe', 0);
+				transports[0].fireWireMessage({ jsonrpc: '2.0', id: request.id, result: { flowControl } });
+				transports[0].fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state, fromSeq: 6 } } });
+				await flushMicrotasks();
+				return { client, transports, subscription };
+			}
+
+			for (const type of [ReconnectResultType.Replay, ReconnectResultType.Snapshot]) {
+				test(`recovers kept state windows with a snapshot alongside an ordinary ${type} result`, async () => {
+					const { client, transports, subscription } = await fixture();
+					const { transport, request } = await beginRecovery(client, transports);
+					const queued = { type: ActionType.SessionTitleChanged, title: 'x'.repeat(1000) } as const;
+					client.dispatch(channel, queued);
+					transport.fireWireMessage({
+						jsonrpc: '2.0', id: request.id,
+						result: type === ReconnectResultType.Replay
+							? { type, actions: [], missing: [], windows: { items: [window] } }
+							: { type, snapshots: [{ resource: ROOT_STATE_URI, state: { agents: [] }, fromSeq: 7 }], windows: { items: [window] } },
+					});
+					if (type === ReconnectResultType.Snapshot) {
+						await flushMicrotasks();
+					}
+					const waiting = client.connectionState;
+					transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state: { ...state, title: 'Recovered' }, fromSeq: 8 } } });
+					transport.fireWireMessage({ jsonrpc: '2.0', method: 'action', params: { channel, serverSeq: 9, action: { type: ActionType.SessionTitleChanged, title: 'After snapshot' } } });
+					await waitForConnectedWithin(client);
+					await flushMicrotasks();
+					const frames = transport.sentMessages.filter((message): message is JsonRpcNotification => 'method' in message && message.method === 'channel/frame');
+					assert.deepStrictEqual({
+						offered: (request.params as { windows?: unknown }).windows,
+						waiting, title: subscription.object.verifiedValue?.title,
+						resubscribed: findRequest(transport, 'subscribe') !== undefined,
+						dispatch: JSON.parse(frames.map(frame => (frame.params as { data: string }).data).join('')),
+					}, {
+						offered: { items: [offer] }, waiting: AgentHostClientState.Reconnecting, title: 'After snapshot', resubscribed: false,
+						dispatch: { jsonrpc: '2.0', method: 'dispatchAction', params: { channel, clientSeq: 1, action: queued } },
+					});
+				});
+			}
+
+			test('does not resend an optimistic action whose echo was missed before windowed snapshot recovery', async () => {
+				const { client, transports, subscription } = await fixture();
+				const action = { type: ActionType.SessionTitleChanged, title: 'Already processed' } as const;
+				client.dispatch(channel, action);
+				await flushMicrotasks();
+				const pendingBefore = client['_subscriptionManager'].getPendingActions().map(entry => entry.action);
+				const { transport, request } = await beginRecovery(client, transports);
+				transport.fireWireMessage({
+					jsonrpc: '2.0', id: request.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [], windows: { items: [window] } },
+				});
+				transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state: { ...state, title: 'Newer change from another client' }, fromSeq: 8 } } });
+				await waitForConnectedWithin(client);
+				await flushMicrotasks();
+				assert.deepStrictEqual({
+					pendingBefore,
+					pendingAfter: client['_subscriptionManager'].getPendingActions(),
+					resent: findDispatchAction(transport, ActionType.SessionTitleChanged),
+					title: subscription.object.verifiedValue?.title,
+				}, {
+					pendingBefore: [action], pendingAfter: [], resent: undefined, title: 'Newer change from another client',
+				});
+			});
+
+			for (const reacquireDuringReconnect of [false, true]) {
+				test(`does not resume a window released during reconnect and starts fresh counters (reacquireDuringReconnect=${reacquireDuringReconnect})`, async () => {
+					const { client, transports, subscription } = await fixture();
+					const { transport, request } = await beginRecovery(client, transports);
+					const closed = sinon.spy(transport, 'dispose');
+					subscription.dispose();
+					const reacquired = reacquireDuringReconnect
+						? disposables.add(client.getSubscription<SessionState>(StateComponents.Session, URI.parse(channel), 'reacquired'))
+						: undefined;
+					transport.fireWireMessage({
+						jsonrpc: '2.0', id: request.id,
+						result: { type: ReconnectResultType.Replay, actions: [], missing: [], windows: { items: [window] } },
+					});
+					const installed = client['_windowedChannels'].has(channel);
+					transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state, fromSeq: 8 } } });
+					await waitForConnectedWithin(client);
+					const awaitingRestore = client['_subscriptionsAwaitingRestore'].has(channel);
+					const fresh = reacquired ?? disposables.add(client.getSubscription<SessionState>(StateComponents.Session, URI.parse(channel), 'reacquired'));
+					const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+					const snapshot = { jsonrpc: '2.0' as const, method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state: { ...state, title: 'Fresh subscription' }, fromSeq: 9 } } };
+					transport.fireWireMessage({ jsonrpc: '2.0', id: subscribe.id, result: { flowControl } });
+					transport.fireWireMessage(snapshot);
+					await flushMicrotasks();
+					client['_windowedChannels'].get(channel)?.flushCredit();
+					await flushMicrotasks();
+					assert.deepStrictEqual({
+						installed, awaitingRestore, closed: closed.called, title: fresh.object.verifiedValue?.title,
+						methods: transport.sentMessages.filter((message): message is JsonRpcNotification | JsonRpcRequest => 'method' in message && (message.method === 'unsubscribe' || message.method === 'subscribe')).map(message => message.method),
+						credits: transport.sentMessages.filter((message): message is JsonRpcNotification => 'method' in message && message.method === 'channel/credit').map(message => message.params),
+					}, {
+						installed: false, awaitingRestore: false, closed: false, title: 'Fresh subscription', methods: ['unsubscribe', 'subscribe'],
+						credits: [{ channel, consumedBytes: JSON.stringify(snapshot).length * 2 }],
+					});
+				});
+			}
+
+			for (const recovery of ['live', 'replay']) {
+				test(`accepts an action in the same batch as a ${recovery} recovery reconnect response`, async () => {
+					const { client, transports, subscription } = await fixture();
+					const { transport, request } = await beginRecovery(client, transports);
+					const closed = sinon.spy(transport, 'dispose');
+					transport.fireWireMessage({
+						jsonrpc: '2.0', id: request.id,
+						result: { type: ReconnectResultType.Replay, actions: [], missing: [], windows: { items: [{ ...window, recovery }] } },
+					});
+					transport.fireWireMessage({ jsonrpc: '2.0', method: 'action', params: { channel, serverSeq: 9, action: { type: ActionType.SessionTitleChanged, title: 'Same-batch action' } } });
+					const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+					transport.fireWireMessage({ jsonrpc: '2.0', id: subscribe.id, result: { flowControl } });
+					transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state: { ...state, title: 'Older snapshot' }, fromSeq: 8 } } });
+					await waitForConnectedWithin(client);
+					assert.deepStrictEqual({ closed: closed.called, state: client.connectionState, title: subscription.object.verifiedValue?.title, params: subscribe.params }, {
+						closed: false, state: AgentHostClientState.Connected, title: 'Same-batch action', params: offer,
+					});
+				});
+			}
+
+			for (const freshInitialize of [false, true]) {
+				test(`${freshInitialize ? 'a fresh initialize' : 'a reconnect without windows'} restores ordinary delivery`, async () => {
+					const { client, transports, subscription } = await fixture();
+					const { transport, request } = await beginRecovery(client, transports);
+					const snapshot = { resource: channel, state: { ...state, title: 'Ordinary' }, fromSeq: 8 };
+					if (freshInitialize) {
+						transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, error: { code: AhpErrorCodes.NotFound, message: 'Client forgotten' } });
+						const initialize = await waitForRequestAtWithin(transport, 'initialize', 0);
+						transport.fireWireMessage({ jsonrpc: '2.0', id: initialize.id, result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 8, snapshots: [snapshot] } });
+					} else {
+						transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, result: { type: ReconnectResultType.Snapshot, snapshots: [snapshot] } });
+					}
+					await waitForConnectedWithin(client);
+					const next = await beginRecovery(client, transports);
+					next.transport.fireWireMessage({ jsonrpc: '2.0', id: next.request.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+					await waitForConnectedWithin(client);
+					assert.deepStrictEqual({
+						title: subscription.object.verifiedValue?.title,
+						windows: (next.request.params as { windows?: unknown }).windows,
+						resubscribed: findRequest(transport, 'subscribe') !== undefined,
+					}, { title: 'Ordinary', windows: undefined, resubscribed: false });
+				});
+			}
+
+			for (const kept of [false, true]) {
+				test(kept ? 're-subscribes a kept live window before finishing reconnect' : 're-subscribes a window the host did not keep without waiting on the reconnect gate', async () => {
+					const { client, transports, subscription } = await fixture();
+					const { transport, request } = await beginRecovery(client, transports);
+					transport.fireWireMessage({
+						jsonrpc: '2.0', id: request.id,
+						result: { type: ReconnectResultType.Replay, actions: [], missing: [], windows: { items: kept ? [{ ...window, recovery: 'live' }] : [] } },
+					});
+					const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+					const waiting = client.connectionState;
+					transport.fireWireMessage({ jsonrpc: '2.0', id: subscribe.id, result: { flowControl } });
+					transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state: { ...state, title: 'Resubscribed' }, fromSeq: 8 } } });
+					await waitForConnectedWithin(client);
+					assert.deepStrictEqual({ params: subscribe.params, waiting, title: subscription.object.verifiedValue?.title, state: client.connectionState }, {
+						params: offer, waiting: AgentHostClientState.Reconnecting, title: 'Resubscribed', state: AgentHostClientState.Connected,
+					});
+				});
+			}
+
+			test('recovers kept state windows from snapshots after restoring authentication', async () => {
+				const { client, transports, subscription } = await fixture();
+				const authenticating = client.authenticate({ resource: 'https://auth.example.com', token: 'cached-credential' });
+				const initialAuthentication = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+				transports[0].fireWireMessage({ jsonrpc: '2.0', id: initialAuthentication.id, result: {} });
+				await authenticating;
+				const { transport, request } = await beginRecovery(client, transports);
+				transport.fireWireMessage({
+					jsonrpc: '2.0', id: request.id,
+					result: { type: ReconnectResultType.Snapshot, snapshots: [{ resource: ROOT_STATE_URI, state: { agents: [] }, fromSeq: 7 }], windows: { items: [window] } },
+				});
+				transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state: { ...state, title: 'Recovered' }, fromSeq: 8 } } });
+				transport.fireWireMessage({ jsonrpc: '2.0', method: 'action', params: { channel, serverSeq: 9, action: { type: ActionType.SessionTitleChanged, title: 'After snapshot' } } });
+				const authenticate = await waitForRequestAtWithin(transport, 'authenticate', 0);
+				const waiting = client.connectionState;
+				transport.fireWireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+				await waitForConnectedWithin(client);
+				assert.deepStrictEqual({ waiting, state: client.connectionState, title: subscription.object.verifiedValue?.title, resubscribed: findRequest(transport, 'subscribe') !== undefined }, {
+					waiting: AgentHostClientState.Reconnecting, state: AgentHostClientState.Connected, title: 'After snapshot', resubscribed: false,
+				});
+			});
+
+			test('retries a subscribe whose accepted snapshot was lost with the transport', async () => {
+				const { client, transports } = await fixture();
+				const pending = client.subscribe(URI.parse(channel));
+				const subscribe = await waitForRequestAtWithin(transports[0], 'subscribe', 1);
+				transports[0].fireWireMessage({ jsonrpc: '2.0', id: subscribe.id, result: { flowControl } });
+				await flushMicrotasks();
+				const { transport, request } = await beginRecovery(client, transports);
+				transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [], windows: { items: [window] } } });
+				const snapshot = { resource: channel, state: { ...state, title: 'Recovered' }, fromSeq: 8 };
+				transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot } });
+				const retry = await waitForRequestAtWithin(transport, 'subscribe', 0);
+				transport.fireWireMessage({ jsonrpc: '2.0', id: retry.id, result: { flowControl } });
+				transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot } });
+				assert.deepStrictEqual({ params: retry.params, snapshot: await pending }, { params: offer, snapshot });
+			});
+		});
+
 		test('includes the required root channel in reconnect requests', () => runWithFakedTimers({}, async () => {
 			const { client, transports } = createFactoryClient();
 			await completeHandshake(transports[0], client.connect());
@@ -8051,7 +8587,7 @@ suite('AgentHostProtocolClient', () => {
 					});
 					transport.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
 					const sessionSubscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
-					assert.deepStrictEqual(sessionSubscribe.params, { channel: sessionUri.toString() });
+					assert.deepStrictEqual(sessionSubscribe.params, { channel: sessionUri.toString(), flowControl: { receive: agentHostStateReceiveLimits } });
 					transport.fireMessage({
 						jsonrpc: '2.0', id: sessionSubscribe.id,
 						result: { snapshot: { resource: sessionUri.toString(), state: sessionState, fromSeq: 7 } },
@@ -8061,7 +8597,7 @@ suite('AgentHostProtocolClient', () => {
 						params: chatSubscribe.params,
 						state: client.connectionState,
 						dispatch: findDispatchAction(transport, ActionType.SessionTitleChanged),
-					}, { params: { channel: chatUri.toString() }, state: AgentHostClientState.Reconnecting, dispatch: undefined });
+					}, { params: { channel: chatUri.toString(), flowControl: { receive: agentHostStateReceiveLimits } }, state: AgentHostClientState.Reconnecting, dispatch: undefined });
 					const restoredChat: ChatState = {
 						...chatState,
 						activeTurn: {
@@ -9119,7 +9655,7 @@ suite('AgentHostProtocolClient', () => {
 							.map(message => message.params),
 					}, {
 						params: create.params,
-						subscribed: { channel: recoveredChannel },
+						subscribed: { channel: recoveredChannel, flowControl: { receive: agentHostStateReceiveLimits } },
 						changes: [toAgentHostUri(file, authority).toString(), toAgentHostUri(file, authority).toString()],
 						unsubscribed: [{ channel: originalChannel }, { channel: recoveredChannel }],
 					});
