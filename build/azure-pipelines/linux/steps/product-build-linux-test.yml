@@ -64,7 +64,6 @@ steps:
           script: ./scripts/test.sh --build --tfs "Unit Tests"
           env:
             VSCODE_SKIP_PRELAUNCH: '1'
-            VSCODE_TEST_ISOLATION_RESET: '1'
             VSCODE_TEST_ISOLATION_REPORT: $(Agent.TempDirectory)/isolation.jsonl
           displayName: 🧪 Run unit tests (Electron)
           timeoutInMinutes: 30
