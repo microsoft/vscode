@@ -47,6 +47,7 @@ describe('CopilotAssignmentsFilterProvider', () => {
 		}));
 
 		expect(Object.fromEntries(provider.getFilters())).toEqual({
+			integratorid: 'vscode-chat',
 			vscode_core_platform: PlatformToString(platform),
 			vscode_core_windowkind: 'editor',
 			devdeviceid: 'test-device',

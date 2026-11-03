@@ -9,6 +9,8 @@ import type { IExperimentationFilterProvider } from 'tas-client';
 
 export const ASSIGNMENT_STORAGE_KEY = 'VSCode.ABExp.FeatureData';
 export const ASSIGNMENT_REFETCH_INTERVAL = 60 * 60 * 1000; // 1 hour
+/** Matches CAPI's VS Code integrator for cross-client experiment targeting. */
+export const ASSIGNMENT_INTEGRATOR_ID = 'vscode-chat';
 
 export interface IAssignmentService {
 	readonly _serviceBrand: undefined;
@@ -39,8 +41,11 @@ https://experimentation.visualstudio.com/Analysis%20and%20Experimentation/_git/A
 "X-VSCode-Platform": "platform",
 "X-VSCode-ReleaseDate": "releasedate",
 "X-VSCode-WindowKind": "windowkind"
+"integratorid": "integratorid"
 */
 export enum Filters {
+	IntegratorId = 'integratorid',
+
 	/**
 	 * The market in which the extension is distributed.
 	 */
@@ -126,6 +131,8 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 
 	getFilterValue(filter: string): string | null {
 		switch (filter) {
+			case Filters.IntegratorId:
+				return ASSIGNMENT_INTEGRATOR_ID;
 			case Filters.ApplicationVersion:
 				return trimVersionSuffix(this.version); // productService.version
 			case Filters.Build:
@@ -188,11 +195,11 @@ function formatReleaseDate(iso: string): string {
 }
 
 /**
- * userParam names for the new TAS assignments API (POST /api/v1/assignments), emitted by
- * {@link VSCodeCoreAssignmentsFilterProvider}. These replace the legacy header keys and
- * are sent only to the new endpoint.
+ * userParam names for the new TAS assignments API, emitted by {@link VSCodeCoreAssignmentsFilterProvider}.
+ * The integrator is shared with CAPI; VS Code-specific parameters replace the legacy X-VSCode-* headers.
  */
 export enum AssignmentsFilters {
+	IntegratorId = 'integratorid',
 	ApplicationVersion = 'vscode_core_appversion',
 	Build = 'vscode_core_build',
 	DeveloperDeviceId = 'devdeviceid',
@@ -205,8 +212,7 @@ export enum AssignmentsFilters {
 }
 
 /**
- * Emits the generic VS Code core filters for the new TAS assignments API using the new
- * userParam key names, so the assignments endpoint never receives the legacy header keys.
+ * Emits the shared integrator and VS Code core userParams for the new TAS assignments API.
  */
 export class VSCodeCoreAssignmentsFilterProvider implements IExperimentationFilterProvider {
 	constructor(
@@ -220,6 +226,8 @@ export class VSCodeCoreAssignmentsFilterProvider implements IExperimentationFilt
 
 	getFilterValue(filter: string): string | null {
 		switch (filter) {
+			case AssignmentsFilters.IntegratorId:
+				return ASSIGNMENT_INTEGRATOR_ID;
 			case AssignmentsFilters.ApplicationVersion:
 				return trimVersionSuffix(this.version);
 			case AssignmentsFilters.Build:

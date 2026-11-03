@@ -873,7 +873,7 @@ describe('ExP Service scoped treatment resolution', () => {
  * endpoints go through it (proxy-aware transport) with the expected method and call site.
  */
 class RecordingFetcherService extends mock<IFetcherService>() {
-	public readonly calls: { url: string; method: string; callSite: string; body?: string }[] = [];
+	public readonly calls: { url: string; method: string; callSite: string; headers: FetchOptions['headers']; body?: string }[] = [];
 
 	override readonly onDidFetch = Event.None;
 	override readonly onDidCompleteFetch = Event.None;
@@ -883,7 +883,7 @@ class RecordingFetcherService extends mock<IFetcherService>() {
 	}
 
 	override fetch(url: string, options: FetchOptions): Promise<Response> {
-		this.calls.push({ url, method: options.method ?? 'GET', callSite: options.callSite, body: options.body });
+		this.calls.push({ url, method: options.method ?? 'GET', callSite: options.callSite, headers: options.headers, body: options.body });
 		return Promise.resolve(Response.fromText(200, 'OK', new HeadersImpl({}), '{}', 'test-stub'));
 	}
 }
@@ -898,8 +898,8 @@ describe('TAS proxy transport adapter', () => {
 		await tasFetch('https://exp.example.test/vscode/api/v1/assignments', { method: 'POST', headers: { 'X-New': '1' }, body: '{"parameters":{}}' });
 
 		expect(fetcher.calls).toEqual([
-			{ url: 'https://default.exp-tas.com/vscode/ab', method: 'GET', callSite: 'exp.legacy', body: undefined },
-			{ url: 'https://exp.example.test/vscode/api/v1/assignments', method: 'POST', callSite: 'exp.assignments', body: '{"parameters":{}}' },
+			{ url: 'https://default.exp-tas.com/vscode/ab', method: 'GET', callSite: 'exp.legacy', headers: { 'X-Legacy': '1', integratorid: 'vscode-chat' }, body: undefined },
+			{ url: 'https://exp.example.test/vscode/api/v1/assignments', method: 'POST', callSite: 'exp.assignments', headers: { 'X-New': '1', integratorid: 'vscode-chat' }, body: '{"parameters":{}}' },
 		]);
 	});
 });
