@@ -6,7 +6,6 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { IManagedHoverContentOrFactory } from '../../../../../base/browser/ui/hover/hover.js';
-import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { isDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -165,33 +164,36 @@ suite('TestingExplorerView', () => {
 			computedState: TestResultState.Running,
 		};
 
-		for (let duration = 0; duration < 100; duration++) {
+		const updateDuration = (duration: number) => {
+			const previousOwnDuration = item.ownDuration;
 			item.ownDuration = duration;
 			onTestChanged.fire({
 				reason: TestResultItemChangeReason.OwnStateChange,
 				result: undefined!,
 				item,
 				previousState: TestResultState.Running,
-				previousOwnDuration: duration - 1,
+				previousOwnDuration,
 			});
-		}
-		await timeout(0);
+		};
+		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		try {
+			updateDuration(1);
+			updateDuration(2);
+			assert.strictEqual(initialHover.updates, initialUpdates);
+			clock.tick(0);
 
-		const rowHovers = hovers.filter(hover => hover.target === label);
-		assert.deepStrictEqual({ count: rowHovers.length, active: rowHovers.filter(hover => !hover.disposed).length, updates: initialHover.updates - initialUpdates, content: rowHovers.at(-1)?.content }, { count: 1, active: 1, updates: 1, content: 'b (Running), in 99ms' });
-		element.test.item.label = 'renamed';
-		view.viewModel.tree.rerender(element);
-		assert.deepStrictEqual({ count: hovers.filter(hover => hover.target === label).length, content: rowHovers[0].content }, { count: 1, content: 'renamed (Running), in 99ms' });
-		const updatesBeforeDispose = initialHover.updates;
-		onTestChanged.fire({
-			reason: TestResultItemChangeReason.OwnStateChange,
-			result: undefined!,
-			item,
-			previousState: TestResultState.Running,
-			previousOwnDuration: undefined,
-		});
-		view.dispose();
-		await timeout(0);
-		assert.deepStrictEqual({ disposed: initialHover.disposed, updates: initialHover.updates }, { disposed: true, updates: updatesBeforeDispose });
+			const rowHovers = hovers.filter(hover => hover.target === label);
+			assert.deepStrictEqual({ count: rowHovers.length, active: rowHovers.filter(hover => !hover.disposed).length, updates: initialHover.updates - initialUpdates, content: rowHovers.at(-1)?.content }, { count: 1, active: 1, updates: 1, content: 'b (Running), in 2.0ms' });
+			element.test.item.label = 'renamed';
+			view.viewModel.tree.rerender(element);
+			assert.deepStrictEqual({ count: hovers.filter(hover => hover.target === label).length, content: rowHovers[0].content }, { count: 1, content: 'renamed (Running), in 2.0ms' });
+			const updatesBeforeDispose = initialHover.updates;
+			updateDuration(3);
+			view.dispose();
+			clock.tick(0);
+			assert.deepStrictEqual({ disposed: initialHover.disposed, updates: initialHover.updates }, { disposed: true, updates: updatesBeforeDispose });
+		} finally {
+			clock.restore();
+		}
 	});
 });
