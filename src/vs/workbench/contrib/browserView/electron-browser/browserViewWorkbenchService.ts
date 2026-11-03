@@ -21,7 +21,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { BrowserEditorInput, IBrowserEditorInputData } from '../common/browserEditorInput.js';
-import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
+import { GroupsOrder, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
@@ -384,13 +384,27 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	}
 
 	private _getGroupById(groupId: number | undefined): IEditorGroup | undefined {
-		return groupId === undefined ? undefined : this.editorGroupsService.getGroup(groupId);
+		const group = groupId === undefined ? undefined : this.editorGroupsService.getGroup(groupId);
+		return group && this._avoidLockedGroup(group);
 	}
 
 	/** The active group of the window `windowId`, among the editor parts of that window. */
 	private _getActiveGroupOfWindow(windowId: number | undefined): IEditorGroup | undefined {
 		const window = windowId === undefined ? undefined : getWindowById(windowId)?.window;
-		return window ? this.editorGroupsService.getPart(window.document.body).activeGroup : undefined;
+		return window ? this._avoidLockedGroup(this.editorGroupsService.getPart(window.document.body).activeGroup) : undefined;
+	}
+
+	/**
+	 * An explicit group is not checked for locks when editors open in it, so a locked group is replaced the way the
+	 * editor group finder does for the active group: by an unlocked group of its part, or else a new group beside it.
+	 */
+	private _avoidLockedGroup(group: IEditorGroup): IEditorGroup {
+		if (!group.isLocked) {
+			return group;
+		}
+		const part = this.editorGroupsService.getPart(group);
+		return part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(candidate => !candidate.isLocked)
+			?? part.addGroup(group, preferredSideBySideGroupDirection(this.configurationService));
 	}
 
 	/**

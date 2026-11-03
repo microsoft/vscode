@@ -171,6 +171,33 @@ suite('BrowserViewWorkbenchService', () => {
 		});
 	});
 
+	test('does not open in a locked active group of the window the open was requested from, but in an unlocked group of its part, or a new one', async () => {
+		const group = (id: number, isLocked: boolean) => upcastPartial<IEditorGroup>({ id, isLocked });
+		const locked = group(1, true);
+		const unlocked = group(2, false);
+		const created = group(3, false);
+		const addedBeside: number[] = [];
+		const makeService = (groups: IEditorGroup[]) => createService(undefined, upcastPartial<IEditorGroupsService>({
+			activeGroup: group(9, false),
+			getPart: () => upcastPartial<IEditorPart>({
+				activeGroup: locked,
+				getGroups: () => groups,
+				addGroup: (location: IEditorGroup | number) => { addedBeside.push((location as IEditorGroup).id); return created; },
+			}),
+		})).service;
+		const id = (preferred: PreferredGroup | undefined) => typeof preferred === 'object' ? (preferred as IEditorGroup).id : preferred;
+
+		assert.deepStrictEqual({
+			withUnlockedGroup: id(await makeService([locked, unlocked]).getPreferredGroup(undefined, mainWindow.vscodeWindowId)),
+			onlyLockedGroups: id(await makeService([locked]).getPreferredGroup(undefined, mainWindow.vscodeWindowId)),
+			addedBeside,
+		}, {
+			withUnlockedGroup: 2,
+			onlyLockedGroups: 3,
+			addedBeside: [1],
+		});
+	});
+
 	test('preserves restored metadata on early disposal without overriding fresh native state', async () => {
 		const { service, events } = createService();
 		const results = [];
