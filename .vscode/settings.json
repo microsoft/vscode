@@ -13,7 +13,6 @@
 	],
 	// --- Editor ---
 	"editor.insertSpaces": false,
-	"editor.experimental.asyncTokenization": true,
 	"editor.experimental.asyncTokenizationVerification": true,
 	"editor.occurrencesHighlightDelay": 0,
 	// "editor.experimental.preferTreeSitter.typescript": true,
@@ -161,7 +160,6 @@
 	"githubPullRequests.codingAgent.uiIntegration": true,
 	"githubPullRequests.enableAttestationCommits": true,
 	// --- Testing & Debugging ---
-	"testing.autoRun.mode": "rerun",
 	"debug.javascript.terminalOptions": {
 		"outFiles": [
 			"${workspaceFolder}/out/**/*.js",
@@ -192,7 +190,6 @@
 	"npm.packageManager": "pnpm",
 	"eslint.useFlatConfig": true,
 	"emmet.excludeLanguages": [],
-	"gulp.autoDetect": "off",
 	"rust-analyzer.linkedProjects": [
 		"cli/Cargo.toml",
 		"copilot_shim/Cargo.toml"
