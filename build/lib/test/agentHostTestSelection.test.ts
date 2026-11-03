@@ -288,14 +288,16 @@ suite('Agent Host PR test selection', () => {
 							shard: undefined,
 						},
 					} : {
-						// Linux runs it in its own job whenever the changed files can affect it, Windows in two shards only
+						// Linux runs it in its own job whenever the changed files can affect it, Windows in three shards only
 						// when the plan also selects one of its suites.
 						agentHost: output === 'agent-host-e2e' ? { 'Agent-Host-E2E': agentHostJob() } : {
-							'Agent-Host-E2E (shard 1/2)': agentHostJob('1/2'),
-							'Agent-Host-E2E (shard 2/2)': agentHostJob('2/2'),
+							'Agent-Host-E2E (shard 1/3)': agentHostJob('1/3'),
+							'Agent-Host-E2E (shard 2/3)': agentHostJob('2/3'),
+							'Agent-Host-E2E (shard 3/3)': agentHostJob('3/3'),
 						},
 						integration: {
-							affected: '${{ needs.changes.result != \'success\' || needs.changes.outputs.product-tests == \'true\' }}',
+							// Windows skips its node.js integration tests job when the plan selects none of them.
+							affected: `\${{ needs.changes.result != 'success' || needs.changes.outputs.${output === 'agent-host-e2e' ? 'product-tests' : 'selected-node-integration-tests'} == 'true' }}`,
 							agentHostTests: undefined,
 							integrationTests: 'true',
 							shard: undefined,
@@ -306,6 +308,8 @@ suite('Agent Host PR test selection', () => {
 			platforms: ['linux', 'darwin', 'win32'].map(platform => {
 				// macOS and Windows run only the planned node.js integration tests and Agent Host E2E suites.
 				const planned = platform !== 'linux';
+				// Linux and Windows run the node.js integration tests and the extension host tests in separate jobs.
+				const splitsIntegrationTests = platform !== 'darwin';
 				return {
 					// Linux and Windows run Agent Host E2E in their own jobs, so their Electron jobs have no input for it.
 					defaults: { agentHostTests: platform === 'darwin' ? false : undefined, nodeIntegrationTests: planned ? true : undefined, profile: 'full', reason: 'Change detection unavailable' },
@@ -318,11 +322,10 @@ suite('Agent Host PR test selection', () => {
 						reason: '${{ inputs.agent_host_test_profile_reason }}',
 						skip: undefined,
 					},
-					// Runs after an Agent Host E2E failure in the same job, so that one does not hide the other. Linux
-					// runs the node.js integration tests and the extension host tests in separate jobs.
+					// Runs after an Agent Host E2E failure in the same job, so that one does not hide the other.
 					integration: {
 						id: 'node-integration-tests',
-						if: `\${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && ${planned ? 'env.NODE_INTEGRATION_TESTS == \'true\'' : 'env.INTEGRATION_TEST_SUITE != \'extension-host\''} && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}`,
+						if: `\${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && ${splitsIntegrationTests ? 'env.INTEGRATION_TEST_SUITE != \'extension-host\'' : 'env.NODE_INTEGRATION_TESTS == \'true\''} && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}`,
 						runsScript: true,
 						runList: planned,
 						profile: '${{ inputs.agent_host_test_profile }}',
@@ -330,7 +333,7 @@ suite('Agent Host PR test selection', () => {
 					},
 					// Runs after a node.js integration test or Agent Host E2E failure in the same job.
 					extensionHost: {
-						if: `\${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && ${planned ? '' : 'env.INTEGRATION_TEST_SUITE != \'node\' && '}!cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure' || steps.node-integration-tests.outcome == 'failure') }}`,
+						if: `\${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && ${splitsIntegrationTests ? 'env.INTEGRATION_TEST_SUITE != \'node\' && ' : ''}!cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure' || steps.node-integration-tests.outcome == 'failure') }}`,
 						runsScript: true,
 					},
 				};

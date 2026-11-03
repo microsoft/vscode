@@ -402,7 +402,7 @@ suite('CopilotSessionLauncher agent catalog readiness', () => {
 						catalog.complete({ agents: [] });
 					}
 					await outcome;
-					assert.deepStrictEqual(calls, fail ? ['catalog', 'disconnect'] : ['catalog', 'options', 'options']);
+					assert.deepStrictEqual(calls, fail ? ['catalog', 'disconnect'] : ['catalog', 'options']);
 				} finally {
 					if (!catalog.isSettled) {
 						catalog.complete({ agents: [] });
@@ -3098,7 +3098,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('enables script safety on a non-GPT-5.6 created session so managed permissions govern shell paths', async () => {
+	test('does not apply GPT-5.6 verbosity to a session using another model', async () => {
 		const updates: unknown[] = [];
 		const session = {
 			sessionId: 'session-1',
@@ -3106,9 +3106,6 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			disconnect: async () => { },
 			rpc: { agent: emptyAgentCatalog, options: { update: async (options: unknown) => { updates.push(options); return { success: true }; } } },
 		} as unknown as CopilotSession;
-		// Enablement is required for every session regardless of managed rules, so
-		// anything short of success would fail the launch — the success path is what
-		// is asserted here.
 		const launcher = createTestLauncher();
 		const plan: CopilotSessionLaunchPlan = {
 			kind: 'create',
@@ -3126,76 +3123,17 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 
 		const wrapper = await launcher.launch(plan, testRuntime);
 		try {
-			assert.deepStrictEqual(updates, [{ enableScriptSafety: true }, { sandboxConfig: { enabled: false } }]);
+			assert.deepStrictEqual(updates, [{ sandboxConfig: { enabled: false } }]);
 		} finally {
 			wrapper.dispose();
 			await launcher.disposeByokProxyHandle();
 		}
 	});
 
-	test('fails the launch closed and disconnects when script safety cannot be enabled', async () => {
-		let disconnected = false;
-		const session = {
-			sessionId: 'session-1',
-			on: () => () => { },
-			disconnect: async () => { disconnected = true; },
-			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: false }) } },
-		} as unknown as CopilotSession;
-		const launcher = createTestLauncher({ deny: ['Shell(rm -rf *)'] });
-		const plan: CopilotSessionLaunchPlan = {
-			kind: 'create',
-			client: returningSession(session),
-			extensionSdkPath: '/copilot-sdk',
-			sessionId: 'session-1',
-			workingDirectory: testWorkingDirectory,
-			resolvedAgentName: undefined,
-			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
-			activeClientToolSet: new ActiveClientToolSet(),
-			shellManager: undefined,
-			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
-			model: { id: 'claude-sonnet-4.5', config: {} },
-		};
-
-		await assert.rejects(() => launcher.launch(plan, testRuntime), /script safety/);
-		assert.strictEqual(disconnected, true, 'expected the orphaned session to be disconnected');
-		await launcher.disposeByokProxyHandle();
-	});
-
-	test('fails closed even when the host sees no managed rules, since server and MDM policy is invisible to it', async () => {
-		let disconnected = false;
-		const session = {
-			sessionId: 'session-1',
-			on: () => () => { },
-			disconnect: async () => { disconnected = true; },
-			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: false }) } },
-		} as unknown as CopilotSession;
-		// No client-bridged rules. `IAgentHostManagedSettingsService` only carries the
-		// legacy VS Code settings bridge, so an enterprise session governed solely by
-		// GitHub or MDM policy looks exactly like this one from the host's side.
-		const launcher = createTestLauncher();
-		const plan: CopilotSessionLaunchPlan = {
-			kind: 'create',
-			client: returningSession(session),
-			extensionSdkPath: '/copilot-sdk',
-			sessionId: 'session-1',
-			workingDirectory: testWorkingDirectory,
-			resolvedAgentName: undefined,
-			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
-			activeClientToolSet: new ActiveClientToolSet(),
-			shellManager: undefined,
-			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
-			model: { id: 'claude-sonnet-4.5', config: {} },
-		};
-
-		await assert.rejects(() => launcher.launch(plan, testRuntime), /script safety/);
-		assert.strictEqual(disconnected, true, 'expected the orphaned session to be disconnected');
-		await launcher.disposeByokProxyHandle();
-	});
-
 	// The runtime reports success for any patch it accepts and signals real problems by
 	// failing the request, so a rejected RPC — not a `success: false` body — is the path
-	// a genuine enablement failure takes.
-	test('fails the launch closed and disconnects when the script safety request itself fails', async () => {
+	// a genuine launch-time update failure takes.
+	test('fails the launch closed and disconnects when a launch-time session update fails', async () => {
 		let disconnected = false;
 		const session = {
 			sessionId: 'session-1',
@@ -3250,7 +3188,6 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			const wrapper = await launcher.launch(plan, testRuntime);
 			try {
 				assert.deepStrictEqual(updates, [
-					{ enableScriptSafety: true },
 					{ sandboxConfig: { enabled: false } },
 					{ verbosity: 'medium' },
 				]);

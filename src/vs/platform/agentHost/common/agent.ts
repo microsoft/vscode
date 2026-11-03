@@ -34,6 +34,17 @@ export interface IAgentPermissionResponseContext {
 	readonly origin?: ActionOrigin;
 	readonly decisionSource?: AgentPermissionDecisionSource;
 	readonly sandboxPathGrantSaved?: true;
+	/**
+	 * The request reached a point where only a person could decide, but none can be asked. Providers
+	 * report this to their runtime instead of a denial, so it can recover without a person.
+	 */
+	readonly userNotAvailable?: true;
+	/**
+	 * Optional feedback the user wrote with their decision on an Assisted permissions prompt.
+	 * Providers may record it only as restricted telemetry; it must not be logged, persisted,
+	 * or sent to the agent or the permissions judge.
+	 */
+	readonly userFeedback?: string;
 }
 
 /** Error returned when the Agent Host process cannot be started. */
@@ -790,6 +801,14 @@ export interface IAgentChatOwnerRef {
 	get(): URI;
 	/** The current owner's subagent chat format, read at use because this reference can predate default-chat registration. */
 	getSubagentChatUriFormat(): ChatUriFormat;
+	/**
+	 * Whether the chat is the default chat of its current owner, read at use;
+	 * `undefined` while the host records no default chat for that owner. Decided
+	 * by the host, never from where the chat stores: a chat keeps its storage when
+	 * it becomes another session's default chat. Read it through
+	 * {@link isAgentChatDefaultChat}.
+	 */
+	isDefaultChat?(): boolean | undefined;
 	/** Fires after the chat's owner changed. */
 	readonly onDidChange: Event<IAgentChatOwnerChange>;
 }
@@ -912,6 +931,17 @@ export function resolveAgentChatContext(sessionOrContext: AgentChatOperationCont
 		throw new Error(`Chat context resource must be the addressed chat or a session: ${context.resource.toString()} for ${resource.toString()}`);
 	}
 	return context;
+}
+
+/**
+ * Whether a chat is the default chat of its current owner: the host's
+ * {@link IAgentChatOwnerRef.isDefaultChat} when it answers, else (owner
+ * references the host did not create, or no default chat recorded yet) whether
+ * the chat stores in its owner, which holds for every chat a session was
+ * created with.
+ */
+export function isAgentChatDefaultChat(chat: { readonly resource: URI; readonly owner: IAgentChatOwnerRef }): boolean {
+	return chat.owner.isDefaultChat?.() ?? isEqual(chat.resource, chat.owner.get());
 }
 
 /**
@@ -1500,6 +1530,12 @@ export interface IAgentToolPendingConfirmationSignal {
 	 * Host-only flag indicating that the runtime requested sandbox escalation.
 	 */
 	readonly requestSandboxBypass?: boolean;
+	/**
+	 * Host-only flag: no person can answer this request, as in Copilot's Assisted Autopilot.
+	 * Host policy may still approve or deny it; otherwise it is reported as user-not-available
+	 * instead of showing a confirmation.
+	 */
+	readonly unattended?: true;
 	/**
 	 * Host-only flag indicating that the sandbox escalation keeps the sandbox attached
 	 * while file and process restrictions record instead of block.

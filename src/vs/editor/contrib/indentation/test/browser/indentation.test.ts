@@ -335,10 +335,6 @@ suite('Indent With Tab - TypeScript/JavaScript', () => {
 		serviceCollection = createTestServiceCollection(disposables, languageId);
 	});
 
-	test('temp issue because there should be at least one passing test in a suite', () => {
-		assert.ok(true);
-	});
-
 	test.skip('issue #63388: perserve correct indentation on tab 1', () => {
 
 		// https://github.com/microsoft/vscode/issues/63388
@@ -1467,10 +1463,6 @@ suite('Auto Indent On Paste - Go', () => {
 		serviceCollection = createTestServiceCollection(disposables, languageId);
 	});
 
-	test('temp issue because there should be at least one passing test in a suite', () => {
-		assert.ok(true);
-	});
-
 	test.skip('issue #199050: should not indent after { detected in a string', () => {
 
 		// https://github.com/microsoft/vscode/issues/199050
@@ -1507,10 +1499,6 @@ suite('Auto Indent On Type - CPP', () => {
 
 	setup(() => {
 		serviceCollection = createTestServiceCollection(disposables, languageId);
-	});
-
-	test('temp issue because there should be at least one passing test in a suite', () => {
-		assert.ok(true);
 	});
 
 	test.skip('issue #178334: incorrect outdent of } when signature spans multiple lines', () => {
@@ -1588,10 +1576,6 @@ suite('Auto Indent On Type - HTML', () => {
 		serviceCollection = createTestServiceCollection(disposables, languageId);
 	});
 
-	test('temp issue because there should be at least one passing test in a suite', () => {
-		assert.ok(true);
-	});
-
 	test.skip('issue #61510: incorrect indentation after // in html file', () => {
 
 		// https://github.com/microsoft/vscode/issues/178334
@@ -1624,10 +1608,6 @@ suite('Auto Indent On Type - Visual Basic', () => {
 
 	setup(() => {
 		serviceCollection = createTestServiceCollection(disposables, languageId);
-	});
-
-	test('temp issue because there should be at least one passing test in a suite', () => {
-		assert.ok(true);
 	});
 
 	test('issue #118932: no indentation in visual basic files', () => {
@@ -2255,10 +2235,6 @@ suite('Auto Indent On Type - Latex', () => {
 		serviceCollection = createTestServiceCollection(disposables, languageId);
 	});
 
-	test('temp issue because there should be at least one passing test in a suite', () => {
-		assert.ok(true);
-	});
-
 	test.skip('issue #178075: no auto closing pair when indentation done', () => {
 
 		// https://github.com/microsoft/vscode/issues/178075
@@ -2288,10 +2264,6 @@ suite('Auto Indent On Type - Lua', () => {
 
 	setup(() => {
 		serviceCollection = createTestServiceCollection(disposables, languageId);
-	});
-
-	test('temp issue because there should be at least one passing test in a suite', () => {
-		assert.ok(true);
 	});
 
 	test.skip('issue #178075: no auto closing pair when indentation done', () => {
