@@ -18,7 +18,7 @@ import { IObservable } from '../../../../../../base/common/observable.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { AgentHostModePicker } from '../agentHostModePicker.js';
-import { createChatPhoneInputSessionContext } from './mobileChatPhoneInputTarget.js';
+import { createChatPhoneInputSessionContext } from '../../../../../services/presentation/browser/chatPhoneInputContext.js';
 
 /**
  * Phone-aware variant of {@link AgentHostModePicker}. On phone-layout

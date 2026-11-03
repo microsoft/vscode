@@ -2513,8 +2513,8 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 				toolStore.add(autorunDisposable);
 			}
 		} else if (toolInvocationOrMarkdown?.kind === 'markdownContent') {
-			const codeblockInfo = extractCodeblockUrisFromText(toolInvocationOrMarkdown.content.value);
-			const resources = extractEditCodeblockUrisFromText(toolInvocationOrMarkdown.content.value);
+			const codeblockInfo = toolInvocationOrMarkdown.codeblockUri ?? extractCodeblockUrisFromText(toolInvocationOrMarkdown.content.value);
+			const resources = toolInvocationOrMarkdown.codeblockUri?.isEdit ? [toolInvocationOrMarkdown.codeblockUri.uri] : extractEditCodeblockUrisFromText(toolInvocationOrMarkdown.content.value);
 			if (resources.length > 0) {
 				this.editResourcesByPartId.set(toolInvocationId, resources);
 			}

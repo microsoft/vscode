@@ -33,7 +33,7 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 	readonly sessionServerToolAccessor: IAgentServiceSessionServerToolAccessor = {
 		getCredentialSource: chat => this.value.sessionServerToolAccessor.getCredentialSource(chat),
 		getAutomaticTitleGenerationStrategy: session => this.value.sessionServerToolAccessor.getAutomaticTitleGenerationStrategy(session),
-		isWorkspaceless: session => this.value.sessionServerToolAccessor.isWorkspaceless(session),
+		startedWorkspaceless: session => this.value.sessionServerToolAccessor.startedWorkspaceless(session),
 		canConvertWorkspace: session => this.value.sessionServerToolAccessor.canConvertWorkspace(session),
 		supportsChatWorkingDirectories: session => this.value.sessionServerToolAccessor.supportsChatWorkingDirectories(session),
 		getChatHarnesses: session => this.value.sessionServerToolAccessor.getChatHarnesses(session),

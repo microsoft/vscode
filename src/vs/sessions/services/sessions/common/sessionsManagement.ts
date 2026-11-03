@@ -353,6 +353,13 @@ export interface ISessionsManagementService {
 	resolveWorkspace(workspaceUri: URI, preferredProviderId?: string): { providerId: string; workspace: ISessionWorkspace } | undefined;
 
 	/**
+	 * The label of the remote agent environment hosting `workspace`, for
+	 * identifying it in trust prompts. `undefined` when the workspace is not
+	 * hosted on a remote agent environment.
+	 */
+	getRemoteHostLabel(workspace: ISessionWorkspace, providerId: string): string | undefined;
+
+	/**
 	 * Fires when available session types change (providers added/removed).
 	 */
 	readonly onDidChangeSessionTypes: Event<void>;

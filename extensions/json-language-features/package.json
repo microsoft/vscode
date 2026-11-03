@@ -217,7 +217,9 @@
     "vscode-languageclient": "^10.1.1"
   },
   "devDependencies": {
-    "@types/node": "24.x"
+    "@types/glob": "7.1.3",
+    "@types/node": "24.x",
+    "glob": "^5.0.13"
   },
   "repository": {
     "type": "git",

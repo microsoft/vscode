@@ -48,7 +48,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
-import { AgentPermissionKind, AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, type IAgent, type IAgentAdoptedWorktree, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatDiscoveryOptions, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef } from '../../common/agent.js';
+import { AgentPermissionKind, AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, resolveSessionBackedStorage, type IAgent, type IAgentAdoptedWorktree, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatDiscoveryOptions, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef } from '../../common/agent.js';
 import { AgentHostPrewarmSessionsSettingId, IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, platformSessionSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactIntegrationsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPrewarmSessionsConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../common/agentHostSchema.js';
@@ -1642,7 +1642,23 @@ suite('AgentService (node dispatcher)', () => {
 		assert.strictEqual(stateManager.getDefaultChat(legacy.toString()), buildDefaultChatUri(legacy.toString()));
 	});
 
-	for (const operation of ['installSandboxCertificate', 'rotateSandboxCertificate', 'removeSandboxCertificate'] as const) {
+	test('host sandbox certificate management routes without creating or restoring a chat', async () => {
+		const provider: IAgent = copilotAgent;
+		registerTestAgentProvider(service, provider);
+		service.createSession = async () => { assert.fail('Must not create a session'); };
+		service.restoreSession = async () => { assert.fail('Must not restore a session'); };
+		await assert.rejects(service.manageHostSandboxCertificate('missing', 'install'), /unavailable/);
+		await assert.rejects(service.manageHostSandboxCertificate(provider.id, 'install'), /unavailable/);
+		const calls: string[] = [];
+		provider.manageHostSandboxCertificate = async operation => { calls.push(operation); };
+		const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService());
+		for (const operation of ['install', 'rotate', 'remove'] as const) {
+			await managementService.manageHostSandboxCertificate(provider.id, operation);
+		}
+		assert.deepStrictEqual(calls, ['install', 'rotate', 'remove']);
+	});
+
+	for (const operation of ['installSandboxCertificate', 'rotateSandboxCertificate', 'removeSandboxCertificate', 'refreshSandboxCertificate'] as const) {
 		test(`sandbox certificate ${operation} uses the registered chat owner without restoring a session`, async () => {
 			const provider: IAgent = copilotAgent;
 			const calls: [string, string][] = [];
@@ -11183,6 +11199,55 @@ suite('AgentService (node dispatcher)', () => {
 				workspaceless: readSessionWorkspaceless(restoredState.getSessionState(session.toString())?._meta),
 				persisted: await databases.database(session).getMetadata(AH_META_WORKSPACELESS_DB_KEY),
 			}, { workspaceless: false, persisted: 'false' });
+		});
+
+		test('set_workspace stays loaded after converting a workspace-less session', async () => {
+			const scratch = URI.file('/home/.copilot/chats/own');
+			const destination = URI.file('/workspace/destination');
+			class WorkspaceAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+				override async setWorkingDirectory(): Promise<void> { }
+				async setChatWorkingDirectory(): Promise<void> { }
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new WorkspaceAgent('copilot', { multipleChats: { fork: true }, multipleWorkingDirectories: { immutablePrimary: true } }, { workspaceConversion: true }));
+			agent.resolvedWorkingDirectory = scratch;
+			registerTestAgentProvider(svc, agent);
+			const clientConnections = Reflect.get(svc, '_clientConnections') as IAgentHostClientConnectionService;
+			disposables.add(clientConnections.registerSource({
+				hasSeenClient: clientId => clientId === 'client',
+				isClientConnected: clientId => clientId === 'client',
+				isLocalClient: () => true,
+				usesLegacyChatUris: () => false,
+				getConnectedClientTransportCounts: () => new Map([['client', 1]]),
+				requestWorkspaceTrust: async () => true,
+				requestMcpAuthentication: async () => false,
+			}));
+			const setWorkspaceDeferral = (session: URI) => agent.serverToolHost!.getDefinitionsForSession(session.toString()).find(tool => tool.name === SessionServerToolName.SetWorkspace)?.deferLoading;
+			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id });
+			const beforeConversion = setWorkspaceDeferral(session);
+			getStateManager(svc).dispatchServerAction(session.toString(), { type: ActionType.SessionConfigChanged, config: { autoApprove: 'autoApprove' } });
+			const main = buildDefaultChatUri(session);
+			svc.dispatchAction(main, {
+				type: ActionType.ChatTurnStarted, turnId: 'request-turn', startedAt: new Date().toISOString(),
+				message: { text: 'Work in the destination', origin: { kind: MessageKind.User } },
+			}, 'client', 1);
+			await waitForCondition(agent.onDidSendMessage, () => agent.sendMessageCalls.length === 1, 'Expected the requesting turn to start');
+			await agent.serverToolHost!.executeTool(main, SessionServerToolName.SetWorkspace, { workspaceFolder: destination.toString(), isolation: false });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(main), action: { type: ActionType.ChatTurnComplete, turnId: 'request-turn', duration: 1 } });
+			await waitForCondition(agent.onDidSendMessage, () => agent.sendMessageCalls.length === 2, 'Expected the host to continue the original task');
+			agent.resolvedWorkingDirectory = destination;
+			const workspaceSession = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [destination] });
+
+			assert.deepStrictEqual({
+				workspaceless: readSessionWorkspaceless(getStateManager(svc).getSessionState(session.toString())?._meta),
+				beforeConversion,
+				afterConversion: setWorkspaceDeferral(session),
+				startedWithWorkspace: setWorkspaceDeferral(workspaceSession),
+			}, { workspaceless: false, beforeConversion: false, afterConversion: false, startedWithWorkspace: true });
 		});
 
 		test('set_workspace uses the sole connected active client for a provider-started turn', async () => {
@@ -36483,6 +36548,7 @@ suite('AgentService (node dispatcher)', () => {
 				readonly customizationStorage: string[] = [];
 				constructor(id: string, private readonly _multiRoot = false) {
 					super(id);
+					this.initialChatProviderData = 'session-backing';
 					this.sessionMessages = [{ type: 'message', session: URI.file('/restored'), role: 'user', messageId: 'restored-turn', content: 'Hello', toolRequests: [] }];
 					const getChatCustomizations = this.getChatCustomizations;
 					this.getChatCustomizations = async (chat, context, hostCustomizations) => {
@@ -36490,8 +36556,12 @@ suite('AgentService (node dispatcher)', () => {
 						return getChatCustomizations(chat, context, hostCustomizations);
 					};
 				}
-				override async materializeChat(chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
+				override async materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
 					this.materialized.push({ chat: chat.toString(), providerData });
+					// As every agent does: a chat stored in its session's database without a recorded backing is backed by that session's conversation.
+					if (providerData === undefined && resolveSessionBackedStorage(resolveAgentChatContext(context, chat), chat)) {
+						return { providerData: 'session-backing' };
+					}
 				}
 				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined> {
 					if (providerData === 'peer-backing') {
@@ -38956,7 +39026,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 
 				test('a moved session\'s chat promoted out again stores in the first session\'s database: deleting its session cold deletes that', async () => {
-					const { createService, contentsOf, seed, orchestratorDatabase, service, source, target, chat } = await setupSessionMove();
+					const { createService, contentsOf, seed, service, source, target, chat } = await setupSessionMove();
 					await seed(source);
 					await seed(target);
 					// A chat moved out of the source earlier still reads the source's attachments.
@@ -38966,10 +39036,6 @@ suite('AgentService (node dispatcher)', () => {
 					await service.moveChat(source, earlier, { kind: 'session', session: target, after: undefined });
 					await service.moveSession(source, target, undefined);
 					await timeout(0);
-					// The backing the provider reports when the chat materializes in the destination, as the host records it.
-					// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write the stored row, as the host does.
-					const raw = await orchestratorDatabase['_ensureDatabase']();
-					await new Promise<void>((resolve, reject) => raw.run('UPDATE chats_v2 SET provider_data = ? WHERE chat_uri = ?', ['session-backing', chat.toString()], error => error ? reject(error) : resolve()));
 					// Its session's default chat now stores neither in that session nor at its own URI.
 					completeTurn(service, chat);
 					const promoted = await service.moveChat(target, chat, { kind: 'newSession' });
@@ -39054,7 +39120,7 @@ suite('AgentService (node dispatcher)', () => {
 				});
 
 				test('a session that runs Agent Merge nested under another keeps it in its chat there, across restarts, with no copy left behind; undoing the nest takes it along again', async () => {
-					const { createService, orchestratorDatabase, agent, service, source, target, chat } = await setupSessionMove();
+					const { createService, agent, service, source, target, chat } = await setupSessionMove();
 					const folder = URI.file('/repo');
 					const agentMerge = await enableAgentMerge(service, agent, [source, target], source, chat.toString(), folder, 1);
 					const elevated = { [SessionConfigKey.AgentMergeChatInjectedConfiguration]: { [chat.toString()]: { previous: {}, applied: { autoApprove: 'autoApprove' } } } };
@@ -39090,10 +39156,6 @@ suite('AgentService (node dispatcher)', () => {
 					sourceDatabase.dispose();
 					const restarted = await restart(service);
 					const nestedAfterRestart = boundIn(restarted, target);
-
-					// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write the stored row, as the host does.
-					const raw = await orchestratorDatabase['_ensureDatabase']();
-					await new Promise<void>((resolve, reject) => raw.run('UPDATE chats_v2 SET provider_data = ? WHERE chat_uri = ?', ['session-backing', chat.toString()], error => error ? reject(error) : resolve()));
 					await getStateManager(restarted).resolveChatState(chat.toString());
 					completeTurn(restarted, chat);
 					const promoted = await restarted.moveChat(target, chat, { kind: 'newSession' });
@@ -39144,7 +39206,7 @@ suite('AgentService (node dispatcher)', () => {
 				});
 
 				test('a moved session\'s chat promoted out again inherits none of the destination\'s Agent Merge, in memory or on disk', async () => {
-					const { orchestratorDatabase, service, source, target, chat } = await setupSessionMove();
+					const { service, source, target, chat } = await setupSessionMove();
 					const stateManager = getStateManager(service);
 					const targetChat = stateManager.getSessionState(target.toString())!.defaultChat!;
 					const agentMerge = agentMergeConfigValues(targetChat, URI.file('/repo'), 2);
@@ -39152,9 +39214,6 @@ suite('AgentService (node dispatcher)', () => {
 					stateManager.setSessionConfig(target.toString(), { schema: targetConfig?.schema ?? { type: 'object', properties: {} }, values: { ...targetConfig?.values, ...agentMerge } });
 
 					await service.moveSession(source, target, undefined);
-					// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write the stored row, as the host does.
-					const raw = await orchestratorDatabase['_ensureDatabase']();
-					await new Promise<void>((resolve, reject) => raw.run('UPDATE chats_v2 SET provider_data = ? WHERE chat_uri = ?', ['session-backing', chat.toString()], error => error ? reject(error) : resolve()));
 					completeTurn(service, chat);
 					const promoted = await service.moveChat(target, chat, { kind: 'newSession' });
 					await service.whenCatalogReconciliationIdle();
@@ -39172,17 +39231,13 @@ suite('AgentService (node dispatcher)', () => {
 				});
 
 				test('the session\'s recorded pull request moves with its chat, and comes back with it when the move is undone by promoting the chat, across a restart', async () => {
-					const { createService, orchestratorDatabase, service, source, target, chat } = await setupSessionMove();
+					const { createService, service, source, target, chat } = await setupSessionMove();
 					const targetChat = getStateManager(service).getSessionState(target.toString())!.defaultChat!;
 					await recordPullRequest(service, source, chat.toString(), 1);
 					await recordPullRequest(service, target, targetChat, 2);
 
 					await service.moveSession(source, target, undefined);
 					const nested = await pullRequestsOf(service, target);
-					// The backing the provider reports when the chat materializes in the destination, as the host records it.
-					// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write the stored row, as the host does.
-					const raw = await orchestratorDatabase['_ensureDatabase']();
-					await new Promise<void>((resolve, reject) => raw.run('UPDATE chats_v2 SET provider_data = ? WHERE chat_uri = ?', ['session-backing', chat.toString()], error => error ? reject(error) : resolve()));
 					completeTurn(service, chat);
 					const promoted = await service.moveChat(target, chat, { kind: 'newSession' });
 					const undone = { promoted: await pullRequestsOf(service, promoted), target: await pullRequestsOf(service, target) };
@@ -39937,6 +39992,7 @@ suite('AgentService (node dispatcher)', () => {
 					const env = await setupColdMove();
 					await env.restarted.subscribe(env.target, 'client');
 					env.resetCalls();
+					const backing = (await getTestAgentHostDatabase(env.restarted).getChatV2ProviderDetail(env.defaultChats.single))?.providerData;
 
 					await env.restarted.moveSession(env.single, env.target, undefined);
 					await whenMoveHoldsDropped(env.restarted, [env.single]);
@@ -39947,13 +40003,128 @@ suite('AgentService (node dispatcher)', () => {
 					const runtimeBeforeOpen = { messages, materialized };
 					const opened = await env.restarted.subscribe(URI.parse(env.defaultChats.single), 'client');
 
-					assert.deepStrictEqual({ unopened, runtimeBeforeOpen, opened: opened.resource, runtime: env.runtimeCalls().messages, owner: stateManager.getChatOwner(env.defaultChats.single), loaded: env.loaded(env.single, env.target) }, {
+					assert.deepStrictEqual({ backing, unopened, runtimeBeforeOpen, opened: opened.resource, runtime: env.runtimeCalls().messages, owner: stateManager.getChatOwner(env.defaultChats.single), loaded: env.loaded(env.single, env.target) }, {
+						// It records its chat's backing, so it is loaded with its data only (C15).
+						backing: 'session-backing',
 						unopened: true,
 						runtimeBeforeOpen: { messages: [], materialized: [] },
 						opened: env.defaultChats.single,
 						runtime: [[env.defaultChats.single, env.target.toString()]],
 						owner: env.target.toString(),
 						loaded: [false, true],
+					});
+				});
+
+				/** A session created before agents reported its chat's backing, so it records none, and a target; then a restarted host that loaded neither. */
+				async function setupUnbackedNest() {
+					const services = createDeletingServices();
+					const service = services.createService();
+					const folder = URI.file('/repo');
+					const target = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [folder] });
+					services.agent.initialChatProviderData = undefined;
+					const old = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [folder] });
+					services.agent.initialChatProviderData = 'session-backing';
+					await timeout(0);
+					const chat = URI.parse(getStateManager(service).getDefaultChat(old.toString())!);
+					await service.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(service).whenIdle(undefined);
+					services.agent.sessionMetadataOverrides = { workingDirectories: [folder] };
+					const restarted = services.createService();
+					const database = getTestAgentHostDatabase(restarted);
+					const backing = async (of = chat) => (await database.getChatV2ProviderDetail(of.toString()))?.providerData;
+					const authority = async (session: URI) => (await database.readCatalogSnapshot([session.toString()]))[0]?.authorityVersion;
+					const owner = async (of = chat) => (await getTestAgentServiceComposition(restarted).chatOwnership.resolveChatOwner(of.toString()))?.owner;
+					return { ...services, service, restarted, database, folder, old, target, chat, backing, authority, owner };
+				}
+
+				test('a session not loaded whose chat records no backing of its own nests with its backing recorded, so it moves back out to its own session (#344917)', async () => {
+					const env = await setupUnbackedNest();
+					const before = { backing: await env.backing(), authority: await env.authority(env.old), loaded: getStateManager(env.restarted).getSessionState(env.old.toString()) !== undefined };
+
+					await env.restarted.moveSession(env.old, env.target, undefined);
+					await whenMoveHoldsDropped(env.restarted, [env.old, env.target]);
+					const nested = { backing: await env.backing(), owner: await env.owner() };
+					// Undoing the nest moves the chat to a new session, as Move to New Session does.
+					const undone = await refusalOf(env.restarted.moveChat(env.target, env.chat, { kind: 'newSession' }));
+					const owner = await env.owner();
+
+					assert.deepStrictEqual({ before, nested, undone, ownedByItsOwnSession: owner !== env.target.toString() && owner !== env.old.toString() }, {
+						before: { backing: undefined, authority: 2, loaded: false },
+						nested: { backing: 'session-backing', owner: env.target.toString() },
+						undone: 'moved',
+						ownedByItsOwnSession: true,
+					});
+				});
+
+				test('a legacy session not loaded nests with its backing recorded, so it moves back out to its own session', async () => {
+					const env = await setupUnbackedNest();
+					const legacy = AgentSession.uri('copilot', 'older-build');
+					const chat = URI.parse(buildDefaultChatUri(legacy));
+					await env.database.registerRuntimeSession(legacy.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+					await env.database.upsertSessionV2(catalogEnvelope(legacy, {
+						modifiedTime: 1, summary: 'Older build', isRead: true, isArchived: false, workingDirectories: [env.folder.toString()],
+						chats: [{ uri: chat.toString(), order: 0, kind: 'default', summary: 'Older build', workingDirectories: [env.folder.toString()] }],
+					}), undefined);
+					await env.database.markSessionV2PayloadDirty(legacy.toString());
+					const getChatMetadata = env.agent.getChatMetadata.bind(env.agent);
+					env.agent.getChatMetadata = async (candidate, context, providerData) => candidate.toString() === chat.toString()
+						? { chat: candidate, startTime: 1, modifiedTime: 1, summary: 'Older build', workingDirectories: [env.folder] }
+						: getChatMetadata(candidate, context, providerData);
+					const before = { backing: await env.backing(chat), authority: await env.authority(legacy) };
+
+					await env.restarted.moveSession(legacy, env.target, undefined);
+					await whenMoveHoldsDropped(env.restarted, [legacy, env.target]);
+					const nested = { backing: await env.backing(chat), owner: await env.owner(chat) };
+					const undone = await refusalOf(env.restarted.moveChat(env.target, chat, { kind: 'newSession' }));
+					const owner = await env.owner(chat);
+
+					assert.deepStrictEqual({ before, nested, undone, ownedByItsOwnSession: owner !== env.target.toString() && owner !== legacy.toString() }, {
+						before: { backing: undefined, authority: 1 },
+						nested: { backing: 'session-backing', owner: env.target.toString() },
+						undone: 'moved',
+						ownedByItsOwnSession: true,
+					});
+				});
+
+				test('a session not loaded whose chats can\'t be read is refused as not movable, and nothing changes', async () => {
+					const env = await setupUnbackedNest();
+					const readCatalogSnapshot = env.database.readCatalogSnapshot.bind(env.database);
+					env.database.readCatalogSnapshot = async sessions => {
+						if (sessions?.includes(env.old.toString())) {
+							throw new Error('database is locked');
+						}
+						return readCatalogSnapshot(sessions);
+					};
+
+					const moved = await refusalOf(env.restarted.moveSession(env.old, env.target, undefined));
+					const check = await refusalOf(moveTool(env.restarted).checkChatMove({ kind: 'session', session: env.old, destination: env.target, after: 'end' }));
+					env.database.readCatalogSnapshot = readCatalogSnapshot;
+
+					assert.deepStrictEqual({ moved, check, owner: await env.owner() }, {
+						moved: AgentChatMoveRefusal.NotMovable,
+						check: AgentChatMoveRefusal.NotMovable,
+						owner: env.old.toString(),
+					});
+				});
+
+				test('a session whose agent records no backing for its chat is refused before it nests, loaded or not, and nothing changes', async () => {
+					const env = await setupUnbackedNest();
+					env.agent.materializeChat = async (chat, _context, providerData) => {
+						env.agent.materialized.push({ chat: chat.toString(), providerData });
+					};
+
+					const notLoaded = await refusalOf(env.restarted.moveSession(env.old, env.target, undefined));
+					await whenMoveHoldsDropped(env.restarted, [env.old, env.target]);
+					const loaded = await refusalOf(env.restarted.moveSession(env.old, env.target, undefined));
+					const check = await refusalOf(moveTool(env.restarted).checkChatMove({ kind: 'session', session: env.old, destination: env.target, after: 'end' }));
+
+					assert.deepStrictEqual({ notLoaded, loaded, check, owner: await env.owner(), tombstoned: await env.database.isSessionTombstoned(env.old.toString()), backing: await env.backing() }, {
+						notLoaded: AgentChatMoveRefusal.NotMovable,
+						loaded: AgentChatMoveRefusal.NotMovable,
+						check: AgentChatMoveRefusal.NotMovable,
+						owner: env.old.toString(),
+						tombstoned: false,
+						backing: undefined,
 					});
 				});
 
