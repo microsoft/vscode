@@ -225,6 +225,19 @@ suite('Chat window', () => {
 		});
 	});
 
+	test('a layout command moves the chat\'s editor back into the chat part from any part of the window, such as one created for an editor dropped on its edge', () => {
+		const { window, chat, other, chatInput, events } = createWindow({ otherPart: true });
+		other.group.open(chatInput);
+		chat.group.fireCloseEditor(chatInput, EditorCloseContext.MOVE);
+		window.setLayoutMode(ChatWindowLayoutMode.SideBySide);
+
+		assert.deepStrictEqual({ inChat: chat.group.contains(chatInput), inOther: other.group.contains(chatInput), events }, {
+			inChat: true,
+			inOther: false,
+			events: ['move to chat'],
+		});
+	});
+
 	test('closing the chat\'s editor closes the window once the editor closed, closing its chat part before its main part', async () => {
 		const { chat, chatInput, events } = createWindow();
 
