@@ -79,7 +79,7 @@ import { SessionsFlatList, SessionItemStatusContext, formatSessionListTime } fro
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { getAutomationOwnershipGroups, getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
+import { formatUnavailableAutomationsMessage, getAutomationOwnershipGroups, getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress } from './automationRunProgress.js';
 import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from '../../../automations/browser/automationTelemetry.js';
 
@@ -357,7 +357,6 @@ class AutomationCardsSection extends Disposable {
 	private readonly disabledSection: IAutomationOwnershipSection;
 	private readonly partialStateContainer: HTMLElement;
 	private readonly dropOverlay: HTMLElement;
-	private readonly partialErrorIcon: HTMLElement;
 	private readonly partialStateMessage: HTMLElement;
 	private readonly persistentCards = new Map<string, IAutomationCardEntry>();
 	private readonly ownershipSections = new Map<string, IAutomationOwnershipSection>();
@@ -413,14 +412,27 @@ class AutomationCardsSection extends Disposable {
 		}));
 		this.container = DOM.append(parent, $('.automations-cards-grid'));
 		this.container.style.display = 'none';
-		this.partialStateContainer = DOM.append(parent, $('.automations-cards-partial-state'));
-		this.partialStateContainer.setAttribute('role', 'status');
-		this.partialStateContainer.setAttribute('aria-live', 'polite');
+		const warningButton = this._register(new Button(parent, {
+			ariaLabel: localize('automationWarnings', "Automation warnings"),
+			supportIcons: true,
+		}));
+		warningButton.label = '$(warning)';
+		this.partialStateContainer = warningButton.element;
+		this.partialStateContainer.classList.add('automations-cards-partial-state');
 		this.partialStateContainer.style.display = 'none';
-		this.partialErrorIcon = DOM.append(this.partialStateContainer, $('span.automations-cards-partial-state-icon'));
-		this.partialErrorIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
-		this.partialErrorIcon.setAttribute('aria-hidden', 'true');
-		this.partialStateMessage = DOM.append(this.partialStateContainer, $('div.automations-cards-partial-state-message'));
+		this.partialStateMessage = $('div.automations-cards-partial-state-message');
+		const warningHover = {
+			content: this.partialStateMessage,
+			appearance: { showPointer: true },
+			position: { hoverPosition: HoverPosition.BELOW },
+		};
+		this._register(this.hoverService.setupDelayedHover(this.partialStateContainer, warningHover, { groupId: this.templateAriaId }));
+		this._register(warningButton.onDidClick(event => {
+			if (event) {
+				DOM.EventHelper.stop(event, true);
+			}
+			this.hoverService.showInstantHover({ ...warningHover, target: this.partialStateContainer, trapFocus: true }, true);
+		}));
 		this.emptyContainer = DOM.append(parent, $('.automations-cards-empty'));
 		this.emptyContainer.style.display = 'none';
 		this.loadingContainer = DOM.append(parent, $('.automations-cards-state.automations-cards-loading'));
@@ -558,7 +570,11 @@ class AutomationCardsSection extends Disposable {
 		}
 
 		const disabledAutomations = automations.filter(automation => !automation.enabled);
-		const groups = getAutomationOwnershipGroups(automations.filter(automation => automation.enabled));
+		const enabledAutomations = automations.filter(automation => automation.enabled);
+		const groups = getAutomationOwnershipGroups(enabledAutomations);
+		if (groups.length === 0 && automations.length > 0 && (catalogueState === 'error' || catalogueState === 'unavailable')) {
+			groups.push(...getAutomationOwnershipGroups(automations).filter(group => group.ownership === 'user').map(group => ({ ...group, automations: [] })));
+		}
 		for (const [ownership, rendered] of this.ownershipSections) {
 			if (!groups.some(group => group.ownership === ownership)) {
 				rendered.disposables.dispose();
@@ -573,8 +589,11 @@ class AutomationCardsSection extends Disposable {
 				this.ownershipSections.set(group.ownership, rendered);
 			}
 			rendered.title.textContent = group.label;
+			if (group.ownership === 'user' && this.partialStateContainer.parentElement !== rendered.summary) {
+				rendered.summary.appendChild(this.partialStateContainer);
+			}
 			if (rendered.emptyState) {
-				rendered.emptyState.style.display = group.automations.length === 0 ? '' : 'none';
+				rendered.emptyState.style.display = group.automations.length === 0 && enabledAutomations.length > 0 ? '' : 'none';
 			}
 			const currentSection = this.container.children.item(groupIndex);
 			if (currentSection !== rendered.section) {
@@ -1187,17 +1206,21 @@ class AutomationCardsSection extends Disposable {
 		this.partialState = catalogueState;
 		this.partialUnavailableProviders = catalogueState === 'unavailable' ? [...unavailableProviders] : [];
 		if (catalogueState === 'ready' || catalogueState === 'loading') {
+			if (DOM.isActiveElement(this.partialStateContainer)) {
+				this.ownershipSections.get('user')?.summary.focus();
+			}
 			this.partialStateContainer.style.display = 'none';
 			return;
 		}
-		const isError = catalogueState === 'error';
 		this.partialStateContainer.style.display = '';
-		this.partialStateContainer.classList.toggle('automations-cards-partial-state-error', isError);
 		if (catalogueState === 'unavailable') {
 			this.renderUnavailableMessage(this.partialStateMessage, unavailableProviders);
 		} else {
 			this.partialStateMessage.textContent = localize('automationsPartialLoadError', "Some automations could not be loaded.");
 		}
+		this.partialStateContainer.setAttribute('aria-description', catalogueState === 'unavailable'
+			? formatUnavailableAutomationsMessage(unavailableProviders)
+			: this.partialStateMessage.textContent ?? '');
 	}
 
 	private renderUnavailableMessage(container: HTMLElement, unavailableProviders: readonly IAutomationProviderDescriptor[]): void {

@@ -19,7 +19,10 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -266,6 +269,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 	}),
 	PartialUnavailableMultipleReasons: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
 		render: ctx => renderAutomations(ctx, {
 			width: 1000,
 			height: 720,
@@ -346,6 +350,13 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 		colorTheme: ctx.theme,
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
+			reg.defineInstance(ILayoutService, new class extends mock<ILayoutService>() {
+				override readonly mainContainer = ctx.container;
+				override readonly activeContainer = ctx.container;
+				override readonly onDidLayoutContainer = Event.None;
+				override getContainer(): HTMLElement { return ctx.container; }
+			}());
+			reg.define(IHoverService, HoverService);
 			reg.defineInstance(IActionViewItemService, actionViewItemService);
 			reg.define(IListService, ListService);
 			reg.define(IMarkdownRendererService, MarkdownRendererService);

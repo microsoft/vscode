@@ -67,7 +67,6 @@
 .automations-cards-grid,
 .automations-cards-empty,
 .automations-cards-state,
-.automations-cards-partial-state,
 .automations-templates,
 .automations-disabled-section,
 .automations-history-state,
@@ -484,28 +483,22 @@
 	margin-top: var(--vscode-spacing-size40);
 }
 
-.automations-cards-partial-state {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size80);
-	margin-top: var(--vscode-spacing-size120);
-	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
-	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+.automations-ownership-summary .monaco-button.automations-cards-partial-state {
+	width: auto;
+	padding: var(--vscode-spacing-size20);
+	border: none;
 	border-radius: var(--vscode-cornerRadius-small);
-	box-sizing: border-box;
-	font-size: var(--vscode-fontSize-label1);
 	color: var(--vscode-descriptionForeground);
+	background: transparent;
 }
 
-.automations-cards-partial-state-error {
-	border-color: var(--vscode-inputValidation-warningBorder);
-	background-color: var(--vscode-inputValidation-warningBackground);
-	color: var(--vscode-inputValidation-warningForeground);
+.automations-ownership-summary .monaco-button.automations-cards-partial-state:hover {
+	background: var(--vscode-toolbar-hoverBackground);
 }
 
-.automations-cards-partial-state-icon {
-	flex-shrink: 0;
-	font-size: var(--vscode-codiconFontSize);
+.automations-ownership-summary .monaco-button.automations-cards-partial-state:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-strokeThickness);
 }
 
 /* Disabled automations */

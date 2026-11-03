@@ -810,7 +810,7 @@ suite('AutomationsCardsWidget', () => {
 		return { toolbar, button: container.querySelector<HTMLElement>('.monaco-button')! };
 	}
 
-	test('disabled cards are grouped under the warning area and above templates', () => {
+	test('disabled cards are grouped below the ownership header and above templates', () => {
 		const { widget, automationService } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
 		const items = [automation({ id: 'disabled', enabled: false }), automation({ id: 'enabled' })];
 		automationService.setAutomations(items);
@@ -2681,31 +2681,102 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('surfaces partial catalogue states with saved automations', () => {
+	test('surfaces partial catalogue warnings as one icon next to Your automations', () => {
 		const { automationService, widget } = setup();
 		automationService.setAutomations([automation()]);
 		const loadingDisplay = widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')?.style.display;
 		automationService.setUnavailableProviders([{ id: 'remote-build-host', label: 'Remote build host' }]);
 		automationService.setCatalogueState('unavailable');
 		const partialState = widget.element.querySelector<HTMLElement>('.automations-cards-partial-state');
-		const unavailableMessage = partialState?.textContent;
+		const unavailableMessage = partialState?.getAttribute('aria-description');
 		automationService.setCatalogueState('error');
 
 		assert.deepStrictEqual({
 			loadingDisplay,
 			unavailableMessage,
-			errorMessage: widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')?.textContent,
+			errorMessage: partialState?.getAttribute('aria-description'),
 			savedCards: widget.element.querySelectorAll('.automations-card').length,
-			appearsAfterCards: partialState?.previousElementSibling?.classList.contains('automations-cards-grid'),
+			header: partialState?.previousElementSibling?.textContent,
+			visibleText: partialState?.textContent,
+			icons: partialState?.querySelectorAll('.codicon-warning').length,
+			nativeTooltip: partialState?.getAttribute('title'),
 			templatesDisplay: widget.element.querySelector<HTMLElement>('.automations-templates')?.style.display,
 		}, {
 			loadingDisplay: 'none',
 			unavailableMessage: 'Automations are unavailable on Remote build host.',
 			errorMessage: 'Some automations could not be loaded.',
 			savedCards: 1,
-			appearsAfterCards: true,
+			header: 'Your automations',
+			visibleText: '',
+			icons: 1,
+			nativeTooltip: null,
 			templatesDisplay: '',
 		});
+	});
+
+	test('warning hover uses current messages, preserves section expansion and restores focus when resolved', () => {
+		let hoverOptions: IDelayedHoverOptions | undefined;
+		let hoverDisposed = false;
+		const shown: { content: string | null; focus: boolean | undefined }[] = [];
+		const hoverService: IHoverService = {
+			...NullHoverService,
+			setupDelayedHover: (target, options) => {
+				if (!target.classList.contains('automations-cards-partial-state')) {
+					return toDisposable(() => { });
+				}
+				hoverOptions = typeof options === 'function' ? options() : options;
+				return toDisposable(() => { hoverDisposed = true; });
+			},
+			showInstantHover: (options, focus) => {
+				assert.ok(options.content instanceof HTMLElement);
+				shown.push({ content: options.content.textContent, focus });
+				return undefined;
+			},
+		};
+		const { automationService, widget } = setup('archive', hoverService);
+		automationService.setAutomations([automation()]);
+		automationService.setCatalogueState('error');
+		const warning = widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')!;
+		const section = warning.closest('details')!;
+		section.open = false;
+		warning.focus();
+		warning.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		automationService.setUnavailableProviders([{ id: 'remote', label: 'Remote host', unavailableReasonCode: 'disconnected' }]);
+		automationService.setCatalogueState('unavailable');
+		warning.click();
+		automationService.setCatalogueState('ready');
+		const resolved = {
+			display: warning.style.display,
+			focus: document.activeElement === section.querySelector('summary'),
+			open: section.open,
+		};
+		widget.dispose();
+		assert.deepStrictEqual({ shown, pointer: hoverOptions?.appearance?.showPointer, resolved, hoverDisposed }, {
+			shown: [
+				{ content: 'Some automations could not be loaded.', focus: true },
+				{ content: 'The agent host is disconnected on Remote host.', focus: true },
+			],
+			pointer: true,
+			resolved: { display: 'none', focus: true, open: false },
+			hoverDisposed: true,
+		});
+	});
+
+	test('warnings remain discoverable when only disabled or shared automations remain', () => {
+		const { automationService, widget } = setup();
+		automationService.setCatalogueState('error');
+		const snapshots = [automation({ enabled: false }), automation({ ownership: 'repository' })].map(item => {
+			automationService.setAutomations([item]);
+			const warnings = [...widget.element.querySelectorAll<HTMLElement>('.automations-cards-partial-state')];
+			return warnings.map(warning => ({
+				header: warning.previousElementSibling?.textContent,
+				visible: warning.style.display !== 'none',
+			}));
+		});
+		assert.deepStrictEqual(snapshots, [
+			[{ header: 'Your automations', visible: true }],
+			[{ header: 'Your automations', visible: true }],
+		]);
 	});
 
 	test('initializing providers do not show load failures in visible or accessible output', () => {
@@ -2738,7 +2809,16 @@ suite('AutomationsCardsWidget', () => {
 
 	for (const hasSavedAutomations of [false, true]) {
 		test(`groups unavailable providers into visual and accessible bullet lists ${hasSavedAutomations ? 'with' : 'without'} saved automations`, () => {
-			const { automationService, widget } = setup();
+			let hoverContent: IDelayedHoverOptions['content'] | undefined;
+			const { automationService, widget } = setup('archive', {
+				...NullHoverService,
+				setupDelayedHover: (target, options) => {
+					if (target.classList.contains('automations-cards-partial-state')) {
+						hoverContent = (typeof options === 'function' ? options() : options).content;
+					}
+					return toDisposable(() => { });
+				},
+			});
 			const automations = hasSavedAutomations ? [automation()] : [];
 			automationService.setAutomations(automations);
 			const providers: IAutomationProviderDescriptor[] = [
@@ -2748,8 +2828,8 @@ suite('AutomationsCardsWidget', () => {
 			];
 			automationService.setUnavailableProviders(providers);
 			automationService.setCatalogueState('unavailable');
-			const selector = hasSavedAutomations ? '.automations-cards-partial-state-message' : '.automations-cards-unavailable .automations-cards-state-description';
-			const description = widget.element.querySelector<HTMLElement>(selector)!;
+			const description = hasSavedAutomations ? hoverContent : widget.element.querySelector<HTMLElement>('.automations-cards-unavailable .automations-cards-state-description');
+			assert.ok(description instanceof HTMLElement);
 			const reasons = [
 				'The agent host is disconnected on Host 1, Host 3.',
 				'Automations are not supported on Host 2.',
@@ -2763,8 +2843,6 @@ suite('AutomationsCardsWidget', () => {
 			});
 			const initial = {
 				message: readMessage(),
-				whiteSpace: getWindow(description).getComputedStyle(description).whiteSpace,
-				textAlign: getWindow(description).getComputedStyle(description.querySelector('li')!).textAlign,
 				accessible: buildAutomationsAccessibleContent(automations, [], 'unavailable', [], providers).includes(reasons.map(reason => `- ${reason}`).join('\n')),
 			};
 			automationService.setUnavailableProviders(providers.map(provider => ({ ...provider, unavailableReasonCode: 'disabled' })));
@@ -2776,7 +2854,7 @@ suite('AutomationsCardsWidget', () => {
 			automationService.setUnavailableProviders([]);
 
 			assert.deepStrictEqual({ initial, updated, singleProvider, withoutReasons, hasEmptyList: !!description.querySelector('ul') }, {
-				initial: { message: { hasSummary: false, hasList: true, reasons }, whiteSpace: 'pre-line', textAlign: 'left', accessible: true },
+				initial: { message: { hasSummary: false, hasList: true, reasons }, accessible: true },
 				updated: { hasSummary: false, hasList: false, reasons: ['Automations are disabled on Host 1, Host 2, Host 3.'] },
 				singleProvider: { hasSummary: false, hasList: false, reasons: ['The agent host is disconnected on Host 1.'] },
 				withoutReasons: { hasSummary: false, hasList: false, reasons: ['Automations are unavailable on Host 1, Host 2, Host 3.'] },
@@ -2887,6 +2965,9 @@ suite('AutomationsCardsWidget', () => {
 		const hoverService: IHoverService = {
 			...NullHoverService,
 			setupDelayedHover: (target, options) => {
+				if (target.classList.contains('automations-cards-partial-state')) {
+					return toDisposable(() => { });
+				}
 				const entry = { target, content: (typeof options === 'function' ? options() : options).content, disposed: false };
 				hovers.push(entry);
 				return toDisposable(() => entry.disposed = true);
