@@ -8,7 +8,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { EditorCloseContext, GroupModelChangeKind, IEditorCloseEvent } from '../../../../common/editor.js';
@@ -16,6 +16,7 @@ import { IGroupModelChangeEvent } from '../../../../common/editor/editorGroupMod
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IContentPart, IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatWindowContent } from '../../browser/chatWindow.js';
+import { showChatInsteadOfEmptyMainPart } from '../../browser/chatWindowParts.js';
 import { ChatWindow } from '../../browser/chatWindowService.js';
 import { ChatWindowLayoutMode } from '../../common/chatWindowLayout.js';
 import { ChatWindowDefaults, ChatWindowState } from '../../common/chatWindowState.js';
@@ -126,6 +127,45 @@ suite('Chat window', () => {
 		modes.push(window.layoutMode.get());
 
 		assert.deepStrictEqual(modes, [ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.ChatOnly]);
+	});
+
+	test('an editor of its main part dropped beside the chat splits the chat part and empties the main part, which changes no mode: never Editor Only', () => {
+		const { window, main, chat } = createWindow();
+		const file = editor();
+		main.group.open(file);
+		const modes: ChatWindowLayoutMode[] = [window.layoutMode.get()];
+		// The drop: a group added to the chat part, and the editor moved into it out of the main part.
+		chat.addGroup().open(file);
+		main.group.fireCloseEditor(file, EditorCloseContext.MOVE);
+		modes.push(window.layoutMode.get());
+
+		assert.deepStrictEqual({ modes, chatVisible: window.chatVisible }, { modes: [ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.SideBySide], chatVisible: true });
+	});
+
+	test('it opens showing only its chat while its main part has no editor: the first time its chat shows in a window, as 491817 does, or when it would show only its main part; a mode chosen for the chat shows again', () => {
+		const opened = (mode: ChatWindowLayoutMode, firstOpen: boolean, hasEditor: boolean) => {
+			const defaults = new ChatWindowDefaults(disposables.add(new InMemoryStorageService()));
+			const state = new ChatWindowState(defaults);
+			state.setLayoutMode(mode);
+			const remembered = defaults.getLayoutMode();
+			showChatInsteadOfEmptyMainPart({ groups: [upcastPartial<IEditorGroup>({ isEmpty: !hasEditor })] }, state, firstOpen);
+			return `${state.layoutMode.get()}, default ${defaults.getLayoutMode() === remembered ? 'kept' : 'changed'}`;
+		};
+		assert.deepStrictEqual({
+			firstOpenNoEditor: opened(ChatWindowLayoutMode.SideBySide, true, false),
+			firstOpenStackedNoEditor: opened(ChatWindowLayoutMode.Stacked, true, false),
+			firstOpenWithEditor: opened(ChatWindowLayoutMode.SideBySide, true, true),
+			rememberedSideBySideNoEditor: opened(ChatWindowLayoutMode.SideBySide, false, false),
+			rememberedEditorOnlyNoEditor: opened(ChatWindowLayoutMode.EditorOnly, false, false),
+			rememberedEditorOnlyWithEditor: opened(ChatWindowLayoutMode.EditorOnly, false, true),
+		}, {
+			firstOpenNoEditor: `${ChatWindowLayoutMode.ChatOnly}, default kept`,
+			firstOpenStackedNoEditor: `${ChatWindowLayoutMode.ChatOnly}, default kept`,
+			firstOpenWithEditor: `${ChatWindowLayoutMode.SideBySide}, default kept`,
+			rememberedSideBySideNoEditor: `${ChatWindowLayoutMode.SideBySide}, default kept`,
+			rememberedEditorOnlyNoEditor: `${ChatWindowLayoutMode.ChatOnly}, default kept`,
+			rememberedEditorOnlyWithEditor: `${ChatWindowLayoutMode.EditorOnly}, default kept`,
+		});
 	});
 
 	test('closing the chat\'s editor closes the window once the editor closed, closing its chat part before its main part', async () => {

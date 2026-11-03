@@ -313,8 +313,9 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 
 	private async _openWindow(provider: IChatWindowProvider, content: IChatWindowContent, options: IChatWindowOpenOptions | undefined, disposables: DisposableStore, setClose: (close: () => boolean) => void): Promise<ChatWindow> {
 		const chat = content.chat.get();
+		const rememberedLayout = this._chatLayouts.get(chat);
 		const state = new ChatWindowState(new ChatWindowDefaults(this._storageService), {
-			initial: this._chatLayouts.get(chat),
+			initial: rememberedLayout,
 			// For the chat the window shows when the user chooses, which a replaced chat changes.
 			set: layout => this._chatLayouts.set(content.chat.get(), layout),
 		});
@@ -447,7 +448,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 
 		await chatPart.activeGroup.openEditor(content.input, { pinned: true, preserveFocus: options?.preserveFocus });
 		await this._openEditors(options?.editors, mainPart);
-		showChatInsteadOfEmptyMainPart(mainPart, window);
+		showChatInsteadOfEmptyMainPart(mainPart, window, !rememberedLayout);
 		if (options?.showTerminals) {
 			window.getOrCreateTerminalsPart();
 		}
