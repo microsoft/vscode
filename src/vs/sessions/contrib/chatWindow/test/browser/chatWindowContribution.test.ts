@@ -139,7 +139,7 @@ suite('Chat window contribution', () => {
 				visibleSessions: constObservable([active]),
 				mainWindowActiveSession: constObservable<IActiveSession | undefined>(active),
 			}));
-			instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial({ groups: [] }) }));
+			instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ groups: [] }) }));
 			let whileOpening: number | undefined;
 			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
 				open: async () => {
