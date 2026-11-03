@@ -303,6 +303,9 @@ importers:
       '@types/wicg-file-system-access':
         specifier: ^2023.10.7
         version: 2023.10.7
+      '@types/windows-foreground-love':
+        specifier: ^0.3.0
+        version: 0.3.0
       '@types/winreg':
         specifier: ^1.2.30
         version: 1.2.30
@@ -531,6 +534,9 @@ importers:
       tslib:
         specifier: ^2.6.3
         version: 2.8.1
+      typanion:
+        specifier: ^3.14.0
+        version: 3.14.0
       typescript:
         specifier: npm:@typescript/typescript6@^6.0.2
         version: '@typescript/typescript6@6.0.2'
@@ -1166,7 +1172,6 @@ importers:
         version: 24.12.4
 
   extensions/simple-browser:
-    dependencies:
     devDependencies:
       '@types/node':
         specifier: 24.x
@@ -1320,7 +1325,6 @@ importers:
         version: 3.0.3
 
   test/monaco:
-    dependencies:
     devDependencies:
       '@types/chai':
         specifier: ^4.2.14
@@ -3030,6 +3034,9 @@ packages:
 
   '@types/wicg-file-system-access@2023.10.7':
     resolution: {integrity: sha512-g49ijasEJvCd7ifmAY2D0wdEtt1xRjBbA33PJTiv8mKBr7DoMsPeISoJ8oQOTopSRi+FBWPpPW5ouDj2QPKtGA==}
+
+  '@types/windows-foreground-love@0.3.0':
+    resolution: {integrity: sha512-tFUVA/fiofNqOh6lZlymvQiQYPY+cZXZPR9mn9wN6/KS8uwx0zgH4Ij/jmFyRYr+x+DGZWEIeknS2BMi7FZJAQ==}
 
   '@types/winreg@1.2.30':
     resolution: {integrity: sha512-c4m/hnOI1j34i8hXlkZzelE6SXfOqaTWhBp0UgBuwmpiafh22OpsE261Rlg//agZtQHIY5cMgbkX8bnthUFrmA==}
@@ -10998,6 +11005,8 @@ snapshots:
   '@types/which@3.0.0': {}
 
   '@types/wicg-file-system-access@2023.10.7': {}
+
+  '@types/windows-foreground-love@0.3.0': {}
 
   '@types/winreg@1.2.30': {}
 
