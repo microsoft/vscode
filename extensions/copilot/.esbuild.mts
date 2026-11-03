@@ -32,7 +32,6 @@ const baseNodeBuildOptions = {
 	external: [
 		'./package.json',
 		'./.vscode-test.mjs',
-		'playwright',
 		'keytar',
 		'@azure/functions-core',
 		'applicationinsights-native-metrics',
