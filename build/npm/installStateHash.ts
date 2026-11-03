@@ -63,6 +63,8 @@ const packageJsonRelevantKeys = new Set([
 	'bundledDependencies',
 	'bundleDependencies',
 	'packageManager',
+	// How the install root builds native modules (see build/npm/pnpm/nativeBuildEnv.ts).
+	'nativeBuild',
 ]);
 
 function normalizeFileContent(filePath: string): string {
