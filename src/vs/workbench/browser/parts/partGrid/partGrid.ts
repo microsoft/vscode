@@ -93,13 +93,9 @@ export interface IPartGridPartFactory {
 
 /**
  * What {@link PartGrid.restore} needs for a cell: the part, created from its
- * state, the view, or a part that shows through a view of its owner, such as
- * one that adds a title row above it. A part is a part of the grid either way:
- * it shows while it has editors, and it drags and moves.
+ * state, or the view.
  */
-export type PartGridCellContent =
-	{ readonly part: IContentPart; readonly view?: IPartGridView; readonly options?: IPartGridPartOptions } |
-	{ readonly view: IPartGridView; readonly options?: IPartGridViewOptions };
+export type PartGridCellContent = { readonly part: IContentPart; readonly options?: IPartGridPartOptions } | { readonly view: IPartGridView; readonly options?: IPartGridViewOptions };
 
 /**
  * How a cell shows its view.
@@ -258,15 +254,11 @@ function sameInsets(a: IGridEdgeInsets, b: IGridEdgeInsets): boolean {
 }
 
 function createCell(id: string, content: PartGridCellContent): PartGridCell {
-	if (!hasKey(content, { part: true })) {
+	if (hasKey(content, { view: true })) {
 		return new PartGridCell(id, content.view, undefined, content.options);
 	}
 
 	const part = content.part;
-	if (content.view) {
-		return new PartGridCell(id, content.view, part, content.options);
-	}
-
 	return new PartGridCell(id, {
 		element: part.element as HTMLElement,
 		get minimumWidth() { return part.minimumWidth; },

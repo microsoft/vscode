@@ -7,7 +7,7 @@ import assert from 'assert';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
-import { Direction, Orientation } from '../../../../../base/browser/ui/grid/grid.js';
+import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -720,31 +720,5 @@ suite('Part Grid', () => {
 		instantiationService.invokeFunction(accessor => new MoveEditorIntoNewPartBelowAction().run(accessor));
 
 		assert.deepStrictEqual({ shape: grid.describe(), inSide: side.activeGroup.contains(file) }, { shape: 'column(side, new)', inSide: false });
-	});
-
-	test('a part that shows through a view of its owner is a part of the grid: it drags, moves and shows while it has editors', async () => {
-		const parts = await createParts();
-		const container = createContainer();
-		const [a, b] = [createPart(parts), createPart(parts)];
-		await openEditor(a, '/a.txt');
-		const file = await openEditor(b, '/b.txt');
-		const view: IPartGridView = { ...createView(), element: mainWindow.document.createElement('div'), minimumHeight: 0, maximumHeight: Number.POSITIVE_INFINITY, layout: (width, height, top, left) => b.layout(width, height, top, left) };
-		view.element.appendChild(b.element as HTMLElement);
-		const state = { grid: { root: { type: 'branch' as const, data: [{ type: 'leaf' as const, data: { id: 'a' }, size: 500 }, { type: 'leaf' as const, data: { id: 'b' }, size: 500 }], size: 800 }, orientation: Orientation.HORIZONTAL, width: 1000, height: 800 }, hidden: [], parts: {} };
-		const grid = disposables.add(PartGrid.restore(container, state, id => id === 'a' ? { part: a } : { part: b, view }, parts));
-		grid.layout(1000, 800);
-
-		const grabber = !!container.querySelector('[data-part-grid-cell="b"] .part-grid-drag-handle');
-		const movedPast = grid.moveCellInDirection('a', Direction.Right);
-		const shape = grid.describe();
-		await b.activeGroup.closeEditor(file);
-
-		assert.deepStrictEqual({ grabber, movedPast, shape, foundThroughView: PartGrid.findPart(b)?.id, visibleWithoutEditors: grid.isCellVisible('b') }, {
-			grabber: true,
-			movedPast: true,
-			shape: 'row(b, a)',
-			foundThroughView: 'b',
-			visibleWithoutEditors: false
-		});
 	});
 });
