@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, DragAndDropObserver, EventHelper, EventType, getWindow, hide, isAncestor, show } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, DragAndDropObserver, EventHelper, EventType, getWindow, hide, isAncestor, isHTMLElement, show } from '../../../../base/browser/dom.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -228,7 +228,8 @@ export class PartGridDropTarget extends Disposable {
 				this.hideIndicator();
 			}
 		}));
-		this._register(addDisposableListener(getWindow(container), EventType.DRAG_END, () => this.hideIndicator()));
+		// In the capture phase: a drag that a cell takes over ends there
+		this._register(addDisposableListener(getWindow(container), EventType.DRAG_END, () => this.hideIndicator(), true));
 	}
 
 	/**
@@ -366,19 +367,70 @@ export class PartGridDropTarget extends Disposable {
  */
 export function registerPartDragHandle(handle: HTMLElement, grid: object, cellId: string, getLabel: () => string): IDisposable {
 	const disposables = new DisposableStore();
-	const partTransfer = LocalSelectionTransfer.getInstance<DraggedPartIdentifier>();
 
 	handle.draggable = true;
 	disposables.add(new DragAndDropObserver(handle, {
-		onDragStart: e => {
-			partTransfer.setData([new DraggedPartIdentifier(grid, cellId)], DraggedPartIdentifier.prototype);
-			if (e.dataTransfer) {
-				e.dataTransfer.effectAllowed = 'move';
-				applyDragImage(e, handle, getLabel());
-			}
-		},
-		onDragEnd: () => partTransfer.clearData(DraggedPartIdentifier.prototype)
+		onDragStart: e => startPartDrag(e, handle, grid, cellId, getLabel()),
+		onDragEnd: () => LocalSelectionTransfer.getInstance<DraggedPartIdentifier>().clearData(DraggedPartIdentifier.prototype)
 	}));
 
 	return disposables;
+}
+
+/**
+ * Makes the empty space of the title of an editor group in a cell, where
+ * dragging drags the group, drag the part of the cell instead, as its drag
+ * handle does, for the groups `canDragPart` accepts: their title is a title
+ * of the part's card. Tabs drag their editors as before.
+ */
+export function registerPartTitleDrag(cell: HTMLElement, grid: object, cellId: string, getLabel: () => string, canDragPart: (group: HTMLElement) => boolean): IDisposable {
+	const disposables = new DisposableStore();
+	let dragging = false;
+
+	// Before the group's title sees the drag, so that the group does not drag
+	disposables.add(addDisposableListener(cell, EventType.DRAG_START, e => {
+		const title = getEmptyTitleSpace(e.target);
+		const group = title?.parentElement;
+		if (!title || !group?.classList.contains('editor-group-container') || !cell.contains(group) || !canDragPart(group)) {
+			return;
+		}
+
+		e.stopPropagation();
+		dragging = true;
+		startPartDrag(e, title, grid, cellId, getLabel());
+	}, true));
+	disposables.add(addDisposableListener(cell, EventType.DRAG_END, e => {
+		if (!dragging) {
+			return;
+		}
+
+		// The group did not start a drag, so it does not end one
+		e.stopPropagation();
+		dragging = false;
+		LocalSelectionTransfer.getInstance<DraggedPartIdentifier>().clearData(DraggedPartIdentifier.prototype);
+	}, true));
+
+	return disposables;
+}
+
+/**
+ * The title of an editor group, if a target is its empty space, which drags
+ * the group: the space beside its tabs, or its title itself.
+ */
+function getEmptyTitleSpace(target: EventTarget | null): HTMLElement | undefined {
+	if (!isHTMLElement(target)) {
+		return undefined;
+	}
+
+	const title = target.classList.contains('tabs-container') ? target.closest<HTMLElement>('.title') : target.classList.contains('title') ? target : null;
+
+	return title ?? undefined;
+}
+
+function startPartDrag(e: DragEvent, element: HTMLElement, grid: object, cellId: string, label: string): void {
+	LocalSelectionTransfer.getInstance<DraggedPartIdentifier>().setData([new DraggedPartIdentifier(grid, cellId)], DraggedPartIdentifier.prototype);
+	if (e.dataTransfer) {
+		e.dataTransfer.effectAllowed = 'move';
+		applyDragImage(e, element, label);
+	}
 }

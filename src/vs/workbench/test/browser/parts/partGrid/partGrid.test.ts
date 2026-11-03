@@ -21,7 +21,7 @@ import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IPartGridView, PART_GRID_TOP_EDGE_CLASS, PART_GRID_TOP_EDGE_GROUP_CLASS, PART_GRID_TOP_RIGHT_GROUP_CLASS, PartGrid } from '../../../../browser/parts/partGrid/partGrid.js';
 import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
-import { DraggedEditorIdentifier } from '../../../../browser/dnd.js';
+import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier } from '../../../../browser/dnd.js';
 import { ContentPart } from '../../../../browser/parts/editor/contentPart.js';
 import { MoveEditorIntoNewPartBelowAction, MovePartRightAction } from '../../../../browser/parts/partGrid/partGridActions.js';
 import { DraggedPartIdentifier, getPartGridDrop, IPartGridDrop } from '../../../../browser/parts/partGrid/partGridDnd.js';
@@ -566,6 +566,44 @@ suite('Part Grid', () => {
 			shown: rectOf(cellOf('right')),
 			slotAfterDrop: rectOf(cellOf('right')),
 			halfOfTarget: false
+		});
+	});
+
+	test('the empty space of the title of a group below the top edge of the window drags its part; at the top edge, which moves the window, it drags the group as before', async () => {
+		const parts = await createParts();
+		const container = boxAt(0, 0, 900, 600);
+		const grid = disposables.add(new PartGrid(container, parts));
+		const [top, below] = [createPart(parts), createPart(parts)];
+		await Promise.all([openEditor(top, '/top.txt'), openEditor(below, '/below.txt')]);
+		grid.addPart('top', top);
+		grid.addPart('below', below, { edge: Direction.Down });
+		grid.layout(900, 600);
+
+		const cellOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!;
+		const partTransfer = LocalSelectionTransfer.getInstance<DraggedPartIdentifier>();
+		const groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
+		const drag = (id: string) => {
+			const titleSpace = cellOf(id).querySelector('.title .tabs-container')!;
+			dispatch(titleSpace, 'dragstart');
+			const dragged = { part: partTransfer.getData(DraggedPartIdentifier.prototype)?.[0]?.cellId, group: groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype) };
+			return { titleSpace, dragged };
+		};
+
+		const fromTop = drag('top');
+		dispatch(fromTop.titleSpace, 'dragend');
+
+		const fromBelow = drag('below');
+		const target = cellOf('top').getBoundingClientRect();
+		const point = [target.left + target.width * 0.1, target.top + target.height / 2] as const;
+		dispatch(cellOf('top'), 'dragover', ...point);
+		dispatch(cellOf('top'), 'drop', ...point);
+		dispatch(fromBelow.titleSpace, 'dragend');
+
+		assert.deepStrictEqual({ fromTop: fromTop.dragged, fromBelow: fromBelow.dragged, shape: grid.describe(), afterEnd: partTransfer.hasData(DraggedPartIdentifier.prototype) || groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype) }, {
+			fromTop: { part: undefined, group: true },
+			fromBelow: { part: 'below', group: false },
+			shape: 'row(below, top)',
+			afterEnd: false
 		});
 	});
 

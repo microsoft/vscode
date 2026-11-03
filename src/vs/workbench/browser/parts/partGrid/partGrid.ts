@@ -15,7 +15,7 @@ import { IEditorGroupView } from '../editor/editor.js';
 import { PART_GRID_CLASS } from '../editor/partGridClass.js';
 import { EditorsOrder, IEditorIdentifier } from '../../../common/editor.js';
 import { getPartName } from '../editor/editorPartActions.js';
-import { PartGridDropTarget, registerPartDragHandle } from './partGridDnd.js';
+import { PartGridDropTarget, registerPartDragHandle, registerPartTitleDrag } from './partGridDnd.js';
 import { PartGridMotion } from './partGridMotion.js';
 import { getGridEdgeInsets, IGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from './partGridGap.js';
 
@@ -611,6 +611,8 @@ export class PartGrid extends Disposable {
 		if (cell.part && cell.dragHandle) {
 			const part = cell.part;
 			disposables.add(registerPartDragHandle(cell.dragHandle, this, id, () => getPartName(part)));
+			// The title of a group that is not at the top edge of the window, which moves the window, drags the part too
+			disposables.add(registerPartTitleDrag(cell.element, this, id, () => getPartName(part), group => !group.classList.contains(PART_GRID_TOP_EDGE_GROUP_CLASS)));
 		}
 
 		return cell;
