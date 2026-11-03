@@ -147,12 +147,14 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 		this.titleBarStyle = getTitleBarStyle(this.configurationService);
 
-		this.registerListeners(getWindowId(targetWindow));
+		this.registerListeners(targetWindow);
 	}
 
-	private registerListeners(targetWindowId: number): void {
+	private registerListeners(targetWindow: CodeWindow): void {
 		this._register(this.hostService.onDidChangeFocus(focused => focused ? this.onFocus() : this.onBlur()));
-		this._register(this.hostService.onDidChangeActiveWindow(windowId => windowId === targetWindowId ? this.onFocus() : this.onBlur()));
+		// The window it is in as the active window changes: a title bar may be created before it is in its window, such as
+		// one created into an editor before it shows in an auxiliary window.
+		this._register(this.hostService.onDidChangeActiveWindow(windowId => windowId === getWindowId(this.element ? getWindow(this.element) : targetWindow) ? this.onFocus() : this.onBlur()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.MODERN_UI_DENSITY)) {
 				this._onDidChange.fire(undefined);

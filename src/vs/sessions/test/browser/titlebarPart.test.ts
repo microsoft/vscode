@@ -9,7 +9,8 @@ import { $, append, registerWindow } from '../../../base/browser/dom.js';
 import { ButtonBar } from '../../../base/browser/ui/button/button.js';
 import { Direction, Grid, IView, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
-import { Event } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IHostService } from '../../../workbench/services/host/browser/host.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
 import { isMacintosh, isNative } from '../../../base/common/platform.js';
 import { mock } from '../../../base/test/common/mock.js';
@@ -423,6 +424,28 @@ suite('Sessions - Titlebar Part', () => {
 			flaggedButWindowed: { fullscreenClass: false, spacer: hasTrafficLightSpacer ? '' : 'absent' },
 			fullscreen: { fullscreenClass: true, spacer: hasTrafficLightSpacer ? 'none' : 'absent' },
 		});
+	});
+
+	test('a title bar created before it is in its window, such as the title row of a chat view, looks active while the window it is in is the active window, not while the main window is', () => {
+		const { instantiationService } = createTitlebar();
+		const onDidChangeActiveWindow = store.add(new Emitter<number>());
+		instantiationService.stub(IHostService, 'onDidChangeActiveWindow', onDidChangeActiveWindow.event);
+		const iframe = mainWindow.document.body.appendChild(mainWindow.document.createElement('iframe'));
+		store.add(toDisposable(() => iframe.remove()));
+		const auxiliaryWindow = iframe.contentWindow!;
+		ensureCodeWindow(auxiliaryWindow, mainWindow.vscodeWindowId + 2000);
+		store.add(registerWindow(auxiliaryWindow));
+		// Created while not in its window yet: its window is the main window then.
+		const part = store.add(instantiationService.createInstance(TitlebarPart, Parts.TITLEBAR_PART, mainWindow));
+		part.create(auxiliaryWindow.document.body.appendChild(auxiliaryWindow.document.createElement('div')));
+		const inactive = () => part.element.classList.contains('inactive');
+
+		onDidChangeActiveWindow.fire(mainWindow.vscodeWindowId);
+		const mainActive = inactive();
+		onDidChangeActiveWindow.fire(auxiliaryWindow.vscodeWindowId);
+		const ownActive = inactive();
+
+		assert.deepStrictEqual({ mainActive, ownActive }, { mainActive: true, ownActive: false });
 	});
 
 	test('a fixed title shows in the title bar, and leaves the title of the window alone, such as that of the main window while the title bar is not in its own window yet', () => {
