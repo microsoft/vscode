@@ -53,7 +53,7 @@ Some placement is coupled to the workflows, and `test/smoke/src/shard.ts` encode
 
 Every shard must register the same suites; otherwise suites can be skipped or run twice. Don't make suite registration depend on anything that differs between shards.
 
-When a run finishes, the runner prints each top-level suite's duration, longest first. When you add a smoke suite that takes much longer than launching the app (about 20 seconds), or the printed durations drift from `suiteDurations` in `test/smoke/src/shard.ts`, update that table so the shards stay balanced.
+When a run finishes, the runner prints each top-level suite's duration, longest first. When you add a smoke suite that takes much longer than launching the app (about 20 seconds), or the printed durations drift from `suiteDurations` in `test/smoke/src/shard.ts`, update that table so the shards stay balanced. Several suites take much less time on the Windows runners, so `win32SuiteDurations` overrides their durations on Windows.
 
 ## Temporarily looping a suite to hunt flaky CI tests
 
