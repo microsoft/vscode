@@ -51,6 +51,11 @@ import { IModelPickerComparison, IModelPickerComparisonState, ModelComparisonAva
 import { createLocalModelPickerPresentation, IModelPickerLocalModels } from '../../../../../browser/widget/input/modelPicker/modelPickerLocalModelItems.js';
 import { SessionType } from '../../../../../common/chatSessionsService.js';
 import { ILocalModelFamilyV1, ILocalModelStatusV1 } from '../../../../../../../../platform/agentHost/common/localModel.js';
+import { markOnboardingTarget } from '../../../../../../onboarding/browser/spotlight/onboardingTarget.js';
+import { SpotlightPresentation } from '../../../../../../onboarding/browser/spotlight/spotlightPresentation.js';
+import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../../onboarding/browser/spotlight/spotlightTypes.js';
+import { IOnboardingScenario, OnboardingOutcome } from '../../../../../../onboarding/common/onboardingScenario.js';
+import { TestHostService, TestLayoutService } from '../../../../../../../test/browser/workbenchTestServices.js';
 import '../../../../../browser/widget/input/modelPicker/media/modelPicker.css';
 
 function model(id: string, configurable = true): ILanguageModelChatMetadataAndIdentifier {
@@ -669,6 +674,76 @@ suite('TabbedModelPicker', () => {
 			attached: true, duringSetup: { rendered: 1, disposed: 1 }, afterClose: { rendered: 1, disposed: 1 },
 		});
 	});
+
+	for (const dismiss of ['understood', 'escape'] as const) {
+		test(`comparison spotlight preserves the real picker through deferred blur and ${dismiss}`, async () => {
+			const aborted = disposables.add(new Emitter<void>());
+			let guidanceDisposed = 0;
+			const comparison: IModelPickerComparison = {
+				available: constObservable(true), summary: constObservable(undefined), state: constObservable(undefined), label: 'Compare Models',
+				renderToggle: button => {
+					const target = markOnboardingTarget(button, 'test.compareModels');
+					return toDisposable(() => {
+						target.dispose();
+						guidanceDisposed++;
+						aborted.fire();
+					});
+				},
+				start: () => { }, cancel: () => { }, reset: () => { }, select: () => { },
+				setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+				getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+			};
+			const { picker, popup, anchor, contextKeyService } = createPicker({ comparison, realContextView: true });
+			const previousFocus = document.activeElement;
+			const layout = new class extends TestLayoutService {
+				override getContainer() { return document.body; }
+			}();
+			const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService));
+			const scenario: IOnboardingScenario<ISpotlightPayload> = {
+				id: 'test.compareModels',
+				trigger: { kind: 'auto' },
+				presentation: {
+					kind: SPOTLIGHT_PRESENTATION_KIND,
+					payload: {
+						steps: [{
+							id: 'compareModels', targetId: 'test.compareModels',
+							title: 'Try more than one approach', description: 'Compare models and optionally judge and synthesize their results.',
+							nextButtonLabel: 'Understood', allowTargetInteraction: true, advanceOnTargetClick: true, hideNext: false,
+						}],
+					},
+				},
+			};
+			const shown = new DeferredPromise<void>();
+			const result = presentation.run(scenario, {
+				targetWindow: dom.getWindow(anchor), onAbort: aborted.event, onDidShow: () => { void shown.complete(); },
+			});
+			await shown.p;
+			const callout = element(document.body, '.spotlight-callout');
+			const next = element(callout, '.monaco-button:not([style*="display: none"])');
+			await timeout(0);
+			const afterBlur = { pickerVisible: picker.isVisible, calloutVisible: callout.isConnected, guidanceDisposed };
+			if (dismiss === 'understood') {
+				next.click();
+			} else {
+				next.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+			}
+			const outcome = (await result).outcome;
+			await timeout(0);
+			const afterDismiss = {
+				pickerVisible: picker.isVisible, calloutVisible: callout.isConnected,
+				focusRestored: document.activeElement === previousFocus, guidanceDisposed,
+			};
+			element(popup, '[data-id="comparison"]').focus();
+			anchor.focus();
+			await timeout(0);
+			assert.deepStrictEqual({ afterBlur, outcome, afterDismiss, closedOnBlur: !picker.isVisible, guidanceDisposed }, {
+				afterBlur: { pickerVisible: true, calloutVisible: true, guidanceDisposed: 0 },
+				outcome: dismiss === 'understood' ? OnboardingOutcome.Completed : OnboardingOutcome.Skipped,
+				afterDismiss: { pickerVisible: true, calloutVisible: false, focusRestored: true, guidanceDisposed: 0 },
+				closedOnBlur: true, guidanceDisposed: 1,
+			});
+		});
+	}
 
 	test('comparison shortcut contexts follow picker focus without the discovery hint', () => {
 		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
