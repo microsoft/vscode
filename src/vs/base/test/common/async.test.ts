@@ -234,6 +234,29 @@ suite('Async', () => {
 		});
 	});
 
+	suite('ThrottlerByKey', function () {
+		test('settling an old task after dispose does not remove a replacement entry', async () => {
+			const throttler = new async.ThrottlerByKey<string>();
+			const oldTask = new async.DeferredPromise<void>();
+			const newTask = new async.DeferredPromise<void>();
+			const old = throttler.queue('key', () => oldTask.p);
+			throttler.dispose();
+
+			const current = throttler.queue('key', () => newTask.p);
+			oldTask.complete();
+			await old;
+
+			let queuedCalls = 0;
+			const queued = throttler.queue('key', async () => { queuedCalls++; });
+			assert.strictEqual(queuedCalls, 0, 'the new task must still own the key');
+
+			newTask.complete();
+			await Promise.all([current, queued]);
+			assert.strictEqual(queuedCalls, 1);
+			throttler.dispose();
+		});
+	});
+
 	suite('Throttler', function () {
 		test('non async', function () {
 			let count = 0;
