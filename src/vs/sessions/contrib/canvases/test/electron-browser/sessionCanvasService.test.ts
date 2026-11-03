@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IReference } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, isISubmenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CanvasesEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { IBrowserViewNetwork } from '../../../../../platform/browserView/common/browserView.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -131,6 +132,7 @@ suite('SessionCanvasService', () => {
 		let findEditorsHandler = (_resource: URI): readonly IEditorIdentifier[] => [];
 		let closeEditorsHandler = () => Promise.resolve();
 		let createBrowserModelHandler = (_url: string, _openSource: string | undefined) => Promise.reject<IBrowserViewModel>(new Error('Browser model creation was not configured'));
+		let acquireNetworkHandler = (_network: IBrowserViewNetwork) => Promise.reject<IReference<IBrowserViewNetwork | undefined>>(new Error('Network acquisition was not configured'));
 		const closeSettled: Promise<void>[] = [];
 		let closeCount = 0;
 		const editorService = new class extends mock<IEditorService>() {
@@ -184,6 +186,7 @@ suite('SessionCanvasService', () => {
 			instantiationService,
 			upcastPartial<IBrowserViewWorkbenchService>({
 				createExternalBrowserView: (url, openSource) => createBrowserModelHandler(url, openSource),
+				acquireNetwork: network => acquireNetworkHandler(network),
 			}),
 			entitlementService,
 			configurationService,
@@ -200,16 +203,41 @@ suite('SessionCanvasService', () => {
 		const setFindEditorsHandler = (handler: (resource: URI) => readonly IEditorIdentifier[]) => findEditorsHandler = handler;
 		const setCloseEditorsHandler = (handler: () => Promise<void>) => closeEditorsHandler = handler;
 		const setCreateBrowserModelHandler = (handler: (url: string, openSource: string | undefined) => Promise<IBrowserViewModel>) => createBrowserModelHandler = handler;
+		const setAcquireNetworkHandler = (handler: (network: IBrowserViewNetwork) => Promise<IReference<IBrowserViewNetwork | undefined>>) => acquireNetworkHandler = handler;
 		/** Opens the canvas page, a custom view like the real one, on a pin; `undefined` closes it. */
 		const showPinnedCanvasPage = (reference: ICanvasReference | undefined) => transaction(tx => {
 			activeCustomView.set(reference ? upcastPartial<ICustomViewDescriptor>({ id: PINNED_CANVAS_PAGE_ID }) : undefined, tx);
 			pinnedCanvases.show(reference);
 		});
-		return { activeChat, activeCustomView, activeSession, canvas, canvasService, canvases, chat, chatDeleted, chats, closeSettled, contextService, definition, definitionOpens, editorWorkingSetService, isArchived, opened, openOptions, openSettled, pinnedCanvases, session, sessionChanges, get closeCount() { return closeCount; }, setCanvasesEnabled, setCloseEditorsHandler, setCreateBrowserModelHandler, setFindEditorsHandler, setOpenEditorHandler, showPinnedCanvasPage };
+		return { activeChat, activeCustomView, activeSession, canvas, canvasService, canvases, chat, chatDeleted, chats, closeSettled, contextService, definition, definitionOpens, editorWorkingSetService, isArchived, opened, openOptions, openSettled, pinnedCanvases, session, sessionChanges, get closeCount() { return closeCount; }, setAcquireNetworkHandler, setCanvasesEnabled, setCloseEditorsHandler, setCreateBrowserModelHandler, setFindEditorsHandler, setOpenEditorHandler, showPinnedCanvasPage };
 	}
 
 	function owner(session: IActiveSession, chatResource?: URI): ISessionEditorWorkingSetOwner {
 		return { sessionResource: session.resource, chatResource };
+	}
+
+	/**
+	 * Retains the open canvas's page on `network`, then makes its provider unavailable. The page's loads, which settle
+	 * with `loadPage`, are logged in `events`.
+	 */
+	async function createRetainedPageAwaitingProvider(network: IBrowserViewNetwork | undefined, loadPage: () => Promise<void> = () => Promise.resolve()) {
+		const harness = createHarness();
+		await harness.openSettled[0];
+		await Promise.resolve();
+		const input = harness.opened[0];
+		const events: string[] = [];
+		harness.setCreateBrowserModelHandler(async () => upcastPartial<IBrowserViewModel>({
+			network,
+			onWillDispose: Event.None,
+			loadURL: url => {
+				events.push(`load ${url}`);
+				return loadPage();
+			},
+			dispose: () => { },
+		}));
+		await harness.canvasService.resolveCanvasModel(input.reference, harness.canvas.source!);
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		return { harness, input, events };
 	}
 
 	test('automatically reveals a newly opened canvas', () => {
@@ -451,6 +479,77 @@ suite('SessionCanvasService', () => {
 			reused: [false, false, false, true],
 			opened: 1,
 			disposedAfterRemoval: true,
+		});
+	});
+
+	test('waits for the remote network proxy before loading a returning source into the retained page, and holds it until the load settles', async () => {
+		const pageLoaded = new DeferredPromise<void>();
+		const { harness, input, events } = await createRetainedPageAwaitingProvider({ authority: 'ssh-remote+host' }, () => pageLoaded.p);
+		const proxyReady = new DeferredPromise<void>();
+		harness.setAcquireNetworkHandler(async network => {
+			events.push(`acquire ${network.authority}`);
+			await proxyReady.p;
+			return { object: network, dispose: () => events.push(`release ${network.authority}`) };
+		});
+		harness.canvases.set([harness.canvas], undefined);
+		const returning = harness.canvasService.resolveCanvasModel(input.reference, harness.canvas.source!);
+		await timeout(0);
+		const whileProxyStarts = [...events];
+		proxyReady.complete();
+		await timeout(0);
+		const whileLoading = [...events];
+		pageLoaded.complete();
+		const resolution = await returning;
+
+		assert.deepStrictEqual({ whileProxyStarts, whileLoading, loaded: events, reused: resolution.reused }, {
+			whileProxyStarts: ['acquire ssh-remote+host'],
+			whileLoading: ['acquire ssh-remote+host', 'load https://example.test/preview'],
+			loaded: ['acquire ssh-remote+host', 'load https://example.test/preview', 'release ssh-remote+host'],
+			reused: false,
+		});
+	});
+
+	test('does not load a returning source superseded while its remote network proxy starts, and releases its hold', async () => {
+		const { harness, input, events } = await createRetainedPageAwaitingProvider({ authority: 'ssh-remote+host' });
+		const proxiesReady = [new DeferredPromise<void>(), new DeferredPromise<void>()];
+		let acquisitions = 0;
+		harness.setAcquireNetworkHandler(async network => {
+			const acquisition = acquisitions++;
+			events.push(`acquire ${acquisition}`);
+			await proxiesReady[acquisition].p;
+			return { object: network, dispose: () => events.push(`release ${acquisition}`) };
+		});
+		harness.canvases.set([harness.canvas], undefined);
+		const returning = harness.canvasService.resolveCanvasModel(input.reference, harness.canvas.source!);
+		const freshSource = URI.parse('http://127.0.0.1:54321/?token=fresh');
+		harness.canvases.set([{ ...harness.canvas, source: freshSource }], undefined);
+		const fresh = harness.canvasService.resolveCanvasModel(input.reference, freshSource);
+		proxiesReady[0].complete();
+		await assert.rejects(returning, CancellationError);
+		proxiesReady[1].complete();
+		const freshResolution = await fresh;
+
+		assert.deepStrictEqual({ events, reused: freshResolution.reused }, {
+			events: ['acquire 0', 'acquire 1', 'release 0', 'load http://127.0.0.1:54321/?token=fresh', 'release 1'],
+			reused: false,
+		});
+	});
+
+	test('loads a returning source into a retained local page right away without acquiring a network', async () => {
+		const { harness, input, events } = await createRetainedPageAwaitingProvider(undefined);
+		harness.setAcquireNetworkHandler(async network => {
+			events.push(`acquire ${network.authority}`);
+			return { object: network, dispose: () => { } };
+		});
+		harness.canvases.set([harness.canvas], undefined);
+		const returning = harness.canvasService.resolveCanvasModel(input.reference, harness.canvas.source!);
+		const whenRequested = [...events];
+		const resolution = await returning;
+
+		assert.deepStrictEqual({ whenRequested, settled: events, reused: resolution.reused }, {
+			whenRequested: ['load https://example.test/preview'],
+			settled: ['load https://example.test/preview'],
+			reused: false,
 		});
 	});
 
