@@ -505,6 +505,9 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IAgentHostUntitledProvisionalSessionService, new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
 		override readonly onDidChange = Event.None;
 		override get() { return undefined; }
+		override getInitialSessionConfig() { return undefined; }
+		override getPreparedSessionConfig() { return undefined; }
+		override getResolvedConfig() { return undefined; }
 		override getOrCreate() { return Promise.resolve(undefined); }
 	}());
 	reg.defineInstance(IAgentHostSessionWorkingDirectoryResolver, new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() {
