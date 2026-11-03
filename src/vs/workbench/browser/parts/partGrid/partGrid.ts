@@ -485,8 +485,9 @@ export class PartGrid extends Disposable {
 		const trackGroup = (group: IEditorGroup) => groupListeners.set(group, group.onDidModelChange(() => update()));
 
 		part.groups.forEach(trackGroup);
-		disposables.add(part.onDidAddGroup(group => { trackGroup(group); update(); }));
-		disposables.add(part.onDidRemoveGroup(group => { groupListeners.deleteAndDispose(group); update(); }));
+		disposables.add(part.onDidAddGroup(group => { trackGroup(group); update(); this.updateSplit(id, part); }));
+		disposables.add(part.onDidRemoveGroup(group => { groupListeners.deleteAndDispose(group); update(); this.updateSplit(id, part); }));
+		this.updateSplit(id, part);
 		// Which of its groups are at its top changes with its groups.
 		const markTopEdgeGroups = () => this.markTopEdgeGroups(this.getCell(id));
 		disposables.add(Event.any(part.onDidAddGroup, part.onDidRemoveGroup, part.onDidMoveGroup)(markTopEdgeGroups));
@@ -517,6 +518,32 @@ export class PartGrid extends Disposable {
 			element.classList.toggle(PART_GRID_TOP_EDGE_GROUP_CLASS, atTop);
 			element.classList.toggle(PART_GRID_TOP_RIGHT_GROUP_CLASS, atTop && atRightEdge && !part.findGroup({ direction: GroupDirection.RIGHT }, group));
 		}
+	}
+
+	/**
+	 * Marks the cell of a part split into more than one group
+	 * (`data-part-grid-split`): the part is one card, which a look can frame
+	 * once around its groups, as one part.
+	 */
+	private updateSplit(id: string, part: IContentPart): void {
+		const element = this.cells.get(id)?.element;
+		if (!element) {
+			return;
+		}
+
+		const split = part.groups.length > 1;
+		if (split === (element.dataset.partGridSplit !== undefined)) {
+			return;
+		}
+
+		if (split) {
+			element.dataset.partGridSplit = '';
+		} else {
+			delete element.dataset.partGridSplit;
+		}
+
+		// The look of the card, such as who draws its frame, may change with it
+		this.applyLook();
 	}
 
 	private updateEmpty(id: string, part: IContentPart): void {
