@@ -22,6 +22,7 @@ import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/brows
 import { bindEditorPartsToWindow } from '../../../services/editor/browser/editorPartWindowBinding.js';
 import { IContentPart, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
 import { ChatWindowChatLayouts, ChatWindowChatSizes, ChatWindowDefaults, ChatWindowState } from '../common/chatWindowState.js';
 import { IChatWindow, IChatWindowContent, IChatWindowEditors, IChatWindowOpenOptions, IChatWindowProvider, IChatWindowService } from './chatWindow.js';
@@ -240,6 +241,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		@IAuxiliaryWindowService private readonly _auxiliaryWindowService: IAuxiliaryWindowService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IHostService private readonly _hostService: IHostService,
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 	) {
 		super();
 		this.hasProvider = this._provider.map(provider => !!provider);
@@ -451,6 +453,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			window.didClose();
 			disposables.dispose();
 		}));
+		// The window closes with the workbench, such as as it reloads, as editor windows do; it opens again as it restores.
+		disposables.add(Event.once(this._lifecycleService.onDidShutdown)(() => disposables.dispose()));
 
 		auxiliaryWindow.layout();
 		if (!options?.preserveFocus) {
