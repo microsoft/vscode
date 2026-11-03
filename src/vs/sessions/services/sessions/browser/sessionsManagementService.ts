@@ -1225,9 +1225,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
-		// Sending into an existing session abandons any in-progress new session,
-		// so dispose it to release its eager backend session.
-		this.discardNewSession();
+		if (!options.background) {
+			this.discardNewSession();
+		}
 
 		const provider = this._getProvider(session);
 		if (!provider) {

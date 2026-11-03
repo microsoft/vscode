@@ -5731,6 +5731,31 @@ suite('SessionsManagementService', () => {
 		completeSendRequest?.();
 	});
 
+	for (const background of [false, true]) {
+		test(`sendRequest ${background ? 'preserves' : 'discards'} a pending composer draft in the ${background ? 'background' : 'foreground'}`, async () => {
+			const session = stubSession({ sessionId: 'sent-session', providerId: 'test' });
+			const draft = stubSession({ sessionId: 'draft-session', providerId: 'test' });
+			const provider = new class extends TestSessionsProvider {
+				override resolveWorkspace(): ISessionWorkspace {
+					return { uri: URI.parse('test:///folder'), label: 'Folder', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+				}
+				override createNewSession(): ISession { return draft; }
+			}(session);
+			const { service } = createSessionsManagementService(session, disposables, provider);
+			const discarded: string[] = [];
+			disposables.add(service.onDidDiscardNewSession(session => discarded.push(session.sessionId)));
+			service.createNewSession(URI.parse('test:///folder'));
+			const sent = Event.toPromise(service.onDidSendRequest);
+
+			await service.sendRequest(session, session.mainChat.get(), { query: 'question', background });
+			await sent;
+
+			assert.deepStrictEqual({ draft: service.newSession.get()?.sessionId, discarded }, background
+				? { draft: 'draft-session', discarded: [] }
+				: { draft: undefined, discarded: ['draft-session'] });
+		});
+	}
+
 	test('mirrored follow-up requests preserve submitted attachments', () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
 		const session = stubSession({

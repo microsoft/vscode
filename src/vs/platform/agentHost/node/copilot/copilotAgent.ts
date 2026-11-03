@@ -25,6 +25,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { parse as parseYaml, type YamlParseError } from '../../../../base/common/yaml.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { CopilotForkTiming } from './copilotForkTiming.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { detectLibcSync } from '../../../../base/node/libc.js';
 import { localize } from '../../../../nls.js';
@@ -8128,27 +8129,33 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const queue = <T>(task: () => Promise<T>) => fork?.independentQueue
 			? this._queueChat(sessionId, chatKey, 'createChat', task)
 			: this._queueSession(forkSourceSessionId ?? sessionId, task);
+		const forkTiming = fork ? new CopilotForkTiming(this._logService, chat, fork.source, fork.turnId) : undefined;
 		let anchor: IReference<CustomizationAnchor> | undefined;
-		await queue(async () => {
+		const createBacking = async () => {
+			forkTiming?.startStage('existingBacking');
 			const existing = this._chatBackings.get(chatKey);
 			if (existing) {
 				result = await this._existingMintedChatResult(session, sessionId, existing, inheritsFromOtherSession);
 				return;
 			}
 			const credentialContext = this._resolveExplicitChatContext(chat, context);
+			forkTiming?.startStage('credentials');
 			await this._applyChatCredentialBoundary(credentialContext, this._captureChatCredential(credentialContext));
 			// A fork runs where its source runs, so it resolves the source's
 			// process root; every other chat consumes index 0 of the host's
 			// resolved set without reading any session state back.
+			forkTiming?.startStage('workingDirectory');
 			const workingDirectory = inheritsFromOtherSession
 				? await this._resolveCreateWorkingDirectory(options, sessionId, false)
 				: options.workingDirectories?.[0];
 			if (!workingDirectory) {
 				throw new Error(`[Copilot] createChat: missing resolved working directory for session ${session.toString()}`);
 			}
+			forkTiming?.startStage('sourceMetadata');
 			const sourceMetadata = inheritsFromOtherSession ? await this._readSessionMetadata(sessionMetadataScope(forkSourceScope!), undefined) : undefined;
 			const model = options.model ?? sourceMetadata?.model;
 			const agent = options.agent ?? sourceMetadata?.agent;
+			forkTiming?.startStage('client');
 			const client = await this._ensureClientForChat(chat);
 			const chatSdkId = generateUuid();
 			// Chat backings share the owning session's ActiveClient so that
@@ -8159,13 +8166,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// would also leak (nothing disposes a chat-keyed ActiveClient).
 			// Discovery, though, is the chat's own: it anchors to the chat's
 			// working directory, not to the session's folders.
+			forkTiming?.startStage('customizationAnchors');
 			const anchors = await this._getSessionCustomizationAnchors(session, context.sessionSettings);
 			const activeClient = this._getOrCreateActiveClient(session, anchors.directory ?? workingDirectory);
 			if (anchors.applyAdditional) {
 				activeClient.pluginController.setAdditionalDirectories(anchors.additionalDirectories);
 			}
 			// Held until the chat's entry holds it so the set is discovered only once.
+			forkTiming?.startStage('customizationDiscovery');
 			anchor = await this._acquireChatCustomizationAnchor(activeClient, workingDirectory, undefined, context.workspaceless);
+			forkTiming?.startStage('customizationSnapshot');
 			const snapshot = await activeClient.snapshot(chatKey, anchor?.object, agent?.uri);
 			const shellManager = this._instantiationService.createInstance(ShellManager, session, chat, context.resource, workingDirectory);
 			// The database copy lands in the storage scope Agent Host chose for
@@ -8184,15 +8194,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 			let sourceEntry: CopilotAgentSession | undefined;
 			let inheritedWorkingDirectories: readonly URI[] | undefined;
 			if (fork) {
+				forkTiming?.startStage('sourceSession');
 				const sourceOwner = this._resolveChatOwnerRef(fork.source);
 				// A cold source resumes from its own stored marker, or its session's; the flag only makes sure its scratch folder exists.
 				sourceEntry = await this._ensureResolvedChatSession(this._resolveChatContext(fork.source, { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: this._sessionSettings.get(sourceOwner.get())?.workspaceless === true, owner: sourceOwner, resource: this._resolveChatStorageScope(fork.source) }));
 				if (!sourceEntry) {
 					throw new Error(`[Copilot] createChat fork: source chat ${fork.source.toString()} not found`);
 				}
-				const forked = await this._forkSdkChat(client, sourceEntry, fork.turnId, this._sessionDataService.getSessionDataDir(storageScope));
+				const forked = await this._forkSdkChat(client, sourceEntry, fork.turnId, this._sessionDataService.getSessionDataDir(storageScope), forkTiming);
 				sdkSessionId = forked.sessionId;
 				inheritedTurnId = forked.inheritedTurnId;
+				forkTiming?.startStage('runtimeConfiguration');
 				launchPlan = {
 					kind: 'resume',
 					client,
@@ -8236,9 +8248,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// runtime starts.
 			let project: IAgentSessionProjectInfo | undefined;
 			if (inheritsFromOtherSession) {
+				forkTiming?.startStage('project');
 				project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
 				inheritedWorkingDirectories = sourceMetadata?.workingDirectories
 					?? (sourceEntry?.workingDirectory ? [sourceEntry.workingDirectory] : [workingDirectory]);
+				forkTiming?.startStage('persistMetadata');
 				await this._storeSessionMetadata(sessionMetadataScope(session), model, workingDirectory, inheritedWorkingDirectories, workingDirectory, project);
 				if (agent !== undefined) {
 					await this._storeSessionAgentMetadata(session, agent);
@@ -8247,6 +8261,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			let agentSession: CopilotAgentSession | undefined;
 			try {
+				forkTiming?.startStage('runtimeInitialization');
 				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { owner: context.owner, chatChannelUri: chat, resource: storageScope });
 				const initializingSession = agentSession;
 				await this._initializeAndRegisterSession(initializingSession, () => {
@@ -8254,9 +8269,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 					this._registerLiveChat(chat, initializingSession, activeClient);
 				}, async () => {
 					if (fork?.turnIdMapping) {
+						forkTiming?.startStage('remapTurnIds');
 						await initializingSession.remapTurnIds(fork.turnIdMapping);
 					}
 				});
+				forkTiming?.startStage('recordBacking');
 				const backing: IPersistedChat = {
 					sdkSessionId,
 					...(model ? { model } : {}),
@@ -8279,17 +8296,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// the parent's review progress (best-effort; a failure just means
 				// the fork starts unreviewed).
 				try {
+					forkTiming?.startStage('copyReviewedRef');
 					const sourceWorkingDirectories = inheritedWorkingDirectories ?? [workingDirectory];
 					await this._reviewService.copyReviewedRef(forkSourceScope!.toString(), session.toString(), sourceWorkingDirectories, sourceWorkingDirectories);
 				} catch (err) {
+					forkTiming?.finishStage('error');
 					this._logService.warn(`[Copilot] Failed to copy reviewed ref for fork: ${err instanceof Error ? err.message : String(err)}`);
 				}
 			}
-		}).finally(() => anchor?.dispose());
-		if (!result) {
-			throw new Error(`[Copilot] createChat: no backing was recorded for ${chatKey}`);
+		};
+		try {
+			await queue(createBacking).finally(() => anchor?.dispose());
+			if (!result) {
+				throw new Error(`[Copilot] createChat: no backing was recorded for ${chatKey}`);
+			}
+			forkTiming?.complete('success');
+			return result;
+		} finally {
+			forkTiming?.dispose();
 		}
-		return result;
 	}
 
 	private async _existingMintedChatResult(session: URI, sessionId: string, backing: IPersistedChat, includeSessionMetadata: boolean): Promise<IAgentCreateChatResult> {
@@ -8355,7 +8380,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * so the forked chat inherits turn event IDs and file-edit
 	 * snapshots. Returns the new SDK session id.
 	 */
-	private async _forkSdkChat(client: CopilotClient, sourceEntry: CopilotAgentSession, turnId: string, targetDbDir: URI): Promise<{ sessionId: string; inheritedTurnId: string | undefined }> {
+	private async _forkSdkChat(client: CopilotClient, sourceEntry: CopilotAgentSession, turnId: string, targetDbDir: URI, timing?: CopilotForkTiming): Promise<{ sessionId: string; inheritedTurnId: string | undefined }> {
+		timing?.startStage('sourceHistory');
 		const sourceTurns = await sourceEntry.getMessages();
 		const sourceTurnIndex = sourceTurns.findIndex(turn => turn.id === turnId);
 		if (sourceTurnIndex === -1) {
@@ -8366,32 +8392,47 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// toEventId is exclusive; omitting it includes all events.
 		let toEventId: string | undefined;
 		try {
+			timing?.startStage('forkBoundary');
 			toEventId = await sourceEntry.getForkBoundaryEventId(turnId);
 		} catch (err) {
 			throw new Error(`[Copilot] fork: failed to resolve fork boundary for turn ${turnId} in source session ${sourceEntry.sessionId} because ${getErrorMessage(err)}`);
+		}
+		timing?.startStage('sdkFork');
+		if (timing) {
+			this._logService.info(`[CopilotFork] SDK fork request: attemptId=${timing.attemptId}, sourceSdkSessionId=${sourceEntry.sessionId}, sourceTurnCount=${sourceTurns.length}, sourceTurnFound=${sourceTurnIndex !== -1}, hasBoundary=${toEventId !== undefined}`);
 		}
 		const forkResult = await this._copilotChatDiscovery.trackSessionCreation(() => client.rpc.sessions.fork({
 			sessionId: sourceEntry.sessionId,
 			...(toEventId ? { toEventId } : {}),
 		}));
 		const newSessionId = forkResult.sessionId;
+		if (timing) {
+			this._logService.info(`[CopilotFork] SDK fork result: attemptId=${timing.attemptId}, sourceSdkSessionId=${sourceEntry.sessionId}, sdkSessionId=${newSessionId}`);
+		}
 
 		// VACUUM INTO is safe even while the source DB is open.
 		const targetDbPath = URI.joinPath(targetDbDir, SESSION_DB_FILENAME);
 		try {
+			timing?.startStage('openSourceDatabase');
 			const sourceDbRef = await this._sessionDataService.tryOpenDatabase(sourceEntry.sessionUri);
 			if (sourceDbRef) {
 				try {
+					timing?.startStage('prepareDatabaseCopy');
 					await fs.mkdir(targetDbDir.fsPath, { recursive: true });
 					// VACUUM INTO fails if the target already exists; clear any
 					// stale DB left by a previous (e.g. crashed) attempt.
 					await fs.rm(targetDbPath.fsPath, { force: true });
+					timing?.startStage('copyDatabase');
 					await sourceDbRef.object.vacuumInto(targetDbPath.fsPath);
 				} finally {
 					sourceDbRef.dispose();
 				}
+			} else {
+				timing?.startStage('copyDatabase');
+				timing?.finishStage('skipped');
 			}
 		} catch (err) {
+			timing?.finishStage('error');
 			this._logService.warn(`[Copilot] Failed to copy session database for chat fork: ${err instanceof Error ? err.message : String(err)}`);
 		}
 		return { sessionId: newSessionId, inheritedTurnId };

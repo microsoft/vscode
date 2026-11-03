@@ -408,7 +408,7 @@ export interface ISessionsManagementService {
 	/**
 	 * Fires when the in-progress new session is discarded via
 	 * {@link discardNewSession}: either the composer draft is abandoned without
-	 * sending, or {@link sendRequest} sends into an existing session (which
+	 * sending, or {@link sendRequest} sends into an existing session in the foreground (which
 	 * discards any pending draft first). Sending the draft itself via
 	 * {@link sendNewChatRequest} clears it without firing this event.
 	 */
