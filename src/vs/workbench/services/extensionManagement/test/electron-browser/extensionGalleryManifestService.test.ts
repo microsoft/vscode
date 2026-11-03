@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { bufferToStream, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { IDefaultAccount, IEntitlementsData } from '../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -1183,6 +1185,160 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 			status: ExtensionGalleryManifestStatus.RequiresSignIn,
 			exchanges: 0,
 			token: undefined,
+		});
+	});
+
+	suite('GitHub token renewal', () => {
+		let clock: sinon.SinonFakeTimers;
+
+		setup(() => {
+			clock = sinon.useFakeTimers();
+			defaultAccount = createDefaultAccount({ enterprise: true });
+			stubGitHubSession();
+		});
+
+		teardown(() => clock.restore());
+
+		test('keeps the marketplace available through a transient renewal failure', async () => {
+			let failing = false;
+			const requests: IRequestOptions[] = [];
+			const marketplace = gatedGitHubMarketplace(requests);
+			requestHandler = request => failing && request.url?.includes('/.well-known/oauth-protected-resource')
+				? mockResponse(503, {})
+				: marketplace(request);
+			const service = createService();
+			await service.getExtensionGalleryManifest();
+			const refreshed = new Promise<void>(resolve => {
+				disposableStore.add(service.onDidChangeExtensionGalleryManifest(() => resolve()));
+			});
+			failing = true;
+			clock.tick(2_700_000);
+			await refreshed;
+			assert.deepStrictEqual({
+				status: service.extensionGalleryManifestStatus,
+				token: await authorizationService.getAccessToken(MARKETPLACE_URL),
+				exchanges: requests.length,
+			}, {
+				status: ExtensionGalleryManifestStatus.Available,
+				token: 'exchanged-token',
+				exchanges: 1,
+			});
+		});
+
+		for (const failingStep of ['resource discovery', 'server discovery', 'exchange', 'network'] as const) {
+			test(`retains the token and retries after a transient ${failingStep} failure`, async () => {
+				let failing = false;
+				let exchangeCount = 0;
+				let notifications = 0;
+				requestHandler = request => {
+					if (request.url?.includes('/.well-known/oauth-protected-resource')) {
+						if (failing && failingStep === 'network') {
+							throw new Error('network down');
+						}
+						return failing && failingStep === 'resource discovery' ? mockResponse(503, {}) : mockResponse(200, GITHUB_PROTECTED_RESOURCE_METADATA);
+					}
+					if (request.url?.includes('/.well-known/oauth-authorization-server') || request.url?.includes('/.well-known/openid-configuration')) {
+						return failing && failingStep === 'server discovery' ? mockResponse(503, {}) : mockResponse(200, { issuer: GITHUB_AUTHORIZATION_SERVER, token_endpoint: `${GITHUB_AUTHORIZATION_SERVER}/token` });
+					}
+					exchangeCount++;
+					return failing && failingStep === 'exchange' ? mockResponse(503, {}) : mockResponse(200, { access_token: `token-${exchangeCount}`, token_type: 'Bearer', expires_in: 120 });
+				};
+				const provider = disposableStore.add(instantiationService.createInstance(GitHubGalleryAccountProvider));
+				disposableStore.add(provider.onDidChangeAccount(() => notifications++));
+				assert.strictEqual((await provider.getAccount(MARKETPLACE_URL))?.accessToken, 'token-1');
+				clock.tick(90_000);
+				failing = true;
+				assert.strictEqual((await provider.getAccount(MARKETPLACE_URL))?.accessToken, 'token-1');
+				clock.tick(5_000);
+				failing = false;
+				const recovered = await provider.getAccount(MARKETPLACE_URL);
+				assert.deepStrictEqual({ token: recovered?.accessToken, notifications }, { token: `token-${exchangeCount}`, notifications: 2 });
+				assert.notStrictEqual(recovered?.accessToken, 'token-1');
+			});
+		}
+
+		test('stops retaining the token at expiry and keeps retrying', async () => {
+			let failing = false;
+			let notifications = 0;
+			requestHandler = request => {
+				if (request.url?.includes('/.well-known/oauth-protected-resource')) {
+					return failing ? mockResponse(503, {}) : mockResponse(200, GITHUB_PROTECTED_RESOURCE_METADATA);
+				}
+				if (request.url?.includes('/.well-known/oauth-authorization-server')) {
+					return mockResponse(200, { issuer: GITHUB_AUTHORIZATION_SERVER, token_endpoint: `${GITHUB_AUTHORIZATION_SERVER}/token` });
+				}
+				return mockResponse(200, { access_token: 'token-1', token_type: 'Bearer', expires_in: 120 });
+			};
+			const provider = disposableStore.add(instantiationService.createInstance(GitHubGalleryAccountProvider));
+			disposableStore.add(provider.onDidChangeAccount(() => notifications++));
+			await provider.getAccount(MARKETPLACE_URL);
+			clock.tick(90_000);
+			failing = true;
+			assert.strictEqual((await provider.getAccount(MARKETPLACE_URL))?.accessToken, 'token-1');
+			clock.tick(30_000);
+			assert.strictEqual((await provider.getAccount(MARKETPLACE_URL))?.accessToken, undefined);
+			clock.tick(10_000);
+			assert.deepStrictEqual({ notifications }, { notifications: 3 });
+		});
+
+		test('does not retain a token after session changes or a rejected exchange', async () => {
+			let status = 200;
+			requestHandler = request => {
+				if (request.url?.includes('/.well-known/oauth-protected-resource')) {
+					return mockResponse(200, GITHUB_PROTECTED_RESOURCE_METADATA);
+				}
+				if (request.url?.includes('/.well-known/oauth-authorization-server')) {
+					return mockResponse(200, { issuer: GITHUB_AUTHORIZATION_SERVER, token_endpoint: `${GITHUB_AUTHORIZATION_SERVER}/token` });
+				}
+				return status === 200 ? mockResponse(200, { access_token: 'token-1', token_type: 'Bearer', expires_in: 120 }) : mockResponse(status, {});
+			};
+			const provider = disposableStore.add(instantiationService.createInstance(GitHubGalleryAccountProvider));
+			await provider.getAccount(MARKETPLACE_URL);
+			status = 400;
+			assert.strictEqual((await provider.getAccount(MARKETPLACE_URL))?.accessToken, undefined);
+			status = 200;
+			await provider.getAccount(MARKETPLACE_URL);
+			onDidChangeSessions.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [] } });
+			status = 503;
+			assert.strictEqual((await provider.getAccount(MARKETPLACE_URL))?.accessToken, undefined);
+		});
+
+		test('does not retain a token without a known expiry on renewal failure', async () => {
+			let failing = false;
+			requestHandler = request => {
+				if (request.url?.includes('/.well-known/oauth-protected-resource')) {
+					return failing ? mockResponse(503, {}) : mockResponse(200, GITHUB_PROTECTED_RESOURCE_METADATA);
+				}
+				if (request.url?.includes('/.well-known/oauth-authorization-server')) {
+					return mockResponse(200, { issuer: GITHUB_AUTHORIZATION_SERVER, token_endpoint: `${GITHUB_AUTHORIZATION_SERVER}/token` });
+				}
+				return mockResponse(200, { access_token: 'token-1', token_type: 'Bearer' });
+			};
+			const provider = disposableStore.add(instantiationService.createInstance(GitHubGalleryAccountProvider));
+			assert.strictEqual((await provider.getAccount(MARKETPLACE_URL))?.accessToken, 'token-1');
+			failing = true;
+			assert.strictEqual((await provider.getAccount(MARKETPLACE_URL))?.accessToken, undefined);
+		});
+
+		test('ignores an exchange that completes after a session change', async () => {
+			const exchangeStarted = new DeferredPromise<void>();
+			const exchangeResponse = new DeferredPromise<IRequestContext>();
+			requestHandler = request => {
+				if (request.url?.includes('/.well-known/oauth-protected-resource')) {
+					return mockResponse(200, GITHUB_PROTECTED_RESOURCE_METADATA);
+				}
+				if (request.url?.includes('/.well-known/oauth-authorization-server')) {
+					return mockResponse(200, { issuer: GITHUB_AUTHORIZATION_SERVER, token_endpoint: `${GITHUB_AUTHORIZATION_SERVER}/token` });
+				}
+				exchangeStarted.complete();
+				return exchangeResponse.p;
+			};
+			const provider = disposableStore.add(instantiationService.createInstance(GitHubGalleryAccountProvider));
+			const pending = provider.getAccount(MARKETPLACE_URL);
+			await exchangeStarted.p;
+			onDidChangeSessions.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [] } });
+			exchangeResponse.complete(mockResponse(200, { access_token: 'stale-token', token_type: 'Bearer', expires_in: 120 }));
+			assert.strictEqual((await pending)?.accessToken, undefined);
 		});
 	});
 

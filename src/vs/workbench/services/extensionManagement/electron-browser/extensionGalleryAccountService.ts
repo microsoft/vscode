@@ -69,6 +69,15 @@ interface IMarketplaceProtectedResource {
 	readonly resource: string;
 }
 
+type MarketplaceExchangeResult =
+	| { readonly kind: 'success'; readonly accessToken: string; readonly expiresInSeconds?: number }
+	| { readonly kind: 'transient' }
+	| { readonly kind: 'rejected' };
+
+function isTransientStatus(status: number): boolean {
+	return status === 0 || status === 408 || status === 429 || status >= 500;
+}
+
 function isSameSecureOrigin(targetUrl: string, baseUrl: string): boolean {
 	try {
 		const target = URI.parse(targetUrl, true);
@@ -92,15 +101,31 @@ function createRequestFetcher(requestService: IRequestService, callSite: string)
 }
 
 /** Discovers the marketplace's Protected Resource Metadata (RFC 9728) from the service index origin. */
-async function discoverMarketplaceProtectedResource(requestService: IRequestService, serviceIndexUrl: string): Promise<IMarketplaceProtectedResource | undefined> {
+async function discoverMarketplaceProtectedResource(requestService: IRequestService, serviceIndexUrl: string, onTransientFailure?: () => void): Promise<IMarketplaceProtectedResource | undefined> {
+	let transient = false;
+	let definitive = false;
+	const fetcher = createRequestFetcher(requestService, 'extensionGalleryAccountService.discoverProtectedResource');
 	try {
-		const { metadata } = await fetchResourceMetadata(serviceIndexUrl, undefined, { fetch: createRequestFetcher(requestService, 'extensionGalleryAccountService.discoverProtectedResource') });
+		const { metadata } = await fetchResourceMetadata(serviceIndexUrl, undefined, { fetch: async (url, init) => {
+			try {
+				const response = await fetcher(url, init);
+				transient ||= isTransientStatus(response.status);
+				definitive ||= response.status !== 404 && response.status !== 410 && !isTransientStatus(response.status);
+				return response;
+			} catch (error) {
+				transient = true;
+				throw error;
+			}
+		} });
 		const authorizationServer = metadata.authorization_servers?.[0];
 		if (!authorizationServer) {
 			return undefined;
 		}
 		return { authorizationServer, scopes: metadata.scopes_supported ?? [], resource: metadata.resource };
 	} catch {
+		if (transient && !definitive) {
+			onTransientFailure?.();
+		}
 		return undefined;
 	}
 }
@@ -108,21 +133,36 @@ async function discoverMarketplaceProtectedResource(requestService: IRequestServ
 /**
  * Exchanges a GitHub session token for a marketplace-audience token with the RFC 8693 token-exchange
  * grant. The subject token is sent only to the advertised authorization server's token endpoint, and
- * only when both that server and the endpoint are same-origin HTTPS with the service index. Never
- * throws; returns `undefined` on any failure.
+ * only when both that server and the endpoint are same-origin HTTPS with the service index.
  */
-async function exchangeMarketplaceResourceToken(requestService: IRequestService, serviceIndexUrl: string, protectedResource: IMarketplaceProtectedResource, subjectToken: string): Promise<{ readonly accessToken: string; readonly expiresInSeconds?: number } | undefined> {
+async function exchangeMarketplaceResourceToken(requestService: IRequestService, serviceIndexUrl: string, protectedResource: IMarketplaceProtectedResource, subjectToken: string): Promise<MarketplaceExchangeResult> {
 	if (!isSameSecureOrigin(protectedResource.authorizationServer, serviceIndexUrl)) {
-		return undefined;
+		return { kind: 'rejected' };
 	}
+	let transient = false;
+	let definitive = false;
+	let exchanging = false;
+	const fetcher = createRequestFetcher(requestService, 'extensionGalleryAccountService.exchangeMarketplaceResourceToken');
 	try {
 		const { metadata } = await fetchAuthorizationServerMetadata(protectedResource.authorizationServer, {
-			fetch: createRequestFetcher(requestService, 'extensionGalleryAccountService.exchangeMarketplaceResourceToken'),
+			fetch: async (url, init) => {
+				try {
+					const response = await fetcher(url, init);
+					transient ||= isTransientStatus(response.status);
+					definitive ||= response.status !== 404 && response.status !== 410 && !isTransientStatus(response.status);
+					return response;
+				} catch (error) {
+					transient = true;
+					throw error;
+				}
+			},
 			validateIssuer: true,
 		});
+		transient = false;
+		definitive = false;
 		const tokenEndpoint = metadata.token_endpoint;
 		if (!tokenEndpoint || !isSameSecureOrigin(tokenEndpoint, serviceIndexUrl)) {
-			return undefined;
+			return { kind: 'rejected' };
 		}
 		const body = new URLSearchParams();
 		body.append('grant_type', GRANT_TYPE_TOKEN_EXCHANGE);
@@ -132,6 +172,7 @@ async function exchangeMarketplaceResourceToken(requestService: IRequestService,
 		if (protectedResource.scopes.length) {
 			body.append('scope', protectedResource.scopes.join(AUTH_SCOPE_SEPARATOR));
 		}
+		exchanging = true;
 		const context = await requestService.request({
 			type: 'POST',
 			url: tokenEndpoint,
@@ -142,12 +183,15 @@ async function exchangeMarketplaceResourceToken(requestService: IRequestService,
 			followRedirects: 0,
 		}, CancellationToken.None);
 		if (context.res.statusCode !== 200) {
-			return undefined;
+			return { kind: isTransientStatus(context.res.statusCode ?? 0) ? 'transient' : 'rejected' };
 		}
 		const response = await asJson<IAuthorizationTokenResponse>(context);
-		return response && isAuthorizationTokenResponse(response) && response.access_token ? { accessToken: response.access_token, expiresInSeconds: response.expires_in } : undefined;
-	} catch {
-		return undefined;
+		exchanging = false;
+		return response && isAuthorizationTokenResponse(response) && response.access_token
+			? { kind: 'success', accessToken: response.access_token, expiresInSeconds: response.expires_in }
+			: { kind: 'rejected' };
+	} catch (error) {
+		return { kind: (exchanging && !(error instanceof SyntaxError)) || (transient && !definitive) ? 'transient' : 'rejected' };
 	}
 }
 
@@ -204,11 +248,16 @@ const DEFAULT_TOKEN_LIFETIME_SECONDS = 3600;
 const TOKEN_REFRESH_FRACTION = 0.75;
 const MIN_TOKEN_REFRESH_MS = 30_000;
 const MAX_TOKEN_REFRESH_MS = 6 * 60 * 60 * 1000;
+const INITIAL_TOKEN_RETRY_MS = 5_000;
+const MAX_TOKEN_RETRY_MS = 2 * 60_000;
 
 /** Entitlement from the default account's SKU or enterprise flag. The bearer, if the marketplace is gated, is exchanged from the session token. */
 export class GitHubGalleryAccountProvider extends AbstractGalleryAccountProvider {
 
 	private readonly refreshTimer = this._register(new MutableDisposable());
+	private cachedToken: { readonly accessToken: string; readonly expiresAt: number; readonly serviceIndexUrl: string; readonly sessionId: string; readonly providerId: string } | undefined;
+	private generation = 0;
+	private retryDelay = INITIAL_TOKEN_RETRY_MS;
 
 	constructor(
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
@@ -219,20 +268,25 @@ export class GitHubGalleryAccountProvider extends AbstractGalleryAccountProvider
 		@ILogService logService: ILogService,
 	) {
 		super('github', telemetryService, logService);
-		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this._onDidChangeAccount.fire()));
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.invalidateAccount()));
 		this._register(this.authenticationService.onDidChangeSessions(e => {
 			// The marketplace token is minted from the GitHub session token, so a rotated or
 			// re-consented session can leave a previously negotiated token stale.
 			if (e.providerId === 'github' || e.providerId === 'github-enterprise') {
-				this._onDidChangeAccount.fire();
+				this.invalidateAccount();
 			}
 		}));
 	}
 
 	protected override async doGetAccount(serviceIndexUrl: string): Promise<IExtensionGalleryAccount | undefined> {
+		const generation = ++this.generation;
 		// Entitlement here is the account's SKU, decided without any bearer.
 		const account = await this.defaultAccountService.getDefaultAccount();
+		if (generation !== this.generation) {
+			return undefined;
+		}
 		if (!account) {
+			this.clearToken();
 			this.setAccountStatus(ExtensionGalleryAccountStatus.SignedOut);
 			return undefined;
 		}
@@ -242,9 +296,10 @@ export class GitHubGalleryAccountProvider extends AbstractGalleryAccountProvider
 		// A result is returned even when ineligible, so the caller can tell "signed in but denied"
 		// apart from "no account" — the two map to different statuses.
 		if (!eligible) {
+			this.clearToken();
 			return {};
 		}
-		return { accessToken: await this.getMarketplaceAccessToken(serviceIndexUrl) };
+		return { accessToken: await this.getMarketplaceAccessToken(serviceIndexUrl, account, generation) };
 	}
 
 	/**
@@ -252,18 +307,79 @@ export class GitHubGalleryAccountProvider extends AbstractGalleryAccountProvider
 	 * authorization server exchanges the account's GitHub session token for one (RFC 8693). A
 	 * marketplace that publishes no protected resource needs no bearer.
 	 */
-	private async getMarketplaceAccessToken(serviceIndexUrl: string): Promise<string | undefined> {
-		const protectedResource = await discoverMarketplaceProtectedResource(this.requestService, serviceIndexUrl);
+	private async getMarketplaceAccessToken(serviceIndexUrl: string, account: IDefaultAccount, generation: number): Promise<string | undefined> {
+		if (this.cachedToken && (this.cachedToken.serviceIndexUrl !== serviceIndexUrl || this.cachedToken.sessionId !== account.sessionId || this.cachedToken.providerId !== account.authenticationProvider.id)) {
+			this.clearToken();
+		}
+		let transient = false;
+		const protectedResource = await discoverMarketplaceProtectedResource(this.requestService, serviceIndexUrl, () => { transient = true; });
+		if (generation !== this.generation) {
+			return undefined;
+		}
 		if (!protectedResource) {
+			return transient ? this.retryRenewal() : this.clearToken();
+		}
+		let sessions: readonly AuthenticationSession[];
+		try {
+			sessions = await this.authenticationService.getSessions(account.authenticationProvider.id);
+		} catch (error) {
+			this.logService.error('[Marketplace] Unable to resolve the GitHub session token for the marketplace token exchange', error);
+			return generation === this.generation ? this.retryRenewal() : undefined;
+		}
+		if (generation !== this.generation) {
 			return undefined;
 		}
-		const subjectToken = await this.getSubjectToken();
+		const subjectToken = sessions.find(session => session.id === account.sessionId)?.accessToken;
 		if (!subjectToken) {
+			return this.clearToken();
+		}
+		const exchangeStartedAt = Date.now();
+		const exchanged = await exchangeMarketplaceResourceToken(this.requestService, serviceIndexUrl, protectedResource, subjectToken);
+		if (generation !== this.generation) {
 			return undefined;
 		}
-		const exchanged = await exchangeMarketplaceResourceToken(this.requestService, serviceIndexUrl, protectedResource, subjectToken);
-		this.scheduleRefresh(exchanged?.expiresInSeconds);
-		return exchanged?.accessToken;
+		if (exchanged.kind === 'transient') {
+			return this.retryRenewal();
+		}
+		if (exchanged.kind === 'rejected') {
+			return this.clearToken();
+		}
+		const lifetime = exchanged.expiresInSeconds;
+		this.cachedToken = lifetime !== undefined && Number.isFinite(lifetime) && lifetime > 0
+			? { accessToken: exchanged.accessToken, expiresAt: exchangeStartedAt + lifetime * 1000, serviceIndexUrl, sessionId: account.sessionId, providerId: account.authenticationProvider.id }
+			: undefined;
+		if (this.cachedToken && this.cachedToken.expiresAt <= Date.now()) {
+			return this.retryRenewal();
+		}
+		this.retryDelay = INITIAL_TOKEN_RETRY_MS;
+		this.scheduleRefresh(this.cachedToken ? (this.cachedToken.expiresAt - Date.now()) / 1000 : lifetime);
+		return exchanged.accessToken;
+	}
+
+	private invalidateAccount(): void {
+		this.generation++;
+		this.clearToken();
+		this._onDidChangeAccount.fire();
+	}
+
+	private clearToken(): undefined {
+		this.cachedToken = undefined;
+		this.refreshTimer.clear();
+		this.retryDelay = INITIAL_TOKEN_RETRY_MS;
+		return undefined;
+	}
+
+	private retryRenewal(): string | undefined {
+		this.logService.warn('[Marketplace] Marketplace token renewal failed temporarily; scheduling a retry');
+		const remaining = (this.cachedToken?.expiresAt ?? 0) - Date.now();
+		const token = remaining > 0 ? this.cachedToken?.accessToken : undefined;
+		if (!token) {
+			this.cachedToken = undefined;
+		}
+		const delay = token ? Math.min(this.retryDelay, remaining) : this.retryDelay;
+		this.refreshTimer.value = disposableTimeout(() => this._onDidChangeAccount.fire(), delay);
+		this.retryDelay = Math.min(this.retryDelay * 2, MAX_TOKEN_RETRY_MS);
+		return token;
 	}
 
 	/**
@@ -272,23 +388,8 @@ export class GitHubGalleryAccountProvider extends AbstractGalleryAccountProvider
 	 */
 	private scheduleRefresh(expiresInSeconds: number | undefined): void {
 		const lifetimeMs = (expiresInSeconds && expiresInSeconds > 0 ? expiresInSeconds : DEFAULT_TOKEN_LIFETIME_SECONDS) * 1000;
-		const delay = Math.min(Math.max(lifetimeMs * TOKEN_REFRESH_FRACTION, MIN_TOKEN_REFRESH_MS), MAX_TOKEN_REFRESH_MS);
+		const delay = Math.min(Math.max(lifetimeMs * TOKEN_REFRESH_FRACTION, MIN_TOKEN_REFRESH_MS), lifetimeMs * 0.9, MAX_TOKEN_REFRESH_MS);
 		this.refreshTimer.value = disposableTimeout(() => this._onDidChangeAccount.fire(), delay);
-	}
-
-	/** The raw session token backing the default account. Never prompts. */
-	private async getSubjectToken(): Promise<string | undefined> {
-		try {
-			const account = await this.defaultAccountService.getDefaultAccount();
-			if (!account) {
-				return undefined;
-			}
-			const sessions = await this.authenticationService.getSessions(account.authenticationProvider.id);
-			return sessions.find(session => session.id === account.sessionId)?.accessToken;
-		} catch (error) {
-			this.logService.error('[Marketplace] Unable to resolve the GitHub session token for the marketplace token exchange', error);
-			return undefined;
-		}
 	}
 
 	override async signIn(): Promise<void> {
