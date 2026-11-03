@@ -155,6 +155,24 @@ suite('SessionWorktreeCleanupEditor', () => {
 		});
 	});
 
+	for (const prefix of ['user/', 'agents/team/']) {
+		test(`requires explicit selection of an unlinked ${prefix} prefixed worktree`, async () => {
+			const original = createUnlinkedWorktree('recovered');
+			const unlinked = { ...original, unlinkedWorktree: { ...original.unlinkedWorktree, branch: `${prefix}agents/recovered` } };
+			const { container, cleaned } = await openEditor([unlinked]);
+			const checkbox = container.querySelector<HTMLElement>('.session-worktree-cleanup-row [role="checkbox"]')!;
+			const button = container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!;
+			const initiallySelected = checkbox.getAttribute('aria-checked');
+			const initiallyDisabled = button.getAttribute('aria-disabled');
+			checkbox.click();
+			button.click();
+			await timeout(0);
+			assert.deepStrictEqual({ initiallySelected, initiallyDisabled, cleaned }, {
+				initiallySelected: 'false', initiallyDisabled: 'true', cleaned: [[getWorktreeCleanupId(unlinked)]],
+			});
+		});
+	}
+
 	test('select all toggles unlinked worktrees and active sessions without selecting unavailable worktrees', async () => {
 		const unlinked: ISessionWorktree = {
 			unlinkedWorktree: { providerId: 'test', repository: URI.file('/repos/app').toString(), worktree: URI.file('/repos/app.worktrees/unlinked').toString(), branch: 'agents/unlinked', cleanupStatus: { state: 'unknown' } },

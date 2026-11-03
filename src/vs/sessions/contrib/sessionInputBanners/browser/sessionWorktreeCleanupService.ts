@@ -14,7 +14,7 @@ import { IObservable, observableValue } from '../../../../base/common/observable
 import { basename, extUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { IAgentHostWorktreeCleanupStatus } from '../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
-import { AGENT_BRANCH_PREFIX } from '../../../../platform/agentHost/common/worktreePaths.js';
+import { isAgentWorktreeBranch } from '../../../../platform/agentHost/common/worktreePaths.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ByteSize } from '../../../../platform/files/common/files.js';
@@ -52,10 +52,12 @@ export type ISessionWorktreeCleanupCandidate = WorktreeCleanupOwner & {
 
 export function isWorktreeCleanupBranchSupported(owner: WorktreeCleanupOwner): boolean {
 	if (owner.unlinkedWorktree) {
-		return owner.unlinkedWorktree.branch.startsWith(AGENT_BRANCH_PREFIX);
+		const { branch, worktree, repository } = owner.unlinkedWorktree;
+		return isAgentWorktreeBranch(branch, URI.parse(worktree), URI.parse(repository));
 	}
 	return owner.session.workspace.get()?.folders.every(folder => !folder.gitRepository?.workTreeUri
-		|| folder.gitRepository.branchName === undefined || folder.gitRepository.branchName.startsWith(AGENT_BRANCH_PREFIX)) !== false;
+		|| folder.gitRepository.branchName === undefined
+		|| isAgentWorktreeBranch(folder.gitRepository.branchName, folder.gitRepository.workTreeUri, folder.gitRepository.uri)) !== false;
 }
 
 export function getWorktreeCleanupId(worktree: ISessionWorktreeCleanupCandidate): string {
@@ -703,7 +705,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			return false;
 		}
 		if (selected.some(candidate => !isWorktreeCleanupBranchSupported(candidate))) {
-			throw new Error(localize('worktreeCleanup.branchUnavailable', "Only worktrees on branches starting with '{0}' can be cleaned up.", AGENT_BRANCH_PREFIX));
+			throw new Error(localize('worktreeCleanup.branchUnavailable', "Only worktrees on agent-managed branches can be cleaned up."));
 		}
 		if (selected.some(candidate => candidate.isListedByHost === false)) {
 			throw new Error(localize('worktreeCleanup.notListed', "This worktree is no longer listed by its host. Refresh the worktree inventory before cleanup."));
