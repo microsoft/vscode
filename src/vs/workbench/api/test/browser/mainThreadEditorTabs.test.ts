@@ -32,7 +32,7 @@ import { EditorService } from '../../../services/editor/browser/editorService.js
 import { GroupDirection, IEditorGroup, IEditorGroupsService, IModalEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorsChangeEvent, IEditorService } from '../../../services/editor/common/editorService.js';
 import { ITextFileEditorModelManager, ITextFileService } from '../../../services/textfile/common/textfiles.js';
-import { createEditorParts, TestEditorInput, workbenchInstantiationService } from '../../../test/browser/workbenchTestServices.js';
+import { TestEditorInput, TestEditorParts, workbenchInstantiationService } from '../../../test/browser/workbenchTestServices.js';
 import { MainThreadEditorTabs } from '../../browser/mainThreadEditorTabs.js';
 import { IEditorTabGroupDto, MainThreadEditorTabsShape, TabModelOperationKind } from '../../common/extHost.protocol.js';
 import { ExtHostEditorTabs } from '../../common/extHostEditorTabs.js';
@@ -425,7 +425,17 @@ suite('MainThreadEditorTabs', () => {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, store);
 		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
-		const parts = await createEditorParts(instantiationService, store);
+		// The parts resolve the focused window from a test-local source rather than the global document focus
+		class FocusTestEditorParts extends TestEditorParts {
+			focusedDocument: Document = mainWindow.document;
+			override get activePart(): EditorPart {
+				return this.getPartByDocument(this.focusedDocument);
+			}
+		}
+		const parts = store.add(instantiationService.createInstance(FocusTestEditorParts));
+		parts.testMainPart.create(mainWindow.document.createElement('div'));
+		parts.testMainPart.layout(1080, 800, 0, 0);
+		await parts.whenReady;
 		instantiationService.stub(IEditorGroupsService, parts);
 		const editorService = store.add(instantiationService.createInstance(EditorService, undefined));
 
@@ -452,13 +462,9 @@ suite('MainThreadEditorTabs', () => {
 		const auxiliaryWindow = iframe.contentWindow!;
 		ensureCodeWindow(auxiliaryWindow, 4749);
 		store.add(registerWindow(auxiliaryWindow));
-		const mainHasFocus = mainWindow.document.hasFocus;
-		store.add(toDisposable(() => mainWindow.document.hasFocus = mainHasFocus));
-		mainWindow.document.hasFocus = () => true;
-		auxiliaryWindow.document.hasFocus = () => false;
 		const auxiliaryPart = store.add(instantiationService.createInstance(EditorPart, parts, 'workbench.parts.auxiliaryEditor.test', 'Window 2', auxiliaryWindow.vscodeWindowId));
 		store.add(parts.registerPart(auxiliaryPart));
-		auxiliaryPart.create(auxiliaryWindow.document.body.appendChild(auxiliaryWindow.document.createElement('div')));
+		auxiliaryPart.create(auxiliaryWindow.document.body.appendChild(mainWindow.document.createElement('div')));
 		auxiliaryPart.layout(400, 300, 0, 0);
 		const auxiliaryGroupId = auxiliaryPart.activeGroup.id;
 		const secondGroupId = auxiliaryPart.addGroup(auxiliaryPart.activeGroup, GroupDirection.RIGHT).id;
@@ -466,8 +472,7 @@ suite('MainThreadEditorTabs', () => {
 		updates.length = 0;
 
 		// Focus moves into the auxiliary window's part, whose active group stays the same
-		mainWindow.document.hasFocus = () => false;
-		auxiliaryWindow.document.hasFocus = () => true;
+		parts.focusedDocument = auxiliaryWindow.document;
 		auxiliaryPart.activeGroup.focus();
 		const knownAfterFocus = activeGroupId;
 		const updatesOnFocus = [...updates];
