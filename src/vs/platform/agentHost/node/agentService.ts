@@ -1151,6 +1151,11 @@ export class AgentService extends Disposable implements IAgentService {
 	private _serverToolActionSequence = 0;
 	private readonly _restoreSubagentInFlight = new Map<string, Promise<void>>();
 	private readonly _restoredSubagentAdmissionRetries = new Map<string, { run(): Promise<void>; cancel(): void; isCurrent(): boolean }>();
+	/**
+	 * Sessions seen as workspace-less in this process. `set_workspace` stays loaded for
+	 * them after conversion, so the provider's tool list, and with it the prompt cache, is unchanged.
+	 */
+	private readonly _startedWorkspacelessSessions = new Set<string>();
 	private readonly _sessionResidency: AgentSessionResidency;
 
 	/**
@@ -1511,6 +1516,8 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			this._authService.moveChatCredentials(chat, previous, current);
 		}));
+		// Not on removal: an evicted idle session restores with the same tool list.
+		this._register(this._stateManager.onDidDeleteSession(session => this._startedWorkspacelessSessions.delete(session)));
 		this._register(this._stateManager.onDidRemoveSession(removed => {
 			for (const [chat, session] of this._chatWatchOwners) {
 				if (session === removed) {
@@ -2193,11 +2200,17 @@ export class AgentService extends Disposable implements IAgentService {
 	 * to this service so the group stays decoupled from the concrete host.
 	 */
 	private _createSessionServerToolAccessor(): IAgentServiceSessionServerToolAccessor {
-		const isWorkspaceless = (session: URI) => readSessionWorkspaceless(this._stateManager.getSessionState(session.toString())?._meta);
 		return {
 			getCredentialSource: chat => this._getServerToolCredentialSource(chat),
 			getAutomaticTitleGenerationStrategy: session => this._titleController.getAutomaticTitleGenerationStrategy(session),
-			isWorkspaceless,
+			startedWorkspaceless: session => {
+				const sessionKey = session.toString();
+				if (readSessionWorkspaceless(this._stateManager.getSessionState(sessionKey)?._meta)) {
+					this._startedWorkspacelessSessions.add(sessionKey);
+					return true;
+				}
+				return this._startedWorkspacelessSessions.has(sessionKey);
+			},
 			canConvertWorkspace: session => this._providerService.getProviderForSession(session)?.agentHostCapabilities.workspaceConversion === true,
 			supportsChatWorkingDirectories: session => !!this._providerService.getProviderForSession(session)?.getDescriptor().capabilities?.multipleWorkingDirectories,
 			listSessions: () => this.listSessions(),
@@ -2415,6 +2428,14 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
+	async manageHostSandboxCertificate(provider: AgentProvider, operation: Parameters<NonNullable<IAgent['manageHostSandboxCertificate']>>[0]): Promise<void> {
+		const agent = this._providerService.getProvider(provider);
+		if (!agent?.manageHostSandboxCertificate) {
+			throw new Error('Host sandbox certificate management is unavailable for this provider.');
+		}
+		await agent.manageHostSandboxCertificate(operation);
+	}
+
 	async installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		await this._runSandboxCertificateOperation(chat, scopeId, 'installSandboxCertificate');
 	}
@@ -2427,7 +2448,11 @@ export class AgentService extends Disposable implements IAgentService {
 		await this._runSandboxCertificateOperation(chat, scopeId, 'removeSandboxCertificate');
 	}
 
-	private async _runSandboxCertificateOperation(chat: string, scopeId: string, operation: 'installSandboxCertificate' | 'rotateSandboxCertificate' | 'removeSandboxCertificate'): Promise<void> {
+	async refreshSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		await this._runSandboxCertificateOperation(chat, scopeId, 'refreshSandboxCertificate');
+	}
+
+	private async _runSandboxCertificateOperation(chat: string, scopeId: string, operation: 'installSandboxCertificate' | 'rotateSandboxCertificate' | 'removeSandboxCertificate' | 'refreshSandboxCertificate'): Promise<void> {
 		const owner = this._chatOwnership.getChatOwner(chat);
 		const provider = owner === undefined ? undefined : this._providerService.getProviderForChat(URI.parse(owner), chat);
 		if (!provider?.[operation]) {

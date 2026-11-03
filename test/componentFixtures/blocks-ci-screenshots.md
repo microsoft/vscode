@@ -31,7 +31,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/e67ff22f55b85ba448486d56e6e7e01e060fa8f7503c72638ef1b999015d829f)
 
 #### chat/petAchievements/standaloneModal/chatPetAchievementsEditor/MixedSelected/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/25cedd0bedf186071991ad692608c4a88280cf720cfa89e1a93776659ab86bc1)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/6eae698ca25739514cb95bb71c4f6973e938a83a5f4e3dee7153c4c3a646c54b)
 
 #### chat/widget/chatWidget/PendingMessages/Queued/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/ff9db5b64a40589538b988686ab9906714458bd2d756c851d43e14b18ef2b6b7)

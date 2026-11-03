@@ -16,7 +16,8 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { CapturingTelemetryService as PlatformCapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, IAgent } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -77,27 +78,10 @@ import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 import { FakeChangesetService } from '../common/fakeChangesetService.js';
 
-class CapturingTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
-	readonly telemetryLevel = TelemetryLevel.USAGE;
-	readonly sessionId = 'test-session';
-	readonly machineId = 'test-machine';
-	readonly sqmId = 'test-sqm';
-	readonly devDeviceId = 'test-dev-device';
-	readonly firstSessionDate = 'test-first-session-date';
-	readonly sendErrorTelemetry = false;
-	readonly events: { eventName: string; data: unknown; level: 'usage' | 'error' }[] = [];
-
-	publicLog(): void { }
-	publicLog2(eventName: string, data?: unknown): void {
-		this.events.push({ eventName, data, level: 'usage' });
+class CapturingTelemetryService extends PlatformCapturingTelemetryService {
+	constructor() {
+		super({ captureErrors: true, distinguishErrors: true });
 	}
-	publicLogError(): void { }
-	publicLogError2(eventName: string, data?: unknown): void {
-		this.events.push({ eventName, data, level: 'error' });
-	}
-	setExperimentProperty(): void { }
-	setCommonProperty(): void { }
 }
 
 /**

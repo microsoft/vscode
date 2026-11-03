@@ -156,12 +156,19 @@ suite('ChatWidget', () => {
 		const editorPlaceholders: (string | undefined)[] = [];
 		const rendererOptions: (IChatListItemRendererOptions['responseIdentity'])[] = [];
 		const modelPools: ({ pool: string | undefined; resource: string | undefined; revalidate?: boolean } | { cleared: true; revalidate?: boolean } | undefined)[] = [];
+		const contextKeyService = new MockContextKeyService();
+		const requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);
+		const hasActiveRequest = ChatContextKeys.hasActiveRequest.bindTo(contextKeyService);
+		requestInProgress.set(true);
+		hasActiveRequest.set(true);
+		const toolbarStates: { requestInProgress: boolean; hasActiveRequest: boolean }[] = [];
 		const inputPart = upcastPartial<ChatInputPart>({
 			inputEditor: upcastPartial<CodeEditorWidget>({ updateOptions: (options: { placeholder?: string }) => { editorPlaceholders.push(options.placeholder); } }),
 			setModelSessionTypeOverride: (override: { readonly sessionType: string | undefined } | undefined, target?: URI, options?: { readonly revalidate?: boolean }) => {
 				modelPools.push(override ? { pool: override.sessionType, resource: target?.fragment, ...(options?.revalidate === false ? { revalidate: false } : {}) } : (options?.revalidate === false ? { cleared: true, revalidate: false } : undefined));
 			},
 			flushInputStateToModel: () => { },
+			refreshToolbars: () => toolbarStates.push({ requestInProgress: !!requestInProgress.get(), hasActiveRequest: !!hasActiveRequest.get() }),
 		});
 		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
 			_viewModel: viewModel,
@@ -181,11 +188,19 @@ suite('ChatWidget', () => {
 			updateWorkingProgressBorder: () => { },
 			onDidChangeItems: () => { },
 			_hasPendingRequestsContextKey: { set: () => { } },
+			requestInProgress,
+			hasActiveRequest,
 			_chatSessionSupportsRenameContextKey: { set: () => { } },
 			viewOptions: { isSessionsWindow: true },
 		});
-		return { widget, resource, get placeholder() { return placeholder; }, editorPlaceholders, rendererOptions, modelPools };
+		return { widget, resource, get placeholder() { return placeholder; }, editorPlaceholders, rendererOptions, modelPools, toolbarStates };
 	}
+
+	test('unbinding clears running-request controls before refreshing the toolbars', () => {
+		const harness = createRespondentWidget(true);
+		harness.widget.setModel(undefined);
+		assert.deepStrictEqual(harness.toolbarStates, [{ requestInProgress: false, hasActiveRequest: false }]);
+	});
 
 	test('presents a chat answered by another agent with that agent, and restores its session type\'s presentation', () => {
 		const harness = createRespondentWidget(true);

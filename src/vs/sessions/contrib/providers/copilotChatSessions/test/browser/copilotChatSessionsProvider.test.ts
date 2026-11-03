@@ -67,6 +67,8 @@ import { extUri } from '../../../../../../base/common/resources.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { RepositoryPicker } from '../../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
+import { ISessionRepositoryPicker } from '../../../../../services/presentation/browser/sessionRepositoryPicker.js';
+import { DefaultSessionRepositoryPicker } from '../../../../../services/presentation/browser/defaultSessionRepositoryPicker.js';
 import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
 import { IPullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
 import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest, IGitHubRepository } from '../../../../github/common/types.js';
@@ -221,6 +223,7 @@ interface ICreateProviderOptions {
 	readonly providerMode?: 'default' | 'sandbox';
 	readonly commandService?: ICommandService;
 	readonly repositoryPicker?: Pick<RepositoryPicker, 'pickRepository' | 'dispose'>;
+	readonly sessionRepositoryPicker?: ISessionRepositoryPicker;
 	readonly notificationErrors?: string[];
 	readonly getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined;
 	readonly languageModelsService?: Partial<ILanguageModelsService>;
@@ -415,6 +418,7 @@ function createProviderWithConfig(
 	if (opts?.repositoryPicker) {
 		instantiationService.stubInstance(RepositoryPicker, opts.repositoryPicker);
 	}
+	instantiationService.stub(ISessionRepositoryPicker, opts?.sessionRepositoryPicker ?? instantiationService.createInstance(DefaultSessionRepositoryPicker));
 
 	const provider = disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider, opts?.providerMode ?? 'default'));
 	return { provider, configService, labelService };
@@ -466,6 +470,7 @@ function createProviderForSendTests(
 	instantiationService.stub(ILogService, NullLogService);
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(IStorageService, opts?.storageService ?? disposables.add(new TestStorageService()));
+	instantiationService.stub(ISessionRepositoryPicker, { pickRepository: async () => assert.fail('Repository selection is not expected while sending') });
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
 	instantiationService.stub(IAgentSessionsService, {
@@ -718,6 +723,37 @@ suite('CopilotChatSessionsProvider', () => {
 			uri: 'https://github.com/microsoft/vscode',
 		});
 	});
+
+	for (const providerMode of ['default', 'sandbox'] as const) {
+		(isWeb ? test : test.skip)(`uses the entry-selected repository picker after authentication (${providerMode})`, async () => {
+			const steps: string[] = [];
+			const gitHubService = new class extends TestGitHubService {
+				override async authenticateForRepositoryAccess(): Promise<void> {
+					steps.push('authenticate');
+				}
+				override async getRepositories(query: string): Promise<readonly IGitHubRepository[]> {
+					steps.push(`search:${query}`);
+					return [{ owner: 'microsoft', name: 'vscode', fullName: 'microsoft/vscode', defaultBranch: 'main', isPrivate: false, description: '' }];
+				}
+			}();
+			const sessionRepositoryPicker = new class extends mock<ISessionRepositoryPicker>() {
+				override async pickRepository(getRepositories: (query: string, token: CancellationToken) => Promise<readonly string[]>, token: CancellationToken) {
+					steps.push('presentation');
+					const repositories = await getRepositories('https://github.com/microsoft/vscode.git', token);
+					return repositories[0];
+				}
+			}();
+			const provider = createProvider(disposables, model, {
+				providerMode, gitHubService, sessionRepositoryPicker,
+				repositoryPicker: { pickRepository: async () => assert.fail('Must not open the default picker'), dispose: () => { } },
+			});
+			const workspace = await provider.browseActions[0].run();
+			assert.deepStrictEqual({ steps, uri: workspace?.uri.toString() }, {
+				steps: ['authenticate', 'presentation', 'search:microsoft/vscode'],
+				uri: 'https://github.com/microsoft/vscode',
+			});
+		});
+	}
 
 	for (const changesWhilePicking of [false, true]) {
 		(isWeb ? test : test.skip)(`rejects enterprise identities instead of creating github.com workspaces (changes during picker: ${changesWhilePicking})`, async () => {

@@ -35,6 +35,7 @@ export const knownSettingNames = [
 	'pmOnFail',
 	'skills',
 	'optimisticRepeatInstall',
+	'ignoredOptionalDependencies',
 	'allowBuilds',
 	'overrides',
 	'patchedDependencies',
@@ -48,7 +49,7 @@ export type WorkspaceSettings = Partial<Record<SettingName, SettingValue>>;
  * Packages exempt from `minimumReleaseAge`: first-party packages that are bumped on purpose, often
  * to a prerelease published the same day, and the agent SDKs, which build/agent-sdk pins in lockstep
  * with the root (not embargoed). An install root gets the patterns that match a package it installs
- * (see {@link getMinimumReleaseAgeExclude}).
+ * (see {@link getPatternsOfInstalledPackages}).
  */
 export const minimumReleaseAgeExclusions: readonly string[] = [
 	'@anthropic-ai/*',
@@ -63,6 +64,19 @@ export const minimumReleaseAgeExclusions: readonly string[] = [
 	'playwright*',
 	'typescript',
 	'vscode-*-languageservice',
+];
+
+/**
+ * Optional dependencies that pnpm doesn't install (`ignoredOptionalDependencies`). An install root
+ * gets the patterns that match a package it installs (see {@link getPatternsOfInstalledPackages}).
+ *
+ * `@parcel/watcher` loads its prebuilt `@parcel/watcher-<platform>` package before the binary that
+ * `build_from_source` in `.npmrc` builds, and the product would ship the prebuilt one, which isn't
+ * built with VS Code's toolchain (the Linux armhf one needs a newer glibc than VS Code supports).
+ * Deleting the prebuilds after the install doesn't last: every later install restores them.
+ */
+export const ignoredOptionalDependencyPatterns: readonly string[] = [
+	'@parcel/watcher-*',
 ];
 
 /**
@@ -418,12 +432,13 @@ export interface InstallRootOptions {
 }
 
 /**
- * Returns the `minimumReleaseAgeExclude` of an install root: the patterns of `exclusions` that match
- * the name of a package installed by one of its projects, in their original order.
+ * Returns the patterns (`*` matches any characters) that match the name of a package installed by
+ * one of the projects of an install root, in their original order. Used for the
+ * `minimumReleaseAgeExclude` and `ignoredOptionalDependencies` of the root.
  */
-export function getMinimumReleaseAgeExclude(folders: readonly NpmFolder[], exclusions: readonly string[]): string[] {
+export function getPatternsOfInstalledPackages(folders: readonly NpmFolder[], patterns: readonly string[]): string[] {
 	const installed = new Set(folders.flatMap(f => getInstalledPackages(f.lockfile).flatMap(p => [p.name, p.alias])));
-	return exclusions.filter(pattern => {
+	return patterns.filter(pattern => {
 		const matcher = new RegExp(`^${pattern.split('*').map(part => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*')}$`);
 		return [...installed].some(name => matcher.test(name));
 	});
@@ -453,13 +468,15 @@ export function computeWorkspaceSettings(folders: readonly NpmFolder[], notes: C
 	const allowBuilds = mergeAllowBuilds(folders, notes);
 	const overrides = mergeOverrides(folders, notes, satisfies);
 	const patchedDependencies = getPatchedDependencies(folders, options.dependencyPatches ?? {});
-	const minimumReleaseAgeExclude = getMinimumReleaseAgeExclude(folders, minimumReleaseAgeExclusions);
+	const minimumReleaseAgeExclude = getPatternsOfInstalledPackages(folders, minimumReleaseAgeExclusions);
+	const ignoredOptionalDependencies = getPatternsOfInstalledPackages(folders, ignoredOptionalDependencyPatterns);
 	return {
 		...(members.length > 0 ? { packages: members } : {}),
 		...(options.hasPnpmfile ? { pnpmfile: pnpmfileName } : {}),
 		...sharedSettings,
 		...(minimumReleaseAgeExclude.length > 0 ? { minimumReleaseAgeExclude } : {}),
 		...(options.installsOtherRoots ? { optimisticRepeatInstall: false } : {}),
+		...(ignoredOptionalDependencies.length > 0 ? { ignoredOptionalDependencies } : {}),
 		...(Object.keys(allowBuilds).length > 0 ? { allowBuilds } : {}),
 		...(Object.keys(overrides).length > 0 ? { overrides } : {}),
 		...(Object.keys(patchedDependencies).length > 0 ? { patchedDependencies } : {}),
