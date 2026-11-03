@@ -6,6 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { Event } from '../../../../base/common/event.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { vNumber, vObj, vString } from '../../../../base/common/validation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -51,6 +52,7 @@ suite('AgentHostTcpConnection', () => {
 	for (const pendingRead of [false, true]) {
 		test(`consuming EOF ${pendingRead ? 'with a pending reader' : 'from the queue'} flushes credit and unblocks the peer drain`, async () => {
 			const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+			store.add(toDisposable(() => clock.restore()));
 			const channel = 'ahp-tcp:/eof';
 			const sender = fixture(channel, true);
 			const receiver = fixture(channel, false);
@@ -91,46 +93,58 @@ suite('AgentHostTcpConnection', () => {
 		]);
 	});
 
-	test('resets the stream when a fragmented message exceeds the TCP per-message bound', async () => {
-		const channel = 'ahp-tcp:/oversized';
-		const sent: Parameters<IProtocolTransport['send']>[0][] = [];
-		const failures: { error: Error; notifiedPeer: boolean }[] = [];
-		const schedulerErrors: Error[] = [];
-		let transportDisposed = false;
-		const transport: IProtocolTransport = {
-			onMessage: Event.None, onClose: Event.None,
-			dispose() { transportDisposed = true; },
-			send: message => { sent.push(message); },
-		};
-		const scheduler = store.add(new AgentHostChannelScheduler(transport, error => schedulerErrors.push(error)));
-		const stream = store.add(new AgentHostTcpConnection(channel, {
-			clientReceive: agentHostTcpReceiveLimits, hostReceive: agentHostTcpReceiveLimits,
-		}, true, transport, scheduler, (error, notifiedPeer) => failures.push({ error, notifiedPeer }), new AgentHostTcpBudget()));
-		const maximumMessageBytes = agentHostTcpReceiveLimits.windowBytes + agentHostTcpReceiveLimits.maximumFrameBytes + 64 * 1024;
-		const text = JSON.stringify({ jsonrpc: '2.0', method: 'tcp/data', params: { channel, data: 'YWFh'.repeat(maximumMessageBytes / 8) } });
-		const rejected = assert.rejects(stream.read(), /Channel reassembly capacity exceeded/);
-		const fragmentCharacters = agentHostTcpReceiveLimits.maximumFrameBytes / 4;
-		for (let offset = 0; offset < text.length; offset += fragmentCharacters) {
-			const frame: JsonRpcNotification = {
-				jsonrpc: '2.0', method: 'channel/frame',
-				params: { channel, data: text.slice(offset, offset + fragmentCharacters), final: offset + fragmentCharacters >= text.length },
+	for (const isHost of [false, true]) {
+		test(`resets the stream when a fragmented message exceeds the TCP ${isHost ? 'host' : 'client'} receive message bound`, async () => {
+			const channel = 'ahp-tcp:/oversized';
+			const sent: Parameters<IProtocolTransport['send']>[0][] = [];
+			const failures: { error: Error; notifiedPeer: boolean }[] = [];
+			const schedulerErrors: Error[] = [];
+			let transportDisposed = false;
+			const transport: IProtocolTransport = {
+				onMessage: Event.None, onClose: Event.None,
+				dispose() { transportDisposed = true; },
+				send: message => { sent.push(message); },
 			};
-			const parsed = parseProtocolMessage(JSON.stringify(frame));
-			assert.ok(isJsonRpcNotification(parsed));
-			scheduler.acceptMessage(parsed);
-			stream.flushCredit();
-		}
-		await rejected;
-		assert.deepStrictEqual({
-			failures: failures.map(({ error, notifiedPeer }) => ({ message: error.message, code: error instanceof AgentHostChannelError ? error.code : undefined, notifiedPeer })),
-			resets: sent.filter(message => hasKey(message, { method: true }) && message.method === 'tcp/reset'),
-			schedulerErrors, transportDisposed,
-		}, {
-			failures: [{ message: 'Channel reassembly capacity exceeded', code: AgentHostChannelErrorCode.MessageLimitExceeded, notifiedPeer: true }],
-			resets: [{ jsonrpc: '2.0', method: 'tcp/reset', params: { channel } }],
-			schedulerErrors: [], transportDisposed: false,
+			const scheduler = store.add(new AgentHostChannelScheduler(transport, error => schedulerErrors.push(error)));
+			const stream = store.add(new AgentHostTcpConnection(channel, {
+				clientReceive: agentHostTcpReceiveLimits, hostReceive: agentHostTcpReceiveLimits,
+			}, isHost, transport, scheduler, (error, notifiedPeer) => failures.push({ error, notifiedPeer }), new AgentHostTcpBudget()));
+			if (!isHost) {
+				const snapshot = parseProtocolMessage(JSON.stringify({
+					jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state: {}, fromSeq: 0 } },
+				}));
+				assert.ok(isJsonRpcNotification(snapshot));
+				scheduler.acceptMessage(snapshot);
+				await stream.ready;
+				stream.flushCredit();
+				sent.length = 0;
+			}
+			const maximumMessageBytes = agentHostTcpReceiveLimits.windowBytes + agentHostTcpReceiveLimits.maximumFrameBytes + 64 * 1024;
+			const text = JSON.stringify({ jsonrpc: '2.0', method: 'tcp/data', params: { channel, data: 'YWFh'.repeat(maximumMessageBytes / 8) } });
+			const rejected = assert.rejects(stream.read(), /Channel reassembly capacity exceeded/);
+			const fragmentCharacters = agentHostTcpReceiveLimits.maximumFrameBytes / 4;
+			for (let offset = 0; offset < text.length; offset += fragmentCharacters) {
+				const frame: JsonRpcNotification = {
+					jsonrpc: '2.0', method: 'channel/frame',
+					params: { channel, data: text.slice(offset, offset + fragmentCharacters), final: offset + fragmentCharacters >= text.length },
+				};
+				const parsed = parseProtocolMessage(JSON.stringify(frame));
+				assert.ok(isJsonRpcNotification(parsed));
+				scheduler.acceptMessage(parsed);
+				stream.flushCredit();
+			}
+			await rejected;
+			assert.deepStrictEqual({
+				failures: failures.map(({ error, notifiedPeer }) => ({ message: error.message, code: error instanceof AgentHostChannelError ? error.code : undefined, notifiedPeer })),
+				controls: sent.filter(message => hasKey(message, { method: true }) && (message.method === 'tcp/reset' || message.method === 'unsubscribe')),
+				schedulerErrors, transportDisposed,
+			}, {
+				failures: [{ message: 'Channel reassembly capacity exceeded', code: AgentHostChannelErrorCode.MessageLimitExceeded, notifiedPeer: true }],
+				controls: (isHost ? ['tcp/reset'] : ['tcp/reset', 'unsubscribe']).map(method => ({ jsonrpc: '2.0', method, params: { channel } })),
+				schedulerErrors: [], transportDisposed: false,
+			});
 		});
-	});
+	}
 
 	for (const isHost of [false, true]) {
 		test(`retains 1100 one-byte writes before the ${isHost ? 'host' : 'client'} starts reading`, async () => {

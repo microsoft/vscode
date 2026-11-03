@@ -345,7 +345,8 @@ function readSessionStateSnapshot(snapshot: IStateSnapshot): SessionState | unde
  */
 export class AgentHostProtocolClient extends Disposable implements IAgentConnection, IRemoteAgentHostProtocolClient {
 	private readonly _windowedChannels = this._register(new DisposableMap<string, AgentHostChannelSubscription | AgentHostTcpConnection>());
-	private readonly _windowedStateChannels = new Set<string>();
+	private readonly _windowedStateChannels = new Map<string, number>();
+	private _channelSubscriptionGeneration = 0;
 	private readonly _pendingChannelSubscriptions = new Map<string, {
 		generation: number;
 		requests: number;
@@ -1277,7 +1278,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private async _reconnectOrInitialize(lastSeenServerSeq: number, subscriptions: string[]): Promise<{ result: CommandMap['reconnect']['result'] & { readonly _meta?: Record<string, unknown> }; freshInitialize: boolean; windowSnapshots: Map<string, Promise<IStateSnapshot>> }> {
 		const windowSnapshots = new Map<string, Promise<IStateSnapshot>>();
-		const windowed = subscriptions.filter(channel => this._windowedStateChannels.has(channel));
+		const windowGenerations = new Map(this._windowedStateChannels);
+		const windowed = subscriptions.filter(channel => windowGenerations.has(channel));
 		const requestedWindows = this._isWebPubSubRelay() ? [] : windowed;
 		const freshInitialize = this._freshInitializeRequested;
 		this._freshInitializeRequested = false;
@@ -1302,16 +1304,22 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 							throw new Error('Invalid reconnected state channel');
 						}
 						kept.add(item.channel);
-						const snapshot = this._acceptStateChannel(item.channel, this._readAcceptedChannelFlowControl(item.flowControl, agentHostStateReceiveLimits));
+						if (this._windowedStateChannels.get(item.channel) !== windowGenerations.get(item.channel)) {
+							continue;
+						}
+						const snapshot = this._acceptStateChannel(item.channel, this._readAcceptedChannelFlowControl(item.flowControl, agentHostStateReceiveLimits), item.recovery !== ChannelRecoveryKind.Snapshot);
+						this._subscriptionManager.beginSnapshotRefresh(URI.parse(item.channel));
 						// Other recoveries keep the window but are reseated by re-subscribing below.
 						if (item.recovery === ChannelRecoveryKind.Snapshot) {
 							windowSnapshots.set(item.channel, snapshot);
-							this._subscriptionManager.beginSnapshotRefresh(URI.parse(item.channel));
 						}
 					}
 				},
 			});
 			for (const channel of windowed) {
+				if (this._windowedStateChannels.get(channel) !== windowGenerations.get(channel)) {
+					continue;
+				}
 				if (!windowSnapshots.has(channel)) {
 					this._windowedStateChannels.delete(channel);
 					if (result.windows && !(result.type === ReconnectResultType.Replay && result.missing.includes(channel))) {
@@ -1396,7 +1404,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 						snapshot.resource,
 						snapshot.state,
 						snapshot.fromSeq,
-						true,
+						!windowSnapshot,
 					);
 					this._serverSeq = Math.max(this._serverSeq, snapshot.fromSeq);
 					this._subscriptionsAwaitingRestore.delete(resource);
@@ -2104,7 +2112,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return this._withOlderHostSnapshot(snapshot);
 	}
 
-	private _acceptStateChannel(channel: string, flowControl: ChannelFlowControl): Promise<IStateSnapshot> {
+	private _acceptStateChannel(channel: string, flowControl: ChannelFlowControl, resumeWithoutSnapshot = false): Promise<IStateSnapshot> {
 		let subscription = this._windowedChannels.get(channel);
 		if (subscription instanceof AgentHostChannelSubscription) {
 			subscription.setPeerReceiveLimits(flowControl.hostReceive);
@@ -2125,7 +2133,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				});
 			this._windowedChannels.set(channel, subscription);
 		}
-		this._windowedStateChannels.add(channel);
+		this._windowedStateChannels.set(channel, this._windowedStateChannels.get(channel) ?? ++this._channelSubscriptionGeneration);
+		if (resumeWithoutSnapshot) {
+			subscription.resumeWithoutSnapshot();
+		}
 		const snapshot = subscription.nextSnapshot();
 		void snapshot.catch(() => { });
 		return snapshot;

@@ -3778,7 +3778,15 @@ suite('ProtocolServerHandler', () => {
 			transport.simulateMessage(request(3, 'subscribe', { channel: defaultChatUri, flowControl: { receive: agentHostStateReceiveLimits } }));
 			await windowed;
 			await timeout(0);
-			assert.deepStrictEqual(findNotifications(transport.sent, 'channel/snapshot').map(message => message.params), [{ channel: defaultChatUri, snapshot }]);
+			const downgraded = waitForResponse(transport, 4);
+			transport.simulateMessage(request(4, 'subscribe', { channel: defaultChatUri }));
+			assert.deepStrictEqual({
+				windowed: findNotifications(transport.sent, 'channel/snapshot').map(message => message.params),
+				ordinary: await downgraded,
+			}, {
+				windowed: [{ channel: defaultChatUri, snapshot }],
+				ordinary: { jsonrpc: '2.0', id: 4, result: { snapshot } },
+			});
 		});
 
 		test('rejects invalid limits without changing an existing subscription', async () => {
@@ -3823,6 +3831,42 @@ suite('ProtocolServerHandler', () => {
 				ordinary: hasKey(ordinaryResponse, { result: true }) ? Object.keys(ordinaryResponse.result as SubscribeResult) : [],
 				methods: transport.sent.filter(isJsonRpcNotification).map(message => message.method),
 			}, { root: ['snapshot'], ordinary: ['snapshot'], methods: ['action'] });
+		});
+
+		test('refreshes the snapshot when an ordinary resubscribe replaces a window with queued actions', async () => {
+			stateManager.createSession({ ...makeSessionSummary(), title: 'Initial '.repeat(128) });
+			const snapshot = stateManager.getSnapshot(sessionUri)!;
+			const snapshotMessage = notification('channel/snapshot', { channel: sessionUri, snapshot });
+			const receiveLimits = { windowBytes: JSON.stringify(snapshotMessage).length * 2, maximumFrameBytes: 64 * 1024 };
+			const transport = connectClient('downgraded-window');
+			const windowed = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'subscribe', { channel: sessionUri, flowControl: { receive: receiveLimits } }));
+			await windowed;
+			await timeout(0);
+			transport.sent.length = 0;
+
+			const barrier = new DeferredPromise<IStateSnapshot>();
+			agentService.subscribe = async () => barrier.p;
+			const ordinary = waitForResponse(transport, 3);
+			transport.simulateMessage(request(3, 'subscribe', { channel: sessionUri }));
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'While resubscribing' });
+			await timeout(0);
+			const whilePending = [...transport.sent];
+			const freshSnapshot = stateManager.getSnapshot(sessionUri);
+			await barrier.complete(snapshot);
+			await ordinary;
+			const action = { type: ActionType.SessionTitleChanged, title: 'After cutover' } as const;
+			stateManager.dispatchServerAction(sessionUri, action);
+			await timeout(0);
+
+			assert.deepStrictEqual({ whilePending, sent: transport.sent, closed: transport.isDisposed }, {
+				whilePending: [],
+				sent: [
+					{ jsonrpc: '2.0', id: 3, result: { snapshot: freshSnapshot } },
+					{ jsonrpc: '2.0', method: 'action', params: { channel: sessionUri, action, serverSeq: stateManager.serverSeq, origin: undefined } },
+				],
+				closed: false,
+			});
 		});
 
 		for (const replay of [true, false]) {

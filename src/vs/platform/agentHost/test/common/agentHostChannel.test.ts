@@ -27,6 +27,7 @@ suite('AgentHostChannelSubscription', () => {
 
 	setup(() => {
 		clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'queueMicrotask'] });
+		store.add(toDisposable(() => clock.restore()));
 	});
 
 	teardown(() => sinon.restore());
@@ -268,6 +269,25 @@ suite('AgentHostChannelSubscription', () => {
 		});
 	});
 
+	test('enforces the host-role state receive message limit', () => {
+		const allowed = notification('allowed');
+		const maximumMessageBytes = JSON.stringify(allowed).length * 2;
+		const h = fixture({
+			policy: { ...agentHostStateChannelPolicy, maximumReceivedMessageBytes: { host: maximumMessageBytes } },
+		});
+		h.receive(allowed);
+		h.receive(notification('allowed!'));
+		assert.deepStrictEqual({
+			received: h.received,
+			closeEvents: h.closeEvents.map(({ error, notifiedPeer }) => ({ message: error.message, code: error instanceof AgentHostChannelError ? error.code : undefined, notifiedPeer })),
+			transportDisposeCount: h.transportDisposeCount,
+		}, {
+			received: [allowed],
+			closeEvents: [{ message: 'Channel consumer capacity exceeded', code: AgentHostChannelErrorCode.MessageLimitExceeded, notifiedPeer: true }],
+			transportDisposeCount: 1,
+		});
+	});
+
 	test('rejects data before the first snapshot', async () => {
 		const h = fixture({ isHost: false });
 		const rejected = assert.rejects(h.subscription.nextSnapshot(), /Channel data before its snapshot/);
@@ -275,6 +295,20 @@ suite('AgentHostChannelSubscription', () => {
 		await rejected;
 		assert.deepStrictEqual({ received: h.received, errors: h.errors.map(error => error.message), transportDisposeCount: h.transportDisposeCount }, {
 			received: [], errors: ['Channel data before its snapshot'], transportDisposeCount: 1,
+		});
+	});
+
+	test('accepts actions after resuming without a snapshot and resolves the next snapshot', async () => {
+		const h = fixture({ isHost: false });
+		const next = h.subscription.nextSnapshot();
+		h.subscription.resumeWithoutSnapshot();
+		const action = actionNotification(chatDelta('replayed'), 1);
+		h.receive(action);
+		const beforeSnapshot = [...h.received];
+		const snapshot: IStateSnapshot = { resource: channel, state: {}, fromSeq: 2 };
+		h.receive({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot } });
+		assert.deepStrictEqual({ beforeSnapshot, snapshot: await next, received: h.received, errors: h.errors, transportDisposed: h.transportDisposed }, {
+			beforeSnapshot: [action], snapshot, received: [action], errors: [], transportDisposed: false,
 		});
 	});
 
@@ -359,8 +393,12 @@ suite('AgentHostChannelSubscription', () => {
 		});
 	}
 
-	test('delivers snapshots larger than the state channel backlog bound', async () => {
-		const { host, client } = pair({ ...agentHostStateChannelPolicy, maximumBufferedBytes: 128 });
+	test('delivers snapshots larger than the backlog and host-only message bounds', async () => {
+		const { host, client } = pair({
+			...agentHostStateChannelPolicy,
+			maximumBufferedBytes: 128,
+			maximumReceivedMessageBytes: { host: 128 },
+		});
 		const snapshot: IStateSnapshot = {
 			resource: channel,
 			state: {

@@ -23,7 +23,11 @@ export const agentHostTcpReceiveLimits: Readonly<ChannelReceiveLimits> = {
 const agentHostTcpChannelPolicy: IAgentHostChannelPolicy = {
 	resetMethod: 'tcp/reset',
 	maximumBufferedBytes: agentHostTcpReceiveLimits.windowBytes + agentHostTcpReceiveLimits.maximumFrameBytes + 64 * 1024,
-	maximumMessageBytes: agentHostTcpReceiveLimits.windowBytes + agentHostTcpReceiveLimits.maximumFrameBytes + 64 * 1024,
+	// TCP data messages are small chunks, so a larger message is a protocol error.
+	maximumReceivedMessageBytes: {
+		host: agentHostTcpReceiveLimits.windowBytes + agentHostTcpReceiveLimits.maximumFrameBytes + 64 * 1024,
+		client: agentHostTcpReceiveLimits.windowBytes + agentHostTcpReceiveLimits.maximumFrameBytes + 64 * 1024,
+	},
 	validateSnapshot(snapshot) {
 		if (Object.keys(snapshot.state).length) {
 			throw new AgentHostChannelError(AgentHostChannelErrorCode.InvalidSnapshot, 'Invalid TCP snapshot');

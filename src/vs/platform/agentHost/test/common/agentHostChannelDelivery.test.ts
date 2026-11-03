@@ -556,21 +556,27 @@ suite('AgentHostChannelDelivery', () => {
 		assert.match(other.errors[0].message, /preserve.*size/);
 	});
 
-	test('independent local bounds stop reassembly even while fragments are credited', () => {
-		const h = fixture({ maximumBufferedBytes: 512, maximumMessageBytes: 512 });
-		const fragment = notification('x'.repeat(100), 'channel/frame');
-		const bytes = JSON.stringify(fragment).length * 2;
+	test('rejects fragmented messages above the receive per-message bound even while fragments are credited', () => {
+		const h = fixture({ maximumBufferedBytes: 128, maximumMessageBytes: 512 });
+		const text = JSON.stringify(notification('x'.repeat(200)));
+		const frameBytes: number[] = [];
 		const observations = [];
-		for (let i = 0; i < 3; i++) {
-			h.delivery.accept(fragment, bytes);
+		for (let offset = 0; offset < text.length; offset += 100) {
+			const frame: JsonRpcNotification = {
+				jsonrpc: '2.0', method: 'channel/frame',
+				params: { channel, data: text.slice(offset, offset + 100), final: offset + 100 >= text.length },
+			};
+			const bytes = JSON.stringify(frame).length * 2;
+			frameBytes.push(bytes);
+			h.delivery.accept(frame, bytes);
 			h.delivery.flushCredit();
-			observations.push({ errors: h.errors.map(error => error.message), credited: h.sent.at(-1)?.params });
+			observations.push({ errors: h.errors.map(error => ({ message: error.message, code: error instanceof AgentHostChannelError ? error.code : undefined })), credited: h.sent.at(-1)?.params });
 		}
 		assert.deepStrictEqual({ observations, received: h.received }, {
 			observations: [
-				{ errors: [], credited: { channel, consumedBytes: bytes } },
-				{ errors: [], credited: { channel, consumedBytes: bytes * 2 } },
-				{ errors: ['Channel reassembly capacity exceeded'], credited: { channel, consumedBytes: bytes * 2 } },
+				{ errors: [], credited: { channel, consumedBytes: frameBytes[0] } },
+				{ errors: [], credited: { channel, consumedBytes: frameBytes[0] + frameBytes[1] } },
+				{ errors: [{ message: 'Channel reassembly capacity exceeded', code: AgentHostChannelErrorCode.MessageLimitExceeded }], credited: { channel, consumedBytes: frameBytes[0] + frameBytes[1] } },
 			],
 			received: [],
 		});
@@ -834,25 +840,52 @@ suite('AgentHostChannelDelivery', () => {
 		});
 	});
 
-	test('rejects oversized merges without corruption', async () => {
+	test('accepts merges above the receive per-message bound without corrupting queued data', async () => {
 		const previous = notification('queued');
 		const next = notification('after');
 		const maximumMessageBytes = (JSON.stringify(previous).length + JSON.stringify(next).length) * 2;
-		const h = fixture({ windowBytes: 1, maximumMessageBytes });
+		const h = fixture({ windowBytes: 1, maximumBufferedBytes: 128, maximumMessageBytes });
 		const blocker = notification('block');
 		const blocked = h.delivery.send(blocker);
 		h.delivery.sendFrame();
 		await blocked;
+		const merged = notification('x'.repeat(maximumMessageBytes));
 		const first = h.delivery.send(previous);
-		await assert.rejects(h.delivery.send(notification('second'), () => notification('x'.repeat(maximumMessageBytes))), /send queue capacity/);
-		const second = h.delivery.send(next);
+		const second = h.delivery.send(notification('second'), () => merged);
+		const third = h.delivery.send(next);
 		h.delivery.setSendLimits(limits);
 		while (h.delivery.canSend) {
 			h.delivery.sendFrame();
 		}
-		const firstEnd = (JSON.stringify(blocker).length + JSON.stringify(previous).length) * 2;
-		assert.deepStrictEqual({ sent: h.sent, results: await Promise.all([first, second]), errors: h.errors }, {
-			sent: [blocker, previous, next], results: [firstEnd, firstEnd + JSON.stringify(next).length * 2], errors: [],
+		const mergedEnd = (JSON.stringify(blocker).length + JSON.stringify(merged).length) * 2;
+		assert.deepStrictEqual({ sent: h.sent, results: await Promise.all([first, second, third]), errors: h.errors }, {
+			sent: [blocker, merged, next], results: [mergedEnd, mergedEnd, mergedEnd + JSON.stringify(next).length * 2], errors: [],
+		});
+	});
+
+	test('replaces merged tail bytes in the send backlog', async () => {
+		const head = notification('head');
+		const previous = notification('x'.repeat(100));
+		const merged = notification('merged');
+		const next = notification('next');
+		const h = fixture({ maximumBufferedBytes: JSON.stringify(merged).length * 2 });
+		const writes = [
+			h.delivery.send(head),
+			h.delivery.send(previous),
+			h.delivery.send(notification('replacement'), () => merged),
+			h.delivery.send(next),
+		];
+		await assert.rejects(h.delivery.send(notification('overload')), {
+			message: 'Channel send queue capacity exceeded', code: AgentHostChannelErrorCode.BacklogLimitExceeded,
+		});
+		while (h.delivery.canSend) {
+			h.delivery.sendFrame();
+		}
+		const headEnd = JSON.stringify(head).length * 2;
+		const mergedEnd = headEnd + JSON.stringify(merged).length * 2;
+		assert.deepStrictEqual({ sent: h.sent, results: await Promise.all(writes), errors: h.errors }, {
+			sent: [head, merged, next],
+			results: [headEnd, mergedEnd, mergedEnd, mergedEnd + JSON.stringify(next).length * 2], errors: [],
 		});
 	});
 
@@ -862,7 +895,7 @@ suite('AgentHostChannelDelivery', () => {
 		for (const count of [3, 1024]) {
 			const messages = Array.from({ length: count }, (_, index) => notification(String(index)));
 			const maximumBufferedBytes = count === 3
-				? (JSON.stringify(messages[0]).length + JSON.stringify(messages[1]).length) * 2
+				? JSON.stringify(messages[1]).length * 2
 				: Number.POSITIVE_INFINITY;
 			const h = fixture({ windowBytes: 1, maximumBufferedBytes });
 			const blocker = notification('block');
@@ -870,7 +903,9 @@ suite('AgentHostChannelDelivery', () => {
 			h.delivery.sendFrame();
 			await blocked;
 			const accepted = messages.map(message => h.delivery.send(message));
-			await assert.rejects(h.delivery.send(notification('overload')), /Channel send queue capacity exceeded/);
+			await assert.rejects(h.delivery.send(notification('overload')), {
+				message: 'Channel send queue capacity exceeded', code: AgentHostChannelErrorCode.BacklogLimitExceeded,
+			});
 			h.delivery.setSendLimits({ ...limits, windowBytes: 1024 * 1024 });
 			while (h.delivery.canSend) {
 				h.delivery.sendFrame();
@@ -882,8 +917,70 @@ suite('AgentHostChannelDelivery', () => {
 		assert.deepStrictEqual(observations, expected);
 	});
 
-	test('delivers one message larger than the backlog bound in fragments and rejects a further send', async () => {
-		const sender = fixture({ maximumBufferedBytes: 512 });
+	test('accepts small sends behind an oversized in-flight head and rejects an overflowing backlog', async () => {
+		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'queueMicrotask'] });
+		store.add(toDisposable(() => clock.restore()));
+		const later = notification('later');
+		const sender = fixture({ windowBytes: 1, maximumBufferedBytes: JSON.stringify(later).length * 2 });
+		const receiver = fixture({ receiveWindowBytes: 16 * 1024, release: true });
+		sender.route(text => {
+			const message = parseProtocolMessage(text);
+			assert.ok(isJsonRpcNotification(message));
+			receiver.scheduler.acceptMessage(message);
+		});
+		receiver.route(text => {
+			const message = parseProtocolMessage(text);
+			assert.ok(isJsonRpcNotification(message));
+			sender.scheduler.acceptMessage(message);
+		});
+		const head = notification('x'.repeat(2048));
+		const writes = [sender.delivery.send(head)];
+		sender.delivery.sendFrame();
+		const inFlight = { frames: sender.sent.length, canSend: sender.delivery.canSend, received: [...receiver.received] };
+		writes.push(sender.delivery.send(later), sender.delivery.send(later));
+		await assert.rejects(sender.delivery.send(notification('overload')), {
+			message: 'Channel send queue capacity exceeded', code: AgentHostChannelErrorCode.BacklogLimitExceeded,
+		});
+		sender.delivery.setSendLimits({ ...limits, windowBytes: 16 * 1024 });
+		clock.runMicrotasks();
+		await Promise.all(writes);
+		receiver.delivery.flushCredit();
+		await sender.delivery.drain();
+		assert.deepStrictEqual({ inFlight, received: receiver.received, errors: [...sender.errors, ...receiver.errors] }, {
+			inFlight: { frames: 1, canSend: false, received: [] }, received: [head, later, later], errors: [],
+		});
+	});
+
+	test('queues a message much larger than the backlog bound behind a small head', async () => {
+		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'queueMicrotask'] });
+		store.add(toDisposable(() => clock.restore()));
+		const sender = fixture({ maximumBufferedBytes: 128 });
+		const receiver = fixture({ release: true });
+		sender.route(text => {
+			const message = parseProtocolMessage(text);
+			assert.ok(isJsonRpcNotification(message));
+			receiver.scheduler.acceptMessage(message);
+		});
+		receiver.route(text => {
+			const message = parseProtocolMessage(text);
+			assert.ok(isJsonRpcNotification(message));
+			sender.scheduler.acceptMessage(message);
+		});
+		const head = notification('head');
+		const large = notification('x'.repeat(2048));
+		const writes = [sender.delivery.send(head), sender.delivery.send(large)];
+		const whileQueued = [...sender.sent];
+		clock.runMicrotasks();
+		await Promise.all(writes);
+		receiver.delivery.flushCredit();
+		await sender.delivery.drain();
+		assert.deepStrictEqual({ whileQueued, received: receiver.received, errors: [...sender.errors, ...receiver.errors] }, {
+			whileQueued: [], received: [head, large], errors: [],
+		});
+	});
+
+	test('sends fragmented messages above the receive per-message and backlog bounds', async () => {
+		const sender = fixture({ maximumBufferedBytes: 128, maximumMessageBytes: 128 });
 		const receiver = fixture({ release: true });
 		sender.route(text => {
 			const message = parseProtocolMessage(text);
@@ -898,8 +995,7 @@ suite('AgentHostChannelDelivery', () => {
 		const message = notification('x'.repeat(2048));
 		const sent = sender.delivery.send(message);
 		const whileQueued = { sent: [...sender.sent], canSend: sender.delivery.canSend };
-		const rejected = assert.rejects(sender.delivery.send(notification('backlog')), /Channel send queue capacity exceeded/);
-		await Promise.all([sent, rejected]);
+		await sent;
 		receiver.delivery.flushCredit();
 		await sender.delivery.drain();
 		assert.deepStrictEqual({
@@ -914,14 +1010,15 @@ suite('AgentHostChannelDelivery', () => {
 		});
 	});
 
-	test('rejects messages above the per-message bound without corrupting accepted data', async () => {
+	test('rejects received messages above the per-message bound without corrupting accepted data', () => {
 		const message = notification('allowed');
 		const maximumMessageBytes = JSON.stringify(message).length * 2;
 		const h = fixture({ maximumBufferedBytes: maximumMessageBytes * 2, maximumMessageBytes });
-		await assert.rejects(h.delivery.send(notification('allowed!')), /Channel send queue capacity exceeded/);
-		const accepted = h.delivery.send(message);
-		h.delivery.sendFrame();
-		await accepted;
-		assert.deepStrictEqual({ sent: h.sent, errors: h.errors }, { sent: [message], errors: [] });
+		h.delivery.accept(message, maximumMessageBytes);
+		const oversized = notification('allowed!');
+		h.delivery.accept(oversized, JSON.stringify(oversized).length * 2);
+		assert.deepStrictEqual({ received: h.received, sent: h.sent, errors: h.errors.map(error => ({ message: error.message, code: error instanceof AgentHostChannelError ? error.code : undefined })) }, {
+			received: [message], sent: [], errors: [{ message: 'Channel consumer capacity exceeded', code: AgentHostChannelErrorCode.MessageLimitExceeded }],
+		});
 	});
 });

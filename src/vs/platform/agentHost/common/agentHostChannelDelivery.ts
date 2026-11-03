@@ -333,7 +333,7 @@ export class AgentHostChannelDelivery extends Disposable {
 		private readonly _onError: (error: Error) => void,
 		/** Bounds data queued or retained in addition to the one message being sent or received. */
 		private readonly _maximumBufferedBytes = 4 * 1024 * 1024,
-		/** Bounds one complete message in either direction. */
+		/** Bounds one complete message received from the peer. Messages this side sends are not bounded. */
 		private readonly _maximumMessageBytes = Number.POSITIVE_INFINITY,
 	) {
 		super();
@@ -376,16 +376,16 @@ export class AgentHostChannelDelivery extends Disposable {
 			|| message.method === 'channel/frame' || !countsAgainstWindow(message.method)) {
 			return Promise.reject(new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, 'Expected a data notification for this channel'));
 		}
-		// The backlog cap excludes this message, so one large message (such as a snapshot) is never refused for its size alone.
-		const backlogBytes = this._queuedBytes - (tail && merged ? tail.text.length * 2 : 0);
-		if (bytes > this._maximumMessageBytes) {
-			return Promise.reject(new AgentHostChannelError(AgentHostChannelErrorCode.MessageLimitExceeded, 'Channel send queue capacity exceeded'));
-		}
+		// The backlog is what waits between the message being sent and this one. Neither of
+		// those counts, so one large message (such as a snapshot) never blocks the channel.
+		const head = this._outgoing[0];
+		const replaced = tail && merged ? tail.text.length * 2 : 0;
+		const backlogBytes = this._queuedBytes - replaced - (head && !(merged && tail === head) ? head.text.length * 2 : 0);
 		if (backlogBytes > this._maximumBufferedBytes || (!merged && this._outgoing.length >= maximumQueueLength)) {
 			return Promise.reject(new AgentHostChannelError(AgentHostChannelErrorCode.BacklogLimitExceeded, 'Channel send queue capacity exceeded'));
 		}
 		if (tail && merged) {
-			this._queuedBytes = backlogBytes + bytes;
+			this._queuedBytes = this._queuedBytes - replaced + bytes;
 			tail.message = message;
 			tail.text = text;
 			return tail.sent.p;

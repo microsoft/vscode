@@ -8103,6 +8103,86 @@ suite('AgentHostProtocolClient', () => {
 				});
 			}
 
+			test('does not resend an optimistic action whose echo was missed before windowed snapshot recovery', async () => {
+				const { client, transports, subscription } = await fixture();
+				const action = { type: ActionType.SessionTitleChanged, title: 'Already processed' } as const;
+				client.dispatch(channel, action);
+				await flushMicrotasks();
+				const pendingBefore = client['_subscriptionManager'].getPendingActions().map(entry => entry.action);
+				const { transport, request } = await beginRecovery(client, transports);
+				transport.fireWireMessage({
+					jsonrpc: '2.0', id: request.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [], windows: { items: [window] } },
+				});
+				transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state: { ...state, title: 'Newer change from another client' }, fromSeq: 8 } } });
+				await waitForConnectedWithin(client);
+				await flushMicrotasks();
+				assert.deepStrictEqual({
+					pendingBefore,
+					pendingAfter: client['_subscriptionManager'].getPendingActions(),
+					resent: findDispatchAction(transport, ActionType.SessionTitleChanged),
+					title: subscription.object.verifiedValue?.title,
+				}, {
+					pendingBefore: [action], pendingAfter: [], resent: undefined, title: 'Newer change from another client',
+				});
+			});
+
+			for (const reacquireDuringReconnect of [false, true]) {
+				test(`does not resume a window released during reconnect and starts fresh counters (reacquireDuringReconnect=${reacquireDuringReconnect})`, async () => {
+					const { client, transports, subscription } = await fixture();
+					const { transport, request } = await beginRecovery(client, transports);
+					const closed = sinon.spy(transport, 'dispose');
+					subscription.dispose();
+					const reacquired = reacquireDuringReconnect
+						? disposables.add(client.getSubscription<SessionState>(StateComponents.Session, URI.parse(channel), 'reacquired'))
+						: undefined;
+					transport.fireWireMessage({
+						jsonrpc: '2.0', id: request.id,
+						result: { type: ReconnectResultType.Replay, actions: [], missing: [], windows: { items: [window] } },
+					});
+					const installed = client['_windowedChannels'].has(channel);
+					transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state, fromSeq: 8 } } });
+					await waitForConnectedWithin(client);
+					const awaitingRestore = client['_subscriptionsAwaitingRestore'].has(channel);
+					const fresh = reacquired ?? disposables.add(client.getSubscription<SessionState>(StateComponents.Session, URI.parse(channel), 'reacquired'));
+					const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+					const snapshot = { jsonrpc: '2.0' as const, method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state: { ...state, title: 'Fresh subscription' }, fromSeq: 9 } } };
+					transport.fireWireMessage({ jsonrpc: '2.0', id: subscribe.id, result: { flowControl } });
+					transport.fireWireMessage(snapshot);
+					await flushMicrotasks();
+					client['_windowedChannels'].get(channel)?.flushCredit();
+					await flushMicrotasks();
+					assert.deepStrictEqual({
+						installed, awaitingRestore, closed: closed.called, title: fresh.object.verifiedValue?.title,
+						methods: transport.sentMessages.filter((message): message is JsonRpcNotification | JsonRpcRequest => 'method' in message && (message.method === 'unsubscribe' || message.method === 'subscribe')).map(message => message.method),
+						credits: transport.sentMessages.filter((message): message is JsonRpcNotification => 'method' in message && message.method === 'channel/credit').map(message => message.params),
+					}, {
+						installed: false, awaitingRestore: false, closed: false, title: 'Fresh subscription', methods: ['unsubscribe', 'subscribe'],
+						credits: [{ channel, consumedBytes: JSON.stringify(snapshot).length * 2 }],
+					});
+				});
+			}
+
+			for (const recovery of ['live', 'replay']) {
+				test(`accepts an action in the same batch as a ${recovery} recovery reconnect response`, async () => {
+					const { client, transports, subscription } = await fixture();
+					const { transport, request } = await beginRecovery(client, transports);
+					const closed = sinon.spy(transport, 'dispose');
+					transport.fireWireMessage({
+						jsonrpc: '2.0', id: request.id,
+						result: { type: ReconnectResultType.Replay, actions: [], missing: [], windows: { items: [{ ...window, recovery }] } },
+					});
+					transport.fireWireMessage({ jsonrpc: '2.0', method: 'action', params: { channel, serverSeq: 9, action: { type: ActionType.SessionTitleChanged, title: 'Same-batch action' } } });
+					const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+					transport.fireWireMessage({ jsonrpc: '2.0', id: subscribe.id, result: { flowControl } });
+					transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state: { ...state, title: 'Older snapshot' }, fromSeq: 8 } } });
+					await waitForConnectedWithin(client);
+					assert.deepStrictEqual({ closed: closed.called, state: client.connectionState, title: subscription.object.verifiedValue?.title, params: subscribe.params }, {
+						closed: false, state: AgentHostClientState.Connected, title: 'Same-batch action', params: offer,
+					});
+				});
+			}
+
 			for (const freshInitialize of [false, true]) {
 				test(`${freshInitialize ? 'a fresh initialize' : 'a reconnect without windows'} restores ordinary delivery`, async () => {
 					const { client, transports, subscription } = await fixture();

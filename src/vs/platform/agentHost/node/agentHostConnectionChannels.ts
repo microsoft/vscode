@@ -105,6 +105,11 @@ export class AgentHostConnectionChannels extends Disposable {
 		}
 	}
 
+	getStateSnapshot(channel: string): IStateSnapshot | undefined {
+		const served = this._channels.get(channel);
+		return served instanceof StateChannel ? served.getSnapshot() : undefined;
+	}
+
 	has(channel: string): boolean { return this._channels.has(channel); }
 
 	remove(channel: string): void { this._channels.deleteAndDispose(channel); }

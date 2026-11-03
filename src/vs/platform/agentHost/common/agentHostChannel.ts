@@ -23,8 +23,8 @@ export interface IAgentHostChannelPolicy {
 	 * not yet released, in addition to the one message being sent or received.
 	 */
 	readonly maximumBufferedBytes: number;
-	/** Bounds one complete message in either direction. Omit for no limit. */
-	readonly maximumMessageBytes?: number;
+	/** Bounds one complete message received by each side. Omit a side for no limit. */
+	readonly maximumReceivedMessageBytes?: { readonly host?: number; readonly client?: number };
 	/**
 	 * Control notification, such as `tcp/reset`, that tells the peer this
 	 * subscription failed. Without one, a failure closes the transport and the
@@ -72,6 +72,9 @@ export function readAcceptedChannelFlowControl(value: unknown, offer: ChannelRec
 export const agentHostStateChannelPolicy: IAgentHostChannelPolicy = {
 	// A snapshot can be arbitrarily large, so only the backlog behind it is bounded.
 	maximumBufferedBytes: 128 * 1024 * 1024,
+	// Client messages, such as `dispatchAction`, are small. This matches the 100 MB message limit that the
+	// host's WebSocket server applies to ordinary delivery, at two bytes for each UTF-16 code unit.
+	maximumReceivedMessageBytes: { host: 200 * 1024 * 1024 },
 	coalesce(previous, next) {
 		if (previous.method !== 'action' || next.method !== 'action') {
 			return undefined;
@@ -137,7 +140,7 @@ export class AgentHostChannelSubscription extends Disposable {
 				(message, release) => this._receive(message, release),
 				error => this._failed(error),
 				_policy.maximumBufferedBytes,
-				_policy.maximumMessageBytes,
+				_isHost ? _policy.maximumReceivedMessageBytes?.host : _policy.maximumReceivedMessageBytes?.client,
 			));
 		} catch (error) {
 			super.dispose();
@@ -180,6 +183,15 @@ export class AgentHostChannelSubscription extends Disposable {
 			this._snapshots.add(snapshot);
 		}
 		return snapshot.p;
+	}
+
+	/**
+	 * Client: the host resumed this subscription after a reconnect without
+	 * sending a new snapshot first (`live` or `replay` recovery), so data can
+	 * arrive before the next snapshot.
+	 */
+	resumeWithoutSnapshot(): void {
+		this._hasSnapshot = true;
 	}
 
 	/** Resolves once the peer has released everything queued so far. */

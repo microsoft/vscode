@@ -2613,7 +2613,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (!result.snapshot) {
 				return result;
 			}
-			return { ...result, snapshot: this._projectRelayRootSnapshot(client, result.snapshot) as SubscribeResult['snapshot'] };
+			// Refresh before the ordinary response discards the window's queued actions.
+			const snapshot = client.channels.getStateSnapshot(result.snapshot.resource) ?? this._projectRelayRootSnapshot(client, result.snapshot);
+			return { ...result, snapshot: snapshot as SubscribeResult['snapshot'] };
 		},
 	};
 
