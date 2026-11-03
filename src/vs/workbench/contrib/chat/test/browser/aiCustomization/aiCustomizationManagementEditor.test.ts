@@ -419,6 +419,41 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	});
 
+	for (const section of [AICustomizationManagementSection.Skills, AICustomizationManagementSection.Plugins]) {
+		test(`retries URI reveal in ${section} until the item is available`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const uri = URI.file('/customizations/example');
+			const attempts: URI[][] = [];
+			let searchCleared = false;
+			const editor = {
+				selectedSection: section,
+				isPromptsSection: (candidate: AICustomizationManagementSection) => candidate === AICustomizationManagementSection.Skills,
+				listWidget: {
+					revealAndSelectFirstItemByUri: (uris: URI[]) => {
+						attempts.push(uris);
+						return attempts.length === 2;
+					},
+					clearSearch: () => { searchCleared = true; },
+				},
+				pluginListWidget: {
+					revealAndSelectItemByUri: async (uri: URI) => {
+						attempts.push([uri]);
+						return attempts.length === 2;
+					},
+				},
+			};
+			const revealCustomizationByUri = Reflect.get(AICustomizationManagementEditor.prototype, 'revealCustomizationByUri') as (
+				this: typeof editor, uri: URI,
+			) => Promise<void>;
+
+			await revealCustomizationByUri.call(editor, uri);
+
+			assert.deepStrictEqual({ attempts, searchCleared }, {
+				attempts: [[uri], [uri]],
+				searchCleared: section === AICustomizationManagementSection.Skills,
+			});
+		}));
+	}
+
 	for (const section of [
 		AICustomizationManagementSection.Agents,
 		AICustomizationManagementSection.Skills,

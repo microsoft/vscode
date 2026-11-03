@@ -559,7 +559,7 @@ suite('Chat Accessibility Help', () => {
 		}, { managedDefault: true, perChatChoice: true, auto: true });
 	});
 
-	test('documents model details, Auto\'s Optimize for preferences, and HydraFusion\'s Default and Max', () => {
+	test('documents model details, Auto\'s Optimize for preferences, and Copilot Fusion, without HydraFusion as a model of its own', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
 			details: help.includes('Tab to reach its configuration button'),
@@ -570,12 +570,10 @@ suite('Chat Accessibility Help', () => {
 			preferences: help.includes('Auto\'s details hold its "Optimize for" preference: Efficiency, Balance, or Intelligence.'),
 			activation: help.includes('Choosing a preference selects Auto and keeps its details open'),
 			discount: help.includes('When Auto has a discount, it is described below the preferences'),
-			hydra: help.includes('HydraFusion, a research preview, is listed after Auto as a model of its own'),
-			hydraTiers: help.includes('HydraFusion\'s details offer two tiers, Default and Max, along with a Learn more link'),
-			hydraSelection: help.includes('HydraFusion stays in the model list with that tier as its readout'),
+			hydraFusion: help.includes('HydraFusion'),
 			autoEntry: help.includes('The preference readout beside Auto in the chat input opens the same details'),
 			fusion: help.includes('When Auto\'s tiers come from the Copilot service, Auto is presented as Copilot Fusion, and its details hold an "Effort Level" setting instead'),
-		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, preferences: true, activation: true, discount: true, hydra: true, hydraTiers: true, hydraSelection: true, autoEntry: true, fusion: true });
+		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, preferences: true, activation: true, discount: true, hydraFusion: false, autoEntry: true, fusion: true });
 	});
 
 	test('documents Right Arrow details, provider tab keys, and the Back keys', () => {
@@ -725,14 +723,15 @@ suite('Chat Accessibility Help', () => {
 		assert.deepStrictEqual({
 			keybinding: helpText.includes('<keybinding:editor.action.showContextMenu>'),
 			navigation: helpText.includes('use the up and down arrow keys to choose'),
-			actions: helpText.includes('Go on the Run') && helpText.includes('Grow') && helpText.includes('Shrink') && helpText.includes('Reset Size') && helpText.includes('Change Color'),
+			actions: helpText.includes('choose Achievements, Grow, Shrink, Reset Size, or Change Color') && !helpText.includes('Go on the Run') && !helpText.includes('Come Back'),
 			colorCustomization: helpText.includes('True Name') && helpText.includes('Stable and Insiders are free choices') && helpText.includes('Apply Color') && helpText.includes('Unapplied custom colors are discarded'),
 			petMovement: helpText.includes('Drag it around the chat with the mouse') && helpText.includes('left and right arrows to make it hop'),
 			petHopping: helpText.includes('make it hop along the input until it reaches an edge'),
 			petThrowing: helpText.includes('flick it in any direction') && helpText.includes('gravity pulls it down') && helpText.includes('Hold Shift with the left or right arrow to throw it toward a wall'),
 			petBouncing: helpText.includes('Pointer collisions are ignored for half a second after a drag release') && helpText.includes('while the pet is falling, move the pointer into it to bounce it upward') && helpText.includes('Sideways and upward travel do not start the bounce counter') && helpText.includes('counter beside the pet tracks consecutive bounces and remains for up to five seconds after landing') && helpText.includes('until the pet next reacts or interacts') && helpText.includes('at least twenty bounces triggers confetti unless reduced motion is enabled') && helpText.includes('press Enter or Space to bounce it upward'),
 			petRevival: helpText.includes('a despawn effect appears at the bottom') && helpText.includes('a respawn effect appears at the top') && helpText.includes('automatically returns to the input'),
-			petScale: helpText.includes('position, size, and color are shared across chats and windows') && helpText.includes('remembered after you restart'),
+			petScale: helpText.includes('position and size are shared across chats and windows') && helpText.includes('remembered after you restart'),
+			petWindowAppearance: helpText.includes('color and hat are shared by editor windows and the Agents window') && helpText.includes('Both Windows is selected whenever Customize Blobby opens'),
 		}, {
 			keybinding: true,
 			navigation: true,
@@ -744,6 +743,7 @@ suite('Chat Accessibility Help', () => {
 			petBouncing: true,
 			petRevival: true,
 			petScale: true,
+			petWindowAppearance: true,
 		});
 	});
 

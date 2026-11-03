@@ -849,7 +849,9 @@
               "gpt-5.3-codex",
               "gpt-5.6-luna",
               "gpt-5.6-sol",
-              "gpt-5.6-terra"
+              "gpt-5.6-terra",
+              "hydrafusion",
+              "hydrafusion-max"
             ],
             "description": "Optional model override. Specify a value only when the user's current request or applicable persistent custom instructions (including global instructions) explicitly require that value for the subagent. Do not reuse values from earlier requests or infer unspecified values from the parent configuration. The runtime resolves `/subagents` preferences when these fields are omitted; do not copy them merely because they appear in `<subagent_model_preferences>`."
           },

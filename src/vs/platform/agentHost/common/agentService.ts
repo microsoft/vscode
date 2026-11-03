@@ -1336,7 +1336,7 @@ export interface IAgentService {
  * management and optimistic write-ahead on top.
  */
 export interface IAgentConnection {
-	/** Opens a private, non-resumable stream in the authenticated host's network. */
+	/** Opens a private, non-resumable stream in the connected host's network. */
 	openTcpConnection?(target: { host: string; port: number }): Promise<IAgentHostTcpConnection>;
 
 	readonly connectionAvailable?: IObservable<boolean>;

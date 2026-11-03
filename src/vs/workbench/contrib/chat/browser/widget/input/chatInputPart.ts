@@ -42,7 +42,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../../../editor/browser/config/editorConfiguration.js';
 import { EditorExtensionsRegistry } from '../../../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { EditorOptions, IEditorOptions, IEditorScrollbarOptions } from '../../../../../../editor/common/config/editorOptions.js';
+import { EditorOption, EditorOptions, IEditorOptions, IEditorScrollbarOptions } from '../../../../../../editor/common/config/editorOptions.js';
 import { EDITOR_FONT_DEFAULTS } from '../../../../../../editor/common/config/fontInfo.js';
 import { IDimension } from '../../../../../../editor/common/core/2d/dimension.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
@@ -120,6 +120,7 @@ import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '
 import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { IChatLayoutService } from '../../../common/widget/chatLayoutService.js';
 import { ChatHistoryNavigator } from '../../../common/widget/chatWidgetHistoryService.js';
 import { ChatEditingSessionSubmitAction, ChatSessionPrimaryPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenDelegationPickerAction, OpenModelPickerAction, OpenModePickerAction, OpenPermissionPickerAction, OpenSessionTargetPickerAction, OpenWorkspacePickerAction } from '../../actions/chatExecuteActions.js';
 import { ChatVoiceInputModeAction, VoiceInputModeActionViewItem } from '../../voiceInputMode/voiceInputModeActionViewItem.js';
@@ -200,7 +201,8 @@ import { SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING } from '../chatOptions.js';
 const $ = dom.$;
 
 const INPUT_EDITOR_MAX_HEIGHT = 250;
-const INPUT_EDITOR_LINE_HEIGHT = 20;
+// Keep enough vertical space for inline attachment pills.
+const INPUT_EDITOR_MIN_LINE_HEIGHT = 20;
 const INPUT_EDITOR_PADDING = { compact: { top: 2, bottom: 2 }, default: { top: 12, bottom: 12 } };
 const CachedLanguageModelsKey = 'chat.cachedLanguageModels.v2';
 const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
@@ -568,8 +570,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _contextResourceLabels: ResourceLabels;
 
 	private readonly inputEditorMaxHeight: number;
-	private readonly inputEditorMinHeight: number | undefined;
-	private readonly singleLineInputEditorHeight: number;
 	private inputEditorHeight: number = 0;
 	private ignoreInputEditorContentSizeChanges = false;
 	private _maxHeight: number | undefined;
@@ -1119,6 +1119,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IChatLayoutService private readonly chatLayoutService: IChatLayoutService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
@@ -1315,9 +1316,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}, styles));
 
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
-		const padding = this._getInputEditorPadding();
-		this.singleLineInputEditorHeight = INPUT_EDITOR_LINE_HEIGHT + padding.top + padding.bottom;
-		this.inputEditorMinHeight = this.options.inputEditorMinLines ? this.options.inputEditorMinLines * INPUT_EDITOR_LINE_HEIGHT + padding.top + padding.bottom : undefined;
 
 		this.inputEditorHasText = ChatContextKeys.inputHasText.bindTo(contextKeyService);
 		this.inputEditorHasSendableContent = ChatContextKeys.inputHasSendableContent.bindTo(contextKeyService);
@@ -3045,6 +3043,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		});
 	}
 
+	private bindInputEditorFontSize(): IDisposable {
+		return autorun(reader => {
+			const fontSize = this.chatLayoutService.fontSize.read(reader);
+			this._inputEditor.updateOptions({
+				fontSize,
+				lineHeight: Math.max(INPUT_EDITOR_MIN_LINE_HEIGHT, fontSize * 1.5),
+			});
+		});
+	}
+
 	private updateInputEditorFontFamily(): void {
 		if (!this._inputEditor) {
 			return;
@@ -3517,6 +3525,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.contextUsageWidget.update(model.lastRequest);
 	}
 
+	/** Refreshes controls after the incoming session's context keys have all been applied. */
+	refreshToolbars(): void {
+		this.inputActionsToolbar?.refresh();
+		this.executeToolbar?.refresh();
+		this.secondaryToolbar?.refresh();
+		this.updateChatSessionPickerContainer();
+		this._toolbarRelayoutScheduler.schedule();
+	}
+
+	private updateChatSessionPickerContainer(): void {
+		// eslint-disable-next-line no-restricted-syntax
+		this.chatSessionPickerContainer = this.inputActionsToolbar?.getElement().querySelector<HTMLElement>('.chat-sessionPicker-container')
+			// eslint-disable-next-line no-restricted-syntax
+			?? this.secondaryToolbar?.getElement().querySelector<HTMLElement>('.chat-sessionPicker-container')
+			?? undefined;
+	}
+
 	private handleViewModelChange(e: IChatWidgetViewModelChangeEvent): void {
 		this.updateDeferredNotificationsEligibility(e);
 		transaction(observableTransaction => {
@@ -3855,8 +3880,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.readOnly = false;
 		options.ariaLabel = this._getAriaLabel();
 		options.fontFamily = DEFAULT_FONT_FAMILY;
-		options.fontSize = 13;
-		options.lineHeight = INPUT_EDITOR_LINE_HEIGHT;
 		options.padding = this._getInputEditorPadding();
 		options.cursorWidth = 1;
 		options.wrappingStrategy = 'advanced';
@@ -3887,6 +3910,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
 		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, DropIntoEditorController.ID, CopyPasteController.ID, LinkDetector.ID, InlineCompletionsController.ID, PlaceholderTextContribution.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
+		this._register(this.bindInputEditorFontSize());
 		this._register(bindChatInputInlineSuggestions(this._inputEditor, this.configurationService));
 		this.updateInputEditorFontFamily();
 		this._register(addDisposableListener(this._inputEditorElement, dom.EventType.PASTE, e => this.handleTerminalCommandPaste(e), true));
@@ -4224,13 +4248,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputActionsToolbar.getElement().classList.add('chat-input-toolbar');
 		this.inputActionsToolbar.context = { widget } satisfies IChatExecuteActionContext;
 		this._register(this.inputActionsToolbar.onDidChangeMenuItems(() => {
-			// Update container reference for the pickers (cloud sessions host them in the primary toolbar)
-			const toolbarElement = this.inputActionsToolbar.getElement();
-			// eslint-disable-next-line no-restricted-syntax
-			const primaryPickerContainer = toolbarElement.querySelector('.chat-sessionPicker-container');
-			if (primaryPickerContainer) {
-				this.chatSessionPickerContainer = primaryPickerContainer as HTMLElement;
-			}
+			this.updateChatSessionPickerContainer();
 			if (this.cachedWidth && typeof this.cachedInputToolbarWidth === 'number' && this.cachedInputToolbarWidth !== this.inputActionsToolbar.getItemsWidth()) {
 				this._toolbarRelayoutScheduler.schedule();
 			}
@@ -4245,6 +4263,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (enabled !== lastPhoneEnabled) {
 				lastPhoneEnabled = enabled;
 				this.inputActionsToolbar.refresh();
+				this.updateChatSessionPickerContainer();
 			}
 		}));
 		this.executeToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarsContainer, this.options.menus.executeToolbar, {
@@ -4539,15 +4558,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		dom.append(responsivePickerContainer, genericChipsContainer);
 		if (this.options.renderSecondaryToolbar !== false) {
 			this._register(this.secondaryToolbar.onDidChangeMenuItems(() => {
-				// Update container reference for the pickers when the secondary toolbar hosts one.
-				// Only assign when found so we don't overwrite a valid primary container reference
-				// for session types whose pickers live in the primary toolbar (e.g. cloud).
-				const toolbarElement = this.secondaryToolbar.getElement();
-				// eslint-disable-next-line no-restricted-syntax
-				const container = toolbarElement.querySelector('.chat-sessionPicker-container');
-				if (dom.isHTMLElement(container)) {
-					this.chatSessionPickerContainer = container;
-				}
+				this.updateChatSessionPickerContainer();
 			}));
 		}
 
@@ -5866,9 +5877,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
+	private get singleLineInputEditorHeight(): number {
+		const padding = this._getInputEditorPadding();
+		return this._inputEditor.getOption(EditorOption.lineHeight) + padding.top + padding.bottom;
+	}
+
+	private get inputEditorMinHeight(): number | undefined {
+		const padding = this._getInputEditorPadding();
+		return this.options.inputEditorMinLines ? this.options.inputEditorMinLines * this._inputEditor.getOption(EditorOption.lineHeight) + padding.top + padding.bottom : undefined;
+	}
+
 	private get _effectiveInputEditorMaxHeight(): number {
+		const minEditorHeight = this.inputEditorMinHeight ?? this.singleLineInputEditorHeight;
 		if (this._maxHeight === undefined) {
-			return this.inputEditorMaxHeight;
+			return Math.max(minEditorHeight, this.inputEditorMaxHeight);
 		}
 
 		// Compute non-editor height from the cached container height (updated by ResizeObserver)
@@ -5878,7 +5900,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const budgetForEditor = this._maxHeight - nonEditorHeight;
 
 		// Floor the budget so the editor keeps at least one usable line. See #322523.
-		const minEditorHeight = this.inputEditorMinHeight ?? this.singleLineInputEditorHeight;
 		return Math.max(minEditorHeight, Math.min(this.inputEditorMaxHeight, Math.max(0, budgetForEditor)));
 	}
 

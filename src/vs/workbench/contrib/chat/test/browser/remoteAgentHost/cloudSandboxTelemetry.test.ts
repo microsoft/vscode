@@ -105,6 +105,19 @@ suite('cloudSandbox telemetry', () => {
 		}]);
 	});
 
+	test('discovery keeps initial, automatic and manual attribution distinct', () => {
+		const telemetry = new TestTelemetryService();
+		const service = store.add(new CloudSandboxTelemetryService(telemetry));
+		for (const trigger of ['startup', 'automatic', 'manual'] as const) {
+			service.reportDiscovery({
+				trigger, requestedMode: 'full', mode: 'full', outcome: 'complete',
+				durationMs: 0, pageCount: 0, listRequestCount: 0, taskCount: 0, sandboxTaskCount: 0,
+				changedSandboxTaskCount: 0, checkpointAdvanced: false,
+			});
+		}
+		assert.deepStrictEqual(telemetry.events.map(event => event.data?.trigger), ['startup', 'automatic', 'manual']);
+	});
+
 	test('uses the actual window and runtime rather than assuming every sandbox client is the Editor', () => {
 		assert.deepStrictEqual([
 			getCloudSandboxConnectionSurface(false, false),
