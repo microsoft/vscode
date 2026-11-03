@@ -138,6 +138,14 @@ Copilot Connectors use the SDK session's GitHub credentials, including refreshab
 
 Connector token rotation follows the normal per-session credential update path rather than requiring a shared-client restart. GitHub Enterprise continues to use client-level authentication; startup configuration changes, credential-mode changes, and failed credential updates retain their safe deferred-restart behavior. This does not change Agent Host action dispatch ordering or make history reads independent of SDK session restoration.
 
+### Copilot Policy Helper registration
+
+`chat.agentHost.copilot.policyHelper` registers a helper executable and arguments for the local Copilot runtime. The application-scoped setting excludes Settings Sync and JSON suggestions but retains configuration API access. The workbench sends an empty-path object when the setting clears, so removal survives JSON transport. The host normalizes unset or invalid values to `undefined` and omitted arguments to `[]`.
+
+The serialized helper belongs to `CopilotAgentStartupConfig`. Shared clients restart after active turns and subagents finish. Scoped clients refresh stale configuration at the next idle use. The next fresh chat receives the helper configuration without a VS Code restart or window reload. Existing chats can retain their previous skill inventory after resume. Helper script content changes do not trigger a restart.
+
+Each runtime launch uses its captured startup value for `COPILOT_CLI_POLICY_HELPER` and enables `POLICY_HELPER` without replacing other flags. Change logs report only the key. Device and server policies remain authoritative.
+
 ### Live Copilot Connector reconciliation
 
 The local management bridge routes an optional Connector name to capable providers; it is not an AHP protocol extension. Copilot reconciles ordinary membership/catalog refreshes without a force parameter, and sends `forceConnectorName` only for explicit named reconnects on runtimes advertising `targetedReconcile`. Each attempt resolves its own SDK session's account handle through the same helper as launch. Missing capabilities, unavailable accounts, RPC failures, cancellation, and timeouts are logged and retain the request for a later refresh or operation; none trigger a Connector-only SDK-session recreation.
