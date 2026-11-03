@@ -16,6 +16,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IEditorGroupViewOptions } from '../../../browser/parts/editor/editor.js';
 import { IsAuxiliaryWindowContext } from '../../../common/contextkeys.js';
 import { EditorCloseContext } from '../../../common/editor.js';
 import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
@@ -32,6 +33,9 @@ import { InFlightOperations, openCleaningUpOnFailure } from './chatWindowOpening
 import { bindMainPartVisible, moveEditorsToChatWindow, showChatInsteadOfEmptyMainPart, trackMainPartEditors } from './chatWindowParts.js';
 import { ChatWindowGrid } from './chatWindowGrid.js';
 import { ChatWindowsRestoration } from './chatWindowsRestoration.js';
+
+/** The options of the groups of the part that holds a chat window's terminals. */
+const TERMINALS_PART_GROUP_VIEW_OPTIONS: IEditorGroupViewOptions = { hideLockActions: true };
 
 /** The size of a chat window when it opens. */
 const CHAT_WINDOW_SIZE = { width: 1200, height: 800 };
@@ -370,7 +374,9 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			isUnloading: () => unloading,
 			didMoveChatOut: () => void this._didMoveChatOut(window),
 			createTerminalsPart: () => {
-				const part = this._editorGroupsService.createEditorPart({ container: append(host, $('.chat-window-terminals-part')), label: localize('chatWindow.terminalsPart', "Terminals"), services });
+				// Its groups stay locked to its terminals, as terminal groups lock, so that other editors open elsewhere: like the
+				// main window's panel, it offers no action to unlock them.
+				const part = this._editorGroupsService.createEditorPart({ container: append(host, $('.chat-window-terminals-part')), label: localize('chatWindow.terminalsPart', "Terminals"), services, groupViewOptions: TERMINALS_PART_GROUP_VIEW_OPTIONS });
 				const store = new DisposableStore();
 				disposables.add(store);
 				if (look.mainPartOptions) {

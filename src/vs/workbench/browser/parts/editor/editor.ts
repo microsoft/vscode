@@ -286,6 +286,12 @@ export interface IEditorGroupViewOptions {
 
 	/** Uses the modern UI presentation for editor tabs. */
 	readonly useModernUITabs?: boolean;
+
+	/**
+	 * Hides the actions that lock and unlock the group, such as for a group its owner keeps locked so that other editors
+	 * do not open in it.
+	 */
+	readonly hideLockActions?: boolean;
 }
 
 export interface IEditorGroupMenuIds {
