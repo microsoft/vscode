@@ -40,8 +40,9 @@ export namespace MarkedKatexExtension {
 				});
 
 				// Wrap in a container with attribute as a fallback for extracting the original LaTeX source
-				// This ensures we can always retrieve the source even if the annotation element is not present
-				out = `<span class="${katexContainerClassName}" ${katexContainerLatexAttributeName}="${htmlAttributeEncodeValue(token.text)}">${html}</span>`;
+				// This ensures we can always retrieve the source even if the annotation element is not present.
+				// Encode `$` so that theme icon rendering, which runs on the rendered HTML, cannot insert tags into the attribute.
+				out = `<span class="${katexContainerClassName}" ${katexContainerLatexAttributeName}="${htmlAttributeEncodeValue(token.text).replaceAll('$', '&#36;')}">${html}</span>`;
 			} catch {
 				// On failure, just show the original text including the wrapping $ or $$.
 				// Escape it: this output is inserted as HTML, also when the Markdown does not support HTML.
