@@ -40,7 +40,7 @@ import {
 	SessionActiveChatCanvasReferenceKeysContext,
 	SessionHasGitRepositoryContext,
 } from '../../../common/contextkeys.js';
-import { ChatOriginKind, getChatCapabilities, isActiveSessionStatus, isSideChatOf, IChat, ISession, ISessionCanvas, SessionStatus } from './session.js';
+import { ChatOriginKind, getChatCapabilities, isActiveSessionStatus, isSideChatOf, ISession, SessionStatus } from './session.js';
 import { ISessionChangesStatsCache, readChatChangesStats, readSessionChangesStats } from './sessionChangesStatsCache.js';
 import { IActiveSession } from './sessionsManagement.js';
 
@@ -90,32 +90,6 @@ interface ISessionContextKeys {
  * is weak so entries are released once the service is disposed and collected.
  */
 const boundKeysByService = new WeakMap<IContextKeyService, ISessionContextKeys>();
-const canvasReferenceKeysBySnapshot = new WeakMap<readonly ISessionCanvas[], Map<string, string[]>>();
-const emptyCanvasReferenceKeys: string[] = [];
-
-function getActiveChatCanvasReferenceKeys(session: IActiveSession, chat: IChat, reader: IReader | undefined): string[] {
-	const canvases = chat.canvases?.read(reader);
-	if (!canvases?.length) {
-		return emptyCanvasReferenceKeys;
-	}
-	const ownerKey = `${session.providerId}\u0000${session.resource.toString()}\u0000${chat.resource.toString()}`;
-	let keysByOwner = canvasReferenceKeysBySnapshot.get(canvases);
-	if (!keysByOwner) {
-		keysByOwner = new Map();
-		canvasReferenceKeysBySnapshot.set(canvases, keysByOwner);
-	}
-	let keys = keysByOwner.get(ownerKey);
-	if (!keys) {
-		keys = canvases.map(canvas => getCanvasReferenceKey({
-			providerId: session.providerId,
-			session: session.resource,
-			chat: chat.resource,
-			canvas: canvas.resource,
-		}));
-		keysByOwner.set(ownerKey, keys);
-	}
-	return keys;
-}
 
 function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKeys {
 	let keys = boundKeysByService.get(contextKeyService);
@@ -271,7 +245,12 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 		const activeChat = session?.activeChat.read(reader);
 		const mainResource = session?.mainChat.read(reader).resource;
 		keys.activeChatResource.set(activeChat?.resource.toString() ?? '');
-		keys.activeChatCanvasReferenceKeys.set(activeChat && session ? getActiveChatCanvasReferenceKeys(session, activeChat, reader) : emptyCanvasReferenceKeys);
+		keys.activeChatCanvasReferenceKeys.set(activeChat && session ? (activeChat.canvases?.read(reader) ?? []).map(canvas => getCanvasReferenceKey({
+			providerId: session.providerId,
+			session: session.resource,
+			chat: activeChat.resource,
+			canvas: canvas.resource,
+		})) : []);
 		const isNonMainChat = !!activeChat && !!mainResource && !isEqual(mainResource, activeChat.resource);
 		keys.activeChatIsClosable.set(isNonMainChat);
 		keys.activeChatCanArchive.set(!!activeChat && !(activeChat.isArchived?.read(reader) ?? false) && getChatCapabilities(activeChat, session, reader).canArchive);
