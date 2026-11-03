@@ -225,8 +225,12 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 
 call :should_run_suite typescript || goto skip_typescript
 echo.
-echo ### TypeScript tests
+echo ### TypeScript tests (folder)
 call "%INTEGRATION_TEST_ELECTRON_PATH%" %SCRIPT_DIR%\..\extensions\typescript-language-features\test-workspace --extensionDevelopmentPath=%SCRIPT_DIR%\..\extensions\typescript-language-features --extensionTestsPath=%SCRIPT_DIR%\..\extensions\typescript-language-features\out\test\unit %API_TESTS_EXTRA_ARGS%
+if %errorlevel% neq 0 exit /b %errorlevel%
+echo.
+echo ### TypeScript tests (workspace)
+call "%INTEGRATION_TEST_ELECTRON_PATH%" %SCRIPT_DIR%\..\extensions\typescript-language-features\test-workspace.code-workspace --extensionDevelopmentPath=%SCRIPT_DIR%\..\extensions\typescript-language-features --extensionTestsPath=%SCRIPT_DIR%\..\extensions\typescript-language-features\out\test\unit %API_TESTS_EXTRA_ARGS%
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_typescript
 

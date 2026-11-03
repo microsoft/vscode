@@ -123,7 +123,7 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 	}
 
 	private get localNodeModulesVersions(): TypeScriptVersion[] {
-		return this.loadTypeScriptVersionsFromPath(TypeScriptVersionSource.NodeModules, path.join('node_modules', 'typescript', 'lib'))
+		return this.loadTypeScriptVersionsFromPath(TypeScriptVersionSource.NodeModules, 'node_modules/typescript/lib')
 			.filter(x => x.isValid);
 	}
 
@@ -136,7 +136,7 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 		for (const root of vscode.workspace.workspaceFolders) {
 			let label: string = relativePath;
 			if (vscode.workspace.workspaceFolders.length > 1) {
-				label = path.join(root.name, relativePath);
+				label = `${root.name}/${relativePath}`;
 			}
 
 			const serverPath = path.join(root.uri.fsPath, relativePath, 'tsserver.js');

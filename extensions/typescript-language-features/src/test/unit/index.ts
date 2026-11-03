@@ -15,10 +15,12 @@
 // to report the results back to the caller. When the tests are finished, return
 // a possible error to the callback or null if none.
 
+import * as vscode from 'vscode';
+
 const path = require('path');
 const testRunner = require('../../../../../test/integration/electron/testrunner');
 
-const suite = 'Integration TypeScript Tests';
+const suite = `Integration TypeScript Tests (${vscode.workspace.workspaceFile ? 'workspace' : 'folder'})`;
 
 const options: import('mocha').MochaOptions = {
 	ui: 'tdd',
