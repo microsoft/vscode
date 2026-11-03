@@ -57,7 +57,7 @@ class RemoteUserDataProfilesService extends Disposable implements IRemoteUserDat
 			return;
 		}
 
-		this.remoteUserDataProfilesService = new UserDataProfilesService(environment.profiles.all, environment.profiles.home, connection.getChannel('userDataProfiles'));
+		this.remoteUserDataProfilesService = this._register(new UserDataProfilesService(environment.profiles.all, environment.profiles.home, connection.getChannel('userDataProfiles')));
 		this._register(this.userDataProfilesService.onDidChangeProfiles(e => this.onDidChangeLocalProfiles(e)));
 
 		// Associate current local profile with remote profile
