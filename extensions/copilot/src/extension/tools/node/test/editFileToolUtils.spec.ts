@@ -770,6 +770,33 @@ describe('makeUriConfirmationChecker', async () => {
 		expect(results).toEqual(files.map(() => ConfirmationCheckResult.Sensitive));
 	});
 
+	test.each(['settings.json', 'settings.local.json'])('always checks Copilot hook settings despite explicit approval: %s', async filename => {
+		const workspaceFolder = URI.file('/workspace');
+		workspaceService = new TestWorkspaceService([workspaceFolder], []);
+		await configService.setNonExtensionConfig('chat.tools.edits.autoApprove', {
+			'**/*': true,
+			'**/.github/**': true,
+			[`**/.github/copilot/${filename}`]: true,
+		});
+
+		const checker = makeUriConfirmationChecker(configService, resource => workspaceService.getWorkspaceFolder(resource), workspaceService.getWorkspaceFolders());
+		const files = [
+			URI.joinPath(workspaceFolder, '.github', 'copilot', filename),
+			URI.joinPath(workspaceFolder, 'nested', '.github', 'copilot', filename),
+		];
+		if (isMacintosh || isWindows) {
+			files.push(URI.joinPath(workspaceFolder, '.GITHUB', 'COPILOT', filename.toUpperCase()));
+		}
+
+		expect({
+			protectedFiles: await Promise.all(files.map(file => checker(file))),
+			ordinaryFile: await checker(URI.joinPath(workspaceFolder, '.github', 'copilot', 'notes.md')),
+		}).toEqual({
+			protectedFiles: files.map(() => ConfirmationCheckResult.Sensitive),
+			ordinaryFile: ConfirmationCheckResult.NoConfirmation,
+		});
+	});
+
 	test('pattern precedence - later patterns override earlier ones', async () => {
 		const workspaceFolder = URI.file('/workspace');
 		workspaceService = new TestWorkspaceService([workspaceFolder], []);

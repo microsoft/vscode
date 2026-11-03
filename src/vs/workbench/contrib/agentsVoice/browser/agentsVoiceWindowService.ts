@@ -267,9 +267,9 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		}));
 
 		// Poll for session updates
-		this.agentSessionsService.model.resolve(undefined);
+		this.agentSessionsService.model.resolve(undefined, undefined, 'automatic');
 		this._windowDisposables.add(disposableWindowInterval(auxiliaryWindow.window, () => {
-			this.agentSessionsService.model.resolve(undefined);
+			this.agentSessionsService.model.resolve(undefined, undefined, 'automatic');
 		}, 3000));
 
 

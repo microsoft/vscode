@@ -46,12 +46,16 @@ export function findMissingNativeOptionalDep(nodeModulesDir: string, basePackage
 		return undefined;
 	}
 	const platformPackage = `${basePackage}-${target}`;
-	// With pnpm's hoisted layout the platform package is either next to the base package or in the
-	// base package's own node_modules (when another version of it is hoisted).
-	if (!fs.existsSync(path.join(nodeModulesDir, platformPackage)) && !fs.existsSync(path.join(nodeModulesDir, basePackage, 'node_modules', platformPackage))) {
-		return platformPackage;
-	}
-	return undefined;
+	// With a flat (hoisted) node_modules the platform package is either next to the base package or
+	// in the base package's own node_modules (when another version of it is hoisted). With pnpm's
+	// symlinked (isolated) layout it is next to the real folder of the base package.
+	const realNodeModulesDir = path.resolve(fs.realpathSync(path.join(nodeModulesDir, basePackage)), ...basePackage.split('/').map(() => '..'));
+	const candidates = [
+		path.join(nodeModulesDir, platformPackage),
+		path.join(nodeModulesDir, basePackage, 'node_modules', platformPackage),
+		path.join(realNodeModulesDir, platformPackage),
+	];
+	return candidates.some(candidate => fs.existsSync(candidate)) ? undefined : platformPackage;
 }
 
 // #region CLI entry point

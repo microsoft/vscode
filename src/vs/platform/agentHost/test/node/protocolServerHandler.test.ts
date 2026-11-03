@@ -50,7 +50,8 @@ import { NullLogService } from '../../../log/common/log.js';
 import { createFileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
 import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
@@ -205,31 +206,26 @@ class FailingReconnectAgentHostFileSystemProvider extends AgentHostFileSystemPro
 	}
 }
 
-class TestTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
-	readonly telemetryLevel = TelemetryLevel.USAGE;
-	readonly sendErrorTelemetry = true;
-	readonly sessionId = 'session';
-	readonly machineId = 'machine';
-	readonly sqmId = 'sqm';
-	readonly devDeviceId = 'device';
-	readonly firstSessionDate = 'first-session';
-	readonly events: { eventName: string; data: unknown }[] = [];
+class TestTelemetryService extends CapturingTelemetryService {
 	throwOnClientConnection = false;
 
-	publicLog(): void { }
-	publicLog2(eventName?: string, data?: unknown): void {
+	constructor() {
+		super({
+			sendErrorTelemetry: true,
+			sessionId: 'session',
+			machineId: 'machine',
+			sqmId: 'sqm',
+			devDeviceId: 'device',
+			firstSessionDate: 'first-session',
+		});
+	}
+
+	override publicLog2(eventName?: string, data?: unknown): void {
 		if (this.throwOnClientConnection && eventName === 'agentHost.clientConnection') {
 			throw new Error('client connection telemetry failed');
 		}
-		if (eventName) {
-			this.events.push({ eventName, data });
-		}
+		super.publicLog2(eventName, data);
 	}
-	publicLogError(): void { }
-	publicLogError2(): void { }
-	setExperimentProperty(): void { }
-	setCommonProperty(): void { }
 }
 
 /** Resolves chat owners from the live registry, then from owners a test records for chats that are not registered. */
@@ -270,6 +266,7 @@ class MockAgentService extends Disposable implements IAgentService {
 	installSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
 	rotateSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
 	removeSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
+	refreshSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
 	readonly importedSessions: string[] = [];
 	readonly deletedAutomations: { resource: string; deleteHistory: boolean; legacySessions: string[] | undefined; requestId?: string }[] = [];
 	readonly acknowledgedAutomationDeletions: string[] = [];
@@ -1712,21 +1709,52 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('unauthenticated transports do not advertise or open TCP connections', async () => {
+	test('accepted transports advertise TCP and validate connection targets', async () => {
 		const transport = connectClient('client-tcp');
 		const initialize = findResponse(transport.sent, 1);
 		assert.ok(initialize && hasKey(initialize, { result: true }));
 		const result = initialize.result as InitializeResult;
 		const response = waitForResponse(transport, 2);
-		transport.simulateMessage(request(2, 'createTcpConnection', { channel: 'ahp-tcp:/test', host: 'localhost', port: 8080 }));
+		transport.simulateMessage(request(2, 'createTcpConnection', { channel: 'ahp-tcp:/test', host: 'localhost', port: 0 }));
 		assert.deepStrictEqual({
 			capability: result.tcpConnections,
 			response: await response,
 		}, {
-			capability: undefined,
-			response: { jsonrpc: '2.0', id: 2, error: { code: AhpErrorCodes.PermissionDenied, message: 'TCP requires an authenticated owner of this host' } },
+			capability: {},
+			response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.InvalidParams, message: 'Invalid TCP connection target' } },
 		});
 	});
+
+	for (const relay of ['roots', 'metadata', 'transport'] as const) {
+		test(`does not advertise or open TCP connections with relay ${relay}`, async () => {
+			const relayServer = disposables.add(new MockProtocolServer());
+			disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, relayServer,
+				relay === 'roots' ? { relayRoots: ['/workspace'] } : relay === 'metadata' ? { relayRootMeta: {} } : {},
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			));
+			const transport = disposables.add(relay === 'transport'
+				? new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'client-tcp-relay', false)
+				: new MockProtocolTransport());
+			relayServer.simulateConnection(transport);
+			const initialized = waitForResponse(transport, 1);
+			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'client-tcp-relay' }));
+			const initialize = await initialized;
+			assert.ok(hasKey(initialize, { result: true }));
+			const result = initialize.result as InitializeResult;
+			const response = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'createTcpConnection', { channel: 'ahp-tcp:/test', host: 'localhost', port: 8080 }));
+			assert.deepStrictEqual({
+				capability: result.tcpConnections,
+				response: await response,
+			}, {
+				capability: undefined,
+				response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not available to relay clients: createTcpConnection' } },
+			});
+		});
+	}
 
 	test('collects Agent Host debug logs through the extension request', async () => {
 		const transport = connectClient('client-debug-logs');
@@ -3537,7 +3565,7 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(resp.result, null);
 	});
 
-	for (const operation of ['install', 'rotate', 'remove'] as const) {
+	for (const operation of ['install', 'rotate', 'remove', 'refresh'] as const) {
 		test(`sandbox certificate ${operation} validates requests and forwards opaque chat identities`, async () => {
 			const calls: { chat: string; scopeId: string }[] = [];
 			agentService[`${operation}SandboxCertificate`] = async (chat, scopeId) => { calls.push({ chat, scopeId }); };

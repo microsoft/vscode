@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import path from 'path';
 import * as os from 'os';
 import * as child_process from 'child_process';
-import { workspaceMembers, separateRoots, distroRoots } from './dirs.ts';
+import { separateRoots, distroRoots } from './dirs.ts';
 import { root, stateFile, stateContentsFile, computeState, computeContents, isUpToDate } from './installStateHash.ts';
 import { ensureElectronTypes } from './electronTypes.ts';
 import { finishCloudSandbox } from './cloudSandbox.ts';
@@ -153,29 +153,6 @@ function getRemoteEnv(): NodeJS.ProcessEnv {
 	return env;
 }
 
-/**
- * Removes the prebuilt `@parcel/watcher-<platform>` packages so that `@parcel/watcher` loads the
- * binary built from source. With the hoisted layout they can be in the install root's
- * `node_modules` or in a workspace member's own `node_modules`.
- */
-function removeParcelWatcherPrebuilds(dir: string) {
-	for (const parcelModuleFolder of [
-		path.join(root, dir, 'node_modules', '@parcel'),
-		path.join(root, dir, 'node_modules', '@parcel', 'watcher', 'node_modules', '@parcel'),
-	]) {
-		if (!fs.existsSync(parcelModuleFolder)) {
-			continue;
-		}
-		for (const moduleName of fs.readdirSync(parcelModuleFolder)) {
-			if (moduleName.startsWith('watcher-')) {
-				const modulePath = path.join(parcelModuleFolder, moduleName);
-				fs.rmSync(modulePath, { recursive: true, force: true });
-				log(dir || '.', `Removed @parcel/watcher prebuilt module ${modulePath}`);
-			}
-		}
-	}
-}
-
 function ensureAgentHarnessLink(sourceRelativePath: string, linkPath: string): 'existing' | 'junction' | 'symlink' | 'hard link' {
 	if (fs.existsSync(linkPath)) {
 		return 'existing';
@@ -240,19 +217,11 @@ async function main() {
 
 	const _state = computeState();
 
-	// The workspace members were installed by the `pnpm install` that runs this script.
-	for (const dir of workspaceMembers) {
-		removeParcelWatcherPrebuilds(dir);
-	}
-
 	const nativeTasks: (() => Promise<void>)[] = [];
 	const parallelTasks: (() => Promise<void>)[] = [];
 
 	for (const dir of [...separateRoots, ...distroRoots]) {
-		const install = (env: NodeJS.ProcessEnv) => async () => {
-			await pnpmInstallAsync(dir, env);
-			removeParcelWatcherPrebuilds(dir);
-		};
+		const install = (env: NodeJS.ProcessEnv) => () => pnpmInstallAsync(dir, env);
 
 		if (dir === 'build') {
 			// build/.pnpmfile.mjs sets the native module build variables: build/.npmrc, the running

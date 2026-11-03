@@ -7,11 +7,12 @@ import { $, size } from '../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { IAction } from '../../../base/common/actions.js';
 import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IEditorOptions } from '../../../editor/common/config/editorOptions.js';
 import { IAgentsWindowDraft } from '../../../platform/window/common/window.js';
 import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { IProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
@@ -30,6 +31,9 @@ export type ChatViewKind = 'newSession' | 'newChatInSession' | 'chat';
  * Options passed to a chat view when it is created.
  */
 export interface IChatViewOptions {
+	readonly inputEditorOptions?: Pick<IEditorOptions, 'fontSize' | 'lineHeight'>;
+	readonly showEmptyStateIcon?: boolean;
+	readonly renderNewSessionHeader?: (container: HTMLElement, before: HTMLElement) => IDisposable;
 	/** Visibility of the owning session slot, preserved across composer/preparation/transcript handoffs. */
 	readonly hostVisible?: IObservable<boolean>;
 	/** Keep the custom view hosting this composer visible while preparing its draft. */

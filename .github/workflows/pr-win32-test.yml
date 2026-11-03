@@ -220,6 +220,13 @@ jobs:
         working-directory: test/integration/browser
         run: pnpm run compile
 
+      # pr-node-modules.yml fills this cache on main, so pull requests don't download the browsers.
+      - name: Restore Playwright browsers
+        if: ${{ env.BROWSER_TESTS == 'true' }}
+        uses: ./.github/actions/restore-playwright
+        with:
+          browsers: --only-shell chromium
+
       - name: Install Playwright Chromium
         if: ${{ env.BROWSER_TESTS == 'true' }}
         shell: pwsh
@@ -407,6 +414,17 @@ jobs:
           VSCODE_SMOKE_TEST_WSL_REQUIRED: '1'
           VSCODE_SMOKE_TEST_WSL_DISTRO: ${{ steps.wsl-dev-container.outputs.distro }}
           VSCODE_SMOKE_TEST_WSL_SERVER_PATH: ${{ steps.wsl-dev-container.outputs.serverPath }}
+
+      # Configures a test Kerberos realm, CA and PAC on the elevated agent and reverts them afterwards. The pinned server
+      # refuses a client built from source, so the editor window suite only runs in the Azure product build.
+      - name: 🧪 Run WSL Kerberos proxy smoke tests (Electron)
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == '1' }}
+        timeout-minutes: 20
+        shell: pwsh
+        run: .\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -Distribution $env:WSL_SMOKE_DISTRO -WslServerPath $env:WSL_SMOKE_SERVER_PATH -Suites AgentsWindow
+        env:
+          WSL_SMOKE_DISTRO: ${{ steps.wsl-dev-container.outputs.distro }}
+          WSL_SMOKE_SERVER_PATH: ${{ steps.wsl-dev-container.outputs.serverPath }}
 
       - name: Clean up WSL Dev Container smoke tests
         if: ${{ always() && steps.wsl-dev-container.outputs.root != '' }}

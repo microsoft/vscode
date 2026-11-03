@@ -147,6 +147,11 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 			}
 		}
 
+		// Skip the indexes of the deleted elements, so the indexes after them are preserved
+		while (i < this.sortedIndexes.length && this.sortedIndexes[i] < end) {
+			i++;
+		}
+
 		while (i < this.sortedIndexes.length && this.sortedIndexes[i] >= end) {
 			sortedIndexes.push(this.sortedIndexes[i++] + diff);
 		}

@@ -87,7 +87,7 @@ suite('SessionServerTools', () => {
 		return {
 			getCredentialSource: overrides?.getCredentialSource ?? (() => undefined),
 			getAutomaticTitleGenerationStrategy: overrides?.getAutomaticTitleGenerationStrategy ?? (() => 'deferred'),
-			isWorkspaceless: overrides?.isWorkspaceless ?? (() => true),
+			startedWorkspaceless: overrides?.startedWorkspaceless ?? (() => true),
 			canConvertWorkspace: overrides?.canConvertWorkspace ?? (() => true),
 			supportsChatWorkingDirectories: overrides?.supportsChatWorkingDirectories ?? (() => true),
 			getChatHarnesses: overrides?.getChatHarnesses ?? (() => undefined),
@@ -466,7 +466,7 @@ suite('SessionServerTools', () => {
 		});
 	});
 
-	test('set_workspace deferral follows whether the session is workspaceless', () => {
+	test('set_workspace deferral follows whether the session started workspaceless', () => {
 		const stateManager = new AgentHostStateManager(new NullLogService());
 		const workspacelessSession = 'copilot:/workspaceless';
 		const workspaceSession = 'copilot:/workspace';
@@ -482,7 +482,7 @@ suite('SessionServerTools', () => {
 			});
 		}
 		const host = new AgentServerToolHost(stateManager, [
-			createSessionServerToolGroup(createAccessor({ isWorkspaceless: session => session.toString() === workspacelessSession })),
+			createSessionServerToolGroup(createAccessor({ startedWorkspaceless: session => session.toString() === workspacelessSession })),
 		]);
 
 		host.advertise(workspacelessSession);
