@@ -151,6 +151,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		let previousOwnerKey: URI | undefined;
 		let wasSuspended = false;
 		let togglingSidePane = false;
+		let draftCompositionChosen = false;
 		let pendingComposition: { readonly ownerKey: URI; readonly state: ISidePaneVisibilityState; readonly reveal: boolean } | undefined;
 		this._register(autorun(reader => {
 			const multipleLayoutOwnersVisible = this._multipleLayoutOwnersVisible(reader);
@@ -211,7 +212,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			const ownerChanged = !sessionChanged && ownerKey !== undefined && (resuming || !isEqual(previousOwnerKey, ownerKey));
 			const isSubmit = !wasQuickChatActive && previousIsCreated === false && isCreated
 				&& (previousSession === activeSession || previousSession?.isCreated.read(undefined) === true);
-			if (isSubmit && !this._ctx.sharedChatLayout) {
+			if (isSubmit && !this._ctx.sharedChatLayout && (this._ctx.chatLayoutActive(reader) || draftCompositionChosen)) {
 				this._captureExistingProfile();
 			}
 
@@ -242,6 +243,9 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 				this._ctx.withSessionLayoutRestore(() => this._apply(state, false, reveal));
 			}
 
+			if (isCreated !== false || !isEqual(previousSession?.resource, activeSession.resource)) {
+				draftCompositionChosen = false;
+			}
 			previousIsCreated = isCreated;
 			previousSession = activeSession;
 			previousOwnerKey = ownerKey;
@@ -255,6 +259,9 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			if (togglingSidePane || (e.partId === Parts.AUXILIARYBAR_PART && this._detailPanel.changingVisibility)) {
 				return;
 			}
+			if (!this._ctx.isRestoringSessionLayout && !this._layoutService.isEditorPartAutoVisibilitySuppressed() && this._isDraftActive()) {
+				draftCompositionChosen = true;
+			}
 			this._captureExistingProfileIfApplicable();
 		}));
 		this._register(this._layoutService.onWillToggleSidePane(() => {
@@ -267,12 +274,20 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		}));
 		this._register(this._layoutService.onDidToggleSidePane(e => {
 			try {
+				if (this._isDraftActive()) {
+					draftCompositionChosen = true;
+				}
 				this._correctToggleReopen(e);
 				this._captureExistingProfileIfApplicable();
 			} finally {
 				togglingSidePane = false;
 			}
 		}));
+	}
+
+	private _isDraftActive(): boolean {
+		const activeSession = this._sessionsService.activeSession.get();
+		return !!activeSession && !activeSession.isQuickChat?.get() && !activeSession.isCreated.get();
 	}
 
 	private _capturePreHideComposition(): void {

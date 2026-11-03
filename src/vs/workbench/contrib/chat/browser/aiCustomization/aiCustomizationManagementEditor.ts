@@ -4488,18 +4488,21 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	/**
 	 * Reveals and selects the item backed by `uri` in the current section,
-	 * retrying while the list loads. MCP servers and plugins have no
-	 * URI-addressable rows, so selecting their section is the whole reveal.
+	 * retrying while the list loads.
 	 */
 	public async revealCustomizationByUri(uri: URI): Promise<void> {
-		if (!this.isPromptsSection(this.selectedSection)) {
+		const isPlugin = this.selectedSection === AICustomizationManagementSection.Plugins;
+		if (!isPlugin && !this.isPromptsSection(this.selectedSection)) {
 			return;
 		}
 		for (let attempt = 0; attempt < 10; attempt++) {
-			if (this.listWidget.revealAndSelectFirstItemByUri([uri])) {
+			const revealed = isPlugin
+				? await this.pluginListWidget?.revealAndSelectItemByUri(uri)
+				: this.listWidget.revealAndSelectFirstItemByUri([uri]);
+			if (revealed) {
 				return;
 			}
-			if (attempt === 0) {
+			if (attempt === 0 && !isPlugin) {
 				this.listWidget.clearSearch();
 			}
 			await timeout(100);

@@ -202,6 +202,7 @@ class MockSessionStore implements ISessionsManagementService {
 	getNewSessionTarget() { return undefined; }
 	isQuickChatTargetAvailable(_options?: ICreateNewSessionOptions): boolean { return false; }
 	resolveWorkspace(_folderUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined { return undefined; }
+	getRemoteHostLabel(): string | undefined { return undefined; }
 
 	async openSession(sessionResource: URI): Promise<void> {
 		this._openedResource = sessionResource;

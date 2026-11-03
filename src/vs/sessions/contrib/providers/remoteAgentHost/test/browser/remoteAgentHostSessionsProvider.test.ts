@@ -369,6 +369,8 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		openSession: async () => overrides?.openSession ? new class extends mock<IChatWidget>() { }() : undefined,
 	});
 	instantiationService.stub(ILanguageModelsService, {
+		onDidChangeLanguageModels: Event.None,
+		onDidChangeModelVisibility: Event.None,
 		getLanguageModelIds: () => [],
 		lookupLanguageModel: () => undefined,
 	});

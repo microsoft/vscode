@@ -32,7 +32,6 @@ const baseNodeBuildOptions = {
 	external: [
 		'./package.json',
 		'./.vscode-test.mjs',
-		'playwright',
 		'keytar',
 		'@azure/functions-core',
 		'applicationinsights-native-metrics',
@@ -47,9 +46,13 @@ const baseNodeBuildOptions = {
 	platform: 'node',
 	mainFields: ['module', 'main'], // needed for jsonc-parser,
 	define: {
+		// applicationinsights reads this once while its module loads. Bundled ES imports are hoisted above
+		// runtime environment assignments, so its options must be defined at build time.
 		'process.env.APPLICATIONINSIGHTS_CONFIGURATION_CONTENT': JSON.stringify(JSON.stringify({
 			proxyHttpUrl: '',
-			proxyHttpsUrl: ''
+			proxyHttpsUrl: '',
+			// Statsbeat probes the Azure instance metadata service and reports SDK metrics even when telemetry is disabled.
+			disableStatsbeat: true
 		}))
 	},
 } satisfies esbuild.BuildOptions;

@@ -116,7 +116,7 @@ import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, mapSessionEventsT
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { mintedTestChatOwner, isMintedTestDefaultChat } from '../common/mintedChatUri.js';
-import { findTestCatalogPayloadChatOwners, findTestCentralChatOwners, listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs, readTestSessionRegistrations, SessionStateUnsupportedDatabase, testRegistrationGeneration, seedSessionAdditionalWorktrees, createTestSessionStateStore, disposeTestSessionStateDatabases } from './chatMetadataTestHelpers.js';
+import { TestAgentHostCatalogDatabase, seedSessionAdditionalWorktrees, createTestSessionStateStore, disposeTestSessionStateDatabases } from './chatMetadataTestHelpers.js';
 import { readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
@@ -472,82 +472,9 @@ class TestCopilotApiService implements ICopilotApiService {
 	}
 }
 
-class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase implements IAgentHostDatabase {
+class TransientRegistryWriteDatabase extends TestAgentHostCatalogDatabase implements IAgentHostDatabase {
 	/** Test double: sessions are stored as addressed. */
-	toRuntimeSession(session: string): string {
-		return session;
-	}
 
-	recordChatStorageIdentity(): void { }
-	listLegacyChatCatalogSessions(sessions: readonly string[]): ReturnType<IAgentHostDatabase['listLegacyChatCatalogSessions']> {
-		return listTestLegacyChatCatalogSessions(this, sessions);
-	}
-	async readOlderBuildCopySource(): ReturnType<IAgentHostDatabase['readOlderBuildCopySource']> {
-		return undefined;
-	}
-	async findOlderBuildChatCatalogEdits(): ReturnType<IAgentHostDatabase['findOlderBuildChatCatalogEdits']> {
-		return [];
-	}
-	async recordOlderBuildChatListProjected(): ReturnType<IAgentHostDatabase['recordOlderBuildChatListProjected']> { }
-	async replaceSessionChatCatalogImportingOlderBuildEdits(): ReturnType<IAgentHostDatabase['replaceSessionChatCatalogImportingOlderBuildEdits']> {
-		return { status: 'conflict' };
-	}
-	async readOlderBuildCopyState(): ReturnType<IAgentHostDatabase['readOlderBuildCopyState']> {
-		return undefined;
-	}
-	async recordOlderBuildChatState(): ReturnType<IAgentHostDatabase['recordOlderBuildChatState']> { }
-	async readOlderBuildChatListEdit(): ReturnType<IAgentHostDatabase['readOlderBuildChatListEdit']> {
-		return undefined;
-	}
-	async reprojectOlderBuildChatList(): ReturnType<IAgentHostDatabase['reprojectOlderBuildChatList']> {
-		return false;
-	}
-	readChatV2(session: string, chat: string): ReturnType<IAgentHostDatabase['readChatV2']> {
-		return readTestChatV2(this, session, chat);
-	}
-	async getRegistrationGeneration(): Promise<number> {
-		return testRegistrationGeneration(this._sessionV2Registrations.values(), this._sessions.values());
-	}
-	readSessionRegistrations(): ReturnType<IAgentHostDatabase['readSessionRegistrations']> {
-		return readTestSessionRegistrations(this);
-	}
-	findCentralChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findCentralChatOwners']> {
-		return findTestCentralChatOwners(this, chats);
-	}
-	findCatalogPayloadChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findCatalogPayloadChatOwners']> {
-		return findTestCatalogPayloadChatOwners(this, chats);
-	}
-	readSessionListCatalogs(sessions: readonly string[]): ReturnType<IAgentHostDatabase['readSessionListCatalogs']> {
-		return readTestSessionListCatalogs(this, sessions);
-	}
-	async insertPrivateChatV2(..._args: Parameters<IAgentHostDatabase['insertPrivateChatV2']>): ReturnType<IAgentHostDatabase['insertPrivateChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
-	async removePrivateChatV2(..._args: Parameters<IAgentHostDatabase['removePrivateChatV2']>): ReturnType<IAgentHostDatabase['removePrivateChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
-	async moveChatV2(..._args: Parameters<IAgentHostDatabase['moveChatV2']>): ReturnType<IAgentHostDatabase['moveChatV2']> { return { status: 'notReady' }; }
-	async moveSessionV2(..._args: Parameters<IAgentHostDatabase['moveSessionV2']>): ReturnType<IAgentHostDatabase['moveSessionV2']> { return { status: 'notReady' }; }
-	async promoteChatV2(..._args: Parameters<IAgentHostDatabase['promoteChatV2']>): ReturnType<IAgentHostDatabase['promoteChatV2']> { return { status: 'notReady' }; }
-	async listMovedChatsV2(): ReturnType<IAgentHostDatabase['listMovedChatsV2']> { return new Map(); }
-	async listAttachmentOriginsV2(): ReturnType<IAgentHostDatabase['listAttachmentOriginsV2']> { return new Set(); }
-	async readChatAttachmentCopies(): ReturnType<IAgentHostDatabase['readChatAttachmentCopies']> { return new Map(); }
-	async writeChatAttachmentCopy(): ReturnType<IAgentHostDatabase['writeChatAttachmentCopy']> { return true; }
-	async hasMovedChatsV2(): ReturnType<IAgentHostDatabase['hasMovedChatsV2']> { return false; }
-	async reorderChatV2(..._args: Parameters<IAgentHostDatabase['reorderChatV2']>): ReturnType<IAgentHostDatabase['reorderChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
-	upsertSessionV2FromChatCatalog(...[envelope, expectedSessionGeneration]: Parameters<IAgentHostDatabase['upsertSessionV2FromChatCatalog']>): ReturnType<IAgentHostDatabase['upsertSessionV2FromChatCatalog']> {
-		return this.upsertSessionV2(envelope, expectedSessionGeneration);
-	}
-	declare readonly _serviceBrand: undefined;
-
-	private readonly _sessions = new Map<string, IAgentHostDatabaseSession>();
-	private readonly _sessionV2Registrations = new Map<string, IAgentHostDatabaseSession>();
-	private readonly _sessionsV2 = new Map<string, IAgentHostDatabaseSessionV2>();
-	private _backfilled = false;
-	private readonly _providerBackfilled = new Set<string>();
-	private readonly _sessionsV2Backfilled = new Set<string>();
-	private readonly _sessionsV2Exclusions = new Map<string, IAgentHostDatabaseSessionsV2Exclusion>();
-	private readonly _tombstones = new Set<string>();
-	private readonly _hiddenSessions = new Map<string, string>();
-	private readonly _agentMergeEnabled = new Set<string>();
-	private readonly _provisionalSessions = new Set<string>();
-	private readonly _sessionChats = new Map<string, IAgentHostDatabaseSessionChatCatalog>();
 	registryWriteAttempts = 0;
 	private _remainingRegistryWriteFailures = 0;
 	modifiedTimeBatchAttempts = 0;
@@ -685,34 +612,14 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 		return [...this._sessions.values()];
 	}
 
-	async getSession(session: string): Promise<IAgentHostDatabaseSession | undefined> {
-		return this._sessions.get(session);
-	}
-
-	async isSessionRegistryEmpty(): Promise<boolean> {
-		return this._sessions.size === 0;
-	}
-
-	async isSessionRegistryBackfilled(): Promise<boolean> {
-		return this._backfilled;
-	}
-
 	async markSessionRegistryBackfilled(): Promise<void> {
 		this._beforeWrite();
 		this._backfilled = true;
 	}
 
-	async isProviderBackfilled(provider: string): Promise<boolean> {
-		return this._providerBackfilled.has(provider);
-	}
-
 	async markProviderBackfilled(provider: string): Promise<void> {
 		this._beforeWrite();
 		this._providerBackfilled.add(provider);
-	}
-
-	async isSessionsV2Backfilled(provider: string, projectionVersion: number): Promise<boolean> {
-		return this._sessionsV2Backfilled.has(`${provider}:${projectionVersion}`);
 	}
 
 	async markSessionsV2Backfilled(provider: string, projectionVersion: number): Promise<void> {
@@ -736,43 +643,9 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 		return 'excluded';
 	}
 
-	async getSessionsV2Exclusion(provider: string, session: string): Promise<IAgentHostDatabaseSessionsV2Exclusion | undefined> {
-		return this._sessionsV2Exclusions.get(`${provider}:${session}`);
-	}
-
-	async listSessionsV2Exclusions(provider: string): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]> {
-		return [...this._sessionsV2Exclusions.values()].filter(exclusion => exclusion.provider === provider);
-	}
-
-	async listAllSessionsV2Exclusions(): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]> {
-		return [...this._sessionsV2Exclusions.values()];
-	}
-
 	async clearSessionsV2Exclusion(provider: string, session: string): Promise<void> {
 		this._beforeWrite();
 		this._sessionsV2Exclusions.delete(`${provider}:${session}`);
-	}
-
-	override async hideSession(session: string, provider: string): Promise<void> {
-		await this.unregisterRuntimeSession(session);
-		this._tombstones.delete(session);
-		this._hiddenSessions.set(session, provider);
-	}
-
-	override async isSessionHidden(session: string): Promise<boolean> {
-		return this._hiddenSessions.has(session);
-	}
-
-	override async listHiddenSessions(): Promise<readonly { readonly session: string; readonly provider: string }[]> {
-		return [...this._hiddenSessions].map(([session, provider]) => ({ session, provider }));
-	}
-
-	async isSessionTombstoned(session: string): Promise<boolean> {
-		return this._tombstones.has(session);
-	}
-
-	override async isSessionSuppressed(session: string): Promise<boolean> {
-		return this._tombstones.has(session) || this._hiddenSessions.has(session);
 	}
 
 	async markSessionTombstoned(session: string): Promise<void> {
@@ -851,36 +724,6 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 		}
 	}
 
-	async listRuntimeCompatibleSessionKeys(): Promise<readonly string[]> {
-		return [...new Set([...this._sessionV2Registrations.values(), ...this._sessions.values()]
-			.filter(session => !this._sessionsV2Exclusions.has(`${session.provider}:${session.session}`))
-			.map(session => session.session))];
-	}
-
-	async setSessionAgentMergeEnabled(session: string, enabled: boolean): Promise<void> {
-		if (enabled) {
-			this._agentMergeEnabled.add(session);
-		} else {
-			this._agentMergeEnabled.delete(session);
-		}
-	}
-
-	async listAgentMergeEnabledSessions(): Promise<readonly string[]> {
-		return [...this._agentMergeEnabled];
-	}
-
-	async setSessionProvisional(session: string, provisional: boolean): Promise<void> {
-		if (provisional) {
-			this._provisionalSessions.add(session);
-		} else {
-			this._provisionalSessions.delete(session);
-		}
-	}
-
-	async listProvisionalSessions(): Promise<readonly string[]> {
-		return [...this._provisionalSessions];
-	}
-
 	async registerSessionV2(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
 		this._beforeWrite();
 		if (registerOptions.checkTombstone && (this._tombstones.has(session) || this._hiddenSessions.has(session))) {
@@ -935,21 +778,9 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 		return reconciled;
 	}
 
-	async getSessionV2Registration(session: string): Promise<IAgentHostDatabaseSession | undefined> {
-		return this._sessionV2Registrations.get(session);
-	}
-
 	async listSessionV2Registrations(): Promise<readonly IAgentHostDatabaseSession[]> {
 		this.undefinedExternalListCalls++;
 		return [...this._sessionV2Registrations.values()];
-	}
-
-	listSessionV2RegistrationsForImport(): Promise<readonly IAgentHostDatabaseSession[]> {
-		return this.listSessionV2Registrations();
-	}
-
-	async isSessionV2RegistryEmpty(): Promise<boolean> {
-		return this._sessionV2Registrations.size === 0;
 	}
 
 	async getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined> { return this._sessionsV2.get(session); }
@@ -957,39 +788,7 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 	async listSessionsV2Receipts(): Promise<readonly IAgentHostDatabaseSessionV2Receipt[]> {
 		return [...this._sessionsV2.values()].map(({ payload, ...receipt }) => receipt);
 	}
-	async markSessionV2PayloadDirty(session: string): Promise<number | undefined> {
-		const current = this._sessionsV2.get(session);
-		if (!current) {
-			return undefined;
-		}
-		const payloadDirty = current.payloadDirty + 1;
-		this._sessionsV2.set(session, { ...current, payloadDirty });
-		return payloadDirty;
-	}
-	async getSessionV2PayloadDirty(session: string): Promise<number | undefined> {
-		return this._sessionsV2.get(session)?.payloadDirty;
-	}
-	async markAllSessionsV2PayloadsDirty(): Promise<void> {
-		for (const [session, current] of this._sessionsV2) {
-			this._sessionsV2.set(session, { ...current, payloadDirty: current.payloadDirty + 1 });
-		}
-	}
-	async markSessionsV2PayloadsDirty(sessions: readonly string[]): Promise<void> {
-		for (const session of sessions) {
-			const current = this._sessionsV2.get(session);
-			if (current) {
-				this._sessionsV2.set(session, { ...current, payloadDirty: current.payloadDirty + 1 });
-			}
-		}
-	}
-	async markSessionV2PayloadClean(session: string, expectedDirty: number): Promise<boolean> {
-		const current = this._sessionsV2.get(session);
-		if (!current || current.payloadDirty !== expectedDirty) {
-			return false;
-		}
-		this._sessionsV2.set(session, { ...current, payloadDirty: 0 });
-		return true;
-	}
+
 	async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
 		this.sessionV2UpsertAttempts++;
 		const session = this._sessionV2Registrations.get(envelope.session);
@@ -1003,19 +802,7 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 		this._sessionsV2.set(envelope.session, { ...session, ...envelope, isChatBacking: isChatBackingPayload(envelope.payload), payloadDirty: current?.payloadDirty ?? 1 });
 		return 'applied';
 	}
-	async getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> {
-		return this._sessionChats.get(session);
-	}
-	async readCatalogSnapshot(...[sessions]: Parameters<IAgentHostDatabase['readCatalogSnapshot']>): ReturnType<IAgentHostDatabase['readCatalogSnapshot']> {
-		return (await this.listSessionV2Registrations()).filter(identity => sessions === undefined || sessions.includes(identity.session)).map(identity => ({
-			session: identity.session, authorityVersion: 1 as const, identity, isChatBacking: this._sessionsV2.get(identity.session)?.isChatBacking ?? false,
-			provisional: this._provisionalSessions.has(identity.session), chats: [],
-		}));
-	}
-	async getChatV2ProviderDetail(..._args: Parameters<IAgentHostDatabase['getChatV2ProviderDetail']>): ReturnType<IAgentHostDatabase['getChatV2ProviderDetail']> { return undefined; }
-	async ensureChatCatalogV2(..._args: Parameters<IAgentHostDatabase['ensureChatCatalogV2']>): ReturnType<IAgentHostDatabase['ensureChatCatalogV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
-	async registerChatCatalogV2(..._args: Parameters<IAgentHostDatabase['registerChatCatalogV2']>): ReturnType<IAgentHostDatabase['registerChatCatalogV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
-	async updateChatV2Metadata(..._args: Parameters<IAgentHostDatabase['updateChatV2Metadata']>): ReturnType<IAgentHostDatabase['updateChatV2Metadata']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
+
 	async replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
 		this.sessionChatCatalogReplaceAttempts++;
 		const blocked = this._blockedSessionChatCatalogWrite;
@@ -1038,23 +825,6 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 		this._sessionChats.set(session, { revision, legacyMirroredRevision: current?.legacyMirroredRevision ?? 0, chats: chats.map(chat => ({ ...chat, ownerSession: session })) });
 		return { status: 'applied', revision };
 	}
-	async markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number, payload?: string): Promise<boolean> {
-		const current = this._sessionChats.get(session);
-		if (!current || current.revision !== expectedRevision) {
-			return false;
-		}
-		this._sessionChats.set(session, { ...current, legacyMirroredRevision: expectedRevision, ...(payload === undefined ? {} : { legacyMirroredPayload: payload }) });
-		return true;
-	}
-	async recordSessionChatCatalogLegacyMirrorPayload(session: string, expectedRevision: number, payload: string): Promise<boolean> {
-		const current = this._sessionChats.get(session);
-		if (!current || current.revision !== expectedRevision) {
-			return false;
-		}
-		this._sessionChats.set(session, { ...current, legacyMirroredPayload: payload });
-		return true;
-	}
-
 
 	private _beforeWrite(): void {
 		this.registryWriteAttempts++;
@@ -1066,92 +836,9 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 }
 
 /** In-memory orchestrator database that two {@link AgentService} instances can share to simulate a host restart. */
-class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase implements IAgentHostDatabase {
+class TestAgentHostOrchestratorDatabase extends TestAgentHostCatalogDatabase implements IAgentHostDatabase {
 	/** Test double: sessions are stored as addressed. */
-	toRuntimeSession(session: string): string {
-		return session;
-	}
 
-	recordChatStorageIdentity(): void { }
-	listLegacyChatCatalogSessions(sessions: readonly string[]): ReturnType<IAgentHostDatabase['listLegacyChatCatalogSessions']> {
-		return listTestLegacyChatCatalogSessions(this, sessions);
-	}
-	async readOlderBuildCopySource(): ReturnType<IAgentHostDatabase['readOlderBuildCopySource']> {
-		return undefined;
-	}
-	async findOlderBuildChatCatalogEdits(): ReturnType<IAgentHostDatabase['findOlderBuildChatCatalogEdits']> {
-		return [];
-	}
-	async recordOlderBuildChatListProjected(): ReturnType<IAgentHostDatabase['recordOlderBuildChatListProjected']> { }
-	async replaceSessionChatCatalogImportingOlderBuildEdits(): ReturnType<IAgentHostDatabase['replaceSessionChatCatalogImportingOlderBuildEdits']> {
-		return { status: 'conflict' };
-	}
-	async readOlderBuildCopyState(): ReturnType<IAgentHostDatabase['readOlderBuildCopyState']> {
-		return undefined;
-	}
-	async recordOlderBuildChatState(): ReturnType<IAgentHostDatabase['recordOlderBuildChatState']> { }
-	async readOlderBuildChatListEdit(): ReturnType<IAgentHostDatabase['readOlderBuildChatListEdit']> {
-		return undefined;
-	}
-	async reprojectOlderBuildChatList(): ReturnType<IAgentHostDatabase['reprojectOlderBuildChatList']> {
-		return false;
-	}
-	readChatV2(session: string, chat: string): ReturnType<IAgentHostDatabase['readChatV2']> {
-		return readTestChatV2(this, session, chat);
-	}
-	async getRegistrationGeneration(): Promise<number> {
-		return testRegistrationGeneration(this._sessionV2Registrations.values(), this._sessions.values());
-	}
-	readSessionRegistrations(): ReturnType<IAgentHostDatabase['readSessionRegistrations']> {
-		return readTestSessionRegistrations(this);
-	}
-	findCentralChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findCentralChatOwners']> {
-		return findTestCentralChatOwners(this, chats);
-	}
-	findCatalogPayloadChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findCatalogPayloadChatOwners']> {
-		return findTestCatalogPayloadChatOwners(this, chats);
-	}
-	readSessionListCatalogs(sessions: readonly string[]): ReturnType<IAgentHostDatabase['readSessionListCatalogs']> {
-		return readTestSessionListCatalogs(this, sessions);
-	}
-	async insertPrivateChatV2(..._args: Parameters<IAgentHostDatabase['insertPrivateChatV2']>): ReturnType<IAgentHostDatabase['insertPrivateChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
-	async removePrivateChatV2(..._args: Parameters<IAgentHostDatabase['removePrivateChatV2']>): ReturnType<IAgentHostDatabase['removePrivateChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
-	async moveChatV2(..._args: Parameters<IAgentHostDatabase['moveChatV2']>): ReturnType<IAgentHostDatabase['moveChatV2']> { return { status: 'notReady' }; }
-	async moveSessionV2(..._args: Parameters<IAgentHostDatabase['moveSessionV2']>): ReturnType<IAgentHostDatabase['moveSessionV2']> { return { status: 'notReady' }; }
-	async promoteChatV2(..._args: Parameters<IAgentHostDatabase['promoteChatV2']>): ReturnType<IAgentHostDatabase['promoteChatV2']> { return { status: 'notReady' }; }
-	async listMovedChatsV2(): ReturnType<IAgentHostDatabase['listMovedChatsV2']> { return new Map(); }
-	async listAttachmentOriginsV2(): ReturnType<IAgentHostDatabase['listAttachmentOriginsV2']> { return new Set(); }
-	async readChatAttachmentCopies(): ReturnType<IAgentHostDatabase['readChatAttachmentCopies']> { return new Map(); }
-	async writeChatAttachmentCopy(): ReturnType<IAgentHostDatabase['writeChatAttachmentCopy']> { return true; }
-	async hasMovedChatsV2(): ReturnType<IAgentHostDatabase['hasMovedChatsV2']> { return false; }
-	async reorderChatV2(..._args: Parameters<IAgentHostDatabase['reorderChatV2']>): ReturnType<IAgentHostDatabase['reorderChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
-	upsertSessionV2FromChatCatalog(...[envelope, expectedSessionGeneration]: Parameters<IAgentHostDatabase['upsertSessionV2FromChatCatalog']>): ReturnType<IAgentHostDatabase['upsertSessionV2FromChatCatalog']> {
-		return this.upsertSessionV2(envelope, expectedSessionGeneration);
-	}
-	async readCatalogSnapshot(...[sessions]: Parameters<IAgentHostDatabase['readCatalogSnapshot']>): ReturnType<IAgentHostDatabase['readCatalogSnapshot']> {
-		return (await this.listSessionV2Registrations()).filter(identity => sessions === undefined || sessions.includes(identity.session)).map(identity => ({
-			session: identity.session, authorityVersion: 1 as const, identity, isChatBacking: this._sessionsV2.get(identity.session)?.isChatBacking ?? false,
-			provisional: this._provisionalSessions.has(identity.session), chats: [],
-		}));
-	}
-	async getChatV2ProviderDetail(..._args: Parameters<IAgentHostDatabase['getChatV2ProviderDetail']>): ReturnType<IAgentHostDatabase['getChatV2ProviderDetail']> { return undefined; }
-	async ensureChatCatalogV2(..._args: Parameters<IAgentHostDatabase['ensureChatCatalogV2']>): ReturnType<IAgentHostDatabase['ensureChatCatalogV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
-	async registerChatCatalogV2(..._args: Parameters<IAgentHostDatabase['registerChatCatalogV2']>): ReturnType<IAgentHostDatabase['registerChatCatalogV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
-	async updateChatV2Metadata(..._args: Parameters<IAgentHostDatabase['updateChatV2Metadata']>): ReturnType<IAgentHostDatabase['updateChatV2Metadata']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
-	declare readonly _serviceBrand: undefined;
-
-	private readonly _sessions = new Map<string, IAgentHostDatabaseSession>();
-	private readonly _sessionV2Registrations = new Map<string, IAgentHostDatabaseSession>();
-	private readonly _sessionsV2 = new Map<string, IAgentHostDatabaseSessionV2>();
-	private readonly _providerBackfilled = new Set<string>();
-	private readonly _sessionsV2Backfilled = new Set<string>();
-	private readonly _sessionsV2Exclusions = new Map<string, IAgentHostDatabaseSessionsV2Exclusion>();
-	private readonly _tombstones = new Set<string>();
-	private readonly _hiddenSessions = new Map<string, string>();
-	private readonly _agentMergeEnabled = new Set<string>();
-	private readonly _provisionalSessions = new Set<string>();
-	private readonly _sessionChats = new Map<string, IAgentHostDatabaseSessionChatCatalog>();
-	private _backfilled = false;
 	catalogListCalls = 0;
 	readonly catalogListRequests: Array<readonly string[] | undefined> = [];
 	/** Test spies for the batched recency-write path. */
@@ -1224,32 +911,12 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 		return [...this._sessions.values()];
 	}
 
-	async getSession(session: string): Promise<IAgentHostDatabaseSession | undefined> {
-		return this._sessions.get(session);
-	}
-
-	async isSessionRegistryEmpty(): Promise<boolean> {
-		return this._sessions.size === 0;
-	}
-
-	async isSessionRegistryBackfilled(): Promise<boolean> {
-		return this._backfilled;
-	}
-
 	async markSessionRegistryBackfilled(): Promise<void> {
 		this._backfilled = true;
 	}
 
-	async isProviderBackfilled(provider: string): Promise<boolean> {
-		return this._providerBackfilled.has(provider);
-	}
-
 	async markProviderBackfilled(provider: string): Promise<void> {
 		this._providerBackfilled.add(provider);
-	}
-
-	async isSessionsV2Backfilled(provider: string, projectionVersion: number): Promise<boolean> {
-		return this._sessionsV2Backfilled.has(`${provider}:${projectionVersion}`);
 	}
 
 	async markSessionsV2Backfilled(provider: string, projectionVersion: number): Promise<void> {
@@ -1270,42 +937,8 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 		return 'excluded';
 	}
 
-	async getSessionsV2Exclusion(provider: string, session: string): Promise<IAgentHostDatabaseSessionsV2Exclusion | undefined> {
-		return this._sessionsV2Exclusions.get(`${provider}:${session}`);
-	}
-
-	async listSessionsV2Exclusions(provider: string): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]> {
-		return [...this._sessionsV2Exclusions.values()].filter(exclusion => exclusion.provider === provider);
-	}
-
-	async listAllSessionsV2Exclusions(): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]> {
-		return [...this._sessionsV2Exclusions.values()];
-	}
-
 	async clearSessionsV2Exclusion(provider: string, session: string): Promise<void> {
 		this._sessionsV2Exclusions.delete(`${provider}:${session}`);
-	}
-
-	override async hideSession(session: string, provider: string): Promise<void> {
-		await this.unregisterRuntimeSession(session);
-		this._tombstones.delete(session);
-		this._hiddenSessions.set(session, provider);
-	}
-
-	override async isSessionHidden(session: string): Promise<boolean> {
-		return this._hiddenSessions.has(session);
-	}
-
-	override async listHiddenSessions(): Promise<readonly { readonly session: string; readonly provider: string }[]> {
-		return [...this._hiddenSessions].map(([session, provider]) => ({ session, provider }));
-	}
-
-	async isSessionTombstoned(session: string): Promise<boolean> {
-		return this._tombstones.has(session);
-	}
-
-	override async isSessionSuppressed(session: string): Promise<boolean> {
-		return this._tombstones.has(session) || this._hiddenSessions.has(session);
 	}
 
 	async markSessionTombstoned(session: string): Promise<void> {
@@ -1351,36 +984,6 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 				this._sessions.set(update.session, registration);
 			}
 		}
-	}
-
-	async listRuntimeCompatibleSessionKeys(): Promise<readonly string[]> {
-		return [...new Set([...this._sessionV2Registrations.values(), ...this._sessions.values()]
-			.filter(session => !this._sessionsV2Exclusions.has(`${session.provider}:${session.session}`))
-			.map(session => session.session))];
-	}
-
-	async setSessionAgentMergeEnabled(session: string, enabled: boolean): Promise<void> {
-		if (enabled) {
-			this._agentMergeEnabled.add(session);
-		} else {
-			this._agentMergeEnabled.delete(session);
-		}
-	}
-
-	async listAgentMergeEnabledSessions(): Promise<readonly string[]> {
-		return [...this._agentMergeEnabled];
-	}
-
-	async setSessionProvisional(session: string, provisional: boolean): Promise<void> {
-		if (provisional) {
-			this._provisionalSessions.add(session);
-		} else {
-			this._provisionalSessions.delete(session);
-		}
-	}
-
-	async listProvisionalSessions(): Promise<readonly string[]> {
-		return [...this._provisionalSessions];
 	}
 
 	async registerSessionV2(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
@@ -1433,20 +1036,8 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 		return reconciled;
 	}
 
-	async getSessionV2Registration(session: string): Promise<IAgentHostDatabaseSession | undefined> {
-		return this._sessionV2Registrations.get(session);
-	}
-
 	async listSessionV2Registrations(): Promise<readonly IAgentHostDatabaseSession[]> {
 		return [...this._sessionV2Registrations.values()];
-	}
-
-	listSessionV2RegistrationsForImport(): Promise<readonly IAgentHostDatabaseSession[]> {
-		return this.listSessionV2Registrations();
-	}
-
-	async isSessionV2RegistryEmpty(): Promise<boolean> {
-		return this._sessionV2Registrations.size === 0;
 	}
 
 	async getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined> {
@@ -1463,39 +1054,7 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 		this.catalogListCalls++;
 		return [...this._sessionsV2.values()].map(({ payload, ...receipt }) => receipt);
 	}
-	async markSessionV2PayloadDirty(session: string): Promise<number | undefined> {
-		const current = this._sessionsV2.get(session);
-		if (!current) {
-			return undefined;
-		}
-		const payloadDirty = current.payloadDirty + 1;
-		this._sessionsV2.set(session, { ...current, payloadDirty });
-		return payloadDirty;
-	}
-	async getSessionV2PayloadDirty(session: string): Promise<number | undefined> {
-		return this._sessionsV2.get(session)?.payloadDirty;
-	}
-	async markAllSessionsV2PayloadsDirty(): Promise<void> {
-		for (const [session, current] of this._sessionsV2) {
-			this._sessionsV2.set(session, { ...current, payloadDirty: current.payloadDirty + 1 });
-		}
-	}
-	async markSessionsV2PayloadsDirty(sessions: readonly string[]): Promise<void> {
-		for (const session of sessions) {
-			const current = this._sessionsV2.get(session);
-			if (current) {
-				this._sessionsV2.set(session, { ...current, payloadDirty: current.payloadDirty + 1 });
-			}
-		}
-	}
-	async markSessionV2PayloadClean(session: string, expectedDirty: number): Promise<boolean> {
-		const current = this._sessionsV2.get(session);
-		if (!current || current.payloadDirty !== expectedDirty) {
-			return false;
-		}
-		this._sessionsV2.set(session, { ...current, payloadDirty: 0 });
-		return true;
-	}
+
 	async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
 		const session = this._sessionV2Registrations.get(envelope.session);
 		if (!session) {
@@ -1511,9 +1070,7 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 		this._sessionsV2.set(envelope.session, { ...session, ...envelope, isChatBacking: isChatBackingPayload(envelope.payload), payloadDirty: current?.payloadDirty ?? 1 });
 		return 'applied';
 	}
-	async getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> {
-		return this._sessionChats.get(session);
-	}
+
 	async replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
 		if (this._tombstones.has(session)) {
 			return { status: 'tombstoned' };
@@ -1528,22 +1085,6 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 		const revision = (current?.revision ?? 0) + 1;
 		this._sessionChats.set(session, { revision, legacyMirroredRevision: current?.legacyMirroredRevision ?? 0, chats: chats.map(chat => ({ ...chat, ownerSession: session })) });
 		return { status: 'applied', revision };
-	}
-	async markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number, payload?: string): Promise<boolean> {
-		const current = this._sessionChats.get(session);
-		if (!current || current.revision !== expectedRevision) {
-			return false;
-		}
-		this._sessionChats.set(session, { ...current, legacyMirroredRevision: expectedRevision, ...(payload === undefined ? {} : { legacyMirroredPayload: payload }) });
-		return true;
-	}
-	async recordSessionChatCatalogLegacyMirrorPayload(session: string, expectedRevision: number, payload: string): Promise<boolean> {
-		const current = this._sessionChats.get(session);
-		if (!current || current.revision !== expectedRevision) {
-			return false;
-		}
-		this._sessionChats.set(session, { ...current, legacyMirroredPayload: payload });
-		return true;
 	}
 
 }
@@ -1642,7 +1183,23 @@ suite('AgentService (node dispatcher)', () => {
 		assert.strictEqual(stateManager.getDefaultChat(legacy.toString()), buildDefaultChatUri(legacy.toString()));
 	});
 
-	for (const operation of ['installSandboxCertificate', 'rotateSandboxCertificate', 'removeSandboxCertificate'] as const) {
+	test('host sandbox certificate management routes without creating or restoring a chat', async () => {
+		const provider: IAgent = copilotAgent;
+		registerTestAgentProvider(service, provider);
+		service.createSession = async () => { assert.fail('Must not create a session'); };
+		service.restoreSession = async () => { assert.fail('Must not restore a session'); };
+		await assert.rejects(service.manageHostSandboxCertificate('missing', 'install'), /unavailable/);
+		await assert.rejects(service.manageHostSandboxCertificate(provider.id, 'install'), /unavailable/);
+		const calls: string[] = [];
+		provider.manageHostSandboxCertificate = async operation => { calls.push(operation); };
+		const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService());
+		for (const operation of ['install', 'rotate', 'remove'] as const) {
+			await managementService.manageHostSandboxCertificate(provider.id, operation);
+		}
+		assert.deepStrictEqual(calls, ['install', 'rotate', 'remove']);
+	});
+
+	for (const operation of ['installSandboxCertificate', 'rotateSandboxCertificate', 'removeSandboxCertificate', 'refreshSandboxCertificate'] as const) {
 		test(`sandbox certificate ${operation} uses the registered chat owner without restoring a session`, async () => {
 			const provider: IAgent = copilotAgent;
 			const calls: [string, string][] = [];
@@ -10259,7 +9816,6 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(await agent.listSessions(), []);
 		});
 
-
 		test('creates session via specified provider', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 
@@ -11183,6 +10739,55 @@ suite('AgentService (node dispatcher)', () => {
 				workspaceless: readSessionWorkspaceless(restoredState.getSessionState(session.toString())?._meta),
 				persisted: await databases.database(session).getMetadata(AH_META_WORKSPACELESS_DB_KEY),
 			}, { workspaceless: false, persisted: 'false' });
+		});
+
+		test('set_workspace stays loaded after converting a workspace-less session', async () => {
+			const scratch = URI.file('/home/.copilot/chats/own');
+			const destination = URI.file('/workspace/destination');
+			class WorkspaceAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+				override async setWorkingDirectory(): Promise<void> { }
+				async setChatWorkingDirectory(): Promise<void> { }
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new WorkspaceAgent('copilot', { multipleChats: { fork: true }, multipleWorkingDirectories: { immutablePrimary: true } }, { workspaceConversion: true }));
+			agent.resolvedWorkingDirectory = scratch;
+			registerTestAgentProvider(svc, agent);
+			const clientConnections = Reflect.get(svc, '_clientConnections') as IAgentHostClientConnectionService;
+			disposables.add(clientConnections.registerSource({
+				hasSeenClient: clientId => clientId === 'client',
+				isClientConnected: clientId => clientId === 'client',
+				isLocalClient: () => true,
+				usesLegacyChatUris: () => false,
+				getConnectedClientTransportCounts: () => new Map([['client', 1]]),
+				requestWorkspaceTrust: async () => true,
+				requestMcpAuthentication: async () => false,
+			}));
+			const setWorkspaceDeferral = (session: URI) => agent.serverToolHost!.getDefinitionsForSession(session.toString()).find(tool => tool.name === SessionServerToolName.SetWorkspace)?.deferLoading;
+			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id });
+			const beforeConversion = setWorkspaceDeferral(session);
+			getStateManager(svc).dispatchServerAction(session.toString(), { type: ActionType.SessionConfigChanged, config: { autoApprove: 'autoApprove' } });
+			const main = buildDefaultChatUri(session);
+			svc.dispatchAction(main, {
+				type: ActionType.ChatTurnStarted, turnId: 'request-turn', startedAt: new Date().toISOString(),
+				message: { text: 'Work in the destination', origin: { kind: MessageKind.User } },
+			}, 'client', 1);
+			await waitForCondition(agent.onDidSendMessage, () => agent.sendMessageCalls.length === 1, 'Expected the requesting turn to start');
+			await agent.serverToolHost!.executeTool(main, SessionServerToolName.SetWorkspace, { workspaceFolder: destination.toString(), isolation: false });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(main), action: { type: ActionType.ChatTurnComplete, turnId: 'request-turn', duration: 1 } });
+			await waitForCondition(agent.onDidSendMessage, () => agent.sendMessageCalls.length === 2, 'Expected the host to continue the original task');
+			agent.resolvedWorkingDirectory = destination;
+			const workspaceSession = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [destination] });
+
+			assert.deepStrictEqual({
+				workspaceless: readSessionWorkspaceless(getStateManager(svc).getSessionState(session.toString())?._meta),
+				beforeConversion,
+				afterConversion: setWorkspaceDeferral(session),
+				startedWithWorkspace: setWorkspaceDeferral(workspaceSession),
+			}, { workspaceless: false, beforeConversion: false, afterConversion: false, startedWithWorkspace: true });
 		});
 
 		test('set_workspace uses the sole connected active client for a provider-started turn', async () => {
@@ -13288,7 +12893,6 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			}
 		}
-
 
 		test('a created session records its minted default chat, so its turns are checkpointed in the session database', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -26057,7 +25661,6 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(state!.turns.map(t => t.id), ['local-head', 'msg-real', 'local-after']);
 		});
 
-
 		test('restores the default chat\'s independently-renamed title', async () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -26207,7 +25810,6 @@ suite('AgentService (node dispatcher)', () => {
 				/Session not found on backend/,
 			);
 		});
-
 
 		test('adopts a surfaced legacy session on open only when the migrate setting is on (frozen at startup)', async () => {
 			// Open-adoption is gated on the startup-frozen migrate snapshot.
@@ -34135,7 +33737,6 @@ suite('AgentService (node dispatcher)', () => {
 			await service.createChat(session, chat, ...rest);
 			completeTurn(service, chat);
 		}
-
 
 		class LegacyChatCatalogDatabase extends AgentHostDatabase {
 			override async registerChatCatalogV2(..._args: Parameters<IAgentHostDatabase['registerChatCatalogV2']>): ReturnType<IAgentHostDatabase['registerChatCatalogV2']> {

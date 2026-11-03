@@ -245,6 +245,9 @@ export function setup(logger: Logger, quality: Quality) {
 				'chat.agentHost.devContainer.enabled': true,
 				'chat.agentHost.devContainer.worktree.enabled': false,
 				'chat.remoteAgentHostsEnabled': true,
+				// The Agent Host in a local container resolves proxies through this client. The mock CAPI host only
+				// resolves inside the container, so a proxy configured on the CI machine cannot reach it.
+				'http.useLocalProxyConfiguration': false,
 			},
 			prepareWorkspace: (workspacePath, options) => prepareDevContainerWorkspace(workspacePath, devContainer.mockServer.port, options),
 			cleanupWorkspace: cleanupDevContainerWorkspace,
@@ -940,8 +943,6 @@ function setupAgentHostSuite(logger: Logger, config: {
 				'chat.agentHost.copilotSdk.logLevel': 'trace',
 				// These suites exercise Agent Host and sandbox behavior, not Auto routing.
 				'chat.defaultModel': AGENT_HOST_MODEL,
-				// The mock server does not serve the `/meta` model catalog that dynamic Auto tiers read.
-				'chat.copilot.dynamicAutoTiers.enabled': false,
 				...config.settings,
 				...remoteFixture?.settings,
 			}, null, 2);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'fs';
 import { homedir, tmpdir } from 'os';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -14,6 +14,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
+import { pathRule, permissionGrantOptionId, PermissionGrantScope } from '../../common/permissionRules.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, getChatSensitiveEditLocations, mergeChatEditAutoApprovePatterns } from '../../../chat/common/chatSettings.js';
@@ -123,9 +124,9 @@ suite('SessionPermissionManager', () => {
 		// keeps macOS `/var` -> `/private/var` consistent so the symlink-resolution
 		// checks compare like-for-like.
 		const baseTmp = process.env.AGENT_TEMPDIRECTORY || process.env.RUNNER_TEMP || tmpdir();
-		workDir = realpathSync(mkdtempSync(join(baseTmp, 'sesperm-work-')));
-		workDir2 = realpathSync(mkdtempSync(join(baseTmp, 'sesperm-work2-')));
-		outsideDir = realpathSync(mkdtempSync(join(baseTmp, 'sesperm-out-')));
+		workDir = URI.file(realpathSync(mkdtempSync(join(baseTmp, 'sesperm-work-')))).fsPath;
+		workDir2 = URI.file(realpathSync(mkdtempSync(join(baseTmp, 'sesperm-work2-')))).fsPath;
+		outsideDir = URI.file(realpathSync(mkdtempSync(join(baseTmp, 'sesperm-out-')))).fsPath;
 
 		manager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		configService = disposables.add(new AgentConfigurationService(manager, new NullLogService()));
@@ -278,8 +279,8 @@ suite('SessionPermissionManager', () => {
 		]), [ToolCallConfirmationReason.Setting, ToolCallConfirmationReason.Setting, undefined]);
 	});
 
-	test('Read and Edit allow rules must match both literal and resolved paths, and fail closed on resolution errors', async () => {
-		const target = join(outsideDir, 'allowed', 'link.txt');
+	test('Read and Edit allow rules match canonical paths and fail closed on resolution errors', async () => {
+		const target = join(outsideDir, 'alias', 'link.txt');
 		const allowedPath = join(outsideDir, 'allowed', 'real.txt');
 		const outsidePath = join(outsideDir, 'elsewhere', 'secret.txt');
 		const pattern = `//${join(outsideDir, 'allowed').replace(/\\/g, '/').replace(/^\//, '')}/**`;
@@ -327,6 +328,166 @@ suite('SessionPermissionManager', () => {
 		setPermissionRules([], [`Read(${rulePath(literal)})`, `Edit(${rulePath(literal)})`]);
 		const literalDenies = await Promise.all([readEvent(literal), writeEvent(literal)].map(event => permissions.isDeniedByPermissions(event, sessionUri)));
 		assert.deepStrictEqual({ realPathDenies, literalDenies }, { realPathDenies: [true, true], literalDenies: [true, true] });
+	});
+
+	for (const scope of ['root', 'session', 'chat'] as const) {
+		test(`${scope} folder grants preserve protected-write confirmation inside and outside the workspace`, async () => {
+			const rules = {
+				allow: [workDir, outsideDir].flatMap(directory => [
+					pathRule('Edit', directory, true)!,
+					pathRule('Read', directory, true)!,
+				]),
+				deny: [],
+			};
+			const chat = buildChatUri(sessionUri, 'protected-files');
+			manager.setSessionConfig(sessionUri, {
+				schema: platformSessionSchema.toProtocol(),
+				values: { [SessionConfigKey.Permissions]: scope === 'session' ? rules : { allow: [], deny: [] } },
+			});
+			manager.addChat(sessionUri, chat, creationTimeChatStorageResource(sessionUri, chat, buildDefaultChatUri(sessionUri)), {
+				config: { values: scope === 'chat' ? { [SessionConfigKey.Permissions]: rules } : {} },
+			});
+			if (scope === 'root') {
+				configService.updateRootConfig({ [SessionConfigKey.Permissions]: rules });
+			}
+			const files = ['.mcp.json', '.npmrc', join('.vscode', 'settings.json'), join('.github', 'hooks', 'hook.json')];
+			const results = await Promise.all([workDir, outsideDir].map(async directory => ({
+				ordinaryWrite: await permissions.getAutoApproval(writeEvent(join(directory, 'app.ts')), chat),
+				defaultExcludedWrite: await permissions.getAutoApproval(writeEvent(join(directory, 'package.json')), chat),
+				protectedWrites: await Promise.all(files.map(file => permissions.getAutoApproval(writeEvent(join(directory, file)), chat))),
+				protectedReads: await Promise.all(files.map(file => permissions.getAutoApproval(readEvent(join(directory, file)), chat))),
+			})));
+			assert.deepStrictEqual(results, [workDir, outsideDir].map(() => ({
+				ordinaryWrite: ToolCallConfirmationReason.Setting,
+				defaultExcludedWrite: ToolCallConfirmationReason.Setting,
+				protectedWrites: files.map(() => undefined),
+				protectedReads: files.map(() => ToolCallConfirmationReason.Setting),
+			})));
+		});
+	}
+
+	test('only exact absolute file grants override protected-write confirmation', async () => {
+		const target = join(workDir, '.mcp.json');
+		const exactRule = pathRule('Edit', target, false)!;
+		const cases: [string, ToolCallConfirmationReason | undefined][] = [
+			['Edit', undefined],
+			['Edit(*)', undefined],
+			['file_tool', undefined],
+			[pathRule('Edit', workDir, true)!, undefined],
+			[exactRule.replace('.mcp.json', '*.json'), undefined],
+			[exactRule.replace('.mcp.json', '.mcp.jso?'), undefined],
+			[exactRule.replace('.mcp.json', '[.]mcp.json'), undefined],
+			[exactRule.replace('.mcp.json', '{.mcp,other}.json'), undefined],
+			['Edit(.mcp.json)', undefined],
+			['Edit(/.mcp.json)', undefined],
+			[exactRule, ToolCallConfirmationReason.Setting],
+		];
+		const results = [];
+		for (const [rule] of cases) {
+			setPermissionRules([rule]);
+			results.push(await permissions.getAutoApproval({ ...writeEvent(target), toolName: 'file_tool' }, sessionUri));
+		}
+		assert.deepStrictEqual(results, cases.map(([, expected]) => expected));
+	});
+
+	test('exact protected-file grants do not override explicit asks or denies', async () => {
+		const target = join(outsideDir, '.mcp.json');
+		const rule = pathRule('Edit', target, false)!;
+		setPermissionRules([rule]);
+		const allowed = await permissions.getAutoApproval(writeEvent(target), sessionUri);
+		const otherFile = await permissions.getAutoApproval(writeEvent(join(outsideDir, '.npmrc')), sessionUri);
+		setPermissionRules([rule], [], [rule]);
+		const asked = await permissions.getAutoApproval(writeEvent(target), sessionUri);
+		setPermissionRules([rule], [rule]);
+		const denied = await permissions.isDeniedByPermissions(writeEvent(target), sessionUri);
+		assert.deepStrictEqual({ allowed, otherFile, asked, denied }, {
+			allowed: ToolCallConfirmationReason.Setting, otherFile: undefined, asked: undefined, denied: true,
+		});
+	});
+
+	test('exact absolute grants approve each protected-file kind inside and outside the workspace', async () => {
+		const files = ['.mcp.json', '.npmrc', join('.vscode', 'settings.json'), join('.github', 'hooks', 'hook.json')];
+		const targets = [workDir, outsideDir].flatMap(directory => files.map(file => join(directory, file)));
+		setPermissionRules(targets.map(target => pathRule('Edit', target, false)!));
+		assert.deepStrictEqual(await Promise.all(targets.map(target => permissions.getAutoApproval(writeEvent(target), sessionUri))),
+			targets.map(() => ToolCallConfirmationReason.Setting));
+	});
+
+	test('configured sensitive locations require exact file grants in every working directory', async () => {
+		const multiRootSession = URI.from({ scheme: 'copilot', path: '/protected-multi-root' }).toString();
+		manager.createSession(makeSummary(multiRootSession, URI.file(workDir).toString(), URI.file(workDir2).toString()));
+		manager.setSessionConfig(multiRootSession, {
+			schema: platformSessionSchema.toProtocol(),
+			values: { [SessionConfigKey.SensitiveEditLocations]: [{ path: 'custom-hooks', isDirectory: true }] },
+		});
+		const files = [workDir, workDir2].map(directory => join(directory, 'custom-hooks', 'hook.json'));
+		const results = [];
+		for (const recursive of [true, false]) {
+			const allow = [workDir, workDir2].map((directory, index) => pathRule('Edit', recursive ? directory : files[index], recursive)!);
+			configService.updateRootConfig({ [SessionConfigKey.Permissions]: { allow, deny: [] } });
+			results.push(await Promise.all(files.map(file => permissions.getAutoApproval(writeEvent(file), multiRootSession))));
+		}
+		assert.deepStrictEqual(results, [
+			[undefined, undefined],
+			[ToolCallConfirmationReason.Setting, ToolCallConfirmationReason.Setting],
+		]);
+	});
+
+	test('protected writes without working directories still require exact file grants', async () => {
+		const noWorkspace = URI.from({ scheme: 'copilot', path: '/no-workspace' }).toString();
+		manager.createSession(makeSummary(noWorkspace));
+		configService.updateRootConfig({ [SessionConfigKey.Permissions]: { allow: [pathRule('Edit', outsideDir, true)!], deny: [] } });
+		assert.deepStrictEqual(await Promise.all([
+			permissions.getAutoApproval(writeEvent(join(outsideDir, '.mcp.json')), noWorkspace),
+			permissions.getAutoApproval(writeEvent(join(outsideDir, 'app.ts')), noWorkspace),
+		]), [undefined, ToolCallConfirmationReason.Setting]);
+	});
+
+	test('protected-write checks inspect both paths but permit canonical exact grants', async () => {
+		const hooks = join(workDir, '.github', 'hooks');
+		const ordinary = join(workDir, 'ordinary');
+		mkdirSync(hooks, { recursive: true });
+		mkdirSync(ordinary);
+		symlinkSync(hooks, join(workDir, 'alias'), directoryLinkType);
+		symlinkSync(ordinary, join(workDir, '.github', 'agents'), directoryLinkType);
+		const files = [
+			join(workDir, 'alias', 'new', 'hook.json'),
+			join(workDir, '.github', 'agents', 'new', 'agent.md'),
+		];
+		setPermissionRules([pathRule('Edit', workDir, true)!]);
+		const folder = await Promise.all(files.map(file => permissions.getAutoApproval(writeEvent(file), sessionUri)));
+		setPermissionRules(files.map(file => pathRule('Edit', file, false)!));
+		const exact = await Promise.all(files.map(file => permissions.getAutoApproval(writeEvent(file), sessionUri)));
+		setPermissionRules([
+			pathRule('Edit', join(hooks, 'new', 'hook.json'), false)!,
+			pathRule('Edit', join(ordinary, 'new', 'agent.md'), false)!,
+		]);
+		const canonicalExact = await Promise.all(files.map(file => permissions.getAutoApproval(writeEvent(file), sessionUri)));
+		assert.deepStrictEqual({ folder, exact, canonicalExact }, {
+			folder: [undefined, undefined], exact: [undefined, undefined],
+			canonicalExact: [ToolCallConfirmationReason.Setting, ToolCallConfirmationReason.Setting],
+		});
+	});
+
+	test('global and session Allow All retain their protected-write bypass', async () => {
+		const target = join(outsideDir, '.mcp.json');
+		const rule = pathRule('Edit', target, false)!;
+		const results = [];
+		for (const global of [true, false]) {
+			configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: global });
+			manager.setSessionConfig(sessionUri, {
+				schema: platformSessionSchema.toProtocol(),
+				values: {
+					[SessionConfigKey.AutoApprove]: global ? 'default' : 'autoApprove',
+					[SessionConfigKey.Permissions]: { allow: [], deny: [rule], ask: [rule] },
+				},
+			});
+			results.push({
+				approved: await permissions.getAutoApproval(writeEvent(target), sessionUri),
+				denied: await permissions.isDeniedByPermissions(writeEvent(target), sessionUri),
+			});
+		}
+		assert.deepStrictEqual(results, Array.from({ length: 2 }, () => ({ approved: ToolCallConfirmationReason.Setting, denied: true })));
 	});
 
 	test('shell confirmations offer scoped prefix and exact grants with Allow Once first', () => {
@@ -410,16 +571,50 @@ suite('SessionPermissionManager', () => {
 		})));
 	});
 
-	test('URL confirmations offer session and always grants for the exact hostname', () => {
-		const actions = ['https://api.example.com/path', 'https://example.co.uk', 'https://127.0.0.1:8080', 'https://[::1]:8080', 'not a URL'].map(permissionUrl => permissions.createToolReadyAction(confirmationSignal({ permissionKind: AgentPermissionKind.Url, permissionUrl }), sessionUri, 'turn'));
+	test('URL confirmations offer session and always grants for the exact hostname and scheme', () => {
+		const actions = ['https://api.example.com/path', 'https://example.co.uk', 'https://127.0.0.1:8080', 'https://[::1]:8080', 'http://api.example.com/path', 'http://127.0.0.1', 'http://[::1]', 'not a URL'].map(permissionUrl => permissions.createToolReadyAction(confirmationSignal({ permissionKind: AgentPermissionKind.Url, permissionUrl }), sessionUri, 'turn'));
 		assert.deepStrictEqual(actions.map(action => action.options?.map(option => [option.id, option.label])), [
 			[['allow-once', 'Allow Once'], ['allow-session-rules:["WebFetch(api.example.com)"]', 'Allow Fetching api.example.com in this Session'], ['allow-always-rules:["WebFetch(api.example.com)"]', 'Always Allow Fetching api.example.com'], ['skip', 'Skip']],
 			[['allow-once', 'Allow Once'], ['allow-session-rules:["WebFetch(example.co.uk)"]', 'Allow Fetching example.co.uk in this Session'], ['allow-always-rules:["WebFetch(example.co.uk)"]', 'Always Allow Fetching example.co.uk'], ['skip', 'Skip']],
 			[['allow-once', 'Allow Once'], ['allow-session-rules:["WebFetch(127.0.0.1)"]', 'Allow Fetching 127.0.0.1 in this Session'], ['allow-always-rules:["WebFetch(127.0.0.1)"]', 'Always Allow Fetching 127.0.0.1'], ['skip', 'Skip']],
 			[['allow-once', 'Allow Once'], ['allow-session-rules:["WebFetch([::1])"]', 'Allow Fetching [::1] in this Session'], ['allow-always-rules:["WebFetch([::1])"]', 'Always Allow Fetching [::1]'], ['skip', 'Skip']],
+			[['allow-once', 'Allow Once'], ['allow-session-rules:["WebFetch(http://api.example.com)"]', 'Allow Fetching http://api.example.com in this Session'], ['allow-always-rules:["WebFetch(http://api.example.com)"]', 'Always Allow Fetching http://api.example.com'], ['skip', 'Skip']],
+			[['allow-once', 'Allow Once'], ['allow-session-rules:["WebFetch(http://127.0.0.1)"]', 'Allow Fetching http://127.0.0.1 in this Session'], ['allow-always-rules:["WebFetch(http://127.0.0.1)"]', 'Always Allow Fetching http://127.0.0.1'], ['skip', 'Skip']],
+			[['allow-once', 'Allow Once'], ['allow-session-rules:["WebFetch(http://[::1])"]', 'Allow Fetching http://[::1] in this Session'], ['allow-always-rules:["WebFetch(http://[::1])"]', 'Always Allow Fetching http://[::1]'], ['skip', 'Skip']],
 			[['allow-once', 'Allow Once'], ['skip', 'Skip']],
 		]);
 	});
+
+	for (const scope of ['session', 'always']) {
+		test(`HTTP ${scope} fetch grants persist and auto-approve only the approved scheme and hostname`, async () => {
+			setPermissionRules([]);
+			const signal = confirmationSignal({ permissionKind: AgentPermissionKind.Url, permissionUrl: 'http://api.example.com/path' });
+			const chat = signal.chat.toString();
+			const event: IToolApprovalEvent = { toolCallId: signal.state.toolCallId, session: signal.chat, permissionKind: AgentPermissionKind.Url, permissionUrl: signal.permissionUrl };
+			const before = await permissions.getAutoApproval(event, chat);
+			const option = permissions.createToolReadyAction(signal, chat, 'turn-scoped').options?.find(option => option.id.startsWith(`allow-${scope}-rules:`));
+			assert.ok(option);
+			startConfirmation(signal);
+			confirmToolCall(chat, signal.state.toolCallId, option.id);
+			assert.deepStrictEqual({
+				before,
+				root: configService.getRootValue(platformRootSchema, SessionConfigKey.Permissions),
+				session: manager.getSessionState(sessionUri)?.config?.values[SessionConfigKey.Permissions],
+				after: await permissions.getAutoApproval({ ...event, permissionUrl: 'http://api.example.com/again' }, chat),
+				https: await permissions.getAutoApproval({ ...event, permissionUrl: 'https://api.example.com/again' }, chat),
+				subdomain: await permissions.getAutoApproval({ ...event, permissionUrl: 'http://sub.api.example.com/again' }, chat),
+				otherHost: await permissions.getAutoApproval({ ...event, permissionUrl: 'http://api.example.com.evil.test/again' }, chat),
+			}, {
+				before: undefined,
+				root: { allow: scope === 'always' ? ['WebFetch(http://api.example.com)'] : [], deny: [] },
+				session: { allow: scope === 'session' ? ['WebFetch(http://api.example.com)'] : [], deny: [] },
+				after: ToolCallConfirmationReason.Setting,
+				https: undefined,
+				subdomain: undefined,
+				otherHost: undefined,
+			});
+		});
+	}
 
 	test('Always Allow Fetching deduplicates root allow rules, preserves deny rules and auto-approves the host', async () => {
 		configService.updateRootConfig({ [SessionConfigKey.Permissions]: { allow: ['WebFetch(existing.test)'], deny: ['WebFetch(blocked.test)'] } });
@@ -453,6 +648,7 @@ suite('SessionPermissionManager', () => {
 	test('read and write confirmations offer file and nearest Git-root grants without a tool-wide session option', async () => {
 		const checkedPaths: string[] = [];
 		const scopedPermissions = disposables.add(new SessionPermissionManager(manager, {
+			realpath: async path => path,
 			exists: async path => {
 				checkedPaths.push(path);
 				return path === '/repo/nested/.git' || path === '/repo/.git';
@@ -471,12 +667,16 @@ suite('SessionPermissionManager', () => {
 					{ id: 'allow-once', label: 'Allow Once', kind: 'approve' },
 					{ id: 'allow-session-rules:["Read(//repo/nested/src/app.ts)"]', label: 'Allow Reading app.ts in this Session', kind: 'approve', group: 1 },
 					{ id: 'allow-session-rules:["Read(//repo/nested/**)"]', label: 'Allow Reading Files in nested in this Session', kind: 'approve', group: 1 },
+					{ id: 'allow-always-rules:["Read(//repo/nested/src/app.ts)"]', label: 'Always Allow Reading app.ts', kind: 'approve', group: 1 },
+					{ id: 'allow-always-rules:["Read(//repo/nested/**)"]', label: 'Always Allow Reading Files in nested', kind: 'approve', group: 1 },
 					{ id: 'skip', label: 'Skip', kind: 'deny', group: 2 },
 				],
 				[
 					{ id: 'allow-once', label: 'Allow Once', kind: 'approve' },
 					{ id: 'allow-session-rules:["Edit(//repo/nested/src/app.ts)"]', label: 'Allow Edits to app.ts in this Session', kind: 'approve', group: 1 },
 					{ id: 'allow-session-rules:["Edit(//repo/nested/**)"]', label: 'Allow Edits in nested in this Session', kind: 'approve', group: 1 },
+					{ id: 'allow-always-rules:["Edit(//repo/nested/src/app.ts)"]', label: 'Always Allow Edits to app.ts', kind: 'approve', group: 1 },
+					{ id: 'allow-always-rules:["Edit(//repo/nested/**)"]', label: 'Always Allow Edits in nested', kind: 'approve', group: 1 },
 					{ id: 'skip', label: 'Skip', kind: 'deny', group: 2 },
 				],
 			],
@@ -486,6 +686,7 @@ suite('SessionPermissionManager', () => {
 	test('read and write confirmations fall back to the direct parent when no Git root exists', async () => {
 		const checkedPaths: string[] = [];
 		const scopedPermissions = disposables.add(new SessionPermissionManager(manager, {
+			realpath: async path => path,
 			exists: async path => {
 				checkedPaths.push(path);
 				return false;
@@ -504,12 +705,16 @@ suite('SessionPermissionManager', () => {
 					{ id: 'allow-once', label: 'Allow Once', kind: 'approve' },
 					{ id: 'allow-session-rules:["Read(//repo/src/app.ts)"]', label: 'Allow Reading app.ts in this Session', kind: 'approve', group: 1 },
 					{ id: 'allow-session-rules:["Read(//repo/src/**)"]', label: 'Allow Reading Files in src in this Session', kind: 'approve', group: 1 },
+					{ id: 'allow-always-rules:["Read(//repo/src/app.ts)"]', label: 'Always Allow Reading app.ts', kind: 'approve', group: 1 },
+					{ id: 'allow-always-rules:["Read(//repo/src/**)"]', label: 'Always Allow Reading Files in src', kind: 'approve', group: 1 },
 					{ id: 'skip', label: 'Skip', kind: 'deny', group: 2 },
 				],
 				[
 					{ id: 'allow-once', label: 'Allow Once', kind: 'approve' },
 					{ id: 'allow-session-rules:["Edit(//repo/src/app.ts)"]', label: 'Allow Edits to app.ts in this Session', kind: 'approve', group: 1 },
 					{ id: 'allow-session-rules:["Edit(//repo/src/**)"]', label: 'Allow Edits in src in this Session', kind: 'approve', group: 1 },
+					{ id: 'allow-always-rules:["Edit(//repo/src/app.ts)"]', label: 'Always Allow Edits to app.ts', kind: 'approve', group: 1 },
+					{ id: 'allow-always-rules:["Edit(//repo/src/**)"]', label: 'Always Allow Edits in src', kind: 'approve', group: 1 },
 					{ id: 'skip', label: 'Skip', kind: 'deny', group: 2 },
 				],
 			],
@@ -519,6 +724,7 @@ suite('SessionPermissionManager', () => {
 	test('confirming a folder grant appends a recursive Edit rule to session permissions', async () => {
 		setPermissionRules(['existing'], ['blocked'], ['Shell(rm *)']);
 		permissions = disposables.add(new SessionPermissionManager(manager, {
+			realpath: async path => path,
 			exists: async path => path === '/repo/.git',
 		}, configService, new NullLogService(), sessionDataService, createTestChatOwnershipService(manager)));
 		const signal = confirmationSignal({ permissionKind: AgentPermissionKind.Write, permissionPath: '/repo/src/app.ts' });
@@ -535,6 +741,342 @@ suite('SessionPermissionManager', () => {
 			chat: undefined,
 		});
 	});
+
+	for (const permissionKind of [AgentPermissionKind.Read, AgentPermissionKind.Write]) {
+		for (const recursive of [false, true]) {
+			test(`Always ${permissionKind} grants persist canonical paths on the host and apply to other sessions (folder: ${recursive})`, async () => {
+				const alias = join(workDir, 'alias');
+				symlinkSync(outsideDir, alias, directoryLinkType);
+				const canonicalParent = join(outsideDir, 'new', 'deep');
+				const canonicalFile = join(canonicalParent, 'target.txt');
+				const tool = permissionKind === AgentPermissionKind.Write ? 'Edit' : 'Read';
+				const rule = pathRule(tool, recursive ? canonicalParent : canonicalFile, recursive)!;
+				const optionId = permissionGrantOptionId(PermissionGrantScope.Host, [rule]);
+				setPermissionRules(['existing'], ['blocked'], ['Shell(session-asked *)']);
+				configService.updateRootConfig({
+					[SessionConfigKey.Permissions]: {
+						allow: ['WebFetch(existing.test)'], deny: ['WebFetch(blocked.test)'], ask: ['Shell(host-asked *)'],
+					},
+				});
+				const signal = confirmationSignal({ permissionKind, permissionPath: join(alias, 'new', 'deep', 'target.txt') });
+				const pathOptions = await permissions.getPathConfirmationOptions(signal);
+				startConfirmation(signal, pathOptions);
+				confirmToolCall(signal.chat.toString(), signal.state.toolCallId, optionId);
+				permissions.handleToolCallConfirmed(signal.chat.toString(), signal.state.toolCallId, optionId);
+				const otherSession = URI.from({ scheme: 'copilot', path: '/other-file-session' }).toString();
+				manager.createSession(makeSummary(otherSession, URI.file(workDir2).toString()));
+				const event = permissionKind === AgentPermissionKind.Write ? writeEvent : readEvent;
+				const oppositeEvent = permissionKind === AgentPermissionKind.Write ? readEvent : writeEvent;
+				assert.deepStrictEqual({
+					root: configService.getRootValue(platformRootSchema, SessionConfigKey.Permissions),
+					session: configService.getSessionConfigValues(sessionUri)?.[SessionConfigKey.Permissions],
+					chat: manager.getChatConfig(signal.chat.toString()),
+					approvals: await Promise.all([
+						signal.permissionPath!, canonicalFile, join(alias, 'new', 'deep', 'sibling.txt'),
+					].map(file => permissions.getAutoApproval({ ...event(file), session: URI.parse(otherSession) }, otherSession))),
+					opposite: await permissions.getAutoApproval({ ...oppositeEvent(canonicalFile), session: URI.parse(otherSession) }, otherSession),
+					parentExists: existsSync(canonicalParent),
+				}, {
+					root: {
+						allow: ['WebFetch(existing.test)', rule], deny: ['WebFetch(blocked.test)'], ask: ['Shell(host-asked *)'],
+					},
+					session: { allow: ['existing'], deny: ['blocked'], ask: ['Shell(session-asked *)'] },
+					chat: undefined,
+					approvals: [ToolCallConfirmationReason.Setting, ToolCallConfirmationReason.Setting, recursive ? ToolCallConfirmationReason.Setting : undefined],
+					opposite: undefined,
+					parentExists: false,
+				});
+			});
+		}
+	}
+
+	test('Always protected-file grants remain exact and respect asks and denies in other sessions', async () => {
+		const alias = join(workDir, 'alias');
+		symlinkSync(outsideDir, alias, directoryLinkType);
+		const target = join(alias, '.mcp.json');
+		const canonical = join(outsideDir, '.mcp.json');
+		const exactRule = pathRule('Edit', canonical, false)!;
+		const folderRule = pathRule('Edit', outsideDir, true)!;
+		setPermissionRules([]);
+		configService.updateRootConfig({ [SessionConfigKey.Permissions]: { allow: [folderRule], deny: [] } });
+		const signal = confirmationSignal({ permissionKind: AgentPermissionKind.Write, permissionPath: target });
+		const pathOptions = await permissions.getPathConfirmationOptions(signal);
+		startConfirmation(signal, pathOptions);
+		confirmToolCall(signal.chat.toString(), signal.state.toolCallId, permissionGrantOptionId(PermissionGrantScope.Host, [exactRule]));
+		const otherSession = URI.from({ scheme: 'copilot', path: '/other-protected-file-session' }).toString();
+		manager.createSession(makeSummary(otherSession, URI.file(workDir2).toString()));
+		const after = await Promise.all([target, canonical, join(alias, '.npmrc')].map(file =>
+			permissions.getAutoApproval({ ...writeEvent(file), session: URI.parse(otherSession) }, otherSession)));
+		manager.setSessionConfig(otherSession, {
+			schema: platformSessionSchema.toProtocol(),
+			values: { [SessionConfigKey.Permissions]: { allow: [], deny: [], ask: [pathRule('Edit', target, false)!] } },
+		});
+		const asked = await permissions.getAutoApproval(writeEvent(target), otherSession);
+		manager.setSessionConfig(otherSession, {
+			schema: platformSessionSchema.toProtocol(),
+			values: { [SessionConfigKey.Permissions]: { allow: [], deny: [exactRule] } },
+		});
+		const denied = await permissions.isDeniedByPermissions(writeEvent(target), otherSession);
+		assert.deepStrictEqual({
+			root: configService.getRootValue(platformRootSchema, SessionConfigKey.Permissions),
+			after, asked, denied,
+		}, {
+			root: { allow: [folderRule, exactRule], deny: [] },
+			after: [ToolCallConfirmationReason.Setting, ToolCallConfirmationReason.Setting, undefined],
+			asked: undefined, denied: true,
+		});
+	});
+
+	test('managed and sandbox file confirmations offer no reusable session or host grants', async () => {
+		const gates: Partial<IAgentToolPendingConfirmationSignal>[] = [
+			{ managedApprovalRequired: true }, { requestSandboxBypass: true }, { requestSandboxPermissive: true },
+		];
+		const results = [];
+		for (const permissionKind of [AgentPermissionKind.Read, AgentPermissionKind.Write]) {
+			for (const gate of gates) {
+				const signal = confirmationSignal({ permissionKind, permissionPath: join(outsideDir, 'target.txt'), ...gate });
+				const pathOptions = await permissions.getPathConfirmationOptions(signal);
+				results.push(permissions.createToolReadyAction(signal, signal.chat.toString(), 'turn', pathOptions).options?.map(option => option.id));
+			}
+		}
+		assert.deepStrictEqual(results, Array.from({ length: 6 }, () => ['allow-once', 'skip']));
+	});
+
+	test('protected-write confirmations offer an exact file grant but no folder grant', async () => {
+		manager.setSessionConfig(sessionUri, {
+			schema: platformSessionSchema.toProtocol(),
+			values: { [SessionConfigKey.SensitiveEditLocations]: [{ path: 'custom-hooks', isDirectory: true }] },
+		});
+		const files = [
+			join(outsideDir, '.mcp.json'),
+			join(outsideDir, '.vscode', 'settings.json'),
+			join(outsideDir, '.github', 'hooks', 'hook.json'),
+			join(workDir, 'custom-hooks', 'hook.json'),
+		];
+		const options = [];
+		for (const permissionPath of files) {
+			const signal = confirmationSignal({ permissionKind: AgentPermissionKind.Write, permissionPath });
+			const pathOptions = await permissions.getPathConfirmationOptions(signal);
+			options.push(permissions.createToolReadyAction(signal, signal.chat.toString(), 'turn', pathOptions).options?.map(option => option.id));
+		}
+		assert.deepStrictEqual(options, files.map(file => [
+			'allow-once',
+			permissionGrantOptionId(PermissionGrantScope.Session, [pathRule('Edit', file, false)!]),
+			permissionGrantOptionId(PermissionGrantScope.Host, [pathRule('Edit', file, false)!]),
+			'skip',
+		]));
+	});
+
+	test('protected-write confirmations offer canonical exact grants through symlinks', async () => {
+		const hooks = join(workDir, '.github', 'hooks');
+		mkdirSync(hooks, { recursive: true });
+		symlinkSync(hooks, join(workDir, 'alias'), directoryLinkType);
+		const signal = confirmationSignal({ permissionKind: AgentPermissionKind.Write, permissionPath: join(workDir, 'alias', 'hook.json') });
+		const pathOptions = await permissions.getPathConfirmationOptions(signal);
+		const rule = pathRule('Edit', join(hooks, 'hook.json'), false)!;
+		setPermissionRules([rule]);
+		assert.deepStrictEqual({
+			options: permissions.createToolReadyAction(signal, signal.chat.toString(), 'turn', pathOptions).options?.map(option => option.id),
+			approved: await permissions.getAutoApproval(writeEvent(signal.permissionPath!), sessionUri),
+		}, {
+			options: [
+				'allow-once',
+				permissionGrantOptionId(PermissionGrantScope.Session, [rule]),
+				permissionGrantOptionId(PermissionGrantScope.Host, [rule]),
+				'skip',
+			],
+			approved: ToolCallConfirmationReason.Setting,
+		});
+	});
+
+	for (const permissionKind of [AgentPermissionKind.Read, AgentPermissionKind.Write]) {
+		for (const recursive of [false, true]) {
+			for (const existing of [false, true]) {
+				test(`canonical ${permissionKind} grants survive confirmation under symlinked ancestors (folder: ${recursive}, existing: ${existing})`, async () => {
+					const canonicalRoot = join(outsideDir, 'canonical');
+					const alias = join(workDir, 'alias');
+					const canonicalParent = join(canonicalRoot, 'new', 'deep');
+					const canonicalFile = join(canonicalParent, 'target.txt');
+					mkdirSync(canonicalRoot);
+					symlinkSync(canonicalRoot, alias, directoryLinkType);
+					if (existing) {
+						mkdirSync(canonicalParent, { recursive: true });
+						writeFileSync(canonicalFile, 'original');
+					}
+					setPermissionRules([]);
+					const signal = confirmationSignal({ permissionKind, permissionPath: join(alias, 'new', 'deep', 'target.txt') });
+					const tool = permissionKind === AgentPermissionKind.Write ? 'Edit' : 'Read';
+					const fileRule = pathRule(tool, canonicalFile, false)!;
+					const folderRule = pathRule(tool, canonicalParent, true)!;
+					const selectedRule = recursive ? folderRule : fileRule;
+					const pathOptions = await permissions.getPathConfirmationOptions(signal);
+					startConfirmation(signal, pathOptions);
+					confirmToolCall(signal.chat.toString(), signal.state.toolCallId, permissionGrantOptionId(PermissionGrantScope.Session, [selectedRule]));
+					const event = permissionKind === AgentPermissionKind.Write ? writeEvent : readEvent;
+					assert.deepStrictEqual({
+						options: pathOptions.map(option => option.id),
+						stored: configService.getSessionConfigValues(sessionUri)?.[SessionConfigKey.Permissions],
+						approvals: await Promise.all([
+							signal.permissionPath!, canonicalFile, join(alias, 'new', 'deep', 'sibling.txt'),
+						].map(file => permissions.getAutoApproval(event(file), sessionUri))),
+						parentExists: existsSync(canonicalParent),
+					}, {
+						options: [PermissionGrantScope.Session, PermissionGrantScope.Host].flatMap(scope =>
+							[fileRule, folderRule].map(rule => permissionGrantOptionId(scope, [rule]))),
+						stored: { allow: [selectedRule], deny: [] },
+						approvals: [ToolCallConfirmationReason.Setting, ToolCallConfirmationReason.Setting, recursive ? ToolCallConfirmationReason.Setting : undefined],
+						parentExists: existing,
+					});
+				});
+			}
+		}
+
+		test(`canonical ${permissionKind} folder grants capture the nearest Git root through symlinks`, async () => {
+			mkdirSync(join(outsideDir, '.git'));
+			const alias = join(workDir, 'alias');
+			symlinkSync(outsideDir, alias, directoryLinkType);
+			const signal = confirmationSignal({ permissionKind, permissionPath: join(alias, 'new', 'deep', 'target.txt') });
+			const tool = permissionKind === AgentPermissionKind.Write ? 'Edit' : 'Read';
+			const pathOptions = await permissions.getPathConfirmationOptions(signal);
+			assert.deepStrictEqual(pathOptions.map(option => option.id), [PermissionGrantScope.Session, PermissionGrantScope.Host].flatMap(scope => [
+				permissionGrantOptionId(scope, [pathRule(tool, join(outsideDir, 'new', 'deep', 'target.txt'), false)!]),
+				permissionGrantOptionId(scope, [pathRule(tool, outsideDir, true)!]),
+			]));
+		});
+
+		test(`canonical ${permissionKind} grants do not follow escaping or retargeted symlinks`, async () => {
+			const alias = join(workDir, 'alias');
+			mkdirSync(join(outsideDir, '.git'));
+			symlinkSync(outsideDir, alias, directoryLinkType);
+			symlinkSync(workDir2, join(outsideDir, 'escape'), directoryLinkType);
+			setPermissionRules([]);
+			const signal = confirmationSignal({ permissionKind, permissionPath: join(alias, 'target.txt') });
+			const tool = permissionKind === AgentPermissionKind.Write ? 'Edit' : 'Read';
+			const rule = pathRule(tool, outsideDir, true)!;
+			const pathOptions = await permissions.getPathConfirmationOptions(signal);
+			startConfirmation(signal, pathOptions);
+			confirmToolCall(signal.chat.toString(), signal.state.toolCallId, permissionGrantOptionId(PermissionGrantScope.Session, [rule]));
+			const event = permissionKind === AgentPermissionKind.Write ? writeEvent : readEvent;
+			const before = await permissions.getAutoApproval(event(signal.permissionPath!), sessionUri);
+			const escapedPath = join(alias, 'escape', 'target.txt');
+			const escaping = await permissions.getAutoApproval(event(escapedPath), sessionUri);
+			const escapedOptions = await permissions.getPathConfirmationOptions(confirmationSignal({ permissionKind, permissionPath: escapedPath }));
+			rmSync(alias, { recursive: true });
+			symlinkSync(workDir2, alias, directoryLinkType);
+			const retargeted = await permissions.getAutoApproval(event(signal.permissionPath!), sessionUri);
+			assert.deepStrictEqual({
+				before, escaping, retargeted,
+				escapedOptions: escapedOptions.map(option => option.id),
+				stored: configService.getSessionConfigValues(sessionUri)?.[SessionConfigKey.Permissions],
+			}, {
+				before: ToolCallConfirmationReason.Setting, escaping: undefined, retargeted: undefined,
+				escapedOptions: [PermissionGrantScope.Session, PermissionGrantScope.Host].map(scope =>
+					permissionGrantOptionId(scope, [pathRule(tool, join(workDir2, 'target.txt'), false)!])),
+				stored: { allow: [rule], deny: [] },
+			});
+		});
+	}
+
+	test('canonical grants retain ask and deny checks on both path spellings', async () => {
+		const alias = join(workDir, 'alias');
+		symlinkSync(outsideDir, alias, directoryLinkType);
+		const literal = join(alias, 'target.txt');
+		const canonical = join(outsideDir, 'target.txt');
+		const allow = [pathRule('Read', canonical, false)!, pathRule('Edit', canonical, false)!];
+		const results = [];
+		for (const file of [literal, canonical]) {
+			const restrictions = [pathRule('Read', file, false)!, pathRule('Edit', file, false)!];
+			setPermissionRules(allow, [], restrictions);
+			const asked = await Promise.all([readEvent(literal), writeEvent(literal)].map(event => permissions.getAutoApproval(event, sessionUri)));
+			setPermissionRules(allow, restrictions);
+			const denied = await Promise.all([readEvent(literal), writeEvent(literal)].map(event => permissions.isDeniedByPermissions(event, sessionUri)));
+			results.push({ asked, denied });
+		}
+		assert.deepStrictEqual(results, Array.from({ length: 2 }, () => ({ asked: [undefined, undefined], denied: [true, true] })));
+	});
+
+	test('unresolvable paths fail closed without reusable read or edit grants', async () => {
+		setPermissionRules(['Read', 'Edit']);
+		const results = [];
+		for (const code of ['EACCES', 'EPERM', 'ELOOP', 'ENOTDIR', 'ENOENT']) {
+			const scopedPermissions = disposables.add(new SessionPermissionManager(manager, {
+				realpath: async () => {
+					throw Object.assign(new Error(`Cannot resolve path: ${code}`), { code });
+				},
+			}, configService, new NullLogService(), sessionDataService, createTestChatOwnershipService(manager)));
+			for (const permissionKind of [AgentPermissionKind.Read, AgentPermissionKind.Write]) {
+				const permissionPath = join(outsideDir, 'target.txt');
+				const event = permissionKind === AgentPermissionKind.Write ? writeEvent(permissionPath) : readEvent(permissionPath);
+				results.push({
+					approved: await scopedPermissions.getAutoApproval(event, sessionUri),
+					options: await scopedPermissions.getPathConfirmationOptions(confirmationSignal({ permissionKind, permissionPath })),
+				});
+			}
+		}
+		assert.deepStrictEqual(results, Array.from({ length: 10 }, () => ({ approved: undefined, options: [] })));
+	});
+
+	if (!isWindows) {
+		test('dangling file symlinks cannot inherit a folder grant or hide a protected target', async () => {
+			const alias = join(workDir2, 'alias');
+			symlinkSync(workDir, alias, directoryLinkType);
+			symlinkSync(join(outsideDir, '.mcp.json'), join(workDir, 'ordinary.txt'));
+			setPermissionRules([pathRule('Read', workDir, true)!, pathRule('Edit', workDir, true)!]);
+			const permissionPath = join(alias, 'ordinary.txt');
+			const results = [];
+			for (const permissionKind of [AgentPermissionKind.Read, AgentPermissionKind.Write]) {
+				const event = permissionKind === AgentPermissionKind.Write ? writeEvent(permissionPath) : readEvent(permissionPath);
+				results.push({
+					approved: await permissions.getAutoApproval(event, sessionUri),
+					options: await permissions.getPathConfirmationOptions(confirmationSignal({ permissionKind, permissionPath })),
+				});
+			}
+			assert.deepStrictEqual(results, [
+				{ approved: undefined, options: [] },
+				{ approved: undefined, options: [] },
+			]);
+		});
+	}
+
+	test('dangling directory links cannot be treated as missing creation directories', async () => {
+		const dangling = join(workDir, 'dangling');
+		symlinkSync(join(outsideDir, 'missing-target'), dangling, directoryLinkType);
+		setPermissionRules([pathRule('Read', workDir, true)!, pathRule('Edit', workDir, true)!]);
+		const permissionPath = join(dangling, 'new', 'deep', 'file.txt');
+		const results = [];
+		for (const permissionKind of [AgentPermissionKind.Read, AgentPermissionKind.Write]) {
+			const event = permissionKind === AgentPermissionKind.Write ? writeEvent(permissionPath) : readEvent(permissionPath);
+			results.push({
+				approved: await permissions.getAutoApproval(event, sessionUri),
+				options: await permissions.getPathConfirmationOptions(confirmationSignal({ permissionKind, permissionPath })),
+			});
+		}
+		assert.deepStrictEqual(results, [
+			{ approved: undefined, options: [] },
+			{ approved: undefined, options: [] },
+		]);
+	});
+
+	for (const exactFileGrant of [false, true]) {
+		test(`protected writes after folder approval honor only reusable exact-file approval (exact file grant: ${exactFileGrant})`, async () => {
+			const target = join(outsideDir, '.mcp.json');
+			const ordinary = join(outsideDir, 'app.ts');
+			const folderRule = pathRule('Edit', outsideDir, true)!;
+			const fileRule = pathRule('Edit', target, false)!;
+			setPermissionRules([]);
+			configService.updateRootConfig({ [SessionConfigKey.Permissions]: { allow: [folderRule], deny: [] } });
+			const before = await Promise.all([ordinary, target].map(file => permissions.getAutoApproval(writeEvent(file), sessionUri)));
+			const signal = confirmationSignal({ permissionKind: AgentPermissionKind.Write, permissionPath: target });
+			const pathOptions = await permissions.getPathConfirmationOptions(signal);
+			startConfirmation(signal, pathOptions);
+			confirmToolCall(signal.chat.toString(), signal.state.toolCallId, exactFileGrant ? `allow-session-rules:${JSON.stringify([fileRule])}` : 'allow-once');
+			const after = await Promise.all([ordinary, target, join(outsideDir, '.npmrc')].map(file => permissions.getAutoApproval(writeEvent(file), sessionUri)));
+			assert.deepStrictEqual({ before, after }, {
+				before: [ToolCallConfirmationReason.Setting, undefined],
+				after: [ToolCallConfirmationReason.Setting, exactFileGrant ? ToolCallConfirmationReason.Setting : undefined, undefined],
+			});
+		});
+	}
 
 	test('other kinds keep the session grant first, while managed and sandbox asks remain one-time', () => {
 		assert.deepStrictEqual([
@@ -727,6 +1269,8 @@ suite('SessionPermissionManager', () => {
 			const files = [
 				join('.GITHUB', 'agents', 'dev-helper.md'),
 				join('.GITHUB', 'hooks', 'say-hi.json'),
+				join('.GITHUB', 'copilot', 'settings.json'),
+				join('.github', 'COPILOT', 'SETTINGS.LOCAL.JSON'),
 				join('.CLAUDE', 'agents', 'dev-helper.md'),
 				join('.CLAUDE', 'settings.json'),
 				join('.CLAUDE', 'settings.local.json'),
@@ -811,6 +1355,8 @@ suite('SessionPermissionManager', () => {
 		const files = [
 			join('.github', 'agents', 'dev-helper.md'),
 			join('.github', 'hooks', 'say-hi.json'),
+			join('.github', 'copilot', 'settings.json'),
+			join('.github', 'copilot', 'settings.local.json'),
 			join('.claude', 'agents', 'dev-helper.md'),
 			join('.claude', 'settings.json'),
 			join('.claude', 'settings.local.json'),
@@ -823,6 +1369,32 @@ suite('SessionPermissionManager', () => {
 			results.push(await permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri));
 		}
 		assert.deepStrictEqual(results, files.map(() => undefined));
+	});
+
+	test('requires confirmation for Copilot hook settings and MCP files despite explicit edit approval', async () => {
+		configService.updateRootConfig({
+			[AgentHostEditAutoApprovePatternsConfigKey]: {
+				'**/*': true,
+				'**/.github/copilot/settings.json': true,
+				'**/.github/copilot/settings.local.json': true,
+				'**/.mcp.json': true,
+			},
+		});
+		const files = [
+			join('.github', 'copilot', 'settings.json'),
+			join('.github', 'copilot', 'settings.local.json'),
+			'.mcp.json',
+		];
+		const results = await Promise.all(['', 'nested'].flatMap(directory =>
+			files.map(file => permissions.getAutoApproval(writeEvent(join(workDir, directory, file)), sessionUri))));
+
+		assert.deepStrictEqual({
+			protectedFiles: results,
+			ordinaryFile: await permissions.getAutoApproval(writeEvent(join(workDir, '.github', 'copilot', 'notes.md')), sessionUri),
+		}, {
+			protectedFiles: [...files, ...files].map(() => undefined),
+			ordinaryFile: ToolCallConfirmationReason.NotNeeded,
+		});
 	});
 
 	test('requires confirmation for configured custom hook file location', async () => {
@@ -1504,6 +2076,16 @@ suite('SessionPermissionManager', () => {
 
 			const result = await permissions.getAutoApproval(inlineEvent(writeEvent(target)), inlineSessionUri);
 			assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
+		});
+
+		test('protected inline targets require confirmation unless their absolute file is explicitly allowed', async () => {
+			const target = join(workDir, '.mcp.json');
+			createInlineSession(URI.file(target).toString());
+			const event = inlineEvent(writeEvent(target));
+			const before = await permissions.getAutoApproval(event, inlineSessionUri);
+			configService.updateRootConfig({ [SessionConfigKey.Permissions]: { allow: [pathRule('Edit', target, false)!], deny: [] } });
+			const after = await permissions.getAutoApproval(event, inlineSessionUri);
+			assert.deepStrictEqual({ before, after }, { before: undefined, after: ToolCallConfirmationReason.Setting });
 		});
 
 		test('auto-approves reads and writes of the target file outside the working directory', async () => {

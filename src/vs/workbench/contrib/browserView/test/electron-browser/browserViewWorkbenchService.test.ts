@@ -28,6 +28,7 @@ import { BrowserViewWorkbenchService } from '../../electron-browser/browserViewW
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, PreferredGroup } from '../../../../services/editor/common/editorService.js';
+import { IUnattendedRestartService } from '../../../../services/lifecycle/common/unattendedRestart.js';
 
 suite('BrowserViewWorkbenchService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -103,7 +104,8 @@ suite('BrowserViewWorkbenchService', () => {
 		const service = store.add(instantiationService.createInstance(BrowserViewWorkbenchService));
 		instantiationService.stub(IBrowserViewWorkbenchService, service);
 		const workspaceTrustService = instantiationService.get(IWorkspaceTrustManagementService);
-		return { service, events, creationOptions, loadedUrls, windowConfigurations, configurationService, workspaceTrustService, publishing };
+		const unattendedRestartService = instantiationService.get(IUnattendedRestartService);
+		return { service, events, creationOptions, loadedUrls, windowConfigurations, configurationService, workspaceTrustService, publishing, unattendedRestartService };
 	}
 
 	function info(id: string, presentation = BrowserViewPresentation.Listed): IBrowserViewInfo {
@@ -255,6 +257,31 @@ suite('BrowserViewWorkbenchService', () => {
 			externalRequests: ['http://localhost:3000/details'],
 			knownIds: ['listed-page'],
 		});
+	});
+
+	test('blocks unattended restarts while a page is live', async () => {
+		const { service, events, unattendedRestartService } = createService();
+		const results: (readonly string[])[] = [];
+		const check = async () => results.push((await unattendedRestartService.canRestartUnattended()).blockers);
+
+		const restored = store.add(service.getOrCreateLazy({ id: 'restored', url: 'https://saved.example/' }));
+		await check();
+
+		const [serialized, screenshot] = serializeBrowserViewInfo(info('page'));
+		events.fire([{ type: 'created', windowId: 1, data: { info: serialized } }, [screenshot]]);
+		const page = store.add(service.getKnownBrowserViews().get('page')!);
+		await check();
+		page.dispose();
+		await check();
+
+		const canvas = await service.createExternalBrowserView('https://example.test/canvas', 'canvas');
+		await check();
+		canvas.dispose();
+		await check();
+
+		restored.dispose();
+		await Promise.resolve();
+		assert.deepStrictEqual(results, [[], ['browser.livePage'], [], ['browser.livePage'], []]);
 	});
 
 	test('cleans event lifetimes when embedded canvas models are repeatedly disposed', async () => {

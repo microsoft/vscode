@@ -40,6 +40,7 @@ export const SessionSupportsForkContext = new RawContextKey<boolean>('sessionSup
 export const SessionSupportsSideChatContext = new RawContextKey<boolean>('sessionSupportsSideChat', false, localize('sessionSupportsSideChat', "Whether the session view's session supports creating a side chat from a turn (via /btw)"));
 export const SessionHasMultipleCommittedChatsContext = new RawContextKey<boolean>('sessionHasMultipleCommittedChats', false, localize('sessionHasMultipleCommittedChats', "Whether the session view's session has more than one committed (non-draft) chat, which drives the Chats dropdown visibility"));
 export const SessionActiveChatResourceContext = new RawContextKey<string>('sessionActiveChatResource', '', localize('sessionActiveChatResource', "The resource of the chat represented by the session or chat header"));
+export const SessionActiveChatCanvasReferenceKeysContext = new RawContextKey<string[]>('sessionActiveChatCanvasReferenceKeys', [], localize('sessionActiveChatCanvasReferenceKeys', "The live Canvas references owned by the chat represented by the session view"));
 export const SessionActiveChatHasSideChatsContext = new RawContextKey<boolean>('sessionActiveChatHasSideChats', false, localize('sessionActiveChatHasSideChats', "Whether the chat represented by the session or chat header has side chats"));
 export const SessionShouldShowChatTabsContext = new RawContextKey<boolean>('sessionShouldShowChatTabs', false, localize('sessionShouldShowChatTabs', "Whether the session view's chat tab strip is shown, i.e. the session has more than one chat actually showing as a tab. A single visible tab always hides the strip"));
 export const SessionHasMultipleOpenChatsContext = new RawContextKey<boolean>('sessionHasMultipleOpenChats', false, localize('sessionHasMultipleOpenChats', "Whether the session view's session has more than one open chat (the tabs shown in the strip, including in-composer drafts). Used to scope chat-to-chat navigation (next/previous chat, the Ctrl+Tab chat switcher)"));
@@ -83,6 +84,7 @@ export const SessionsHasClosedItemContext = new RawContextKey<boolean>('sessions
  * commands defer to those commands while this holds.
  */
 export const SessionsEditorScopeContext = ContextKeyExpr.or(EditorAreaFocusContext, AuxiliaryBarFocusContext)!;
+export const ActiveSessionCanvasReferenceContext = new RawContextKey<string>('activeSessionCanvasReference', '', localize('activeSessionCanvasReference', "The reference key of the active session Canvas editor"));
 
 //#endregion
 

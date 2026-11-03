@@ -130,7 +130,7 @@ export interface IActionListItemInlineToggle {
 	/** Current checked state of the switch. */
 	readonly checked: boolean;
 	/** Invoked when the user flips the switch. */
-	readonly onChange: (checked: boolean) => void;
+	readonly onChange: (checked: boolean) => void | Promise<void>;
 	/** Optional accessible/hover title for the switch. Defaults to {@link label}. */
 	readonly title?: string;
 	/** Show an information icon after the label to draw attention to the hover. */

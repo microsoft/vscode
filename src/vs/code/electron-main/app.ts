@@ -93,6 +93,8 @@ import { DarwinUpdateService } from '../../platform/update/electron-main/updateS
 import { LinuxUpdateService } from '../../platform/update/electron-main/updateService.linux.js';
 import { SnapUpdateService } from '../../platform/update/electron-main/updateService.snap.js';
 import { Win32UpdateService } from '../../platform/update/electron-main/updateService.win32.js';
+import { UnattendedRestartScheduler } from '../../platform/update/electron-main/unattendedRestartScheduler.js';
+import { IUnattendedRestartReadinessProvider, UnattendedRestartChannelName } from '../../platform/lifecycle/common/unattendedRestart.js';
 import { isInnoSetupInstall } from '../../platform/update/electron-main/win32UpdateType.js';
 import { IOpenURLOptions, IURLService } from '../../platform/url/common/url.js';
 import { URLHandlerChannelClient, URLHandlerRouter } from '../../platform/url/common/urlIpc.js';
@@ -802,6 +804,13 @@ export class CodeApplication extends Disposable {
 
 		// Post Open Windows Tasks
 		this.afterWindowOpen(appInstantiationService);
+
+		// Restart to apply updates while the screen is locked
+		this._register(appInstantiationService.createInstance(UnattendedRestartScheduler, {
+			getWindowReadiness: window => ProxyChannel.toService<IUnattendedRestartReadinessProvider>(
+				mainProcessElectronServer.getChannel(UnattendedRestartChannelName, client => client.ctx === `window:${window.id}`)
+			).canRestartUnattended()
+		}));
 
 		const isGeneratingNodeCompileCache = process.env['VSCODE_GENERATE_NODE_COMPILE_CACHE'] === '1';
 		const shouldStartCriticalNodeProcesses = isGeneratingNodeCompileCache || process.env['VSCODE_MEASURE_NODE_COMPILE_CACHE'] === '1';

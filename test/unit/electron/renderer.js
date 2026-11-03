@@ -278,6 +278,11 @@ async function loadTests(opts) {
 	const { assertCleanState } = await loadFn('vs/workbench/test/common/utils');
 	const { installRegistryLeakCheck } = await loadFn('vs/platform/actions/test/common/registryLeakCheck');
 	installRegistryLeakCheck(mocha.suite);
+	const { installIsolationCheck, defaultIsolationDetectors, animationFrameQueueDetector } = await loadFn('vs/base/test/browser/isolationCheck');
+	const { menuChangeListenerDetector } = await loadFn('vs/platform/actions/test/common/menuChangeListenerDetector');
+	// The animation frame probe changes when queued runners run, so only reporting runs use it.
+	const isolationProbes = process.env.VSCODE_TEST_ISOLATION_REPORT ? [animationFrameQueueDetector] : [];
+	installIsolationCheck(mocha.suite, [...defaultIsolationDetectors, menuChangeListenerDetector, ...isolationProbes]);
 
 	suite('Tests are using suiteSetup and setup correctly', () => {
 		test('assertCleanState - check that registries are clean at the start of test running', () => {
@@ -409,6 +414,32 @@ function isObject(obj) {
 		&& !(obj instanceof Date);
 }
 
+/**
+ * Appends what the isolation checks found (see isolationCheck.ts) to the JSON lines file in
+ * VSCODE_TEST_ISOLATION_REPORT, one line per finding, so the findings of several windows end up in one file.
+ */
+async function writeIsolationFindings() {
+	const reportPath = process.env.VSCODE_TEST_ISOLATION_REPORT;
+	if (!reportPath) {
+		return;
+	}
+	try {
+		// Settles checks that only a later suite would have settled, see flushIsolationChecks in isolationCheck.ts.
+		await globalThis.__vscodeTestIsolationFlush?.();
+	} catch (error) {
+		console.error(`Failed to flush isolation checks: ${error}`);
+	}
+	const findings = globalThis.__vscodeTestIsolationFindings;
+	if (findings?.length) {
+		try {
+			fs.appendFileSync(reportPath, findings.map(finding => JSON.stringify({ runner: 'electron', ...finding }) + '\n').join(''));
+		} catch (error) {
+			// The report is optional: never keep the run from finishing.
+			console.error(`Failed to write isolation findings to ${reportPath}: ${error}`);
+		}
+	}
+}
+
 class IPCReporter {
 
 	constructor(runner) {
@@ -493,6 +524,7 @@ async function runTests(opts) {
 
 	const runner = mocha.run(async () => {
 		await createCoverageReport(opts);
+		await writeIsolationFindings();
 		ipcRenderer.send('all done');
 	});
 
