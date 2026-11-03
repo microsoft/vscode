@@ -201,7 +201,7 @@ suite('SessionBrowserNetworkContribution', () => {
 		});
 
 		// When the host disconnects and is removed from connections, the friendly name is retained
-		currentConnections = [];
+		currentConnections.length = 0;
 		onDidChangeConnections.fire();
 
 		assert.deepStrictEqual(resolver.getNetworkStatus({ authority: 'tunnel__sneaky-ant' }), {
