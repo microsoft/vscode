@@ -29,7 +29,7 @@ import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition
 import { ChatWindowChatLayouts, ChatWindowChatSizes, ChatWindowDefaults, ChatWindowState } from '../common/chatWindowState.js';
 import { IChatWindow, IChatWindowChatPart, IChatWindowContent, IChatWindowEditors, IChatWindowOpenOptions, IChatWindowProvider, IChatWindowService } from './chatWindow.js';
 import { bindWindowLayoutContext, bindWindowTerminalsContext } from './chatWindowContextKeys.js';
-import { captureChatPart, deserializeChatWindowEditors, reopenChatWindow, serializeChatWindowEditors } from './chatWindowEditors.js';
+import { captureChatPart, deserializeChatWindowEditors, getRestoredChatGroup, reopenChatWindow, serializeChatWindowEditors } from './chatWindowEditors.js';
 import { InFlightOperations, openCleaningUpOnFailure } from './chatWindowOpening.js';
 import { bindMainPartVisible, moveEditorsToChatWindow, showChatInsteadOfEmptyMainPart, trackMainPartEditors } from './chatWindowParts.js';
 import { ChatWindowGrid } from './chatWindowGrid.js';
@@ -573,7 +573,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		}));
 
 		// With the groups of the chat part it showed before, the chat goes back into its own group among them
-		const chatGroup = (options?.chatPart && chatPart.getGroups(GroupsOrder.GRID_APPEARANCE)[options.chatPart.chatGroup]) || chatPart.activeGroup;
+		const chatGroup = getRestoredChatGroup(chatPart, options?.chatPart);
 		chatPart.activateGroup(chatGroup);
 		await chatGroup.openEditor(content.input, { pinned: true, preserveFocus: options?.preserveFocus });
 		await this._openEditors(options?.editors, mainPart);

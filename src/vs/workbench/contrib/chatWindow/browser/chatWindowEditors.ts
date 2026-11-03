@@ -8,7 +8,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { GroupsOrder, IEditorGroup, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
+import { GroupsOrder, IContentPart, IEditorGroup, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IChatWindow, IChatWindowChatPart, IChatWindowOpenOptions } from './chatWindow.js';
 
 /** An editor of a chat window's main part, serialized with the serializer of its editor type. */
@@ -71,10 +71,15 @@ export function isSerializedChatWindowEditor(value: unknown): value is ISerializ
 }
 
 /** The groups of a chat window's chat part to open it with again, if the part has more groups than the chat's own. */
-export function captureChatPart(chatPart: IEditorPart, chatInput: EditorInput): IChatWindowChatPart | undefined {
+export function captureChatPart(chatPart: IContentPart, chatInput: EditorInput): IChatWindowChatPart | undefined {
 	const groups = chatPart.getGroups(GroupsOrder.GRID_APPEARANCE);
 	const chatGroup = groups.findIndex(group => group.contains(chatInput));
 	return groups.length > 1 && chatGroup !== -1 ? { state: chatPart.createState(), chatGroup } : undefined;
+}
+
+/** The group of a chat part, restored from what {@link captureChatPart} captured, to open the chat in: its own group, else the active one. */
+export function getRestoredChatGroup(chatPart: IEditorPart, captured: IChatWindowChatPart | undefined): IEditorGroup {
+	return (captured && chatPart.getGroups(GroupsOrder.GRID_APPEARANCE)[captured.chatGroup]) || chatPart.activeGroup;
 }
 
 /** Whether `value`, read from storage, is what {@link captureChatPart} captured. */

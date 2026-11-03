@@ -27,8 +27,8 @@ interface IStoredChatWindow {
 	readonly editors?: readonly ISerializedChatWindowEditor[];
 	/** Whether it showed its terminals. */
 	readonly terminal?: boolean;
-	/** The groups of its chat part besides the chat's own, such as an editor split beside the chat. */
-	readonly chatPart?: IChatWindowChatPart;
+	/** The groups of its chat part besides the chat's own, such as an editor split beside the chat; checked as it restores. */
+	readonly chatPart?: unknown;
 }
 
 function isStoredChatWindow(entry: Partial<IStoredChatWindow> | undefined): entry is IStoredChatWindow {
@@ -36,8 +36,7 @@ function isStoredChatWindow(entry: Partial<IStoredChatWindow> | undefined): entr
 		&& (entry.chat === undefined || typeof entry.chat === 'string')
 		&& (entry.session === undefined || typeof entry.session === 'string')
 		&& (entry.editors === undefined || (Array.isArray(entry.editors) && entry.editors.every(isSerializedChatWindowEditor)))
-		&& (entry.terminal === undefined || typeof entry.terminal === 'boolean')
-		&& (entry.chatPart === undefined || isChatWindowChatPart(entry.chatPart));
+		&& (entry.terminal === undefined || typeof entry.terminal === 'boolean');
 }
 
 function storedChat(entry: IStoredChatWindow): string {
@@ -158,7 +157,7 @@ export class ChatWindowsRestoration extends Disposable {
 			}
 			try {
 				const editors = deserializeChatWindowEditors(this._instantiationService, entry.editors ?? [], error => this._logService.error('[ChatWindow] Failed to restore an editor of a chat window', error));
-				await this._host.open(chat, { preserveFocus: true, showTerminals: entry.terminal, editors, chatPart: entry.chatPart });
+				await this._host.open(chat, { preserveFocus: true, showTerminals: entry.terminal, editors, chatPart: isChatWindowChatPart(entry.chatPart) ? entry.chatPart : undefined });
 			} catch (error) {
 				this._logService.error(`[ChatWindow] Failed to restore the chat window of ${chat.toString()}`, error);
 			}

@@ -106,9 +106,9 @@ suite('ChatWindowsRestoration', () => {
 		assert.deepStrictEqual({ afterFirst, afterSecond: read() }, { afterFirst: [{ session: 'test:/session' }], afterSecond: undefined });
 	});
 
-	test('a window is restored, without focus, for each stored chat that is not gone, and a window stored with its session shows the session', async () => {
+	test('a window is restored, without focus, for each stored chat that is not gone, with the groups of its chat part, and a window stored with its session shows the session; a stored chat part that is not one is left out', async () => {
 		const { opened } = createRestoration({
-			stored: [{ chat: 'test:/peer', terminal: true, chatPart: { state: { serializedGrid: {} }, chatGroup: 1 } }, { session: 'test:/session' }, { chat: 'test:/archived' }],
+			stored: [{ chat: 'test:/peer', terminal: true, chatPart: { state: { serializedGrid: {} }, chatGroup: 1 } }, { session: 'test:/session' }, { chat: 'test:/archived' }, { chat: 'test:/invalid', chatPart: { state: 'not a state', chatGroup: 0 } }],
 			gone: ['test:/archived'],
 		});
 		await flush();
@@ -116,6 +116,7 @@ suite('ChatWindowsRestoration', () => {
 		assert.deepStrictEqual(opened.map(window => ({ chat: window.chat, preserveFocus: window.options.preserveFocus, showTerminals: window.options.showTerminals, chatPart: window.options.chatPart })), [
 			{ chat: 'test:/peer', preserveFocus: true, showTerminals: true, chatPart: { state: { serializedGrid: {} }, chatGroup: 1 } },
 			{ chat: 'test:/session', preserveFocus: true, showTerminals: undefined, chatPart: undefined },
+			{ chat: 'test:/invalid', preserveFocus: true, showTerminals: undefined, chatPart: undefined },
 		]);
 	});
 

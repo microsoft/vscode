@@ -19,7 +19,7 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { GroupDirection, GroupsOrder, IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { createEditorParts, registerTestEditor, TestFileEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IChatWindow } from '../../browser/chatWindow.js';
-import { captureChatPart, reopenChatWindow } from '../../browser/chatWindowEditors.js';
+import { captureChatPart, getRestoredChatGroup, reopenChatWindow } from '../../browser/chatWindowEditors.js';
 import { moveEditorsToChatWindow } from '../../browser/chatWindowParts.js';
 
 /** An editor that shows only in the main window, as a canvas does: it vetoes every move. */
@@ -98,12 +98,17 @@ suite('Chat window: moving editors', () => {
 		const restoredChat = disposables.add(new TestFileEditorInput(URI.file('/chat'), 'chatWindowChatInput'));
 		const restored = parts.createEditorPart({ container: document.createElement('div'), state: captured!.state });
 		disposables.add({ dispose: () => restored.close() });
-		await restored.getGroups(GroupsOrder.GRID_APPEARANCE)[captured!.chatGroup].openEditor(restoredChat, { pinned: true });
+		await getRestoredChatGroup(restored, captured).openEditor(restoredChat, { pinned: true });
+		// A stored group the part no longer has, and no stored groups at all, leave the chat to the active group
+		const gone = getRestoredChatGroup(restored, { state: captured!.state, chatGroup: 5 }) === restored.activeGroup;
+		const none = getRestoredChatGroup(restored, undefined) === restored.activeGroup;
 
 		const names = (part: IContentPart) => part.getGroups(GroupsOrder.GRID_APPEARANCE).map(group => group.getEditors(EditorsOrder.SEQUENTIAL).map(editor => editor.resource?.path));
-		assert.deepStrictEqual({ chatGroup: captured?.chatGroup, notSplit, before: names(chatPart), restored: names(restored) }, {
+		assert.deepStrictEqual({ chatGroup: captured?.chatGroup, notSplit, gone, none, before: names(chatPart), restored: names(restored) }, {
 			chatGroup: 0,
 			notSplit: undefined,
+			gone: true,
+			none: true,
 			before: [['/chat'], ['/alpha']],
 			restored: [['/chat'], ['/alpha']]
 		});
