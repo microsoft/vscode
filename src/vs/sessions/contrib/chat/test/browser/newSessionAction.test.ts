@@ -7,13 +7,17 @@ import assert from 'assert';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INewSessionInAgentsWindowOptions, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IsAuxiliaryWindowContext, SideBarVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { Menus } from '../../../../browser/menus.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
+import { SessionsTitleBarNewSessionEnabledContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { IWindowCanvasService } from '../../../../services/canvas/browser/windowCanvasService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -58,6 +62,18 @@ suite('NewChatInSessionsWindowAction', () => {
 			run: (args: INewSessionInAgentsWindowOptions) => instantiationService.invokeFunction(command.handler, args),
 		};
 	}
+
+	test('shows in the title bar in place of the hidden sessions list of the main window only, never in another window such as a chat window', () => {
+		const menu = new NewChatInSessionsWindowAction().desc.menu;
+		const when = (Array.isArray(menu) ? menu : [menu]).find(item => item?.id === Menus.TitleBarLeftLayout)?.when;
+		const shows = (isAuxiliaryWindow: boolean) => !!when?.evaluate(new class extends mock<IContext>() {
+			override getValue<T>(key: string): T | undefined {
+				const values: Record<string, unknown> = { [IsAuxiliaryWindowContext.key]: isAuxiliaryWindow, [SideBarVisibleContext.key]: false, [SessionsWelcomeVisibleContext.key]: false, [SessionsTitleBarNewSessionEnabledContext.key]: true };
+				return values[key] as T | undefined;
+			}
+		}());
+		assert.deepStrictEqual({ mainWindow: shows(false), chatWindow: shows(true) }, { mainWindow: true, chatWindow: false });
+	});
 
 	test('reuses an already registered New Session command', async () => {
 		createCommand();
