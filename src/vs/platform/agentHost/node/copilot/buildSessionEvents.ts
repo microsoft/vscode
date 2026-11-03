@@ -3,10 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { JsonValue, SessionEvent } from '@github/copilot-sdk';
-import { isObject } from '../../../../base/common/types.js';
+import type { Attachment, JsonValue, SessionEvent } from '@github/copilot-sdk';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { isDefined, isObject } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
 import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
+import { readAttachmentDetail } from '../../common/meta/attachmentMeta.js';
+import { MessageAttachmentKind, type MessageAttachment, type TextRange } from '../../common/state/protocol/state.js';
 import { getInlineToolInput, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type MarkdownResponsePart, type ReasoningResponsePart, type ToolCallCompletedState, type ToolResultContent, type ToolResultSubagentContent, type Turn } from '../../common/state/sessionState.js';
+import { addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
 
 /**
  * Default schema version stamped on the synthesized `session.start` event.
@@ -36,7 +42,7 @@ export interface IBuildSessionEventsOptions {
 	readonly sessionId: string;
 	/** Working directory of the session, recorded on `session.start` context. */
 	readonly workingDirectory?: string;
-	/** Model id to attribute the synthesized assistant messages to, if known. */
+	/** Model id for turns that do not record a model this host can use, and the model the log ends on. */
 	readonly model?: string;
 	/** Copilot application version string for `session.start`. Defaults to `0.0.0`. */
 	readonly copilotVersion?: string;
@@ -73,10 +79,19 @@ export interface IBuildSessionEventsOptions {
  * A cancelled turn ({@link TurnState.Cancelled}) emits a trailing `abort` event
  * so it reconstructs as cancelled. Content refs and system notifications are
  * skipped.
+ *
+ * Each user message carries its translated attachments. Each turn runs on the
+ * model its message records, or on {@link IBuildSessionEventsOptions.model}
+ * when it records none (e.g. a model this host cannot use); a
+ * `session.model_change` precedes any turn whose model differs from the one in
+ * effect, so a turn never inherits the previous turn's model. The log ends on
+ * {@link IBuildSessionEventsOptions.model} so it agrees with the session's
+ * selected model.
  */
 export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBuildSessionEventsOptions): SessionEvent[] {
 	const events: SessionEvent[] = [];
 	let parentId: string | null = null;
+	let currentModel = options.model;
 
 	// Synthesize strictly increasing ISO timestamps so the event order on disk
 	// is unambiguous even for turns that were originally seconds apart.
@@ -164,12 +179,31 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 		},
 	});
 
+	const pushModelChange = (newModel: string | undefined): void => {
+		if (!newModel || newModel === currentModel) {
+			return;
+		}
+		push({
+			id: generateUuid(),
+			parentId,
+			timestamp: nextTimestamp(),
+			type: 'session.model_change',
+			data: {
+				newModel,
+				...(currentModel ? { previousModel: currentModel } : {}),
+			},
+		});
+		currentModel = newModel;
+	};
+
 	for (const turn of turns) {
+		pushModelChange(turn.message.model?.id ?? options.model);
 		// Reuse the turn id as the user-message envelope id when it is already a
 		// UUID (the runtime rejects non-UUID event ids) so the reconstructed turn
 		// keeps the id the SDK's fork/truncate RPCs address and a caller can seed
 		// a matching protocol turn; otherwise mint a fresh UUID.
 		const turnId = isUUID(turn.id) ? turn.id : generateUuid();
+		const attachments = toSdkAttachments(turn.message.attachments);
 		push({
 			id: turnId,
 			parentId,
@@ -178,6 +212,7 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 			data: {
 				content: turn.message.text,
 				source: 'user',
+				...(attachments ? { attachments } : {}),
 			},
 		});
 
@@ -198,7 +233,7 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 					content: markdown,
 					messageId: generateUuid(),
 					...(reasoning ? { reasoningText: reasoning } : {}),
-					...(options.model ? { model: options.model } : {}),
+					...(currentModel ? { model: currentModel } : {}),
 				},
 			});
 			options.onAssistantMessage?.(turnId, responseId, parts);
@@ -249,8 +284,57 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 			});
 		}
 	}
+	pushModelChange(options.model);
 
 	return events;
+}
+
+/**
+ * Translates imported message attachments into the SDK attachments recorded on
+ * a `user.message`, mirroring the send path's mapping. The event log records
+ * local paths only, so a reference to a non-`file` resource is kept as a text
+ * attachment naming the resource instead of being misread as a path.
+ *
+ * A selection is recorded with its text only when the attachment carries the
+ * text that was originally sent. Otherwise it becomes a file reference scoped
+ * to the selected lines, so the history never presents the file's current
+ * contents as what was selected at the time.
+ */
+function toSdkAttachments(attachments: readonly MessageAttachment[] | undefined): Attachment[] | undefined {
+	const result = attachments?.map(toSdkAttachment).filter(isDefined);
+	return result?.length ? result : undefined;
+}
+
+function toSdkAttachment(attachment: MessageAttachment): Attachment | undefined {
+	switch (attachment.type) {
+		case MessageAttachmentKind.Simple:
+			return attachment.modelRepresentation
+				? { type: 'blob', data: encodeBase64(VSBuffer.fromString(attachment.modelRepresentation)), mimeType: addSimpleAttachmentDisplayKindToMimeType(attachment), displayName: attachment.label }
+				: undefined;
+		case MessageAttachmentKind.EmbeddedResource:
+			return { type: 'blob', data: attachment.data, mimeType: attachment.contentType, displayName: attachment.label };
+		case MessageAttachmentKind.Resource: {
+			const uri = URI.parse(attachment.uri);
+			if (uri.scheme !== Schemas.file) {
+				return { type: 'blob', data: encodeBase64(VSBuffer.fromString(attachment.uri)), mimeType: 'text/plain', displayName: attachment.label };
+			}
+			if (attachment.selection) {
+				const text = readAttachmentDetail(attachment)?.text;
+				return text !== undefined
+					? { type: 'selection', filePath: uri.fsPath, displayName: attachment.label, text, selection: attachment.selection.range }
+					: { type: 'file', path: uri.fsPath, displayName: attachment.label, lineRange: toLineRange(attachment.selection.range) };
+			}
+			return { type: attachment.displayKind === 'directory' ? 'directory' : 'file', path: uri.fsPath, displayName: attachment.label };
+		}
+		default:
+			return undefined;
+	}
+}
+
+/** The 1-based inclusive lines a 0-based range covers; a range ending at a line start excludes that line. */
+function toLineRange(range: TextRange): { start: number; end: number } {
+	const endLine = range.end.character === 0 && range.end.line > range.start.line ? range.end.line - 1 : range.end.line;
+	return { start: range.start.line + 1, end: endLine + 1 };
 }
 
 /** Concatenates the text of a completed tool call's textual result content blocks. */
