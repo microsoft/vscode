@@ -106,7 +106,7 @@ Options:
 --runGlob, --glob, --runGrep <file_pattern> only run tests matching <file_pattern>
 --excludeRunGlob <file_pattern> exclude tests matching <file_pattern> from --runGlob
 --testSplit <i>/<n>           split tests into <n> parts and run the <i>th part
---testShard <i>/<n>           split the tests of the loaded files into <n> contiguous parts and run the <i>th part, for example to run the tests of one file in several processes
+--testShard <i>/<n>           run every <n>th test of the loaded files, starting with the <i>th, for example to run the tests of one file in several processes
 --build                       run with build output (out-build)
 --coverage                    generate coverage report
 --per-test-coverage           generate a per-test V8 coverage report, only valid with the full-json-stream reporter

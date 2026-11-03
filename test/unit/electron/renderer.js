@@ -496,8 +496,10 @@ const setTimeout0 = (() => {
 })();
 
 /**
- * Keeps the <i>th of <n> contiguous parts of the loaded tests (--testShard <i>/<n>), so that the tests
- * of one file can run in several processes. Mocha skips the suites left without tests, hooks included.
+ * Keeps every <n>th of the loaded tests, starting with the <i>th (--testShard <i>/<n>), so that the tests
+ * of one file can run in several processes. Taking every <n>th test, rather than a contiguous part, spreads
+ * the slow tests that files group together across the processes. Mocha skips the suites left without
+ * tests, hooks included.
  * @param {Mocha.Suite} rootSuite
  * @param {string} testShard
  */
@@ -515,7 +517,7 @@ function shardTests(rootSuite, testShard) {
 		suite.suites.forEach(collect);
 	};
 	collect(rootSuite);
-	const kept = new Set(tests.slice(Math.floor((index - 1) * tests.length / total), Math.floor(index * tests.length / total)));
+	const kept = new Set(tests.filter((_test, position) => position % total === index - 1));
 	const filter = (/** @type {Mocha.Suite} */ suite) => {
 		suite.tests = suite.tests.filter(test => kept.has(test));
 		suite.suites.forEach(filter);
