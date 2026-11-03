@@ -7,7 +7,7 @@ import { getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browse
 import { Direction, ISerializedGrid, ISerializedNode, IViewSize, Orientation } from '../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, autorunHandleChanges, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { IPartGridView, PartGrid, PartGridCellContent, PartGridLocation } from '../../../browser/parts/partGrid/partGrid.js';
 import { IGridEdgeInsets, NO_GRID_EDGE_INSETS } from '../../../browser/parts/partGrid/partGridGap.js';
 import { IContentPart } from '../../../services/editor/common/editorGroupsService.js';
@@ -228,7 +228,21 @@ export class ChatWindowGrid extends Disposable {
 		this._titleRow = _cells.titleRow && this._register(new ChromeView(_cells.titleRow, 'row'));
 		this._strip = _cells.strip && this._register(new ChromeView(_cells.strip, 'column'));
 
-		this._register(autorun(reader => {
+		// What shows is remembered as soon as what arranges it changes, before anything reacts to the change: the chat, for
+		// one, may take another size in the new mode, such as only its input while stacked, and squeeze the other cells first.
+		this._register(autorunHandleChanges({
+			owner: this,
+			changeTracker: {
+				createChangeSummary: () => ({ remembered: false }),
+				handleChange: (_context, summary) => {
+					if (!summary.remembered) {
+						summary.remembered = true;
+						this._rememberSizes();
+					}
+					return true;
+				},
+			},
+		}, reader => {
 			this._layoutMode.read(reader);
 			_cells.strip?.visible.read(reader);
 			_cells.titleRow?.visible.read(reader);
@@ -284,8 +298,6 @@ export class ChatWindowGrid extends Disposable {
 			return;
 		}
 		const mode = this._layoutMode.get();
-		// What showed until now, before anything of it changes.
-		this._rememberSizes();
 		this._arrange(mode, this._dimension);
 		const grid = this._grid.value!;
 		// The terminals keep the height they have, or move with, as cells show and hide: a hidden cell, such as the title
@@ -451,6 +463,10 @@ export class ChatWindowGrid extends Disposable {
 		}
 	}
 
+	private _holdsMain(node: TopologyNode): boolean {
+		return isBranch(node) ? node.children.some(child => this._holdsMain(child)) : node.cell === ChatWindowGridCell.Main;
+	}
+
 	/** The least room `node` needs along the width, or else the height. */
 	private _minimumOf(node: TopologyNode, horizontal: boolean): number {
 		if (isBranch(node)) {
@@ -515,7 +531,8 @@ export class ChatWindowGrid extends Disposable {
 		});
 		// The size the user gave a part is kept; the last flexible child along the branch takes what is left.
 		const flexible = children.map((_, index) => index).filter(index => fixed[index] === undefined);
-		const lastFlexible = flexible.at(-1);
+		// The main part takes the rest, as the editor area does: the chat may be only as tall as its input.
+		const lastFlexible = flexible.find(index => this._holdsMain(children[index])) ?? flexible.at(-1);
 		const minimums = children.map((child, index) => fixed[index] ?? this._minimumOf(child, horizontal));
 		const sizes = children.map((child, index) => {
 			if (fixed[index] !== undefined || index === lastFlexible) {
@@ -534,9 +551,11 @@ export class ChatWindowGrid extends Disposable {
 			const share = shares ? getShare(child, orientation) / shares : 1 / open.length;
 			sizes[index] = Math.max(0, Math.round(room * share));
 		}
-		if (lastFlexible !== undefined) {
+		// What rounding leaves goes to the last of the cells that share the room, else to the one that takes the rest.
+		const remainder = open.at(-1)?.index ?? lastFlexible;
+		if (remainder !== undefined) {
 			const leftover = total - sizes.reduce<number>((sum, value) => sum + (value ?? 0), 0);
-			sizes[lastFlexible] = Math.max(0, (sizes[lastFlexible] ?? 0) + leftover);
+			sizes[remainder] = Math.max(0, (sizes[remainder] ?? 0) + leftover);
 		}
 		return sizes.map(value => value ?? 0);
 	}

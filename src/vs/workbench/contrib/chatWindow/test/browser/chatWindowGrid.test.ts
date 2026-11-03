@@ -6,9 +6,9 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { $ } from '../../../../../base/browser/dom.js';
-import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
+import { Direction, IViewSize } from '../../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -312,6 +312,53 @@ suite('Chat window grid', () => {
 			{ [ChatWindowLayoutMode.EditorOnly]: 199 },
 			{ [ChatWindowLayoutMode.SideBySide]: 199 },
 		]);
+	});
+
+	test('QA\'s live terminals round trip (Beta): the chat only its input while stacked, sizes of an earlier session, the terminals joining empty; the height the user gave them comes back in every mode', () => {
+		const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.SideBySide);
+		const titleRowVisible = derived(reader => mode.read(reader) === ChatWindowLayoutMode.Stacked || mode.read(reader) === ChatWindowLayoutMode.EditorOnly);
+		// While stacked, the chat shows only its input: as tall as it, exactly.
+		const onDidChangeChat = disposables.add(new Emitter<IViewSize | undefined>());
+		const inputOnly = () => mode.get() === ChatWindowLayoutMode.Stacked;
+		const chat = new class extends mock<IContentPart>() {
+			override readonly element = $('.chat');
+			override readonly minimumWidth = 100;
+			override readonly maximumWidth = Number.POSITIVE_INFINITY;
+			override get minimumHeight() { return inputOnly() ? 164 : 50; }
+			override get maximumHeight() { return inputOnly() ? 164 : Number.POSITIVE_INFINITY; }
+			override readonly onDidChange = onDidChangeChat.event;
+			override readonly groups = [new class extends mock<IEditorGroup>() { override readonly isEmpty = false; override readonly onDidModelChange = Event.None; }()];
+			override readonly onDidAddGroup = Event.None;
+			override readonly onDidRemoveGroup = Event.None;
+			override readonly onWillClose = Event.None;
+			override layout() { }
+			override setVisible() { }
+		}();
+		disposables.add(autorun(reader => { mode.read(reader); onDidChangeChat.fire(undefined); }));
+		const sizes: ChatWindowPartSizes = {
+			'column(titleRow,row(column(main,chat,terminals),strip))': { [ChatWindowGridCell.Main]: { width: 1158, height: 379 }, [ChatWindowGridCell.Chat]: { width: 1158, height: 164 }, [ChatWindowGridCell.Terminals]: { width: 1158, height: 286 } },
+			'column(titleRow,row(column(main,chat),strip),terminals)|chat hidden': { [ChatWindowGridCell.Main]: { width: 1158, height: 450 }, [ChatWindowGridCell.Terminals]: { width: 1192, height: 265 } },
+		};
+		const terminals = observableValue<IContentPart | undefined>('terminals', undefined);
+		const terminalsPart = createPartWithEditors('terminals');
+		const grid = disposables.add(new ChatWindowGrid($('div'), { main: createPart('main'), chat, titleRow: { ...createChrome(33), visible: titleRowVisible }, strip: createChrome(34), terminals }, mode, constObservable(4), sizes, constObservable(ChatWindowTerminalPosition.FullWidth)));
+		grid.setOuterInsets({ top: 0, left: 4, right: 4, bottom: 4 });
+		grid.layout(1200, 800);
+		grid.partGrid!.resizeCell(ChatWindowGridCell.Chat, { width: 476, height: 796 });
+		terminals.set(terminalsPart.part, undefined);
+		terminalsPart.setEmpty(false);
+		grid.partGrid!.resizeCell(ChatWindowGridCell.Terminals, { width: 1192, height: 199 });
+		const read = () => grid.partGrid!.getCellSize(ChatWindowGridCell.Terminals).height;
+		const heights: string[] = [];
+		for (const candidate of [ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.EditorOnly, ChatWindowLayoutMode.SideBySide]) {
+			mode.set(candidate, undefined);
+			heights.push(`${candidate} ${read()}`);
+		}
+
+		assert.deepStrictEqual({ heights, split: `${grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width}/${grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width}` }, {
+			heights: ['stacked 199', 'sideBySide 199', 'chatOnly 199', 'sideBySide 199', 'editorOnly 199', 'sideBySide 199'],
+			split: '476/716',
+		});
 	});
 
 	test('QA\'s second INFO-2 walk, through every mode with the side part showing an editor and the window saving its state, keeps the split and the terminals, also in a new grid after a restart', () => {
