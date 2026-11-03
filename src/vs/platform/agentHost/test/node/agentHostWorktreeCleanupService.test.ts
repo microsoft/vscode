@@ -424,6 +424,19 @@ suite('AgentHostWorktreeCleanupService', () => {
 		]);
 	});
 
+	test('accepts serialized worktree URIs alongside original Git repository paths', async () => {
+		const { database, cleanup, worktree, repository, managed } = await createManagedInventory();
+		await cleanup.cleanupManagedWorktree(repository, URI.parse(managed.toString()), 'agents/recovered');
+		await cleanup.runPass();
+		assert.deepStrictEqual({
+			calls: worktree.calls,
+			pending: await pending(database),
+		}, {
+			calls: [`remove:${managed.toString()}:commit:agents/recovered`],
+			pending: [],
+		});
+	});
+
 	test('keeps a durably recorded unregistered residue visible after restart and force retries its removal', async () => {
 		const { database, cleanup, worktree, repository, managed, roots, gitService } = await createManagedInventory();
 		worktree.onRemove = async () => {

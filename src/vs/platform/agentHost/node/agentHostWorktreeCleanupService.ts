@@ -282,7 +282,11 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 	}
 
 	private async _isManagedWorktree(repository: URI, worktree: URI, allowMissing = false): Promise<boolean> {
-		if (repository.scheme !== 'file' || worktree.scheme !== 'file' || !isWorktreeUnderRepository(worktree, repository)) {
+		if (repository.scheme !== 'file' || worktree.scheme !== 'file') {
+			return false;
+		}
+		// Persisted file URIs lowercase drive letters, unlike URIs constructed from Git paths.
+		if (!isWorktreeUnderRepository(URI.file(worktree.fsPath), URI.file(repository.fsPath))) {
 			return false;
 		}
 		const primary = URI.file(await fs.realpath(repository.fsPath));
