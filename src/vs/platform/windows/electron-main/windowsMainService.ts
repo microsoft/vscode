@@ -470,6 +470,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		}
 
+		if (isMacintosh && openConfig.initialStartup && this.windowsStateHandler.exactRestore?.hideApplication) {
+			app.hide();
+		}
+
 		// Remember in recent document list (unless this opens for extension development)
 		// Also do not add paths when files are opened for diffing or merging, only if opened individually
 		const isDiff = filesToOpen && filesToOpen.filesToDiff.length > 0;
@@ -1602,6 +1606,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// New window
 		if (!window) {
 			const state = this.windowsStateHandler.getNewWindowState(configuration);
+			const minimized = !!options.initialStartup && !!this.windowsStateHandler.exactRestore && !!state.minimized;
 
 			// Create the window
 			mark('code/willCreateCodeWindow');
@@ -1609,7 +1614,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				state,
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
 				isExtensionTestHost: !!configuration.extensionTestsPath,
-				isSessionsWindow: configuration.isSessionsWindow
+				isSessionsWindow: configuration.isSessionsWindow,
+				minimized
 			});
 			mark('code/didCreateCodeWindow');
 
@@ -1839,5 +1845,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const window = this.getWindowById(browserWindow.id);
 
 		return window?.matches(webContents) ? window : undefined;
+	}
+
+	restoreExactlyOnNextStartup(restore: boolean): void {
+		this.windowsStateHandler.setNextExactRestore(restore ? {
+			hideApplication: isMacintosh && app.isHidden()
+		} : undefined);
 	}
 }

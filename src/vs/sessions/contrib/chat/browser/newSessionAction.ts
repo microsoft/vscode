@@ -10,7 +10,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { EditorAreaFocusContext, SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, EditorAreaFocusContext, SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { INewSessionInAgentsWindowOptions } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { Menus } from '../../../browser/menus.js';
@@ -22,7 +22,7 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
-import { IWindowCanvasService } from '../../../services/canvas/browser/windowCanvasService.js';
+import { IWindowCanvasService, WindowCanvasInput } from '../../../services/canvas/browser/windowCanvasService.js';
 import { inheritableSessionTarget, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { NEW_SESSION_ACTION_ID } from '../common/constants.js';
 import { INewSessionComposerService } from './newSessionComposerService.js';
@@ -37,8 +37,7 @@ export class NewChatInSessionsWindowAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
-				// Leave the standard editor commands in charge when the editor area has focus.
-				when: EditorAreaFocusContext.negate(),
+				when: ContextKeyExpr.or(EditorAreaFocusContext.negate(), ActiveEditorContext.isEqualTo(WindowCanvasInput.EDITOR_ID)),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyN,
 				secondary: [KeyMod.CtrlCmd | KeyCode.KeyL],
 				mac: {
@@ -115,12 +114,14 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
 		if (isQuickChat && activeSession?.isCreated?.get() === false && !options?.toSide) {
 			const recentWorkspacesService = accessor.get(ISessionsRecentWorkspacesService);
+			const partService = accessor.get(ISessionsPartService);
 			if (recentWorkspacesService.isNoWorkspaceChecked()) {
 				recentWorkspacesService.clearCheckedWorkspace();
 			}
 			sessionsService.unsetNewSession();
+			await sessionsService.openNewSession();
 			const replacementSessionId = sessionsService.activeSession.get()?.sessionId;
-			accessor.get(ISessionsPartService).getSessionView(replacementSessionId)?.focusWorkspacePicker();
+			partService.getSessionView(replacementSessionId)?.focusWorkspacePicker();
 			sendPrompt();
 			return;
 		}

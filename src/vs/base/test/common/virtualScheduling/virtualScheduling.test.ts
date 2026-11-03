@@ -418,6 +418,13 @@ suite('virtualScheduling - runWithFakedTimers', () => {
 suite('virtualScheduling - createVirtualTimeApi without processor', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('restores the same timer functions that were installed before', () => {
+		const api = createVirtualTimeApi(new VirtualClock(0), { fakeRequestAnimationFrame: true });
+		const names = ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame'] as const;
+		const before = names.map(name => globalThis[name]);
+		pushGlobalTimeApi(api).dispose();
+		assert.deepStrictEqual(names.filter((name, index) => globalThis[name] !== before[index]), []);
+	});
 	test('virtual wall and monotonic clocks stay consistent', () => {
 		const clock = new VirtualClock(12345);
 		const api = createVirtualTimeApi(clock, { fakeRequestAnimationFrame: true });

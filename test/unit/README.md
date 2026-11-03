@@ -10,18 +10,18 @@ All unit tests are run inside a Electron renderer environment which access to DO
 - to run only a subset of tests use the `--run` or `--glob` options
 - use `--rerun-failed-files <count>` to rerun failures, each time in a fresh window, up to `<count>` more times. Every rerun runs only the tests that did not pass yet, and the suite of a failed hook, by full title. A failure only counts as passed when the rerun ran and passed it, so a test whose title changes from run to run, or that depends on other tests of its file, still fails the run. With more than 50 failures, or a `--grep` of the form `/pattern/flags`, a rerun runs their whole test files instead. The run passes when every failure passes in a later attempt, and those failures are reported as flaky tests. Pull request CI uses `--rerun-failed-files 2`. Failures are not rerun when a failure does not belong to a test file, and a rerun with such a failure does not count
 - use `--workers <count>` to run all test files, or those of `--runList`, in `<count>` parallel processes. The count is required, and capped at one worker per CPU and per 2 GB of memory. Every worker is a separate Electron process that loads all test files of the run, but only runs the files it claims: workers claim the next file whenever they finish one, in the usual order, so each worker runs a subsequence of a single-window run. A worker also starts its own window and loads all listed files, so with `--runList` the runner starts one worker per 75 of the listed test files that it runs, but at least 2, and never more than there are files: a single file runs in a single window, up to 224 files in 2 workers, and 300 or more in 4 (see `getWorkerCountForFiles` in [parallel.ts](./parallel.ts)). The number of files does not tell how long they take: in a single window, one slow test file holds up all the others, while a second worker costs about a second. With `--run`, `--runGlob`, bare file paths, `--grep`, `--testSplit`, `--dev`, `--waitServer` or coverage, the tests run in a single window: `--runGlob` can select tests that never ran in workers, such as the node.js integration tests of `scripts/test-integration.sh`. Failures of all workers are rerun in a single window with `--rerun-failed-files`. A worker that does not complete normally, or a test file that no worker ran, fails the run and is not rerun. A failed worker's output ends with the test files it ran, in order, to pass to `--run` to reproduce the failure. With `--tfs`, every worker writes its own results file. Pull request CI uses `--workers 4`
-- use `npm run watch` to automatically compile changes
+- use `pnpm run watch` to automatically compile changes
 
 For instance, `./scripts/test.sh --debug --glob **/extHost*.test.js` runs all tests from `extHost`-files and enables you to debug them.
 
 ## Run (inside browser)
 
-    npm run test-browser -- --browser webkit --browser chromium
+    pnpm run test-browser --browser webkit --browser chromium
 
 Unit tests from layers `common` and `browser` are run inside `chromium`, `webkit`, and (soon'ish) `firefox` (using playwright). This complements our electron-based unit test runner and adds more coverage of supported platforms. Notes:
 
 - these tests are part of the continuous build, that means you might have test failures that only happen with webkit on _windows_ or _chromium_ on linux
-- you can run these tests locally via `npm run test-browser -- --browser chromium --browser webkit`
+- you can run these tests locally via `pnpm run test-browser --browser chromium --browser webkit`
 - to debug, open `<vscode>/test/unit/browser/renderer.html` inside a browser and use the `?m=<amd_module>`-query to specify what AMD module to load, e.g `file:///Users/jrieken/Code/vscode/test/unit/browser/renderer.html?m=vs/base/test/common/strings.test` runs all tests from `strings.test.ts`
 - to run only a subset of tests use the `--run` or `--glob` options
 - test module import failures abort the run with a nonzero exit code, even when `--grep` would exclude the module's tests
@@ -33,13 +33,13 @@ Unit tests from layers `common` and `browser` are run inside `chromium`, `webkit
 
 ## Run (with node)
 
-    npm run test-node -- --run src/vs/editor/test/browser/controller/cursor.test.ts
+    pnpm run test-node --run src/vs/editor/test/browser/controller/cursor.test.ts
 
 The default test timeout is 5 seconds locally and 30 seconds in CI, matching the Electron runner. CI is detected through `BUILD_ARTIFACTSTAGINGDIRECTORY` or `GITHUB_WORKSPACE`.
 
 Use `--timeout <ms>` (or `-t <ms>`) to override the default, or `--timeout 0` to disable timeouts. Explicit suite and test timeouts still take precedence.
 
-    npm run test-node -- --timeout 10000 --run src/vs/base/test/common/async.test.ts
+    pnpm run test-node --timeout 10000 --run src/vs/base/test/common/async.test.ts
 
 Use `--grep <pattern>` to run only the tests whose full title matches `<pattern>`. The runner's own loader and unexpected-error checks still run regardless of the filter.
 
