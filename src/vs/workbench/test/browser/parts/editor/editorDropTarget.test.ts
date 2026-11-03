@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, append } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -214,6 +214,41 @@ suite('EditorDropTarget', () => {
 			overlayBackOnCenter: false,
 			overlayOnEdgeEnter: true,
 			operations: [`split ${GroupDirection.RIGHT}`, 'move 1 editor(s) to new group']
+		});
+	});
+
+	test('over content that handles drops, the overlay that shows at an edge takes the drop, also when no drag moved over it yet, and the content does not get that drag', () => {
+		const { groupElement, content, operations } = setup({ contentCoversGroup: true });
+		const dragged = editorTransfer.getData(DraggedEditorIdentifier.prototype)!;
+		const contentDragOvers: number[] = [];
+		store.add(addDisposableListener(content, 'dragover', e => contentDragOvers.push(e.clientX)));
+
+		// The center is the content's; one drag onto the left edge shows the split there at once
+		dispatch(content, 'dragenter', 150, 150);
+		dispatch(content, 'dragover', 150, 150);
+		dispatch(content, 'dragover', 5, 150);
+		const overlay = getOverlay(groupElement);
+		const indicator = overlay?.querySelector<HTMLElement>('.editor-group-overlay-indicator');
+		const shown = { width: indicator?.style.width, height: indicator?.style.height };
+
+		// A drop with no drag over the overlay before it still splits, and is taken
+		const drop = new DragEvent('drop', { dataTransfer: new DataTransfer(), clientX: 5, clientY: 150, bubbles: true, cancelable: true });
+		overlay!.dispatchEvent(drop);
+		dispatch(groupElement, 'dragend', 5, 150);
+
+		// Entering at the right edge creates the overlay, and a drop right away splits there
+		editorTransfer.setData(dragged, DraggedEditorIdentifier.prototype);
+		dispatch(content, 'dragenter', 295, 150);
+		const dropOnEnter = new DragEvent('drop', { dataTransfer: new DataTransfer(), clientX: 295, clientY: 150, bubbles: true, cancelable: true });
+		getOverlay(groupElement)!.dispatchEvent(dropOnEnter);
+		dispatch(groupElement, 'dragend', 295, 150);
+
+		assert.deepStrictEqual({ contentDragOvers, shown, taken: [drop.defaultPrevented, dropOnEnter.defaultPrevented], overlayAfter: !!getOverlay(groupElement), operations }, {
+			contentDragOvers: [150],
+			shown: { width: '50%', height: '100%' },
+			taken: [true, true],
+			overlayAfter: false,
+			operations: [`split ${GroupDirection.LEFT}`, 'move 1 editor(s) to new group', `split ${GroupDirection.RIGHT}`, 'move 1 editor(s) to new group']
 		});
 	});
 
