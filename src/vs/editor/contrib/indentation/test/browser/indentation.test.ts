@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
@@ -109,6 +109,17 @@ export function registerLanguageConfiguration(languageConfigurationService: ILan
 				indentationRules: luaIndentationRules
 			});
 	}
+}
+
+function createTestServiceCollection(disposables: Pick<DisposableStore, 'add'>, language: Language): ServiceCollection {
+	const languageService = disposables.add(new LanguageService());
+	const languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
+	disposables.add(registerLanguage(languageService, language));
+	disposables.add(registerLanguageConfiguration(languageConfigurationService, language));
+	return new ServiceCollection(
+		[ILanguageService, languageService],
+		[ILanguageConfigurationService, languageConfigurationService]
+	);
 }
 
 export interface StandardTokenTypeData {
@@ -321,16 +332,7 @@ suite('Indent With Tab - TypeScript/JavaScript', () => {
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		const languageService = new LanguageService();
-		const languageConfigurationService = new TestLanguageConfigurationService();
-		disposables.add(languageService);
-		disposables.add(languageConfigurationService);
-		disposables.add(registerLanguage(languageService, languageId));
-		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
-		serviceCollection = new ServiceCollection(
-			[ILanguageService, languageService],
-			[ILanguageConfigurationService, languageConfigurationService]
-		);
+		serviceCollection = createTestServiceCollection(disposables, languageId);
 	});
 
 	test('temp issue because there should be at least one passing test in a suite', () => {
@@ -393,16 +395,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		const languageService = new LanguageService();
-		const languageConfigurationService = new TestLanguageConfigurationService();
-		disposables.add(languageService);
-		disposables.add(languageConfigurationService);
-		disposables.add(registerLanguage(languageService, languageId));
-		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
-		serviceCollection = new ServiceCollection(
-			[ILanguageService, languageService],
-			[ILanguageConfigurationService, languageConfigurationService]
-		);
+		serviceCollection = createTestServiceCollection(disposables, languageId);
 	});
 
 	test('issue #119225: Do not add extra leading space when pasting JSDoc', () => {
@@ -813,16 +806,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		const languageService = new LanguageService();
-		const languageConfigurationService = new TestLanguageConfigurationService();
-		disposables.add(languageService);
-		disposables.add(languageConfigurationService);
-		disposables.add(registerLanguage(languageService, languageId));
-		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
-		serviceCollection = new ServiceCollection(
-			[ILanguageService, languageService],
-			[ILanguageConfigurationService, languageConfigurationService]
-		);
+		serviceCollection = createTestServiceCollection(disposables, languageId);
 	});
 
 	// Failing tests from issues...
@@ -1391,16 +1375,7 @@ suite('Auto Indent On Type - Ruby', () => {
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		const languageService = new LanguageService();
-		const languageConfigurationService = new TestLanguageConfigurationService();
-		disposables.add(languageService);
-		disposables.add(languageConfigurationService);
-		disposables.add(registerLanguage(languageService, languageId));
-		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
-		serviceCollection = new ServiceCollection(
-			[ILanguageService, languageService],
-			[ILanguageConfigurationService, languageConfigurationService]
-		);
+		serviceCollection = createTestServiceCollection(disposables, languageId);
 	});
 
 	test('issue #198350: in or when incorrectly match non keywords for Ruby', () => {
@@ -1453,16 +1428,7 @@ suite('Auto Indent On Type - PHP', () => {
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		const languageService = new LanguageService();
-		const languageConfigurationService = new TestLanguageConfigurationService();
-		disposables.add(languageService);
-		disposables.add(languageConfigurationService);
-		disposables.add(registerLanguage(languageService, languageId));
-		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
-		serviceCollection = new ServiceCollection(
-			[ILanguageService, languageService],
-			[ILanguageConfigurationService, languageConfigurationService]
-		);
+		serviceCollection = createTestServiceCollection(disposables, languageId);
 	});
 
 	test('issue #199050: should not indent after { detected in a string', () => {
@@ -1498,16 +1464,7 @@ suite('Auto Indent On Paste - Go', () => {
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		const languageService = new LanguageService();
-		const languageConfigurationService = new TestLanguageConfigurationService();
-		disposables.add(languageService);
-		disposables.add(languageConfigurationService);
-		disposables.add(registerLanguage(languageService, languageId));
-		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
-		serviceCollection = new ServiceCollection(
-			[ILanguageService, languageService],
-			[ILanguageConfigurationService, languageConfigurationService]
-		);
+		serviceCollection = createTestServiceCollection(disposables, languageId);
 	});
 
 	test('temp issue because there should be at least one passing test in a suite', () => {
@@ -1549,16 +1506,7 @@ suite('Auto Indent On Type - CPP', () => {
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		const languageService = new LanguageService();
-		const languageConfigurationService = new TestLanguageConfigurationService();
-		disposables.add(languageService);
-		disposables.add(languageConfigurationService);
-		disposables.add(registerLanguage(languageService, languageId));
-		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
-		serviceCollection = new ServiceCollection(
-			[ILanguageService, languageService],
-			[ILanguageConfigurationService, languageConfigurationService]
-		);
+		serviceCollection = createTestServiceCollection(disposables, languageId);
 	});
 
 	test('temp issue because there should be at least one passing test in a suite', () => {
@@ -1637,16 +1585,7 @@ suite('Auto Indent On Type - HTML', () => {
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		const languageService = new LanguageService();
-		const languageConfigurationService = new TestLanguageConfigurationService();
-		disposables.add(languageService);
-		disposables.add(languageConfigurationService);
-		disposables.add(registerLanguage(languageService, languageId));
-		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
-		serviceCollection = new ServiceCollection(
-			[ILanguageService, languageService],
-			[ILanguageConfigurationService, languageConfigurationService]
-		);
+		serviceCollection = createTestServiceCollection(disposables, languageId);
 	});
 
 	test('temp issue because there should be at least one passing test in a suite', () => {
@@ -1684,16 +1623,7 @@ suite('Auto Indent On Type - Visual Basic', () => {
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		const languageService = new LanguageService();
-		const languageConfigurationService = new TestLanguageConfigurationService();
-		disposables.add(languageService);
-		disposables.add(languageConfigurationService);
-		disposables.add(registerLanguage(languageService, languageId));
-		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
-		serviceCollection = new ServiceCollection(
-			[ILanguageService, languageService],
-			[ILanguageConfigurationService, languageConfigurationService]
-		);
+		serviceCollection = createTestServiceCollection(disposables, languageId);
 	});
 
 	test('temp issue because there should be at least one passing test in a suite', () => {
@@ -2322,16 +2252,7 @@ suite('Auto Indent On Type - Latex', () => {
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		const languageService = new LanguageService();
-		const languageConfigurationService = new TestLanguageConfigurationService();
-		disposables.add(languageService);
-		disposables.add(languageConfigurationService);
-		disposables.add(registerLanguage(languageService, languageId));
-		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
-		serviceCollection = new ServiceCollection(
-			[ILanguageService, languageService],
-			[ILanguageConfigurationService, languageConfigurationService]
-		);
+		serviceCollection = createTestServiceCollection(disposables, languageId);
 	});
 
 	test('temp issue because there should be at least one passing test in a suite', () => {
@@ -2366,16 +2287,7 @@ suite('Auto Indent On Type - Lua', () => {
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		const languageService = new LanguageService();
-		const languageConfigurationService = new TestLanguageConfigurationService();
-		disposables.add(languageService);
-		disposables.add(languageConfigurationService);
-		disposables.add(registerLanguage(languageService, languageId));
-		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
-		serviceCollection = new ServiceCollection(
-			[ILanguageService, languageService],
-			[ILanguageConfigurationService, languageConfigurationService]
-		);
+		serviceCollection = createTestServiceCollection(disposables, languageId);
 	});
 
 	test('temp issue because there should be at least one passing test in a suite', () => {
