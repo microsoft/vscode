@@ -14,6 +14,9 @@ const DEFAULT_LAYOUT_MODE = ChatWindowLayoutMode.SideBySide;
 /** Whether the chat below the main part shows only its input until the user chooses. */
 const DEFAULT_INPUT_ONLY = true;
 
+/** Where the terminals of a chat window show until the user chooses. */
+const DEFAULT_TERMINAL_POSITION = ChatWindowTerminalPosition.FullWidth;
+
 /**
  * The prefix of the keys of {@link ChatWindowDefaults}. The keys and values are those chat windows of the Agents window
  * stored before they were built on parts, so profiles that stored them still load.
@@ -45,7 +48,7 @@ export class ChatWindowDefaults {
 
 	getTerminalPosition(): ChatWindowTerminalPosition {
 		const value = this._storageService.get(`${DEFAULTS_KEY_PREFIX}.terminalPosition`, StorageScope.PROFILE);
-		return value === ChatWindowTerminalPosition.UnderEditor || value === ChatWindowTerminalPosition.UnderChat ? value : ChatWindowTerminalPosition.FullWidth;
+		return value === ChatWindowTerminalPosition.UnderEditor || value === ChatWindowTerminalPosition.UnderChat ? value : DEFAULT_TERMINAL_POSITION;
 	}
 
 	setTerminalPosition(position: ChatWindowTerminalPosition): void {
@@ -277,13 +280,14 @@ export class ChatWindowState {
 	}
 
 	/**
-	 * Shows the chat as chat windows show it until the user chooses otherwise, without remembering it for the chat or as
-	 * the defaults of chat windows: what the user chooses next is. Where its terminals show stays.
+	 * Shows the chat as chat windows show it until the user chooses otherwise, its terminals across the window, without
+	 * remembering it for the chat or as the defaults of chat windows: what the user chooses next is.
 	 */
 	reset(): void {
 		transaction(tx => {
 			this._lastSplitLayout.set(DEFAULT_LAYOUT_MODE, tx);
 			this._inputOnly.set(DEFAULT_INPUT_ONLY, tx);
+			this._terminalPosition.set(DEFAULT_TERMINAL_POSITION, tx);
 			this._layoutMode.set(DEFAULT_LAYOUT_MODE, tx);
 		});
 	}

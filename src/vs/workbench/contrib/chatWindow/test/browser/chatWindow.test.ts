@@ -18,7 +18,7 @@ import { IContentPart, IEditorGroup } from '../../../../services/editor/common/e
 import { IChatWindowContent } from '../../browser/chatWindow.js';
 import { showChatInsteadOfEmptyMainPart } from '../../browser/chatWindowParts.js';
 import { ChatWindow } from '../../browser/chatWindowService.js';
-import { ChatWindowLayoutMode } from '../../common/chatWindowLayout.js';
+import { ChatWindowLayoutMode, ChatWindowTerminalPosition } from '../../common/chatWindowLayout.js';
 import { ChatWindowDefaults, ChatWindowState } from '../../common/chatWindowState.js';
 
 class TestInput extends EditorInput {
@@ -173,17 +173,19 @@ suite('Chat window', () => {
 	test('resetting its layout forgets what the host remembered for its chat and shows it as chat windows show it, only its chat while its main part has no editor', () => {
 		const { window, state, main, events } = createWindow();
 		state.setLayoutMode(ChatWindowLayoutMode.Stacked);
+		state.setTerminalPosition(ChatWindowTerminalPosition.UnderChat);
 		window.resetLayout();
 		const withoutEditors = window.layoutMode.get();
 		main.group.open(editor());
 		state.setLayoutMode(ChatWindowLayoutMode.EditorOnly);
 		window.resetLayout();
 
-		assert.deepStrictEqual({ withoutEditors, withEditors: window.layoutMode.get(), splitLayout: window.splitLayout.get(), inputOnly: window.inputOnly.get(), events }, {
+		assert.deepStrictEqual({ withoutEditors, withEditors: window.layoutMode.get(), splitLayout: window.splitLayout.get(), inputOnly: window.inputOnly.get(), terminalPosition: window.terminalPosition.get(), events }, {
 			withoutEditors: ChatWindowLayoutMode.ChatOnly,
 			withEditors: ChatWindowLayoutMode.SideBySide,
 			splitLayout: ChatWindowLayoutMode.SideBySide,
 			inputOnly: true,
+			terminalPosition: ChatWindowTerminalPosition.FullWidth,
 			events: ['reset layout', 'reset layout'],
 		});
 	});
