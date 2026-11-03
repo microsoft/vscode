@@ -9,6 +9,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { cloneChatData, retainChatBinaryReferences } from '../../../common/model/chatSessionResources.js';
 import { ChatStorageOwner, IChatOwnedStorageData, IChatSessionStore } from '../../../common/model/chatSessionStore.js';
 
+/** Owned-input storage for UI tests; use ChatSessionStore when constructing the real ChatService. */
 export class TestChatSessionStore extends mock<IChatSessionStore>() {
 	override readonly onDidInvalidateOwnedData = Event.None;
 	private readonly data = new Map<ChatStorageOwner, IChatOwnedStorageData[ChatStorageOwner]>();

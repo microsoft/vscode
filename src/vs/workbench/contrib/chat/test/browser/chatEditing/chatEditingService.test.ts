@@ -43,6 +43,9 @@ import { ChatEditingSessionState, emptySessionEntryDiff, getMultiDiffSourceUri, 
 import { ChatModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { ChatService } from '../../../common/chatService/chatServiceImpl.js';
+import { ChatSessionStore, IChatSessionStore } from '../../../common/model/chatSessionStore.js';
+import { IChatSessionResourceLocks } from '../../../common/model/chatSessionResourceLocks.js';
+import { createTestChatSessionResourceLocks } from '../../common/model/chatSessionResourceLocks.js';
 import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
@@ -122,6 +125,8 @@ suite('ChatEditingService', function () {
 			}
 		});
 		const insta = store.add(store.add(workbenchInstantiationService(undefined, store)).createChild(collection));
+		insta.stub(IChatSessionResourceLocks, createTestChatSessionResourceLocks());
+		insta.stub(IChatSessionStore, store.add(insta.createInstance(ChatSessionStore)));
 		store.add(insta.get(IEditorWorkerService) as TestWorkerService);
 		const value = insta.get(IChatEditingService);
 		assert.ok(value instanceof ChatEditingService);

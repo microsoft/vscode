@@ -84,6 +84,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 				domNode: h.element,
 				getInput: () => query,
 				setInput: (value: string) => { query = value; },
+				getContrib: () => undefined,
 				inputEditor: { getModel: () => undefined },
 				attachmentModel: { attachments: [], addContext: () => { } },
 				input: {
@@ -102,7 +103,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 			options: { session: constObservable(h.session), inputVisible: h.sourceVisible, hostVisible: h.hostVisible, sendRequest, confirmSend },
 			instantiationService: h.instantiationService,
 			chatSubmitRequestHandlerService: { tryHandle },
-			storageService: { store: () => { } },
+			_draftStorage: { set: () => { } },
 			logService: { error: () => { } },
 		});
 		return { input, sourceOwner };

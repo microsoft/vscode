@@ -293,10 +293,11 @@ export class OpenAgentsWindowAction extends Action2 {
 	async run(accessor: ServicesAccessor, args?: IOpenAgentsWindowOptions): Promise<void> {
 		ensureAgentModeEnabled(accessor.get(IConfigurationService));
 		const nativeHostService = accessor.get(INativeHostService);
-		const invokingFolder = getInvokingWorkspaceFolder(accessor);
-		const defaultFolder = accessor.get(IWorkspaceContextService).getWorkspace().folders[0]?.uri;
+		const shouldInferFolder = !args?.folderUri && (!args?.reveal || args.reveal === 'new');
+		const invokingFolder = shouldInferFolder ? getInvokingWorkspaceFolder(accessor) : undefined;
+		const defaultFolder = shouldInferFolder ? accessor.get(IWorkspaceContextService).getWorkspace().folders[0]?.uri : undefined;
 		const draftOptions: Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'> = args?.reveal === 'new' && !args.folderUri && !args.draft ? await getDraftHandoffOptions(accessor) : {};
-		const folderUri = !args?.folderUri && (!args?.reveal || args.reveal === 'new')
+		const folderUri = shouldInferFolder
 			? invokingFolder ?? (draftOptions.draft ? defaultFolder : undefined)
 			: undefined;
 		await nativeHostService.openAgentsWindow({

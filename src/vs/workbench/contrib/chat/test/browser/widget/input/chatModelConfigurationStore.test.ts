@@ -1053,6 +1053,7 @@ suite('ChatModelConfigurationStore', () => {
 			let carriedState: IChatModelInputState | undefined;
 			const modes = { onDidChange: Event.None, dispose() { } };
 			const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+				_store: store.add(new DisposableStore()),
 				logService: new NullLogService(),
 				_modelConfigStore: configuration,
 				_modelSyncDisposables: store.add(new DisposableStore()),
@@ -1067,7 +1068,9 @@ suite('ChatModelConfigurationStore', () => {
 				sessionTypeHasOwnModelPool: () => false,
 				_modelSelectionController: { beginConversationSwitch() { } },
 				_emptyInputState: { read: () => carriedState },
-				_emptyInputAttachments: { read: () => [] },
+				_emptyInputAttachments: { value: [], isReady: true, whenReady: Promise.resolve(), onDidLoad: Event.None },
+				_emptyAttachmentsGeneration: 0,
+				_attachmentModel: { attachments: [] },
 				configurationService: { onDidChangeConfiguration: Event.None },
 				resolveDraftModel: () => ({ model: selectedModel, changed: false }),
 				_setEmptyModelState() { },
