@@ -6,7 +6,7 @@
 import { createCancelablePromise, CancelablePromise, RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { MarkdownString, MarkdownStringTrustedOptions } from '../../../../base/common/htmlContent.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import * as platform from '../../../../base/common/platform.js';
@@ -359,7 +359,7 @@ class LinkOccurrence {
 	}
 }
 
-export function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
+function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 	const executeCmd = link.url && /^command:/i.test(link.url.toString());
 
 	const label = link.tooltip
@@ -378,19 +378,15 @@ export function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString
 
 	if (link.url) {
 		let nativeLabel = '';
-		// The link target comes from document content: never trust the hover as a whole, only
-		// allow the command that the link itself already targets.
-		let isTrusted: MarkdownStringTrustedOptions | false = false;
 		if (/^command:/i.test(link.url.toString())) {
 			// Don't show complete command arguments in the native tooltip
-			const match = link.url.toString().match(/^command:([^?#]+)/i);
+			const match = link.url.toString().match(/^command:([^?#]+)/);
 			if (match) {
 				const commandId = match[1];
 				nativeLabel = nls.localize('tooltip.explanation', "Execute command {0}", commandId);
-				isTrusted = { enabledCommands: [(URI.isUri(link.url) ? link.url : URI.parse(link.url)).path] };
 			}
 		}
-		const hoverMessage = new MarkdownString('', { isTrusted })
+		const hoverMessage = new MarkdownString('', true)
 			.appendLink(link.url.toString(true).replace(/ /g, '%20'), label, nativeLabel)
 			.appendMarkdown(` (${kb})`);
 		return hoverMessage;
