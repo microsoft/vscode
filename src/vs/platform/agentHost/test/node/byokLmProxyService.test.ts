@@ -807,6 +807,36 @@ suite('ByokLmProxyService', () => {
 		);
 	});
 
+	test('forwards a deterministic provider client error status instead of a retryable 502', async () => {
+		const statuses = [400, 401, 404, 408, 429, 500, undefined];
+		const results: { errorStatus: number | undefined; status: number; type: string | undefined }[] = [];
+		let errorStatus: number | undefined;
+		await withProxy(
+			async () => ({ output: [], error: 'provider failed', errorStatus }),
+			async (handle) => {
+				for (const s of statuses) {
+					errorStatus = s;
+					const response = await fetch(responsesUrl(handle, 'acme'), {
+						method: 'POST',
+						headers: authHeaders(handle),
+						body: JSON.stringify({ model: 'm', input: [] }),
+					});
+					const body = await response.json() as { error?: { type?: string } };
+					results.push({ errorStatus: s, status: response.status, type: body.error?.type });
+				}
+			},
+		);
+		assert.deepStrictEqual(results, [
+			{ errorStatus: 400, status: 400, type: 'invalid_request_error' },
+			{ errorStatus: 401, status: 502, type: 'api_error' },
+			{ errorStatus: 404, status: 404, type: 'invalid_request_error' },
+			{ errorStatus: 408, status: 502, type: 'api_error' },
+			{ errorStatus: 429, status: 502, type: 'api_error' },
+			{ errorStatus: 500, status: 502, type: 'api_error' },
+			{ errorStatus: undefined, status: 502, type: 'api_error' },
+		]);
+	});
+
 	test('returns a 502 when the bridge throws', async () => {
 		await withProxy(
 			async () => { throw new Error('bridge exploded'); },

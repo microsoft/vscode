@@ -602,4 +602,20 @@ suite('AgentHostByokLmHandler', () => {
 
 		assert.deepStrictEqual(result, { output: [], error: 'provider exploded' });
 	});
+
+	test('reports the provider status of a failed LM request', async () => {
+		const error = 'Request Failed: 400 {"error":{"message":"The reasoning_content in the thinking mode must be passed back to the API."}}';
+		const service = new TestLanguageModelsService(
+			new Map([['id', byokModel('acme', 'deepseek')]]),
+			() => { throw new Error(error); },
+		);
+		const handler = createHandler(service);
+
+		const result = await handler.chat(
+			{ vendor: 'acme', modelId: 'deepseek', input: [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'hi' }] }] },
+			CancellationToken.None,
+		);
+
+		assert.deepStrictEqual(result, { output: [], error, errorStatus: 400 });
+	});
 });
