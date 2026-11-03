@@ -24,6 +24,7 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../../workbench/common/editor.js';
 import { CanvasInput, ICanvasContextService, ICanvasService } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasService } from '../../../../../workbench/contrib/canvases/electron-browser/canvasService.js';
+import { IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IAuxiliaryWindowService } from '../../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { EditorService } from '../../../../../workbench/services/editor/browser/editorService.js';
@@ -98,6 +99,7 @@ suite('Session canvas working sets', () => {
 		harness.instaService.stub(ICustomViewService, upcastPartial<ICustomViewService>({ activeCustomView: constObservable(undefined) }));
 		store.add(harness.instaService.createInstance(TestCanvasLayoutController));
 		harness.instaService.stub(IPinnedCanvasService, upcastPartial<IPinnedCanvasService>({ entries: constObservable([]), getTrackedCanvas: () => undefined, isPinned: () => false, isShown: () => false }));
+		harness.instaService.stub(IChatWindowService, upcastPartial<IChatWindowService>({ getWindow: () => undefined }));
 		harness.instaService.stub(ICanvasContextService, store.add(harness.instaService.createInstance(SessionCanvasContextService)));
 		const canvasService = store.add(harness.instaService.createInstance(CanvasService));
 		instantiationService.stub(ICanvasService, canvasService);

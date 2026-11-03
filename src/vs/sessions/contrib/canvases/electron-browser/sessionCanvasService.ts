@@ -13,6 +13,7 @@ import { CanvasInput, canvasOwnerKey, ICanvas, ICanvasContext, ICanvasContextSer
 import { CanvasDefinitionStore } from '../../../../workbench/contrib/canvases/common/canvasDefinitionStore.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
@@ -40,6 +41,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 		@IChatService chatService: IChatService,
 		@ICustomViewService private readonly customViewService: ICustomViewService,
 		@IPinnedCanvasService private readonly pinnedCanvasService: IPinnedCanvasService,
+		@IChatWindowService private readonly chatWindowService: IChatWindowService,
 	) {
 		super();
 		this.workingSets = {
@@ -135,9 +137,14 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 		if (restore) {
 			return mainPart.activeGroup;
 		}
-		return this.editorGroupsService.activeGroup.windowId === mainPart.windowId
-			? undefined
-			: mainPart.groups.find(group => group.contains(input)) ?? mainPart.activeGroup;
+		const activeWindowId = this.editorGroupsService.activeGroup.windowId;
+		if (activeWindowId === mainPart.windowId) {
+			return undefined;
+		}
+		// A chat window keeps its canvases in its own main part, as the main window does; other auxiliary windows send
+		// them to the main window.
+		const part = this.chatWindowService.getWindow(activeWindowId)?.mainPart ?? mainPart;
+		return part.groups.find(group => group.contains(input)) ?? part.activeGroup;
 	}
 
 	private removeOwners(owns: (owner: ICanvasOwner) => boolean): void {
