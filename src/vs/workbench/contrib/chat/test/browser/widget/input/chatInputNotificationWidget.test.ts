@@ -642,6 +642,21 @@ suite('ChatInputNotificationWidget', () => {
 		};
 	}
 
+	test('shows a non-dismissible required-model warning and clears it when a model becomes available', () => {
+		const state = observableValue<IChatInputNotificationModelState>('models', {
+			currentModel: undefined, models: [], agentModelPolicyError: 'The agent requires an available model.',
+		});
+		const { widget } = createWidget({ delegate: { modelSelection: modelSelection({ state }) } });
+		const blocked = {
+			message: widget.domNode.textContent?.includes('The agent requires an available model.'),
+			dismiss: widget.domNode.querySelector('[aria-label="Dismiss"]') !== null,
+		};
+		state.set({ currentModel: undefined, models: [] }, undefined);
+		assert.deepStrictEqual({ blocked, cleared: widget.domNode.textContent }, {
+			blocked: { message: true, dismiss: false }, cleared: '',
+		});
+	});
+
 	test('only marks a banner shown when its host becomes visible', () => {
 		const hostVisible = observableValue('hostVisible', false);
 		const inputUri = URI.parse('test-input:/first');

@@ -148,6 +148,7 @@ suite('TabbedModelPicker', () => {
 	const models = [model('First'), model('Second'), model('Fixed', false)];
 
 	function createPicker(options: {
+		agentModelPreferences?: ITabbedModelPickerContext['agentModelPreferences'];
 		models?: ILanguageModelChatMetadataAndIdentifier[];
 		access?: IModelConfigurationAccess;
 		details?: string;
@@ -279,6 +280,7 @@ suite('TabbedModelPicker', () => {
 		let hintDismissed = false;
 		const availableModels = options.models ?? models;
 		const context: ITabbedModelPickerContext = {
+			agentModelPreferences: options.agentModelPreferences,
 			comparison: options.comparison,
 			localModels: options.localModels,
 			models: availableModels, selectedModelId: options.selectedModelId ?? availableModels[0]?.identifier,
@@ -1279,6 +1281,20 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual({ visible: picker.isVisible, query: input?.value, selections }, { visible: true, query: 'same', selections: [] });
 		assert.ok(popup.querySelector('.monaco-list-row.focused'));
 	});
+
+	for (const required of [false, true]) {
+		test(`announces authored models as agent ${required ? 'required' : 'preferred'} after an override`, () => {
+			const { popup } = createPicker({
+				agentModelPreferences: { models: ['First'], required },
+				selectedModelId: models[1].identifier,
+			});
+			const rows = Array.from(popup.querySelectorAll('.monaco-list-row'));
+			assert.deepStrictEqual(rows.filter(row => row.textContent?.includes('Agent ')).map(row => ({
+				preferred: row.textContent?.includes('First'),
+				label: row.getAttribute('aria-label')?.includes(required ? 'Agent Required' : 'Agent Preferred'),
+			})), [{ preferred: true, label: true }]);
+		});
+	}
 
 	for (const initiallyAuto of [false, true]) {
 		test(`provider changes retain the popup size when opened with ${initiallyAuto ? 'Auto' : 'a manual model'} selected`, () => {

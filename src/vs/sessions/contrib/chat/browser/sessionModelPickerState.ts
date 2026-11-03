@@ -23,6 +23,8 @@ const DEFAULT_MODEL_PICKER_OPTIONS: INormalizedSessionModelPickerOptions = {
 };
 
 export interface ISessionModelSelectionState {
+	readonly agentModelPreferences?: { readonly models: readonly string[]; readonly required: boolean };
+	readonly agentModelPolicyError?: string;
 	readonly currentModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 	readonly pendingSelection: IPendingModelSelection | undefined;
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
@@ -46,7 +48,7 @@ export function hasSelectableModel(
 }
 
 export function hasSendableModelSelection(state: ISessionModelSelectionState): boolean {
-	return state.hasSelectableModel && (!state.pendingSelection || state.options.showAutoModel);
+	return !state.agentModelPolicyError && state.hasSelectableModel && (!state.pendingSelection || state.options.showAutoModel);
 }
 
 export const EMPTY_MODEL_SELECTION_STATE: ISessionModelSelectionState = {

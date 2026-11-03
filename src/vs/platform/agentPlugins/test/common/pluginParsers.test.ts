@@ -396,11 +396,11 @@ suite('pluginParsers', () => {
 
 		test('publishes ordered model and reasoning preferences without reading agent files in the client', async () => {
 			const uri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/review.agent.md' });
-			await fileService.writeFile(uri, VSBuffer.fromString('---\nname: Review\nmodel: [missing, sonnet]\nreasoning-effort: low\n---\nReview.'));
+			await fileService.writeFile(uri, VSBuffer.fromString('---\nname: Review\nmodel: [missing, sonnet]\nmodel-policy: required\nreasoning-effort: low\n---\nReview.'));
 			const agents = await readAgentComponents([uri], fileService);
 			const customization = toParsedAgent(agents[0]).customization;
 			assert.deepStrictEqual({ model: customization.model, meta: customization._meta }, {
-				model: 'missing', meta: { 'vscode.models': ['missing', 'sonnet'], 'vscode.reasoningEffort': 'low' },
+				model: 'missing', meta: { 'vscode.models': ['missing', 'sonnet'], 'vscode.reasoningEffort': 'low', 'vscode.modelPolicy': 'required' },
 			});
 		});
 

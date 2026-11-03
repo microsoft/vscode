@@ -76,7 +76,7 @@ import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/c
 import { ChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
-import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
+import { IConfiguredHooksInfo, ICustomAgent, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
@@ -1985,6 +1985,22 @@ suite('ChatService', () => {
 		assert.ok(invokedMessages.some(m => m.includes('queued message')), 'queued message should be sent once the streamed turn completes');
 		assert.strictEqual(model.getPendingRequests().length, 0, 'no pending requests should remain after the flush');
 	});
+
+	for (const savedAgent of [false, true]) {
+		test(`required agent blocks a direct send without changing the draft (${savedAgent ? 'restored' : 'submitted'} agent)`, async () => {
+			const uri = URI.file('/workspace/required.agent.md');
+			const prompts = new MockPromptsService();
+			prompts.setCustomModes([upcastPartial<ICustomAgent>({ uri, enabled: true, model: ['sonnet'], modelPolicy: 'required' })]);
+			instantiationService.stub(IPromptsService, prompts);
+			const service = createChatService();
+			const model = startSessionModel(service).object;
+			model.inputModel.setState({ inputText: 'Keep my draft', ...(savedAgent ? { mode: { id: uri.toString(), kind: ChatModeKind.Agent } } : {}) });
+			await assert.rejects(() => service.sendRequest(model.sessionResource, 'Do not send', savedAgent ? {} : {
+				modeInfo: { kind: ChatModeKind.Agent, isBuiltin: false, modeInstructions: { uri, name: 'Required', content: '', toolReferences: [] }, telemetryModeId: 'custom', applyCodeBlockSuggestionId: undefined },
+			}), /No model required by the selected agent is currently available/);
+			assert.deepStrictEqual({ draft: model.inputModel.state.get()?.inputText, requests: model.getRequests().length }, { draft: 'Keep my draft', requests: 0 });
+		});
+	}
 
 	test('disabled Claude hooks hint is shown once per workspace (fix for #295079)', async () => {
 		// Set up a prompts service that reports disabled Claude hooks

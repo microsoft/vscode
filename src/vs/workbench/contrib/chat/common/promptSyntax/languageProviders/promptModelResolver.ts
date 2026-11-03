@@ -6,6 +6,37 @@
 import { ICustomizationHarnessService, type IHarnessDescriptor } from '../../customizationHarnessService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../languageModels.js';
 import { Target } from '../promptTypes.js';
+import { localize } from '../../../../../../nls.js';
+
+export interface IAgentModelPreferences {
+	readonly models: readonly string[];
+	readonly required: boolean;
+}
+
+/** Resolves every authored alternative against this chat's model pool. */
+export function resolveAgentModelPreferences(preferences: readonly string[], models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier[] {
+	const catalogue = models.map(model => ({ id: model.metadata.id, metadata: model.metadata }));
+	const matches = new Set(preferences.flatMap(preference => {
+		const resolved = resolveAgentFileModelIdentifiers(preference, catalogue);
+		return resolved.length ? resolved.map(model => model.metadata)
+			: models.filter(model => model.metadata.vendor !== 'copilot' && ILanguageModelChatMetadata.matchesQualifiedName(preference, model.metadata)).map(model => model.metadata);
+	}));
+	return models.filter(model => matches.has(model.metadata));
+}
+
+export function getAgentModelPolicyError(preferences: IAgentModelPreferences | undefined, modelId: string | undefined, models: readonly ILanguageModelChatMetadataAndIdentifier[]): string | undefined {
+	if (!preferences?.required || preferences.models.length === 0) {
+		return undefined;
+	}
+	const allowed = resolveAgentModelPreferences(preferences.models, models);
+	if (allowed.length === 0) {
+		return localize('agent.requiredModelsUnavailable', "No model required by the selected agent is currently available. Wait for models to load or select a different agent.");
+	}
+	if (!allowed.some(model => model.identifier === modelId)) {
+		return localize('agent.requiredModelNotSelected', "Select one of the models required by the selected agent before sending.");
+	}
+	return undefined;
+}
 
 export interface IAgentFileModel {
 	readonly id: string;

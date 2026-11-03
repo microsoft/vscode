@@ -3886,6 +3886,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			activeClientAgents: constObservable(agents), languageModelIds: models, languageModelChanges: changed.event,
 			lookupLanguageModel: () => ({ ...createTestLanguageModel('sonnet'), targetChatSessionType: 'agent-host-copilotcli' }),
 		});
+
 		const waiting = provider.createNewSession(URI.parse('file:///home/user/first'), provider.sessionTypes[0].id);
 		const chosen = provider.createNewSession(URI.parse('file:///home/user/second'), provider.sessionTypes[0].id);
 		for (const session of [waiting, chosen]) {
@@ -3896,6 +3897,40 @@ suite('LocalAgentHostSessionsProvider', () => {
 		changed.fire(modelId);
 		await timeout(0);
 		assert.deepStrictEqual([waiting.modelId.get(), chosen.modelId.get()], [modelId, 'unpublished-choice']);
+	});
+
+	test('required agent models filter the picker and reject stale selections and sends until available', async () => {
+		const ids = ['agent-host-copilotcli:other'];
+		const changed = disposables.add(new Emitter<string>());
+		const agent: AgentCustomization = {
+			type: CustomizationType.Agent, id: 'required', uri: 'other-host:/required', name: 'Required',
+			model: 'sonnet', _meta: { 'vscode.models': ['sonnet', 'opus'], 'vscode.modelPolicy': 'required' },
+		};
+		const provider = createProvider(disposables, agentHost, undefined, {
+			activeClientAgents: constObservable([agent]),
+			languageModelIds: ids,
+			languageModelChanges: changed.event,
+			lookupLanguageModel: id => ({ ...createTestLanguageModel(id.split(':')[1]), targetChatSessionType: 'agent-host-copilotcli' }),
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/required'), provider.sessionTypes[0].id);
+		provider.setModel(session.sessionId, session.resource, ids[0], ChatModelSource.Chosen);
+		provider.setAgent(session.sessionId, { uri: agent.uri, name: agent.name });
+		const unavailable = provider.getModelsSnapshot(session.sessionId);
+		assert.throws(() => provider.setModel(session.sessionId, session.resource, ids[0], ChatModelSource.Chosen), /No model required/);
+		await assert.rejects(() => provider.sendRequest(session.sessionId, session.resource, { query: 'Do not send' }), /No model required/);
+		ids.push('agent-host-copilotcli:sonnet', 'agent-host-copilotcli:opus');
+		changed.fire(ids[1]);
+		await timeout(0);
+		provider.setModel(session.sessionId, session.resource, ids[2], ChatModelSource.Chosen);
+		assert.throws(() => provider.setModel(session.sessionId, session.resource, ids[0], ChatModelSource.Chosen), /Select one of the models required/);
+		const available = provider.getModelsSnapshot(session.sessionId, ids[2]);
+		provider.setAgent(session.sessionId, undefined);
+		assert.deepStrictEqual({
+			unavailable: unavailable.models.map(model => model.identifier),
+			available: available.models.map(model => model.identifier),
+			current: session.modelId.get(),
+			cleared: provider.getModelsSnapshot(session.sessionId).models.map(model => model.identifier),
+		}, { unavailable: [], available: ids.slice(1), current: ids[2], cleared: ids });
 	});
 
 	test('agent model and effort are sent on first, follow-up, and running-session agent changes', async () => {

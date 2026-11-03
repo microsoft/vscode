@@ -67,6 +67,7 @@ import { IIntendedModelSelection, ModelSelectionReason } from '../modelSelection
 import { ILanguageModelToolsService, ToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
 import { IPromptsService } from '../promptSyntax/service/promptsService.js';
+import { getAgentModelPolicyError } from '../promptSyntax/languageProviders/promptModelResolver.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_COMMAND_NAME, TROUBLESHOOT_SKILL_PATH, COPILOT_SKILL_URI_SCHEME } from '../promptSyntax/promptTypes.js';
 import { ChatRequestHooks, mergeHooks } from '../promptSyntax/hookSchema.js';
 import { ComputeAutomaticInstructions } from '../promptSyntax/computeAutomaticInstructions.js';
@@ -1588,6 +1589,26 @@ export class ChatService extends Disposable implements IChatService {
 				reason: model.isInputBlocked.get() ? 'Session input is blocked' : 'Session is read-only',
 				...(newSessionResource ? { newSessionResource } : {}),
 			};
+		}
+
+		const savedMode = model.inputModel.state.get()?.mode;
+		const modeUri = options?.modeInfo?.modeInstructions?.uri
+			?? (!options?.modeInfo && savedMode?.id && savedMode.id !== savedMode.kind ? URI.parse(savedMode.id) : undefined);
+		if (modeUri && getChatSessionType(sessionResource) === localChatSessionType) {
+			const agents = await this.promptsService.getCustomAgents(CancellationToken.None);
+			const agent = agents.find(agent => agent.enabled && isEqual(agent.uri, modeUri));
+			if (agent?.modelPolicy === 'required' && agent.model?.length) {
+				const models = this.languageModelsService.getLanguageModelIds().flatMap(identifier => {
+					const metadata = this.languageModelsService.lookupLanguageModel(identifier);
+					return metadata && !metadata.targetChatSessionType && metadata.isUserSelectable !== false
+						? [{ identifier, metadata }] : [];
+				});
+				const error = getAgentModelPolicyError({ models: agent.model, required: true }, options?.userSelectedModelId ?? model.inputModel.state.get()?.selectedModel?.identifier, models);
+				if (error) {
+					this.logService.warn('[ChatService] Rejected request: selected agent requires an available authored model');
+					throw new Error(error);
+				}
+			}
 		}
 
 		const isEligibleRequest = (request: IChatRequestModel) => !request.isSystemInitiated && !request.isHiddenFromTranscript;

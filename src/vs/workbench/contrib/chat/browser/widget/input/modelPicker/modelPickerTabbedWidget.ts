@@ -47,6 +47,7 @@ import { getModelPickerAccessibilityProvider, getModelPickerControlModels } from
 import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionDiscountPercent, getFusionTierLabel, getHydraFusionTierLabel, getRoutingModelBadge, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION, MODEL_PICKER_ON_DEVICE_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
+import { IAgentModelPreferences, resolveAgentModelPreferences } from '../../../../common/promptSyntax/languageProviders/promptModelResolver.js';
 import { createMessageBanner } from './modelPickerHover.js';
 import { createLocalModelDetailsAction, isLocalModelDirectRow, LOCAL_MODEL_DETAILS_ACTION_ID, LOCAL_MODEL_PICKER_ITEM_PREFIX, type ILocalModelDetails, type IModelPickerLocalModels } from './modelPickerLocalModelItems.js';
 import { LocalModelCard } from './modelPickerLocalModelCard.js';
@@ -67,6 +68,7 @@ function isComparisonConfigurationValue(value: unknown): value is string | numbe
 
 /** Everything the picker needs for one showing, gathered by the owning widget. */
 export interface ITabbedModelPickerContext {
+	readonly agentModelPreferences?: IAgentModelPreferences;
 	readonly comparison?: IModelPickerComparison;
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
 	/** Models from every harness that can participate in a comparison. */
@@ -1307,7 +1309,12 @@ export class TabbedModelPicker extends Disposable {
 			label: rowLabel,
 			description: modelBadge || routingBadge || fusionRecommendedBadge ? undefined : action.description,
 			badge: modelBadge?.text ?? routingBadge ?? fusionRecommendedBadge,
-			additionalBadges: this._getOrganizationDefaultBadges(model, context),
+			additionalBadges: [
+				...(this._getOrganizationDefaultBadges(model, context) ?? []),
+				...(context.agentModelPreferences && resolveAgentModelPreferences(context.agentModelPreferences.models, [model]).length > 0
+					? [{ label: context.agentModelPreferences.required ? localize('chat.modelPicker.agentRequired', "Agent Required") : localize('chat.modelPicker.agentPreferred', "Agent Preferred") }]
+					: []),
+			],
 			ariaDescription: localDirect
 				? localDirect.ariaDescription
 				: [ariaDescription, configDescription].filter(Boolean).join(', '),
