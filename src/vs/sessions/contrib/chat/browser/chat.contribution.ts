@@ -28,10 +28,8 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { INewSessionInAgentsWindowOptions } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
-import { RunScriptContribution } from './runScriptAction.js';
 import './nullInlineChatSessionService.js';
 import './modelPicker.js';
-import '../../../../workbench/contrib/chat/browser/chatDefaultPresentation.contribution.js';
 import './newSessionOnboardingTargets.js';
 import './newSessionPickerTryout.js';
 import './agentHostDelegation.js';
@@ -40,7 +38,6 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ISessionsTasksService, SessionsTasksService } from './sessionsTasksService.js';
 import { ISessionTaskRunnerRegistry, SessionTaskRunnerRegistry } from './sessionTaskRunner.js';
-import { RegisterDefaultSessionTaskRunnersContribution } from './registerDefaultSessionTaskRunners.js';
 import { AgenticPromptsService } from './promptsService.js';
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
@@ -57,7 +54,7 @@ import { SessionWorktreeCleanupAccessibilityHelp } from '../../sessionInputBanne
 import { ArtifactDetailsAccessibilityHelp, ArtifactDetailsAccessibleView } from './artifactDetailsContextView.js';
 import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
 import { OpenSessionLinkOpenerContribution } from './openSessionLinkOpener.contribution.js';
-import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
+import { AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
@@ -69,7 +66,6 @@ import { Menus } from '../../../browser/menus.js';
 import { ISessionsChatViewStateService, SessionsChatViewStateService } from './chatViewStateService.js';
 import { SessionsChatResponseFileChangesService } from './sessionTurnChanges.js';
 import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
-import { SessionsChatPetAchievementContribution } from './chatPetAchievements.js';
 import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, chatBackgroundImageExtensions, chatBackgroundImageLayoutValues, ChatBackgroundImageLayout, ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
 import { ISessionArchiveNudgeService, SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudgeContribution, SessionArchiveNudgeService } from './sessionArchiveNudge.js';
 import { NewChatInSessionsWindowAction } from './newSessionAction.js';
@@ -668,12 +664,10 @@ registerAction2(class DisableSessionStorageCleanupSuggestionsAction extends Acti
 registerAction2(BranchChatSessionAction);
 
 // register workbench contributions
-registerWorkbenchContribution2(RunScriptContribution.ID, RunScriptContribution, WorkbenchPhase.AfterRestored);
+// Desktop-only contributions (run scripts, task runners, chat pet) live in
+// chat.desktop.contribution.ts so the phone bundle can omit them.
 registerWorkbenchContribution2(SessionsOpenerParticipantContribution.ID, SessionsOpenerParticipantContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(OpenSessionLinkOpenerContribution.ID, OpenSessionLinkOpenerContribution, WorkbenchPhase.BlockStartup);
-registerWorkbenchContribution2(RegisterDefaultSessionTaskRunnersContribution.ID, RegisterDefaultSessionTaskRunnersContribution, WorkbenchPhase.BlockStartup);
-registerWorkbenchContribution2(WorktreeCreatedTaskDispatcher.ID, WorktreeCreatedTaskDispatcher, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(SessionsChatPetAchievementContribution.ID, SessionsChatPetAchievementContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionArchiveNudgeContribution.ID, SessionArchiveNudgeContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionsChatBackgroundTint.ID, SessionsChatBackgroundTint, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(GetThemeColorsToolContribution.ID, GetThemeColorsToolContribution, WorkbenchPhase.Eventually);

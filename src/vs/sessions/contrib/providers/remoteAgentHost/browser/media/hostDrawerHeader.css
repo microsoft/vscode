@@ -1,0 +1,118 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * The drawer header row: the place sessions run, named once at the top of the
+ * list like a workspace switcher. A 40px tile carries the place's icon; the
+ * two text lines are title and detail; the chevron says it opens a sheet.
+ */
+
+.mobile-sessions-drawer-header {
+	flex-shrink: 0;
+}
+
+.mobile-sessions-drawer-header .monaco-toolbar,
+.mobile-sessions-drawer-header .monaco-action-bar,
+.mobile-sessions-drawer-header .actions-container,
+.mobile-sessions-drawer-header .action-item,
+.mobile-sessions-drawer-header .host-drawer-header {
+	display: block;
+	width: 100%;
+}
+
+.host-drawer-header-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	width: 100%;
+	min-height: var(--mobile-target, 44px);
+	margin: 0;
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size160) var(--vscode-spacing-size120);
+	border: none;
+	background: transparent;
+	color: var(--vscode-foreground);
+	font-family: inherit;
+	text-align: left;
+	cursor: pointer;
+	touch-action: manipulation;
+	-webkit-tap-highlight-color: transparent;
+}
+
+.host-drawer-header-row:active {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.host-drawer-header-row:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.host-drawer-header-tile {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: 40px;
+	height: 40px;
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	color: var(--vscode-descriptionForeground);
+}
+
+.mobile-sessions-drawer-header .host-drawer-header-row .host-drawer-header-tile .codicon,
+.mobile-sessions-drawer-header .host-drawer-header-row .host-drawer-header-chevron .codicon {
+	color: inherit;
+}
+
+.host-drawer-header-tile .codicon {
+	font-size: 20px;
+}
+
+.host-drawer-header-tile.place {
+	background: color-mix(in srgb, var(--vscode-textLink-foreground, var(--vscode-button-background)) 14%, transparent);
+	color: var(--vscode-textLink-foreground, var(--vscode-button-background));
+}
+
+.host-drawer-header-text {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size20);
+}
+
+.host-drawer-header-title {
+	font-size: var(--vscode-fontSize-heading3, 17px);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 1.25;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.host-drawer-header-subtitle {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	font-size: var(--vscode-fontSize-label1, 13px);
+	line-height: 1.25;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.host-drawer-header-chevron {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: 24px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.host-drawer-header-chevron .codicon {
+	font-size: var(--vscode-codiconFontSize);
+}

@@ -1,0 +1,265 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Body of the experimental "Where sessions run" sheet (`MobileHostPickerSheet`). The shell
+ * (overlay, handle, title row, close) comes from the shared mobile sheet; the
+ * rows here follow the same grammar as `mobilePickerSheet.css` rows — 36px
+ * icon tile, 56px row, selection as a filled row — so every sheet in the
+ * phone app reads alike.
+ */
+
+.host-picker-overlay .mobile-content-sheet-body {
+	padding-bottom: var(--vscode-spacing-size80);
+}
+
+/* ---- Rows ---------------------------------------------------------------- */
+
+.host-picker-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	width: calc(100% - 2 * var(--vscode-spacing-size80));
+	min-height: 56px;
+	margin: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	border: none;
+	border-radius: var(--vscode-cornerRadius-xLarge);
+	background: transparent;
+	color: inherit;
+	font-family: inherit;
+	font-size: 15px;
+	text-align: left;
+	cursor: pointer;
+	touch-action: pan-y;
+	-webkit-tap-highlight-color: transparent;
+}
+
+.host-picker-row:focus {
+	outline: none;
+}
+
+.host-picker-row:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.host-picker-row:active {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.host-picker-row.checked {
+	background: var(--vscode-list-activeSelectionBackground, var(--vscode-toolbar-hoverBackground));
+	color: var(--vscode-list-activeSelectionForeground, inherit);
+}
+
+.host-picker-row-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: 36px;
+	height: 36px;
+	border-radius: var(--vscode-cornerRadius-large);
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	color: var(--vscode-descriptionForeground);
+}
+
+.host-picker-row-icon .codicon {
+	font-size: 18px;
+}
+
+.host-picker-row.checked .host-picker-row-icon {
+	background: color-mix(in srgb, var(--vscode-textLink-foreground, var(--vscode-button-background)) 18%, transparent);
+	color: var(--vscode-textLink-foreground, var(--vscode-button-background));
+}
+
+/* "Add a computer…" draws an outlined tile: an empty slot, not a thing. */
+.host-picker-row-icon.add {
+	background: transparent;
+	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) color-mix(in srgb, var(--vscode-foreground) 20%, transparent);
+	color: var(--vscode-textLink-foreground, var(--vscode-button-background));
+}
+
+.host-picker-row-text {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size20);
+}
+
+.host-picker-row-label {
+	font-size: 16px;
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 1.2;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.host-picker-row.navigates .host-picker-row-label {
+	font-weight: 500;
+}
+
+.host-picker-row-description {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	font-size: 12px;
+	line-height: 1.2;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.host-picker-row-check,
+.host-picker-row-chevron {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: 20px;
+	height: 20px;
+}
+
+.host-picker-row-check {
+	color: var(--vscode-textLink-foreground, var(--vscode-button-background));
+}
+
+.host-picker-row-check .codicon {
+	font-size: 14px;
+}
+
+.host-picker-row-chevron {
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.8;
+}
+
+/* Glyphs take their container's color; the workbench's generic
+ * `.codicon[class*='codicon-']` rule would otherwise paint them icon-gray. */
+.host-picker-overlay .host-picker-row .host-picker-row-icon .codicon,
+.host-picker-overlay .host-picker-row .host-picker-row-check .codicon,
+.host-picker-overlay .host-picker-row .host-picker-row-chevron .codicon,
+.host-picker-overlay .host-picker-section .host-picker-section-action .codicon {
+	color: inherit;
+}
+
+/* ---- Connection state in words, with a dot for a glance ------------------ */
+
+.host-picker-status-dot {
+	display: inline-block;
+	flex-shrink: 0;
+	width: 7px;
+	height: 7px;
+	border-radius: var(--vscode-cornerRadius-circle);
+	box-shadow: inset 0 0 0 1.5px var(--vscode-descriptionForeground);
+}
+
+.host-picker-status-dot.connected {
+	background: var(--vscode-testing-iconPassed, var(--vscode-debugIcon-startForeground, #388a34));
+	box-shadow: none;
+}
+
+.host-picker-status-dot.connecting {
+	background: var(--vscode-charts-yellow, var(--vscode-editorWarning-foreground));
+	box-shadow: none;
+	animation: host-picker-blink 1s ease-in-out infinite;
+}
+
+.host-picker-row-description:has(> .host-picker-status-dot.connected) {
+	color: var(--vscode-testing-iconPassed, var(--vscode-debugIcon-startForeground, #388a34));
+}
+
+/* ---- Section: "Your computers" with its Refresh action ------------------- */
+
+.host-picker-section {
+	display: flex;
+	align-items: center;
+	padding: 14px var(--vscode-spacing-size160) var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.host-picker-section-title {
+	flex: 1;
+	min-width: 0;
+}
+
+.host-picker-section-action {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-height: 32px;
+	margin: -6px calc(-1 * var(--vscode-spacing-size80)) -6px 0;
+	padding: 0 var(--vscode-spacing-size80);
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-textLink-foreground, var(--vscode-button-background));
+	font-family: inherit;
+	font-size: 13px;
+	font-weight: 500;
+	cursor: pointer;
+	touch-action: manipulation;
+	-webkit-tap-highlight-color: transparent;
+}
+
+.host-picker-section-action:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+}
+
+.host-picker-section-action:active {
+	opacity: 0.6;
+}
+
+.host-picker-section-action.discovering {
+	color: var(--vscode-descriptionForeground);
+	cursor: default;
+}
+
+.host-picker-section-action-icon .codicon {
+	font-size: 13px;
+}
+
+.host-picker-section-action.discovering .host-picker-section-action-icon .codicon {
+	animation: host-picker-spin 1s linear infinite;
+}
+
+/* ---- Hint and empty copy ------------------------------------------------- */
+
+.host-picker-hint,
+.host-picker-empty {
+	margin: var(--vscode-spacing-size20) var(--vscode-spacing-size200) var(--vscode-spacing-size60);
+	font-size: 13px;
+	line-height: 18px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.host-picker-hint code {
+	padding: 1px var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-xSmall);
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	color: var(--vscode-foreground);
+	font-family: var(--monaco-monospace-font, monospace);
+	font-size: 12px;
+}
+
+@keyframes host-picker-blink {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.35; }
+}
+
+@keyframes host-picker-spin {
+	to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.host-picker-status-dot.connecting,
+	.host-picker-section-action.discovering .host-picker-section-action-icon .codicon {
+		animation: none;
+	}
+}

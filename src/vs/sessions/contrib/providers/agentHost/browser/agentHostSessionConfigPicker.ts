@@ -88,6 +88,8 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionService } from '../../../worktreeSuggestion/browser/worktreeSuggestionService.js';
 import { getChangedFileUri, getUncommittedFilesDescription, getUncommittedFilesSectionLabel } from '../../../worktreeSuggestion/browser/worktreeSuggestionPresentation.js';
 import { WorktreeSuggestionVariant } from '../../../worktreeSuggestion/common/worktreeSuggestion.js';
+import { IChatPhoneInputPresenter } from '../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
+import { createChatPhoneInputSessionContext } from '../../../../services/presentation/browser/chatPhoneInputContext.js';
 
 const ExperimentalSessionComposerLayout = SessionUsesExperimentalComposerLayoutContext;
 const LegacySessionComposerLayout = SessionUsesExperimentalComposerLayoutContext.negate();
@@ -2030,6 +2032,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
 	) {
 		super();
 		// The mode-picker factories below pick the mobile subclass at
@@ -2095,7 +2098,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			NEW_SESSION_PERMISSION_MODE_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
 				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostClaudePermissionModePicker, session));
+				return this._createEnumPermissionPicker(scopedInstantiationService.createInstance(AgentHostClaudePermissionModePicker, session), session);
 			},
 		));
 		this._register(actionViewItemService.register(
@@ -2103,7 +2106,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			NEW_SESSION_CODEX_APPROVALS_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
 				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostCodexApprovalsPicker, session));
+				return this._createEnumPermissionPicker(scopedInstantiationService.createInstance(AgentHostCodexApprovalsPicker, session), session);
 			},
 		));
 		registerRunningSessionPicker(
@@ -2114,14 +2117,14 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			RUNNING_SESSION_PERMISSION_MODE_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
 				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostClaudePermissionModePicker, session));
+				return this._createEnumPermissionPicker(scopedInstantiationService.createInstance(AgentHostClaudePermissionModePicker, session), session);
 			},
 		);
 		registerRunningSessionPicker(
 			RUNNING_SESSION_CODEX_APPROVALS_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
 				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostCodexApprovalsPicker, session));
+				return this._createEnumPermissionPicker(scopedInstantiationService.createInstance(AgentHostCodexApprovalsPicker, session), session);
 			},
 		);
 	}
@@ -2227,6 +2230,17 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		return new PickerActionViewItem(picker, delegate);
 	}
 
+	private _createEnumPermissionPicker(picker: AgentHostClaudePermissionModePicker | AgentHostCodexApprovalsPicker, session: IObservable<IActiveSession | undefined>): PickerActionViewItem {
+		if (this._phonePresenter.supportsUnifiedConfiguration) {
+			picker.setPickerPresenter(anchor => this._phonePresenter.showCombinedModeAndModelSheet(anchor, {
+				kind: 'session',
+				getSessionContext: () => createChatPhoneInputSessionContext(session.get()),
+				initialSection: 'permissions',
+			}));
+		}
+		return new PickerActionViewItem(picker);
+	}
+
 	/**
 	 * Inside a running chat widget, use the workbench
 	 * {@link PermissionPickerActionItem} so it matches the standard chat-input
@@ -2238,6 +2252,9 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 				return undefined;
 			}
 			const { session } = instantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
+			if (this._phonePresenter.supportsUnifiedConfiguration) {
+				return this._createNewSessionPermissionPicker(instantiationService);
+			}
 			const pickerOptions = {
 				compact: observableValue<boolean, void>(action, false),
 				listOptions: { minWidth: 255 },

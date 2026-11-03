@@ -98,7 +98,7 @@ export interface IPermissionPickerDelegate {
 	readonly sandboxSelectionRejected?: IObservable<boolean>;
 	readonly sandboxDevContainer?: IObservable<boolean>;
 	readonly sandboxDevContainerSupported?: IObservable<boolean | undefined>;
-	setSandboxEnabled?(enabled: boolean): void;
+	setSandboxEnabled?(enabled: boolean): void | Promise<void>;
 	readonly managedSandboxEnforced?: IObservable<boolean>;
 	readonly managedSandboxAllowsBypass?: IObservable<boolean>;
 	readonly sandboxToggleConfigurationKeys?: readonly string[];

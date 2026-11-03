@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { AgentWorkbenchLayout } from '../../browser/workbench.js';
 import { getSessionsWorkbenchLayout } from '../../browser/workbenchFactory.js';
+import { MobileWorkbench } from '../../browser/mobile/mobileWorkbench.js';
 
 suite('Sessions Workbench Factory', () => {
 
@@ -24,5 +25,12 @@ suite('Sessions Workbench Factory', () => {
 			AgentWorkbenchLayout.Desktop,
 			AgentWorkbenchLayout.Desktop,
 		]);
+	});
+
+	test('the experimental entry keeps the mobile workbench kind on desktop-sized hosts', () => {
+		assert.deepStrictEqual([
+			getSessionsWorkbenchLayout(1200, { isWeb: true, isMobile: false }),
+			MobileWorkbench.prototype.agentWorkbenchLayout,
+		], [AgentWorkbenchLayout.Desktop, AgentWorkbenchLayout.Mobile]);
 	});
 });
