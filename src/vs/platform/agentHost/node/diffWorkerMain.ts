@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { parentPort } from 'worker_threads';
+import { LcsDiff, StringDiffSequence } from '../../../base/common/diff/diff.js';
 import { IArcTextReplacement } from '../../../base/common/editArcTracker.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { DefaultLinesDiffComputer } from '../../../editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.js';
 import type { ILinesDiffComputerOptions } from '../../../editor/common/diff/linesDiffComputer.js';
 import type { RangeMapping } from '../../../editor/common/diff/rangeMapping.js';
-import type { IDetailedDiffResult, IDiffCountResult, IDiffHunk, IDiffHunksResult } from '../common/diffComputeService.js';
+import type { IDetailedDiffResult, IDiffCountResult, IDiffHunk, IDiffHunksResult, IOffsetEdit } from '../common/diffComputeService.js';
 
 export function computeDiffCounts(originalText: string, modifiedText: string, timeoutMs: number): IDiffCountResult {
 	const stopwatch = StopWatch.create();
@@ -62,7 +63,35 @@ export function computeDiffCounts(originalText: string, modifiedText: string, ti
 		changes = toChanges(characterResult);
 		hitTimeout = characterResult.hitTimeout;
 	}
+	if (!hitTimeout) {
+		const refined = refineCharacterChanges(originalText, changes, () => timeoutMs === 0 || stopwatch.elapsed() < timeoutMs);
+		changes = refined.changes;
+		hitTimeout = refined.hitTimeout;
+	}
 	return { added, removed, changes, hitTimeout };
+}
+
+/** Removes matching characters merged by display-diff heuristics without changing the displayed line counts. */
+function refineCharacterChanges(originalText: string, changes: IOffsetEdit[], canContinue: () => boolean): { changes: IOffsetEdit[]; hitTimeout: boolean } {
+	const refined: IOffsetEdit[] = [];
+	for (const change of changes) {
+		if (!canContinue()) {
+			return { changes, hitTimeout: true };
+		}
+		const original = originalText.substring(change.startOffset, change.endOffsetExclusive);
+		const diff = new LcsDiff(new StringDiffSequence(original), new StringDiffSequence(change.newText), canContinue).ComputeDiff(false);
+		if (diff.quitEarly || !canContinue()) {
+			return { changes, hitTimeout: true };
+		}
+		for (const part of diff.changes) {
+			refined.push({
+				startOffset: change.startOffset + part.originalStart,
+				endOffsetExclusive: change.startOffset + part.originalStart + part.originalLength,
+				newText: change.newText.substring(part.modifiedStart, part.modifiedStart + part.modifiedLength),
+			});
+		}
+	}
+	return { changes: refined, hitTimeout: false };
 }
 
 function getLineStarts(content: string): number[] {

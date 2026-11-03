@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { stub } from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IArcTextReplacement } from '../../../../base/common/editArcTracker.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { computeDetailedDiff, computeDiffCounts, computeDiffHunks } from '../../node/diffWorkerMain.js';
 
 suite('Agent Host Diff Worker', () => {
@@ -25,6 +27,35 @@ suite('Agent Host Diff Worker', () => {
 			applied: 'alpha\nBETA\ngamma\nomega',
 			changeCount: 2,
 		});
+	});
+
+	test('preserves short character matches without changing line counts', () => {
+		const before = 'a a a a';
+		const after = 'b b b b';
+		const result = computeDiffCounts(before, after, 5_000);
+		assert.deepStrictEqual({
+			...result,
+			applied: applyChanges(before, result.changes),
+		}, {
+			added: 1,
+			removed: 1,
+			changes: [0, 2, 4, 6].map(offset => ({ startOffset: offset, endOffsetExclusive: offset + 1, newText: 'b' })),
+			hitTimeout: false,
+			applied: after,
+		});
+	});
+
+	test('marks unrefined character changes as timed out when the shared budget is exhausted', () => {
+		const elapsed = stub(StopWatch.prototype, 'elapsed').returns(5_001);
+		try {
+			const result = computeDiffCounts('a a a a', 'b b b b', 5_000);
+			assert.deepStrictEqual({ hitTimeout: result.hitTimeout, applied: applyChanges('a a a a', result.changes) }, {
+				hitTimeout: true,
+				applied: 'b b b b',
+			});
+		} finally {
+			elapsed.restore();
+		}
 	});
 
 	test('detailed diff preserves line endings and whitespace changes', () => {

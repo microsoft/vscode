@@ -26,6 +26,25 @@ suite('Agent Host ARC Tool Edit', () => {
 		assert.strictEqual(createArcTextEditFromDiff([], 'first\r\nsecond', 'first\nsecond'), undefined);
 	});
 
+	for (const gap of [' ', '  ', '\t', '\n', '\r\n', '\u{1f600}']) {
+		test(`does not count short unchanged gaps ${JSON.stringify(gap)}`, () => {
+			const before = ['a', 'a', 'a', 'a'].join(gap);
+			const after = ['b', 'b', 'b', 'b'].join(gap);
+			const diff = computeDiffCounts(before, after, 5000);
+			const edit = createArcTextEditFromDiff(diff.changes, before, after);
+			assert.ok(edit);
+			const tracker = new EditArcTracker(before, edit);
+			const initial = tracker.getAcceptedRestrainedCharactersCount();
+			tracker.handleEdits({ replacements: [{ start: 0, endExclusive: 1, text: 'c' }] });
+			assert.deepStrictEqual({
+				hitTimeout: diff.hitTimeout,
+				original: tracker.getOriginalCharacterCount(),
+				initial,
+				retained: tracker.getAcceptedRestrainedCharactersCount(),
+			}, { hitTimeout: false, original: 4, initial: 4, retained: 3 });
+		});
+	}
+
 	for (const eol of ['\n', '\r\n']) {
 		test(`excludes unchanged interior text and preserves retention with ${JSON.stringify(eol)}`, () => {
 			const middle = Array.from({ length: 100 }, (_, i) => `// unchanged line ${i}`);
