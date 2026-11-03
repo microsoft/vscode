@@ -24,8 +24,8 @@ class MultiDiffEditorFileListAccessibilityHelp implements IAccessibleViewImpleme
 		if (!isMultiDiffEditorFileListHost(editor)) {
 			return undefined;
 		}
-		const actionsHelp = editor.togglesFileListFromEditorTitle
-			? localize('multiDiffEditor.fileListHelp.editorTitleActions', "Use Toggle Files in the tab bar's More Actions menu to show or hide the changed files.")
+		const actionsHelp = editor.togglesFileListFromEditorHeader
+			? localize('multiDiffEditor.fileListHelp.editorHeaderActions', "Use Toggle Files, the last action in the header row above the diffs, to show or hide the changed files.")
 			: accessor.get(IWorkbenchEnvironmentService).isSessionsWindow
 				// The Agents window offers Toggle Details instead of Toggle Files, and the submenu in the tab bar's More Actions menu.
 				? localize('multiDiffEditor.fileListHelp.agentsWindowActions', "Use Toggle Details in the editor toolbar{0} to show or hide the changed files. The Files View & Position submenu in the tab bar's More Actions menu switches between a list and a folder tree, and moves the files to the left or right of the diffs.", '<keybinding:workbench.action.agentSessions.toggleDetails>')

@@ -264,7 +264,7 @@ suite('SessionChangesEditor changed files list', () => {
 		const hiddenList = { available: true, shown: false, visible: false, headerBorder: 'none' };
 		const noList = { available: false, shown: false, visible: false, headerBorder: 'none' };
 		const list = { available: true, shown: true, visible: true, headerBorder: '0px 1px rgb(1, 2, 3)' };
-		assert.deepStrictEqual({ experimentalFileList: instantiationService.get(IConfigurationService).getValue(multiDiffEditorExperimentalFileListSetting) ?? false, off, focusedWhileOff, on, hidden, focused, offAgain, togglesFromTabBar: editor.togglesFileListFromEditorTitle, host: isMultiDiffEditorFileListHost(editor) }, {
+		assert.deepStrictEqual({ experimentalFileList: instantiationService.get(IConfigurationService).getValue(multiDiffEditorExperimentalFileListSetting) ?? false, off, focusedWhileOff, on, hidden, focused, offAgain, togglesFromHeader: editor.togglesFileListFromEditorHeader, host: isMultiDiffEditorFileListHost(editor) }, {
 			experimentalFileList: false,
 			off: noList,
 			focusedWhileOff: { ...noList, calls: [] },
@@ -272,7 +272,7 @@ suite('SessionChangesEditor changed files list', () => {
 			hidden: hiddenList,
 			focused: { ...list, calls: ['focus'] },
 			offAgain: noList,
-			togglesFromTabBar: true,
+			togglesFromHeader: true,
 			host: true,
 		});
 	});

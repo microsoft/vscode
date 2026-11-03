@@ -348,8 +348,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		return widget;
 	}
 
-	/** It offers Toggle Files in the More Actions menu of its tab bar. */
-	readonly togglesFileListFromEditorTitle = true;
+	/** It offers Toggle Files in the header row above its diffs. */
+	readonly togglesFileListFromEditorHeader = true;
 
 	/** Moves focus into the changed files list, showing it first when hidden. Does nothing unless the host enables the list. */
 	focusFileList(): void {

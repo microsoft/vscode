@@ -232,13 +232,9 @@ const desktopDiffEditorTitleVisible = ContextKeyExpr.and(
 	MainEditorAreaVisibleContext
 );
 
-const desktopMultiDiffEditorTitleVisible = ContextKeyExpr.and(
-	ContextKeyExpr.or(
-		desktopChangesEditorTitle,
-		desktopMultiDiffEditorTitle,
-	),
-	MainEditorAreaVisibleContext
-);
+// The Changes editor shows its diff actions in the header row above its diffs instead of in its tab row: Run Code Review
+// and the More Actions menu in Menus.SessionsEditorHeaderSecondary, then Toggle Files in Menus.SessionsEditorHeaderLayout.
+const notChangesEditor = ActiveEditorContext.notEqualsTo(SessionChangesEditor.ID);
 
 const desktopTextEditorTitleVisible = ContextKeyExpr.and(
 	desktopTextEditorTitle,
@@ -295,7 +291,12 @@ class ToggleSessionsDiffEditorWordWrapAction extends Action2 {
 				id: Menus.SessionsEditorTitle,
 				group: '1_diff',
 				order: 20,
-				when: desktopMultiDiffEditorTitleVisible,
+				when: ContextKeyExpr.and(desktopMultiDiffEditorTitle, MainEditorAreaVisibleContext),
+			}, {
+				id: Menus.SessionsEditorHeaderSecondary,
+				group: 'secondary/1_diff',
+				order: 20,
+				when: desktopChangesEditorTitleVisible,
 			}, {
 				id: MenuId.EditorTitle,
 				group: '1_diff',
@@ -386,7 +387,14 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
 	title: localize('filesView', "Files View"),
 	group: 'z_filesView',
 	order: 20,
-	when: ContextKeyExpr.and(desktopDiffEditorTitle, AuxiliaryBarVisibleContext),
+	when: ContextKeyExpr.and(desktopDiffEditorTitle, AuxiliaryBarVisibleContext, notChangesEditor),
+});
+MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
+	submenu: Menus.ChangesFilesView,
+	title: localize('filesView', "Files View"),
+	group: 'secondary/z_filesView',
+	order: 20,
+	when: ContextKeyExpr.and(desktopChangesEditorTitle, AuxiliaryBarVisibleContext),
 });
 
 class SetChangesListViewModeAction extends Action2 {
@@ -451,8 +459,8 @@ class CollapseAllSessionChangesDiffsAction extends Action2 {
 			icon: Codicon.collapseAll,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorTitle,
-				group: '1_diff',
+				id: Menus.SessionsEditorHeaderSecondary,
+				group: 'secondary/1_diff',
 				order: 10,
 				when: ContextKeyExpr.and(
 					desktopChangesEditorTitleVisible,
@@ -481,8 +489,8 @@ class ExpandAllSessionChangesDiffsAction extends Action2 {
 			icon: Codicon.expandAll,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorTitle,
-				group: '1_diff',
+				id: Menus.SessionsEditorHeaderSecondary,
+				group: 'secondary/1_diff',
 				order: 10,
 				when: ContextKeyExpr.and(
 					desktopChangesEditorActive,
@@ -513,12 +521,19 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
 	title: localize('diffView', "Diff View"),
 	group: '1_diff',
 	order: 30,
-	when: desktopDiffEditorTitleVisible,
+	when: ContextKeyExpr.and(desktopDiffEditorTitleVisible, notChangesEditor),
 });
-// The Changes editor shows its changed files list beside the diffs, and hides or shows it with the workbench's Toggle
-// Files in the overflow of its tab row, with its other actions.
+MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
+	submenu: Menus.SessionsDiffEditorView,
+	title: localize('diffView', "Diff View"),
+	group: 'secondary/1_diff',
+	order: 30,
+	when: desktopChangesEditorTitleVisible,
+});
+// The Changes editor shows its changed files list beside the diffs where its host enables it, and hides or shows it with
+// the workbench's Toggle Files, last in its header row.
 const changesEditorFileList = ContextKeyExpr.and(desktopChangesEditorActive, MultiDiffEditorFileListAvailableContext)!;
-MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
+MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
 	command: {
 		id: TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID,
 		title: localize2('changesToggleFiles', "Toggle Files"),
@@ -526,8 +541,8 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
 		toggled: MultiDiffEditorFileListEnabledContext,
 		precondition: changesEditorFileList,
 	},
-	group: '2_viewMode',
-	order: 5,
+	group: 'navigation',
+	order: 10,
 	when: ContextKeyExpr.and(desktopChangesEditorTitleVisible, MultiDiffEditorFileListAvailableContext),
 });
 MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {

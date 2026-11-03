@@ -222,8 +222,8 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 export interface IMultiDiffEditorFileListHost {
 	/** Moves focus into the changed files list. */
 	focusFileList(): void;
-	/** Whether the host offers Toggle Files in the More Actions menu of its tab bar, which its help then describes instead of the workbench's own actions. */
-	readonly togglesFileListFromEditorTitle?: boolean;
+	/** Whether the host offers Toggle Files in the header row above its diffs, which its help then describes instead of the workbench's own actions. */
+	readonly togglesFileListFromEditorHeader?: boolean;
 }
 
 export function isMultiDiffEditorFileListHost(editor: object | undefined): editor is IMultiDiffEditorFileListHost {
