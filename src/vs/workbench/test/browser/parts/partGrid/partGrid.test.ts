@@ -703,6 +703,35 @@ suite('Part Grid', () => {
 		});
 	});
 
+	test('the cells of the parts the grid created are marked, so that a look can frame them as the parts they are like, with their cards at the same edges', async () => {
+		const parts = await createParts();
+		const container = boxAt(0, 0, 1000, 800);
+		// A look that leaves the frame of the main part, and of the parts like it, to their content
+		const style = container.appendChild(mainWindow.document.createElement('style'));
+		style.textContent = '.part-grid-cell > .part-grid-card { --part-grid-card-border-width: 1px; } .part-grid-cell:is([data-part-grid-cell="main"], [data-part-grid-created]) > .part-grid-card { --part-grid-card-frame-owner: content; }';
+		const grid = disposables.add(new PartGrid(container, parts));
+		const [side, main] = [createPart(parts), createPart(parts)];
+		await openEditor(side, '/side.txt');
+		const file = await openEditor(main, '/file.txt');
+		await openEditor(main, '/other.txt');
+		grid.addPart('side', side);
+		grid.addPart('main', main, { reference: 'side', direction: Direction.Right });
+		grid.setGap(8);
+		disposables.add(grid.setPartFactory({ createPart: () => ({ id: 'created', part: createPart(parts) }) }));
+		// Below the main part, beside the side part: the cards keep a gap to it
+		grid.moveEditorsIntoNewPart([{ editor: file, groupId: main.activeGroup.id }], { reference: 'main', direction: Direction.Down });
+		grid.layout(1000, 800);
+
+		const card = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"] > .part-grid-card`)!.getBoundingClientRect();
+		const cellOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!;
+		assert.deepStrictEqual({
+			shape: grid.describe(),
+			marked: ['side', 'main', 'created'].filter(id => cellOf(id).dataset.partGridCreated !== undefined),
+			left: card('created').left - card('main').left,
+			right: card('created').right - card('main').right
+		}, { shape: 'row(side, column(main, created))', marked: ['created'], left: 0, right: 0 });
+	});
+
 	test('without outer insets, an editor dragged over a part near an edge of the window goes into a new part there, and the part\'s own drop overlay goes away', async () => {
 		const parts = await createParts();
 		const container = boxAt(0, 0, 1000, 800);

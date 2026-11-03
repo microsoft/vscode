@@ -397,11 +397,12 @@ export class PartGrid extends Disposable {
 		}
 
 		const { id, part } = this.partFactory.createPart();
-		this.created.add(id);
 		// The new part takes its room from the part the editors come from, not from the other parts
 		const sourcePart = this.editorGroupsService.getPart(sourceGroup);
 		const sourceCell = Array.from(this.cells.values()).find(cell => cell.part && (cell.part as IEditorPart) === sourcePart);
-		this.addCell(this.register(id, { part }), location, undefined, sourceCell?.id);
+		const cell = this.register(id, { part });
+		this.markCreated(id);
+		this.addCell(cell, location, undefined, sourceCell?.id);
 
 		const targetGroup = part.activeGroup;
 		sourceGroup.moveEditors(editors.map(({ editor }) => ({ editor, options: { pinned: true } })), targetGroup);
@@ -429,6 +430,15 @@ export class PartGrid extends Disposable {
 	 */
 	addView(id: string, view: IPartGridView, location?: PartGridLocation, size?: number, options?: IPartGridViewOptions): void {
 		this.addCell(this.register(id, { view, options }), location ?? { edge: Direction.Right }, size);
+	}
+
+	/**
+	 * Marks a part the grid created (`data-part-grid-created` on its cell),
+	 * such as for the owner's look to style it as the parts it is like.
+	 */
+	private markCreated(id: string): void {
+		this.created.add(id);
+		this.getCell(id).element.dataset.partGridCreated = '';
 	}
 
 	private register(id: string, content: PartGridCellContent): PartGridCell {
@@ -1056,7 +1066,7 @@ export class PartGrid extends Disposable {
 
 		for (const id of state.created ?? []) {
 			if (partGrid.cells.has(id)) {
-				partGrid.created.add(id);
+				partGrid.markCreated(id);
 			}
 		}
 
