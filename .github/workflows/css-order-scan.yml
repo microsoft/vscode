@@ -52,15 +52,11 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Also installs build/rspack, a member of the build workspace.
       - name: Install build dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
         working-directory: build
-
-      - name: Install rspack dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile
-        working-directory: build/rspack
 
       - name: Save node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit != 'true'

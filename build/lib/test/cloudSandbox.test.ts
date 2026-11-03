@@ -625,7 +625,7 @@ suite('Cloud Sandbox install setup', () => {
 		`);
 		fs.writeFileSync(path.join(npmDirectory, 'electronTypes.ts'), 'export async function ensureElectronTypes() {}');
 		fs.writeFileSync(path.join(npmDirectory, 'dirs.ts'), `
-			export const workspaceMembers = [''], separateRoots = [], distroRoots = [], standaloneRoots = [], npmFolders = [], dirs = [''];
+			export const workspaceMembers = [''], separateRoots = [], separateRootMembers = {}, distroRoots = [], standaloneRoots = [], npmFolders = [], dirs = [''];
 		`);
 		fs.writeFileSync(path.join(npmDirectory, 'installStateHash.ts'), `
 			export const root = process.cwd(), stateFile = root + '/node_modules/.postinstall-state',
