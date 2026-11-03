@@ -358,7 +358,7 @@ suite('Part Grid', () => {
 		const container = createContainer();
 		container.style.width = '1000px';
 		container.style.height = '800px';
-		const grid = disposables.add(new PartGrid(container));
+		const grid = disposables.add(new PartGrid(container, new class extends mock<IEditorGroupsService>() { }()));
 		grid.addView('title', createView());
 		grid.addView('bottom', { ...createView(), minimumHeight: 0, maximumHeight: Number.POSITIVE_INFINITY }, { edge: Direction.Down });
 		grid.setOuterInsets({ top: 0, right: 4, bottom: 4, left: 4 });
