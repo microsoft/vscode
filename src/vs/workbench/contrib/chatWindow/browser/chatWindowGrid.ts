@@ -112,6 +112,18 @@ function getTerminalsLocation(mode: ChatWindowLayoutMode, position: ChatWindowTe
 	}
 }
 
+/**
+ * The key the sizes of the cells are remembered under: the arrangement, and which of the chat and the main part it hides.
+ * Only the chat and side by side share an arrangement, but the chat takes the room of the hidden main part in one of them.
+ */
+function getSizesKey(topologyKey: string, mode: ChatWindowLayoutMode): string {
+	switch (mode) {
+		case ChatWindowLayoutMode.ChatOnly: return `${topologyKey}|${ChatWindowGridCell.Main} hidden`;
+		case ChatWindowLayoutMode.EditorOnly: return `${topologyKey}|${ChatWindowGridCell.Chat} hidden`;
+		default: return topologyKey;
+	}
+}
+
 function describeTopology(node: TopologyNode): string {
 	return isBranch(node) ? `${node.orientation === Orientation.HORIZONTAL ? 'row' : 'column'}(${node.children.map(describeTopology).join(',')})` : node.cell;
 }
@@ -175,6 +187,8 @@ export class ChatWindowGrid extends Disposable {
 	private readonly _grid = this._register(new MutableDisposable<PartGrid>());
 	private readonly _gridListener = this._register(new MutableDisposable());
 	private _topologyKey: string | undefined;
+	/** The key the sizes of what shows are remembered under; see {@link getSizesKey}. */
+	private _sizesKey: string | undefined;
 	/** The key of the arrangement without the terminals: while it stays, the terminals join or move rather than rebuild. */
 	private _baseTopologyKey: string | undefined;
 	private _terminalsInGrid = false;
@@ -257,6 +271,8 @@ export class ChatWindowGrid extends Disposable {
 			return;
 		}
 		const mode = this._layoutMode.get();
+		// What showed until now, before anything of it changes.
+		this._rememberSizes();
 		this._arrange(mode, this._dimension);
 		const grid = this._grid.value!;
 		grid.setCellVisible(ChatWindowGridCell.Chat, mode !== ChatWindowLayoutMode.EditorOnly);
@@ -273,6 +289,7 @@ export class ChatWindowGrid extends Disposable {
 			this._pendingTerminalsHeight = undefined;
 		}
 		this._arranged = grid.describe();
+		this._sizesKey = getSizesKey(this._topologyKey!, mode);
 		this._updateTerminalsVisible();
 	}
 
@@ -285,7 +302,7 @@ export class ChatWindowGrid extends Disposable {
 	private _rememberSizes(): void {
 		const grid = this._grid.value;
 		// Not once something else changed the arrangement, such as a part the user moved: its sizes are not the arrangement's.
-		if (!grid || !this._topologyKey || grid.describe() !== this._arranged) {
+		if (!grid || !this._sizesKey || grid.describe() !== this._arranged) {
 			return;
 		}
 		const sizes: Record<string, { width: number; height: number }> = {};
@@ -295,7 +312,7 @@ export class ChatWindowGrid extends Disposable {
 				sizes[cell] = { width, height };
 			}
 		}
-		this._sizes[this._topologyKey] = { ...this._sizes[this._topologyKey], ...sizes };
+		this._sizes[this._sizesKey] = { ...this._sizes[this._sizesKey], ...sizes };
 		if (sizes[ChatWindowGridCell.Terminals]) {
 			this._sizes[TERMINALS_SIZE_KEY] = { [ChatWindowGridCell.Terminals]: sizes[ChatWindowGridCell.Terminals] };
 		}
@@ -310,9 +327,9 @@ export class ChatWindowGrid extends Disposable {
 		if (key === this._topologyKey) {
 			return;
 		}
-		this._rememberSizes();
-		const previousKey = this._topologyKey;
+		const previousSizesKey = this._sizesKey;
 		this._topologyKey = key;
+		const sizesKey = getSizesKey(key, mode);
 
 		// While the rest of the arrangement stays, the terminals join it, move in it or leave it, as the part grid does.
 		const baseKey = describeTopology(getChatWindowTopology(mode, chrome));
@@ -322,11 +339,11 @@ export class ChatWindowGrid extends Disposable {
 				grid.removeCell(ChatWindowGridCell.Terminals);
 				this._terminalsInGrid = false;
 			} else if (this._terminalsInGrid) {
-				const height = this._sizes[previousKey ?? '']?.[ChatWindowGridCell.Terminals]?.height;
+				const height = this._sizes[previousSizesKey ?? '']?.[ChatWindowGridCell.Terminals]?.height;
 				grid.moveCell(ChatWindowGridCell.Terminals, getTerminalsLocation(mode, position));
 				this._pendingTerminalsHeight = height;
 			} else {
-				const remembered = this._sizes[key] ?? {};
+				const remembered = this._sizes[sizesKey] ?? {};
 				grid.addPart(ChatWindowGridCell.Terminals, terminals, getTerminalsLocation(mode, position), this._terminalsHeight(remembered, dimension.height));
 				this._terminalsInGrid = true;
 			}
@@ -335,7 +352,7 @@ export class ChatWindowGrid extends Disposable {
 		this._baseTopologyKey = baseKey;
 		this._terminalsInGrid = !!terminals;
 
-		const remembered = this._sizes[key] ?? {};
+		const remembered = this._sizes[sizesKey] ?? {};
 		const orientation = isBranch(topology) ? topology.orientation : Orientation.HORIZONTAL;
 		// The grid keeps the outer insets to the edges of the window: its cells share what is inside them.
 		const insets = this._outerInsets;
@@ -390,6 +407,24 @@ export class ChatWindowGrid extends Disposable {
 		}
 	}
 
+	/** The least room `node` needs along the width, or else the height. */
+	private _minimumOf(node: TopologyNode, horizontal: boolean): number {
+		if (isBranch(node)) {
+			const minimums = node.children.map(child => this._minimumOf(child, horizontal));
+			return (node.orientation === Orientation.HORIZONTAL) === horizontal ? minimums.reduce((sum, minimum) => sum + minimum, 0) : Math.max(0, ...minimums);
+		}
+		switch (node.cell) {
+			case ChatWindowGridCell.Main: return horizontal ? this._cells.main.minimumWidth : this._cells.main.minimumHeight;
+			case ChatWindowGridCell.Chat: return horizontal ? this._cells.chat.minimumWidth : this._cells.chat.minimumHeight;
+			case ChatWindowGridCell.Terminals: {
+				const terminals = this._cells.terminals?.get();
+				return terminals ? (horizontal ? terminals.minimumWidth : terminals.minimumHeight) : 0;
+			}
+			case ChatWindowGridCell.TitleRow: return horizontal ? 0 : this._titleRow?.minimumHeight ?? 0;
+			default: return horizontal ? this._strip?.minimumWidth ?? 0 : 0;
+		}
+	}
+
 	/** The size the user gave the part `node` is, or holds. */
 	private _rememberedOf(node: TopologyNode, remembered: Record<string, { readonly width: number; readonly height: number }>): { readonly width: number; readonly height: number } | undefined {
 		if (!isBranch(node)) {
@@ -437,12 +472,16 @@ export class ChatWindowGrid extends Disposable {
 		// The size the user gave a part is kept; the last flexible child along the branch takes what is left.
 		const flexible = children.map((_, index) => index).filter(index => fixed[index] === undefined);
 		const lastFlexible = flexible.at(-1);
+		const minimums = children.map((child, index) => fixed[index] ?? this._minimumOf(child, horizontal));
 		const sizes = children.map((child, index) => {
 			if (fixed[index] !== undefined || index === lastFlexible) {
 				return fixed[index];
 			}
-			const size = this._rememberedOf(child, remembered);
-			return size ? (horizontal ? size.width : size.height) : undefined;
+			const rememberedSize = this._rememberedOf(child, remembered);
+			const size = rememberedSize && (horizontal ? rememberedSize.width : rememberedSize.height);
+			// A size that leaves the others less than they need, such as one taken while they were hidden, gives way to the shares.
+			const others = minimums.reduce((sum, minimum, other) => other === index ? sum : sum + minimum, 0);
+			return size !== undefined && size + others <= total ? size : undefined;
 		});
 		const room = total - sizes.reduce<number>((sum, value) => sum + (value ?? 0), 0);
 		const open = children.map((child, index) => ({ child, index })).filter(({ index }) => sizes[index] === undefined);

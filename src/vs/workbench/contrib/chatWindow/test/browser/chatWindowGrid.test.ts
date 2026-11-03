@@ -252,6 +252,31 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual(widths, [400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400]);
 	});
 
+	test('QA\'s INFO-2 sequence: side by side, only the chat (its sizes saved meanwhile), a part moved, stacked, and side by side again: the split the user had, never the main part at its minimum', () => {
+		const { mode, grid, open } = setupWithTerminals();
+		open();
+		grid.partGrid!.resizeCell(ChatWindowGridCell.Chat, { width: 400, height: 500 });
+		const split = () => `${grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width}/${grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width}`;
+		const sideBySide = split();
+		// The side part empties: only the chat shows, and the window saves its state meanwhile.
+		mode.set(ChatWindowLayoutMode.ChatOnly, undefined);
+		grid.exportSizes();
+		// Move Part Down, by the user.
+		grid.partGrid!.moveCell(ChatWindowGridCell.Chat, { edge: Direction.Down });
+		mode.set(ChatWindowLayoutMode.Stacked, undefined);
+		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
+
+		assert.deepStrictEqual({ sideBySide, again: split() }, { sideBySide: '400/600', again: '400/600' });
+	});
+
+	test('a remembered width that leaves the main part less than its minimum gives way to the default share', () => {
+		const sizes = { 'column(titleRow,row(chat,main))': { [ChatWindowGridCell.Chat]: { width: 1000, height: 770 } } };
+		const grid = disposables.add(new ChatWindowGrid($('div'), { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34) }, constObservable(ChatWindowLayoutMode.SideBySide), constObservable(0), sizes));
+		grid.layout(1000, 800);
+
+		assert.deepStrictEqual([grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width, grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width], [400, 600]);
+	});
+
 	test('closing the editor area, which shows only the chat, with the terminals under the editor keeps the terminals, across the window and as tall, and they go back under the editor as it shows again', () => {
 		const { mode, position, grid, open, height } = setupWithTerminals();
 		position.set(ChatWindowTerminalPosition.UnderEditor, undefined);
