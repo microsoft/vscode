@@ -9200,8 +9200,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return spn || undefined;
 	}
 
+	/** A PAC file replaces `http.proxy` and `http.noProxy`. */
+	private _hasPacUrl(): boolean {
+		return !!this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.ProxyPacUrl)?.trim();
+	}
+
 	private _readNoProxy(env: Record<string, string | undefined>): string | undefined {
-		const configuredNoProxy = (this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.NoProxy) ?? [])
+		const configuredNoProxy = (this._hasPacUrl() ? [] : this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.NoProxy) ?? [])
 			.map(value => value.trim())
 			.filter(Boolean)
 			.join(',');
@@ -9209,7 +9214,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _readConfiguredProxy(): string | undefined {
-		return this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.Proxy)?.trim() || undefined;
+		return this._hasPacUrl() ? undefined : this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.Proxy)?.trim() || undefined;
 	}
 
 	/** A base64 initial SPNEGO token for the runtime's proxy principal from a client sharing this agent host's network. */
@@ -9220,7 +9225,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _readCopilotProxyState(): ICopilotClientProxyState {
-		const proxy = this._readConfiguredProxy() ?? (this._isSystemProxyEnabled() ? this._resolvedProxy : undefined);
+		const proxy = this._readConfiguredProxy() ?? (this._isSystemProxyEnabled() || this._hasPacUrl() ? this._resolvedProxy : undefined);
 		return {
 			proxy,
 			noProxy: getCopilotNoProxy(proxy, this._readNoProxy(process.env)),
@@ -9264,7 +9269,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (configuredProxy) {
 			return configuredProxy;
 		}
-		if (!this._isSystemProxyEnabled()) {
+		if (!this._isSystemProxyEnabled() && !this._hasPacUrl()) {
 			return undefined;
 		}
 		if (COPILOT_PROXY_ENV_KEYS.some(key => env[key])) {
