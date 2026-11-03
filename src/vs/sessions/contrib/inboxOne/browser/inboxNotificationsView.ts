@@ -1799,7 +1799,15 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	}
 
 	private async completeNeedsInputNotification(item: IInboxNotificationItem): Promise<void> {
+		await this.markSessionRead(item);
 		await this.markDone(item, undefined);
+	}
+
+	private async markSessionRead(item: IInboxNotificationItem): Promise<void> {
+		const session = item.sessionResource ? this.sessionsManagementService.getSession(item.sessionResource) : undefined;
+		if (session) {
+			await this.sessionsManagementService.setSessionReadState(session, true);
+		}
 	}
 
 	private onListFocusIn(event: FocusEvent): void {
@@ -2586,6 +2594,11 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	}
 
 	private selectItem(id: string, trigger: 'cardClick' | 'cardKeyboard', focusDetailPane = false): void {
+		const item = this.getItemById(id);
+		if (!item) {
+			return;
+		}
+		void this.markSessionRead(item).catch(onUnexpectedError);
 		if (this.selectedItemId.get() === id) {
 			if (focusDetailPane) {
 				this.renderDetailIfChanged();
@@ -2602,11 +2615,6 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		this.updateSplit(true);
 		for (const card of this.renderedCards) {
 			card.classList.toggle('selected', card.dataset.notificationId === id);
-		}
-
-		const item = this.getItemById(id);
-		if (!item) {
-			return;
 		}
 
 		this.selectionTelemetryState = {
