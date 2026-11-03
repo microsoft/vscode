@@ -24,8 +24,8 @@ import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier } from '../../../../browser/dnd.js';
 import { ContentPart } from '../../../../browser/parts/editor/contentPart.js';
 import { MoveEditorIntoNewPartBelowAction, MovePartRightAction } from '../../../../browser/parts/partGrid/partGridActions.js';
-import { getPartGridDrop, IPartGridDrop } from '../../../../browser/parts/partGrid/partGridDnd.js';
-import { PART_GRID_REFLOW_DURATION } from '../../../../browser/parts/partGrid/partGridCardDrag.js';
+import { getPartGridDrop, getPartGridNewPartZone, IPartGridDrop } from '../../../../browser/parts/partGrid/partGridDnd.js';
+import { PART_GRID_REFLOW_DURATION } from '../../../../browser/parts/partGrid/partGridReflow.js';
 import { GRID_GAP_SASH_CLASS } from '../../../../browser/parts/partGrid/partGridGap.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
@@ -1073,6 +1073,110 @@ suite('Part Grid', () => {
 			partOverlay: true,
 			atTopEdge: { indicatorShown: true, partOverlay: false },
 			shape: 'column(new, side)'
+		});
+	});
+
+	test('editors go into a new part at an edge of the window, on the rim of a card or between cards; further into a card, they are the part\'s', () => {
+		const container = { left: 0, top: 0, width: 1000, height: 600 };
+		const cells = [{ id: 'a', rect: { left: 8, top: 8, width: 480, height: 584 } }, { id: 'b', rect: { left: 496, top: 8, width: 496, height: 584 } }];
+		const at = (x: number, y: number) => getPartGridNewPartZone(x, y, container, cells);
+
+		assert.deepStrictEqual({ windowEdge: at(500, 10), aRim: at(480, 300), gap: at(492, 300), bRim: at(500, 300), aInside: at(240, 300), outside: at(1200, 300) }, {
+			windowEdge: { edge: Direction.Up },
+			aRim: { reference: 'a', direction: Direction.Right },
+			gap: { reference: 'a', direction: Direction.Right },
+			bRim: { reference: 'b', direction: Direction.Left },
+			aInside: undefined,
+			outside: undefined
+		});
+	});
+
+	async function createEditorDragGrid(motion: boolean) {
+		const parts = await createParts();
+		const container = boxAt(0, 0, 1000, 800);
+		if (motion) {
+			container.classList.add('monaco-enable-motion');
+		}
+		const grid = disposables.add(new PartGrid(container, parts));
+		const [side, main] = [createPart(parts), createPart(parts)];
+		const file = await openEditor(side, '/file.txt');
+		await Promise.all([openEditor(side, '/other.txt'), openEditor(main, '/main.txt')]);
+		grid.addPart('side', side);
+		grid.addPart('main', main, { reference: 'side', direction: Direction.Right });
+		grid.setGap(8);
+		grid.layout(1000, 800);
+		let created = 0;
+		disposables.add(grid.setPartFactory({ createPart: () => ({ id: `new${++created}`, part: createPart(parts) }) }));
+
+		const editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
+		editorTransfer.setData([new DraggedEditorIdentifier({ editor: file, groupId: side.activeGroup.id })], DraggedEditorIdentifier.prototype);
+		disposables.add({ dispose: () => editorTransfer.clearData(DraggedEditorIdentifier.prototype) });
+		const card = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"] > .part-grid-card`)!.getBoundingClientRect();
+		// Over what is there, or, outside the test window, over the grid
+		const over = (type: string, x: number, y: number) => dispatch(mainWindow.document.elementFromPoint(x, y) ?? container.querySelector('.part-grid')!, type, x, y);
+		const feedback = () => ({
+			slot: !!container.querySelector('.part-grid-frame.slot') || container.querySelector<HTMLElement>('.part-grid-drop-indicator')!.style.display !== 'none',
+			partOverlay: !!container.querySelector('#monaco-workbench-editor-drop-overlay'),
+			mainMoved: !!container.querySelector<HTMLElement>('[data-part-grid-cell="main"]')!.style.translate
+		});
+
+		return { grid, container, card, over, feedback, created: () => created, renew: () => editorTransfer.setData([new DraggedEditorIdentifier({ editor: file, groupId: side.activeGroup.id })], DraggedEditorIdentifier.prototype) };
+	}
+
+	test('without motion, editors dragged between two cards or on the rim of a card go into a new part beside it, shown as its slot; further in, the part\'s own drop overlay takes them', async () => {
+		const { grid, container, card, over, feedback, created, renew } = await createEditorDragGrid(false);
+		const main = card('main');
+		const y = main.top + main.height / 2;
+
+		const mainGroup = container.querySelector<HTMLElement>('[data-part-grid-cell="main"] .editor-group-container')!;
+		dispatch(mainGroup, 'dragenter', main.left + main.width / 2, y);
+		over('dragover', main.left + main.width / 2, y);
+		const inside = feedback();
+		over('dragover', main.left - 4, y);
+		const inGap = feedback();
+		over('drop', main.left - 4, y);
+		const afterGap = grid.describe();
+
+		renew();
+		const moved = card('main');
+		over('dragover', moved.left + 6, moved.top + moved.height / 2);
+		const onRim = feedback();
+		over('drop', moved.left + 6, moved.top + moved.height / 2);
+
+		assert.deepStrictEqual({ inside, inGap, afterGap, onRim, shape: grid.describe(), created: created() }, {
+			inside: { slot: false, partOverlay: true, mainMoved: false },
+			inGap: { slot: true, partOverlay: false, mainMoved: false },
+			afterGap: 'row(side, new1, main)',
+			onRim: { slot: true, partOverlay: false, mainMoved: false },
+			shape: 'row(side, new1, new2, main)',
+			created: 2
+		});
+	});
+
+	test('with motion, the cards make way for the slot of a new part, slide back as the editors go into a part, and the part comes once, once the cards settled', async () => {
+		const { grid, container, card, over, feedback, created } = await createEditorDragGrid(true);
+		const main = card('main');
+		const y = main.top + main.height / 2;
+
+		over('dragover', main.left + 6, y);
+		const onRim = feedback();
+		// Into main where it shows, its right side, as the slot took its left
+		over('dragover', main.left + main.width - 60, y);
+		const intoPart = feedback();
+		await timeout(PART_GRID_REFLOW_DURATION + 80);
+		const slidBack = { layers: container.querySelectorAll('.part-grid-frame-layer').length, mainMoved: feedback().mainMoved };
+
+		over('dragover', main.left + 6, y);
+		over('drop', main.left + 6, y);
+		const dropped = { shape: grid.describe(), created: created() };
+		await timeout(PART_GRID_REFLOW_DURATION + 80);
+
+		assert.deepStrictEqual({ onRim, intoPart: { slot: intoPart.slot }, slidBack, dropped, settled: { shape: grid.describe(), created: created(), layers: container.querySelectorAll('.part-grid-frame-layer').length } }, {
+			onRim: { slot: true, partOverlay: false, mainMoved: true },
+			intoPart: { slot: true },
+			slidBack: { layers: 0, mainMoved: false },
+			dropped: { shape: 'row(side, main)', created: 0 },
+			settled: { shape: 'row(side, new1, main)', created: 1, layers: 0 }
 		});
 	});
 

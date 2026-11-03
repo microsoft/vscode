@@ -5,13 +5,13 @@
 
 import { $, addDisposableListener, append, EventHelper, EventType, getWindow, hide, isAncestor, isHTMLElement, show } from '../../../../base/browser/dom.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { hasKey } from '../../../../base/common/types.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
 import { IEditorIdentifier } from '../../../common/editor.js';
 import { DraggedEditorIdentifier } from '../../dnd.js';
 import { disposeEditorDropOverlays } from '../editor/editorDropTarget.js';
-import type { PartGridLocation } from './partGrid.js';
+import type { IPartGridRect, PartGridLocation } from './partGrid.js';
+import { IPartGridReflowCell, PART_GRID_REFLOW_DURATION, PartGridReflow } from './partGridReflow.js';
 
 /**
  * How close to an edge of the window, in pixels, a drop goes to that edge of
@@ -143,15 +143,88 @@ export function getPartGridDropAt(x: number, y: number, container: IRect, cells:
 }
 
 /**
+ * How far into a card from its edge, in pixels, editors dropped there go
+ * into a new part beside it (its rim), rather than into or beside a group
+ * of its part. Between cards, the gap goes to the nearest card's rim.
+ */
+export const PART_GRID_RIM = 12;
+
+/**
+ * How far, in pixels, the pointer goes past the border of a zone before
+ * dragged editors go elsewhere.
+ */
+const EDITOR_DROP_HYSTERESIS = 4;
+
+/**
+ * The id of the cell a new part for dropped editors would get, in a dry run.
+ */
+export const PART_GRID_NEW_PART_ID = '\u0000new-part';
+
+/**
+ * Where editors dropped at a point of the grid go into a new part: at an
+ * edge of the window close to it (see {@link PART_GRID_WINDOW_EDGE_ZONE}),
+ * beside a card on the rim of the card (see {@link PART_GRID_RIM}), or
+ * beside the card nearest to a gap between cards. Elsewhere, inside a card,
+ * they go into or beside a group of its part, which is not the grid's.
+ */
+export function getPartGridNewPartZone(x: number, y: number, container: IRect, cells: readonly { readonly id: string; readonly rect: IRect }[]): PartGridLocation | undefined {
+	if (!contains(container, x, y)) {
+		return undefined;
+	}
+
+	const rects = cells.filter(({ rect }) => rect.width > 0 && rect.height > 0);
+	const area = rects.length ? union(rects.map(({ rect }) => rect)) : container;
+	const windowEdges: [Direction, number][] = [
+		[Direction.Left, x - area.left],
+		[Direction.Right, area.left + area.width - x],
+		[Direction.Up, y - area.top],
+		[Direction.Down, area.top + area.height - y]
+	];
+	const [windowEdge, windowEdgeDistance] = windowEdges.reduce((nearest, edge) => edge[1] < nearest[1] ? edge : nearest);
+	if (windowEdgeDistance <= PART_GRID_WINDOW_EDGE_ZONE) {
+		return { edge: windowEdge };
+	}
+
+	const over = rects.find(({ rect }) => contains(rect, x, y));
+	if (over) {
+		const { rect } = over;
+		const sides: [Direction, number][] = [
+			[Direction.Left, x - rect.left],
+			[Direction.Right, rect.left + rect.width - x],
+			[Direction.Up, y - rect.top],
+			[Direction.Down, rect.top + rect.height - y]
+		];
+		const [direction, distance] = sides.reduce((nearest, side) => side[1] < nearest[1] ? side : nearest);
+		return distance <= PART_GRID_RIM ? { reference: over.id, direction } : undefined;
+	}
+
+	// In a gap: beside the nearest card, on its side toward the point
+	let nearest: { readonly id: string; readonly direction: Direction; readonly distance: number } | undefined;
+	for (const { id, rect } of rects) {
+		const dx = x < rect.left ? rect.left - x : x > rect.left + rect.width ? x - rect.left - rect.width : 0;
+		const dy = y < rect.top ? rect.top - y : y > rect.top + rect.height ? y - rect.top - rect.height : 0;
+		const distance = Math.hypot(dx, dy);
+		const direction = dx >= dy ? (x < rect.left ? Direction.Left : Direction.Right) : (y < rect.top ? Direction.Up : Direction.Down);
+		if (!nearest || distance < nearest.distance) {
+			nearest = { id, direction, distance };
+		}
+	}
+
+	return nearest && nearest.distance <= PART_GRID_RIM ? { reference: nearest.id, direction: nearest.direction } : undefined;
+}
+
+/**
  * What a {@link PartGridDropTarget} needs from its grid.
  */
 export interface IPartGridDropTargetHost {
 	readonly container: HTMLElement;
 
+	isMotionEnabled(): boolean;
+
 	/**
-	 * The cells that show, as drop targets.
+	 * The cells that show.
 	 */
-	getVisibleCells(): readonly IPartGridDropCell[];
+	getVisibleCells(): readonly IPartGridReflowCell[];
 
 	/**
 	 * Whether editors can go into new parts.
@@ -159,21 +232,47 @@ export interface IPartGridDropTargetHost {
 	canCreateParts(): boolean;
 
 	/**
-	 * Moves editors into a new part at an edge of the window, as dropped.
+	 * The cell of the part dragged editors come from.
 	 */
-	moveEditorsIntoNewPart(editors: readonly IEditorIdentifier[], edge: Direction): void;
+	getSourceCell(editors: readonly IEditorIdentifier[]): string | undefined;
+
+	/**
+	 * Where the cards would be, in client coordinates, with dragged editors
+	 * in a new part at a location, the new part's under
+	 * {@link PART_GRID_NEW_PART_ID}: a dry run.
+	 */
+	previewNewPart(editors: readonly IEditorIdentifier[], location: PartGridLocation): ReadonlyMap<string, IPartGridRect> | undefined;
+
+	/**
+	 * Moves editors into a new part at a location, as dropped.
+	 */
+	moveEditorsIntoNewPart(editors: readonly IEditorIdentifier[], location: PartGridLocation): void;
 }
 
 /**
- * Takes the drop of editors on an edge of the window outside any part,
- * showing where they go. Parts drag by the pointer instead (see
- * `PartGridCardDrag`).
+ * Takes the drop of editors where they go into a new part: at an edge of
+ * the window, on the rim of a card or between cards (see
+ * {@link getPartGridNewPartZone}), even over a part, whose own drop overlay
+ * gives way. Into or beside a group of a part, the part's own drop target
+ * takes them, as before.
+ *
+ * Where they go shows as an empty card that the other cards make way for
+ * (see {@link PartGridReflow}), found among the cards where they show, and
+ * changing only past the border of a zone; dropped, the new part comes once
+ * the cards settled. Without motion, where they go shows as a slot.
+ * Parts drag by the pointer instead (see `PartGridCardDrag`).
  */
 export class PartGridDropTarget extends Disposable {
 
 	private readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 
 	private readonly indicator: HTMLElement;
+
+	/** Where dragged editors go into a new part, by its key, if they do. */
+	private current: { readonly key: string; readonly location: PartGridLocation | undefined } = { key: NONE_KEY, location: undefined };
+	private readonly reflow = this._register(new MutableDisposable<PartGridReflow>());
+	private readonly reflowEnd = this._register(new MutableDisposable());
+	private settling = false;
 
 	constructor(private readonly host: IPartGridDropTargetHost) {
 		super();
@@ -188,16 +287,16 @@ export class PartGridDropTarget extends Disposable {
 	private registerListeners(): void {
 		const container = this.host.container;
 
-		// Capture: editors at an edge of the window are the grid's, also over a part
+		// Capture: editors where they go into a new part are the grid's, also over a part
 		this._register(addDisposableListener(container, EventType.DRAG_OVER, e => this.onDragOver(e), true));
 		this._register(addDisposableListener(container, EventType.DROP, e => this.onDrop(e), true));
 		this._register(addDisposableListener(container, EventType.DRAG_LEAVE, e => {
 			if (!e.relatedTarget || !isAncestor(e.relatedTarget as Node, container)) {
-				hide(this.indicator);
+				this.reset();
 			}
 		}));
 		// In the capture phase: a drag that a cell takes over ends there
-		this._register(addDisposableListener(getWindow(container), EventType.DRAG_END, () => hide(this.indicator), true));
+		this._register(addDisposableListener(getWindow(container), EventType.DRAG_END, () => this.reset(), true));
 	}
 
 	private getDragged(): readonly IEditorIdentifier[] | undefined {
@@ -210,22 +309,45 @@ export class PartGridDropTarget extends Disposable {
 	}
 
 	/**
-	 * Editors go into a new part only at an edge of the window.
+	 * The cards of the parts where they show, and the new part's place.
 	 */
-	private getDrop(e: DragEvent): (IPartGridDrop & { readonly location: { readonly edge: Direction } }) | undefined {
-		const drop = getPartGridDrop(e.clientX, e.clientY, this.host.container.getBoundingClientRect(), this.host.getVisibleCells());
-		if (drop && hasKey(drop, { location: true }) && hasKey(drop.location, { edge: true })) {
-			return { location: drop.location, indicator: drop.indicator };
+	private getZones(): { readonly id: string; readonly rect: IRect }[] {
+		const shown = this.reflow.value?.shown;
+		if (shown) {
+			return Array.from(shown, ([id, rect]) => ({ id, rect }));
 		}
 
-		return undefined;
+		return this.host.getVisibleCells().filter(cell => cell.isPart).map(cell => {
+			const { left, top, width, height } = cell.card.getBoundingClientRect();
+			return { id: cell.id, rect: { left, top, width, height } };
+		});
+	}
+
+	private resolve(x: number, y: number, zones: readonly { readonly id: string; readonly rect: IRect }[]): { readonly key: string; readonly location: PartGridLocation | undefined } | 'keep' {
+		// Over the new part's place, it goes there already
+		const slot = zones.find(zone => zone.id === PART_GRID_NEW_PART_ID);
+		if (slot && contains(slot.rect, x, y)) {
+			return 'keep';
+		}
+
+		const location = getPartGridNewPartZone(x, y, this.host.container.getBoundingClientRect(), zones.filter(zone => zone.id !== PART_GRID_NEW_PART_ID));
+		return location ? { key: JSON.stringify(location), location } : { key: NONE_KEY, location: undefined };
 	}
 
 	private onDragOver(e: DragEvent): void {
-		const drop = this.getDragged() ? this.getDrop(e) : undefined;
-		if (!drop) {
-			hide(this.indicator);
-			return; // editors elsewhere are not the grid's
+		if (this.settling) {
+			return;
+		}
+
+		const editors = this.getDragged();
+		if (!editors) {
+			this.reset();
+			return;
+		}
+
+		this.retarget(e.clientX, e.clientY, editors);
+		if (!this.current.location) {
+			return; // into or beside a group: the part's own drop target takes them
 		}
 
 		EventHelper.stop(e, true);
@@ -235,28 +357,129 @@ export class PartGridDropTarget extends Disposable {
 
 		// The drop overlay of the part under the editors, if it showed, goes away
 		disposeEditorDropOverlays(this.host.container);
+	}
 
-		const { left, top, width, height } = drop.indicator;
-		this.indicator.style.left = `${left}px`;
-		this.indicator.style.top = `${top}px`;
-		this.indicator.style.width = `${width}px`;
-		this.indicator.style.height = `${height}px`;
-		show(this.indicator);
+	/**
+	 * Goes elsewhere only once the pointer is past the border of the zone of
+	 * where it goes now; for each place, a dry run finds where the cards go.
+	 */
+	private retarget(x: number, y: number, editors: readonly IEditorIdentifier[]): void {
+		const zones = this.getZones();
+		const candidate = this.resolve(x, y, zones);
+		if (candidate === 'keep' || candidate.key === this.current.key) {
+			return;
+		}
+
+		const bounds = this.host.container.getBoundingClientRect();
+		const h = EDITOR_DROP_HYSTERESIS;
+		const clamp = (value: number, min: number, size: number) => Math.min(Math.max(value, min), min + size);
+		const nearCurrent = [[h, 0], [-h, 0], [0, h], [0, -h]].some(([dx, dy]) => {
+			const near = this.resolve(clamp(x + dx, bounds.left, bounds.width), clamp(y + dy, bounds.top, bounds.height), zones);
+			return near !== 'keep' && near.key === this.current.key;
+		});
+		if (nearCurrent) {
+			return;
+		}
+
+		const rects = candidate.location ? this.host.previewNewPart(editors, candidate.location) : undefined;
+		const location = rects ? candidate.location : undefined;
+		this.current = location ? candidate : { key: NONE_KEY, location: undefined };
+		this.show(rects, editors);
+	}
+
+	/**
+	 * Shows the cards where they go, and the new part's place, or, without
+	 * rects, as they are.
+	 */
+	private show(rects: ReadonlyMap<string, IPartGridRect> | undefined, editors: readonly IEditorIdentifier[]): void {
+		if (!this.host.isMotionEnabled()) {
+			const slot = rects?.get(PART_GRID_NEW_PART_ID);
+			if (!slot) {
+				hide(this.indicator);
+				return;
+			}
+			this.indicator.style.left = `${slot.left}px`;
+			this.indicator.style.top = `${slot.top}px`;
+			this.indicator.style.width = `${slot.width}px`;
+			this.indicator.style.height = `${slot.height}px`;
+			show(this.indicator);
+			return;
+		}
+
+		if (rects) {
+			this.reflowEnd.clear();
+			if (!this.reflow.value) {
+				this.reflow.value = new PartGridReflow(this.host.container, this.host.getVisibleCells(), true, undefined, this.host.getSourceCell(editors));
+			}
+			this.reflow.value.show(rects, PART_GRID_NEW_PART_ID);
+			return;
+		}
+
+		// Back where they were: the cards slide back, and then what shows them goes
+		const reflow = this.reflow.value;
+		if (reflow) {
+			reflow.restore();
+			const timer = setTimeout(() => this.reflow.clear(), PART_GRID_REFLOW_DURATION + 30);
+			this.reflowEnd.value = toDisposable(() => clearTimeout(timer));
+		}
 	}
 
 	private onDrop(e: DragEvent): void {
 		const editors = this.getDragged();
-		const drop = editors ? this.getDrop(e) : undefined;
-		if (!editors || !drop) {
-			return; // editors elsewhere are not the grid's
+		if (!editors || this.settling) {
+			return;
+		}
+
+		this.retarget(e.clientX, e.clientY, editors);
+		const location = this.current.location;
+		if (!location) {
+			return; // into or beside a group: the part's own drop target takes them
 		}
 
 		EventHelper.stop(e, true);
 		hide(this.indicator);
 		this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
-		this.host.moveEditorsIntoNewPart(editors, drop.location.edge);
+		this.current = { key: NONE_KEY, location: undefined };
+
+		const reflow = this.reflow.value;
+		if (!reflow) {
+			this.host.moveEditorsIntoNewPart(editors, location);
+			return;
+		}
+
+		// The new part comes once the cards settled, in the slot shown for it
+		this.settling = true;
+		this.reflowEnd.clear();
+		reflow.fill();
+		const timer = setTimeout(() => this.finish(editors, location), PART_GRID_REFLOW_DURATION + 30);
+		this.reflowEnd.value = toDisposable(() => {
+			clearTimeout(timer);
+			if (this.settling) {
+				this.finish(editors, location); // the drop is not lost
+			}
+		});
+	}
+
+	private finish(editors: readonly IEditorIdentifier[], location: PartGridLocation): void {
+		this.settling = false;
+		this.reflow.clear();
+		this.host.moveEditorsIntoNewPart(editors, location);
+	}
+
+	private reset(): void {
+		if (this.settling) {
+			return;
+		}
+
+		hide(this.indicator);
+		if (this.current.key !== NONE_KEY || this.reflow.value) {
+			this.current = { key: NONE_KEY, location: undefined };
+			this.show(undefined, []);
+		}
 	}
 }
+
+const NONE_KEY = 'none';
 
 /**
  * The title of an editor group in a cell, if a target is its empty space,

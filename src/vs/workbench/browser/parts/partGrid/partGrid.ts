@@ -16,7 +16,8 @@ import { PART_GRID_CLASS } from '../editor/partGridClass.js';
 import { EditorsOrder, IEditorIdentifier } from '../../../common/editor.js';
 import { getPartName } from '../editor/editorPartActions.js';
 import { PartGridCardDrag, PartGridCardDrop } from './partGridCardDrag.js';
-import { getPartTitleDragSource, PartGridDropTarget } from './partGridDnd.js';
+import { getPartTitleDragSource, PART_GRID_NEW_PART_ID, PartGridDropTarget } from './partGridDnd.js';
+import { IPartGridReflowCell } from './partGridReflow.js';
 import { PartGridMotion } from './partGridMotion.js';
 import { getGridEdgeInsets, IGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from './partGridGap.js';
 
@@ -380,17 +381,22 @@ export class PartGrid extends Disposable {
 
 		this._register(new PartGridDropTarget({
 			container,
-			getVisibleCells: () => Array.from(this.cells.values()).filter(cell => cell.part && this.isCellVisible(cell.id)),
+			isMotionEnabled: () => this.motion.isMotionEnabled(),
+			getVisibleCells: () => this.getReflowCells(),
 			canCreateParts: () => !!this.partFactory,
-			moveEditorsIntoNewPart: (editors, edge) => this.moveEditorsIntoNewPart(editors, { edge })
+			getSourceCell: editors => this.getSourceCell(editors)?.id,
+			previewNewPart: (editors, location) => {
+				const source = this.getSourceCell(editors);
+				const remaining = source?.part ? source.part.groups.reduce((count, group) => count + group.count, 0) - editors.length : 1;
+				return this.previewNewPart(PART_GRID_NEW_PART_ID, location, source?.id, remaining <= 0);
+			},
+			moveEditorsIntoNewPart: (editors, location) => this.moveEditorsIntoNewPart(editors, location)
 		}));
 
 		this.cardDrag = this._register(new PartGridCardDrag({
 			container,
 			isMotionEnabled: () => this.motion.isMotionEnabled(),
-			getVisibleCells: () => Array.from(this.cells.values())
-				.filter(cell => this.grid?.isViewVisible(cell) && this.isCellVisible(cell.id))
-				.map(cell => ({ id: cell.id, element: cell.element, card: cell.cardElement, isPart: !!cell.part, setContentVisible: visible => cell.setVisible(visible) })),
+			getVisibleCells: () => this.getReflowCells(),
 			canMerge: (id, targetId) => this.canMergeCell(id, targetId),
 			previewArrangement: (id, drop) => this.previewArrangement(id, drop),
 			drop: (id, drop) => this.dropCell(id, drop)
@@ -398,6 +404,24 @@ export class PartGrid extends Disposable {
 	}
 
 	private readonly cardDrag: PartGridCardDrag;
+
+	/**
+	 * The cells that show, for what makes the cards make way.
+	 */
+	private getReflowCells(): IPartGridReflowCell[] {
+		return Array.from(this.cells.values())
+			.filter(cell => this.grid?.isViewVisible(cell) && this.isCellVisible(cell.id))
+			.map(cell => ({ id: cell.id, element: cell.element, card: cell.cardElement, isPart: !!cell.part, setContentVisible: visible => cell.setVisible(visible) }));
+	}
+
+	/**
+	 * The cell of the part that editors are in.
+	 */
+	private getSourceCell(editors: readonly IEditorIdentifier[]): PartGridCell | undefined {
+		const sourceGroup = editors.length ? this.editorGroupsService.getGroup(editors[0].groupId) : undefined;
+		const sourcePart = sourceGroup ? this.editorGroupsService.getPart(sourceGroup) : undefined;
+		return sourcePart ? Array.from(this.cells.values()).find(cell => cell.part && (cell.part as IEditorPart) === sourcePart) : undefined;
+	}
 
 	/**
 	 * Starts dragging the card of a part by the pointer, from a pointer down
@@ -486,8 +510,54 @@ export class PartGrid extends Disposable {
 	 * for its cells, laid out as the grid is.
 	 */
 	previewArrangement(id: string, drop: PartGridCardDrop): Map<string, IPartGridRect> | undefined {
+		if (!this.cells.has(id)) {
+			return undefined;
+		}
+
+		return this.preview((arrangement, stubOf) => {
+			if (hasKey(drop, { merge: true })) {
+				// A part that merges goes away, as a part without editors does
+				arrangement.grid.setViewVisible(stubOf(id), false);
+			} else {
+				moveInArrangement(arrangement, stubOf(id), stubOf, drop.location);
+			}
+		});
+	}
+
+	/**
+	 * Where the cards of the cells that show would be, in client
+	 * coordinates, with a new part at a location, as
+	 * {@link moveEditorsIntoNewPart} adds it for editors of the part of
+	 * `sourceId`; under `newId`. `sourceEmpties`: the source part has no
+	 * editors left, and hides.
+	 */
+	previewNewPart(newId: string, location: PartGridLocation, sourceId: string | undefined, sourceEmpties: boolean): Map<string, IPartGridRect> | undefined {
+		const like = sourceId !== undefined ? this.cells.get(sourceId) : Array.from(this.cells.values()).find(cell => cell.part);
+		if (!like || (hasKey(location, { reference: true }) && !this.cells.has(location.reference))) {
+			return undefined;
+		}
+
+		return this.preview((arrangement, stubOf) => {
+			const stub = stubOf(newId);
+			if (hasKey(location, { reference: true })) {
+				arrangement.grid.addView(stub, Sizing.Split, stubOf(location.reference), location.direction);
+			} else {
+				addAtEdge(arrangement, stub, location.edge, undefined, sourceId);
+			}
+			if (sourceEmpties && sourceId !== undefined && this.cells.get(sourceId)?.part && !this.cells.get(sourceId)?.options.showWhileEmpty) {
+				arrangement.grid.setViewVisible(stubOf(sourceId), false);
+			}
+		}, { id: newId, like });
+	}
+
+	/**
+	 * A dry run of a change of the arrangement on a copy of the grid, with
+	 * what stands in for its cells (and for a new cell, like another), laid
+	 * out as the grid is: where the cards of the cells that show would be.
+	 */
+	private preview(change: (arrangement: IArrangement<PreviewView>, stubOf: (id: string) => PreviewView) => void, added?: { readonly id: string; readonly like: PartGridCell }): Map<string, IPartGridRect> | undefined {
 		const current = this.grid;
-		if (!current || !this.dimension || !this.cells.has(id) || this.cells.size < 2) {
+		if (!current || !this.dimension || this.cells.size < (added ? 1 : 2)) {
 			return undefined;
 		}
 
@@ -496,12 +566,13 @@ export class PartGrid extends Disposable {
 		const stubOf = (cellId: string) => {
 			let stub = stubs.get(cellId);
 			if (!stub) {
-				stub = new PreviewView(this.getCell(cellId));
+				stub = cellId === added?.id ? new PreviewView(added.like, cellId) : new PreviewView(this.getCell(cellId));
 				stubs.set(cellId, stub);
 			}
 			return stub;
 		};
-		// Laid out as the grid is, before the move, which moves the cells as the grid would
+		const cellOf = (stub: PreviewView) => stub.id === added?.id ? added.like : this.getCell(stub.id);
+		// Laid out as the grid is, before the change, which changes the cells as the grid would
 		const deserialize = (serialized: ISerializedGrid) => {
 			const deserialized = SerializableGrid.deserialize<PreviewView>(serialized, { fromJSON: (data: { id: string }) => stubOf(data.id) }, { proportionalLayout: false });
 			deserialized.layout(state.width, state.height);
@@ -510,21 +581,16 @@ export class PartGrid extends Disposable {
 
 		let grid = deserialize(state);
 		try {
-			if (hasKey(drop, { merge: true })) {
-				// A part that merges goes away, as a part without editors does
-				grid.setViewVisible(stubOf(id), false);
-			} else {
-				const arrangement: IArrangement<PreviewView> = {
-					get grid() { return grid; },
-					isPart: cellId => !!this.cells.get(cellId)?.part,
-					replace: serialized => {
-						const next = deserialize(serialized);
-						grid.dispose();
-						grid = next;
-					}
-				};
-				moveInArrangement(arrangement, stubOf(id), stubOf, drop.location);
-			}
+			const arrangement: IArrangement<PreviewView> = {
+				get grid() { return grid; },
+				isPart: cellId => cellId === added?.id || !!this.cells.get(cellId)?.part,
+				replace: serialized => {
+					const next = deserialize(serialized);
+					grid.dispose();
+					grid = next;
+				}
+			};
+			change(arrangement, stubOf);
 			this.previewAdjuster?.({
 				leads: cellId => leads(grid, cellId, stub => !!stub.part && grid.isViewVisible(stub)),
 				isCellVisible: cellId => stubs.has(cellId) || this.cells.has(cellId) ? grid.isViewVisible(stubOf(cellId)) : false,
@@ -543,7 +609,7 @@ export class PartGrid extends Disposable {
 
 				// The card inside the cell, inset by its share of the gaps to the cells beside it, as the grid's look insets it
 				const gapInsets = stub.keepsNoGap || visibleStubs.length < 2 ? NO_GRID_EDGE_INSETS : getGridEdgeInsets(grid, stub, this.gap, neighbor => grid.isViewVisible(neighbor) && !neighbor.keepsNoGap);
-				const insets = this.getCell(stub.id).getCardInsets(gapInsets);
+				const insets = cellOf(stub).getCardInsets(gapInsets);
 				rects.set(stub.id, {
 					left: origin.left + box.left + insets.left,
 					top: origin.top + box.top + insets.top,
@@ -614,8 +680,7 @@ export class PartGrid extends Disposable {
 
 		const { id, part } = this.partFactory.createPart();
 		// The new part takes its room from the part the editors come from, not from the other parts
-		const sourcePart = this.editorGroupsService.getPart(sourceGroup);
-		const sourceCell = Array.from(this.cells.values()).find(cell => cell.part && (cell.part as IEditorPart) === sourcePart);
+		const sourceCell = this.getSourceCell(editors);
 		const cell = this.register(id, { part });
 		this.markCreated(id);
 		this.addCell(cell, location, undefined, sourceCell?.id);
@@ -1422,8 +1487,8 @@ class PreviewView implements IArrangedView {
 
 	box: IPartGridRect | undefined;
 
-	constructor(private readonly cell: PartGridCell) {
-		this.id = cell.id;
+	constructor(cell: PartGridCell, id = cell.id) {
+		this.id = id;
 		this.part = !!cell.part;
 		this.element = $('.part-grid-preview-cell');
 		this.minimumWidth = cell.minimumWidth;
@@ -1438,7 +1503,7 @@ class PreviewView implements IArrangedView {
 	}
 
 	toJSON(): object {
-		return this.cell.toJSON();
+		return { id: this.id };
 	}
 }
 
