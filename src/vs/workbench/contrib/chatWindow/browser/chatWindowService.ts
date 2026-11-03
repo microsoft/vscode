@@ -113,7 +113,8 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		}));
 
 		// The chat's editor is the chat window: closing it closes the window, and moving it out of the window takes the
-		// chat out of it. It may move between the groups of the chat part, such as when the chat part splits.
+		// chat out of it. It may move between the groups of the window's parts, such as when the chat part splits or when
+		// the chat part merges into another part.
 		const chatGroupListeners = this._register(new DisposableMap<IEditorGroup>());
 		const trackChatGroup = (group: IEditorGroup) => chatGroupListeners.set(group, group.onDidCloseEditor(e => {
 			if (e.editor !== content.input || this._closing || this._host.isUnloading()) {
@@ -122,13 +123,15 @@ export class ChatWindow extends Disposable implements IChatWindow {
 			if (e.context !== EditorCloseContext.MOVE) {
 				// Once the editor closed: closing the window closes the part whose group still closes the editor.
 				disposableTimeout(() => this.close(), 0, this._store);
-			} else if (!this.chatPart.groups.some(candidate => candidate.contains(content.input)) && !this.mainPart.groups.some(candidate => candidate.contains(content.input))) {
+			} else if (!this._findChatGroup()) {
 				this._host.didMoveChatOut();
 			}
 		}));
-		chatPart.groups.forEach(trackChatGroup);
-		this._register(chatPart.onDidAddGroup(trackChatGroup));
-		this._register(chatPart.onDidRemoveGroup(group => chatGroupListeners.deleteAndDispose(group)));
+		for (const part of [chatPart, mainPart]) {
+			part.groups.forEach(trackChatGroup);
+			this._register(part.onDidAddGroup(trackChatGroup));
+			this._register(part.onDidRemoveGroup(group => chatGroupListeners.deleteAndDispose(group)));
+		}
 
 		this._register(content.onDidEnd(() => this.close()));
 	}
@@ -211,12 +214,15 @@ export class ChatWindow extends Disposable implements IChatWindow {
 	 * window's parts as the chat part showing the chat, so that the chat never hides with the part it was dropped into.
 	 */
 	private _returnChat(): void {
-		const input = this.content.input;
-		if (this.chatPart.groups.some(group => group.contains(input))) {
-			return;
+		const group = this._findChatGroup();
+		if (group && !this.chatPart.groups.includes(group)) {
+			group.moveEditor(this.content.input, this.chatPart.activeGroup, { preserveFocus: true });
 		}
-		const group = this.mainPart.groups.find(candidate => candidate.contains(input));
-		group?.moveEditor(input, this.chatPart.activeGroup, { preserveFocus: true });
+	}
+
+	/** The group of the window that holds the chat's editor, in whichever of its parts it is. */
+	private _findChatGroup(): IEditorGroup | undefined {
+		return [this.chatPart, this.mainPart].flatMap(part => part.groups).find(group => group.contains(this.content.input));
 	}
 
 	/** Focuses the chat while it shows, else the main part, so that focusing a window that shows only its main part keeps it so. */
