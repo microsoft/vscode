@@ -1,0 +1,259 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { timeout } from '../../../../../../base/common/async.js';
+import { encodeHex, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { agentHostAuthority, fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ISSHRemoteAgentHostService, ISSHResolvedConfig } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo, TunnelAuthenticationRequiredError } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { IWSLCachedDistro, IWSLRemoteAgentHostService } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
+import { RemoteWorkspaceHandoffResult } from '../../../../../common/remoteWorkspaceHandoff.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { parseRemoteMachine, RemoteWorkspaceHandoffService } from '../../browser/remoteWorkspaceHandoffService.js';
+import { resolveRemoteAgentHostEntryAuthority } from '../../../../../browser/openInVSCodeUtils.js';
+
+suite('RemoteWorkspaceHandoffService', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const tunnel = (name: string, tunnelId = `${name}-id`): ITunnelInfo => ({ tunnelId, clusterId: 'usw2', name, tags: [], protocolVersion: 6, hostConnectionCount: 1 });
+
+	function createHarness(options: {
+		readonly entries?: readonly IRemoteAgentHostEntry[];
+		readonly enabled?: boolean;
+		readonly distros?: readonly string[];
+		readonly defaultDistro?: string;
+		readonly cachedTunnels?: readonly ICachedTunnel[];
+		readonly listTunnels?: (authProvider: 'github' | 'microsoft' | undefined) => Promise<ITunnelInfo[]>;
+		readonly dismissedTunnels?: readonly string[];
+	} = {}) {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const storage = disposables.add(new InMemoryStorageService());
+		const providersChanged = disposables.add(new Emitter<ISessionsProvidersChangeEvent>());
+		const providers: ISessionsProvider[] = [];
+		const calls: string[] = [];
+		const errors: string[] = [];
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: options.enabled ?? true }));
+		instantiationService.stub(IRemoteAgentHostService, upcastPartial<IRemoteAgentHostService>({ configuredEntries: options.entries ?? [] }));
+		instantiationService.stub(ISSHRemoteAgentHostService, upcastPartial<ISSHRemoteAgentHostService>({
+			resolveSSHConfig: async host => upcastPartial<ISSHResolvedConfig>({ hostname: `${host}.example.com`, user: 'resolved-user', port: 2222 }),
+		}));
+		instantiationService.stub(IWSLRemoteAgentHostService, upcastPartial<IWSLRemoteAgentHostService>({
+			listDistros: async () => (options.distros ?? []).map(name => ({ name, isDefault: name === options.defaultDistro, isRunning: true, version: 2 as const })),
+			cacheDistro: (distro: IWSLCachedDistro) => { calls.push(`cacheDistro:${distro.distro}`); },
+		}));
+		instantiationService.stub(ITunnelAgentHostService, upcastPartial<ITunnelAgentHostService>({
+			getCachedTunnels: () => [...(options.cachedTunnels ?? [])],
+			isTunnelDismissed: tunnelId => !!options.dismissedTunnels?.includes(tunnelId),
+			clearTunnelDismissal: tunnelId => { calls.push(`clearTunnelDismissal:${tunnelId}`); },
+			getAuthProvider: async () => 'github',
+			listTunnels: async discovery => options.listTunnels ? options.listTunnels(discovery?.authProvider) : [],
+			cacheTunnel: (info, authProvider) => { calls.push(`cacheTunnel:${info.tunnelId}:${authProvider}`); },
+		}));
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
+			getProviders: () => providers,
+			onDidChangeProviders: providersChanged.event,
+		}));
+		instantiationService.stub(IStorageService, storage);
+		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({ withProgress: (_options, task) => task(upcastPartial({ report: () => { } })) }));
+		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ error: message => { errors.push(String(message)); } }));
+		instantiationService.stub(ILogService, new NullLogService());
+		const service = disposables.add(instantiationService.createInstance(RemoteWorkspaceHandoffService));
+		return {
+			service, storage, calls, errors,
+			addProvider: (address: string, connect: (status: ISettableObservable<RemoteAgentHostConnectionStatus>) => Promise<void>, initialStatus: RemoteAgentHostConnectionStatus = RemoteAgentHostConnectionStatus.disconnected) => {
+				const status = observableValue<RemoteAgentHostConnectionStatus>('status', initialStatus);
+				const provider = upcastPartial<IAgentHostSessionsProvider>({
+					id: `agenthost-${agentHostAuthority(address)}`,
+					label: address,
+					remoteAddress: address,
+					connectionStatus: status,
+					connect: () => {
+						calls.push(`connect:${address}`);
+						return connect(status);
+					},
+					showInEnvironmentPicker: () => { calls.push(`show:${address}`); },
+				});
+				providers.push(provider);
+				providersChanged.fire({ added: [provider], removed: [] });
+			},
+		};
+	}
+
+	const describe = (result: RemoteWorkspaceHandoffResult) => result.folderUri
+		? { authority: result.folderUri.authority, folder: fromAgentHostUri(result.folderUri).toString() }
+		: { unavailableReason: result.unavailableReason };
+
+	test('parses SSH, WSL and Tunnel remote authorities as their extensions do', () => {
+		const encode = (value: object) => encodeHex(VSBuffer.fromString(JSON.stringify(value)));
+		assert.deepStrictEqual([
+			'ssh-remote+myhost',
+			`ssh-remote+${encode({ hostName: 'MyHost' })}`,
+			`ssh-remote+${encode({ hostName: 'host.example.com', user: 'me', port: 2222 })}`,
+			'ssh-remote+me@host.example.com:2200',
+			'ssh-remote+host.example.com:2200',
+			'ssh-remote+me@fe80::1',
+			'ssh-remote+[fe80::1]:2222',
+			'wsl+Ubuntu-24.04',
+			'wsl+default',
+			'wsl+ubuntu@tunnel+surface',
+			'wsl+ubuntu%40tunnel+surface',
+			'tunnel+my-tunnel',
+			'codespaces+name',
+			'ssh-remote+',
+		].map(parseRemoteMachine), [
+			{ kind: 'ssh', sshConfigHost: 'myhost' },
+			{ kind: 'ssh', sshConfigHost: 'MyHost' },
+			{ kind: 'ssh', hostName: 'host.example.com', user: 'me', port: 2222 },
+			{ kind: 'ssh', hostName: 'host.example.com', user: 'me', port: 2200 },
+			{ kind: 'ssh', hostName: 'host.example.com', user: undefined, port: 2200 },
+			{ kind: 'ssh', hostName: 'fe80::1', user: 'me', port: undefined },
+			{ kind: 'ssh', hostName: 'fe80::1', user: undefined, port: 2222 },
+			{ kind: 'wsl', distro: 'Ubuntu-24.04' },
+			{ kind: 'wsl', distro: undefined },
+			undefined,
+			undefined,
+			{ kind: 'tunnel', name: 'my-tunnel' },
+			undefined,
+			undefined,
+		]);
+	});
+
+	test('maps the authorities of editor windows opened from the Agents Window back to their hosts', async () => {
+		const entries: IRemoteAgentHostEntry[] = [
+			{ name: 'myhost', connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:myhost', sshConfigHost: 'myhost', hostName: 'myhost.example.com' } },
+			{ name: 'MyAlias', connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:MyAlias', sshConfigHost: 'MyAlias', hostName: 'alias.example.com' } },
+			{ name: 'me@host', connection: { type: RemoteAgentHostEntryType.SSH, address: 'me@host.example.com:2200', hostName: 'host.example.com', user: 'me', port: 2200 } },
+			{ name: 'Ubuntu', connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' } },
+			{ name: 'my-tunnel', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'tunnel-id', clusterId: 'usw2', label: 'my-tunnel' } },
+		];
+		const harness = createHarness({ entries });
+		const results = [];
+		for (const entry of entries) {
+			results.push(describe(await harness.service.resolveFolder({ remoteAuthority: resolveRemoteAgentHostEntryAuthority(entry)!, path: '/project' }, CancellationToken.None)));
+		}
+		assert.deepStrictEqual({ results, calls: harness.calls, stored: readSSHRemoteAgentHostEntries(harness.storage) }, {
+			results: entries.map(entry => ({ authority: agentHostAuthority(getEntryAddress(entry)), folder: 'file:///project' })),
+			calls: [],
+			stored: [],
+		});
+	});
+
+	test('resolves folders of hosts the Agents Window already knows', async () => {
+		const ssh: IRemoteAgentHostEntry = { name: 'myhost', connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:myhost', sshConfigHost: 'myhost', hostName: 'myhost.example.com' } };
+		const wsl: IRemoteAgentHostEntry = { name: 'Ubuntu', connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' } };
+		const tunnelEntry: IRemoteAgentHostEntry = { name: 'my-tunnel', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'tunnel-id', clusterId: 'usw2', label: 'my-tunnel' } };
+		const harness = createHarness({ entries: [ssh, wsl, tunnelEntry], dismissedTunnels: ['tunnel-id'] });
+		const results = await Promise.all([
+			harness.service.resolveFolder({ remoteAuthority: 'ssh-remote+myhost', path: '/home/me/project' }, CancellationToken.None),
+			harness.service.resolveFolder({ remoteAuthority: 'wsl+ubuntu', path: '/home/me/project' }, CancellationToken.None),
+			harness.service.resolveFolder({ remoteAuthority: 'tunnel+my-tunnel', path: '/c:/remote/project' }, CancellationToken.None),
+		]);
+		assert.deepStrictEqual({ results: results.map(describe), calls: harness.calls, stored: readSSHRemoteAgentHostEntries(harness.storage) }, {
+			results: [
+				{ authority: agentHostAuthority('ssh:myhost'), folder: 'file:///home/me/project' },
+				{ authority: agentHostAuthority('wsl:Ubuntu'), folder: 'file:///home/me/project' },
+				{ authority: agentHostAuthority(getEntryAddress(tunnelEntry)), folder: 'file:///c%3A/remote/project' },
+			],
+			calls: ['clearTunnelDismissal:tunnel-id'],
+			stored: [],
+		});
+	});
+
+	test('adds hosts the Agents Window does not know yet', async () => {
+		const harness = createHarness({
+			distros: ['Ubuntu-24.04', 'Debian'],
+			defaultDistro: 'Debian',
+			cachedTunnels: [{ tunnelId: 'cached-id', clusterId: 'usw2', name: 'cached-tunnel', authProvider: 'microsoft' }],
+			// The tunnel of the other account is found after the most recently used account.
+			listTunnels: async authProvider => authProvider === 'microsoft' ? [tunnel('other-account-tunnel', 'other-id')] : [tunnel('listed-tunnel')],
+		});
+		const encoded = encodeHex(VSBuffer.fromString(JSON.stringify({ hostName: 'host.example.com', user: 'me', port: 2200 })));
+		const results = [];
+		for (const remoteAuthority of [
+			'ssh-remote+myhost', `ssh-remote+${encoded}`, 'ssh-remote+admin@plain.example.com:2201',
+			'wsl+ubuntu-24.04', 'wsl+default',
+			'tunnel+cached-tunnel', 'tunnel+listed-tunnel', 'tunnel+other-id.usw2',
+		]) {
+			results.push(describe(await harness.service.resolveFolder({ remoteAuthority, path: '/project' }, CancellationToken.None)));
+		}
+		assert.deepStrictEqual({ results, calls: harness.calls, stored: readSSHRemoteAgentHostEntries(harness.storage).map(entry => entry.connection) }, {
+			results: [
+				{ authority: agentHostAuthority('ssh:myhost'), folder: 'file:///project' },
+				{ authority: agentHostAuthority('me@host.example.com:2200'), folder: 'file:///project' },
+				{ authority: agentHostAuthority('admin@plain.example.com:2201'), folder: 'file:///project' },
+				{ authority: agentHostAuthority('wsl:Ubuntu-24.04'), folder: 'file:///project' },
+				{ authority: agentHostAuthority('wsl:Debian'), folder: 'file:///project' },
+				{ authority: agentHostAuthority('tunnel:cached-id'), folder: 'file:///project' },
+				{ authority: agentHostAuthority('tunnel:listed-tunnel-id'), folder: 'file:///project' },
+				{ authority: agentHostAuthority('tunnel:other-id'), folder: 'file:///project' },
+			],
+			calls: [
+				'cacheDistro:Ubuntu-24.04', 'cacheDistro:Debian', 'clearTunnelDismissal:cached-id',
+				'clearTunnelDismissal:listed-tunnel-id', 'cacheTunnel:listed-tunnel-id:github',
+				'clearTunnelDismissal:other-id', 'cacheTunnel:other-id:microsoft',
+			],
+			stored: [
+				{ type: RemoteAgentHostEntryType.SSH, address: 'ssh:myhost', sshConfigHost: 'myhost', hostName: 'myhost.example.com', user: 'resolved-user', port: 2222 },
+				{ type: RemoteAgentHostEntryType.SSH, address: 'me@host.example.com:2200', sshConfigHost: undefined, hostName: 'host.example.com', user: 'me', port: 2200 },
+				{ type: RemoteAgentHostEntryType.SSH, address: 'admin@plain.example.com:2201', sshConfigHost: undefined, hostName: 'plain.example.com', user: 'admin', port: 2201 },
+			],
+		});
+	});
+
+	test('explains why a remote cannot provide its folder', async () => {
+		const resolve = async (remoteAuthority: string, options?: Parameters<typeof createHarness>[0]) => describe(await createHarness(options).service.resolveFolder({ remoteAuthority, path: '/project' }, CancellationToken.None));
+		assert.deepStrictEqual([
+			await resolve('codespaces+name'),
+			await resolve('wsl+ubuntu@tunnel+surface'),
+			await resolve('ssh-remote+myhost', { enabled: false }),
+			await resolve('wsl+Missing', { distros: ['Ubuntu'] }),
+			await resolve('wsl+default', { distros: ['Ubuntu'] }),
+			await resolve('tunnel+missing', { listTunnels: async () => [tunnel('other')] }),
+			await resolve('tunnel+signed-out', { listTunnels: async () => { throw new TunnelAuthenticationRequiredError('github'); } }),
+		], [
+			{ unavailableReason: 'The Agents Window cannot connect to this kind of remote.' },
+			{ unavailableReason: 'The Agents Window cannot connect to this kind of remote.' },
+			{ unavailableReason: 'Remote agent hosts are disabled.' },
+			{ unavailableReason: 'WSL distribution \'Missing\' was not found. Remote agent hosts require WSL 2.' },
+			{ unavailableReason: 'No default WSL distribution was found. Remote agent hosts require WSL 2.' },
+			{ unavailableReason: 'Tunnel \'missing\' was not found for the signed-in accounts.' },
+			{ unavailableReason: 'Sign in to find tunnel \'signed-out\'.' },
+		]);
+	});
+
+	test('reveals and connects the host once its provider registers, reporting failures', async () => {
+		const ssh: IRemoteAgentHostEntry = { name: 'myhost', connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:myhost', sshConfigHost: 'myhost', hostName: 'myhost.example.com' } };
+		const wsl: IRemoteAgentHostEntry = { name: 'Ubuntu', connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' } };
+		const connected: IRemoteAgentHostEntry = { name: 'Debian', connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Debian', distro: 'Debian' } };
+		const harness = createHarness({ entries: [ssh, wsl, connected] });
+		await harness.service.resolveFolder({ remoteAuthority: 'ssh-remote+myhost', path: '/project' }, CancellationToken.None);
+		await harness.service.resolveFolder({ remoteAuthority: 'wsl+Ubuntu', path: '/project' }, CancellationToken.None);
+		await harness.service.resolveFolder({ remoteAuthority: 'wsl+Debian', path: '/project' }, CancellationToken.None);
+		harness.addProvider('ssh:myhost', async status => status.set(RemoteAgentHostConnectionStatus.connected, undefined));
+		harness.addProvider('wsl:Ubuntu', async () => { throw new Error('WSL is not running'); });
+		harness.addProvider('wsl:Debian', () => assert.fail('A connected host must not reconnect'), RemoteAgentHostConnectionStatus.connected);
+		await timeout(0);
+		assert.deepStrictEqual({ calls: harness.calls, errors: harness.errors }, {
+			calls: ['show:ssh:myhost', 'connect:ssh:myhost', 'show:wsl:Ubuntu', 'connect:wsl:Ubuntu', 'show:wsl:Debian'],
+			errors: ['Failed to connect to wsl:Ubuntu: WSL is not running'],
+		});
+	});
+});

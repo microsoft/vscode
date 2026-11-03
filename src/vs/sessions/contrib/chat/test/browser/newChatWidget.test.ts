@@ -4109,6 +4109,32 @@ suite('NewChatWidget', () => {
 				result: preserved ? 'preserved' : 'applied', selected: preserved ? [] : [folderUri],
 			});
 		});
+
+		test(`the target composer starts without a workspace for an inferred default over ${origin}`, () => {
+			let selection: IWorkspaceSelectionSnapshot = {
+				folderUri: URI.file('/previous'), state: 'selected', origin,
+				historyState: 'loaded', sessionFallbackState: 'idle', registeredProviderCount: 1,
+			};
+			const noWorkspaceSelections: (ISelectNoWorkspaceOptions | undefined)[] = [];
+			const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
+				_newSessionCreation: disposables.add(new MutableDisposable<IDisposable>()),
+				_newChatInput: { canApplyWorkspaceDefault: true },
+				_workspacePicker: { get selectionSnapshot() { return selection; } },
+				selectNoWorkspace: (_options: ICreateNewSessionOptions | undefined, selectionOptions?: ISelectNoWorkspaceOptions) => {
+					noWorkspaceSelections.push(selectionOptions);
+					selection = { ...selection, folderUri: undefined, state: 'noWorkspace' };
+					return undefined;
+				},
+			});
+			const preserved = [
+				WorkspaceSelectionOrigin.User, WorkspaceSelectionOrigin.WindowOpen, WorkspaceSelectionOrigin.RestoredDraft,
+				WorkspaceSelectionOrigin.SessionSync, WorkspaceSelectionOrigin.Programmatic,
+			].includes(origin);
+			const options = { userSelection: false, isDefault: true };
+			assert.deepStrictEqual({ result: widget.applyNoWorkspace(options), noWorkspaceSelections }, {
+				result: preserved ? 'preserved' : 'applied', noWorkspaceSelections: preserved ? [] : [options],
+			});
+		});
 	}
 
 	for (const protectedState of ['input', 'attachments', 'restoredDraft', 'noWorkspace', 'quickChat'] as const) {
