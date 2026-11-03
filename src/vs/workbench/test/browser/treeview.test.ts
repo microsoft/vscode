@@ -14,8 +14,6 @@ import { TestInstantiationService } from '../../../platform/instantiation/test/c
 import { ITreeItem, ITreeViewDataProvider, IViewDescriptorService, TreeItemCollapsibleState } from '../../common/views.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ViewDescriptorService } from '../../services/views/browser/viewDescriptorService.js';
-import { mainWindow } from '../../../base/browser/window.js';
-import { toDisposable } from '../../../base/common/lifecycle.js';
 
 suite('TreeView', function () {
 
