@@ -22,6 +22,10 @@
 	flex-shrink: 0;
 }
 
+.session-worktree-cleanup-controls-content {
+	display: flow-root;
+}
+
 .session-worktree-cleanup-intro,
 .session-worktree-cleanup-automatic > p {
 	color: var(--vscode-descriptionForeground);
@@ -116,7 +120,7 @@
 
 .session-worktree-cleanup-list {
 	flex: 1;
-	min-height: 80px;
+	min-height: 0;
 	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
 	border-radius: var(--vscode-cornerRadius-medium);
 	overflow: hidden;

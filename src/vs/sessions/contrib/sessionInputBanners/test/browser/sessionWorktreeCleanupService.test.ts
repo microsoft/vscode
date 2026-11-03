@@ -1440,6 +1440,84 @@ suite('SessionWorktreeCleanupService', () => {
 		});
 	});
 
+	test('only confirmed restoration cancels retained cleanup and allows cleanup again', async () => {
+		const archived = observableValue('archived', false);
+		const session = createSession('restored', oldDate(), SessionStatus.Completed, false, true, 1, archived);
+		const onDidUnarchiveSession = disposables.add(new Emitter<ISession>());
+		let submissions = 0;
+		const service = disposables.add(createService([session], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+			onDidUnarchiveSession: onDidUnarchiveSession.event,
+			onArchive: async () => { submissions++; },
+		}));
+		const candidates = [{ session, sizeBytes: 100, worktreeCount: 1 }];
+		await service.cleanupWorktrees(candidates);
+		await service.getWorktrees(0, () => { });
+		const staleSnapshot = service.cleanupOperations.get().map(operation => operation.state);
+		await assert.rejects(service.cleanupWorktrees(candidates), /already scheduled/);
+		onDidUnarchiveSession.fire(session);
+		const restored = service.cleanupOperations.get();
+		await service.cleanupWorktrees(candidates);
+		assert.deepStrictEqual({ staleSnapshot, restored, submissions, operations: service.cleanupOperations.get().map(operation => operation.state) }, {
+			staleSnapshot: ['pending'], restored: [], submissions: 2, operations: ['pending'],
+		});
+	});
+
+	for (const archiveFails of [false, true]) {
+		test(`restoration during an outstanding archive does not recreate its cancelled operation when archive ${archiveFails ? 'fails' : 'succeeds'}`, async () => {
+			const session = createSession('restored', oldDate());
+			const onDidUnarchiveSession = disposables.add(new Emitter<ISession>());
+			const entered = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const updates: SessionWorktreeCleanupProgress[] = [];
+			const service = disposables.add(createService([session], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+				dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+				onDidUnarchiveSession: onDidUnarchiveSession.event,
+				onArchive: async () => {
+					await entered.complete();
+					await release.p;
+					if (archiveFails) {
+						throw new Error('archive cancelled');
+					}
+				},
+			}));
+			const cleanup = service.cleanupWorktrees([{ session, sizeBytes: 100, worktreeCount: 1 }], update => updates.push(update));
+			await entered.p;
+			onDidUnarchiveSession.fire(session);
+			await release.complete();
+			await cleanup;
+			assert.deepStrictEqual({ operations: service.cleanupOperations.get(), progress: updates.map(update => update.state), scheduling: service.isSchedulingCleanup.get() }, {
+				operations: [], progress: ['started'], scheduling: false,
+			});
+		});
+	}
+
+	test('a restored queued session is not archived when the batch reaches it', async () => {
+		const first = createSession('first', oldDate());
+		const restored = createSession('restored', oldDate());
+		const onDidUnarchiveSession = disposables.add(new Emitter<ISession>());
+		const entered = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const archived: string[] = [];
+		const service = disposables.add(createService([first, restored], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+			onDidUnarchiveSession: onDidUnarchiveSession.event,
+			onArchive: async session => {
+				archived.push(session.sessionId);
+				await entered.complete();
+				await release.p;
+			},
+		}));
+		const cleanup = service.cleanupWorktrees([first, restored].map(session => ({ session, sizeBytes: 100, worktreeCount: 1 })));
+		await entered.p;
+		onDidUnarchiveSession.fire(restored);
+		await release.complete();
+		await cleanup;
+		assert.deepStrictEqual({ archived, operations: service.cleanupOperations.get().map(operation => getWorktreeCleanupId(operation.candidate)) }, {
+			archived: ['first'], operations: ['first'],
+		});
+	});
+
 	test('accepts prefixed agent worktrees without measuring sessionless storage', async () => {
 		const unlinked = { ...managedWorktree(), branch: 'users/alice/agents/task' };
 		const requests: IManagedSessionWorktree[] = [];
@@ -1786,6 +1864,7 @@ function createService(
 		readonly canForceWorktreeCleanup?: ISessionsManagementService['canForceWorktreeCleanup'];
 		readonly onExists?: ISessionsManagementService['sessionWorktreeExists'];
 		readonly onDidArchiveSession?: Event<ISession>;
+		readonly onDidUnarchiveSession?: Event<ISession>;
 		readonly listManagedWorktrees?: ISessionsManagementService['listManagedWorktrees'];
 		readonly cleanupManagedWorktree?: ISessionsManagementService['cleanupManagedWorktree'];
 		readonly managedWorktreeExists?: ISessionsManagementService['managedWorktreeExists'];
@@ -1800,6 +1879,7 @@ function createService(
 			canForceWorktreeCleanup: overrides.canForceWorktreeCleanup,
 			sessionWorktreeExists: overrides.onExists ?? (async () => true),
 			onDidArchiveSession: overrides.onDidArchiveSession ?? Event.None,
+			onDidUnarchiveSession: overrides.onDidUnarchiveSession ?? Event.None,
 			onDidChangeSessions,
 			listManagedWorktrees: overrides.listManagedWorktrees,
 			cleanupManagedWorktree: overrides.cleanupManagedWorktree,

@@ -202,6 +202,12 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		this._register(this.sessionsManagementService.onDidArchiveSession(() => {
 			this._updateSuggestion();
 		}));
+		this._register(this.sessionsManagementService.onDidUnarchiveSession(session => {
+			this._cleanupOperations.set(this._cleanupOperations.get().filter(operation => operation.candidate.session?.sessionId !== session.sessionId), undefined);
+			this._lastMeasuredWorktrees = undefined;
+			this._lastScanAt = -Infinity;
+			this._updateSuggestion();
+		}));
 		this._register(this.sessionsManagementService.onDidChangeSessions(() => {
 			this._updateSuggestion();
 			this._refreshScheduler.schedule();
@@ -791,6 +797,11 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		}, async progress => {
 			let completedWorktrees = 0;
 			for (const candidate of selected) {
+				const id = getWorktreeCleanupId(candidate);
+				const isCancelled = () => !this._cleanupOperations.get().some(operation => getWorktreeCleanupId(operation.candidate) === id);
+				if (isCancelled()) {
+					continue;
+				}
 				try {
 					if (force && candidate.session && !candidate.session.isArchived.get()) {
 						throw new Error(localize('worktreeCleanup.forceNotArchived', "Only sessions marked as done can have their worktrees forcibly removed."));
@@ -817,10 +828,16 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 				} catch (error) {
 					const message = getErrorMessage(error);
 					this.logService.warn('[SessionWorktreeCleanupService] Failed to schedule worktree cleanup', error);
+					if (isCancelled()) {
+						continue;
+					}
 					failures.push(localize('worktreeCleanup.sessionFailure', "{0}: {1}", getWorktreeCleanupTitle(candidate), message));
 					failedWorktrees += candidate.worktreeCount;
 					this._updateCleanupOperation(candidate, 'failed', message);
 					onProgress?.({ state: 'failed', candidate, message });
+					continue;
+				}
+				if (isCancelled()) {
 					continue;
 				}
 				this._updateCleanupOperation(candidate, 'pending');

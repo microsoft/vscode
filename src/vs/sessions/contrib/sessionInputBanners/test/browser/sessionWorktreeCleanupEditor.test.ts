@@ -7,6 +7,7 @@ import assert from 'assert';
 import { spy, stub } from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { IAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -20,6 +21,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IListService, ListService, WorkbenchTable } from '../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -57,12 +59,16 @@ suite('SessionWorktreeCleanupEditor', () => {
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ openSession: async resource => { opened.push(resource.toString()); return undefined; } }));
 		const errors: string[] = [];
 		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ error: error => errors.push(getErrorMessage(error)) }));
+		let menuActions: readonly IAction[] = [];
+		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({
+			showContextMenu: delegate => { menuActions = delegate.getActions?.() ?? []; },
+		}));
 		const editor = disposables.add(instantiationService.createInstance(SessionWorktreeCleanupEditor, new TestEditorGroupView(1)));
 		const container = dom.append(mainWindow.document.body, dom.$('div'));
 		disposables.add(toDisposable(() => container.remove()));
 		editor.create(container);
 		editor.layout(new dom.Dimension(1200, 1000));
-		return { editor, container, configuration, updateValue, errors, opened, instantiationService };
+		return { editor, container, configuration, updateValue, errors, opened, instantiationService, getMenuActions: () => menuActions };
 	}
 
 	function scheduleCleanup(candidates: readonly ISessionWorktreeCleanupCandidate[], onProgress?: (progress: SessionWorktreeCleanupProgress) => void): boolean {
@@ -143,7 +149,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		const failed = ['first', 'second'].map(id => ({ ...createWorktree(id, '/repos/app', 'archived'), cleanupStatus: { state: 'failed' as const, message: 'permission denied' } }));
 		const ordinary: string[][] = [];
 		const forced: string[][] = [];
-		const { editor, container } = createEditor({
+		const { editor, container, getMenuActions } = createEditor({
 			getWorktrees: async () => failed,
 			canForceCleanup: () => true,
 			cleanupWorktrees: async candidates => { ordinary.push(candidates.map(getWorktreeCleanupId)); return false; },
@@ -151,16 +157,24 @@ suite('SessionWorktreeCleanupEditor', () => {
 		});
 		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
 		await timeout(0);
+		editor.layout(new dom.Dimension(420, 600));
 		container.querySelector<HTMLElement>('.session-worktree-cleanup-row [role="checkbox"]')!.click();
 		rowAction(container, 'second', 'Retry Cleanup').click();
 		await timeout(0);
 		const afterRetry = { ordinary: [...ordinary], forced: [...forced] };
-		rowAction(container, 'second', 'Force Remove').click();
+		const row = [...container.querySelectorAll('.session-worktree-cleanup-row')].find(row => row.querySelector('.session-worktree-cleanup-session-link')?.textContent === 'second')!;
+		const inline = [...row.querySelectorAll<HTMLElement>('.actions .action-label')].map(action => action.textContent);
+		const overflow = row.querySelector<HTMLElement>('.actions .action-label[aria-haspopup="true"]')!;
+		const actionsFit = overflow.getBoundingClientRect().right <= row.querySelector('.actions')!.getBoundingClientRect().right;
+		focusElement(overflow);
+		overflow.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		const secondary = getMenuActions().map(action => action.label);
+		await getMenuActions().find(action => action.label === 'Force Remove')!.run();
 		await timeout(0);
 		assert.deepStrictEqual({
-			afterRetry, ordinary, forced,
+			afterRetry, ordinary, forced, inline, secondary, actionsFit,
 			checked: [...container.querySelectorAll('.session-worktree-cleanup-row [role="checkbox"]')].map(checkbox => checkbox.getAttribute('aria-checked')),
-		}, { afterRetry: { ordinary: [['second']], forced: [] }, ordinary: [['second']], forced: [['second']], checked: ['true', 'false'] });
+		}, { afterRetry: { ordinary: [['second']], forced: [] }, ordinary: [['second']], forced: [['second']], inline: ['Retry Cleanup', ''], secondary: ['Recheck', 'Force Remove'], actionsFit: true, checked: ['true', 'false'] });
 	});
 
 	test('attention filter retains unresolved rows and Recheck actions without losing checkbox choices', async () => {
@@ -251,6 +265,107 @@ suite('SessionWorktreeCleanupEditor', () => {
 			retry: rowAction(container, 'first', 'Retry Cleanup').textContent,
 		}, { requests: 1, reopened: { reason: 'Queued for cleanup…', busy: 'true', checkboxes: 0 }, reason: 'Couldn\'t schedule cleanup: host disconnected', retry: 'Retry Cleanup' });
 	}));
+
+	test('refreshes restored submissions on completion and observes successful removal after reopening', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const archived = observableValue('archived', false);
+		const initial = createWorktree('first', '/repos/app');
+		const worktree: ISessionWorktree = { ...initial, session: upcastPartial<ISession>({ ...initial.session, isArchived: archived }) };
+		const operations = observableValue<readonly ISessionWorktreeCleanupOperation[]>('operations', []);
+		const scheduling = observableValue('scheduling', false);
+		const completion = new DeferredPromise<void>();
+		let requests = 0;
+		let loads = 0;
+		let checks = 0;
+		const { editor, container } = createEditor({
+			cleanupOperations: operations,
+			isSchedulingCleanup: scheduling,
+			getWorktrees: async () => {
+				loads++;
+				return [archived.get() ? { ...worktree, cleanupState: 'archived', cleanupStatus: { state: 'pending' } } : worktree];
+			},
+			refreshPendingCleanup: async () => { checks++; return [removedWorktree(worktree)]; },
+			cleanupWorktrees: async ([candidate], onProgress) => {
+				requests++;
+				transaction(tx => {
+					operations.set([{ candidate, state: 'queued' }], tx);
+					scheduling.set(true, tx);
+				});
+				onProgress?.({ state: 'started' });
+				await completion.p;
+				transaction(tx => {
+					archived.set(true, tx);
+					operations.set([{ candidate, state: 'pending' }], tx);
+					scheduling.set(false, tx);
+				});
+				return true;
+			},
+		});
+		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+		await timeout(0);
+		rowAction(container, 'first', 'Clean Up').click();
+		editor.clearInput();
+		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+		await timeout(100);
+		const beforeCompletion = loads;
+		await completion.complete();
+		await timeout(2_200);
+		assert.deepStrictEqual({ beforeCompletion, loads, requests, checks, summary: container.querySelector('.session-worktree-cleanup-batch [role="status"]')?.textContent }, {
+			beforeCompletion: 2, loads: 3, requests: 1, checks: 1, summary: 'Cleanup complete: 1 worktree removed.',
+		});
+	}));
+
+	test('restoration clears the local pending batch so its row can be cleaned up again', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const archived = observableValue('archived', false);
+		const initial = createWorktree('restored', '/repos/app');
+		const worktree: ISessionWorktree = { ...initial, session: upcastPartial<ISession>({ ...initial.session, isArchived: archived }) };
+		const operations = observableValue<readonly ISessionWorktreeCleanupOperation[]>('operations', []);
+		let requests = 0;
+		const { editor, container } = createEditor({
+			cleanupOperations: operations,
+			getWorktrees: async () => [worktree],
+			cleanupWorktrees: async ([candidate], onProgress) => {
+				requests++;
+				operations.set([{ candidate, state: 'pending' }], undefined);
+				return scheduleCleanup([candidate], onProgress);
+			},
+		});
+		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+		await timeout(0);
+		rowAction(container, 'restored', 'Clean Up').click();
+		await timeout(100);
+		operations.set([], undefined);
+		await timeout(100);
+		rowAction(container, 'restored', 'Clean Up').click();
+		await timeout(0);
+		assert.deepStrictEqual({ requests, selectableRows: container.querySelectorAll('.session-worktree-cleanup-row [role="checkbox"]').length }, { requests: 2, selectableRows: 0 });
+	}));
+
+	test('expanded settings and controls remain reachable beside a virtualized inventory in a short narrow editor', async () => {
+		const { editor, container } = await openEditor(Array.from({ length: 2000 }, (_, index) => createWorktree(`worktree-${index}`, '/repos/app')));
+		const settings = container.querySelector<HTMLDetailsElement>('details')!;
+		settings.open = true;
+		settings.dispatchEvent(new mainWindow.Event('toggle'));
+		editor.layout(new dom.Dimension(420, 320));
+		const root = container.querySelector<HTMLElement>('.session-worktree-cleanup-editor')!;
+		const inventory = container.querySelector<HTMLElement>('.session-worktree-cleanup-list')!;
+		const regions = [...container.querySelectorAll<HTMLElement>('.session-worktree-cleanup-controls-content')];
+		const regionBounds = regions.map(region => {
+			region.scrollTop = region.scrollHeight;
+			const last = region.lastElementChild!.getBoundingClientRect();
+			const bounds = region.getBoundingClientRect();
+			return { scrollable: region.scrollHeight > region.clientHeight, lastControlReachable: last.bottom <= bounds.bottom + 1 };
+		});
+		assert.deepStrictEqual({
+			regionBounds,
+			settingsVisible: settings.getBoundingClientRect().bottom <= root.getBoundingClientRect().bottom,
+			inventoryVisible: inventory.clientHeight >= 80,
+			inventoryOutsideControls: !inventory.closest('.session-worktree-cleanup-controls-content'),
+			virtualized: container.querySelectorAll('.session-worktree-cleanup-row').length < 20,
+		}, {
+			regionBounds: [{ scrollable: true, lastControlReachable: true }, { scrollable: true, lastControlReachable: true }],
+			settingsVisible: true, inventoryVisible: true, inventoryOutsideControls: true, virtualized: true,
+		});
+	});
 
 	for (const result of ['empty', 'populated'] as const) {
 		test(`focus enters the cleanup editor while loading and after ${result} results`, async () => {
@@ -2056,7 +2171,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		};
 	}
 
-	function createWorktree(id: string, workspacePath: string, cleanupState: ISessionWorktree['cleanupState'] = 'eligible', ageDays = 0): ISessionWorktree {
+	function createWorktree(id: string, workspacePath: string, cleanupState: ISessionWorktree['cleanupState'] = 'eligible', ageDays = 0): Extract<ISessionWorktree, { readonly session: ISession }> {
 		return {
 			session: upcastPartial<ISession>({
 				sessionId: id,
