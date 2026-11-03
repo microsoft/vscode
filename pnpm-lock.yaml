@@ -1480,9 +1480,6 @@ importers:
       '@types/node-fetch':
         specifier: ^2.5.10
         version: 2.5.10
-      is-number:
-        specifier: 7.0.0
-        version: 7.0.0
       npm-run-all2:
         specifier: ^8.0.4
         version: 8.0.4

@@ -22,7 +22,6 @@
     "@types/ncp": "2.0.1",
     "@types/node": "24.x",
     "@types/node-fetch": "^2.5.10",
-    "is-number": "7.0.0",
     "npm-run-all2": "^8.0.4"
   }
 }
