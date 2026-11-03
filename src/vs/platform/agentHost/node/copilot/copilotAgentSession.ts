@@ -10205,18 +10205,22 @@ export class CopilotAgentSession extends Disposable {
 		// clickable file link, matching the `view`-tool display style.
 		store.add(wrapper.onSkillInvoked(e => {
 			this._logService.info(`[Copilot:${sessionId}] Skill invoked: ${e.data.name} (${e.data.path})`);
+			this._resumeSubagentForEvent(e);
+			// A background subagent can outlive or straddle root turns, so attribute its account like its model calls.
+			const subagentToolCallId = e.agentId ? this._parentToolCallIdForSubagentEvent(e) : undefined;
 			this._telemetryReporter.skillInvoked({
 				clientContext: this._currentTurn.value?.clientContext,
-				telemetryContext: this._currentTurn.value?.telemetryContext,
+				telemetryContext: e.agentId
+					? (subagentToolCallId ? this._subagents.getAccountContext(subagentToolCallId) : undefined)
+					: this._currentTurn.value?.telemetryContext,
 				provider: COPILOT_CLI_AGENT_PROVIDER_ID,
-				session: this.resourceUri.toString(),
+				session: this._chatChannelUri.toString(),
 				owner: this._ownerSessionUri.toString(),
 				turnId: this._turnId,
 				sdkEventId: e.id,
 				trigger: e.data.trigger,
 				isSubagentInvocation: !!e.agentId,
 			});
-			this._resumeSubagentForEvent(e);
 			if (this._shouldDropUnmappedSubagentEvent(e, 'skill.invoked')) {
 				return;
 			}
