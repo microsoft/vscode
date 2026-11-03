@@ -28,9 +28,12 @@ export namespace McpApps {
 		| McpUiInitializedNotification
 		| McpUiSizeChangedNotification
 		| MCP.LoggingMessageNotification
+		| MCP.ToolListChangedNotification
 		| CustomSandboxWheelNotification;
 
-	export type AppMessage = AppRequest | AppNotification;
+	export type AppMessage = AppRequest | AppNotification | MCP.JSONRPCResponse;
+
+	export type HostRequest = MCP.ListToolsRequest | MCP.CallToolRequest;
 
 	export type HostResult =
 		| MCP.CallToolResult
@@ -50,9 +53,10 @@ export namespace McpApps {
 		| McpUiToolInputPartialNotification
 		| McpUiToolResultNotification
 		| McpUiToolCancelledNotification
+		| MCP.CancelledNotification
 		| McpUiSizeChangedNotification;
 
-	export type HostMessage = HostResult | HostNotification;
+	export type HostMessage = HostRequest | HostResult | HostNotification;
 
 
 	/** Custom notification used for bubbling up sandbox wheel events. */

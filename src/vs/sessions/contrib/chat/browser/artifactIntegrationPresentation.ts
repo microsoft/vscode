@@ -6,30 +6,34 @@
 import './media/artifactIntegrations.css';
 import { $, append, isAncestorOfActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
-import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
-import { Action } from '../../../../base/common/actions.js';
+import { Action, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { ArtifactActionView, ArtifactContributionSnapshot, ArtifactRun, ArtifactSnapshot, getArtifactActionAvailability, getArtifactMainContribution, IArtifactModel, isArtifactOptionEnabled } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactActionView, ArtifactContributionSnapshot, ArtifactJsonValue, ArtifactRun, ArtifactSnapshot, getArtifactActionAvailability, getArtifactMainContribution, IArtifactModel, isArtifactOptionEnabled } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { getArtifactThemeIcon as icon, renderArtifactIcon } from '../../../../platform/artifactIntegrations/browser/artifactDetailsList.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ChatPillActionViewItem, IChatPill, IChatPillAction, IChatPillEntry } from '../../../../workbench/browser/chatPills.js';
+import { ChatPillActionViewItem, IChatInlinePillViewItemOptions, IChatPill, IChatPillAction, IChatPillEntry } from '../../../../workbench/browser/chatPills.js';
 import { ArtifactButtons, IArtifactButton } from './artifactButtons.js';
 import { ArtifactDetailsSelection, ArtifactDetailsViewState, IArtifactActionViewData } from './artifactDetailsView.js';
 
 export interface IArtifactDetailsHost {
 	readonly id: string;
 	readonly selected: IObservable<ArtifactIntegrationPresentation | undefined>;
-	toggle(presentation: ArtifactIntegrationPresentation, target: HTMLElement, section?: ArtifactDetailsSelection): void;
+	/**
+	 * @param target The control that shows the details, which receives focus back when they close. Defaults to the
+	 * focused element, such as a dropdown's pill after the dropdown closes.
+	 */
+	toggle(presentation: ArtifactIntegrationPresentation, target?: HTMLElement, section?: ArtifactDetailsSelection): void;
 	release(presentation: ArtifactIntegrationPresentation): void;
 }
 
@@ -37,6 +41,16 @@ export interface IArtifactDetailsHost {
 export function countEnabledArtifactAutomations(snapshot: ArtifactSnapshot): number {
 	return snapshot.contributions.reduce((count, contribution) =>
 		count + contribution.options.filter(option => isArtifactOptionEnabled(option, contribution.configuration.values[option.id])).length, 0);
+}
+
+/** Opens an artifact's resource from a list where activating the artifact opens its details instead. */
+export function createArtifactOpenAction(entry: IChatPillEntry): IChatPillAction {
+	return toAction({
+		id: `artifactIntegration.open.${entry.id}`,
+		label: entry.ariaLabel ?? localize('artifactOpen', "Open {0}", entry.label),
+		class: ThemeIcon.asClassName(Codicon.linkExternal),
+		run: () => entry.open(),
+	});
 }
 
 /**
@@ -127,16 +141,28 @@ export class ArtifactIntegrationPresentation extends Disposable {
 		};
 	}
 
-	decorate(entry: IChatPillEntry, reader: IReader): IChatPillEntry {
+	/**
+	 * Lists this artifact in the dropdown of the pill for its kind, such as Artifacts, with its main part's icon and
+	 * label. Selecting the entry opens the artifact's details, and its first row action opens the resource; as the
+	 * pill's only entry, it renders as this artifact's own pill. Entries that identify their resource with a badge,
+	 * such as pull requests and issues, keep their own label beside it.
+	 */
+	decorate<T extends IChatPillEntry>(entry: T, reader: IReader): T {
 		this.entry = entry;
 		const snapshot = this.snapshot.read(reader);
 		if (snapshot.contributions.length === 0) {
 			return entry;
 		}
 		const main = getArtifactMainContribution(snapshot)?.view.main;
+		const label = entry.badge || !main ? entry.label : main.label;
 		return {
-			...entry, label: main?.label ?? entry.label, icon: main ? icon(main.icon) : entry.icon,
+			...entry, label, icon: main ? icon(main.icon) : entry.icon,
+			// A resource renders its file icon in place of the integration's; the base entry keeps it to open the resource.
+			...(main ? { resource: undefined } : {}),
+			dropdownAriaLabel: localize('artifactShowDetails', "Show artifact details: {0}", main?.description ?? label),
+			toolbarActions: [createArtifactOpenAction(entry), ...entry.toolbarActions ?? []],
 			inlinePill: this.inlinePill, hover: undefined,
+			open: () => this.detailsHost.toggle(this),
 		};
 	}
 
@@ -144,12 +170,13 @@ export class ArtifactIntegrationPresentation extends Disposable {
 		return this.entry;
 	}
 
-	async invoke(integrationId: string, actionId: string): Promise<ArtifactRun> {
+	/** `input` is passed to the action, for example the details item it runs for. */
+	async invoke(integrationId: string, actionId: string, input?: ArtifactJsonValue): Promise<ArtifactRun> {
 		const chat = this.invokingChat();
 		if (!chat) {
 			throw new Error(localize('artifactInvokingChatUnavailable', "The chat that invoked this artifact action is no longer available."));
 		}
-		const run = await this.model.invoke(integrationId, actionId, chat, generateUuid());
+		const run = await this.model.invoke(integrationId, actionId, chat, generateUuid(), undefined, input);
 		status(localize('artifactActionRequested', "Artifact action requested: {0}", run.reason));
 		return run;
 	}
@@ -195,10 +222,10 @@ class ArtifactIntegrationPill extends ChatPillActionViewItem {
 		private readonly presentation: ArtifactIntegrationPresentation,
 		action: Action,
 		private readonly trailingAction: IObservable<IChatPillAction | undefined>,
-		options: IActionViewItemOptions,
+		private readonly inlineOptions: IChatInlinePillViewItemOptions,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
-		super(undefined, action, options);
+		super(undefined, action, inlineOptions);
 	}
 
 	protected override get itemModifierClass(): string { return 'artifact-integration-pill'; }
@@ -225,7 +252,9 @@ class ArtifactIntegrationPill extends ChatPillActionViewItem {
 				host.toggle(this.presentation, selection === 'autopilot' ? this.button!.element : target, selection));
 			this.sections!.update(sections);
 			this.element!.classList.toggle('chat-pill-segmented', sections.length > 0);
-			this.updatePromotedAction(this.trailingAction.read(reader), Codicon.unpin, this.hoverService);
+			// Its own surface's trailing action, else that of the pill showing it as a lone entry, such as a pinned entry's Unpin.
+			const trailing = this.trailingAction.read(reader);
+			this.updatePromotedAction(trailing ?? this.inlineOptions.promotedAction?.read(reader), trailing ? Codicon.unpin : this.inlineOptions.promotedActionIcon, this.hoverService);
 		}));
 	}
 

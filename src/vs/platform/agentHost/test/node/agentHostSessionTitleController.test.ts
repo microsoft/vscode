@@ -24,6 +24,7 @@ import { AgentHostPeerChatStore } from '../../node/agentHostPeerChatStore.js';
 import { AgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { ActionType, NotificationType } from '../../common/state/sessionActions.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ResponsePart, type SessionSummary, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
 import { IGitHubAccountClient } from '../../../github/common/account/account.js';
 import { ApiRequestOptions } from '../../../github/common/client/request.js';
@@ -652,9 +653,9 @@ suite('AgentHostSessionTitleController', () => {
 			if (target === 'defaultBeforePeer') {
 				stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, buildDefaultChatUri(session.toString())), {});
 			}
-			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2026-01-01T00:00:00Z', message: { text: 'Add dark mode', origin: { kind: MessageKind.User } } });
+			stateManager.dispatchServerAction(chat, chatTurnStarted('turn-1', 'Add dark mode', '2026-01-01T00:00:00Z'));
 			stateManager.dispatchServerAction(chat, { type: ActionType.ChatResponsePart, turnId: 'turn-1', part: textPart('Done') });
-			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 });
+			stateManager.dispatchServerAction(chat, chatTurnComplete('turn-1', 1));
 			controller.refineTitleFromFirstTurn(session.toString(), chat);
 			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'refinement should start');
 			const key = customChatTitleMetadataKey(chat);
@@ -752,14 +753,11 @@ suite('AgentHostSessionTitleController', () => {
 		await restored.restoreTitleGenerationStrategy(session.toString(), chat);
 		restored.refineTitleFromFirstTurn(session.toString(), chat);
 		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
-		freshState.dispatchServerAction(chat, {
-			type: ActionType.ChatTurnStarted, turnId: 'new-turn', startedAt: '2026-01-01T00:00:00Z',
-			message: { text: 'Continue the fork', origin: { kind: MessageKind.User } },
-		});
+		freshState.dispatchServerAction(chat, chatTurnStarted('new-turn', 'Continue the fork', '2026-01-01T00:00:00Z'));
 		freshState.dispatchServerAction(chat, {
 			type: ActionType.ChatResponsePart, turnId: 'new-turn', part: textPart('New answer'),
 		});
-		freshState.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'new-turn', duration: 10 });
+		freshState.dispatchServerAction(chat, chatTurnComplete('new-turn', 10));
 		restored.refineTitleFromFirstTurn(session.toString(), chat);
 		await waitForCondition(async () => (await store.readNormalizedChat(session, URI.parse(chat))).chat?.metadata?.summary === 'Generated title', 'restored normalized fork should refine');
 		// The stale legacy key is never imported and, as on main, a normalized chat's title is not rendered into it.

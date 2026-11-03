@@ -109,6 +109,10 @@ export class CopilotSubagentTracking extends Disposable {
 		return this._children.get(toolCallId)?.rootTurnId !== undefined;
 	}
 
+	getRootTurnId(toolCallId: string): string | undefined {
+		return this._children.get(toolCallId)?.rootTurnId;
+	}
+
 	belongsToRootTurn(toolCallId: string, rootTurnId: string): boolean {
 		return this._children.get(toolCallId)?.rootTurnId === rootTurnId;
 	}

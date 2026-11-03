@@ -233,6 +233,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			override error(message: string | Error): void { logErrors.push(message); }
 		}()));
 		const connection = instantiationService.stub(IAgentHostService, {
+			initializeResult: constObservable(undefined),
 			onAgentHostStart: onAgentHostStart.event,
 			onAgentHostExit: Event.None,
 			getNetworkDiagnosticsInfo: () => {
@@ -902,6 +903,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 
 	function createRemoteConnection(getHostInfo: () => Promise<IAgentHostNetworkDiagnosticsInfo>) {
 		return new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
 			diagnosticsRequests = 0;
 			readonly writes: { channel: string; action: Parameters<IAgentConnection['dispatch']>[1] }[] = [];
 			override getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
@@ -2004,6 +2006,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			override viewModel: IChatViewModel | undefined;
 		}();
 		const connection = new class extends mock<IAgentHostService>() {
+			override readonly initializeResult = constObservable(undefined);
 			override readonly onAgentHostStart = Event.None;
 			override readonly onAgentHostExit = Event.None;
 			override async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {

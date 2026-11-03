@@ -5,6 +5,8 @@
 
 import { DisposableStore, markAsSingleton, toDisposable } from '../../../../base/common/lifecycle.js';
 import type { URI } from '../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentHostChatRowStore } from '../../common/agentHostSessionStateStore.js';
 import { AgentHostSessionStateStore } from '../../node/agentHostSessionStateStore.js';
@@ -230,7 +232,7 @@ export function createTestSessionStateStore(database: IAgentHostDatabase, servic
 
 /** A real worktree clean-up service over `worktree` and a private in-memory agent-host.db. */
 export function createTestWorktreeCleanupService(disposables: Pick<DisposableStore, 'add'>, worktree: IAgentHostWorktreeIsolation, database: IAgentHostDatabase = disposables.add(new AgentHostDatabase(':memory:'))): AgentHostWorktreeCleanupService {
-	return disposables.add(new AgentHostWorktreeCleanupService(undefined, database, worktree, new NullLogService()));
+	return disposables.add(new AgentHostWorktreeCleanupService(undefined, database, worktree, new NullLogService(), upcastPartial<IAgentHostGitService>({})));
 }
 
 /** The chat rows of a real session state store over `service`; the store and its database are released with `disposables`. */

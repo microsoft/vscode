@@ -10,6 +10,15 @@ import type { InitializeResult } from './state/protocol/common/commands.js';
 import { mintPeerChatUri, type ChatUriFormat, chatUriFormatOf } from './agentHostChatMinting.js';
 import type { RootState } from './state/sessionState.js';
 
+/** Workbench query parameter that selects a subagent chat inside an agent host session editor. */
+export const CHAT_SUBAGENT_RESOURCE_QUERY_PARAM = 'subagentChatResource';
+
+/** Removes workbench chat selectors without rewriting the session's authority or other query fields. */
+export function getAgentHostSessionResource(resource: URI): URI {
+	const query = resource.query.split('&').filter(part => !part.startsWith(`${CHAT_SUBAGENT_RESOURCE_QUERY_PARAM}=`)).join('&');
+	return resource.with({ query, fragment: '' });
+}
+
 /** Unmarked conforming hosts use AHP addressing; only a positively identified older native host needs legacy creation. */
 export function newAgentHostSessionUri(provider: string, id: string, host: InitializeResult | undefined, root?: RootState): URI {
 	const legacyNativeHost = !host || isNativeAgentHost(host, root) && !supportsAgentHostSessionUris(host);

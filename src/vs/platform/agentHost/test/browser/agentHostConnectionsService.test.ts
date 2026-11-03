@@ -274,14 +274,26 @@ suite('AgentHostConnectionsService', () => {
 				const backend = URI.parse('codex:/external');
 				const resource = service.getSessionResource(backend, authority)!;
 				const selectedPeer = resource.with({ fragment: 'peer-chat' });
+				const selectedSubagent = resource.with({ query: 'subagentChatResource=ahp-chat%3A%2Fchild', fragment: 'child' });
 				const resolved = service.resolveSessionResource(selectedPeer);
+				const resolvedSubagent = service.resolveSessionResource(selectedSubagent);
+				const advertisedStandard = URI.parse('ahp-session:/standard-parent');
+				const advertisedResource = service.registerSessionResource(advertisedStandard, authority, aliased ? 'copilot' : 'codex');
+				const advertisedSubagent = advertisedResource.with({ query: 'subagentChatResource=ahp-chat%3A%2Fchild', fragment: 'child' });
+				const resolvedAdvertisedSubagent = service.resolveSessionResourceIdentity(advertisedSubagent);
 				assert.deepStrictEqual({
 					resource: resource.toString(),
 					backend: resolved?.backendSession.toString(),
+					subagentBackend: resolvedSubagent?.backendSession.toString(),
+					advertisedSubagentBackend: resolvedAdvertisedSubagent?.backendSession.toString(),
+					advertisedSubagentIsAdvertised: resolvedAdvertisedSubagent?.backendSessionIsAdvertised,
 					connection: resolved?.connection,
 				}, {
 					resource: `${authority === AMBIENT_AGENT_HOST_AUTHORITY ? 'agent-host-' : 'remote-myhost-'}${aliased ? 'copilot' : 'codex'}:/external`,
 					backend: backend.toString(),
+					subagentBackend: backend.toString(),
+					advertisedSubagentBackend: advertisedStandard.toString(),
+					advertisedSubagentIsAdvertised: true,
 					connection: authority === AMBIENT_AGENT_HOST_AUTHORITY ? ambient : connection,
 				});
 				byAddress.clear();

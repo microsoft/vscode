@@ -12,7 +12,7 @@ import { autorun, constObservable, derived, IObservable, observableSignal, obser
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { ArtifactActor, ArtifactAuthenticationRequest, ArtifactAuthenticationRequiredError, ArtifactAutomationConfiguration, ArtifactAutomationOption, artifactBindingId, ArtifactContributionSnapshot, ArtifactContributionView, ArtifactRecord, ArtifactSnapshot, getArtifactMainContribution, IArtifactDetailsModel, IArtifactIntegrationAccess, IArtifactModel, isArtifactOptionEnabled, isArtifactRunSettled } from './artifactIntegration.js';
+import { ArtifactActor, ArtifactAuthenticationRequest, ArtifactJsonValue, ArtifactAuthenticationRequiredError, ArtifactAutomationConfiguration, ArtifactAutomationOption, artifactBindingId, ArtifactContributionSnapshot, ArtifactContributionView, ArtifactRecord, ArtifactSnapshot, getArtifactMainContribution, IArtifactDetailsModel, IArtifactIntegrationAccess, IArtifactModel, isArtifactOptionEnabled, isArtifactRunSettled } from './artifactIntegration.js';
 import { applyArtifactAutomationSelection, artifactOptionConsent, disableArtifactAutomation, emptyArtifactConfiguration, reconcileArtifactAutomationOptions, validateArtifactAutomationSelection } from './artifactAutomationConfiguration.js';
 import { isArtifactActionDescriptor, isArtifactAuthenticationRequest, isArtifactJsonValue } from './artifactIntegrationValidation.js';
 import { hasValidArtifactPresentationReferences, isArtifactContributionView, isArtifactDetails } from './artifactPresentationValidation.js';
@@ -189,7 +189,7 @@ export class ArtifactIntegrationService extends Disposable implements IArtifactI
 					snapshot: model.snapshot,
 					requestAuthentication: integrationId => hold(() => model.requestAuthentication(integrationId)),
 					configure: (integrationId, revision, values, actor) => hold(() => model.configure(integrationId, revision, values, actor)),
-					invoke: (integrationId, actionId, chat, requestId, actor) => hold(() => model.invoke(integrationId, actionId, chat, requestId, actor)),
+					invoke: (integrationId, actionId, chat, requestId, actor, input) => hold(() => model.invoke(integrationId, actionId, chat, requestId, actor, input)),
 					cancel: runId => hold(() => model.cancel(runId)),
 					reconcile: runId => hold(() => model.reconcile(runId)),
 					getRuns: (before, limit) => hold(() => model.getRuns(before, limit)),
@@ -453,10 +453,10 @@ class ArtifactModel extends Disposable implements IArtifactModel {
 		this.executor.wake();
 	}
 
-	async invoke(integrationId: string, actionId: string, chat: string, requestId: string, actor: ArtifactActor = { kind: 'user' }) {
+	async invoke(integrationId: string, actionId: string, chat: string, requestId: string, actor: ArtifactActor = { kind: 'user' }, input?: ArtifactJsonValue) {
 		// Runs are recorded against a stored binding.
 		await this.bindings.get(integrationId)?.ensureStored();
-		return this.executor.invoke(artifactBindingId(this.runtime.authority.id, this.session, this.artifact.id, integrationId), actionId, chat, requestId, actor);
+		return this.executor.invoke(artifactBindingId(this.runtime.authority.id, this.session, this.artifact.id, integrationId), actionId, chat, requestId, actor, input);
 	}
 
 	async requestAuthentication(integrationId: string): Promise<ArtifactAuthenticationRequest | undefined> {
@@ -526,7 +526,7 @@ class ArtifactBinding extends Disposable {
 	private readonly execution = this._register(new MutableDisposable());
 	private readonly configuration = observableValue<ArtifactAutomationConfiguration>(this, emptyArtifactConfiguration([]));
 	private readonly view = observableValueOpts<ArtifactContributionView>({ owner: this, equalsFn: structuralEquals }, unavailableView(localize('artifactLoading', "Loading artifact integration.")));
-	private readonly provider = this._register(new MutableDisposable<IReference<{ readonly binding: IArtifactExecutionBinding['provider']; readonly match: { readonly credentialScope: string } }>>());
+	private readonly provider = this._register(new MutableDisposable<IReference<{ readonly binding: IArtifactExecutionBinding['provider']; readonly match: { readonly key: string; readonly credentialScope: string } }>>());
 	private readonly details = new Map<string, { readonly model: IArtifactDetailsModel; references: number }>();
 	private readonly lifetimeToken = this._register(new CancellationTokenSource());
 	/** The binding to persist on its first change, while it has not been stored yet. */
@@ -550,9 +550,11 @@ class ArtifactBinding extends Disposable {
 		this.snapshot = derived(this, reader => {
 			const stored = this.ledger.state.read(reader).bindings.find(binding => binding.id === this.id);
 			const view = this.view.read(reader);
+			const resourceKey = this.provider.value?.object.match.key;
 			return {
 				integrationId: registration.id, label: registration.label,
 				...(registration.groupLabel ? { groupLabel: registration.groupLabel } : {}),
+				...(resourceKey ? { resourceKey } : {}),
 				options: [...registration.options, ...stored?.options.filter(option => !registration.options.some(current => current.id === option.id)) ?? []],
 				configuration: stored?.configuration ?? this.configuration.read(reader), view,
 				actions: this.provider.value?.object.binding.actions.map(action => ({ id: action.id, label: action.label, iconId: action.iconId, kind: action.kind, consentVersion: action.consentVersion })) ?? [],

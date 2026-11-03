@@ -18,6 +18,7 @@ import { Iterable } from '../../../../../base/common/iterator.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../../base/common/mime.js';
 import { derived, derivedOpts, IObservable, IReader, observableFromEventOpts, ObservableSet, observableSignal, transaction } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import Severity from '../../../../../base/common/severity.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -139,7 +140,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private readonly _callsByRequestId = new Map<string, ITrackedCall[]>();
 
 	/** Pending tool calls in the streaming phase, keyed by toolCallId */
-	private readonly _pendingToolCalls = new Map<string, ChatToolInvocation>();
+	private readonly _pendingToolCalls = new Map<string, { readonly invocation: ChatToolInvocation; readonly toolSessionResource: URI | undefined }>();
 
 	/** Deduplicates _checkGlobalAutoApprove calls within this window */
 	private _pendingGlobalAutoApproveCheck: Promise<boolean> | undefined;
@@ -382,7 +383,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				const satisfiesExternalToolCheck = toolData.source.type !== 'extension' || !!extensionToolsEnabled;
 				const satisfiesPermittedCheck = this.isPermitted(toolData);
 				const satisfiesModelFilter = this.isToolEnabledForModel(toolData, model);
-				return satisfiesWhenClause && satisfiesExternalToolCheck && satisfiesPermittedCheck && satisfiesModelFilter;
+				return !toolData.sessionResource && satisfiesWhenClause && satisfiesExternalToolCheck && satisfiesPermittedCheck && satisfiesModelFilter;
 			});
 	}
 
@@ -408,7 +409,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			toolData => {
 				const satisfiesExternalToolCheck = toolData.source.type !== 'extension' || !!extensionToolsEnabled;
 				const satisfiesPermittedCheck = this.isPermitted(toolData);
-				return satisfiesExternalToolCheck && satisfiesPermittedCheck;
+				return !toolData.sessionResource && satisfiesExternalToolCheck && satisfiesPermittedCheck;
 			});
 	}
 
@@ -490,10 +491,16 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return undefined;
 	}
 
-	async invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
-		this._logService.trace(`[LanguageModelToolsService#invokeTool] Invoking tool ${dto.toolId} with parameters ${JSON.stringify(dto.parameters)}`);
+	private _validateToolSession(toolData: IToolData | undefined, toolSessionResource: URI | undefined): void {
+		if (toolData?.sessionResource && !isEqual(toolData.sessionResource, toolSessionResource)) {
+			throw new Error(localize('toolSessionMismatch', "Tool \"{0}\" is not available in this session.", toolData.id));
+		}
+	}
 
+	async invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
 		const toolData = this._tools.get(dto.toolId)?.data;
+		this._validateToolSession(toolData, dto.toolSessionResource);
+		this._logService.trace(`[LanguageModelToolsService#invokeTool] Invoking tool ${dto.toolId} with parameters ${JSON.stringify(dto.parameters)}`);
 		let model: IChatModel | undefined;
 		let request: IChatRequestModel | undefined;
 		if (dto.context?.sessionResource) {
@@ -515,10 +522,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		let toolInvocation: ChatToolInvocation | undefined;
 		if (this._pendingToolCalls.has(dto.callId)) {
 			pendingToolCallKey = dto.callId;
-			toolInvocation = this._pendingToolCalls.get(dto.callId);
+			toolInvocation = this._pendingToolCalls.get(dto.callId)?.invocation;
 		} else if (dto.chatStreamToolCallId && this._pendingToolCalls.has(dto.chatStreamToolCallId)) {
 			pendingToolCallKey = dto.chatStreamToolCallId;
-			toolInvocation = this._pendingToolCalls.get(dto.chatStreamToolCallId);
+			toolInvocation = this._pendingToolCalls.get(dto.chatStreamToolCallId)?.invocation;
 		}
 
 		let requestId: string | undefined;
@@ -567,28 +574,40 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		}
 
-		// Fire the event to notify listeners that a tool is being invoked
-		this._onDidInvokeTool.fire({
-			toolId: dto.toolId,
-			sessionResource: dto.context?.sessionResource,
-			requestId: dto.chatRequestId,
-			subagentInvocationId: dto.subAgentInvocationId,
-		});
-
-		// When invoking a tool, don't validate the "when" clause. An extension may have invoked a tool just as it was becoming disabled, and just let it go through rather than throw and break the chat.
 		let tool = this._tools.get(dto.toolId);
-		if (!tool) {
-			throw new Error(`Tool ${dto.toolId} was not contributed`);
-		}
+		try {
+			this._validateToolSession(tool?.data, dto.toolSessionResource);
 
-		if (!tool.impl) {
-			await this._extensionService.activateByEvent(`onLanguageModelTool:${dto.toolId}`);
+			// Fire the event to notify listeners that a tool is being invoked
+			this._onDidInvokeTool.fire({
+				toolId: dto.toolId,
+				sessionResource: dto.context?.sessionResource,
+				requestId: dto.chatRequestId,
+				subagentInvocationId: dto.subAgentInvocationId,
+			});
 
-			// Extension should activate and register the tool implementation
+			// When invoking a tool, don't validate the "when" clause. An extension may have invoked a tool just as it was becoming disabled, and just let it go through rather than throw and break the chat.
 			tool = this._tools.get(dto.toolId);
-			if (!tool?.impl) {
-				throw new Error(`Tool ${dto.toolId} does not have an implementation registered.`);
+			if (!tool) {
+				throw new Error(`Tool ${dto.toolId} was not contributed`);
 			}
+			this._validateToolSession(tool.data, dto.toolSessionResource);
+
+			if (!tool.impl) {
+				await this._extensionService.activateByEvent(`onLanguageModelTool:${dto.toolId}`);
+
+				// Extension should activate and register the tool implementation
+				tool = this._tools.get(dto.toolId);
+				this._validateToolSession(tool?.data, dto.toolSessionResource);
+				if (!tool?.impl) {
+					throw new Error(`Tool ${dto.toolId} does not have an implementation registered.`);
+				}
+			}
+		} catch (error) {
+			if (store) {
+				this.cleanupCallDisposables(requestId, store);
+			}
+			throw error;
 		}
 
 		// Note: pending invocation lookup was already done above for the hook check
@@ -733,6 +752,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			if (!currentTool) {
 				throw new Error(`Tool ${dto.toolId} was not contributed`);
 			}
+			this._validateToolSession(currentTool.data, dto.toolSessionResource);
 			if (!currentTool.impl) {
 				throw new Error(`Tool ${dto.toolId} does not have an implementation registered.`);
 			}
@@ -1117,6 +1137,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		if (!toolEntry) {
 			return undefined;
 		}
+		this._validateToolSession(toolEntry.data, options.toolSessionResource);
 
 		// Don't create a streaming invocation for tools that don't implement handleToolStream.
 		// These tools will have their invocation created directly in invokeToolInternal.
@@ -1135,7 +1156,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		});
 
 		// Track the pending tool call
-		this._pendingToolCalls.set(options.toolCallId, invocation);
+		this._pendingToolCalls.set(options.toolCallId, { invocation, toolSessionResource: options.toolSessionResource });
 
 		// If we have a session, append the invocation to the chat as progress
 		if (options.sessionResource) {
@@ -1177,16 +1198,19 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	async updateToolStream(toolCallId: string, partialInput: unknown, token: CancellationToken): Promise<void> {
-		const invocation = this._pendingToolCalls.get(toolCallId);
-		if (!invocation) {
+		const pendingToolCall = this._pendingToolCalls.get(toolCallId);
+		if (!pendingToolCall) {
 			return;
 		}
+
+		const { invocation, toolSessionResource } = pendingToolCall;
+		const toolEntry = this._tools.get(invocation.toolId);
+		this._validateToolSession(toolEntry?.data, toolSessionResource);
 
 		// Update the partial input on the invocation
 		invocation.updatePartialInput(partialInput);
 
 		// Call handleToolStream if the tool implements it
-		const toolEntry = this._tools.get(invocation.toolId);
 		if (toolEntry) {
 			await this._callHandleToolStream(toolEntry, invocation, toolCallId, partialInput, token);
 		}
@@ -1555,7 +1579,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		// Clean up any pending tool calls that belong to this request
-		for (const [toolCallId, invocation] of this._pendingToolCalls) {
+		for (const [toolCallId, { invocation }] of this._pendingToolCalls) {
 			if (invocation.chatRequestId === requestId) {
 				this._pendingToolCalls.delete(toolCallId);
 			}

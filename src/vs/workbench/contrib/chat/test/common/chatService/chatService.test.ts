@@ -31,8 +31,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { FileService } from '../../../../../../platform/files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -1667,6 +1666,94 @@ suite('ChatService', () => {
 		});
 	}
 
+	for (const { kind, sendOptions, expectedRequest, expectedInvocation } of [
+		{
+			kind: 'terminal system notification',
+			sendOptions: { queue: ChatRequestQueueKind.Steering, isSystemInitiated: true, systemInitiatedLabel: '`npm run build` completed', terminalExecutionId: 'terminal-1' },
+			expectedRequest: { isSystemInitiated: true, systemInitiatedLabel: '`npm run build` completed', terminalExecutionId: 'terminal-1', isHiddenFromTranscript: false },
+			expectedInvocation: { isSystemInitiated: true, hideFromTranscript: undefined },
+		},
+		{
+			kind: 'request hidden from the transcript',
+			sendOptions: { hideFromTranscript: true },
+			expectedRequest: { isSystemInitiated: undefined, systemInitiatedLabel: undefined, terminalExecutionId: undefined, isHiddenFromTranscript: true },
+			expectedInvocation: { isSystemInitiated: undefined, hideFromTranscript: true },
+		},
+	]) {
+		for (const preserveRequestId of [false, true]) {
+			test(`retrying a ${kind} keeps its provenance with preserveRequestId=${preserveRequestId}`, async () => {
+				const invocations: { isSystemInitiated?: boolean; hideFromTranscript?: boolean }[] = [];
+				const agentId = 'notificationAgent';
+				testDisposables.add(chatAgentService.registerAgent(agentId, { ...getAgentData(agentId), isDefault: true }));
+				testDisposables.add(chatAgentService.registerAgentImplementation(agentId, {
+					async invoke(request) {
+						invocations.push({ isSystemInitiated: request.isSystemInitiated, hideFromTranscript: request.hideFromTranscript });
+						return {};
+					},
+				}));
+				const service = createChatService();
+				const model = testDisposables.add(startSessionModel(service)).object;
+				const pending = await service.sendRequest(model.sessionResource, '[Terminal terminal-1 notification: command completed.]', { agentIdSilent: agentId, ...sendOptions });
+				const sent = ChatSendResult.isQueued(pending) ? await pending.deferred : pending;
+				ChatSendResult.assertSent(sent);
+				await sent.data.responseCompletePromise;
+
+				const original = model.getRequests()[0];
+				await service.resendRequest(original, { attempt: original.attempt + 1 }, preserveRequestId);
+
+				const retried = model.getRequests()[0];
+				assert.deepStrictEqual({
+					requests: model.getRequests().length,
+					retried: { isSystemInitiated: retried.isSystemInitiated, systemInitiatedLabel: retried.systemInitiatedLabel, terminalExecutionId: retried.terminalExecutionId, isHiddenFromTranscript: retried.isHiddenFromTranscript },
+					invocations,
+				}, { requests: 1, retried: expectedRequest, invocations: [expectedInvocation, expectedInvocation] });
+			});
+		}
+	}
+
+	test('retrying a system notification uses the caller\'s provenance overrides over the original request', async () => {
+		const invocations: { isSystemInitiated?: boolean; hideFromTranscript?: boolean }[] = [];
+		const agentId = 'notificationAgent';
+		testDisposables.add(chatAgentService.registerAgent(agentId, { ...getAgentData(agentId), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(agentId, {
+			async invoke(request) {
+				invocations.push({ isSystemInitiated: request.isSystemInitiated, hideFromTranscript: request.hideFromTranscript });
+				return {};
+			},
+		}));
+		const service = createChatService();
+		const model = testDisposables.add(startSessionModel(service)).object;
+		const sent = await service.sendRequest(model.sessionResource, '[Terminal terminal-1 notification: command completed.]', {
+			agentIdSilent: agentId,
+			isSystemInitiated: true,
+			systemInitiatedLabel: '`npm run build` completed',
+			terminalExecutionId: 'terminal-1',
+			hideFromTranscript: true,
+		});
+		ChatSendResult.assertSent(sent);
+		await sent.data.responseCompletePromise;
+
+		const original = model.getRequests()[0];
+		await service.resendRequest(original, {
+			attempt: original.attempt + 1,
+			isSystemInitiated: false,
+			systemInitiatedLabel: '`npm test` completed',
+			terminalExecutionId: 'terminal-2',
+			hideFromTranscript: false,
+		});
+
+		const retried = model.getRequests()[0];
+		assert.deepStrictEqual({
+			requests: model.getRequests().length,
+			retried: { isSystemInitiated: retried.isSystemInitiated, systemInitiatedLabel: retried.systemInitiatedLabel, terminalExecutionId: retried.terminalExecutionId, isHiddenFromTranscript: retried.isHiddenFromTranscript },
+			invocations,
+		}, {
+			requests: 1,
+			retried: { isSystemInitiated: false, systemInitiatedLabel: '`npm test` completed', terminalExecutionId: 'terminal-2', isHiddenFromTranscript: false },
+			invocations: [{ isSystemInitiated: true, hideFromTranscript: true }, { isSystemInitiated: false, hideFromTranscript: false }],
+		});
+	});
+
 	for (const { name, firstIsSystem, secondIsSystem, expectedInvocations, expectedYields, expectedLabel } of [
 		{ name: 'two notifications', firstIsSystem: true, secondIsSystem: true, expectedInvocations: [{ message: 'message 1\n\nmessage 2', isSystemInitiated: true }], expectedYields: ['task'], expectedLabel: 'Terminal completed' },
 		{ name: 'notification then user input', firstIsSystem: true, secondIsSystem: false, expectedInvocations: [{ message: 'message 1', isSystemInitiated: true }, { message: 'message 2', isSystemInitiated: false }], expectedYields: ['task', 'message 1'], expectedLabel: undefined },
@@ -2226,6 +2313,34 @@ suite('ChatService', () => {
 			{ id: 'remote-steer', kind: ChatRequestQueueKind.Steering, text: 'steer now' },
 			{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, text: 'updated remote message' },
 		]]);
+	});
+
+	test('syncPendingRequestsFromRemote re-renders a pending request whose text is replaced in place', () => {
+		const service = createChatService();
+		const model = testDisposables.add(startSessionModel(service)).object;
+		const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const remote = { id: 'remote-1', kind: ChatRequestQueueKind.Queued, message: 'write the alphabet in reverse' };
+		const pendingRow = () => {
+			const row = viewModel.getItems().filter(isRequestVM).find(item => item.id === remote.id);
+			assert.ok(row, `Expected a request row with id ${remote.id}`);
+			return { dataId: row.dataId, text: row.messageText };
+		};
+
+		service.syncPendingRequestsFromRemote(model.sessionResource, [remote]);
+		const original = pendingRow();
+		service.syncPendingRequestsFromRemote(model.sessionResource, [{ ...remote, message: 'write a to u' }]);
+		const replaced = pendingRow();
+		service.syncPendingRequestsFromRemote(model.sessionResource, [remote]);
+		const restored = pendingRow();
+
+		// The list reuses a rendered row while its dataId is unchanged, so every text change must produce a new dataId.
+		assert.deepStrictEqual({
+			texts: [original.text, replaced.text, restored.text],
+			distinctDataIds: new Set([original.dataId, replaced.dataId, restored.dataId]).size,
+		}, {
+			texts: ['write the alphabet in reverse', 'write a to u', 'write the alphabet in reverse'],
+			distinctDataIds: 3,
+		});
 	});
 
 	test('syncPendingRequestsFromRemote preserves request ids and updates delegated message metadata', () => {
@@ -6798,8 +6913,7 @@ suite('ChatService', () => {
 	});
 
 	test('session storage does not wait for editing diff stats', async () => {
-		const fileService = testDisposables.add(new FileService(new NullLogService()));
-		testDisposables.add(fileService.registerProvider(Schemas.file, testDisposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(testDisposables, Schemas.file);
 		instantiationService.stub(IFileService, fileService);
 		const pendingDiff = new DeferredPromise<void>();
 		const modifiedUri = URI.file('/workspace/file.ts');
@@ -6911,8 +7025,7 @@ suite('ChatService', () => {
 	});
 
 	test('moving an autosaved empty session with a handoff reference preserves its transcript after restart', async () => {
-		const fileService = testDisposables.add(new FileService(new NullLogService()));
-		testDisposables.add(fileService.registerProvider(Schemas.file, testDisposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(testDisposables, Schemas.file);
 		instantiationService.stub(IFileService, fileService);
 		const testService = createChatService();
 		instantiationService.stub(IChatService, testService);

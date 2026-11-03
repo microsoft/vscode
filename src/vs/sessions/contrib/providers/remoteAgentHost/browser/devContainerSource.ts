@@ -19,6 +19,7 @@ export function devContainerSourcePath(workspaceUri: URI): string {
 	if (workspaceUri.scheme === Schemas.file) {
 		return workspaceUri.fsPath;
 	}
+	// eslint-disable-next-line local/code-agent-host-uri-mapping -- extracts the source host filesystem path, including UNC authority, for Dev Container startup
 	const hostUri = fromAgentHostUri(workspaceUri);
 	return hostUri.authority ? `//${hostUri.authority}${hostUri.path}` : hostUri.path;
 }

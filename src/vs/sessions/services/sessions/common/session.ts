@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { arrayEquals } from '../../../../base/common/equals.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -790,6 +791,11 @@ export const enum ChatModelSource {
 export interface IChat {
 	/** Resource URI identifying this chat. */
 	readonly resource: URI;
+	/**
+	 * The chat's harness identity, in the same identity space as {@link ISession.harness}.
+	 * Absent means the chat uses the session's harness.
+	 */
+	readonly harness?: string;
 	/** When the chat was created. */
 	readonly createdAt: Date;
 
@@ -832,6 +838,8 @@ export interface IChat {
 	readonly customizations?: IObservable<readonly ISessionChatCustomization[]>;
 	/** Server-published live canvases owned by this chat; undefined while membership is unknown. */
 	readonly canvases?: IObservable<readonly ISessionCanvas[] | undefined>;
+	/** Keep canvas channels observed while this chat's session is inactive. Dispose when the external presentation closes. */
+	observeCanvases?(): IDisposable;
 	/** Active background shells, including commands started in earlier turns. */
 	readonly backgroundShells?: IObservable<readonly IChatBackgroundShell[]>;
 	/** Checkpoints associated with the chat. */
@@ -889,6 +897,17 @@ export function isSideChatOf(chat: IChat, parentChat: URI): boolean {
 	return chat.origin?.kind === ChatOriginKind.SideChat
 		&& !!chat.origin.parentChat
 		&& isEqual(chat.origin.parentChat, parentChat);
+}
+
+/** The harness a chat of `session` uses: its own, or the session's when it reports none. */
+export function getChatHarness(session: Pick<ISession, 'harness'>, chat: Pick<IChat, 'harness'>): string {
+	return chat.harness ?? session.harness;
+}
+
+/** Whether the chats of a session use more than one harness; the session's harness is its main chat's. */
+export function hasMixedChatHarnesses(session: ISession, reader: IReader | undefined): boolean {
+	const mainHarness = getChatHarness(session, session.mainChat.read(reader));
+	return session.chats.read(reader).some(chat => getChatHarness(session, chat) !== mainHarness);
 }
 
 /**
@@ -1066,6 +1085,12 @@ export interface ISessionCapabilities {
 	readonly supportsCanvases?: boolean;
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
+	/**
+	 * Harness ids a new peer chat may choose in this session, in the same identity
+	 * space as {@link ISession.harness}. Absent or empty means choosing a harness
+	 * for a new peer chat is unsupported.
+	 */
+	readonly supportsChatHarnesses?: readonly string[];
 	/** Whether chats in this session can update their read state independently. */
 	readonly supportsIndependentChatReadState?: boolean;
 	/**

@@ -98,6 +98,7 @@ import { ILanguageModelToolsService } from '../../../../contrib/chat/common/tool
 import { IArtifactSourceGroup, IChatArtifacts, IChatArtifactsService } from '../../../../contrib/chat/common/tools/chatArtifactsService.js';
 import { IChatTodo, IChatTodoListService } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
 import { IChatToolRiskAssessmentService } from '../../../../contrib/chat/browser/tools/chatToolRiskAssessmentService.js';
+import { IChatThinkingTitleService } from '../../../../contrib/chat/common/chatThinkingTitleService.js';
 import { IChatUtilityModelService } from '../../../../contrib/chat/common/chatUtilityModelService.js';
 import { IVoiceSessionController } from '../../../../contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { ServiceRegistration, registerWorkbenchServices } from '../fixtureUtils.js';
@@ -413,6 +414,10 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IChatUtilityModelService, new class extends mock<IChatUtilityModelService>() {
 		override async sendRequest() { return undefined; }
 	}());
+	reg.defineInstance(IChatThinkingTitleService, new class extends mock<IChatThinkingTitleService>() {
+		override getCachedTitle() { return undefined; }
+		override async generateTitle() { return undefined; }
+	}());
 	reg.defineInstance(IChatContextService, new class extends mock<IChatContextService>() { }());
 	reg.defineInstance(IChatContextPickService, new class extends mock<IChatContextPickService>() { }());
 	// Needed whenever chat markdown contains a code block; returns no custom renderer so
@@ -500,6 +505,9 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IAgentHostUntitledProvisionalSessionService, new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
 		override readonly onDidChange = Event.None;
 		override get() { return undefined; }
+		override getInitialSessionConfig() { return undefined; }
+		override getPreparedSessionConfig() { return undefined; }
+		override getResolvedConfig() { return undefined; }
 		override getOrCreate() { return Promise.resolve(undefined); }
 	}());
 	reg.defineInstance(IAgentHostSessionWorkingDirectoryResolver, new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() {

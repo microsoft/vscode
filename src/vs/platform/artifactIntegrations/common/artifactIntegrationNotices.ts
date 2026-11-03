@@ -85,7 +85,8 @@ export function formatArtifactAutomationNotice(artifactLabel: string, changes: r
 					? localize('artifactAutomationRuleChanged', "{0} updated", change.label)
 					: localize('artifactAutomationRuleDisabled', "{0} disabled", change.label);
 			// One tight list item per rule, with its details on hard-broken lines below its title.
-			return `- ${[title, ...change.details].map(text => escapeMarkdownSyntaxTokens(text.replace(/\s*\n\s*/g, ' '))).join('\\\n  ')}`;
+			const [escapedTitle, ...details] = [title, ...change.details].map(text => escapeMarkdownSyntaxTokens(text.replace(/\s*\n\s*/g, ' ')));
+			return `- ${[`**${escapedTitle}**`, ...details].join('\\\n  ')}`;
 		}).join('\n'));
 	}
 	if (changes.some(change => change.kind === 'disabled')) {

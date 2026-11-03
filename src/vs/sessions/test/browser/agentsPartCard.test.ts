@@ -668,6 +668,42 @@ suite('Sessions - Agents Part Card', () => {
 		]);
 	});
 
+	test('keeps native canvas views inside the connected side-pane frame', () => {
+		const { container } = createCard(true, true);
+		container.classList.add('modern-ui-tabs', 'modern-ui-connected-editor-tabs', 'dock-detail-panel');
+		container.style.setProperty('--modern-ui-connected-tab-border', '#808080');
+		// When connectedEditorTabs.css is loaded (by other suites in a full run, as in the workbench), the group
+		// derives its frame color from the theme's tab border instead, so define that too.
+		container.style.setProperty('--vscode-tab-border', '#808080');
+		const grid = append(container, $('.monaco-grid-view'));
+		const editor = append(grid, $('.part.editor.editor-tabs-multiple'));
+		const group = append(append(editor, $('.content')), $('.editor-group-container'));
+		group.style.width = '300px';
+		group.style.height = '200px';
+		// Mirrors the column layout the integrated browser styles give canvas panes.
+		const canvas = append(group, $('.browser-root.session-canvas-editor'));
+		canvas.style.cssText = 'display: flex; flex-direction: column; height: 100%;';
+		const wrapper = append(canvas, $('.browser-container-wrapper'));
+		wrapper.style.flex = '1';
+		const nativeView = append(wrapper, $('.browser-container'));
+
+		const actual = [false, true].map(compact => {
+			container.classList.toggle('modern-ui-compact', compact);
+			const frame = group.getBoundingClientRect();
+			const view = wrapper.getBoundingClientRect();
+			return {
+				frameWidth: mainWindow.getComputedStyle(group, '::after').borderWidth,
+				viewInset: [view.top - frame.top, frame.right - view.right, frame.bottom - view.bottom, view.left - frame.left].join(' '),
+				cornerRadius: mainWindow.getComputedStyle(nativeView).borderTopLeftRadius,
+			};
+		});
+
+		assert.deepStrictEqual(actual, [
+			{ frameWidth: '1px', viewInset: '0 1 1 1', cornerRadius: '6px' },
+			{ frameWidth: '1px 0px 0px 1px', viewInset: '0 0 0 1', cornerRadius: '0px' },
+		]);
+	});
+
 	for (const theme of ['hc-black', 'hc-light']) {
 		test(`preserves the full contrast frame without reserving compact layout space in ${theme}`, () => {
 			const { container, card } = createCard(true, false, false, true);

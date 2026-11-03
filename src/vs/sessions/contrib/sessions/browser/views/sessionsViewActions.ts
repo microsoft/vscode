@@ -32,7 +32,7 @@ import { SessionsCategories } from '../../../../common/categories.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext, SessionHeaderTargetsChatContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { canStartNewSessionLike, getNewSessionSources, getSessionListChats, isAutomationSession, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionItemOrganizeMenuGroup, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext } from './sessionsList.js';
+import { canStartNewSessionLike, getNewSessionSources, getSessionListChats, isAutomationSession, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionItemOrganizeMenuGroup, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext, SessionsListSearchOpenContext } from './sessionsList.js';
 import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
@@ -52,7 +52,6 @@ import { ICustomViewService } from '../../../../services/customView/browser/cust
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
-import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { INewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
@@ -686,6 +685,13 @@ registerAction2(class FindSessionAction extends Action2 {
 			title: localize2('find', "Find Session"),
 			icon: Codicon.search,
 			category: SessionsCategories.Sessions,
+			keybinding: {
+				// The list has its own find widget, so it takes over the keybindings of the tree's (`list.find`).
+				weight: KeybindingWeight.SessionsContrib,
+				when: ContextKeyExpr.and(FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey),
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyF,
+				secondary: [KeyCode.F3],
+			},
 		});
 	}
 	override run(accessor: ServicesAccessor) {
@@ -693,6 +699,15 @@ registerAction2(class FindSessionAction extends Action2 {
 		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
 		return view?.openFind();
 	}
+});
+
+// Escape in the list closes its find widget, as `list.closeFind` closes a tree's.
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'sessionsViewPane.closeFind',
+	weight: KeybindingWeight.SessionsContrib,
+	when: ContextKeyExpr.and(FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey, SessionsListSearchOpenContext),
+	primary: KeyCode.Escape,
+	handler: accessor => accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.sessionsControl?.closeFind(),
 });
 
 //  Section Actions
@@ -822,17 +837,11 @@ registerAction2(class NewQuickChatAction extends Action2 {
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const composerService = accessor.get(INewSessionComposerService);
 		composerService.notifyUserNavigation();
-		let activeSession;
-		if (accessor.get(IConfigurationService).getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)) {
-			if (accessor.get(ISessionsManagementService).isQuickChatTargetAvailable()) {
-				sessionsService.unsetNewSession();
-				sessionsPartService.getSessionView(undefined)?.selectNoWorkspace();
-			}
-			activeSession = sessionsService.activeSession.get();
-		} else {
-			composerService.notifyUserWorkspaceSelection();
-			activeSession = sessionsService.openQuickChat();
+		if (accessor.get(ISessionsManagementService).isQuickChatTargetAvailable()) {
+			sessionsService.unsetNewSession();
+			sessionsPartService.getSessionView(undefined)?.selectNoWorkspace();
 		}
+		const activeSession = sessionsService.activeSession.get();
 
 		// On mobile web, the sidebar drawer covers the viewport; close it so the
 		// new session composer becomes visible after creation.

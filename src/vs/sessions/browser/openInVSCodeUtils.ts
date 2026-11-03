@@ -106,6 +106,7 @@ export function resolveRemoteFolderUri(
 		return folderUri.authority === LOCAL_AGENT_HOST_AUTHORITY ? folderUri : undefined;
 	}
 
+	// eslint-disable-next-line local/code-agent-host-uri-mapping -- opens a wrapped host folder through the target window's remote authority
 	return fromAgentHostUri(folderUri).with({ authority: remoteAuthority, scheme: Schemas.vscodeRemote });
 }
 

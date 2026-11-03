@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { isElectron } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -12,8 +13,10 @@ import { agentHostAuthority } from '../../../../../platform/agentHost/common/age
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
@@ -25,8 +28,10 @@ import { UntitledTextEditorInput } from '../../../../services/untitled/common/un
 import { FileEditorInput } from '../../../files/browser/editors/fileEditorInput.js';
 import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
 import { IChatContextPickService, IChatContextValueItem, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../attachments/chatContextPickService.js';
+import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
 import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { isToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
+import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES } from '../../common/model/chatModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidget } from '../chat.js';
 import { imageToHash, isImage } from '../widget/input/editor/chatPasteProviders.js';
@@ -42,7 +47,7 @@ import { buildHostLocalEventsPath } from '../copilotCliEventsUri.js';
 import { IGitService } from '../../../git/common/gitService.js';
 import { getGitHubRemoteInfo } from '../../../git/common/utils.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
 
 const OPEN_GITHUB_ISSUE_COMMAND = 'github.copilot.chat.cloudSessions.openIssue';
 const OPEN_GITHUB_PULL_REQUEST_COMMAND = 'github.copilot.chat.cloudSessions.openPullRequest';
@@ -102,6 +107,7 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ToolsContextPickerPick)));
 		this._store.add(contextPickService.registerChatContextItem(new AgentContextValuePick()));
+		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(FileContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ChatInstructionsPickerPick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(OpenEditorContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ClipboardImageContextValuePick)));
@@ -125,6 +131,73 @@ export class AgentContextValuePick implements IChatContextValueItem {
 	async asAttachment(widget: IChatWidget): Promise<undefined> {
 		widget.inputPart.openModePicker(widget.inputPart.attachContextButtonElement ?? widget.inputPart.inputToolbarElement);
 		return undefined;
+	}
+}
+
+export class FileContextValuePick implements IChatContextValueItem {
+	readonly type = 'valuePick';
+	readonly label = localize('chatContext.files', "Files...");
+	readonly icon = Codicon.file;
+	readonly ordinal = 900;
+
+	constructor(
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IChatAttachmentResolveService private readonly attachmentResolveService: IChatAttachmentResolveService,
+		@INotificationService private readonly notificationService: INotificationService,
+	) { }
+
+	isEnabled(widget: IChatWidget): boolean {
+		return !!(widget.attachmentCapabilities.supportsFileAttachments || widget.attachmentCapabilities.supportsImageAttachments);
+	}
+
+	async asAttachment(widget: IChatWidget): Promise<IChatRequestVariableEntry[] | undefined> {
+		try {
+			const resources = await this.fileDialogService.showOpenDialog({
+				title: localize('chatContext.attachFiles.title', "Attach Files"),
+				openLabel: localize('chatContext.attachFiles.openLabel', "Attach"),
+				canSelectFiles: true,
+				canSelectFolders: false,
+				canSelectMany: true,
+				...(!widget.attachmentCapabilities.supportsFileAttachments ? {
+					filters: [{ name: localize('chatContext.attachFiles.images', "Images"), extensions: Object.keys(CHAT_ATTACHABLE_IMAGE_MIME_TYPES) }],
+				} : {}),
+			});
+			if (!resources?.length) {
+				return undefined;
+			}
+			if (!this.isEnabled(widget)) {
+				this.notificationService.warn(localize('chatContext.attachFiles.unsupported', "File and image attachments are not supported in this chat."));
+				return undefined;
+			}
+
+			const attachments: IChatRequestVariableEntry[] = [];
+			for (const resource of resources) {
+				try {
+					const attachment = await this.attachmentResolveService.resolveEditorAttachContext({ resource });
+					if (!attachment) {
+						this.notificationService.warn(localize('chatContext.attachFiles.unresolved', "Could not attach {0}.", basename(resource)));
+						continue;
+					}
+					if (attachment.kind === 'image' && !widget.attachmentCapabilities.supportsImageAttachments) {
+						this.notificationService.warn(localize('chatContext.attachFiles.imageUnsupported', "Could not attach {0}. Image attachments are not supported in this chat.", basename(resource)));
+						continue;
+					}
+					if (attachment.kind !== 'image' && !widget.attachmentCapabilities.supportsFileAttachments) {
+						this.notificationService.warn(localize('chatContext.attachFiles.fileUnsupported', "Could not attach {0}. File attachments are not supported in this chat.", basename(resource)));
+						continue;
+					}
+					attachments.push(attachment);
+				} catch (error) {
+					this.notificationService.error(localize('chatContext.attachFiles.failed', "Could not attach {0}: {1}", basename(resource), toErrorMessage(error)));
+				}
+			}
+			return attachments;
+		} catch (error) {
+			this.notificationService.error(localize('chatContext.attachFiles.dialogFailed', "Could not open the file dialog: {0}", toErrorMessage(error)));
+			return undefined;
+		} finally {
+			widget.focusInput();
+		}
 	}
 }
 
