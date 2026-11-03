@@ -1014,6 +1014,7 @@
 		"--agents-session-frame-inset",
 		"--agents-side-pane-frame-inset",
 		"--agents-window-corner-radius",
+		"--chat-window-controls-right-width",
 		"--chat-window-controls-width",
 		"--chat-window-outer-inset-left",
 		"--session-header-actions-inset",

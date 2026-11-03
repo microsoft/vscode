@@ -14,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IPartGridView, PART_GRID_TOP_EDGE_CLASS, PART_GRID_TOP_EDGE_GROUP_CLASS, PartGrid } from '../../../../browser/parts/partGrid/partGrid.js';
+import { IPartGridView, PART_GRID_TOP_EDGE_CLASS, PART_GRID_TOP_EDGE_GROUP_CLASS, PART_GRID_TOP_RIGHT_GROUP_CLASS, PartGrid } from '../../../../browser/parts/partGrid/partGrid.js';
 import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
 import { ContentPart } from '../../../../browser/parts/editor/contentPart.js';
 import { GRID_GAP_SASH_CLASS } from '../../../../browser/parts/partGrid/partGridGap.js';
@@ -151,6 +151,41 @@ suite('Part Grid', () => {
 			terminalsMovedUp: { cells: ['terminals'], groups: ['terminals'] },
 			terminalsHidden: { cells: ['chat', 'main'], groups: ['chat', 'main'] },
 			belowTitleRow: { cells: [], groups: [] },
+		});
+	});
+
+	test('the group whose title is at the top right corner of the grid is marked, as parts move, split, show and hide, below a row of chrome or not', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		const main = createPart(parts);
+		const chat = createPart(parts);
+		const terminals = createPart(parts);
+		await Promise.all([openEditor(main, '/main.txt'), openEditor(chat, '/chat.txt'), openEditor(terminals, '/terminals.txt')]);
+		grid.addPart('chat', chat);
+		grid.addPart('main', main, { reference: 'chat', direction: Direction.Right });
+		grid.addPart('terminals', terminals, { edge: Direction.Down });
+		const topRight = () => [['chat', chat], ['main', main], ['terminals', terminals]].flatMap(([name, part]) => (part as IContentPart).groups
+			.filter(group => (group as IEditorGroupView).element.classList.contains(PART_GRID_TOP_RIGHT_GROUP_CLASS))
+			.map(group => `${name}${group === (part as IContentPart).groups[0] ? '' : ' (split)'}`));
+
+		const sideBySide = topRight();
+		// The main part split to the right: its right group is at the corner, and a group below it is not.
+		const split = main.addGroup(main.activeGroup, GroupDirection.RIGHT);
+		main.addGroup(split, GroupDirection.DOWN);
+		const mainSplit = topRight();
+		grid.moveCell('terminals', { edge: Direction.Up });
+		const terminalsMovedUp = topRight();
+		grid.setCellVisible('terminals', false);
+		const terminalsHidden = topRight();
+		grid.addView('title', createView(), { edge: Direction.Up });
+		const belowTitleRow = topRight();
+
+		assert.deepStrictEqual({ sideBySide, mainSplit, terminalsMovedUp, terminalsHidden, belowTitleRow }, {
+			sideBySide: ['main'],
+			mainSplit: ['main (split)'],
+			terminalsMovedUp: ['terminals'],
+			terminalsHidden: ['main (split)'],
+			belowTitleRow: [],
 		});
 	});
 

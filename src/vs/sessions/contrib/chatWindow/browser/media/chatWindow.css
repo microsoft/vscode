@@ -129,3 +129,8 @@
 .monaco-workbench .agents-chat-window.dragging-editor .part-grid-cell-top-edge .editor-group-container.part-grid-top-edge-group > .title {
 	-webkit-app-region: no-drag;
 }
+
+/* The tab row at the top right of the window keeps the room of the window controls that float above it (Windows, Linux), as the title row would. */
+.monaco-workbench .agents-chat-window .part-grid-cell-top-edge.part-grid-cell-right-edge .editor-group-container.part-grid-top-right-group > .title {
+	padding-right: var(--chat-window-controls-right-width, 0px);
+}

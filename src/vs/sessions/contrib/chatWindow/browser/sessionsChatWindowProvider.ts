@@ -109,6 +109,30 @@ export function focusChatWindowUnlessFocused(targetWindow: { readonly document: 
  * Centers the header's actions (`actionsHost`, last at the right of the title bar `titlebar`) above the Session Activity
  * Bar's column, at the right of the window below the title bar, as the entries of the column are: by the inset after them.
  */
+/** The class of the title of a chat over its column only, whose window controls float at the top right of the window. */
+const CHAT_COLUMN_TITLE_CLASS = 'header-chat-column';
+
+/** The room the tab row at the top right of a chat window keeps for the window controls floating above it. */
+const WINDOW_CONTROLS_WIDTH_PROPERTY = '--chat-window-controls-right-width';
+
+/**
+ * Lets the tab row at the top right of the chat window that `titlebar` is in keep the room of its window controls at the
+ * right, `controls`, while they float at the top right of the window over the part beside the chat (Windows, Linux):
+ * none while they are in the title row, hidden as in full screen, or at the left, as the traffic lights of macOS are.
+ */
+export function reserveChatWindowControls(titlebar: HTMLElement, controls: HTMLElement | undefined): void {
+	const host = titlebar.closest<HTMLElement>(`.${AGENTS_CHAT_WINDOW_CLASS}`);
+	if (!host) {
+		return;
+	}
+	const width = controls && titlebar.classList.contains(CHAT_COLUMN_TITLE_CLASS) ? controls.offsetWidth : 0;
+	if (width > 0) {
+		host.style.setProperty(WINDOW_CONTROLS_WIDTH_PROPERTY, `${width}px`);
+	} else {
+		host.style.removeProperty(WINDOW_CONTROLS_WIDTH_PROPERTY);
+	}
+}
+
 export function alignChatWindowHeaderActions(titlebar: HTMLElement, actionsHost: HTMLElement): void {
 	const actions = actionsHost.firstElementChild?.getBoundingClientRect().width ?? 0;
 	const inset = actions ? Math.max(0, Math.round((SESSION_ACTIVITY_BAR_COLUMN_WIDTH - actions) / 2)) : undefined;
@@ -511,7 +535,12 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 			store.add(autorun(reader => titlebar.setHeight(this._titleHeight.read(reader))));
 			store.add(autorun(reader => titlebar.setTitle(content.title.read(reader))));
 			if (overChat) {
-				store.add(autorun(reader => titlebar.element.classList.toggle('header-chat-column', window.layoutMode.read(reader) === ChatWindowLayoutMode.SideBySide)));
+				store.add(autorun(reader => {
+					titlebar.element.classList.toggle(CHAT_COLUMN_TITLE_CLASS, window.layoutMode.read(reader) === ChatWindowLayoutMode.SideBySide);
+					reserveChatWindowControls(titlebar.element, titlebar.rightWindowControlsContainer);
+				}));
+				// From the element it is in, which stays in the window as the title bar goes.
+				store.add(toDisposable(() => reserveChatWindowControls(container, undefined)));
 			}
 			header = {
 				element: titlebar.getSessionHeaderHost(),
@@ -532,6 +561,9 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 					alignChatWindowHeaderActions(titlebar.element, titlebar.getSessionHeaderActionsHost());
 				}
 				titlebar.layout(width, height, 0, 0);
+				if (overChat && titlebar instanceof TitlebarPart) {
+					reserveChatWindowControls(titlebar.element, titlebar.rightWindowControlsContainer);
+				}
 			},
 			dispose: () => store.dispose(),
 		};

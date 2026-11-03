@@ -39,7 +39,8 @@ import { ActiveSessionState, IChangesSessionObservables, IChangesViewService } f
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../../browser/parts/sessionActivityBar.js';
-import { alignChatWindowHeaderActions, CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS, focusChatWindowUnlessFocused, getChatWindowMainPartOptions, getChatWindowTitleHeight, isChatWindowStripInColumn, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';
+import { AGENTS_CHAT_WINDOW_CLASS } from '../../browser/chatWindowTitleDoubleClick.js';
+import { alignChatWindowHeaderActions, CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS, focusChatWindowUnlessFocused, getChatWindowMainPartOptions, getChatWindowTitleHeight, isChatWindowStripInColumn, reserveChatWindowControls, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';
 import { DesktopMainEditorPart } from '../../../../browser/parts/desktopEditorPart.js';
 import { IEditorGroupViewOptions } from '../../../../../workbench/browser/parts/editor/editor.js';
 
@@ -268,6 +269,31 @@ suite('Sessions chat window provider', () => {
 		}
 		// The column is SESSION_ACTIVITY_BAR_COLUMN_WIDTH (34px) wide: an action that wide is centered with half the rest after it.
 		assert.deepStrictEqual({ column: SESSION_ACTIVITY_BAR_COLUMN_WIDTH, insets }, { column: 34, insets: ['20: 7px', '22: 6px', '0: none'] });
+	});
+
+	test('the tab row at the top right of a chat window keeps the room of the window controls only while they float above it, beside the chat\'s own title: not while they are in the title row, hidden as in full screen, or at the left as on macOS', () => {
+		const chatWindow = append(mainWindow.document.body, $(`.${AGENTS_CHAT_WINDOW_CLASS}`));
+		disposables.add({ dispose: () => chatWindow.remove() });
+		const titlebar = append(chatWindow, $('div'));
+		// The window controls at the right, as on Windows and Linux.
+		const controls = append(titlebar, $('div'));
+		controls.style.cssText = 'display: block; width: 138px; height: 30px;';
+		const reserved = (windowControls: HTMLElement | undefined) => {
+			reserveChatWindowControls(titlebar, windowControls);
+			return chatWindow.style.getPropertyValue('--chat-window-controls-right-width') || 'none';
+		};
+
+		const inTitleRow = reserved(controls);
+		// Side by Side: the chat's own title, over its column only, leaves its window controls at the top right of the window.
+		titlebar.classList.add('header-chat-column');
+		const overChatColumn = reserved(controls);
+		controls.style.display = 'none';
+		const fullScreen = reserved(controls);
+		controls.style.display = 'block';
+		const leftAsOnMacOS = reserved(undefined);
+		const windowedAgain = reserved(controls);
+
+		assert.deepStrictEqual({ inTitleRow, overChatColumn, fullScreen, leftAsOnMacOS, windowedAgain }, { inTitleRow: 'none', overChatColumn: '138px', fullScreen: 'none', leftAsOnMacOS: 'none', windowedAgain: '138px' });
 	});
 
 	test('the cards keep the main window\'s gaps: between them and to the edges of the window but its top, where the title row is', () => {
