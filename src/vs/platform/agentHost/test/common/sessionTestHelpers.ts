@@ -7,12 +7,13 @@ import type { IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { constObservable } from '../../../../base/common/observable.js';
 import type { IDetailedDiffResult, IDiffComputeService, IDiffCountResult, IDiffHunksResult } from '../../common/diffComputeService.js';
-import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionDataService, type ISessionRowsWatermark, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord } from '../../common/sessionDataService.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionDataService, type ISessionRowsWatermark, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord, type StoredAssistantResponsePart } from '../../common/sessionDataService.js';
 import type { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type ISessionGitHubState, type Message } from '../../common/state/sessionState.js';
+
+export { createNoopGitService } from './testAgentHostGitService.js';
 
 /** A metadata map that reports every write. */
 class ObservedMetadata extends Map<string, string> {
@@ -49,6 +50,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 	private readonly _turns = new Set<string>();
 	private readonly _persistedTurns = new Map<string, IPersistedTurnRecord & { seq: number }>();
 	private readonly _turnUsages = new Map<string, string>();
+	private readonly _assistantResponseParts = new Map<string, { turnId: string; parts: readonly StoredAssistantResponsePart[] }>();
 	private readonly _turnDelegations = new Map<string, string>();
 	private readonly _turnWorkspaceTransitions = new Map<string, string>();
 	private readonly _turnEventIds = new Map<string, string>();
@@ -77,7 +79,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this._turnDelegations.delete(turnId);
 		this._turnWorkspaceTransitions.delete(turnId);
 		this._turnEventIds.delete(turnId);
-		this._deleteToolResultsForTurns(new Set([turnId]));
+		this._deleteTurnContent(new Set([turnId]));
 		for (let i = this._edits.length - 1; i >= 0; i--) {
 			if (this._edits[i].turnId === turnId) {
 				this._edits.splice(i, 1);
@@ -373,6 +375,15 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	async getTurnUsages(): Promise<Map<string, string>> { return new Map(this._turnUsages); }
 
+	async setAssistantResponseParts(turnId: string, responseId: string, parts: readonly StoredAssistantResponsePart[]): Promise<void> {
+		this._turns.add(turnId);
+		this._assistantResponseParts.set(responseId, { turnId, parts: parts.map(part => ({ ...part })) });
+	}
+
+	async getAssistantResponseParts(): Promise<Map<string, readonly StoredAssistantResponsePart[]>> {
+		return new Map([...this._assistantResponseParts].map(([id, value]) => [id, value.parts]));
+	}
+
 	async setTurnDelegation(turnId: string, delegation: string): Promise<void> {
 		this._turns.add(turnId);
 		this._turnDelegations.set(turnId, delegation);
@@ -426,7 +437,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 		const index = turnIds.indexOf(turnId);
 		if (index >= 0) {
 			const prunedTurnIds = new Set(turnIds.slice(index));
-			this._deleteToolResultsForTurns(prunedTurnIds);
+			this._deleteTurnContent(prunedTurnIds);
 			for (const prunedTurnId of prunedTurnIds) {
 				this._turns.delete(prunedTurnId);
 				this._persistedTurns.delete(prunedTurnId);
@@ -440,7 +451,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 		const index = turnIds.indexOf(turnId);
 		if (index >= 0) {
 			const prunedTurnIds = new Set(turnIds.slice(index + 1));
-			this._deleteToolResultsForTurns(prunedTurnIds);
+			this._deleteTurnContent(prunedTurnIds);
 			for (const prunedTurnId of prunedTurnIds) {
 				this._turns.delete(prunedTurnId);
 				this._persistedTurns.delete(prunedTurnId);
@@ -451,6 +462,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 	async deleteAllTurns(): Promise<void> {
 		this.deleteAllTurnsCalls++;
 		this._turns.clear();
+		this._assistantResponseParts.clear();
 		this._edits.length = 0;
 		this._turnDelegations.clear();
 		this._turnWorkspaceTransitions.clear();
@@ -579,10 +591,23 @@ export class TestSessionDatabase implements ISessionDatabase {
 				this._toolResultResources.set(toolCallId, { ...resources, turnId: remappedTurnId });
 			}
 		}
+		for (const [responseId, response] of this._assistantResponseParts) {
+			const turnId = mapping.get(response.turnId);
+			if (turnId) {
+				this._assistantResponseParts.set(responseId, { ...response, turnId });
+			} else {
+				this._assistantResponseParts.delete(responseId);
+			}
+		}
 		this._deleteWorkspaceTransitionMarkerIfEmpty();
 	}
 
-	private _deleteToolResultsForTurns(turnIds: ReadonlySet<string>): void {
+	private _deleteTurnContent(turnIds: ReadonlySet<string>): void {
+		for (const [responseId, response] of this._assistantResponseParts) {
+			if (turnIds.has(response.turnId)) {
+				this._assistantResponseParts.delete(responseId);
+			}
+		}
 		for (const [toolCallId, output] of this._terminalOutputs) {
 			if (turnIds.has(output.turnId)) {
 				this._terminalOutputs.delete(toolCallId);
@@ -812,63 +837,6 @@ export function createNullSessionDataService(): ISessionDataService {
 
 export function encodeString(text: string): Uint8Array {
 	return new TextEncoder().encode(text);
-}
-
-/**
- * Returns a no-op {@link IAgentHostGitService} suitable for tests that
- * exercise the {@link AgentService} but don't care about git state.
- * Tests that DO care about git state should pass their own implementation.
- */
-export function createNoopGitService(): import('../../common/agentHostGitService.js').IAgentHostGitService {
-	return {
-		_serviceBrand: undefined,
-		getCurrentBranch: async () => undefined,
-		getHEAD: async () => undefined,
-		getDefaultBranch: async () => undefined,
-		getDefaultBranch2: async () => undefined,
-		getBranch: async () => undefined,
-		getRefs: async () => [],
-		getBranches: async () => [],
-		hasGitRoot: () => constObservable(undefined),
-		getRepositoryRoot: async () => undefined,
-		getWorktreeRoots: async () => [],
-		getWorktrees: async () => [],
-		addWorktree: async () => { },
-		copyWorktreeIncludeFiles: async () => { },
-		symlinkWorktreeFolders: async () => [],
-		addExistingWorktree: async () => { },
-		isWorktreeRegistered: async () => true,
-		removeWorktree: async () => { },
-		branchExists: async () => false,
-		createBranch: async () => { },
-		checkout: async () => { },
-		hasUncommittedChanges: async () => false,
-		createStash: async () => { },
-		commitAll: async () => { },
-		mergeBranch: async () => '',
-		restore: async () => { },
-		hasUpstream: async () => false,
-		fetch: async () => { },
-		pull: async () => { },
-		push: async () => { },
-		getSessionGitState: async () => undefined,
-		computeSessionFileDiffs: async () => undefined,
-		resolveBranchBaselineCommit: async () => undefined,
-		showBlob: async () => undefined,
-		captureWorkingTreeAsTree: async () => undefined,
-		commitTree: async () => undefined,
-		updateRef: async () => { },
-		deleteRefs: async () => { },
-		revParse: async () => undefined,
-		overlayPathIntoTree: async () => undefined,
-		diffTreePaths: async () => undefined,
-		computeFileDiffsBetweenRefs: async () => undefined,
-		getFetchRemoteUrls: async () => undefined,
-		getFetchRemotes: async () => undefined,
-		getUntrackedPaths: async () => [],
-		getBranchDiffSafetyInfo: async () => undefined,
-		getDiffPatchBetweenRefs: async () => undefined,
-	};
 }
 
 /**

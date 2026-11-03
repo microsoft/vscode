@@ -5,7 +5,7 @@
 
 import * as cp from 'child_process';
 import * as os from 'os';
-import * as playwright from 'playwright';
+import * as playwright from '@playwright/test';
 import { IElement, ILocaleInfo, ILocalizedStrings, ILogFile } from './driver';
 import { Logger, measureAndLog } from './logger';
 import { launch as launchPlaywrightBrowser } from './playwrightBrowser';
@@ -31,6 +31,8 @@ export interface LaunchOptions {
 	useInMemorySecretStorage?: boolean;
 	readonly extraArgs?: string[];
 	readonly remote?: boolean;
+	/** The authority a `remote` window opens its workspace with, `test+test` by default. */
+	readonly remoteAuthority?: string;
 	readonly web?: boolean;
 	readonly tracing?: boolean;
 	snapshots?: boolean;

@@ -14,16 +14,13 @@ import { IAccessibleViewService } from '../../../../platform/accessibility/brows
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { getCanvasDefinitionInstanceId, getCanvasDefinitionLabels, getCanvasInstanceLabels, ICanvasDefinition } from '../../../../workbench/contrib/canvases/common/canvas.js';
-import { CanvasDefinitionStore } from '../../../../workbench/contrib/canvases/common/canvasDefinitionStore.js';
+import { getCanvasInstanceLabels } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { IChat, ISession } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IInboxCanvasHost, IInboxCanvasHostService } from './inboxCanvasHost.js';
 
 export class InboxCanvases extends Disposable {
 	readonly element = $('.inbox-evidence-canvases');
 	private readonly selected = observableValue<URI | undefined>(this, undefined);
-	private readonly pendingInstance = observableValue<string | undefined>(this, undefined);
 	private readonly host = this._register(new MutableDisposable<IInboxCanvasHost>());
 	private visible = true;
 
@@ -33,12 +30,16 @@ export class InboxCanvases extends Disposable {
 		viewport: HTMLElement,
 		onLayout: () => void,
 		@IInboxCanvasHostService hostService: IInboxCanvasHostService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@IAccessibleViewService accessibleViewService: IAccessibleViewService,
 		@ILogService logService: ILogService,
 		@INotificationService notificationService: INotificationService,
 	) {
 		super();
+		this._register(autorun(reader => {
+			if (hostService.enabled.read(reader) && session.capabilities.read(reader).supportsCanvases === true && chat.observeCanvases) {
+				reader.store.add(chat.observeCanvases());
+			}
+		}));
 		if (!hostService.supported) {
 			this.element.appendChild($('p.inbox-evidence-note', undefined, localize('inbox.canvas.desktop', "Interactive extension canvases are available in the desktop application.")));
 			this._register(autorun(reader => {
@@ -47,17 +48,6 @@ export class InboxCanvases extends Disposable {
 			}));
 			return;
 		}
-		const definitions = this._register(new CanvasDefinitionStore(reader => {
-			chat.canvases?.read(reader);
-			if (!hostService.enabled.read(reader) || session.capabilities.read(reader).supportsCanvases !== true) {
-				return undefined;
-			}
-			return {
-				owner: { providerId: session.providerId, session: session.resource, chat: chat.resource },
-				includeDefinition: () => true,
-				listCanvases: () => sessionsManagementService.listCanvases(session, chat),
-			};
-		}, '[InboxCanvases]', logService));
 		const controls = this.element.appendChild($('.inbox-evidence-canvas-controls'));
 		const presentation = this.element.appendChild($('.inbox-evidence-canvas-presentation'));
 		const controlsStore = this._register(new DisposableStore());
@@ -74,52 +64,28 @@ export class InboxCanvases extends Disposable {
 				}
 			}));
 		};
-		const openDefinition = async (definition: ICanvasDefinition) => {
-			if (!hostService.enabled.get() || definition.requiresInput || session.capabilities.get().supportsCanvases !== true || sessionsManagementService.getSession(session.resource) !== session) {
-				throw new Error('Canvas owner or capability is no longer available');
-			}
-			const instanceId = getCanvasDefinitionInstanceId(definition);
-			await sessionsManagementService.openCanvas(session, chat, definition, instanceId);
-			if (this._store.isDisposed) {
-				return;
-			}
-			this.pendingInstance.set(instanceId, undefined);
-		};
 		this._register(autorun(reader => {
 			const enabled = hostService.enabled.read(reader) && session.capabilities.read(reader).supportsCanvases === true;
 			const canvases = enabled ? chat.canvases?.read(reader) ?? [] : [];
-			const available = enabled ? definitions.definitions.read(reader) : [];
 			const selected = this.selected.read(reader);
 			controlsStore.clear();
 			clearNode(controls);
-			this.element.hidden = !canvases.length && !available.length;
+			this.element.hidden = !canvases.length;
 			if (!this.element.hidden) {
 				controls.appendChild($('h3', undefined, localize('inbox.canvas.heading', "Extension canvases")));
-				controls.appendChild($('p.inbox-evidence-note', undefined, localize('inbox.canvas.description', "Choose a canvas supplied by this conversation's extensions. Its content is extension-provided, not independent verification.")));
+				controls.appendChild($('p.inbox-evidence-note', undefined, localize('inbox.canvas.description', "Canvases opened in this conversation. Their content is extension-provided, not independent verification.")));
 			}
 			const labels = getCanvasInstanceLabels(canvases);
 			canvases.forEach((canvas, index) => {
 				action(controls, labels[index], () => {
-					this.pendingInstance.set(undefined, undefined);
 					this.selected.set(canvas.resource, undefined);
 				}, hostService.supported && !!canvas.source);
 				if (!canvas.source) {
 					controls.appendChild($('p.inbox-evidence-note', undefined, localize('inbox.canvas.disconnected', "{0}: provider unavailable.", labels[index])));
 				}
 			});
-			const definitionLabels = getCanvasDefinitionLabels(available);
-			available.forEach((definition, index) => {
-				if (canvases.some(canvas => canvas.instanceId === getCanvasDefinitionInstanceId(definition))) {
-					return;
-				}
-				action(controls, definitionLabels[index], () => openDefinition(definition), hostService.supported && !definition.requiresInput);
-				if (definition.requiresInput) {
-					controls.appendChild($('p.inbox-evidence-note', undefined, localize('inbox.canvas.requiresInput', "{0} requires input. Ask the agent to open it using the reply below.", definitionLabels[index])));
-				}
-			});
-			if (canvases.some(canvas => isEqual(canvas.resource, selected) || canvas.instanceId !== undefined && canvas.instanceId === this.pendingInstance.read(reader))) {
+			if (canvases.some(canvas => isEqual(canvas.resource, selected))) {
 				action(controls, localize('inbox.canvas.hide', "Hide canvas"), () => {
-					this.pendingInstance.set(undefined, undefined);
 					this.selected.set(undefined, undefined);
 				});
 				action(controls, localize('inbox.canvas.read', "Read canvas"), () => {
@@ -135,9 +101,8 @@ export class InboxCanvases extends Disposable {
 		let attachedSource: URI | undefined;
 		this._register(autorun(reader => {
 			const selected = this.selected.read(reader);
-			const pendingInstance = this.pendingInstance.read(reader);
 			const enabled = hostService.enabled.read(reader) && session.capabilities.read(reader).supportsCanvases === true;
-			const canvas = enabled ? chat.canvases?.read(reader)?.find(canvas => pendingInstance !== undefined ? canvas.instanceId === pendingInstance : isEqual(canvas.resource, selected)) : undefined;
+			const canvas = enabled ? chat.canvases?.read(reader)?.find(canvas => isEqual(canvas.resource, selected)) : undefined;
 			if (isEqual(attachedResource, canvas?.resource) && isEqual(attachedSource, canvas?.source)) {
 				return;
 			}

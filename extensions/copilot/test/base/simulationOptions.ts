@@ -94,7 +94,6 @@ export class SimulationOptions {
 	public readonly smartChatModel: string | undefined;
 	public readonly fastChatModel: string | undefined;
 	public readonly fastRewriteModel: string | undefined;
-	public readonly summarizeHistory: boolean;
 	public readonly embeddingType: EmbeddingType | undefined;
 	public readonly boost: boolean;
 	public readonly parallelism: number;
@@ -132,7 +131,6 @@ export class SimulationOptions {
 	public readonly disabledTools: Set<string>;
 
 	/** If true, will try to use code search using our service. */
-	public readonly useExperimentalCodeSearchService: boolean;
 
 	public readonly configFile: string | undefined;
 
@@ -164,7 +162,6 @@ export class SimulationOptions {
 		this.smartChatModel = this.argv['smart-model'];
 		this.fastChatModel = this.argv['fast-model'];
 		this.fastRewriteModel = this.argv['fast-rewrite-model'];
-		this.summarizeHistory = boolean(argv['summarize-history'], true);
 		this.embeddingType = cliOptionsToWellKnownEmbeddingsType(this.argv['embedding-model']);
 		this.parallelism = this.argv['parallelism'] ?? this.argv['p'] ?? 20;
 		this.modelCacheMode = this.argv['skip-model-cache'] ? CacheMode.Disable : CacheMode.Default;
@@ -199,7 +196,6 @@ export class SimulationOptions {
 
 		this.disabledTools = argv['disable-tools'] ? new Set(argv['disable-tools'].split(',')) : new Set();
 
-		this.useExperimentalCodeSearchService = boolean(argv['use-experimental-code-search-service'], false);
 
 		const isNesDatagen = (argv._ as string[]).includes('nes-datagen');
 		this.subcommand = isNesDatagen ? 'nes-datagen' : undefined;
@@ -276,7 +272,6 @@ export class SimulationOptions {
 			`  --nes-url                           To override endpoint URL for NES (must be used with --nes-api-key)`,
 			`  --nes-api-key                        API key for endpoint URL provided via NES (must be used with --nes-url)`,
 			`  --disable-tools                    A comma-separated list of tools to disable`,
-			`  --summarize-history                Enable experimental conversation history summarization in agent mode`,
 			`  --config-file                      Path to a JSON file containing configuration options`,
 			`  --model-config-file                Path to a JSON file containing model configuration options`,
 			``,

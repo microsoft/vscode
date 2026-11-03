@@ -17,7 +17,7 @@ import { AgentSession } from '../../../../../platform/agentHost/common/agent.js'
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { getAgentHostAutomationHistoryState, supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryDeletionState, supportsAgentHostAutomationHistoryReceipts } from '../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { getAgentHostAutomationHistoryState, getAgentHostAutomationScheduleKind, supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryDeletionState, supportsAgentHostAutomationHistoryReceipts, withAgentHostAutomationScheduleKind } from '../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
 import { isCustomizationEnabled } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { omitAutomationSessionTemplateConfigValues, pickAutomationDefinitionOwnedConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -556,7 +556,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		}
 		const modelId = this._projectModelId(state.definition.session.model?.id, state.definition.session.provider);
 		const newestRun = state.runs[0];
-		const schedule = projectSchedule(state.definition.triggers);
+		const schedule = projectSchedule(state.definition);
 		return {
 			id: this._resourceId(state.resource),
 			name: state.definition.title,
@@ -817,8 +817,10 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			setOptional(config, SessionConfigKey.Isolation, undefined);
 			setOptional(config, SessionConfigKey.Branch, undefined);
 		}
-		const meta = existing?._meta ?? {};
-		const existingSchedule = existing ? projectSchedule(existing.triggers) : undefined;
+		const existingSchedule = existing ? projectSchedule(existing) : undefined;
+		const scheduleUnchanged = existingSchedule !== undefined && stableStringify(existingSchedule) === stableStringify(descriptor.schedule);
+		const meta = scheduleUnchanged ? existing?._meta ?? {}
+			: withAgentHostAutomationScheduleKind(existing?._meta, descriptor.schedule.interval === 'cron' ? 'cron' : undefined);
 		return {
 			title: descriptor.name,
 			message: { text: descriptor.prompt, origin: { kind: MessageKind.Automation } },
@@ -836,10 +838,11 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				...(existingSession?.customizations !== undefined && this._connection.initializeResult.get()?.automations?.customizations ? { customizations: existingSession.customizations } : {}),
 			},
 			enabled: descriptor.enabled,
-			triggers: existing && existingSchedule && stableStringify(existingSchedule) === stableStringify(descriptor.schedule)
+			triggers: existing && scheduleUnchanged
 				? existing.triggers
 				: scheduleTrigger(descriptor.schedule),
-			_meta: Object.keys(meta).length > 0 ? meta : undefined,
+			// An empty object clears the persisted preference over JSON; undefined would be omitted.
+			_meta: Object.keys(meta).length > 0 || existing?._meta !== undefined ? meta : undefined,
 		};
 	}
 
@@ -1203,7 +1206,8 @@ function isTerminalRun(run: AutomationRunSummary): boolean {
 const cronWeekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
 // Projects Agent Host triggers into the editor-facing schedule model.
-function projectSchedule(triggers: AutomationDefinition['triggers']): IAutomationSchedule {
+function projectSchedule(definition: AutomationDefinition): IAutomationSchedule {
+	const { triggers } = definition;
 	const trigger = triggers.find(trigger => trigger.kind === AutomationTriggerKind.Schedule);
 	if (!trigger) {
 		return { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
@@ -1216,7 +1220,7 @@ function projectSchedule(triggers: AutomationDefinition['triggers']): IAutomatio
 			scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0,
 		}
 		: { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
-	if (remaining.length > 0 || dayOfMonth !== '*' || month !== '*') {
+	if (getAgentHostAutomationScheduleKind(definition) === 'cron' || remaining.length > 0 || dayOfMonth !== '*' || month !== '*') {
 		return unrepresentable;
 	}
 	if (triggers.length !== 1
@@ -1268,7 +1272,7 @@ function scheduleTrigger(schedule: IAutomationSchedule): AutomationDefinition['t
 	switch (schedule.interval) {
 		case 'cron':
 			if (!schedule.cronExpression?.trim()) {
-				throw new Error(localize('automationCronRequired', "A CRON expression is required."));
+				throw new Error(localize('automationCronRequired', "A cron expression is required."));
 			}
 			expression = schedule.cronExpression.trim();
 			break;

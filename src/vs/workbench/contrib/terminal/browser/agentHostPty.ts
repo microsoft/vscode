@@ -10,7 +10,6 @@ import { DisposableStore, MutableDisposable, toDisposable } from '../../../../ba
 import { URI } from '../../../../base/common/uri.js';
 import { IProcessPropertyMap, ITerminalChildProcess, ITerminalLaunchError, ITerminalLaunchResult, ITerminalLogService, ProcessPropertyType } from '../../../../platform/terminal/common/terminal.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
-import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { ActionType, ActionEnvelope } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { TerminalClaimKind, type TerminalContentPart, type TerminalState } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -178,7 +177,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 					channel: this._terminalUri.toString(),
 					claim: { kind: TerminalClaimKind.Client, clientId: connection.clientId },
 					name: this._options?.name,
-					cwd: this._resolveCwdForProtocol(this._options?.cwd),
+					cwd: this._resolveCwdForProtocol(connection, this._options?.cwd),
 					cols: this._lastDimensions.cols > 0 ? this._lastDimensions.cols : undefined,
 					rows: this._lastDimensions.rows > 0 ? this._lastDimensions.rows : undefined,
 				});
@@ -369,18 +368,9 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 		}
 	}
 
-	/**
-	 * Resolves a cwd URI for sending over the protocol. Agent-host URIs
-	 * are unwrapped to their original URI via {@link fromAgentHostUri}.
-	 */
-	private _resolveCwdForProtocol(cwd: URI | undefined): string | undefined {
-		if (!cwd) {
-			return undefined;
-		}
-		if (cwd.scheme === AGENT_HOST_SCHEME) {
-			return fromAgentHostUri(cwd).toString();
-		}
-		return cwd.toString();
+	/** Maps a client cwd into the owning connection's host space for the protocol. */
+	private _resolveCwdForProtocol(connection: IAgentConnection, cwd: URI | undefined): string | undefined {
+		return cwd ? connection.resourceUris.toAgentHost(cwd).toString() : undefined;
 	}
 
 	private _createSubscription(connection: IAgentConnection): { readonly subscription: IAgentSubscription<TerminalState>; readonly store: DisposableStore } {

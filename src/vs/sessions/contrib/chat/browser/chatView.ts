@@ -209,6 +209,10 @@ export class NewChatView extends AbstractChatView {
 		return this._widget instanceof NewChatWidget && this._widget.preserveOnSessionClear;
 	}
 
+	override get inputContentElement(): HTMLElement | undefined {
+		return this._widget instanceof NewChatWidget ? this._widget.inputContentElement : undefined;
+	}
+
 	protected override doLayout(width: number, height: number, _top: number, _left: number): void {
 		this._widget.layout(height, width);
 	}
@@ -481,6 +485,7 @@ export class ChatView extends AbstractChatView {
 				}),
 				renderSecondaryToolbar: shouldRenderRunningSessionSecondaryToolbar(initiallyUsesExperimentalComposerLayout),
 				inputEditorMinLines: 2,
+				inputEditorOptions: options.inputEditorOptions,
 				isSessionsWindow: true,
 				transcriptTabIndex: -1,
 				enableFind: true,
@@ -742,6 +747,10 @@ export class ChatView extends AbstractChatView {
 	/** The underlying chat widget. */
 	get widget(): ChatWidget {
 		return this._widget;
+	}
+
+	override get inputContentElement(): HTMLElement {
+		return this._widget.input.element;
 	}
 
 	override setChat(chat: IChat, historyKey?: string, session?: ISession, onInput?: () => void): void {
@@ -1161,6 +1170,11 @@ export class ChatView extends AbstractChatView {
 		}
 		this._comparisonResult.layout(width);
 		size(this._widgetContainer, width, widgetHeight);
+		if (this._inputOnly) {
+			// A content-sized host must not cap its own input to its previous height.
+			// The editor retains its normal intrinsic maximum height.
+			this._widget.setInputPartMaxHeightOverride(Number.POSITIVE_INFINITY);
+		}
 		this._widget.layout(widgetHeight, width);
 		this._layoutStickyScrollBackground();
 	}
@@ -1346,16 +1360,21 @@ export function findInitialTranscriptContextEntry(requests: readonly { readonly 
 export class ChatViewFactory implements IChatViewFactory {
 
 	declare readonly _serviceBrand: undefined;
+	protected readonly viewOptions: IChatViewOptions = {};
 
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService protected readonly instantiationService: IInstantiationService
 	) { }
 
+	get inputEditorOptions(): IChatViewOptions['inputEditorOptions'] {
+		return this.viewOptions.inputEditorOptions;
+	}
+
 	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions, instantiationService = this.instantiationService): AbstractChatView {
-		return instantiationService.createInstance(NewChatView, isNewChatInSession, options);
+		return instantiationService.createInstance(NewChatView, isNewChatInSession, { ...this.viewOptions, ...options });
 	}
 
 	createChatView(instantiationService = this.instantiationService, options: IChatViewOptions = {}): AbstractChatView {
-		return instantiationService.createInstance(ChatView, options);
+		return instantiationService.createInstance(ChatView, { ...this.viewOptions, ...options });
 	}
 }

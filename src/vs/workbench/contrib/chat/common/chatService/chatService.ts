@@ -266,6 +266,8 @@ export interface IChatMarkdownContent {
 	kind: 'markdownContent';
 	content: IMarkdownString;
 	inlineReferences?: Record<string, IChatContentInlineReference>;
+	/** Structured metadata for a standalone file block synthesized by the annotation renderer. */
+	codeblockUri?: IChatResponseCodeblockUriPart;
 }
 
 export interface IChatTreeData {
@@ -437,6 +439,8 @@ export interface IChatResponseCodeblockUriPart {
 	isEdit?: boolean;
 	undoStopId?: string;
 	subAgentInvocationId?: string;
+	/** A file reference with no surrounding streamed Markdown code fence. */
+	isStandalone?: boolean;
 }
 
 export interface IChatAgentMarkdownContentWithVulnerability {
@@ -656,6 +660,8 @@ export interface IChatThinkingPart {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	metadata?: { readonly [key: string]: any };
 	generatedTitle?: string;
+	/** Provider-owned timing must not be inferred from client observation or replay, even when no duration is supplied. */
+	reasoningTimingSource?: 'provider';
 	/** Epoch milliseconds when the reasoning interval started, persisted so the span survives reload. */
 	reasoningStartedAt?: number;
 	/** Elapsed reasoning time in milliseconds, persisted so the duration survives reload. */

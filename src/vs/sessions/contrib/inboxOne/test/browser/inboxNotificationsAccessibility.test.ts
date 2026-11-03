@@ -11,7 +11,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { InboxCanvasFocusContext } from '../../../../common/contextkeys.js';
-import { InboxNotificationKind, InboxNotificationPriority } from '../../common/inboxNotificationsService.js';
+import { InboxNotificationKind, InboxNotificationPriority, InboxTab } from '../../common/inboxNotificationsService.js';
 import { buildInboxNotificationsAccessibleContent } from '../../browser/inboxNotificationsAccessibility.js';
 
 suite('InboxNotificationsAccessibility', () => {
@@ -41,6 +41,21 @@ suite('InboxNotificationsAccessibility', () => {
 		);
 	});
 
+	test('includes the workflow, separate session title, image evidence and timestamp', () => {
+		const timestamp = 1000;
+		const content = buildInboxNotificationsAccessibleContent([{
+			kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+			title: 'Review the search changes', description: 'Targeted tests passed.',
+			sessionTitle: 'Improve workspace search', tab: InboxTab.ReadyForYou, hasImages: true, timestamp,
+		}]);
+		assert.deepStrictEqual({
+			action: content.includes('1. Review the search changes'),
+			session: content.includes('Session: Improve workspace search. Tab: Ready for you.'),
+			visual: content.includes('Visual evidence available.'),
+			timestamp: content.includes(new Date(timestamp).toLocaleString()),
+		}, { action: true, session: true, visual: true, timestamp: true });
+	});
+
 	test('includes the actual terminal command and disclaimer in accessible content', () => {
 		const content = buildInboxNotificationsAccessibleContent([{
 			kind: InboxNotificationKind.NeedsInput, priority: InboxNotificationPriority.Now, title: 'Terminal', description: '',
@@ -51,6 +66,18 @@ suite('InboxNotificationsAccessibility', () => {
 			},
 		}]);
 		assert.deepStrictEqual(['npm test', 'Runs outside the sandbox', 'Open the session to review the full request and respond.'].map(text => content.includes(text)), [true, true, true]);
+	});
+
+	test('describes a synthetic Working row by its workflow rather than Completed', () => {
+		const content = buildInboxNotificationsAccessibleContent([{
+			kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+			title: 'Working on search', description: 'Implementing search',
+			sessionTitle: 'Search', tab: InboxTab.Working, notifications: [],
+		}]);
+		assert.deepStrictEqual({
+			working: content.includes('Type: Working'),
+			completed: content.includes('Completed'),
+		}, { working: true, completed: false });
 	});
 
 	test('builds numbered accessible content for notifications', () => {

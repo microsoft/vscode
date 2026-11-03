@@ -126,7 +126,7 @@ export interface IConfigPickerItem {
 export function getConfigIcon(property: string, value: unknown | undefined, hasUncommittedChanges = false): ThemeIcon | undefined {
 	if (property === SessionConfigKey.Isolation) {
 		if (value === 'folder' || value === 'workspace') {
-			return Codicon.folder;
+			return Codicon.gitBranchCheckout;
 		}
 		if (value === 'worktree') {
 			return Codicon.worktree;

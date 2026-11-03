@@ -16,7 +16,7 @@ import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
 import type { IAgentHostProcessExitEvent } from './agentHostProcessExit.js';
-import type { CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
+import type { AgentHostPrewarmSkipReason, CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
 import type { IChatSurfaceMeta } from './meta/agentChatSurfaceMeta.js';
 import type { IAgentChatUsage } from './meta/agentUsageMeta.js';
@@ -197,6 +197,12 @@ export interface IAgentChatHistoryChange {
 /** Returns the candidate session URI keys already present in the host registry. */
 export type IAgentKnownSessionsFilter = (sessions: readonly URI[]) => Promise<ReadonlySet<string>>;
 
+/** Options for {@link IAgent.startChatDiscovery}. */
+export interface IAgentChatDiscoveryOptions {
+	/** The host's startup-frozen gate for publishing adoptable legacy chats. */
+	readonly migrateLegacyChats: boolean;
+}
+
 /** Lightweight ordered chat metadata for session-list presentation. */
 export interface IAgentSessionChatMetadata {
 	readonly chat: URI;
@@ -288,6 +294,7 @@ export interface IAgentMaterializeChatEvent {
 }
 
 export type AgentProvider = string;
+export type AgentSandboxCertificateOperation = 'install' | 'rotate' | 'remove';
 
 export interface IAgentPluginUninstallRequest {
 	readonly name: string;
@@ -455,6 +462,9 @@ export type IAgentCustomizationInstallationReview = {
 	readonly serverName: string;
 	readonly target: string;
 	readonly endpoint?: string;
+	readonly command?: string;
+	readonly args?: readonly string[];
+	readonly env?: Readonly<Record<string, string>>;
 	readonly configurationFields: readonly string[];
 	readonly restoresPreviousConfiguration?: boolean;
 	readonly preservesSharedAuthentication?: boolean;
@@ -780,6 +790,14 @@ export interface IAgentChatOwnerRef {
 	get(): URI;
 	/** The current owner's subagent chat format, read at use because this reference can predate default-chat registration. */
 	getSubagentChatUriFormat(): ChatUriFormat;
+	/**
+	 * Whether the chat is the default chat of its current owner, read at use;
+	 * `undefined` while the host records no default chat for that owner. Decided
+	 * by the host, never from where the chat stores: a chat keeps its storage when
+	 * it becomes another session's default chat. Read it through
+	 * {@link isAgentChatDefaultChat}.
+	 */
+	isDefaultChat?(): boolean | undefined;
 	/** Fires after the chat's owner changed. */
 	readonly onDidChange: Event<IAgentChatOwnerChange>;
 }
@@ -840,6 +858,12 @@ export interface IAgentChatContext {
 	 */
 	readonly reportPrewarmedSession?: (discardReason?: string) => void;
 	/**
+	 * Records, before progress can complete the addressed turn, that its send
+	 * materialized a deferred provider session without a pre-warmed one to
+	 * claim or discard, and the bounded reason.
+	 */
+	readonly reportPrewarmSkipped?: (reason: AgentHostPrewarmSkipReason) => void;
+	/**
 	 * The addressed chat's origin, taken verbatim from the host-owned chat
 	 * catalog, and exhaustive across every way a chat comes into existence:
 	 * a plainly user-created peer chat and the session-backed default chat
@@ -896,6 +920,17 @@ export function resolveAgentChatContext(sessionOrContext: AgentChatOperationCont
 		throw new Error(`Chat context resource must be the addressed chat or a session: ${context.resource.toString()} for ${resource.toString()}`);
 	}
 	return context;
+}
+
+/**
+ * Whether a chat is the default chat of its current owner: the host's
+ * {@link IAgentChatOwnerRef.isDefaultChat} when it answers, else (owner
+ * references the host did not create, or no default chat recorded yet) whether
+ * the chat stores in its owner, which holds for every chat a session was
+ * created with.
+ */
+export function isAgentChatDefaultChat(chat: { readonly resource: URI; readonly owner: IAgentChatOwnerRef }): boolean {
+	return chat.owner.isDefaultChat?.() ?? isEqual(chat.resource, chat.owner.get());
 }
 
 /**
@@ -1238,6 +1273,13 @@ export interface IAgentChats {
 	 * doing work.
 	 */
 	warmChat?(chat: URI, context: IAgentChatContext): Promise<boolean>;
+
+	/**
+	 * Records why the host is not (yet) warming a deferred chat
+	 * ({@link warmChat}), so its first send can report it. The latest call
+	 * wins; a later warm launch supersedes it.
+	 */
+	noteWarmSkipped?(chat: URI, context: IAgentChatContext, reason: AgentHostPrewarmSkipReason): void;
 
 	/**
 	 * Create a fresh additional chat within an already-provisioned `session`,
@@ -1922,12 +1964,16 @@ export interface IAgent {
 	 * stoppable. Resolves false when the entry is unknown or had already finished.
 	 */
 	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
+	/** Manages the host's sandbox CA from saved runtime settings without creating a chat. */
+	manageHostSandboxCertificate?(operation: AgentSandboxCertificateOperation): Promise<void>;
 	/** Installs the live chat runtime's sandbox certificate after explicit client consent, preserving the advertised chat string. */
 	installSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 	/** Replaces the live runtime's sandbox CA after explicit client consent. */
 	rotateSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 	/** Removes OS trust for the live runtime's sandbox CA after explicit client consent, retaining the stored CA. */
 	removeSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
+	/** Rechecks the live runtime without changing trust and publishes updated certificate diagnostics. */
+	refreshSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 
 	/**
 	 * Changes the working directory of an exact chat's existing provider-native
@@ -2022,8 +2068,12 @@ export interface IAgent {
 	 */
 	watchChatBackgroundWork?(chat: URI, published: () => readonly BackgroundWork[]): IDisposable;
 
-	/** Starts provider-owned native chat discovery; repeated calls are idempotent. */
-	startChatDiscovery?(): Promise<void>;
+	/**
+	 * Starts provider-owned native chat discovery; repeated calls are idempotent.
+	 * The host passes its own startup-frozen legacy-migration gate so discovery
+	 * and listing always agree on whether legacy chats are adoptable.
+	 */
+	startChatDiscovery?(options?: IAgentChatDiscoveryOptions): Promise<void>;
 
 	/** Lets discovery drop registered candidates before per-session I/O. */
 	setKnownSessionsFilter?(filter: IAgentKnownSessionsFilter): void;
@@ -2032,6 +2082,13 @@ export interface IAgent {
 
 	/** Optional adoption hook for providers with a predecessor-owned on-disk format. */
 	ensureChatAdopted?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult>;
+
+	/**
+	 * The worktree a predecessor recorded for a session it still owns (one not
+	 * adopted yet), so deleting the session removes it as the predecessor's
+	 * delete did. `undefined` once the session has Agent Host metadata.
+	 */
+	readLegacyChatWorktree?(session: URI): Promise<IAgentAdoptedWorktree | undefined>;
 
 	/** Optional recovery hook for providers with historical backings but no persisted provider data. */
 	recoverLegacyChat?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult | void>;

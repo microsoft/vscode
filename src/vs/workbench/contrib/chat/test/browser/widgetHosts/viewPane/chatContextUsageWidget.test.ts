@@ -6,12 +6,11 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -151,10 +150,7 @@ suite('ChatContextUsageWidget', () => {
 	}
 
 	function createWidget(instantiationService: IInstantiationService = {} as IInstantiationService, languageModelsService: ILanguageModelsService = createLanguageModelsService()): ChatContextUsageWidget {
-		const hoverService = {
-			setupDelayedHover: () => Disposable.None,
-			showInstantHover: () => { },
-		} as unknown as IHoverService;
+		const hoverService = { ...NullHoverService };
 		return store.add(new ChatContextUsageWidget(
 			hoverService,
 			instantiationService,
