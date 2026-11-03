@@ -33,7 +33,7 @@ import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatPen
 import { ChatAgentLocation, ChatModeKind, IResolvedNewChatSessionType } from '../common/constants.js';
 import { ChatAttachmentModel } from './attachments/chatAttachmentModel.js';
 import { IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
-import { ChatInputPart, IChatInputHostModelSelection, IChatInputHostSubmit } from './widget/input/chatInputPart.js';
+import { ChatInputPart, IChatInputHostModelSelection, IChatInputHostSubmit, IChatInputPartOptions } from './widget/input/chatInputPart.js';
 import { IChatWidgetContrib } from './widget/chatWidget.js';
 import { ICodeBlockActionContext, ICodeBlockRenderOptions } from './widget/chatContentParts/codeBlockPart.js';
 import { AgentSessionTarget } from './agentSessions/agentSessions.js';
@@ -369,6 +369,7 @@ export interface IChatWidgetViewOptions {
 	supportsSideChat?: IObservable<boolean>;
 	dndContainer?: HTMLElement;
 	inputEditorMinLines?: number;
+	inputEditorOptions?: IChatInputPartOptions['inputEditorOptions'];
 	/** Vertical padding of the input editor. Defaults to the render style's padding. */
 	inputEditorPadding?: { readonly top: number; readonly bottom: number };
 	/** The input's placeholder, in place of the session's or a locked agent's. */

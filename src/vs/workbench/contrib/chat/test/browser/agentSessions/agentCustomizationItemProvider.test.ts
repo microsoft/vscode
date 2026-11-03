@@ -182,6 +182,30 @@ suite('AgentCustomizationItemProvider', () => {
 		]);
 	});
 
+	test('projects optional host model preferences into cached chat modes', async () => {
+		const agents: AgentCustomization[] = [
+			{ type: CustomizationType.Agent, id: 'plain', uri: 'other-host:/plain', name: 'Plain' },
+			{ type: CustomizationType.Agent, id: 'scalar', uri: 'other-host:/scalar', name: 'Scalar', model: 'sonnet' },
+			{ type: CustomizationType.Agent, id: 'ordered', uri: 'other-host:/ordered', name: 'Ordered', model: 'missing', _meta: { 'vscode.models': ['missing', 'sonnet'], 'vscode.reasoningEffort': 'low' } },
+		];
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomAgents() { return agents; }
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}), new NullLogService(),
+			new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const result = await provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None);
+		assert.deepStrictEqual(result.map(agent => {
+			const mode = new CustomChatMode(agent);
+			return { model: mode.toJSON().model, effort: mode.toJSON().reasoningEffort };
+		}), [
+			{ model: undefined, effort: undefined },
+			{ model: ['sonnet'], effort: undefined },
+			{ model: ['missing', 'sonnet'], effort: 'low' },
+		]);
+	});
+
 	test('does not treat a case-distinct host agent as a client draft', async () => {
 		const agents: AgentCustomization[] = ['Reviewer', 'reviewer'].map(id => ({
 			type: CustomizationType.Agent, id, uri: `other-host:/agents/${id}`, name: 'Reviewer',

@@ -1028,6 +1028,7 @@ suite('ChatEditor chat open diagnostics', () => {
 			group: { id: options.groupId ?? 1 },
 			layoutService: { isRestored: () => options.restored ?? true },
 			chatSessionsService: new MockChatSessionsService(), loadEditorViewState: () => undefined,
+			provisionalSessionService: { prepareSessionConfig: async () => { } },
 		});
 	}
 

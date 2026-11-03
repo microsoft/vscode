@@ -18,6 +18,9 @@ export interface IChatViewFactory {
 
 	readonly _serviceBrand: undefined;
 
+	/** Entry-owned metrics for chat inputs composed outside a chat view, such as automation prompts. */
+	readonly inputEditorOptions: IChatViewOptions['inputEditorOptions'];
+
 	/**
 	 * Creates a "new chat" view that lets the user pick a workspace and
 	 * start a new chat. This is the view the grid is seeded with on startup.

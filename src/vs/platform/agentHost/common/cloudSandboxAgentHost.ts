@@ -466,7 +466,7 @@ export interface ICloudSandboxApiService {
 	clearSessionHistory(taskId?: string): void;
 }
 
-export const cloudSandboxDiscoveryTriggers = ['startup', 'poll', 'focus', 'selection', 'accountChange', 'configurationChange', 'manual', 'feedChange', 'feedRenewal', 'feedReconnect'] as const;
+export const cloudSandboxDiscoveryTriggers = ['startup', 'automatic', 'poll', 'focus', 'selection', 'accountChange', 'configurationChange', 'manual', 'feedChange', 'feedRenewal', 'feedReconnect'] as const;
 export type CloudSandboxDiscoveryTrigger = typeof cloudSandboxDiscoveryTriggers[number];
 
 export interface ICloudSandboxDiscoveryOptions {

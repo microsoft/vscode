@@ -27,7 +27,7 @@ import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
 import type { AutomaticTitleGenerationStrategy } from './agentHostSessionTitleController.js';
 import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHostRestrictedTelemetryContext } from './agentHostRestrictedTelemetry.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
-import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type CodexModelProvider, type AgentHostProviderSendStage, type AgentHostTurnFailureStage, type AgentHostTurnSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderTurnTelemetryContext, type ICodexAccountTelemetryContext } from '../common/agentHostTelemetry.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type AgentHostPrewarmSkipReason, type CodexModelProvider, type AgentHostProviderSendStage, type AgentHostTurnFailureStage, type AgentHostTurnSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderTurnTelemetryContext, type ICodexAccountTelemetryContext } from '../common/agentHostTelemetry.js';
 import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { toCopilotTelemetryData } from './shared/copilotSkuTelemetry.js';
 import { getCodexAccountTelemetryData, type CodexAccountTelemetryClassification } from './codex/codexAccountTelemetry.js';
@@ -401,6 +401,7 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry, 
 	codexModelProvider?: CodexModelProvider;
 	usedPrewarmedSession?: boolean;
 	prewarmedSessionDiscardReason?: string;
+	prewarmSkipReason?: AgentHostPrewarmSkipReason;
 	hostRootTurnOrdinal?: number;
 	hostProcessAgeMs?: number;
 	titleGenerationStrategy?: AutomaticTitleGenerationStrategy;
@@ -459,6 +460,7 @@ export type IAgentHostTurnCompletedClassification = IAgentHostEventClassificatio
 	codexModelProvider?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded model provider actually used by a Codex turn: openai, copilot, other, or unknown.' };
 	usedPrewarmedSession?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the turn claimed a provider session that was started before the first message; absent when it did not.' };
 	prewarmedSessionDiscardReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded reason the turn discarded a provider session started before the first message and launched one instead, such as modelChanged or clientToolsChanged; absent when it did not.' };
+	prewarmSkipReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded reason the turn launched a deferred provider session without one started before the first message to claim or discard, such as disabled, expired or customizationsPending; absent otherwise.' };
 	hostRootTurnOrdinal?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'One-based root-turn ordinal over the agent host process lifetime, captured at turn start and excluding subagent turns.' };
 	hostProcessAgeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Agent host process age in milliseconds captured at root turn start, not completion.' };
 	titleGenerationStrategy?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective persisted automatic title generation strategy captured before sending the root turn: activeAgent, utility, deferred, or agentReview.' };
@@ -525,6 +527,7 @@ export interface IAgentHostTurnFailedEvent extends IAgentHostEventTelemetry, IAg
 	failureStage: AgentHostTurnFailureStage;
 	usedPrewarmedSession?: boolean;
 	prewarmedSessionDiscardReason?: string;
+	prewarmSkipReason?: AgentHostPrewarmSkipReason;
 	errorType: string;
 	errorName: string | undefined;
 	errorCode: string | undefined;
@@ -544,6 +547,7 @@ export type IAgentHostTurnFailedClassification = IAgentHostEventClassification &
 	failureStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded stage at which the agent host turn failed.' };
 	usedPrewarmedSession?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the failed turn claimed a provider session that was started before the first message; absent when it did not.' };
 	prewarmedSessionDiscardReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded reason the failed turn discarded a provider session started before the first message and launched one instead; absent when it did not.' };
+	prewarmSkipReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded reason the failed turn launched a deferred provider session without one started before the first message to claim or discard; absent otherwise.' };
 	errorType: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The structured agent host or provider error type.' };
 	errorName: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The name of the exception, when available.' };
 	errorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The exception or protocol error code, when available.' };
@@ -1104,6 +1108,43 @@ export interface IAgentHostSkillContentReadReport {
 	pluginVersion: string | undefined;
 }
 
+const skillInvocationTriggers: ReadonlySet<string> = new Set(['agent-invoked', 'user-invoked', 'context-load']);
+
+export interface IAgentHostSkillInvokedReport extends IAgentHostTurnAttributedReport {
+	provider: string;
+	session: string;
+	/** Owning session, recorded when the turn or request started. */
+	owner: string;
+	/** The root turn the invocation belongs to; for a subagent, the turn it (or its spawning subagent) was invoked in. */
+	turnId: string | undefined;
+	/** The SDK `skill.invoked` event id; equals `event_id` on the forwarded `copilotSdk/skill_invoked`. */
+	sdkEventId: string;
+	trigger: string | undefined;
+	isSubagentInvocation: boolean;
+}
+
+type IAgentHostSkillInvokedEvent = IAgentHostEventTelemetry & {
+	provider: string;
+	agentSessionId: string;
+	chatSessionId: string;
+	turnId: string | undefined;
+	sdkEventId: string;
+	trigger: string;
+	isSubagentInvocation: boolean;
+};
+
+type IAgentHostSkillInvokedClassification = IAgentHostEventClassification & {
+	owner: 'bhavyaus';
+	comment: 'Records what triggered each agent host skill invocation, to tell skills the agent chose apart from skills the user ran. Skill identity is on copilotSdk/skill_invoked, joined by sdkEventId.';
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host provider that invoked the skill.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the agent host session; the subagent chat for subagent invocations.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The root turn the invocation belongs to; for a subagent, the turn it or its spawning subagent was invoked in, even after that turn ends.' };
+	sdkEventId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The SDK skill invocation event identifier; equals event_id on copilotSdk/skill_invoked.' };
+	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What triggered the invocation: agent-invoked (the model chose the skill), user-invoked (slash command or UI), context-load (preloaded by a custom agent or subagent), or unknown.' };
+	isSubagentInvocation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a subagent, rather than the main agent, invoked the skill.' };
+};
+
 export type AgentHostRepoInfoResult = 'success' | 'filesChanged' | 'diffTooLarge' | 'noChanges' | 'tooManyChanges' | 'mergeBaseTooOld' | 'virtualFileSystem' | 'tooManyCommits';
 
 export interface IAgentHostRepoInfoReport {
@@ -1249,11 +1290,12 @@ function toProviderStageMeasurements(durations: ReadonlyMap<AgentHostProviderSen
 	return result;
 }
 
-/** Projects whether a turn used a pre-warmed provider session, or why it discarded one, omitting both when it found none. */
-function prewarmedSessionTelemetry(context: IAgentProviderTurnTelemetryContext | undefined): { usedPrewarmedSession?: boolean; prewarmedSessionDiscardReason?: string } {
+/** Projects whether a turn used a pre-warmed provider session, why it discarded one, or why it found none to claim, omitting each when absent. */
+function prewarmedSessionTelemetry(context: IAgentProviderTurnTelemetryContext | undefined): { usedPrewarmedSession?: boolean; prewarmedSessionDiscardReason?: string; prewarmSkipReason?: AgentHostPrewarmSkipReason } {
 	return {
 		...(context?.usedPrewarmedSession ? { usedPrewarmedSession: true } : {}),
 		...(context?.prewarmedSessionDiscardReason !== undefined ? { prewarmedSessionDiscardReason: context.prewarmedSessionDiscardReason } : {}),
+		...(context?.prewarmSkipReason !== undefined ? { prewarmSkipReason: context.prewarmSkipReason } : {}),
 	};
 }
 
@@ -1671,6 +1713,25 @@ export class AgentHostTelemetryReporter {
 		});
 		restricted.sendEnhancedGHTelemetryEvent('skillContentRead', plaintextProps);
 		restricted.sendInternalMSFTTelemetryEvent('skillContentRead', plaintextProps);
+	}
+
+	/**
+	 * Records what triggered a skill invocation. Skill identity (hashed name, plugin) stays on the
+	 * forwarded runtime `copilotSdk/skill_invoked`; join the two on `sdkEventId` = `event_id`.
+	 */
+	skillInvoked(report: IAgentHostSkillInvokedReport): void {
+		const agentSessionId = AgentSession.id(report.owner);
+		this._telemetryService.publicLog2<IAgentHostSkillInvokedEvent, IAgentHostSkillInvokedClassification>('agentHost.skillInvoked', {
+			...toInitiatorTelemetry(report.clientContext),
+			...toCopilotTelemetryData(report.telemetryContext),
+			provider: report.provider,
+			agentSessionId,
+			chatSessionId: getTelemetryChatSessionId(report.session),
+			turnId: report.turnId,
+			sdkEventId: report.sdkEventId,
+			trigger: report.trigger !== undefined && skillInvocationTriggers.has(report.trigger) ? report.trigger : 'unknown',
+			isSubagentInvocation: report.isSubagentInvocation,
+		});
 	}
 
 	async reportRepoInfo(context: IAgentHostRestrictedTelemetryContext, report: IAgentHostRepoInfoReport): Promise<void> {

@@ -2487,6 +2487,9 @@ export interface IChatModelInputState {
 	 */
 	modelConfiguration?: IStringDictionary<unknown>;
 
+	/** Chat-local configuration must not become the default when this state is restored. */
+	modelConfigurationIsTransient?: boolean;
+
 	/** Whether {@link selectedModel} was picked by the user or just fallen back to. Not saved. */
 	selectedModelReason?: ModelSelectionReason;
 
@@ -2528,6 +2531,7 @@ export interface ISerializableChatModelInputState {
 		 * session is reopened.
 		 */
 		modelConfiguration?: IStringDictionary<unknown>;
+		modelConfigurationIsTransient?: boolean;
 	} | undefined;
 	inputText: string;
 	selections: ISelection[];
@@ -2557,6 +2561,7 @@ export function reviveSerializableInputState(state: ISerializableChatModelInputS
 			metadata: state.selectedModel.metadata
 		},
 		modelConfiguration: state.selectedModel ? (state.selectedModel.modelConfiguration ?? (state as ILegacySerializableChatModelInputState).modelConfiguration) : undefined,
+		modelConfigurationIsTransient: state.selectedModel?.modelConfigurationIsTransient,
 		contrib: state.contrib,
 		inputText: state.inputText,
 		selections: state.selections,
@@ -2850,7 +2855,8 @@ class InputModel implements IInputModel {
 			selectedModel: value.selectedModel ? {
 				identifier: value.selectedModel.identifier,
 				metadata: value.selectedModel.metadata,
-				modelConfiguration: value.modelConfiguration
+				modelConfiguration: value.modelConfiguration,
+				modelConfigurationIsTransient: value.modelConfigurationIsTransient
 			} : undefined,
 			inputText: value.inputText,
 			selections: value.selections,
