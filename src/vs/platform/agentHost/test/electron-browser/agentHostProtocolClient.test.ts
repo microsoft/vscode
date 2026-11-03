@@ -40,6 +40,7 @@ import { negotiateAgentHostProtocolVersion } from '../../common/agentHostProtoco
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { CODEX_SESSION_MODEL_META_KEY, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
+import { toAgentPermissionResponseMeta } from '../../common/meta/agentPermissionResponseMeta.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
@@ -53,7 +54,7 @@ import { chatReducer } from '../../common/state/sessionReducers.js';
 import { AuthenticateTargetKind, ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChatState, type Message, type SessionState } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChatState, type Message, type SessionState } from '../../common/state/sessionState.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, parseProtocolMessage, type IClientTransport, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { LegacyDynamicAutoTiersConfigKey } from '../../common/copilotCliConfig.js';
@@ -5387,6 +5388,56 @@ suite('AgentHostProtocolClient', () => {
 			assert.strictEqual(sub.object.verifiedValue?.workingDirectories, undefined);
 			assert.strictEqual((sub.object.value as { workingDirectories?: readonly string[] }).workingDirectories, undefined);
 			sub.dispose();
+		});
+	});
+
+	suite('permission feedback dispatch', () => {
+
+		test('sends Assisted permissions feedback to the host without applying it to client state', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const chat = 'copilot:/test-session/chat';
+			const subscription = disposables.add(client.getSubscription<ChatState>(StateComponents.Chat, URI.parse(chat), 'test'));
+			await flushMicrotasks();
+			const subscribeRequest = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'subscribe');
+			assert.ok(subscribeRequest);
+			transport.fireMessage({
+				jsonrpc: '2.0', id: subscribeRequest.id,
+				result: {
+					snapshot: {
+						resource: chat, fromSeq: 0,
+						state: {
+							...createChatState({ resource: chat, title: 'Chat', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString() }),
+							activeTurn: {
+								id: 'turn-1', startedAt: new Date(0).toISOString(), message: { text: 'Push the branch', origin: { kind: MessageKind.User } },
+								responseParts: [{
+									kind: ResponsePartKind.ToolCall,
+									toolCall: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tc-push', toolName: 'shell', displayName: 'Shell', invocationMessage: 'Run git push', confirmationTitle: 'Allow git push?' },
+								}],
+								usage: undefined,
+							},
+						},
+					},
+				},
+			});
+			await flushMicrotasks();
+
+			client.dispatch(chat, {
+				type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'tc-push', approved: true, confirmed: ToolCallConfirmationReason.UserAction,
+				_meta: toAgentPermissionResponseMeta({ decisionSource: 'human_response', userFeedback: 'Pushes to feature branches are fine.' }),
+			});
+			const dispatch = transport.sentMessages.findLast((message): message is JsonRpcNotification => hasKey(message, { method: true }) && message.method === 'dispatchAction');
+			assert.ok(dispatch);
+			const state = subscription.object.value;
+			assert.ok(state && !(state instanceof Error));
+			const part = state.activeTurn?.responseParts[0];
+			assert.deepStrictEqual({
+				sent: (dispatch.params as { action: { _meta?: Record<string, unknown> } }).action._meta,
+				optimistic: part?.kind === ResponsePartKind.ToolCall ? { status: part.toolCall.status, _meta: part.toolCall._meta } : undefined,
+			}, {
+				sent: toAgentPermissionResponseMeta({ decisionSource: 'human_response', userFeedback: 'Pushes to feature branches are fine.' }),
+				optimistic: { status: ToolCallStatus.Running, _meta: toAgentPermissionResponseMeta({ decisionSource: 'human_response' }) },
+			});
 		});
 	});
 

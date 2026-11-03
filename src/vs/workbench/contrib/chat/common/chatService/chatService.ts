@@ -932,6 +932,12 @@ export interface IChatToolInvocation {
 	/** Active-only metadata that is omitted when the invocation is serialized. */
 	readonly otherClientToolCall?: IChatToolInvocationOtherClientData;
 	/**
+	 * What the user typed into the optional feedback field of a confirmation that offers one
+	 * (see {@link IToolConfirmationMessages.feedback}). Active-only: it is sent with the decision
+	 * and omitted when the invocation is serialized.
+	 */
+	confirmationFeedback?: string;
+	/**
 	 * Observable that tracks the `kind` of `toolSpecificData`. Used by the
 	 * tool invocation part to re-render when the kind changes (e.g. from
 	 * `'input'` to `'terminal'` when terminal content arrives).

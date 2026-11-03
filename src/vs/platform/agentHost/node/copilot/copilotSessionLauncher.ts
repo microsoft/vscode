@@ -1278,7 +1278,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			if (nativeAgent) {
 				await raw.rpc.agent.select({ name: nativeAgent.id });
 			}
-			await this._applyScriptSafety(raw, plan.sessionId);
 			await sandboxConfig(raw);
 			await this._configureExecutionSubagentTool(raw, config);
 		} catch (err) {
@@ -1299,7 +1298,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				return undefined;
 			}));
 		}
-		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, config.imageGeneration.enabled, config.imageGeneration.watermark, trustWorkingDirectory, this._logService);
+		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, config.imageGeneration.enabled, config.imageGeneration.watermark, trustWorkingDirectory, config.enableSessionTelemetry !== false, this._logService);
 	}
 
 	private async _configureExecutionSubagentTool(session: CopilotSessionWrapper['session'], config: ResumeSessionConfig): Promise<boolean> {
@@ -1325,46 +1324,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			return true;
 		}
 		return false;
-	}
-
-	/**
-	 * Enables the runtime's shell-script safety classifier, which managed permissions
-	 * depend on to govern shell operations.
-	 *
-	 * Without it the runtime short-circuits the classifier, so a shell command reaches
-	 * the permission layer with an empty `possiblePaths` and `hasWriteFileRedirection:
-	 * false`. Managed `Read(...)`/`Edit(...)` rules then cannot match a redirect target,
-	 * letting `echo ... >> denied/path` bypass a managed deny. The Copilot CLI opts in at
-	 * session creation; the SDK exposes it to hosts only through `options.update`, so it
-	 * is applied here to cover both created and resumed sessions.
-	 *
-	 * This fails the launch closed unconditionally. The host cannot tell whether a
-	 * session is policy-bearing: `IAgentHostManagedSettingsService` only carries the
-	 * supported legacy VS Code settings bridge restrictions, while server and MDM
-	 * policy is discovered by the runtime itself under `enableManagedSettings`.
-	 * Gating a security control on that signal
-	 * would leave exactly the enterprise sessions it protects unprotected, so the
-	 * option is treated as required for every session.
-	 *
-	 * The client-level `managedSettings.read` is not a usable substitute: it discovers
-	 * only device sources (MDM and managed-file), so a session governed solely by
-	 * GitHub org policy would still read as unmanaged. Approximating the boundary is
-	 * worse than not drawing one.
-	 */
-	private async _applyScriptSafety(session: CopilotSessionWrapper['session'], sessionId: string): Promise<void> {
-		try {
-			const result = await session.rpc.options.update({ enableScriptSafety: true });
-			if (!result.success) {
-				throw new Error('SDK rejected enabling script safety');
-			}
-		} catch (err) {
-			// The runtime reports success for any patch it accepts and signals real
-			// problems by failing the request, so this is the path a genuine failure
-			// takes. Log the reason before it propagates: the launch is aborted below
-			// and the raw RPC error alone would not say which option was refused.
-			this._logService.error(`[Copilot:${sessionId}] Could not enable script safety; managed permissions cannot govern shell paths`, err);
-			throw err;
-		}
 	}
 
 	/** Sets output verbosity after session creation. */

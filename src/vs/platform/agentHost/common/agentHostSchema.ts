@@ -542,6 +542,13 @@ export const AgentHostGlobalAutoApproveEnabledConfigKey = 'globalAutoApproveEnab
 export const AgentHostAutoApprovePolicyRestrictedConfigKey = 'autoApprovePolicyRestricted';
 
 /**
+ * Root config key forwarded from the renderer's `chat.permissions.assisted.instructions`
+ * setting: user-authored guidance for the reviewer that decides which tool calls run
+ * without confirmation under Assisted permissions. Empty uses the default guidance.
+ */
+export const AgentHostAssistedApprovalInstructionsConfigKey = 'assistedApprovalInstructions';
+
+/**
  * Root config key forwarded from the renderer when VS Code's `chat.autoReply`
  * setting changes. When `true`, the agent host auto-answers `ask_user`
  * questions instead of blocking on the user — the user is treated as
@@ -882,6 +889,12 @@ export const platformRootSchema = createSchema({
 		default: false,
 		readOnly: true,
 	}),
+	[AgentHostAssistedApprovalInstructionsConfigKey]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.assistedApprovalInstructions.title', "Assisted Permissions Instructions"),
+		description: localize('agentHost.config.assistedApprovalInstructions.description', "User-authored instructions for the reviewer that decides which tool calls run without confirmation under Assisted permissions. Empty uses the default guidance."),
+		default: '',
+	}),
 	[AgentHostWorkspaceTrustConfigKey]: schemaProperty<IAgentHostWorkspaceTrust>({
 		type: 'object',
 		title: localize('agentHost.config.workspaceTrust', "Workspace Trust"),
@@ -1099,4 +1112,5 @@ export const clientOwnedApprovalRootConfigKeys: ReadonlySet<string> = new Set([
 	AgentHostEditAutoApprovePatternsConfigKey,
 	AgentHostAutoReplyEnabledConfigKey,
 	AgentHostWorkspaceTrustConfigKey,
+	AgentHostAssistedApprovalInstructionsConfigKey,
 ]);

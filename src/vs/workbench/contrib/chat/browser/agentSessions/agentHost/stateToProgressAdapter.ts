@@ -2905,6 +2905,8 @@ export function toolCallConfirmationMessages(tc: ToolCallPendingConfirmationStat
 			safety: riskAssessment.safety,
 		};
 	}
+	const meta = readToolCallMeta(tc);
+	const assistedApprovalNotice = meta['vscode.assistedApprovalNotice'];
 	return {
 		title: isViewUnreviewedCommentsTool(tc.toolName)
 			? localize('agentFeedback.reviewTitle', "Reveal unreviewed comments?")
@@ -2913,7 +2915,15 @@ export function toolCallConfirmationMessages(tc: ToolCallPendingConfirmationStat
 			? localize('agentFeedback.reviewMessage', "Choose which comments to reveal to the agent. Unchecked comments stay hidden.")
 			: stringOrMarkdownToString(presentation.invocationMessage, connectionAuthority),
 		approvalReason,
+		...(assistedApprovalNotice ? { disclaimer: assistedApprovalNotice } : {}),
 		...(tc.options ? { customOptions: tc.options } : {}),
+		...(meta['vscode.assistedApprovalFeedbackAccepted'] ? {
+			feedback: {
+				label: localize('agentHost.assistedApprovalFeedback.label', "Help improve Assisted permissions (optional)"),
+				placeholder: localize('agentHost.assistedApprovalFeedback.placeholder', "What should the approval system have understood?"),
+				description: localize('agentHost.assistedApprovalFeedback.description', "Feedback is sent with your decision. It won't change the decision or teach Copilot a rule."),
+			},
+		} : {}),
 	};
 }
 

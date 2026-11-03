@@ -26,6 +26,7 @@ import { supportsAgentHostWorktreeDiskUsage } from '../common/meta/agentHostWork
 import { supportsAgentHostManagedWorktrees, supportsAgentHostWorktreeCleanup, supportsForceWorktreeCleanup } from '../common/meta/agentHostWorktreeCleanupMeta.js';
 import { CleanupManagedWorktreeExtensionMethod, ListManagedWorktreesExtensionMethod, managedWorktreesValidator, SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupStatusValidator, type IAgentHostManagedWorktree, type IAgentHostWorktreeCleanupStatus } from '../common/agentHostWorktreeCleanup.js';
 import { serializeChatWorkspace, withCreateChatWorkspaceMeta } from '../common/meta/agentHostCreateChatWorkspaceMeta.js';
+import { withoutAgentPermissionFeedback } from '../common/meta/agentPermissionResponseMeta.js';
 import { AGENT_HOST_CREATE_SESSION_IMPORT_CHUNK_CHARS, serializeCreateSessionImport, splitCreateSessionImportChunks, StageCreateSessionImportChunkExtensionMethod, supportsAgentHostCreateSessionImport, withCreateSessionImportMeta, withStagedCreateSessionImportMeta } from '../common/meta/agentHostCreateSessionImportMeta.js';
 import { vArray, vEnum, vObj, vOptionalProp, vString, vUnknown } from '../../../base/common/validation.js';
 import { AgentHostChannelScheduler } from '../common/agentHostChannelDelivery.js';
@@ -1857,7 +1858,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
-		const seq = this._subscriptionManager.dispatchOptimistic(channel, action);
+		// Assisted permissions feedback is restricted telemetry: it goes only to the host, never into this
+		// client's state. A replay after a reconnect resends the optimistic copy, so it drops the feedback.
+		const optimistic = action.type === ActionType.ChatToolCallConfirmed ? withoutAgentPermissionFeedback(action) : action;
+		const seq = this._subscriptionManager.dispatchOptimistic(channel, optimistic);
 		this.dispatchAction(channel, action, this._clientId, seq);
 	}
 
