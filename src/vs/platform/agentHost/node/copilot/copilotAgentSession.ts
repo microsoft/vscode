@@ -865,6 +865,7 @@ class DirectUsageAccumulator {
 class CopilotTurn extends Disposable {
 	timingRecorder: IAgentProviderSendStageRecorder | undefined;
 	sdkSendInvoked = false;
+	sdkSteeringTurn = false;
 
 	private _state: CopilotTurnState = 'pending';
 	private _providerCallState: AgentTurnProviderCallState = 'notStarted';
@@ -1393,7 +1394,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 	get hasRunningTurn(): boolean {
 		const turn = this._currentTurn.value;
-		return turn?.isRunning === true && turn.sdkSendInvoked && !this._abortToken.isCancellationRequested;
+		return turn?.isRunning === true && (turn.sdkSendInvoked || turn.sdkSteeringTurn) && !this._abortToken.isCancellationRequested;
 	}
 	/**
 	 * Whether a subagent is still in flight: started or resumed and not yet
@@ -2648,6 +2649,7 @@ export class CopilotAgentSession extends Disposable {
 		const turn = this._currentTurn.value;
 		if (turn) {
 			turn.messageCharLen = steering.pendingMessage.message.text.length;
+			turn.sdkSteeringTurn = true;
 			turn.markRunning();
 		}
 		if (preservesFusionState) {

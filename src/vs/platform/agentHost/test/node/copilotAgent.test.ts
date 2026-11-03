@@ -23265,6 +23265,60 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('delivers sequential steering after each message is consumed while the SDK keeps running', async () => {
+			const h = await createHarness();
+			const sends: Array<{ prompt: string; mode?: string }> = [];
+			const promoted: string[] = [];
+			const promotedTurnIds: string[] = [];
+			const responseTurnIds: string[] = [];
+			const send = stub(h.newRuntime, 'send').callsFake(async (options?: Parameters<CopilotSession['send']>[0]) => {
+				assert.ok(options);
+				sends.push({ prompt: options.prompt, mode: options.mode });
+				return '';
+			});
+			const listener = h.agent.onDidChatProgress(signal => {
+				if (signal.kind === 'action' && signal.action.type === ActionType.ChatTurnStarted && signal.action.queuedMessageId) {
+					promoted.push(signal.action.queuedMessageId);
+					promotedTurnIds.push(signal.action.turnId);
+				} else if (signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart) {
+					responseTurnIds.push(signal.action.turnId);
+				}
+			});
+			try {
+				await h.agent.chats.sendMessage(h.chat, 'original', undefined, undefined, 'turn-1', undefined, h.context);
+				h.newRuntime.emit({
+					id: 'original-user-message', timestamp: new Date().toISOString(), parentId: null,
+					type: 'user.message', data: { content: 'original', messageId: 'original-sdk-message', turnId: 'sdk-turn' },
+				});
+				const admitted: boolean[] = [];
+				for (const id of ['first', 'second', 'third']) {
+					admitted.push(await h.agent.sendSteeringMessage(h.chat, { id, message: { text: id, origin: { kind: MessageKind.User } } }));
+					h.newRuntime.emit({
+						id: `${id}-user-message`, timestamp: new Date().toISOString(), parentId: null,
+						type: 'user.message', data: { content: id, messageId: `${id}-sdk-message`, turnId: 'sdk-turn' },
+					});
+					h.newRuntime.emit({
+						id: `${id}-response`, timestamp: new Date().toISOString(), parentId: null, ephemeral: true,
+						type: 'assistant.message_delta', data: { messageId: `${id}-response`, deltaContent: `continuing after ${id}` },
+					});
+				}
+				assert.deepStrictEqual({ admitted, promoted, responseTurnsMatch: responseTurnIds.length === 3 && responseTurnIds.every((id, index) => id === promotedTurnIds[index]), sends }, {
+					admitted: [true, true, true], promoted: ['first', 'second', 'third'],
+					responseTurnsMatch: true,
+					sends: [
+						{ prompt: 'original', mode: undefined },
+						{ prompt: 'first', mode: 'immediate' },
+						{ prompt: 'second', mode: 'immediate' },
+						{ prompt: 'third', mode: 'immediate' },
+					],
+				});
+			} finally {
+				listener.dispose();
+				send.restore();
+				await disposeAgent(h.agent);
+			}
+		});
+
 		for (const phase of ['prepare', 'create', 'disconnect', 'resume', 'continue'] as const) {
 			test(`delivers steering after send preparation ${phase} to the current runtime`, async () => {
 				const h = await createHarness({ cold: phase === 'create' || phase === 'prepare' });

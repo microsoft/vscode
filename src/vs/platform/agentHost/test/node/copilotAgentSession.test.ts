@@ -15149,6 +15149,7 @@ Use the attached image as context.
 			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
 			const beforeEcho = turnActions();
 			const promotedTurn = session['_currentTurn'].value;
+			const readyBeforeEcho = session.hasRunningTurn;
 
 			sendGate.complete('message-1');
 			await steeringPromise;
@@ -15171,13 +15172,37 @@ Use the attached image as context.
 				afterEcho: turnActions(),
 				active: session.hasActiveTurn,
 				sameTurn: session['_currentTurn'].value === promotedTurn,
+				readyBeforeEcho,
+				readyAfterEcho: session.hasRunningTurn,
 			}, {
 				beforeEcho: expectedActions,
 				afterEcho: expectedActions,
 				active: true,
 				sameTurn: true,
+				readyBeforeEcho: true,
+				readyAfterEcho: true,
 			});
 		});
+
+		for (const ending of ['idle', 'abort'] as const) {
+			test(`clears promoted steering readiness on ${ending}`, async () => {
+				const { session, mockSession } = await createAgentSession(disposables);
+				session.resetTurnState('turn-original');
+				await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+				mockSession.fire('user.message', { content: 'focus on tests' } as SessionEventPayload<'user.message'>['data']);
+				const readyWhileRunning = session.hasRunningTurn;
+				if (ending === 'abort') {
+					await session.abort();
+				} else {
+					mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+				}
+				const readyAfterEnding = session.hasRunningTurn;
+				session.resetTurnState('next-turn');
+				assert.deepStrictEqual({ readyWhileRunning, readyAfterEnding, readyBeforeNextSend: session.hasRunningTurn }, {
+					readyWhileRunning: true, readyAfterEnding: false, readyBeforeNextSend: false,
+				});
+			});
+		}
 
 		test('surfaces an error on steering that the SDK accepted after the turn ended but failed before echoing', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
