@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
@@ -1408,7 +1408,7 @@ suite('MarkdownRenderer', () => {
 			test('codespan inside <body> wrapped markdown', () => {
 				// The chat content renderer wraps `supportHtml` markdown in
 				// `<body>...</body>` so dompurify keeps leading comments. That
-				// makes `</body>` the literal last token â€” the paragraph with
+				// makes `</body>` the literal last token — the paragraph with
 				// the bare backtick is no longer at the end. The fixup must
 				// still close the codespan while preserving the trailing html.
 				const text = '<body>\n\nCreated isolated worktree for branch `xyz\n\n</body>';
