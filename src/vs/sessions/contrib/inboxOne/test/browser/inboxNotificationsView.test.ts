@@ -314,6 +314,7 @@ suite('InboxNotificationsView', () => {
 		const notifications = container.querySelector<HTMLElement>('.inbox-notifications-content')!;
 		const result = {
 			before, automaticNavigation, hidden, created: newChatViews.length,
+			hasDuplicateNewSessionButton: Array.from(container.querySelectorAll('.monaco-button')).some(button => button.textContent === 'New Session'),
 			options: newChatOptions.map(({ hostVisible, ...options }) => ({ ...options, hostVisible: hostVisible?.get() })),
 			requests: openNewSession.args, draft: input.value, focused: mainWindow.document.activeElement === input,
 			belowNotifications: composer.parentElement?.previousElementSibling === notifications,
@@ -322,6 +323,7 @@ suite('InboxNotificationsView', () => {
 		view.dispose();
 		assert.deepStrictEqual({ ...result, disposed: newChatViews[0].disposed }, {
 			before: 1, automaticNavigation: 0, hidden: false, created: 1, options: [{ preserveCustomView: true, backgroundSend: true, renderChatPet: false, renderAquarium: false, hostVisible: true }],
+			hasDuplicateNewSessionButton: false,
 			requests: Array.from({ length: 3 }, () => [{ preserveCustomView: true, cancelRestore: true }]),
 			draft: 'My new session draft', focused: true, belowNotifications: true, inputAtTop: true, disposed: true,
 		});

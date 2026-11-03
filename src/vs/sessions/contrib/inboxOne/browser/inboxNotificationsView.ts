@@ -709,8 +709,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		this.contentElement.appendChild(this.detailPaneElement);
 		this.detailPaneElement.appendChild(this.detailScrollableElement.getDomNode());
 		this.detailContentElement.appendChild(this.detailInfoElement);
-		const composerHeader = this.composerElement.appendChild($('.inbox-notifications-composer-header'));
-		composerHeader.appendChild(this.composerLabel);
+		this.composerElement.appendChild(this.composerLabel);
 		this.composerElement.appendChild(this.newSessionElement);
 		this.composerElement.appendChild(this.detailChatElement);
 		this.detailChatElement.setAttribute('role', 'region');
@@ -772,11 +771,6 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		}));
 		search.element.classList.add('inbox-notifications-search');
 		this._register(search.onDidChange(value => this.searchText.set(value, undefined)));
-		const newSessionButton = this._register(new Button(composerHeader, { ...inboxButtonStyles, secondary: true, small: true }));
-		newSessionButton.label = localize('inboxNotifications.newSession.button', "New Session");
-		this._register(newSessionButton.onDidClick(() => {
-			void this.openNewSession().catch(onUnexpectedError);
-		}));
 		const sortButtons = toolbar.appendChild($('.inbox-notifications-sort-buttons'));
 		const sortByPriorityButton = this._register(new Button(sortButtons, {
 			...inboxButtonStyles,

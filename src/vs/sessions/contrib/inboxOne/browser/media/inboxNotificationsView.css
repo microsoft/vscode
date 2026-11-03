@@ -72,18 +72,6 @@
 	padding-inline: var(--vscode-spacing-size120);
 }
 
-.inbox-notifications-composer-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: var(--vscode-spacing-size80);
-}
-
-.inbox-notifications-composer-header .monaco-button {
-	width: auto;
-	flex-shrink: 0;
-}
-
 .inbox-notifications-composer.replying {
 	align-self: flex-end;
 	max-width: none;
