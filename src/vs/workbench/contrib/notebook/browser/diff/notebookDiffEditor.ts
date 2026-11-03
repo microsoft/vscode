@@ -532,7 +532,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	private _detachModel() {
-		this._layoutCancellationTokenSource?.dispose();
+		this._layoutCancellationTokenSource?.dispose(true);
 		this._layoutCancellationTokenSource = undefined;
 		this._localStore.clear();
 		this._originalWebview?.dispose();
