@@ -6,9 +6,13 @@
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
-import { Event } from '../../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
+<<<<<<< HEAD
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+=======
+import { MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+>>>>>>> a717861c075 ([Perf] [1.145] chat: skip focus discovery with a connected feed (#345926))
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/virtualScheduling/index.js';
@@ -23,9 +27,56 @@ import { ChatOpenDiagnosticsService } from '../../../../common/chatOpenDiagnosti
 import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
 import { IChatModelReference } from '../../../../common/chatService/chatService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
-import { SessionType } from '../../../../common/chatSessionsService.js';
+import { ChatSessionRefreshReason, SessionType } from '../../../../common/chatSessionsService.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
+import { AgentSessionsControl } from '../../../../browser/agentSessions/agentSessionsControl.js';
+import { AgentSessionsFilter } from '../../../../browser/agentSessions/agentSessionsFilter.js';
+import { MenuWorkbenchToolBar } from '../../../../../../../platform/actions/browser/toolbar.js';
+
+suite('ChatViewPane sessions refresh', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('window focus refreshes automatically while the toolbar retains explicit refresh intent', async () => {
+		const focusChanged = store.add(new Emitter<boolean>());
+		const reasons: (ChatSessionRefreshReason | undefined)[] = [];
+		const control = Object.assign(Object.create(AgentSessionsControl.prototype), {
+			agentSessionsService: {
+				model: { resolve: async (_provider: string | undefined, _onError: undefined, reason?: ChatSessionRefreshReason) => { reasons.push(reason); } },
+			},
+			dispose: () => { },
+			setVisible: () => { },
+		});
+		const toolbar = Object.assign(toDisposable(() => { }), { context: control });
+		const filter = Object.assign(toDisposable(() => { }), { onDidChange: Event.None, isDefault: () => true });
+		const host = {
+			_register: <T extends { dispose(): void }>(value: T) => store.add(value),
+			instantiationService: {
+				createInstance: (ctor: typeof AgentSessionsControl | typeof AgentSessionsFilter | typeof MenuWorkbenchToolBar) => {
+					if (ctor === AgentSessionsControl) {
+						return control;
+					}
+					return ctor === AgentSessionsFilter ? filter : toolbar;
+				},
+			},
+			hostService: { onDidChangeFocus: focusChanged.event },
+			configurationService: new TestConfigurationService(),
+			onDidChangeBodyVisibility: Event.None,
+			getLocationBasedColors: () => ({ listOverrideStyles: {} }),
+			doUpdateConfiguredSessionsViewerOrientation: () => { },
+		};
+		const createControl = Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => AgentSessionsControl;
+		createControl.call(host, document.createElement('div'));
+
+		focusChanged.fire(false);
+		focusChanged.fire(true);
+		focusChanged.fire(false);
+		focusChanged.fire(true);
+		await toolbar.context.refresh();
+
+		assert.deepStrictEqual(reasons, ['automatic', 'automatic', 'manual']);
+	});
+});
 
 suite('ChatViewPane session transitions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
