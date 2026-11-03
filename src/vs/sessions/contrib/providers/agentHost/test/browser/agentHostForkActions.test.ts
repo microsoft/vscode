@@ -70,8 +70,8 @@ suite('Agent Host fork actions', () => {
 			}),
 		}));
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
-			getSession: resource => isEqual(resource, source.resource) ? source : forkAvailable && isEqual(resource, forkChat.resource) ? forkSession : undefined,
-			getSessionForChatResource: resource => isEqual(resource, sourceChat.resource) ? { session: source, chat: sourceChat } : isEqual(resource, forkChat.resource) ? { session: source, chat: forkChat } : undefined,
+			getSession: resource => isEqual(resource, source.resource) ? source : !multipleChats && forkAvailable && isEqual(resource, forkChat.resource) ? forkSession : undefined,
+			getSessionForChatResource: resource => isEqual(resource, sourceChat.resource) ? { session: source, chat: sourceChat } : multipleChats && forkAvailable && isEqual(resource, forkChat.resource) ? { session: source, chat: forkChat } : undefined,
 			onDidChangeSessions: onDidChangeSessions.event,
 			forkChatInSession: async (_session, source, turnId, options?: { readonly title?: string }) => {
 				forkCalls.push({ kind: 'chat', source, requestId: turnId });
@@ -120,7 +120,7 @@ suite('Agent Host fork actions', () => {
 			},
 			setForkError: (error: Error | undefined) => forkError = error,
 			run: async (toSide: boolean, slashCommand = false, title?: string, initialMessage?: { readonly text: string }) => {
-				const options = title !== undefined || initialMessage !== undefined ? { ...(title !== undefined ? { title } : {}), ...(initialMessage ? { initialMessage } : {}) } : undefined;
+				const options = toSide || title !== undefined || initialMessage !== undefined ? { ...(toSide ? { toSide } : {}), ...(title !== undefined ? { title } : {}), ...(initialMessage ? { initialMessage } : {}) } : undefined;
 				await instantiationService.invokeFunction(
 					forkCommand.handler,
 					slashCommand ? sourceChat.resource : toSide ? { element: checkpoint, toSide } : checkpoint,
@@ -235,16 +235,21 @@ suite('Agent Host fork actions', () => {
 		});
 	});
 
-	test('falls back to the contributed fork when a multiple-chat source has no request history', async () => {
-		const harness = createHarness(true, true, []);
-		await harness.run(false, true);
-		await timeout(0);
+	for (const peer of [false, true]) {
+		for (const toSide of [false, true]) {
+			test(`opens a contributed fork of a ${peer ? 'peer' : 'main'} chat without local request history${toSide ? ' to the side' : ''}`, async () => {
+				const harness = createHarness(true, peer, []);
+				await harness.run(toSide, true);
+				await timeout(0);
 
-		assert.deepStrictEqual({ forks: harness.forkCalls, opens: harness.opens }, {
-			forks: [{ kind: 'session', source: harness.sourceChat.resource, requestId: undefined }],
-			opens: [{ kind: 'session', resource: harness.forkChat.resource, options: { source: 'fork' } }],
-		});
-	});
+				assert.deepStrictEqual({ forks: harness.forkCalls, opens: harness.opens, hasListener: harness.onDidChangeSessions.hasListeners() }, {
+					forks: [{ kind: 'session', source: harness.sourceChat.resource, requestId: undefined }],
+					opens: [{ kind: toSide ? 'chatToSide' : 'chat', resource: harness.forkChat.resource, options: toSide ? { referenceChatResource: harness.sourceChat.resource } : undefined }],
+					hasListener: false,
+				});
+			});
+		}
+	}
 
 	test('waits for a separately forked session to appear before opening beside the source', async () => {
 		const harness = createHarness(false);
