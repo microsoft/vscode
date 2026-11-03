@@ -273,6 +273,20 @@ suite('Part Grid', () => {
 		assert.deepStrictEqual({ title: vertical('title'), side: vertical('side'), chat: vertical('chat'), between: `${card('side').right} ${card('chat').left}` }, { title: '0px 0px', side: '0px 0px', chat: '0px 0px', between: '2px 2px' });
 	});
 
+	test('a cell across the grid stays inside the outer insets', () => {
+		const container = createContainer();
+		container.style.width = '1000px';
+		container.style.height = '800px';
+		const grid = disposables.add(new PartGrid(container));
+		grid.addView('title', createView());
+		grid.addView('bottom', { ...createView(), minimumHeight: 0, maximumHeight: Number.POSITIVE_INFINITY }, { edge: Direction.Down });
+		grid.setOuterInsets({ top: 0, right: 4, bottom: 4, left: 4 });
+		grid.layout(1000, 800);
+
+		const rect = (id: string) => { const r = container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!.getBoundingClientRect(); const c = container.getBoundingClientRect(); return { left: r.left - c.left, right: c.right - r.right }; };
+		assert.deepStrictEqual({ title: rect('title'), bottom: rect('bottom') }, { title: { left: 4, right: 4 }, bottom: { left: 4, right: 4 } });
+	});
+
 	test('the gripper on a gap sash draws its outer dots the grid gap apart', () => {
 		const container = createContainer();
 		container.style.setProperty('--part-grid-gap', '6px');
@@ -333,5 +347,20 @@ suite('Part Grid', () => {
 			before: { cellHeight: 30, contentHeight: 30 },
 			after: { cellHeight: 32, contentHeight: 30 }
 		});
+	});
+
+	test('laying cells out, such as dragging a sash, does not read the frames of the cards again; updating the look does', () => {
+		const container = createContainer();
+		const grid = disposables.add(new PartGrid(container));
+		grid.addView('title', createView());
+		grid.addView('other', { ...createView(), minimumHeight: 0, maximumHeight: Number.POSITIVE_INFINITY }, { edge: Direction.Down });
+		grid.layout(1000, 800);
+
+		container.style.setProperty('--part-grid-card-border-width', '1px');
+		grid.resizeCell('other', { width: 1000, height: 700 });
+		const afterCellLayout = grid.getCellSize('title').height;
+		grid.updateLook();
+
+		assert.deepStrictEqual({ afterCellLayout, afterUpdateLook: grid.getCellSize('title').height }, { afterCellLayout: 30, afterUpdateLook: 32 });
 	});
 });

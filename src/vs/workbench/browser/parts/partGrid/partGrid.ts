@@ -75,6 +75,11 @@ export interface IPartGridPartOptions {
 	readonly showWhileEmpty?: boolean;
 }
 
+interface ICardFrame {
+	readonly border: IGridEdgeInsets;
+	readonly contentOwnsFrame: boolean;
+}
+
 class PartGridCell implements ISerializableView {
 
 	readonly element: HTMLElement;
@@ -108,7 +113,6 @@ class PartGridCell implements ISerializableView {
 
 	private border: IGridEdgeInsets = NO_GRID_EDGE_INSETS;
 	private contentOwnsFrame = false;
-	private frameChanged = false;
 
 	readonly onDidChange: Event<IViewSize | undefined>;
 
@@ -121,49 +125,45 @@ class PartGridCell implements ISerializableView {
 	}
 
 	/**
-	 * The gap the card keeps to the cells beside it.
+	 * Reads the frame of the card that the owner's look may draw: its border,
+	 * which its content is inside of, and whether the content draws its own
+	 * frame. Only reads, so that the frames of all cards are read before any
+	 * of them is written.
 	 */
-	setInsets(insets: IGridEdgeInsets): boolean {
-		const current = this.insets;
-		const currentBorder = this.border;
-		const currentOwner = this.contentOwnsFrame;
-		this.readFrame();
-		const frameChanged = this.frameChanged;
-		this.frameChanged = false;
-		if (!frameChanged && sameInsets(current, insets) && sameInsets(currentBorder, this.border) && currentOwner === this.contentOwnsFrame) {
+	readFrame(): ICardFrame | undefined {
+		if (!this.card.isConnected) {
+			return undefined;
+		}
+
+		const style = getWindow(this.card).getComputedStyle(this.card);
+		const width = (value: string) => parseFloat(value) || 0;
+		return {
+			border: { top: width(style.borderTopWidth), right: width(style.borderRightWidth), bottom: width(style.borderBottomWidth), left: width(style.borderLeftWidth) },
+			contentOwnsFrame: style.getPropertyValue('--part-grid-card-frame-owner').trim() === 'content'
+		};
+	}
+
+	/**
+	 * The gap the card keeps to the cells beside it, and its frame as read
+	 * with {@link readFrame}. Returns whether the size constraints changed.
+	 */
+	setLook(insets: IGridEdgeInsets, frame: ICardFrame | undefined): boolean {
+		const border = frame?.border ?? this.border;
+		const contentOwnsFrame = frame?.contentOwnsFrame ?? this.contentOwnsFrame;
+		if (sameInsets(this.insets, insets) && sameInsets(this.border, border) && this.contentOwnsFrame === contentOwnsFrame) {
 			return false;
 		}
 
 		this.insets = insets;
+		this.border = border;
+		this.contentOwnsFrame = contentOwnsFrame;
 		this.layoutCard();
 
 		return true;
 	}
 
-	/**
-	 * The border of the card, which the owner's look may draw: its content is
-	 * inside it. And whether the content draws its own frame.
-	 */
-	private readFrame(): void {
-		if (!this.card.isConnected) {
-			return;
-		}
-
-		const style = getWindow(this.card).getComputedStyle(this.card);
-		const width = (value: string) => parseFloat(value) || 0;
-		this.border = { top: width(style.borderTopWidth), right: width(style.borderRightWidth), bottom: width(style.borderBottomWidth), left: width(style.borderLeftWidth) };
-		this.contentOwnsFrame = style.getPropertyValue('--part-grid-card-frame-owner').trim() === 'content';
-	}
-
 	layout(width: number, height: number, top: number, left: number): void {
 		this.lastLayout = { width, height, top, left };
-		// The look may draw the frame only once the styles of its window have loaded, after the insets were set.
-		const border = this.border;
-		const contentOwnsFrame = this.contentOwnsFrame;
-		this.readFrame();
-		if (!sameInsets(border, this.border) || contentOwnsFrame !== this.contentOwnsFrame) {
-			this.frameChanged = true; // the size constraints changed: see `setInsets`
-		}
 		this.layoutCard();
 	}
 
@@ -426,6 +426,7 @@ export class PartGrid extends Disposable {
 	}
 
 	private setGrid(grid: SerializableGrid<PartGridCell>): void {
+		this.laidOut = false; // a new grid knows its neighbors once laid out
 		const disposables = new DisposableStore();
 		disposables.add(grid);
 		disposables.add({ dispose: () => grid.element.remove() });
@@ -599,6 +600,8 @@ export class PartGrid extends Disposable {
 		this.layoutGrid();
 	}
 
+	private laidOut = false;
+
 	private layoutGrid(): void {
 		const grid = this.grid;
 		if (!grid || !this.dimension) {
@@ -606,36 +609,59 @@ export class PartGrid extends Disposable {
 		}
 
 		const insets = this.outerInsets;
+		const width = Math.max(0, this.dimension.width - insets.left - insets.right);
+		const height = Math.max(0, this.dimension.height - insets.top - insets.bottom);
 		grid.element.style.margin = `${insets.top}px ${insets.right}px ${insets.bottom}px ${insets.left}px`;
-		grid.layout(Math.max(0, this.dimension.width - insets.left - insets.right), Math.max(0, this.dimension.height - insets.top - insets.bottom));
+		// Sized inside the insets, as the cells that span it, such as a row across the window, take its size.
+		grid.element.style.width = `${width}px`;
+		grid.element.style.height = `${height}px`;
+
+		// Once the grid knows its neighbors, the look applies before the layout, so that it lays out once
+		if (this.laidOut) {
+			this.applyLook(false);
+			grid.layout(width, height);
+		} else {
+			grid.layout(width, height);
+			this.laidOut = true;
+			this.applyLook();
+		}
+	}
+
+	/**
+	 * Reads the frames of the cards again and lays out what changed, such as
+	 * once the styles of a window have loaded or its theme or density
+	 * changed. The frames are not read as the grid lays out.
+	 */
+	updateLook(): void {
 		this.applyLook();
 	}
 
 	/**
 	 * Insets each card by its share of the gap to the visible cells beside
-	 * it, and shows the gripper on the sashes in the gaps.
+	 * it, and shows the gripper on the sashes in the gaps. With `relayout`,
+	 * lays the grid out again when the size constraints of a cell changed.
 	 */
-	private applyLook(): void {
+	private applyLook(relayout = true): void {
 		const grid = this.grid;
-		if (!grid || !this.dimension) {
+		if (!grid || !this.dimension || !this.laidOut) {
 			return; // the grid knows its neighbors once laid out
 		}
 
-		const cells = this.getCellsInGrid(grid.getViews());
-		let changed = false;
-		for (const cell of cells) {
-			if (cells.length > 1 && !grid.isViewVisible(cell)) {
-				continue;
-			}
+		const cells = this.getCellsInGrid(grid.getViews()).filter((cell, _index, all) => all.length === 1 || grid.isViewVisible(cell));
 
+		// Read all frames before writing to any card
+		const frames = cells.map(cell => cell.readFrame());
+
+		let changed = false;
+		cells.forEach((cell, index) => {
 			const insets = cell.options.keepsNoGap ? NO_GRID_EDGE_INSETS : getGridEdgeInsets(grid, cell, this.gap, neighbor => grid.isViewVisible(neighbor) && !neighbor.options.keepsNoGap);
-			changed = cell.setInsets(insets) || changed;
-		}
+			changed = cell.setLook(insets, frames[index]) || changed;
+		});
 
 		updateGridGapSashes(grid, true);
 
 		// Insets change the size constraints of the cells
-		if (changed && this.dimension) {
+		if (changed && relayout) {
 			grid.layout(grid.width, grid.height);
 		}
 	}
