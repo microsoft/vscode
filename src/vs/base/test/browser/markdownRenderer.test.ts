@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../browser/window.js';
 import { fillInIncompleteTokens, renderMarkdown, renderAsPlaintext } from '../../browser/markdownRenderer.js';
-import { IMarkdownString, MarkdownString } from '../../common/htmlContent.js';
+import { IMarkdownString, MarkdownString, removeMarkdownEscapes } from '../../common/htmlContent.js';
 import { toDisposable } from '../../common/lifecycle.js';
 import * as marked from '../../common/marked/marked.js';
 import { parse } from '../../common/marshalling.js';
@@ -663,15 +663,37 @@ suite('MarkdownRenderer', () => {
 		assert.strictEqual(result.innerHTML, `<p><a href="" title="" draggable="false" data-href="command:doFoo">command1</a> <a href="" data-href="command:doFoo">command2</a></p>`);
 	});
 
-	test('appendLink target cannot inject further links into trusted markdown', () => {
-		const results = ['', '\\', '\\\\', '\\\\\\', '\\\\\\\\'].map(backslashes => {
-			const target = `https://example.com/${backslashes})[injected](command:doFoo#${backslashes})${backslashes}`;
-			const md = new MarkdownString('', true).appendLink(target, 'label').appendMarkdown(' (suffix)');
-			const anchors = store.add(renderMarkdown(md)).element.querySelectorAll('a');
-			// The whole target must stay inside the one https link
-			return [...anchors].map(a => ({ text: a.textContent, isWholeTarget: a.dataset.href!.startsWith('https://example.com/') && a.dataset.href!.includes('command:doFoo') }));
-		});
-		assert.deepStrictEqual(results, Array.from({ length: 5 }, () => [{ text: 'label', isWholeTarget: true }]));
+	test('appendLink: no target or title can change the link structure', () => {
+		// Deterministic fuzzing with the pieces that matter to the Markdown parser.
+		const pieces = [
+			'\\', '\\\\', '(', ')', '[', ']', '<', '>', '"', '\'', '`', '*', '_', '!', '#', '&#41;', '&', ' ', '\t',
+			'\n', '\n\n', '\r\n', '\u00a0', '\u2028', '\u000b', '\u0000', 'a', 'command:foo', '[run](command:foo)', 'https://x.y/',
+		];
+		let seed = 0x5eed;
+		const random = (max: number) => {
+			seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+			return seed % max;
+		};
+		const generate = () => Array.from({ length: random(8) }, () => pieces[random(pieces.length)]).join('');
+
+		const failures: unknown[] = [];
+		const knownTargets = [
+			'https://safe.example/\\\\)[run](command:foo#\\\\)',
+			'https://safe.example/a\t[run](command:foo',
+			'https://safe.example/a\u00a0[run](command:foo',
+		];
+		for (let i = 0; i < 2000; i++) {
+			const target = knownTargets[i] ?? 'https://safe.example/' + generate();
+			const title = random(2) ? generate() : undefined;
+			const md = new MarkdownString('', true).appendLink(target, 'label', title).appendMarkdown(' (suffix)');
+			const anchors = [...store.add(renderMarkdown(md)).element.querySelectorAll('a')]
+				.map(a => ({ text: a.textContent, href: a.dataset.href }));
+			const expectedHref = removeMarkdownEscapes(target.replace(/[\s\x00-\x1f\x7f]/g, ch => encodeURIComponent(ch)));
+			if (anchors.length !== 1 || anchors[0].text !== 'label' || anchors[0].href !== expectedHref) {
+				failures.push({ target, title, markdown: md.value, anchors });
+			}
+		}
+		assert.deepStrictEqual(failures.slice(0, 3), []);
 	});
 
 	test('Should remove relative links if there is no base url', () => {

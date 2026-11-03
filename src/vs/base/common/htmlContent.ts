@@ -88,13 +88,21 @@ export class MarkdownString implements IMarkdownString {
 		return this;
 	}
 
+	/**
+	 * Appends a link.
+	 *
+	 * @param target The link target. It is used literally: no part of it can end the link or
+	 * add Markdown, so it is safe to pass untrusted values.
+	 * @param label The link text as Markdown. Use {@link escapeMarkdownLinkLabel} for plain text.
+	 * @param title The link title. It is used literally.
+	 */
 	appendLink(target: URI | string, label: string, title?: string): MarkdownString {
 		this.value += '[';
 		this.value += this._escape(label, ']');
 		this.value += '](';
-		this.value += this._escape(String(target), ')');
+		this.value += escapeMarkdownLinkDestination(String(target));
 		if (title) {
-			this.value += ` "${this._escape(this._escape(title, '"'), ')')}"`;
+			this.value += ` "${escapeMarkdownLinkTitle(title)}"`;
 		}
 		this.value += ')';
 		return this;
@@ -102,7 +110,7 @@ export class MarkdownString implements IMarkdownString {
 
 	private _escape(value: string, ch: string): string {
 		// A delimiter is already escaped only if it follows an odd number of backslashes:
-		// in `\\)` the first backslash escapes the second one, which leaves `)` unescaped.
+		// in `\\]` the first backslash escapes the second one, which leaves `]` unescaped.
 		// A trailing odd run of backslashes is completed as well, so that it cannot escape
 		// the delimiter that is appended after the value.
 		let result = '';
@@ -116,6 +124,26 @@ export class MarkdownString implements IMarkdownString {
 		}
 		return backslashes % 2 === 1 ? result + '\\' : result;
 	}
+}
+
+/**
+ * Escapes a string for use as a Markdown link destination: whitespace and control characters,
+ * which would end the destination, are percent-encoded and Markdown syntax is backslash-escaped.
+ */
+function escapeMarkdownLinkDestination(target: string): string {
+	return target
+		.replace(/[\s\x00-\x1f\x7f]/g, ch => encodeURIComponent(ch))
+		.replace(/[\\()<>]/g, '\\$&');
+}
+
+/**
+ * Escapes a string for use as a double-quoted Markdown link title. Line breaks are replaced,
+ * because an empty line would end the paragraph and with it the link.
+ */
+function escapeMarkdownLinkTitle(title: string): string {
+	return title
+		.replace(/\r\n|[\r\n]/g, ' ')
+		.replace(/[\\"()]/g, '\\$&');
 }
 
 export function isEmptyMarkdownString(oneOrMany: IMarkdownString | IMarkdownString[] | null | undefined): boolean {
