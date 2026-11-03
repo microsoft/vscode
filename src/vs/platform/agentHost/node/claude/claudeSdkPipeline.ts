@@ -281,7 +281,9 @@ export class ClaudeSdkPipeline extends Disposable {
 
 	get isResumed(): boolean { return this._isResumed; }
 
-	get isAborted(): boolean { return this._abortController.signal.aborted; }
+	private _abortPromise: Promise<void> | undefined;
+
+	get isAborted(): boolean { return !!this._abortPromise || this._abortController.signal.aborted; }
 
 	/**
 	 * Whether a turn is currently in flight or queued. False between turns (the
@@ -473,26 +475,34 @@ export class ClaudeSdkPipeline extends Disposable {
 		this._logService.info(`[Claude:${this.sessionId}] injectSteering: enqueued id=${pendingMessageId} sdkUuid=${sdkUuid}`);
 	}
 
-	/**
-	 * Cancel the in-flight SDK turn via the abort controller. Drops every
-	 * pending entry's deferred (rejected with `CancellationError`),
-	 * marks the pipeline for rebind on next {@link send}. Idempotent.
-	 *
-	 * Safe to call during rebind: {@link _rebindQuery} swaps in a fresh
-	 * placeholder {@link AbortController} before awaiting the
-	 * rematerializer, so an abort issued during recovery lands on that
-	 * placeholder and is honored when the freshly-built pair arrives
-	 * (the rebind discards the new pair and surfaces a cancellation).
-	 */
-	abort(): void {
-		if (this._abortController.signal.aborted) {
-			return;
+	/** Interrupts the turn before closing its transport, then drains shutdown before recovery. */
+	abort(): Promise<void> {
+		if (this._abortPromise) {
+			return this._abortPromise;
 		}
-		this._abortController.abort();
-		this._queue.failAll(new CancellationError());
-		// Mark unhealthy but keep the `_query` handle: the next `send` rebinds,
-		// and `shutdownAndWait` still needs it to await the subprocess exit.
+		if (this._abortController.signal.aborted) {
+			return Promise.resolve();
+		}
 		this._needsRebind = true;
+		if (!this._query) {
+			this._abortController.abort();
+			this._queue.failAll(new CancellationError());
+			return Promise.resolve();
+		}
+		this._abortPromise = this._interruptAndAbort(this._query, this._warm, this._abortController)
+			.finally(() => { this._abortPromise = undefined; });
+		return this._abortPromise;
+	}
+
+	private async _interruptAndAbort(query: Query, warm: WarmQuery, controller: AbortController): Promise<void> {
+		try {
+			await query.interrupt();
+		} finally {
+			controller.abort();
+			this._queue.failAll(new CancellationError());
+			await warm[Symbol.asyncDispose]();
+			await query.return(undefined);
+		}
 	}
 
 	/**
@@ -578,6 +588,12 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * effort / permission mode to the fresh Query.
 	 */
 	private async _rebindQuery(reason: 'restart' | 'recover'): Promise<void> {
+		if (this._abortPromise) {
+			await this._abortPromise;
+		}
+		if (this._store.isDisposed) {
+			throw new CancellationError();
+		}
 		if (!this._rematerializer) {
 			throw new Error(`ClaudeSdkPipeline.rebind: no rematerializer attached (reason=${reason})`);
 		}
@@ -645,13 +661,14 @@ export class ClaudeSdkPipeline extends Disposable {
 	 */
 	private async _processMessages(): Promise<void> {
 		const query = this._query;
+		const signal = this._abortController.signal;
 		if (!query) {
 			throw new Error('ClaudeSdkPipeline._processMessages called before query was bound');
 		}
 		try {
 			for await (const message of query) {
-				if (this._abortController.signal.aborted) {
-					throw new CancellationError();
+				if (signal.aborted || this._needsRebind || this._query !== query) {
+					continue;
 				}
 				if (message.type === 'system' && message.subtype === 'init') {
 					// Capture the loaded native-plugin list on every init (incl.
@@ -670,12 +687,12 @@ export class ClaudeSdkPipeline extends Disposable {
 						turnDuration,
 						mode: this._currentPermissionMode,
 						clientContext,
-						signal: this._abortController.signal,
+						signal,
 					});
 				} catch (handlerErr) {
 					this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] router threw, skipping: ${handlerErr}`);
 				}
-				if (message.type === 'result') {
+				if (message.type === 'result' && !signal.aborted && !this._needsRebind && this._query === query) {
 					const completed = this._queue.settleHead();
 					this._logService.info(`[Claude:${this.sessionId}] result for sdkUuid=${completed?.sdkUuid}`);
 					// Final result: queue fully drained → protocol turn done.
@@ -694,7 +711,7 @@ export class ClaudeSdkPipeline extends Disposable {
 					}
 				}
 			}
-			if (this._abortController.signal.aborted) {
+			if (signal.aborted) {
 				throw new CancellationError();
 			}
 			// A rebind ({@link _rebindQuery}) swaps in a fresh `_query` and
