@@ -219,6 +219,14 @@ suite('ChatThinkingContentPart', () => {
 		}, { inferred: icons, generic: icons, custom: Codicon.beaker });
 	});
 
+	test('uses the generic tool icon for tool search without changing file-search icons', () => {
+		const tools = ['tool_search_tool', 'tool_search_tool_regex', 'tool_search', 'toolSearch', 'vscode.toolSearch', 'copilot_toolSearch'];
+		assert.deepStrictEqual({
+			searchTools: tools.map(toolId => getToolInvocationIcon(toolId)),
+			searchFiles: ['search', 'rg', 'glob'].map(toolId => getToolInvocationIcon(toolId)),
+		}, { searchTools: tools.map(() => Codicon.tools), searchFiles: [Codicon.search, Codicon.search, Codicon.search] });
+	});
+
 	test('uses the MCP icon instead of registered or inferred tool icons', () => {
 		const source: ToolDataSource = { type: 'mcp', label: 'Reference', serverLabel: 'Reference', collectionId: 'reference', definitionId: 'reference', instructions: '' };
 		assert.deepStrictEqual({

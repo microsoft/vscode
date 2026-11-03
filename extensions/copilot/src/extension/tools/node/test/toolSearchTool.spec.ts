@@ -20,7 +20,7 @@ function text(result: vscode.LanguageModelToolResult): string {
 }
 
 describe('ToolSearchTool', () => {
-	it('uses an injected Agent Host corpus instead of the extension registry', async () => {
+	it.each([0, 1, 1000])('only adds readable headers to the injected Agent Host search (%i matches)', async count => {
 		const searchToolsByQuery = vi.fn(async (_query: string, tools: readonly vscode.LanguageModelToolInformation[]) => tools.map(tool => tool.name));
 		const embeddings = { _serviceBrand: undefined, searchToolsByQuery } as unknown as IToolEmbeddingsComputer;
 		const toolsService = {
@@ -30,18 +30,34 @@ describe('ToolSearchTool', () => {
 		const deferral = { _serviceBrand: undefined, isNonDeferredTool: () => false } as IToolDeferralService;
 		const log = { _serviceBrand: undefined, trace: vi.fn() } as unknown as ILogService;
 		const tool = new ToolSearchTool(embeddings, toolsService, deferral, log);
+		const candidates = Array.from({ length: count }, (_, index) => ({ name: `tool_${index}`, description: `Tool ${index}` }));
+		const query = 'Find\nGitHub tools ' + 'x'.repeat(1000);
+		const prepared = tool.prepareInvocation({ input: { query } });
 
 		const result = await tool.invoke({
 			input: {
-				query: 'add numbers',
-				candidateTools: [{ name: 'everything-get-sum', description: 'Adds numbers' }],
+				query,
+				candidateTools: candidates,
 			},
 			toolInvocationToken: undefined,
 		} as vscode.LanguageModelToolInvocationOptions<any>, CancellationToken.None);
 
 		expect(searchToolsByQuery).toHaveBeenCalledOnce();
-		expect(searchToolsByQuery.mock.calls[0][1].map(tool => tool.name)).toEqual(['everything-get-sum']);
-		expect(text(result)).toBe('["everything-get-sum"]');
+		expect(searchToolsByQuery.mock.calls[0][1].map(tool => tool.name)).toEqual(candidates.map(tool => tool.name));
+		const preview = 'Find GitHub tools ' + 'x'.repeat(59) + '...';
+		const label = count === 0 ? 'No matching tools found' : count === 1 ? 'Found 1 tool' : 'Found 1000 tools';
+		expect({
+			invocation: prepared.invocationMessage,
+			pastTense: prepared.pastTenseMessage,
+			completed: result.toolResultMessage,
+			content: text(result),
+		}).toMatchObject({
+			invocation: { value: `Searching tools for \`${preview}\`` },
+			pastTense: { value: `Searched tools for \`${preview}\`` },
+			completed: { value: `${label} for \`${preview}\`` },
+			content: JSON.stringify(candidates.map(tool => tool.name)),
+		});
+		expect(searchToolsByQuery.mock.calls[0][0]).toBe(query);
 	});
 
 	it('preserves the extension registry path when no corpus is injected', async () => {
@@ -58,8 +74,10 @@ describe('ToolSearchTool', () => {
 		const log = { _serviceBrand: undefined, trace: vi.fn() } as unknown as ILogService;
 		const tool = new ToolSearchTool(embeddings, toolsService, deferral, log);
 
-		await tool.invoke({ input: { query: 'deferred' }, toolInvocationToken: undefined } as vscode.LanguageModelToolInvocationOptions<any>, CancellationToken.None);
+		const query = '`[unsafe](command:run)`';
+		const result = await tool.invoke({ input: { query }, toolInvocationToken: undefined } as vscode.LanguageModelToolInvocationOptions<any>, CancellationToken.None);
 
 		expect(searchToolsByQuery.mock.calls[0][1].map(tool => tool.name)).toEqual(['deferred-extension-tool']);
+		expect(result.toolResultMessage?.value).toBe('Found 1 tool for `` `[unsafe](command:run)` ``');
 	});
 });

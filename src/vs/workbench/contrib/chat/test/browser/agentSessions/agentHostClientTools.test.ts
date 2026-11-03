@@ -1954,7 +1954,8 @@ suite('AgentHostClientTools', () => {
 		});
 
 		test('waits for tool-search candidates and drops them from completion metadata', async () => {
-			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testToolSearchTool]);
+			const invokeResult = new DeferredPromise<IToolResult>();
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testToolSearchTool], { invokeResult });
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');
 			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
 			const chatURI = URI.parse(buildDefaultChatUri(backendSession));
@@ -2019,7 +2020,11 @@ suite('AgentHostClientTools', () => {
 				},
 			});
 			await timeout(0);
-			await timeout(0);
+			invokeResult.complete({
+				content: [{ kind: 'text', value: '["calculator"]' }],
+				toolResultMessage: 'Found 1 tool for calculator',
+			});
+			await connection.whenDispatched(entry => entry.action.type === ActionType.ChatToolCallComplete && entry.action.toolCallId === 'tool-search-call-1');
 
 			const completion = connection.dispatchedActions.find(entry => isChatAction(entry.action)
 				&& entry.action.type === ActionType.ChatToolCallComplete
@@ -2028,12 +2033,20 @@ suite('AgentHostClientTools', () => {
 			assert.deepStrictEqual({
 				parameters: toolsService.invokedToolCalls[0]?.parameters,
 				meta: completion.action._meta,
+				title: toolsService.begunToolCalls[0]?.pastTenseMessage,
+				details: toolsService.begunToolCalls[0]?.toolSpecificData,
+				serializedDetails: toolsService.begunToolCalls[0]?.toJSON().toolSpecificData,
+				output: completion.action.result.content,
 			}, {
 				parameters: {
 					query: 'calculator',
 					candidateTools: toolSearchCandidates,
 				},
 				meta: { futureMetadata: { preserve: true } },
+				title: 'Found 1 tool for calculator',
+				details: { kind: 'simpleToolInvocation', input: '{"query":"calculator"}', output: '["calculator"]' },
+				serializedDetails: { kind: 'simpleToolInvocation', input: '{"query":"calculator"}', output: '["calculator"]' },
+				output: [{ type: ToolResultContentType.Text, text: '["calculator"]' }],
 			});
 		});
 

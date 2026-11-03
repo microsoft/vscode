@@ -119,6 +119,10 @@ export function getToolInvocationIcon(toolId: string, data?: IToolInvocationIcon
 	}
 
 	const lowerToolId = toolId.toLowerCase();
+	if (lowerToolId === 'tool_search_tool' || lowerToolId === 'tool_search_tool_regex' || lowerToolId === 'tool_search'
+		|| lowerToolId === 'toolsearch' || lowerToolId === 'vscode.toolsearch' || lowerToolId === 'copilot_toolsearch') {
+		return Codicon.tools;
+	}
 	if ((lowerToolId === 'problems' || lowerToolId === 'get_errors' || lowerToolId === 'copilot_geterrors')
 		&& resultText?.toLowerCase().replace(/\s+/g, ' ').includes('no problems found')) {
 		return Codicon.search;

@@ -3487,6 +3487,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			result = { content: [], toolResultError: error instanceof Error ? error.message : String(error) };
 		}
 
+		if (isToolSearch && result && !result.toolResultError && result.content.every(part => part.kind === 'text')
+			&& !invocation.toolSpecificData && !IChatToolInvocation.resultDetails(invocation)) {
+			invocation.toolSpecificData = {
+				kind: 'simpleToolInvocation',
+				input: rawInput,
+				output: result.content.map(part => part.value).join('\n'),
+			};
+			invocation.notifyToolSpecificDataChanged();
+		}
+
 		this._resolveToolCall(chatURI, request.turnId, toolCall.toolCallId, {
 			type: ActionType.ChatToolCallComplete,
 			turnId: request.turnId,

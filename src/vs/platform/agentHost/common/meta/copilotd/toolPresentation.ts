@@ -45,6 +45,7 @@ const aliases: Readonly<Record<string, string>> = {
 	bash_shutdown: 'stop_bash', powershell_shutdown: 'stop_bash',
 	read_powershell: 'read_bash', write_powershell: 'write_bash',
 	stop_powershell: 'stop_bash', list_powershell: 'list_bash',
+	tool_search_tool: 'tool_search_tool_regex',
 };
 
 // Temporary app-compatible display fallback until hosts advertise tool presentation kinds.
@@ -71,7 +72,7 @@ const labels: Readonly<Record<string, IToolLabels>> = {
 	web_search: { subjectKeys: ['query'], running: localize('copilotd.webSearch.running', "Searching the web"), completed: localize('copilotd.webSearch.completed', "Searched the web"), failed: localize('copilotd.webSearch.failed', "Web search failed") },
 	web_fetch: { subjectKeys: ['url'], running: localize('copilotd.webFetch.running', "Fetching webpage"), completed: localize('copilotd.webFetch.completed', "Fetched webpage"), failed: localize('copilotd.webFetch.failed', "Fetch webpage failed") },
 	sql: { subjectKeys: ['description'], running: localize('copilotd.sql.running', "Running SQL"), completed: localize('copilotd.sql.completed', "Ran SQL"), failed: localize('copilotd.sql.failed', "SQL failed") },
-	tool_search_tool_regex: { subjectKeys: ['regex', 'pattern'], running: localize('copilotd.toolSearch.running', "Searching tools"), completed: localize('copilotd.toolSearch.completed', "Searched tools"), failed: localize('copilotd.toolSearch.failed', "Tool search failed") },
+	tool_search_tool_regex: { subjectKeys: ['query', 'regex', 'pattern'], running: localize('copilotd.toolSearch.running', "Searching tools"), completed: localize('copilotd.toolSearch.completed', "Searched tools"), failed: localize('copilotd.toolSearch.failed', "Tool search failed") },
 	update_todo: { running: localize('copilotd.todo.running', "Updating todo list"), completed: localize('copilotd.todo.completed', "Updated todo list"), failed: localize('copilotd.todo.failed', "Update todo list failed") },
 	update_profile: { running: localize('copilotd.profile.running', "Updating profile"), completed: localize('copilotd.profile.completed', "Updated profile"), failed: localize('copilotd.profile.failed', "Update profile failed") },
 	store_memory: { subjectKeys: ['fact'], running: localize('copilotd.memory.running', "Saving memory"), completed: localize('copilotd.memory.completed', "Saved memory"), failed: localize('copilotd.memory.failed', "Save memory failed") },

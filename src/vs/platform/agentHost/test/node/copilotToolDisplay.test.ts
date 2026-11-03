@@ -102,6 +102,7 @@ suite('copilotToolDisplay — friendly tool names', () => {
 			['mcp_reload', 'Reload MCP Config'],
 			['mcp_validate', 'Validate MCP Config'],
 			['tool_search_tool_regex', 'Search Tools'],
+			['tool_search_tool', 'Search Tools'],
 			['parallel_validation', 'Validate Changes'],
 			['codeql_checker', 'CodeQL Security Scan'],
 			['addComment', 'Add Comment'],
@@ -119,6 +120,50 @@ suite('copilotToolDisplay — friendly tool names', () => {
 
 	test('falls back to the raw tool name for unknown tools', () => {
 		assert.strictEqual(getToolDisplayName('some_new_tool'), 'some_new_tool');
+	});
+
+	test('formats tool-search headers without changing rendering kind or input', () => {
+		for (const toolName of ['tool_search_tool', 'tool_search_tool_regex']) {
+			const args = { query: 'GitHub\npull requests' };
+			const displayName = getToolDisplayName(toolName);
+			assert.deepStrictEqual({
+				streaming: getStreamingInvocationMessage(toolName, displayName, args),
+				running: getInvocationMessage(toolName, displayName, args),
+				completed: getPastTenseMessage(toolName, displayName, args, true, '["search_issues","get_issue"]'),
+				empty: getPastTenseMessage(toolName, displayName, args, true, '[]'),
+				unknown: getPastTenseMessage(toolName, displayName, args, true, 'Native search output'),
+				failed: getPastTenseMessage(toolName, displayName, args, false, '[]'),
+				kind: getToolKind(toolName),
+				input: getToolInputString(toolName, args, undefined),
+			}, {
+				streaming: { markdown: 'Searching tools for `GitHub pull requests`' },
+				running: { markdown: 'Searching tools for `GitHub pull requests`' },
+				completed: { markdown: 'Found 2 tools for `GitHub pull requests`' },
+				empty: { markdown: 'No matching tools found for `GitHub pull requests`' },
+				unknown: { markdown: 'Searched tools for `GitHub pull requests`' },
+				failed: '"Search Tools" failed',
+				kind: undefined,
+				input: JSON.stringify(args, null, 2),
+			});
+		}
+	});
+
+	test('bounds and escapes tool-search header previews', () => {
+		assert.deepStrictEqual({
+			long: getInvocationMessage('tool_search_tool', 'Search Tools', { query: 'x'.repeat(1000) }),
+			escaped: getInvocationMessage('tool_search_tool_regex', 'Search Tools', { pattern: '`[unsafe](command:run)`' }),
+			pending: getStreamingInvocationMessage('tool_search_tool', 'Search Tools', undefined),
+			one: getPastTenseMessage('tool_search_tool', 'Search Tools', undefined, true, '["tool"]'),
+			malformed: getPastTenseMessage('tool_search_tool', 'Search Tools', undefined, true, '["tool",42]'),
+			many: getPastTenseMessage('tool_search_tool', 'Search Tools', undefined, true, JSON.stringify(Array.from({ length: 1000 }, (_, i) => `tool_${i}`))),
+		}, {
+			long: { markdown: `Searching tools for \`${'x'.repeat(77)}...\`` },
+			escaped: { markdown: 'Searching tools for `` `[unsafe](command:run)` ``' },
+			pending: 'Searching tools',
+			one: 'Found 1 tool',
+			malformed: 'Searched tools',
+			many: 'Found 1000 tools',
+		});
 	});
 
 	test('uses requested image identity rather than the conversation model', () => {

@@ -17,6 +17,7 @@ import { copilotCliToolInputContract, type ToolKind } from '../../common/meta/ag
 import { parseImageGenerationToolMetadata, type IImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { parsePartialToolInput } from '../../common/partialToolInput.js';
+import { RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { ConfirmationOptionKind, StringOrMarkdown, type ToolCallPendingConfirmationState } from '../../common/state/protocol/state.js';
 import { SAVE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import { basename, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
@@ -538,6 +539,26 @@ function truncate(text: string, maxLength: number): string {
 	return text.length > maxLength ? text.substring(0, maxLength - 3) + '...' : text;
 }
 
+function formatToolSearchMessage(message: string, parameters: Record<string, unknown> | undefined): StringOrMarkdown {
+	const query = [parameters?.query, parameters?.pattern, parameters?.regex].find(value => typeof value === 'string' && value.trim());
+	return typeof query === 'string'
+		? md(localize('toolSearch.query', "{0} for {1}", message, appendEscapedMarkdownInlineCode(truncate(query.replace(/\s+/g, ' ').trim(), 80))))
+		: message;
+}
+
+function getToolSearchResultCount(resultText: string | undefined): number | undefined {
+	if (!resultText) {
+		return undefined;
+	}
+	try {
+		const result: unknown = JSON.parse(resultText);
+		return Array.isArray(result) && result.every(name => typeof name === 'string') ? result.length : undefined;
+	} catch {
+		// Native tool search can return prose instead of the client's JSON name list.
+		return undefined;
+	}
+}
+
 const COPILOT_SDK_TOOL_OUTPUT_BASENAME_RE = /^(?:\d{10,}-copilot-tool-output-(?:[a-z0-9]{6}|\d+-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})|copilot-tool-output-\d{10,}-[a-z0-9]+)\.txt$/i;
 
 /**
@@ -637,6 +658,7 @@ export function getToolDisplayName(toolName: string, metadata?: Pick<AssistantMe
 		case CopilotToolName.WriteAgent: return localize('toolName.writeAgent', "Write to Agent");
 		case CopilotToolName.McpReload: return localize('toolName.mcpReload', "Reload MCP Config");
 		case CopilotToolName.McpValidate: return localize('toolName.mcpValidate', "Validate MCP Config");
+		case RUNTIME_TOOL_SEARCH_TOOL_NAME:
 		case CopilotToolName.ToolSearchToolRegex: return localize('toolName.toolSearchToolRegex', "Search Tools");
 		default: return metadata?.toolTitle?.trim() || metadata?.mcpToolName?.trim() || toolName;
 	}
@@ -781,6 +803,9 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 			}
 			return localize('toolInvoke.webSearch', "Searching the web");
 		}
+		case RUNTIME_TOOL_SEARCH_TOOL_NAME:
+		case CopilotToolName.ToolSearchToolRegex:
+			return formatToolSearchMessage(localize('toolInvoke.toolSearch', "Searching tools"), parameters);
 		case CopilotToolName.SearchCodeSubagent: {
 			const args = parameters as ICopilotLongRunningSearchToolArgs | undefined;
 			if (args?.query) {
@@ -920,6 +945,15 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 			return imageGeneration
 				? localize('toolComplete.imageGenerationModel', "Generated image with {0}", imageGeneration.requestedModel.name ?? imageGeneration.requestedModel.id)
 				: localize('toolComplete.imageGeneration', "Generated image");
+		case RUNTIME_TOOL_SEARCH_TOOL_NAME:
+		case CopilotToolName.ToolSearchToolRegex: {
+			const count = getToolSearchResultCount(resultText);
+			const message = count === undefined ? localize('toolComplete.toolSearch', "Searched tools")
+				: count === 0 ? localize('toolComplete.toolSearchEmpty', "No matching tools found")
+					: count === 1 ? localize('toolComplete.toolSearchOne', "Found 1 tool")
+						: localize('toolComplete.toolSearchCount', "Found {0} tools", count);
+			return formatToolSearchMessage(message, parameters);
+		}
 		case CopilotToolName.WebFetch: {
 			const args = parameters as ICopilotWebFetchToolArgs | undefined;
 			if (args?.url) {
