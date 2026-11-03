@@ -151,6 +151,29 @@ suite('Copilot slash command handlers', () => {
 		});
 	});
 
+	test('resolves a bare skill name to its unique plugin-namespaced skill command', async () => {
+		const synced: RuntimeSlashCommandInfo = { name: 'VS Code Synced Data:commit', kind: 'skill', description: 'Commit', allowDuringAgentExecution: false };
+		const first: RuntimeSlashCommandInfo = { name: 'plugin-a:review', kind: 'skill', description: 'Review A', allowDuringAgentExecution: false };
+		const second: RuntimeSlashCommandInfo = { name: 'plugin-b:review', kind: 'skill', description: 'Review B', allowDuringAgentExecution: false };
+		const shadowed: RuntimeSlashCommandInfo = { name: 'plugin-c:diagnostic', kind: 'skill', description: 'Shadowed', allowDuringAgentExecution: false };
+		const clientCommand: RuntimeSlashCommandInfo = { name: 'ext:deploy', kind: 'client', description: 'Deploy', allowDuringAgentExecution: false };
+		const provider = new CopilotSlashCommandProvider(async () => [command, synced, first, second, shadowed, clientCommand], undefined, store.add(new NullLogService()));
+
+		assert.deepStrictEqual({
+			unique: await provider.resolveSlashCommand('/Commit'),
+			ambiguous: await provider.resolveSlashCommand('review'),
+			exactWins: await provider.resolveSlashCommand('diagnostic'),
+			notSkill: await provider.resolveSlashCommand('deploy'),
+			namespaced: await provider.resolveSlashCommand('plugin-a:review'),
+		}, {
+			unique: synced,
+			ambiguous: undefined,
+			exactWins: command,
+			notSkill: undefined,
+			namespaced: first,
+		});
+	});
+
 	suite('Copilot skills display', () => {
 		const command: RuntimeSlashCommandInfo = {
 			name: 'skills',
