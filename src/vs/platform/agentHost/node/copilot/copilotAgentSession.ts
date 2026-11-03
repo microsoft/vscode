@@ -3804,13 +3804,16 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		const childToolCallId = this._parentToolCallIdForSubagentEvent(e);
-		const owningTurnId = childToolCallId ? this._subagents.getInvocationTurnId(childToolCallId) : undefined;
+		if (!childToolCallId) {
+			return;
+		}
+		const owningTurnId = this._subagents.getInvocationTurnId(childToolCallId);
 		this._telemetryReporter.skillInvoked({
 			...base,
-			session: childToolCallId ? this._subagentChatUri(childToolCallId) : this._chatChannelUri.toString(),
+			session: this._subagentChatUri(childToolCallId),
 			turnId: owningTurnId,
 			clientContext: owningTurnId !== undefined && turn?.id === owningTurnId ? turn.clientContext : undefined,
-			telemetryContext: childToolCallId ? this._subagents.getAccountContext(childToolCallId) : undefined,
+			telemetryContext: this._subagents.getAccountContext(childToolCallId),
 		});
 	}
 	private _toolSourceKindFor(toolName: string, mcpServerName: string | undefined): string {
@@ -10235,10 +10238,10 @@ export class CopilotAgentSession extends Disposable {
 		store.add(wrapper.onSkillInvoked(e => {
 			this._logService.info(`[Copilot:${sessionId}] Skill invoked: ${e.data.name} (${e.data.path})`);
 			this._resumeSubagentForEvent(e);
-			this._reportSkillInvoked(e);
 			if (this._shouldDropUnmappedSubagentEvent(e, 'skill.invoked')) {
 				return;
 			}
+			this._reportSkillInvoked(e);
 			// Restricted `skillContentRead`: which skill file was loaded. Main-agent only, like the other restricted events.
 			if (!e.agentId) {
 				this._telemetryReporter.skillContentRead({
