@@ -177,7 +177,7 @@ suite('SessionCanvasService', () => {
 			upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }),
 			upcastPartial<ICustomViewService>({ activeCustomView }),
 			pinnedCanvases.service,
-			upcastPartial<IChatWindowService>({ getWindow: () => undefined }),
+			upcastPartial<IChatWindowService>({ getWindow: () => undefined, windows: constObservable([]) }),
 		));
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IEditorGroupsService, editorGroupsService);
@@ -1287,7 +1287,7 @@ suite('SessionCanvasService', () => {
 			upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }),
 			upcastPartial<ICustomViewService>({ activeCustomView: constObservable(undefined) }),
 			createPinnedCanvases().service,
-			upcastPartial<IChatWindowService>({ getWindow: () => undefined }),
+			upcastPartial<IChatWindowService>({ getWindow: () => undefined, windows: constObservable([]) }),
 		));
 		const owner = { providerId: 'local-agent-host', session: URI.parse('agent-host-session:/session'), chat: URI.parse('agent-host-chat:/session/main') };
 		const mainWindow = contextService.getEditorGroup(owner, input, false)?.id;
@@ -1336,5 +1336,34 @@ suite('SessionCanvasService', () => {
 		const auxiliaryWindow = contextService.getEditorGroup(owner, upcastPartial<CanvasInput>({}), false)?.id;
 
 		assert.deepStrictEqual({ chatWindowOpen, chatWindowNew, otherChatWindow, auxiliaryWindow }, { chatWindowOpen: 3, chatWindowNew: 2, otherChatWindow: 4, auxiliaryWindow: 1 });
+	});
+
+	test('a chat window presents the canvases of the chat it shows, in any of its groups, whichever session the main window shows; other windows and chats do not', () => {
+		const chatWindowChat = URI.parse('agent-host-chat:/session/main');
+		const chatWindows = new Map([
+			[2, upcastPartial<IChatWindow>({ chat: constObservable(chatWindowChat) })],
+		]);
+		const contextService = store.add(new SessionCanvasContextService(
+			upcastPartial<ISessionsService>({ activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined) }),
+			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None }),
+			upcastPartial<IEditorGroupsService>({}),
+			new SessionEditorWorkingSetService(),
+			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
+			upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }),
+			upcastPartial<ICustomViewService>({ activeCustomView: constObservable(undefined) }),
+			createPinnedCanvases().service,
+			upcastPartial<IChatWindowService>({ getWindow: windowId => chatWindows.get(windowId), windows: constObservable([...chatWindows.values()]) }),
+		));
+		const owner = { providerId: 'local-agent-host', session: URI.parse('agent-host-session:/session'), chat: chatWindowChat };
+		const otherChat = { ...owner, chat: URI.parse('agent-host-chat:/session/other') };
+		const group = (windowId: number) => upcastPartial<IEditorGroup>({ windowId });
+
+		assert.deepStrictEqual({
+			ownChatInItsWindow: contextService.canPresentInGroup(owner, group(2)),
+			otherChatInTheWindow: contextService.canPresentInGroup(otherChat, group(2)),
+			inAnotherWindow: contextService.canPresentInGroup(owner, group(3)),
+			ownChatOutsideWorkingSets: contextService.presentsOutsideWorkingSets(owner),
+			otherChatOutsideWorkingSets: contextService.presentsOutsideWorkingSets(otherChat),
+		}, { ownChatInItsWindow: true, otherChatInTheWindow: false, inAnotherWindow: false, ownChatOutsideWorkingSets: true, otherChatOutsideWorkingSets: false });
 	});
 });

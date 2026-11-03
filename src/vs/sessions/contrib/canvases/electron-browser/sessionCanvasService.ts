@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, IReader } from '../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -31,6 +31,8 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 	readonly contexts;
 	readonly workingSets: ICanvasWorkingSets;
 	private readonly knownOwners = new Map<string, ICanvasOwner>();
+	/** The chats chat windows show: the canvases of these chats show in those windows. */
+	private readonly chatWindowChats: IObservable<readonly URI[]>;
 
 	constructor(
 		@ISessionsService private readonly sessionsService: ISessionsService,
@@ -49,6 +51,8 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 			registerEditorToRetain: input => editorWorkingSetService.registerEditorToRetain(input),
 			suppressEditorPartAutoVisibility: () => layoutService.suppressEditorPartAutoVisibility(),
 		};
+		this.chatWindowChats = derivedOpts<readonly URI[]>({ owner: this, equalsFn: (a, b) => a.length === b.length && a.every((chat, index) => isEqual(chat, b[index])) },
+			reader => this.chatWindowService.windows.read(reader).map(window => window.chat.read(reader)));
 		this.contexts = derived<readonly ICanvasContext[]>(this, reader => {
 			const session = sessionsService.activeSession.read(reader);
 			const chat = session?.activeChat.read(reader);
@@ -145,6 +149,17 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 		// them to the main window.
 		const part = this.chatWindowService.getWindow(activeWindowId)?.mainPart ?? mainPart;
 		return part.groups.find(group => group.contains(input)) ?? part.activeGroup;
+	}
+
+	/** A chat window shows the canvases of the chat it shows, in any of its groups. */
+	canPresentInGroup(owner: ICanvasOwner, group: IEditorGroup): boolean {
+		const chat = this.chatWindowService.getWindow(group.windowId)?.chat.get();
+		return !!chat && isEqual(chat, owner.chat);
+	}
+
+	/** The canvases of a chat a chat window shows are that window's, whichever session the main window shows. */
+	presentsOutsideWorkingSets(owner: ICanvasOwner, reader?: IReader): boolean {
+		return this.chatWindowChats.read(reader).some(chat => isEqual(chat, owner.chat));
 	}
 
 	private removeOwners(owns: (owner: ICanvasOwner) => boolean): void {

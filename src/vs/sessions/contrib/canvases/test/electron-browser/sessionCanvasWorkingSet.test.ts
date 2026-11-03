@@ -99,7 +99,7 @@ suite('Session canvas working sets', () => {
 		harness.instaService.stub(ICustomViewService, upcastPartial<ICustomViewService>({ activeCustomView: constObservable(undefined) }));
 		store.add(harness.instaService.createInstance(TestCanvasLayoutController));
 		harness.instaService.stub(IPinnedCanvasService, upcastPartial<IPinnedCanvasService>({ entries: constObservable([]), getTrackedCanvas: () => undefined, isPinned: () => false, isShown: () => false }));
-		harness.instaService.stub(IChatWindowService, upcastPartial<IChatWindowService>({ getWindow: () => undefined }));
+		harness.instaService.stub(IChatWindowService, upcastPartial<IChatWindowService>({ getWindow: () => undefined, windows: constObservable([]) }));
 		harness.instaService.stub(ICanvasContextService, store.add(harness.instaService.createInstance(SessionCanvasContextService)));
 		const canvasService = store.add(harness.instaService.createInstance(CanvasService));
 		instantiationService.stub(ICanvasService, canvasService);
