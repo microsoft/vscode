@@ -6,7 +6,7 @@
 import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
-import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../../../../base/common/iconLabels.js';
 import * as semver from '../../../../../../../base/common/semver/semver.js';
 import Severity from '../../../../../../../base/common/severity.js';
@@ -181,11 +181,26 @@ export function getUnavailableReason(
 	return entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion) ? 'update' : 'admin';
 }
 
+/** The organization's help page, resolved once per picker open. */
+export interface IModelPickerOrganizationSupport {
+	readonly url: string;
+	/** Names the page's host, since the organization rather than VS Code controls it. */
+	readonly tooltip: string;
+}
+
+function createOrganizationSupportLink(label: string, { url, tooltip }: IModelPickerOrganizationSupport): MarkdownString {
+	// Parentheses would end the link destination early, and quotes would end its title.
+	const destination = url.replace(/\(/g, '%28').replace(/\)/g, '%29');
+	const title = tooltip.replace(/["\\]/g, '\\$&');
+	return new MarkdownString(`[${escapeMarkdownSyntaxTokens(label)}](${destination} "${title}")`);
+}
+
 export function createUnavailableModelItem(
 	id: string,
 	entry: IModelControlEntry,
 	reason: 'upgrade' | 'update' | 'admin',
 	manageSettingsUrl: string | undefined,
+	organizationSupport: IModelPickerOrganizationSupport | undefined,
 	updateStateType: StateType,
 	chatEntitlementService: IChatEntitlementService,
 ): IActionListItem<IActionWidgetDropdownAction> {
@@ -195,9 +210,12 @@ export function createUnavailableModelItem(
 	} else if (reason === 'update') {
 		description = localize('chat.modelPicker.updateDescription', "Update VS Code");
 	} else {
-		description = manageSettingsUrl
-			? new MarkdownString(localize('chat.modelPicker.adminLink', "[Contact your admin]({0})", manageSettingsUrl), { isTrusted: true })
-			: localize('chat.modelPicker.adminDescription', "Contact your admin");
+		const label = localize('chat.modelPicker.adminDescription', "Contact your admin");
+		description = organizationSupport
+			? createOrganizationSupportLink(label, organizationSupport)
+			: manageSettingsUrl
+				? new MarkdownString(localize('chat.modelPicker.adminLink', "[Contact your admin]({0})", manageSettingsUrl), { isTrusted: true })
+				: label;
 	}
 
 	let hoverContent: MarkdownString;

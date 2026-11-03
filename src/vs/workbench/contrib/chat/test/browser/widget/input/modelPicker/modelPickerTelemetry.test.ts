@@ -23,7 +23,8 @@ import { IConfigurationService } from '../../../../../../../../platform/configur
 import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
+import { IOpenerService, OpenOptions } from '../../../../../../../../platform/opener/common/opener.js';
+import { COPILOT_COMMUNICATION_SUPPORT_URL_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IProductService } from '../../../../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../../../platform/telemetry/common/telemetry.js';
@@ -64,6 +65,10 @@ function createModel(id: string, metadata: Partial<ILanguageModelChatMetadata> =
 
 suite('ModelPickerTelemetry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	let managedSupportUrl: string | undefined;
+	teardown(() => {
+		managedSupportUrl = undefined;
+	});
 	const model = createModel('test-model');
 	const fastModel = createModel('test-model-fast');
 	const otherModel = createModel('other-model');
@@ -88,6 +93,7 @@ suite('ModelPickerTelemetry', () => {
 		const pickerSessionIds: string[] = [];
 		const eventNames: string[] = [];
 		const openedLinks: string[] = [];
+		const openedExternally: string[] = [];
 		const configurations = new Map<string, IStringDictionary<unknown>>();
 		const savedConfigurations: string[] = [];
 		const pinnedModelIds: string[] = [];
@@ -236,7 +242,18 @@ suite('ModelPickerTelemetry', () => {
 			dispose: () => { },
 		});
 		instantiationService.stub(ICommandService, {});
-		instantiationService.stub(IOpenerService, { open: async resource => { openedLinks.push(resource.toString()); return true; } });
+		instantiationService.stub(IOpenerService, {
+			open: async (resource: URI | string, options?: OpenOptions) => {
+				openedLinks.push(resource.toString());
+				if (options?.openExternal) {
+					openedExternally.push(resource.toString());
+				}
+				return true;
+			}
+		});
+		instantiationService.stub(IManagedSettingsService, new class extends NullManagedSettingsService {
+			override getManagedSettingValue(key: string) { return key === COPILOT_COMMUNICATION_SUPPORT_URL_KEY ? managedSupportUrl : undefined; }
+		}());
 		instantiationService.stub(ITelemetryService, {
 			publicLog2: (name, data) => {
 				// Replace the random session id with its open order and check each duration
@@ -318,7 +335,7 @@ suite('ModelPickerTelemetry', () => {
 		picker.show(container);
 
 		return {
-			events, pickerEvents, eventNames, openedLinks, picker, container, configurations, savedConfigurations, pinnedModelIds, delegateSelections, programmaticDelegateSelections, configurationService,
+			events, pickerEvents, eventNames, openedLinks, openedExternally, picker, container, configurations, savedConfigurations, pinnedModelIds, delegateSelections, programmaticDelegateSelections, configurationService,
 			get visible() { return visible; },
 			get tabbedShows() { return tabbedShows; },
 			get trustRequests() { return trustRequests; },
@@ -826,6 +843,17 @@ suite('ModelPickerTelemetry', () => {
 					{ name: 'chat.modelPickerInteraction', data: { interaction: 'disabledModelContactAdminClicked' } },
 				],
 				openedLinks: links,
+			});
+		});
+
+		test('opens the organization help page externally and reports it as contact-admin', () => {
+			managedSupportUrl = 'https://example.com/copilot-help';
+			const result = createPicker();
+			assert.ok(result.listOptions.linkHandler);
+			result.listOptions.linkHandler(URI.parse(managedSupportUrl), { kind: ActionListItemKind.Action });
+			assert.deepStrictEqual({ events: result.events, openedExternally: result.openedExternally }, {
+				events: [{ name: 'chat.modelPickerInteraction', data: { interaction: 'disabledModelContactAdminClicked' } }],
+				openedExternally: ['https://example.com/copilot-help'],
 			});
 		});
 

@@ -37,6 +37,7 @@ import { IUpdateService, StateType } from '../../../../../platform/update/common
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILocalModelService } from '../../../../services/agentHost/common/localModelService.js';
+import { getOrganizationSupportActionTooltip } from '../../../../services/policies/common/organizationSupport.js';
 import { ITerminalService } from '../../../../contrib/terminal/browser/terminal.js';
 import { ChatContextKeys } from '../../../../contrib/chat/common/actions/chatContextKeys.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelControlEntry } from '../../../../contrib/chat/common/languageModels.js';
@@ -461,6 +462,8 @@ interface IPickerFixtureOptions {
 	readonly controlModels?: IStringDictionary<IModelControlEntry>;
 	/** The plan the account is on, which decides whether locked models offer upgrade or admin. */
 	readonly entitlement?: ChatEntitlement;
+	/** The organization's help page, which admin-locked models link to instead of GitHub's settings. */
+	readonly organizationSupportUrl?: string;
 	/** Settings to apply per model identifier, so rows can show what they were tuned to. */
 	readonly configured?: IStringDictionary<IStringDictionary<unknown>>;
 	readonly comparison?: IModelPickerComparison;
@@ -577,6 +580,7 @@ export async function renderPicker(context: ComponentFixtureContext, options: IP
 			show: true,
 			currentVSCodeVersion: '1.100.0',
 			manageSettingsUrl: 'https://github.com/settings/copilot',
+			organizationSupport: options.organizationSupportUrl ? { url: options.organizationSupportUrl, tooltip: getOrganizationSupportActionTooltip(options.organizationSupportUrl) } : undefined,
 			updateStateType: StateType.Idle,
 		},
 		onUnavailableLinkClick: () => { },
@@ -961,6 +965,9 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 	}),
 	PickerLockedModelsBusiness: defineComponentFixture({
 		render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS, controlModels: CONTROL_MODELS_WITH_LOCKED, entitlement: ChatEntitlement.Business }),
+	}),
+	PickerLockedModelsBusinessWithSupport: defineComponentFixture({
+		render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS, controlModels: CONTROL_MODELS_WITH_LOCKED, entitlement: ChatEntitlement.Business, organizationSupportUrl: 'https://example.com/copilot-help' }),
 	}),
 	PickerBadges: defineComponentFixture({
 		render: context => renderPicker(context, { models: [AUTO_MODEL, ...COPILOT_NOTICE_MODELS], expandOther: true }),

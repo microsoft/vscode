@@ -41,6 +41,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../../..
 import { StateType } from '../../../../../../../../platform/update/common/update.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../services/chat/common/chatEntitlementService.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../../browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
+import { IModelPickerOrganizationSupport } from '../../../../../browser/widget/input/modelPicker/modelPickerItemPrimitives.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelConfigurationAccess, IModelControlEntry, IModelsControlManifest } from '../../../../../common/languageModels.js';
 import { withoutFusionEffortLevel, type IModelConfigPropertySchema } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ChatConfiguration } from '../../../../../common/constants.js';
@@ -165,6 +166,7 @@ suite('TabbedModelPicker', () => {
 		controlManifest?: IModelsControlManifest;
 		entitlement?: ChatEntitlement;
 		showUnavailable?: boolean;
+		organizationSupport?: IModelPickerOrganizationSupport;
 		showManageModels?: boolean;
 		manageModelsDisabledReason?: string;
 		comparisonKeybinding?: number;
@@ -286,7 +288,7 @@ suite('TabbedModelPicker', () => {
 			recentModelIds: [], pinnedModelIds: options.pinnedModelIds ?? [],
 			controlModels: options.controlModels ?? Object.fromEntries(availableModels.map(model => [model.metadata.id, { exists: true, featured: true, label: model.metadata.name }])),
 			configurationAccess: access, isUBB: false, showManageModels: options.showManageModels ?? false, manageModelsDisabledReason: options.manageModelsDisabledReason, providerPlaceholders: options.providerPlaceholders ?? [],
-			unavailableContext: { show: !!options.showUnavailable, currentVSCodeVersion: '1.140.0', manageSettingsUrl: undefined, updateStateType: StateType.Idle },
+			unavailableContext: { show: !!options.showUnavailable, currentVSCodeVersion: '1.140.0', manageSettingsUrl: undefined, organizationSupport: options.organizationSupport, updateStateType: StateType.Idle },
 			onUnavailableLinkClick: () => { },
 			onSelect: model => selections.push(model.identifier),
 			onTogglePin: (id, pinned) => { if (pinned) { pins.push(id); } },
@@ -2017,6 +2019,29 @@ suite('TabbedModelPicker', () => {
 			upgrade: true,
 			selected: ['Auto'],
 			selections: [],
+		});
+	});
+
+	test('an admin-locked model links Contact your admin to the organization help page when one is set', () => {
+		const adminLink = (organizationSupport?: IModelPickerOrganizationSupport) => {
+			const result = createPicker({
+				entitlement: ChatEntitlement.Business,
+				showUnavailable: true,
+				controlModels: { locked: { label: 'Locked', featured: true, exists: false } },
+				organizationSupport,
+			});
+			const row = element(result.popup, '.chat-model-picker-unavailable');
+			const link = row.querySelector<HTMLElement>('.description a');
+			const state = { text: row.querySelector('.description')?.textContent, href: link?.dataset.href, title: link?.title };
+			result.picker.hide();
+			return state;
+		};
+		assert.deepStrictEqual({
+			withoutSupport: adminLink(),
+			withSupport: adminLink({ url: 'https://example.com/help(copilot)', tooltip: 'Opens your organization\'s help page (example.com)' }),
+		}, {
+			withoutSupport: { text: 'Contact your admin', href: undefined, title: undefined },
+			withSupport: { text: 'Contact your admin', href: 'https://example.com/help%28copilot%29', title: 'Opens your organization\'s help page (example.com)' },
 		});
 	});
 
