@@ -16,10 +16,10 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { EditorExtensions, EditorsOrder, GroupIdentifier, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { GroupDirection, GroupsOrder, IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { createEditorParts, registerTestEditor, TestFileEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IChatWindow } from '../../browser/chatWindow.js';
-import { reopenChatWindow } from '../../browser/chatWindowEditors.js';
+import { captureChatPart, reopenChatWindow } from '../../browser/chatWindowEditors.js';
 import { moveEditorsToChatWindow } from '../../browser/chatWindowParts.js';
 
 /** An editor that shows only in the main window, as a canvas does: it vetoes every move. */
@@ -70,6 +70,42 @@ suite('Chat window: moving editors', () => {
 			chatWindowActive: '/second',
 			mainWindow: ['/canvas'],
 			errors: [],
+		});
+	});
+
+	test('the groups of the chat part besides the chat\'s, such as an editor split beside the chat, are captured and restored in place, with the chat back in its own group', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		disposables.add(registerTestEditor('chatWindowChatPartEditor', [new SyncDescriptor(TestFileEditorInput)], 'chatWindowChatPartInput'));
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+		// The chat's editor has no serializer, as the chat window opens it itself
+		const chat = disposables.add(new TestFileEditorInput(URI.file('/chat'), 'chatWindowChatInput'));
+		const alpha = disposables.add(new TestFileEditorInput(URI.file('/alpha'), 'chatWindowChatPartInput'));
+
+		const chatPart = parts.createEditorPart({ container: document.createElement('div') });
+		disposables.add({ dispose: () => chatPart.close() });
+		await chatPart.activeGroup.openEditor(chat, { pinned: true });
+		const split = chatPart.addGroup(chatPart.activeGroup, GroupDirection.RIGHT);
+		await split.openEditor(alpha, { pinned: true });
+		const captured = captureChatPart(chatPart, chat);
+		// Nothing to capture with the chat alone in its part
+		const single = parts.createEditorPart({ container: document.createElement('div') });
+		disposables.add({ dispose: () => single.close() });
+		const notSplit = captureChatPart(single, chat);
+
+		const restoredChat = disposables.add(new TestFileEditorInput(URI.file('/chat'), 'chatWindowChatInput'));
+		const restored = parts.createEditorPart({ container: document.createElement('div'), state: captured!.state });
+		disposables.add({ dispose: () => restored.close() });
+		await restored.getGroups(GroupsOrder.GRID_APPEARANCE)[captured!.chatGroup].openEditor(restoredChat, { pinned: true });
+
+		const names = (part: IContentPart) => part.getGroups(GroupsOrder.GRID_APPEARANCE).map(group => group.getEditors(EditorsOrder.SEQUENTIAL).map(editor => editor.resource?.path));
+		assert.deepStrictEqual({ chatGroup: captured?.chatGroup, notSplit, before: names(chatPart), restored: names(restored) }, {
+			chatGroup: 0,
+			notSplit: undefined,
+			before: [['/chat'], ['/alpha']],
+			restored: [['/chat'], ['/alpha']]
 		});
 	});
 

@@ -9,8 +9,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IChatWindow, IChatWindowOpenOptions, IChatWindowProvider } from './chatWindow.js';
-import { deserializeChatWindowEditors, ISerializedChatWindowEditor, isSerializedChatWindowEditor, serializeChatWindowEditors } from './chatWindowEditors.js';
+import { IChatWindow, IChatWindowChatPart, IChatWindowOpenOptions, IChatWindowProvider } from './chatWindow.js';
+import { deserializeChatWindowEditors, isChatWindowChatPart, ISerializedChatWindowEditor, isSerializedChatWindowEditor, serializeChatWindowEditors } from './chatWindowEditors.js';
 
 /**
  * The chat windows open when the window last closed. The key and the format are those chat windows of the Agents window
@@ -27,6 +27,8 @@ interface IStoredChatWindow {
 	readonly editors?: readonly ISerializedChatWindowEditor[];
 	/** Whether it showed its terminals. */
 	readonly terminal?: boolean;
+	/** The groups of its chat part besides the chat's own, such as an editor split beside the chat. */
+	readonly chatPart?: IChatWindowChatPart;
 }
 
 function isStoredChatWindow(entry: Partial<IStoredChatWindow> | undefined): entry is IStoredChatWindow {
@@ -34,7 +36,8 @@ function isStoredChatWindow(entry: Partial<IStoredChatWindow> | undefined): entr
 		&& (entry.chat === undefined || typeof entry.chat === 'string')
 		&& (entry.session === undefined || typeof entry.session === 'string')
 		&& (entry.editors === undefined || (Array.isArray(entry.editors) && entry.editors.every(isSerializedChatWindowEditor)))
-		&& (entry.terminal === undefined || typeof entry.terminal === 'boolean');
+		&& (entry.terminal === undefined || typeof entry.terminal === 'boolean')
+		&& (entry.chatPart === undefined || isChatWindowChatPart(entry.chatPart));
 }
 
 function storedChat(entry: IStoredChatWindow): string {
@@ -48,6 +51,8 @@ export interface IChatWindowsRestorationHost {
 	open(chat: URI, options: IChatWindowOpenOptions): Promise<IChatWindow | undefined>;
 	/** Whether `window` shows its terminals, so that it shows them again. */
 	terminalsShown(window: IChatWindow): boolean;
+	/** The groups of `window`'s chat part besides the chat's own, so that it shows them again. */
+	chatPart(window: IChatWindow): IChatWindowChatPart | undefined;
 }
 
 /**
@@ -140,6 +145,7 @@ export class ChatWindowsRestoration extends Disposable {
 			chat: window.chat.get().toString(),
 			editors: window.mainPart.groups.flatMap(group => serializeChatWindowEditors(group)),
 			terminal: this._host.terminalsShown(window) || undefined,
+			chatPart: this._host.chatPart(window),
 		})));
 	}
 
@@ -152,7 +158,7 @@ export class ChatWindowsRestoration extends Disposable {
 			}
 			try {
 				const editors = deserializeChatWindowEditors(this._instantiationService, entry.editors ?? [], error => this._logService.error('[ChatWindow] Failed to restore an editor of a chat window', error));
-				await this._host.open(chat, { preserveFocus: true, showTerminals: entry.terminal, editors });
+				await this._host.open(chat, { preserveFocus: true, showTerminals: entry.terminal, editors, chatPart: entry.chatPart });
 			} catch (error) {
 				this._logService.error(`[ChatWindow] Failed to restore the chat window of ${chat.toString()}`, error);
 			}

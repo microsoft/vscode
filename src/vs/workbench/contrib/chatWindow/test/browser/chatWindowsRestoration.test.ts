@@ -60,6 +60,7 @@ suite('ChatWindowsRestoration', () => {
 				return undefined;
 			},
 			terminalsShown: () => true,
+			chatPart: window => window.chat.get().path === '/split' ? { state: { serializedGrid: {} }, chatGroup: 1 } : undefined,
 		}));
 		const read = () => storageService.get(OPEN_CHAT_WINDOWS_STORAGE_KEY, StorageScope.WORKSPACE);
 		return { storageService, restoration, onDidRemoveChats, restoreEnabled, provider, providerObs, windows, opened, read };
@@ -107,21 +108,21 @@ suite('ChatWindowsRestoration', () => {
 
 	test('a window is restored, without focus, for each stored chat that is not gone, and a window stored with its session shows the session', async () => {
 		const { opened } = createRestoration({
-			stored: [{ chat: 'test:/peer', terminal: true }, { session: 'test:/session' }, { chat: 'test:/archived' }],
+			stored: [{ chat: 'test:/peer', terminal: true, chatPart: { state: { serializedGrid: {} }, chatGroup: 1 } }, { session: 'test:/session' }, { chat: 'test:/archived' }],
 			gone: ['test:/archived'],
 		});
 		await flush();
 
-		assert.deepStrictEqual(opened.map(window => ({ chat: window.chat, preserveFocus: window.options.preserveFocus, showTerminals: window.options.showTerminals })), [
-			{ chat: 'test:/peer', preserveFocus: true, showTerminals: true },
-			{ chat: 'test:/session', preserveFocus: true, showTerminals: undefined },
+		assert.deepStrictEqual(opened.map(window => ({ chat: window.chat, preserveFocus: window.options.preserveFocus, showTerminals: window.options.showTerminals, chatPart: window.options.chatPart })), [
+			{ chat: 'test:/peer', preserveFocus: true, showTerminals: true, chatPart: { state: { serializedGrid: {} }, chatGroup: 1 } },
+			{ chat: 'test:/session', preserveFocus: true, showTerminals: undefined, chatPart: undefined },
 		]);
 	});
 
-	test('stores the open chat windows, with their chat and whether they show their terminals', async () => {
+	test('stores the open chat windows, with their chat, whether they show their terminals and the groups of their chat part besides the chat\'s', async () => {
 		const { storageService, windows, read } = createRestoration({});
 		await flush();
-		windows.set([createWindow('test:/a'), createWindow('test:/b')], undefined);
+		windows.set([createWindow('test:/a'), createWindow('test:/split')], undefined);
 
 		storageService.willSave();
 		const stored = JSON.parse(read()!);
@@ -129,7 +130,7 @@ suite('ChatWindowsRestoration', () => {
 		storageService.willSave();
 
 		assert.deepStrictEqual({ stored, none: read() }, {
-			stored: [{ chat: 'test:/a', editors: [], terminal: true }, { chat: 'test:/b', editors: [], terminal: true }],
+			stored: [{ chat: 'test:/a', editors: [], terminal: true }, { chat: 'test:/split', editors: [], terminal: true, chatPart: { state: { serializedGrid: {} }, chatGroup: 1 } }],
 			none: undefined,
 		});
 	});

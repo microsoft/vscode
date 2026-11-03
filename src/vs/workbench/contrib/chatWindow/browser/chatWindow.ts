@@ -43,7 +43,21 @@ export interface IChatWindowOpenOptions {
 	readonly showTerminals?: boolean;
 	/** Where on the screen a new window opens, such as where a chat was dragged to; a window that shows already stays. */
 	readonly bounds?: Partial<IRectangle>;
+	/** The groups its chat part starts with besides the chat's own, such as editors split beside the chat, as it opens again. */
+	readonly chatPart?: IChatWindowChatPart;
 }
+
+/**
+ * The groups of a chat window's chat part besides the chat's own, such as an editor split beside the chat, with their
+ * editors: the state of the part, which leaves out the chat, and where the chat goes in it.
+ */
+export interface IChatWindowChatPart {
+	/** The state of the part, from {@link IContentPart.createState}. */
+	readonly state: unknown;
+	/** The index of the chat's group among the groups of the part, in the order they appear in. */
+	readonly chatGroup: number;
+}
+
 
 /**
  * The content facet: what a chat window shows for a chat, resolved once per window by its provider. Disposed when the

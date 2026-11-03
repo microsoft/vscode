@@ -8,8 +8,8 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
-import { IChatWindow, IChatWindowOpenOptions } from './chatWindow.js';
+import { GroupsOrder, IEditorGroup, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
+import { IChatWindow, IChatWindowChatPart, IChatWindowOpenOptions } from './chatWindow.js';
 
 /** An editor of a chat window's main part, serialized with the serializer of its editor type. */
 export interface ISerializedChatWindowEditor {
@@ -68,4 +68,17 @@ export async function reopenChatWindow(window: IChatWindow, instantiationService
 export function isSerializedChatWindowEditor(value: unknown): value is ISerializedChatWindowEditor {
 	const candidate = value as Partial<ISerializedChatWindowEditor> | undefined;
 	return typeof candidate?.typeId === 'string' && typeof candidate.value === 'string' && (candidate.active === undefined || typeof candidate.active === 'boolean');
+}
+
+/** The groups of a chat window's chat part to open it with again, if the part has more groups than the chat's own. */
+export function captureChatPart(chatPart: IEditorPart, chatInput: EditorInput): IChatWindowChatPart | undefined {
+	const groups = chatPart.getGroups(GroupsOrder.GRID_APPEARANCE);
+	const chatGroup = groups.findIndex(group => group.contains(chatInput));
+	return groups.length > 1 && chatGroup !== -1 ? { state: chatPart.createState(), chatGroup } : undefined;
+}
+
+/** Whether `value`, read from storage, is what {@link captureChatPart} captured. */
+export function isChatWindowChatPart(value: unknown): value is IChatWindowChatPart {
+	const candidate = value as Partial<IChatWindowChatPart> | undefined;
+	return typeof candidate?.state === 'object' && candidate.state !== null && typeof candidate.chatGroup === 'number';
 }
