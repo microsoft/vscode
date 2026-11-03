@@ -285,7 +285,7 @@ async function loadTests(opts) {
 	installIsolationCheck(mocha.suite, [...defaultIsolationDetectors, menuChangeListenerDetector, ...isolationProbes]);
 	if (process.env.VSCODE_TEST_ISOLATION_RESET) {
 		const { installIsolationReset } = await loadFn('vs/base/test/browser/isolationReset');
-		installIsolationReset(mocha.suite, { resetPointer: () => ipcRenderer.invoke('vscode:test-pointer-leave') });
+		installIsolationReset(mocha.suite, { resetPointer: () => ipcRenderer.invoke('vscode:test-pointer-leave'), pointerOnly: process.env.VSCODE_TEST_ISOLATION_RESET === 'pointer' });
 	}
 
 	suite('Tests are using suiteSetup and setup correctly', () => {

@@ -13,6 +13,8 @@ export interface IIsolationResetOptions {
 	readonly settleMs?: number;
 	/** Moves the real pointer off the page, where the runner can, so `:hover` does not carry over to the next suite. */
 	readonly resetPointer?: () => Promise<void>;
+	/** Only move the pointer: no settling, no DOM cleanup and no blur. */
+	readonly pointerOnly?: boolean;
 }
 
 export interface IIsolationResetStats {
@@ -95,6 +97,15 @@ export function installIsolationReset(root: Mocha.Suite, options: IIsolationRese
 			suite.afterAll('Isolation reset', async () => {
 				const start = realNow();
 				const stats = getIsolationResetStats();
+
+				if (options.pointerOnly) {
+					await options.resetPointer?.();
+					const elapsed = realNow() - start;
+					stats.suites++;
+					stats.totalMs += elapsed;
+					stats.maxMs = Math.max(stats.maxMs, elapsed);
+					return;
+				}
 
 				// Settle first: a callback that runs late can still add elements or take focus.
 				await settle(settleMs);
