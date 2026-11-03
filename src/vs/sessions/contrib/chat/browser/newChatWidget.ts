@@ -1246,8 +1246,13 @@ export class NewChatWidget extends Disposable {
 				return;
 			}
 			const environment = this._environment.get();
+<<<<<<< HEAD
 			// Wait for the default environment instead of pinning a temporary Cloud-only provider.
 			if (!environment && isSessionEnvironmentPickerEnabled(this.configurationService)) {
+=======
+			if (!environment && isSessionEnvironmentPickerEnabled(this.configurationService)) {
+				// Wait for the default environment instead of letting provider registration order choose it.
+>>>>>>> 7a8a4e5a636 (sessions: fix signed-out Agents window startup (#345891))
 				return;
 			}
 			const target = environment ? this._workspaceOptOutTarget.get() : undefined;
