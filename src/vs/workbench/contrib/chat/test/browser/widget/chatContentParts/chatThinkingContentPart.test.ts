@@ -21,7 +21,7 @@ import { IAccessibilityService } from '../../../../../../../platform/accessibili
 import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestTelemetryService } from '../../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { ChatThinkingContentPart, maybePickFunWorkingMessage, splitReasoningSummaryRows } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { getToolInvocationIcon } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
@@ -705,14 +705,7 @@ suite('ChatThinkingContentPart', () => {
 		});
 
 		test('logs telemetry when the user toggles the header', () => {
-			const telemetryService = new class extends NullTelemetryServiceShape {
-				readonly events: { readonly name: string; readonly data: unknown }[] = [];
-				override publicLog2(eventName?: string, data?: unknown): void {
-					if (eventName) {
-						this.events.push({ name: eventName, data });
-					}
-				}
-			}();
+			const telemetryService = new TestTelemetryService();
 			instantiationService.stub(ITelemetryService, telemetryService);
 
 			const part = store.add(instantiationService.createInstance(
@@ -2089,7 +2082,7 @@ suite('ChatThinkingContentPart', () => {
 		test('shows individual run durations instead of a grouped total', async () => {
 			const first = createThinkingPart('Consider how to update the progress renderer.', 'first');
 			first.reasoningStartedAt = 1000;
-			first.reasoningDurationMs = 1200;
+			first.reasoningDurationMs = 400;
 			const part = createPersistentReasoning(first);
 			const second = createThinkingPart('Then check the tests.', 'second');
 			second.reasoningStartedAt = 2500;
@@ -2147,48 +2140,45 @@ suite('ChatThinkingContentPart', () => {
 
 		test('collapses reasoning and tool calls into one section that names the current activity', async () => {
 			const clock = sinon.useFakeTimers({ now: 10_000, toFake: ['Date'] });
-			try {
-				const first = createThinkingPart('**Planning the fix**\n\nCheck the renderer.', 'first');
-				const part = createConversationSection(first);
-				const thinking = snapshot(part);
-				first.reasoningStartedAt = 10_000;
-				first.reasoningDurationMs = 1200;
-				clock.tick(1200);
-				const tool = new ChatToolInvocation({ invocationMessage: 'Reading renderer.ts' }, readFile, 'read', undefined, {});
-				appendTool(part, tool, 'Read renderer.ts');
-				const reading = snapshot(part);
-				clock.tick(800);
-				await tool.didExecuteTool(undefined);
-				const second = createThinkingPart('Compare the results.', 'second');
-				part.setupThinkingContainer(second);
-				const thinkingAgain = snapshot(part);
-				second.reasoningStartedAt = 14_000;
-				second.reasoningDurationMs = 1500;
+			store.add(toDisposable(() => clock.restore()));
+			const first = createThinkingPart('**Planning the fix**\n\nCheck the renderer.', 'first');
+			const part = createConversationSection(first);
+			const thinking = snapshot(part);
+			first.reasoningStartedAt = 10_000;
+			first.reasoningDurationMs = 1200;
+			clock.tick(1200);
+			const tool = new ChatToolInvocation({ invocationMessage: 'Reading renderer.ts' }, readFile, 'read', undefined, {});
+			appendTool(part, tool, 'Read renderer.ts');
+			const reading = snapshot(part);
+			clock.tick(800);
+			await tool.didExecuteTool(undefined);
+			const second = createThinkingPart('Compare the results.', 'second');
+			part.setupThinkingContainer(second);
+			const thinkingAgain = snapshot(part);
+			second.reasoningStartedAt = 14_000;
+			second.reasoningDurationMs = 1500;
 
-				part.finalizeTitleIfDefault();
-				const finished = snapshot(part);
-				getButton(part).click();
+			part.finalizeTitleIfDefault();
+			const finished = snapshot(part);
+			getButton(part).click();
 
-				assert.deepStrictEqual({
-					thinking,
-					reading,
-					thinkingAgain,
-					finished,
-					sectionClasses: ['chat-persistent-reasoning', 'chat-thinking-conversation'].filter(name => part.domNode.classList.contains(name)),
-					headerIcons: Array.from(getButton(part).querySelectorAll('.codicon'), icon => [...icon.classList].filter(name => name !== 'codicon').join(' ')),
-					body: Array.from(part.domNode.querySelectorAll('.chat-thinking-collapsible p, .chat-thinking-collapsible .test-tool'), element => element.textContent?.trim()),
-				}, {
-					thinking: { title: 'Planning the fix', ariaLabel: 'Planning the fix', expanded: false },
-					reading: { title: 'Reading renderer.ts', ariaLabel: 'Reading renderer.ts', expanded: false },
-					thinkingAgain: { title: 'Thinking', ariaLabel: 'Thinking', expanded: false },
-					finished: { title: 'Planning the fix', ariaLabel: 'Planning the fix', expanded: false },
-					sectionClasses: ['chat-thinking-conversation'],
-					headerIcons: ['codicon-chevron-right-compact'],
-					body: ['Planning the fix', 'Check the renderer.', 'Read renderer.ts', 'Compare the results.'],
-				});
-			} finally {
-				clock.restore();
-			}
+			assert.deepStrictEqual({
+				thinking,
+				reading,
+				thinkingAgain,
+				finished,
+				sectionClasses: ['chat-persistent-reasoning', 'chat-thinking-conversation'].filter(name => part.domNode.classList.contains(name)),
+				headerIcons: Array.from(getButton(part).querySelectorAll('.codicon'), icon => [...icon.classList].filter(name => name !== 'codicon').join(' ')),
+				body: Array.from(part.domNode.querySelectorAll('.chat-thinking-collapsible p, .chat-thinking-collapsible .test-tool'), element => element.textContent?.trim()),
+			}, {
+				thinking: { title: 'Planning the fix', ariaLabel: 'Planning the fix', expanded: false },
+				reading: { title: 'Reading renderer.ts', ariaLabel: 'Reading renderer.ts', expanded: false },
+				thinkingAgain: { title: 'Thinking', ariaLabel: 'Thinking', expanded: false },
+				finished: { title: 'Planning the fix', ariaLabel: 'Planning the fix', expanded: false },
+				sectionClasses: ['chat-thinking-conversation'],
+				headerIcons: ['codicon-chevron-right-compact'],
+				body: ['Planning the fix', 'Check the renderer.', 'Read renderer.ts', 'Compare the results.'],
+			});
 		});
 
 		test('only the current tool call updates the title, and collapsing shows the latest activity', () => {
@@ -2410,18 +2400,18 @@ suite('ChatThinkingContentPart', () => {
 			}));
 
 			assert.deepStrictEqual(titles, {
-				shortReasoning: 'Thought for 0s',
-				reasoningWithoutStart: 'Thought for 2s',
+				shortReasoning: 'Thought for 1s',
+				reasoningWithoutStart: 'Thought for 3s',
 				textlessReasoning: 'Finished thinking',
 				textlessReasoningAndTools: 'Finished thinking',
 				toolsOnly: 'Finished thinking',
-				reasoningAndTools: 'Thought for 1s',
-				reasoningWithoutStartAndTools: 'Thought for 2s',
-				unfinishedTool: 'Thought for 0s',
+				reasoningAndTools: 'Thought for 2s',
+				reasoningWithoutStartAndTools: 'Thought for 3s',
+				unfinishedTool: 'Thought for 1s',
 				restoredReasoning: 'Finished thinking',
 				restoredTools: 'Finished thinking',
 				restoredReasoningThenLiveTool: 'Finished thinking',
-				liveReasoningThenRestoredTool: 'Thought for 1s',
+				liveReasoningThenRestoredTool: 'Thought for 2s',
 			});
 		});
 
@@ -2474,8 +2464,8 @@ suite('ChatThinkingContentPart', () => {
 			part.finalizeTitleIfDefault();
 
 			assert.deepStrictEqual({ title: snapshot(part).title, ariaLabel: snapshot(part).ariaLabel }, {
-				title: 'Thought for 2s',
-				ariaLabel: 'Thought for 2s',
+				title: 'Thought for 3s',
+				ariaLabel: 'Thought for 3s',
 			});
 		});
 
@@ -2711,8 +2701,8 @@ suite('ChatThinkingContentPart', () => {
 				ariaLabel: button?.ariaLabel,
 			}, {
 				generatedTitle: undefined,
-				label: 'Thought for 1s',
-				ariaLabel: 'Thought for 1s',
+				label: 'Thought for 2s',
+				ariaLabel: 'Thought for 2s',
 			});
 		});
 
@@ -2735,7 +2725,7 @@ suite('ChatThinkingContentPart', () => {
 		});
 
 		test('distinguishes zero reasoning duration from unavailable or invalid timing', () => {
-			const titles = [undefined, 0, 999, 1000, 83_000, -1, NaN, Infinity].map(reasoningDurationMs => {
+			const titles = [undefined, 0, 1, 999, 1000, 1001, 83_000, 83_001, -1, NaN, Infinity].map(reasoningDurationMs => {
 				const content = createThinkingPart('Reviewed the implementation');
 				content.reasoningDurationMs = reasoningDurationMs;
 				const part = store.add(instantiationService.createInstance(
@@ -2749,7 +2739,7 @@ suite('ChatThinkingContentPart', () => {
 				return part.domNode.querySelector('.monaco-button')?.textContent;
 			});
 
-			assert.deepStrictEqual(titles, ['Finished thinking', 'Thought for 0s', 'Thought for 0s', 'Thought for 1s', 'Thought for 1m 23s', 'Finished thinking', 'Finished thinking', 'Finished thinking']);
+			assert.deepStrictEqual(titles, ['Finished thinking', 'Thought for 1s', 'Thought for 1s', 'Thought for 1s', 'Thought for 1s', 'Thought for 2s', 'Thought for 1m 23s', 'Thought for 1m 24s', 'Finished thinking', 'Finished thinking', 'Finished thinking']);
 		});
 	});
 

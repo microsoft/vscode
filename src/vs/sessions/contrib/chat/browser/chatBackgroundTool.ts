@@ -448,6 +448,7 @@ function resolveImage(value: string, workingDirectory: URI | undefined): URI {
 	const remote = workingDirectory?.scheme !== Schemas.file ? workingDirectory : undefined;
 	if (isFileUri) {
 		const uri = URI.parse(value);
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- wraps an absolute background-image filesystem URI using the working directory's host authority
 		return remote?.scheme === AGENT_HOST_SCHEME ? toAgentHostUri(uri, remote.authority)
 			: remote ? remote.with({ path: uri.path, fragment: '' }) : uri;
 	}
@@ -458,6 +459,7 @@ function resolveImage(value: string, workingDirectory: URI | undefined): URI {
 		// The agent host may run on another OS than this window, so convert Windows paths explicitly.
 		const path = /^[a-z]:[\\/]/i.test(value) ? `/${value.replace(/\\/g, '/')}` : value;
 		if (/^(\\\\|\/\/)/.test(value) && remote.scheme === AGENT_HOST_SCHEME) {
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- preserves a UNC image path's filesystem authority inside the working directory's host wrapper
 			return toAgentHostUri(URI.file(value.replace(/\\/g, '/')), remote.authority);
 		}
 		return remote.with({ path, fragment: '' });

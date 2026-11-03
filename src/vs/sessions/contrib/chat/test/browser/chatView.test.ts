@@ -13,7 +13,7 @@ import { DeferredPromise, retry, timeout } from '../../../../../base/common/asyn
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event as VSCodeEvent } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
@@ -27,7 +27,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/virtualSched
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -582,44 +582,52 @@ suite('Sessions - Chat View', () => {
 		]);
 	});
 
-	test('reads the widget offset only for a visible external banner and follows changes in its height', () => {
-		const element = dom.$('.chat-view-chat');
-		const banner = dom.append(element, dom.$('.external-session-banner.hidden'));
-		const progress = dom.append(element, dom.$('.monaco-progress-container'));
-		const widgetContainer = dom.append(element, dom.$('.chat-view-widget'));
-		const layouts: number[][] = [];
-		const progressOffsets: string[] = [];
-		let offsetReads = 0;
-		let bannerHeight = 35;
-		Object.defineProperty(widgetContainer, 'offsetTop', { get: () => { offsetReads++; return bannerHeight; } });
-		const view: { _layoutChatWidget(): void } = Object.assign(Object.create(ChatView.prototype), {
-			element,
-			_lastLayout: { width: 500, height: 400 },
-			_externalSessionBanner: { domNode: banner },
-			_widgetContainer: widgetContainer,
-			_widget: { layout: (height: number, width: number) => layouts.push([height, width]) },
-			_comparisonResult: { layout: () => { } },
-			_layoutStickyScrollBackground: () => { },
+	for (const inputOnly of [false, true]) {
+		test(`reads the widget offset only for a visible external banner and keeps input sizing independent for input-only hosts: ${inputOnly}`, () => {
+			const element = dom.$('.chat-view-chat');
+			const banner = dom.append(element, dom.$('.external-session-banner.hidden'));
+			const progress = dom.append(element, dom.$('.monaco-progress-container'));
+			const widgetContainer = dom.append(element, dom.$('.chat-view-widget'));
+			const layouts: number[][] = [];
+			const inputMaxHeights: number[] = [];
+			const progressOffsets: string[] = [];
+			let offsetReads = 0;
+			let bannerHeight = 35;
+			Object.defineProperty(widgetContainer, 'offsetTop', { get: () => { offsetReads++; return bannerHeight; } });
+			const view: { _layoutChatWidget(): void } = Object.assign(Object.create(ChatView.prototype), {
+				element,
+				_lastLayout: { width: 500, height: 400 },
+				_inputOnly: inputOnly,
+				_externalSessionBanner: { domNode: banner },
+				_widgetContainer: widgetContainer,
+				_widget: {
+					layout: (height: number, width: number) => layouts.push([height, width]),
+					setInputPartMaxHeightOverride: (height: number) => inputMaxHeights.push(height),
+				},
+				_comparisonResult: { layout: () => { } },
+				_layoutStickyScrollBackground: () => { },
+			});
+			view._layoutChatWidget();
+			const hiddenReads = offsetReads;
+			progressOffsets.push(progress.style.top);
+			banner.classList.remove('hidden');
+			view._layoutChatWidget();
+			progressOffsets.push(progress.style.top);
+			bannerHeight = 60;
+			view._layoutChatWidget();
+			progressOffsets.push(progress.style.top);
+			banner.classList.add('hidden');
+			view._layoutChatWidget();
+			progressOffsets.push(progress.style.top);
+			assert.deepStrictEqual({ hiddenReads, offsetReads, layouts, inputMaxHeights, progressOffsets, viewportWidth: widgetContainer.style.width }, {
+				hiddenReads: 0, offsetReads: 2,
+				layouts: [[400, 500], [365, 500], [340, 500], [400, 500]],
+				inputMaxHeights: inputOnly ? Array.from({ length: 4 }, () => Number.POSITIVE_INFINITY) : [],
+				progressOffsets: ['0px', '35px', '60px', '0px'],
+				viewportWidth: '500px',
+			});
 		});
-		view._layoutChatWidget();
-		const hiddenReads = offsetReads;
-		progressOffsets.push(progress.style.top);
-		banner.classList.remove('hidden');
-		view._layoutChatWidget();
-		progressOffsets.push(progress.style.top);
-		bannerHeight = 60;
-		view._layoutChatWidget();
-		progressOffsets.push(progress.style.top);
-		banner.classList.add('hidden');
-		view._layoutChatWidget();
-		progressOffsets.push(progress.style.top);
-		assert.deepStrictEqual({ hiddenReads, offsetReads, layouts, progressOffsets, viewportWidth: widgetContainer.style.width }, {
-			hiddenReads: 0, offsetReads: 2,
-			layouts: [[400, 500], [365, 500], [340, 500], [400, 500]],
-			progressOffsets: ['0px', '35px', '60px', '0px'],
-			viewportWidth: '500px',
-		});
-	});
+	}
 
 	test('centers chat content in the width its host lays it out with, to the left of the Session Activity Bar\'s column, and keeps the scrollbar at its right edge', async () => {
 		const root = dom.append(dom.getActiveDocument().body, dom.$('.monaco-workbench.agent-sessions-workbench'));
@@ -3150,9 +3158,7 @@ suite('Sessions - Chat View', () => {
 			const request = dom.append(session, dom.$('.interactive-item-container.interactive-request'));
 			const actionRequest = disposables.add(new ChatActionRequestContentPart({
 				title: 'Action', label: 'Action request', source: 'Test', message: 'Test message',
-			}, new class extends mock<IHoverService>() {
-				override setupDelayedHover() { return Disposable.None; }
-			}()));
+			}, { ...NullHoverService }));
 			dom.append(request, actionRequest.domNode);
 			const card = actionRequest.domNode.querySelector<HTMLElement>('.chat-action-request-card')!;
 			const disclosure = actionRequest.domNode.querySelector<HTMLElement>('.chat-action-request-disclosure')!;

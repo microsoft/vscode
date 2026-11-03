@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Position } from '../../../common/core/position.js';
 import { IRange, Range } from '../../../common/core/range.js';
@@ -13,10 +14,11 @@ import { DefaultLinesDiffComputer } from '../../../common/diff/defaultLinesDiffC
 import { StringEdit } from '../../../common/core/edits/stringEdit.js';
 import { EditorWorker } from '../../../common/services/editorWebWorker.js';
 import { ICommonModel } from '../../../common/services/textModelSync/textModelSync.impl.js';
+import { createTextModel } from '../testTextModel.js';
 
 suite('EditorWebWorker', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	class WorkerWithModels extends EditorWorker {
 
@@ -45,15 +47,12 @@ suite('EditorWebWorker', () => {
 				ignoreTrimWhitespace: false, maxComputationTimeMs: 500, computeMoves: false,
 			});
 			const stub = sinon.stub(DefaultLinesDiffComputer.prototype, 'computeDiff').returns({ ...diff, hitTimeout });
-			try {
-				const result = await worker.$computeStringDiff('aaa\nzzz', 'AAA\nzzz', { maxComputationTimeMs: 500 }, 'advanced');
-				assert.deepStrictEqual({
-					isCoarse: result.isCoarse,
-					after: StringEdit.fromJson(result.edit).apply('aaa\nzzz'),
-				}, { isCoarse: hitTimeout, after: 'AAA\nzzz' });
-			} finally {
-				stub.restore();
-			}
+			store.add(toDisposable(() => stub.restore()));
+			const result = await worker.$computeStringDiff('aaa\nzzz', 'AAA\nzzz', { maxComputationTimeMs: 500 }, 'advanced');
+			assert.deepStrictEqual({
+				isCoarse: result.isCoarse,
+				after: StringEdit.fromJson(result.edit).apply('aaa\nzzz'),
+			}, { isCoarse: hitTimeout, after: 'AAA\nzzz' });
 		});
 	}
 
@@ -199,6 +198,93 @@ suite('EditorWebWorker', () => {
 			const [first] = edits;
 			assert.strictEqual(first.text, '\n');
 			assert.deepStrictEqual(first.range, { startLineNumber: 3, startColumn: 2, endLineNumber: 3, endColumn: 2 });
+		});
+	});
+
+	test('MoreMinimal preserves surrogate pairs', async () => {
+		const original = '𫚭齅5龯蝌䶱aＺr灋㊣珸琱璳AbD龪龫藏㒱㓥㓹3UxヅЁЖa偓兘㎜𫟹';
+		const modified = '㈢鿃2磷𬸚﹢㘥怐ND䶮ёㄆホ鿃龬鿍a6纷冬督㊣㈱㔾㖏㕽內冚7畫皗Э𫔍';
+		const workerModel = worker.addModel([original]);
+		const edits = await worker.$computeMoreMinimalEdits(workerModel.uri.toString(), [{
+			text: modified,
+			range: new Range(1, 1, 1, original.length + 1)
+		}], false);
+		const textModel = store.add(createTextModel(original));
+
+		textModel.applyEdits(edits);
+
+		assert.strictEqual(textModel.getValue(), modified);
+	});
+
+	test('MoreMinimal falls back when a range follows an unpaired high surrogate', async () => {
+		const original = 'aX\uD83Dy';
+		const modified = 'bX😀y';
+		const workerModel = worker.addModel([original]);
+		const edits = await worker.$computeMoreMinimalEdits(workerModel.uri.toString(), [{
+			text: modified,
+			range: new Range(1, 1, 1, original.length + 1)
+		}], false);
+		const textModel = store.add(createTextModel(original));
+
+		textModel.applyEdits(edits);
+
+		assert.deepStrictEqual({
+			edits,
+			value: textModel.getValue(),
+		}, {
+			edits: [{
+				text: modified,
+				range: new Range(1, 1, 1, original.length + 1),
+			}],
+			value: modified,
+		});
+	});
+
+	test('MoreMinimal can delete an unpaired high surrogate at the end of a line', async () => {
+		const original = 'AB\uD83D';
+		const modified = 'AB';
+		const workerModel = worker.addModel([original]);
+		const edits = await worker.$computeMoreMinimalEdits(workerModel.uri.toString(), [{
+			text: modified,
+			range: new Range(1, 1, 1, original.length + 1)
+		}], false);
+		const textModel = store.add(createTextModel(original));
+
+		textModel.applyEdits(edits);
+
+		assert.deepStrictEqual({
+			edits,
+			value: textModel.getValue(),
+		}, {
+			edits: [{
+				text: '',
+				range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 4 },
+			}],
+			value: modified,
+		});
+	});
+
+	test('MoreMinimal falls back when inserting after an unpaired high surrogate at the end of a line', async () => {
+		const original = 'AB\uD83D';
+		const modified = 'AB\uD83DX';
+		const workerModel = worker.addModel([original]);
+		const edits = await worker.$computeMoreMinimalEdits(workerModel.uri.toString(), [{
+			text: modified,
+			range: new Range(1, 1, 1, original.length + 1)
+		}], false);
+		const textModel = store.add(createTextModel(original));
+
+		textModel.applyEdits(edits);
+
+		assert.deepStrictEqual({
+			edits,
+			value: textModel.getValue(),
+		}, {
+			edits: [{
+				text: modified,
+				range: new Range(1, 1, 1, original.length + 1),
+			}],
+			value: modified,
 		});
 	});
 

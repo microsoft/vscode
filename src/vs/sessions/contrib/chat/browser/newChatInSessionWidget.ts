@@ -208,6 +208,7 @@ export class NewChatInSessionWidget extends Disposable {
 		});
 
 		this._newChatInput = this._register(this.instantiationService.createInstance(SharedChatInputComposer, {
+			inputEditorOptions: _options.inputEditorOptions,
 			session: this._session,
 			chat: this._chat,
 			sendRequest: async ({ query, attachments, background, userInteraction }) => this._send(query, attachments, background, userInteraction),

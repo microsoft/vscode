@@ -8,9 +8,7 @@ import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRen
 import { Separator } from '../../../../../../../base/common/actions.js';
 import { asArray } from '../../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
-import { toErrorMessage } from '../../../../../../../base/common/errorMessage.js';
 import { ErrorNoTelemetry } from '../../../../../../../base/common/errors.js';
-import { Emitter } from '../../../../../../../base/common/event.js';
 import { createCommandUri, escapeMarkdownSyntaxTokens, MarkdownString, type IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import Severity from '../../../../../../../base/common/severity.js';
@@ -24,14 +22,12 @@ import { IDialogService } from '../../../../../../../platform/dialogs/common/dia
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { IPreferencesService } from '../../../../../../services/preferences/common/preferences.js';
 import { ITerminalChatService } from '../../../../../terminal/browser/terminal.js';
 import { TerminalContribCommandId, TerminalContribSettingId } from '../../../../../terminal/terminalContribExports.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../../common/chat.js';
-import { IChatSideChatService } from '../../../../common/chatSideChatService.js';
 import { isResponseVM } from '../../../../common/model/chatViewModel.js';
 import { IChatToolInvocation, ToolConfirmKind, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
@@ -46,6 +42,7 @@ import { CodeBlockPart, ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { buildCustomOptionButtons } from './abstractToolConfirmationSubPart.js';
 import { createApprovalReasonBadge, createToolRiskBadge } from './toolRiskBadgeHelper.js';
+import { ChatTerminalToolExplanation } from './chatTerminalToolExplanation.js';
 
 export const enum TerminalToolConfirmationStorageKeys {
 	TerminalAutoApproveWarningAccepted = 'chat.tools.terminal.autoApprove.warningAccepted'
@@ -74,9 +71,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 	public readonly domNode: HTMLElement;
 	public readonly codeblocks: IChatCodeBlockInfo[] = [];
 
-	private readonly _canExplain: boolean;
-	private _isExplaining = false;
-	private readonly _onDidChangeExplainDisablement = this._register(new Emitter<boolean>());
+	private readonly _explanation: ChatTerminalToolExplanation;
 
 	constructor(
 		protected override readonly toolInvocation: IChatToolInvocation,
@@ -98,8 +93,6 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		@ITerminalChatService private readonly terminalChatService: ITerminalChatService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@IChatToolRiskAssessmentService private readonly riskAssessmentService: IChatToolRiskAssessmentService,
-		@IChatSideChatService private readonly sideChatService: IChatSideChatService,
-		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super(toolInvocation);
 
@@ -109,7 +102,12 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		}
 
 		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
-		this._canExplain = this.sideChatService.canAskInSideChat(this.context.element.sessionResource);
+		this._explanation = this._register(this.instantiationService.createInstance(
+			ChatTerminalToolExplanation,
+			this.context.element.sessionResource,
+			isResponseVM(this.context.element) ? this.context.element.requestId : undefined,
+			() => terminalData.commandLine.userEdited ?? terminalData.commandLine.forDisplay ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original,
+		));
 
 		const { title, message, disclaimer, terminalCustomActions } = state.confirmationMessages;
 		const titleText = typeof title === 'string' ? title : renderAsPlaintext(title).trim();
@@ -482,7 +480,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 					case 'explain': {
 						// Explaining leaves the confirmation pending so it can still be allowed or skipped.
 						doComplete = false;
-						await this._explainInSideChat(terminalData.commandLine);
+						await this._explanation.explain();
 						break;
 					}
 					case 'sessionApproval': {
@@ -518,14 +516,11 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 
 	private _createButtons(moreActions: (IChatConfirmationButton<TerminalNewAutoApproveButtonData> | Separator)[] | undefined): IChatConfirmationButton<TerminalConfirmationButtonData>[] {
 		const buttons = this._createDecisionButtons(moreActions);
-		if (this._canExplain) {
+		const explanation = this._explanation.button;
+		if (explanation) {
 			buttons.push({
-				label: localize('tool.explain', "Explain"),
-				tooltip: localize('tool.explain.detail', "Explain this command in a side chat"),
+				...explanation,
 				data: { type: 'explain' },
-				isSecondary: true,
-				disabled: this._isExplaining,
-				onDidChangeDisablement: this._onDidChangeExplainDisablement.event,
 			});
 		}
 		return buttons;
@@ -555,39 +550,6 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				isSecondary: true,
 			},
 		];
-	}
-
-	/**
-	 * Asks a side chat (like `/btw`) what the command will do, anchored to the
-	 * command the user would approve, including any edits they made to it.
-	 */
-	private async _explainInSideChat(commandLine: IChatTerminalToolInvocationData['commandLine']): Promise<void> {
-		if (this._isExplaining) {
-			return;
-		}
-		const element = this.context.element;
-		const command = (commandLine.userEdited ?? commandLine.forDisplay ?? commandLine.toolEdited ?? commandLine.original).trim();
-		this._setExplaining(true);
-		try {
-			await this.sideChatService.askInSideChat(
-				element.sessionResource,
-				localize('tool.explain.query', "Explain what this terminal command will do."),
-				{ text: command },
-				{ sourceTurnId: isResponseVM(element) ? element.requestId : undefined },
-			);
-		} catch (error) {
-			this.notificationService.error(localize('tool.explain.failed', "The side chat could not be started: {0}", toErrorMessage(error)));
-		} finally {
-			this._setExplaining(false);
-		}
-	}
-
-	private _setExplaining(isExplaining: boolean): void {
-		if (this._store.isDisposed) {
-			return;
-		}
-		this._isExplaining = isExplaining;
-		this._onDidChangeExplainDisablement.fire(isExplaining);
 	}
 
 	private async _showAutoApproveWarning(): Promise<boolean> {

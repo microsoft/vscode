@@ -98,7 +98,6 @@
 			"{Locked='](command:workbench.action.chat.open?%7B%22query%22%3A%22%40vscode%20%2FstartDebugging%20%22%2C%22isPartialQuery%22%3Atrue%7D)'}"
 		]
 	},
-	"github.copilot.command.logWorkbenchState": "Log Workbench State",
 	"github.copilot.command.togglePowerSaveBlocker": "Toggle Power Save Blocker",
 	"github.copilot.command.showChatLogView": "Show Chat Debug View",
 	"github.copilot.command.showOutputChannel": "Show Output Channel",

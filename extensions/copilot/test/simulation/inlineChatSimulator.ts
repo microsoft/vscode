@@ -19,7 +19,6 @@ import { editorAgentName, getChatParticipantIdFromName } from '../../src/platfor
 import { IChatMLFetcher } from '../../src/platform/chat/common/chatMLFetcher';
 import { ILanguageFeaturesService } from '../../src/platform/languages/common/languageFeaturesService';
 import { ITabsAndEditorsService } from '../../src/platform/tabs/common/tabsAndEditorsService';
-import { IDeserializedWorkspaceState } from '../../src/platform/test/node/promptContextModel';
 import { ITestingServicesAccessor, TestingServiceCollection } from '../../src/platform/test/node/services';
 import { IFile, isNotebook, SimulationWorkspace } from '../../src/platform/test/node/simulationWorkspace';
 import { ChatResponseStreamImpl } from '../../src/util/common/chatResponseStreamImpl';
@@ -43,17 +42,13 @@ import { getDiagnostics } from './diagnosticProviders';
 import { convertTestToVSCodeDiagnostics } from './diagnosticProviders/utils';
 import { SimulationLanguageFeaturesService } from './language/simulationLanguageFeatureService';
 import { IDiagnostic, IDiagnosticComparison, INLINE_CHANGED_DOC_TAG, INLINE_INITIAL_DOC_TAG, INLINE_STATE_TAG, IRange, IWorkspaceState, IWorkspaceStateFile } from './shared/sharedTypes';
-import { DiagnosticProviderId, IDeserializedWorkspaceStateBasedScenario, IInlineEdit, IOutcome, IScenario, IScenarioDiagnostic, IScenarioQuery, OutcomeAnnotation } from './types';
+import { DiagnosticProviderId, IInlineEdit, IOutcome, IScenario, IScenarioDiagnostic, IScenarioQuery, OutcomeAnnotation } from './types';
 
-export type SimulationWorkspaceInput = { files: IFile[]; workspaceFolders?: Uri[] } | { workspaceState: IDeserializedWorkspaceState };
+export type SimulationWorkspaceInput = { files: IFile[]; workspaceFolders?: Uri[] };
 
 export function setupSimulationWorkspace(testingServiceCollection: TestingServiceCollection, input: SimulationWorkspaceInput): SimulationWorkspace {
 	const workspace = new SimulationWorkspace();
-	if ('workspaceState' in input) {
-		workspace.resetFromDeserializedWorkspaceState(input.workspaceState);
-	} else {
-		workspace.resetFromFiles(input.files, input.workspaceFolders);
-	}
+	workspace.resetFromFiles(input.files, input.workspaceFolders);
 	workspace.setupServices(testingServiceCollection);
 	testingServiceCollection.define(ILanguageFeaturesService, new SyncDescriptor(SimulationLanguageFeaturesService, [workspace]));
 	return workspace;
@@ -65,10 +60,6 @@ export async function teardownSimulationWorkspace(accessor: ITestingServicesAcce
 		await ls.teardown();
 	}
 	workbench.dispose();
-}
-
-function isDeserializedWorkspaceStateBasedScenario(scenario: IScenario): scenario is IDeserializedWorkspaceStateBasedScenario {
-	return 'workspaceState' in scenario;
 }
 
 export async function simulateInlineChat(
@@ -112,7 +103,7 @@ export async function simulateEditingScenario(
 	host: EditingSimulationHost
 ): Promise<void> {
 	assert(scenario.queries.length > 0, `Cannot simulate scenario with no queries`);
-	assert(isDeserializedWorkspaceStateBasedScenario(scenario) || scenario.files.length > 0, `Cannot simulate scenario with no files`);
+	assert(scenario.files.length > 0, `Cannot simulate scenario with no files`);
 
 	const workspace = setupSimulationWorkspace(testingServiceCollection, scenario);
 

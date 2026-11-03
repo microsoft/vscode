@@ -33,11 +33,6 @@ export const OPENAI_FETCHER_CACHE_SALT: { getByUrl: (url: string) => string } = 
 };
 
 /**
- * Used for all Code Search requests.
- */
-export const CODE_SEARCH_CACHE_SALT = '';
-
-/**
  * Used for all diagnostics providers.
  */
 export const CACHING_DIAGNOSTICS_PROVIDER_CACHE_SALT = 4;
@@ -51,8 +46,3 @@ export const TS_SERVER_DIAGNOSTICS_PROVIDER_CACHE_SALT = 5;
  * Used by `isValidPythonFile`.
  */
 export const PYTHON_VALID_SYNTAX_CACHE_SALT = 2;
-
-/**
- * Used for all Chunking Endpoint requests.
- */
-export const CHUNKING_ENDPOINT_CACHE_SALT = '';

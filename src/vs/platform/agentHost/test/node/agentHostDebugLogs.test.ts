@@ -25,6 +25,7 @@ import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvid
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 
 suite('AgentHostDebugLogsCollector', () => {
 	const emptyProvider = { id: 'test', collectDebugLogs: async () => false };
@@ -567,24 +568,21 @@ suite('AgentHostDebugLogsCollector', () => {
 			tmpDir: URI.file(outputRoot),
 		}, new NullLogService(), 1000));
 		const clock = sinon.useFakeTimers();
-		try {
-			const artifact = await collector.collect([{
-				id: 'test',
-				collectDebugLogs: async (_session, target) => {
-					await writeFile(join(target.fsPath, 'events.jsonl'), 'events');
-					return true;
-				},
-			}], undefined, 'directory');
-			const source = joinPath(artifact.resource, 'events.jsonl');
-			clock.tick(600);
-			await collector.readArtifactChunk(source, 0);
-			clock.tick(600);
-			assert.strictEqual((await collector.readArtifactChunk(source, 0)).data.toString(), 'events');
-			clock.tick(1100);
-			await assert.rejects(collector.readArtifactChunk(source, 0), /Unknown or expired/);
-		} finally {
-			clock.restore();
-		}
+		disposables.add(toDisposable(() => clock.restore()));
+		const artifact = await collector.collect([{
+			id: 'test',
+			collectDebugLogs: async (_session, target) => {
+				await writeFile(join(target.fsPath, 'events.jsonl'), 'events');
+				return true;
+			},
+		}], undefined, 'directory');
+		const source = joinPath(artifact.resource, 'events.jsonl');
+		clock.tick(600);
+		await collector.readArtifactChunk(source, 0);
+		clock.tick(600);
+		assert.strictEqual((await collector.readArtifactChunk(source, 0)).data.toString(), 'events');
+		clock.tick(1100);
+		await assert.rejects(collector.readArtifactChunk(source, 0), /Unknown or expired/);
 	});
 	test('removes retained artifacts when disposed', async () => {
 		const logsHome = join(testRoot, 'logs');
