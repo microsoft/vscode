@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -46,6 +46,7 @@ suite('WindowCanvasService', () => {
 	function createHarness(storage = store.add(new InMemoryStorageService()), whenReady = Promise.resolve()) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const activeChanged = store.add(new Emitter<void>());
+		const focused = store.add(new Emitter<void>());
 		const closed = store.add(new Emitter<IEditorCloseEvent>());
 		const didOpen = store.add(new Emitter<WindowCanvasInput>());
 		const workingSetState = observableValue<ICanvasWorkingSetState>('workingSet', { owner: undefined, restoring: false, applying: false });
@@ -72,7 +73,7 @@ suite('WindowCanvasService', () => {
 		};
 		instantiationService.stub(IEditorGroupsService, {
 			whenReady,
-			mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ activeGroup: group, groups: [group], windowId: 1 }),
+			mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ activeGroup: group, groups: [group], windowId: 1, onDidFocus: focused.event }),
 			getGroup: () => group,
 		});
 		instantiationService.stub(IEditorService, {
@@ -118,6 +119,7 @@ suite('WindowCanvasService', () => {
 			setOpenGate(gate: DeferredPromise<void>) { openGate = gate; },
 			setFailOpen(value: boolean) { failOpen = value; },
 			setPaneVisible(value: boolean) { paneVisible = value; },
+			focus() { focused.fire(); },
 		};
 	}
 
@@ -144,6 +146,7 @@ suite('WindowCanvasService', () => {
 		const content = h.service.getPresentation(first).content;
 		assert.ok(content instanceof TestCanvas);
 		content.draft = 'unsent draft';
+		h.service.deactivateCanvas();
 		h.workingSetState.set({ owner: undefined, restoring: true, applying: true }, undefined);
 		h.close(first);
 		const nextOpen = Event.toPromise(h.didOpen.event);
@@ -155,7 +158,96 @@ suite('WindowCanvasService', () => {
 			draft: content.draft,
 			preserveFocus: h.opened[1].options?.preserveFocus,
 			inactive: h.opened[1].options?.inactive,
-		}, { recreatedInput: true, sameContent: true, draft: 'unsent draft', preserveFocus: true, inactive: true });
+			navigation: h.service.navigationRequest.get(),
+			activeOpen: h.service.activeCanvasOpen.get(),
+		}, { recreatedInput: true, sameContent: true, draft: 'unsent draft', preserveFocus: true, inactive: true, navigation: undefined, activeOpen: undefined });
+	});
+
+	test('history reuses canvas content and distinguishes repeated explicit opens from traversal', async () => {
+		const h = createHarness();
+		store.add(h.service.registerCanvas(descriptor));
+		const openings: string[] = [];
+		store.add(autorun(reader => {
+			const opening = h.service.activeCanvasOpen.read(reader);
+			if (opening) {
+				openings.push(opening.source);
+			}
+		}));
+		await h.service.openCanvas(descriptor.id);
+		const first = h.opened[0].input;
+		const presentation = h.service.getPresentation(first);
+		assert.ok(presentation.content instanceof TestCanvas);
+		presentation.content.draft = 'unsent draft';
+		h.service.deactivateCanvas();
+		await h.service.openCanvas(descriptor.id, { source: 'history' });
+		await h.service.openCanvas(descriptor.id);
+
+		assert.deepStrictEqual({
+			openings,
+			sameInput: h.opened.every(open => open.input === first),
+			sameContent: h.service.getPresentation(first) === presentation,
+			draft: presentation.content.draft,
+			editors: h.editors.size,
+		}, { openings: ['explicit', 'history', 'explicit'], sameInput: true, sameContent: true, draft: 'unsent draft', editors: 1 });
+	});
+
+	test('focusing a retained canvas after a session publishes a new explicit destination', async () => {
+		const h = createHarness();
+		store.add(h.service.registerCanvas(descriptor));
+		await h.service.openCanvas(descriptor.id);
+		const first = h.service.activeCanvasOpen.get();
+		h.service.deactivateCanvas();
+		h.focus();
+		assert.deepStrictEqual({
+			destination: h.service.activeCanvasOpen.get(),
+			newRequest: h.service.navigationRequest.get() !== first,
+			editorOpens: h.opened.length,
+		}, { destination: { id: descriptor.id, source: 'explicit' }, newRequest: true, editorOpens: 1 });
+	});
+
+	test('a canceled canvas open never records or reveals a destination after editor readiness', async () => {
+		const ready = new DeferredPromise<void>();
+		const h = createHarness(undefined, ready.p);
+		store.add(h.service.registerCanvas(descriptor));
+		const opening = h.service.openCanvas(descriptor.id);
+		const request = h.service.navigationRequest.get();
+		h.service.cancelPendingOpen();
+		await ready.complete();
+		await opening;
+		h.workingSetState.set({ owner: undefined, restoring: true, applying: true }, undefined);
+		h.workingSetState.set({ owner: undefined, restoring: false, applying: false }, undefined);
+		await timeout(0);
+		assert.deepStrictEqual({
+			request, navigation: h.service.navigationRequest.get(),
+			destination: h.service.activeCanvasOpen.get(), opens: h.opened.length,
+		}, { request: { id: descriptor.id, source: 'explicit' }, navigation: undefined, destination: undefined, opens: 0 });
+	});
+
+	test('a foreground canvas open waits for working-set restoration without losing its intent', async () => {
+		const h = createHarness();
+		store.add(h.service.registerCanvas(descriptor));
+		h.workingSetState.set({ owner: undefined, restoring: true, applying: true }, undefined);
+		const opening = h.service.openCanvas(descriptor.id, { source: 'history' });
+		const whileRestoring = h.opened.length;
+		h.workingSetState.set({ owner: undefined, restoring: false, applying: false }, undefined);
+		await opening;
+		assert.deepStrictEqual({
+			whileRestoring, destination: h.service.activeCanvasOpen.get(),
+			options: h.opened.map(open => ({ preserveFocus: open.options?.preserveFocus, inactive: open.options?.inactive })),
+		}, { whileRestoring: 0, destination: { id: descriptor.id, source: 'history' }, options: [{ preserveFocus: false, inactive: false }] });
+	});
+
+	test('canceling an open stops waiting for background working-set restoration', async () => {
+		const h = createHarness();
+		store.add(h.service.registerCanvas(descriptor));
+		h.workingSetState.set({ owner: undefined, restoring: true, applying: true }, undefined);
+		const opening = h.service.openCanvas(descriptor.id);
+		h.service.cancelPendingOpen();
+		await opening;
+		h.workingSetState.set({ owner: undefined, restoring: false, applying: false }, undefined);
+		assert.deepStrictEqual({ opens: h.opened.length, navigation: h.service.navigationRequest.get(), destination: h.service.activeCanvasOpen.get() }, {
+			opens: 0, navigation: undefined, destination: undefined,
+		});
 	});
 
 	for (const { focusMoved, retainFocusOnRestore } of [
@@ -192,6 +284,41 @@ suite('WindowCanvasService', () => {
 		});
 	}
 
+	for (const navigateBeforeRestore of [false, true]) {
+		test(`explicit session navigation prevents restoring old canvas focus (${navigateBeforeRestore})`, async () => {
+			const h = createHarness();
+			store.add(h.service.registerCanvas({ ...descriptor, retainFocusOnRestore: true }));
+			store.add(h.didOpen.event(input => document.body.appendChild(h.service.getPresentation(input).element)));
+			await h.service.openCanvas(descriptor.id);
+			const first = h.opened[0].input;
+			const presentation = h.service.getPresentation(first);
+			store.add({ dispose: () => presentation.element.remove() });
+			assert.ok(presentation.content instanceof TestCanvas);
+			const content = presentation.content;
+			content.draft = 'unsent';
+			content.input.focus();
+			if (navigateBeforeRestore) {
+				h.service.deactivateCanvas();
+			}
+			h.workingSetState.set({ owner: undefined, restoring: true, applying: true }, undefined);
+			if (!navigateBeforeRestore) {
+				h.service.deactivateCanvas();
+			}
+			presentation.element.remove();
+			h.close(first);
+			const nextOpen = Event.toPromise(h.didOpen.event);
+			h.workingSetState.set({ owner: undefined, restoring: false, applying: false }, undefined);
+			const restored = await nextOpen;
+			await timeout(0);
+			assert.deepStrictEqual({
+				focusCalls: content.focusCalls,
+				canvas: h.service.activeCanvasOpen.get(),
+				sameContent: h.service.getPresentation(restored).content === content,
+				draft: content.draft,
+			}, { focusCalls: 0, canvas: undefined, sameContent: true, draft: 'unsent' });
+		});
+	}
+
 	test('without open canvases working-set changes do not affect editor visibility', () => {
 		const h = createHarness();
 		h.workingSetState.set({ owner: undefined, restoring: true, applying: true }, undefined);
@@ -220,8 +347,8 @@ suite('WindowCanvasService', () => {
 		store.add(restored.service.registerCanvas(descriptor));
 		await nextOpen;
 		await timeout(0);
-		assert.deepStrictEqual({ before, restored: restored.opened.map(entry => entry.input.descriptor.id), hides: restored.hides, errors: restored.errors }, {
-			before: 0, restored: [descriptor.id], hides: 0, errors: [],
+		assert.deepStrictEqual({ before, restored: restored.opened.map(entry => entry.input.descriptor.id), hides: restored.hides, errors: restored.errors, navigation: restored.service.navigationRequest.get(), destination: restored.service.activeCanvasOpen.get() }, {
+			before: 0, restored: [descriptor.id], hides: 0, errors: [], navigation: undefined, destination: undefined,
 		});
 	});
 
@@ -284,6 +411,7 @@ suite('WindowCanvasService', () => {
 		store.add(h.service.registerCanvas(descriptor));
 		h.setFailOpen(true);
 		await assert.rejects(h.service.openCanvas(descriptor.id), /test open failure/);
+		assert.deepStrictEqual({ navigation: h.service.navigationRequest.get(), destination: h.service.activeCanvasOpen.get() }, { navigation: undefined, destination: undefined });
 		h.setFailOpen(false);
 		await h.service.openCanvas(descriptor.id);
 		assert.strictEqual(h.editors.size, 1);

@@ -73,7 +73,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
-import { IWindowCanvasService } from '../../../../services/canvas/browser/windowCanvasService.js';
+import { IWindowCanvasService, WindowCanvasInput } from '../../../../services/canvas/browser/windowCanvasService.js';
 
 suite('Sessions - Actions', () => {
 
@@ -1216,7 +1216,8 @@ suite('Sessions - Actions', () => {
 	});
 
 	for (const os of [OperatingSystem.Windows, OperatingSystem.Macintosh, OperatingSystem.Linux]) {
-		test(`binds Alt+Left/Right to session navigation outside the editor area (${os})`, () => {
+		test(`binds Alt+Left/Right to session navigation outside ordinary editors (${os})`, () => {
+			const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
 			const bindings = KeybindingsRegistry.getDefaultKeybindingsForOS(os);
 			const navigationBindings = [
 				{ command: 'sessions.goBack', key: KeyCode.LeftArrow },
@@ -1226,14 +1227,23 @@ suite('Sessions - Actions', () => {
 				return bindings.filter(binding => binding.command === command && binding.keybinding?.getHashCode() === hash)
 					.map(binding => ({
 						command: binding.command,
-						when: binding.when?.serialize().split(' && ').sort(),
+						enabled: [
+							{ editorAreaFocus: false, activeEditor: '', inputFocus: false },
+							{ editorAreaFocus: true, activeEditor: 'workbench.editors.textEditor', inputFocus: false },
+							{ editorAreaFocus: true, activeEditor: WindowCanvasInput.EDITOR_ID, inputFocus: false },
+							{ editorAreaFocus: true, activeEditor: WindowCanvasInput.EDITOR_ID, inputFocus: true },
+						].map(focus => {
+							for (const [key, value] of Object.entries({ isSessionsWindow: true, sessionsCanGoBack: true, sessionsCanGoForward: true, textInputFocus: false, ...focus })) {
+								context.createKey(key, value).set(value);
+							}
+							return context.contextMatchesRules(binding.when ?? undefined);
+						}),
 					}));
 			});
 
-			const inputScope = os === OperatingSystem.Macintosh ? ['!inputFocus', '!textInputFocus'] : [];
 			assert.deepStrictEqual(navigationBindings, [
-				[{ command: 'sessions.goBack', when: ['!editorAreaFocus', ...inputScope, 'isSessionsWindow', 'sessionsCanGoBack'] }],
-				[{ command: 'sessions.goForward', when: ['!editorAreaFocus', ...inputScope, 'isSessionsWindow', 'sessionsCanGoForward'] }],
+				[{ command: 'sessions.goBack', enabled: [true, false, true, os !== OperatingSystem.Macintosh] }],
+				[{ command: 'sessions.goForward', enabled: [true, false, true, os !== OperatingSystem.Macintosh] }],
 			]);
 		});
 	}
@@ -1253,6 +1263,7 @@ suite('Sessions - Actions', () => {
 			{ inputFocus: false, textInputFocus: true, editorAreaFocus: false },
 			{ inputFocus: true, textInputFocus: false, editorAreaFocus: false },
 			{ inputFocus: true, textInputFocus: true, editorAreaFocus: true },
+			{ inputFocus: true, textInputFocus: true, editorAreaFocus: true, activeEditor: WindowCanvasInput.EDITOR_ID },
 		].map(focus => {
 			for (const [key, value] of Object.entries({ isSessionsWindow: true, sessionsCanGoBack: true, sessionsCanGoForward: true, ...focus })) {
 				contextKeyService.createKey(key, value).set(value);
@@ -1269,6 +1280,7 @@ suite('Sessions - Actions', () => {
 			['cursorWordLeft', 'cursorWordEndRight', 'sessions.goBack'],
 			[undefined, undefined, 'sessions.goBack'],
 			['cursorWordLeft', 'cursorWordEndRight', undefined],
+			['cursorWordLeft', 'cursorWordEndRight', 'sessions.goBack'],
 		]);
 	});
 
@@ -1961,8 +1973,8 @@ suite('Sessions - Actions', () => {
 		};
 
 		const primary = {
-			checked: { navigationVersion: 1, events: ['clearNoWorkspace', 'unset', 'view:empty', 'focusPicker'], requests: [] },
-			unchecked: { navigationVersion: 1, events: ['unset', 'view:empty', 'focusPicker'], requests: [] },
+			checked: { navigationVersion: 1, events: ['clearNoWorkspace', 'unset', 'open', 'view:empty', 'focusPicker'], requests: [undefined] },
+			unchecked: { navigationVersion: 1, events: ['unset', 'open', 'view:empty', 'focusPicker'], requests: [undefined] },
 		};
 		const toSide = { navigationVersion: 1, events: ['open'], requests: [{ folderUri: undefined, toSide: true }] };
 		assert.deepStrictEqual({
@@ -2189,6 +2201,46 @@ suite('Sessions - Actions', () => {
 		await run({ sessions: [sandbox('sandbox'), local] });
 
 		assert.deepStrictEqual({ opened, selections }, { opened: 2, selections: ['local-provider file:///local'] });
+	});
+
+	test('New Session opens the standard composer instead of delegating into the active native canvas', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
+		instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
+		let canvasRequests = 0;
+		let sessionRequests = 0;
+		instantiationService.stub(IWindowCanvasService, {
+			activeCanvasId: constObservable('test.inbox'),
+			openNewSession: async () => { canvasRequests++; },
+		});
+		instantiationService.stub(ISessionsService, {
+			activeSession: constObservable(undefined),
+			openNewSession: async () => { sessionRequests++; return { session: undefined, trustDeclined: false }; },
+		});
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
+		const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID);
+		assert.ok(command);
+		await command.handler(instantiationService);
+		assert.deepStrictEqual({ canvasRequests, sessionRequests }, { canvasRequests: 0, sessionRequests: 1 });
+	});
+
+	test('New Session keyboard navigation works inside native canvases but leaves ordinary editors alone', () => {
+		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const enabled = [OperatingSystem.Windows, OperatingSystem.Macintosh, OperatingSystem.Linux].map(os => {
+			const binding = KeybindingsRegistry.getDefaultKeybindingsForOS(os).find(binding => binding.command === NEW_SESSION_ACTION_ID);
+			assert.ok(binding);
+			return [
+				{ editorAreaFocus: false, activeEditor: '' },
+				{ editorAreaFocus: true, activeEditor: WindowCanvasInput.EDITOR_ID },
+				{ editorAreaFocus: true, activeEditor: 'workbench.editors.textEditor' },
+			].map(focus => {
+				for (const [key, value] of Object.entries(focus)) {
+					context.createKey(key, value).set(value);
+				}
+				return context.contextMatchesRules(binding.when ?? undefined);
+			});
+		});
+		assert.deepStrictEqual(enabled, [[true, true, false], [true, true, false], [true, true, false]]);
 	});
 
 	test('New Session uses the displayed custom view for plain invocations and incidental toolbar context', async () => {

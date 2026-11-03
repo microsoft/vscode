@@ -61,6 +61,8 @@ import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../..
 import { ISessionGridSlot, ISessionsPartService, SessionGridRequest } from '../../browser/sessionsPartService.js';
 import { AbstractCustomView } from '../../../customView/browser/customView.js';
 import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
+import { IWindowCanvasDescriptor, IWindowCanvasService } from '../../../canvas/browser/windowCanvasService.js';
+import { TestWindowCanvasService } from '../../../canvas/test/browser/testWindowCanvasService.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService, SessionsProvidersService } from '../../browser/sessionsProvidersService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsHasClosedItemContext } from '../../../../common/contextkeys.js';
@@ -73,6 +75,7 @@ import { createSessionsPartTestHarness } from '../../../../test/browser/sessionV
 import { getChatLayoutOwnerAfterReplacement } from '../../../../common/chatLayout.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, getSessionChatDragData, SessionsDataTransfers } from '../../../../browser/dnd.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -262,7 +265,7 @@ function createSessionsManagementService(
 	partServiceOverride?: TestSessionsPartService,
 	storageOverride?: InMemoryStorageService,
 	openTelemetryService?: ISessionOpenTelemetryService,
-): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; focusSession: Emitter<string | undefined>; sessionsPartService: TestSessionsPartService; notifications: (NotificationMessage | NotificationMessage[])[] } {
+): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; canvasService: TestWindowCanvasService; layoutService: IWorkbenchLayoutService; focusSession: Emitter<string | undefined>; sessionsPartService: TestSessionsPartService; notifications: (NotificationMessage | NotificationMessage[])[] } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const notifications: (NotificationMessage | NotificationMessage[])[] = [];
 	instantiationService.stub(INotificationService, { error: message => notifications.push(message) });
@@ -271,6 +274,8 @@ function createSessionsManagementService(
 	const providersService = provider instanceof TestSessionsProvidersService || provider instanceof SessionsProvidersService ? provider : new TestSessionsProvidersService(Array.isArray(provider) ? provider : [provider]);
 	const contextKeyService = disposables.add(new MockContextKeyService());
 	const customViewService = disposables.add(new CustomViewService(new NullLogService(), disposables.add(new InMemoryStorageService())));
+	const canvasService = new TestWindowCanvasService(customViewService);
+	const layoutService = createSessionLayoutService();
 
 	instantiationService.stub(IStorageService, storageOverride ?? disposables.add(new InMemoryStorageService()));
 	instantiationService.stub(ILogService, new NullLogService());
@@ -295,8 +300,16 @@ function createSessionsManagementService(
 	const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
 	const focusSession = disposables.add(new Emitter<string | undefined>());
 	const sessionsPartService = partServiceOverride ?? new TestSessionsPartService(focusSession.event);
-	const view = createView(instantiationService, service, disposables, customViewService, sessionsPartService, openTelemetryService);
-	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService, focusSession, sessionsPartService, notifications };
+	const view = createView(instantiationService, service, disposables, customViewService, sessionsPartService, openTelemetryService, canvasService, layoutService);
+	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService, canvasService, layoutService, focusSession, sessionsPartService, notifications };
+}
+
+function createSessionLayoutService(): IWorkbenchLayoutService {
+	const hiddenParts = new Set<Parts>();
+	return upcastPartial<IWorkbenchLayoutService>({
+		isVisible: part => !hiddenParts.has(part),
+		setPartHidden: (hidden, part) => { if (hidden) { hiddenParts.add(part); } else { hiddenParts.delete(part); } },
+	});
 }
 
 /** Sessions part stub that records focus requests without rendering views. */
@@ -352,10 +365,14 @@ function createView(
 	customViewService: ICustomViewService = disposables.add(new CustomViewService(new NullLogService(), disposables.add(new InMemoryStorageService()))),
 	sessionsPartService: ISessionsPartService = new TestSessionsPartService(),
 	openTelemetryService: ISessionOpenTelemetryService = disposables.add(new SessionOpenTelemetryService(NullTelemetryService)),
+	canvasService: TestWindowCanvasService = new TestWindowCanvasService(customViewService),
+	layoutService: IWorkbenchLayoutService = createSessionLayoutService(),
 ): SessionsService {
 	instantiationService.stub(ISessionsManagementService, service);
 	instantiationService.stub(ISessionsPartService, sessionsPartService);
 	instantiationService.stub(ICustomViewService, customViewService);
+	instantiationService.stub(IWindowCanvasService, canvasService);
+	instantiationService.stub(IWorkbenchLayoutService, layoutService);
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(ISessionOpenTelemetryService, openTelemetryService);
 	return disposables.add(instantiationService.createInstance(SessionsService));
@@ -4006,6 +4023,173 @@ suite('SessionsManagementService', () => {
 				active: view.activeSession.get()?.sessionId,
 				recent: view.getRecentlyOpenedSessions().recent.map(session => session.sessionId),
 			}, { active: undefined, recent: [] });
+		});
+
+		for (const source of ['inbox', 'sessionsList'] as const) {
+			test(`${source} opens leave a retained canvas and Back/Forward restores the same conversation`, async () => {
+				const main: IChat = { ...stubChat, resource: URI.parse('test:///main'), status: constObservable(SessionStatus.Completed) };
+				const peer: IChat = { ...main, resource: URI.parse('test:///peer') };
+				const session = stubSession({
+					sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.Completed),
+					chats: constObservable([main, peer]), mainChat: constObservable(main), capabilities: constObservable({ supportsMultipleChats: true }),
+				});
+				const { view, canvasService, sessionsPartService, contextKeyService } = createSessionsManagementService(session, disposables);
+				disposables.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
+				await view.openChat(session, peer.resource);
+				await canvasService.openCanvas('inbox');
+				sessionsPartService.focusedSessions.length = 0;
+				await view.openSession(session.resource, { source });
+				const opened = {
+					canvas: canvasService.activeCanvasOpen.get(),
+					focused: [...sessionsPartService.focusedSessions],
+					visible: view.visibleSessions.get().map(session => session?.sessionId),
+				};
+				await view.openPreviousSession();
+				const back = canvasService.activeCanvasOpen.get()?.id;
+				await view.openNextSession();
+
+				assert.deepStrictEqual({
+					opened, back,
+					canvas: canvasService.activeCanvasOpen.get(),
+					chat: view.activeSession.get()?.activeChat.get().resource.toString(),
+					canGoForward: contextKeyService.getContextKeyValue('sessionsCanGoForward'),
+					recent: view.getRecentlyOpenedSessions().recent.map(session => session.sessionId),
+				}, {
+					opened: { canvas: undefined, focused: ['session'], visible: ['session'] }, back: 'inbox',
+					canvas: undefined, chat: peer.resource.toString(), canGoForward: false, recent: ['session'],
+				});
+			});
+		}
+
+		for (const target of ['session', 'chat'] as const) {
+			for (const preserveFocus of [false, true]) {
+				test(`sessions-list ${target} navigation reveals a canvas-covered transcript (preserveFocus: ${preserveFocus})`, async () => {
+					const main: IChat = { ...stubChat, resource: URI.parse('test:///main'), status: constObservable(SessionStatus.Completed) };
+					const peer: IChat = { ...main, resource: URI.parse('test:///peer') };
+					const session = stubSession({
+						sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.Completed),
+						chats: constObservable([main, peer]), mainChat: constObservable(main), capabilities: constObservable({ supportsMultipleChats: true }),
+					});
+					const { view, canvasService, layoutService, sessionsPartService } = createSessionsManagementService(session, disposables);
+					disposables.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
+					await view.openSession(session.resource);
+					await canvasService.openCanvas('inbox');
+					layoutService.setPartHidden(true, Parts.SESSIONS_PART);
+					sessionsPartService.focusedSessions.length = 0;
+					if (target === 'session') {
+						await view.openSession(session.resource, { source: 'sessionsList', preserveFocus, forceMainChat: true });
+					} else {
+						await view.openChat(session, peer.resource, { source: 'sessionsList', preserveFocus });
+					}
+					assert.deepStrictEqual({
+						visible: layoutService.isVisible(Parts.SESSIONS_PART),
+						canvas: canvasService.activeCanvasOpen.get(),
+						chat: view.activeSession.get()?.activeChat.get().resource.toString(),
+						focused: sessionsPartService.focusedSessions,
+					}, { visible: true, canvas: undefined, chat: (target === 'session' ? main : peer).resource.toString(), focused: preserveFocus ? [] : ['session'] });
+				});
+			}
+		}
+
+		for (const preserveCustomView of [false, true]) {
+			test(`new-session navigation reveals a canvas-covered empty composer unless owned by the canvas (${preserveCustomView})`, async () => {
+				const session = stubSession({ sessionId: 'session', providerId: 'test' });
+				const { view, canvasService, layoutService, sessionsPartService } = createSessionsManagementService(session, disposables);
+				disposables.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
+				await canvasService.openCanvas('inbox');
+				layoutService.setPartHidden(true, Parts.SESSIONS_PART);
+				const navigation = view.navigationRequest.get();
+				await view.openNewSession({ preserveCustomView });
+				assert.deepStrictEqual({
+					visible: layoutService.isVisible(Parts.SESSIONS_PART),
+					canvas: canvasService.activeCanvasOpen.get()?.id,
+					focused: sessionsPartService.focusedSessions,
+					sameNavigation: view.navigationRequest.get() === navigation,
+				}, {
+					visible: !preserveCustomView, canvas: preserveCustomView ? 'inbox' : undefined,
+					focused: preserveCustomView ? [] : [undefined], sameNavigation: preserveCustomView,
+				});
+			});
+		}
+
+		test('session metadata changes do not reveal a canvas-covered session', async () => {
+			const title = observableValue('title', 'Before');
+			const session = stubSession({ sessionId: 'session', providerId: 'test', title, status: constObservable(SessionStatus.Completed) });
+			const { view, canvasService, layoutService, sessionsPartService } = createSessionsManagementService(session, disposables);
+			disposables.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
+			await view.openSession(session.resource);
+			await canvasService.openCanvas('inbox');
+			layoutService.setPartHidden(true, Parts.SESSIONS_PART);
+			sessionsPartService.focusedSessions.length = 0;
+			const navigation = view.navigationRequest.get();
+			title.set('After', undefined);
+			assert.deepStrictEqual({
+				visible: layoutService.isVisible(Parts.SESSIONS_PART),
+				canvas: canvasService.activeCanvasOpen.get()?.id,
+				focused: sessionsPartService.focusedSessions,
+				sameNavigation: view.navigationRequest.get() === navigation,
+			}, { visible: false, canvas: 'inbox', focused: [], sameNavigation: true });
+		});
+
+		test('opening a canvas cancels unresolved session navigation without visiting the canceled session', async () => {
+			const session = stubSession({ sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+			const resolutionStarted = new DeferredPromise<void>();
+			const resolution = new DeferredPromise<URI | undefined>();
+			const provider = new class extends TestSessionsProvider {
+				override resolveSessionResource(): Promise<URI | undefined> {
+					resolutionStarted.complete();
+					return resolution.p;
+				}
+			}(session);
+			const { view, canvasService } = createSessionsManagementService(session, disposables, provider);
+			disposables.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
+			const opening = view.openSession(session.resource);
+			await resolutionStarted.p;
+			await canvasService.openCanvas('inbox');
+			resolution.complete(undefined);
+			await opening;
+			const opened = canvasService.activeCanvasOpen.get()?.id;
+			await view.openPreviousSession();
+			assert.deepStrictEqual({
+				opened, active: view.activeSession.get()?.sessionId,
+				canvas: canvasService.activeCanvasOpen.get(),
+				recent: view.getRecentlyOpenedSessions().recent.map(session => session.sessionId),
+			}, { opened: 'inbox', active: undefined, canvas: undefined, recent: [] });
+		});
+
+		test('focusing an already-visible session leaves canvas navigation without replacing its pane', async () => {
+			const session = stubSession({ sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+			const { view, canvasService, focusSession } = createSessionsManagementService(session, disposables);
+			disposables.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
+			await view.openSession(session.resource);
+			const active = view.activeSession.get();
+			await canvasService.openCanvas('inbox');
+			focusSession.fire(session.sessionId);
+			const unchanged = active === view.activeSession.get();
+			await view.openPreviousSession();
+			assert.deepStrictEqual({ unchanged, canvas: canvasService.activeCanvasOpen.get()?.id }, { unchanged: true, canvas: 'inbox' });
+		});
+
+		test('explicit side opening from a canvas preserves the session arrangement and preserve-focus option', async () => {
+			const first = stubSession({ sessionId: 'first', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+			const second = stubSession({ sessionId: 'second', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+			const provider = new class extends TestSessionsProvider {
+				override getSessions(): ISession[] { return [first, second]; }
+			}(first);
+			const { view, canvasService, sessionsPartService } = createSessionsManagementService(first, disposables, provider);
+			disposables.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
+			await view.openSession(first.resource);
+			await canvasService.openCanvas('inbox');
+			sessionsPartService.focusedSessions.length = 0;
+			await view.openSessionToSide(second, { preserveFocus: true });
+			const opened = {
+				visible: view.visibleSessions.get().map(session => session?.sessionId),
+				focused: [...sessionsPartService.focusedSessions],
+			};
+			await view.openPreviousSession();
+			assert.deepStrictEqual({ opened, canvas: canvasService.activeCanvasOpen.get()?.id }, {
+				opened: { visible: ['first', 'second'], focused: [] }, canvas: 'inbox',
+			});
 		});
 
 		test('returning to new-session restores the existing draft', async () => {
