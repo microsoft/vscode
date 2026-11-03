@@ -27,6 +27,16 @@ import type { IChatSessionHistoryStatus } from '../../../platform/chat/common/ch
  */
 export type ChatViewKind = 'newSession' | 'newChatInSession' | 'chat';
 
+export interface IChatViewRequestOutcome {
+	readonly error?: string;
+	readonly canceled?: boolean;
+}
+
+export interface IChatViewRequestSubmission {
+	readonly sessionResource: URI;
+	readonly completion: Promise<IChatViewRequestOutcome>;
+}
+
 /**
  * Options passed to a chat view when it is created.
  */
@@ -41,6 +51,7 @@ export interface IChatViewOptions {
 	/** Send new-session requests without navigating away from the hosting view. */
 	readonly backgroundSend?: boolean;
 	readonly renderChatPet?: boolean;
+	readonly renderAquarium?: boolean;
 	/** Host only the composer, without transcript content, input interactions, or transcript view-state persistence. */
 	readonly inputOnly?: boolean;
 }
@@ -83,7 +94,7 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	readonly onDidChange: Event<IViewSize | undefined> = this._onDidChange.event;
 
 	/** A user request accepted for sending or queuing from this view, identified by its originating chat. */
-	readonly onDidSubmitRequest: Event<URI> = Event.None;
+	readonly onDidSubmitRequest: Event<IChatViewRequestSubmission> = Event.None;
 
 	/**
 	 * Lazily-created progress indicator scoped to this leaf. Mirrors how each

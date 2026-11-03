@@ -11,6 +11,7 @@ import { DeferredPromise, disposableTimeout, installFakeRunWhenIdle, raceTimeout
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { createTestArtifactRequestPresentation } from '../../../../../../platform/artifactIntegrations/test/common/artifactIntegrationTestUtils.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -2723,6 +2724,93 @@ suite('ChatService', () => {
 			pendingMessages: ['queued message'],
 		});
 	});
+
+	for (const outcome of ['delayed', 'existing', 'failed', 'canceled', 'removed', 'disposed', 'disposedBeforeStart', 'removedFromQueue'] as const) {
+		test(`correlates a consumed server queue entry with its exact response: ${outcome}`, async () => {
+			const sessionType = 'remote-neat-cat-copilotcli';
+			const sessionResource = URI.from({ scheme: sessionType, path: '/consumed-queue' });
+			const mockSessionsService = new MockChatSessionsService();
+			mockSessionsService.setContributions([{
+				type: sessionType, name: 'Remote Agent Host', displayName: 'Remote Agent Host',
+				description: 'Remote Agent Host', agentHostProviderId: 'copilotcli',
+			}]);
+			testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+				provideChatSessionContent: async resource => ({
+					sessionResource: resource, history: [], onWillDispose: Event.None, dispose: () => { },
+				}),
+			}));
+			instantiationService.stub(IChatSessionsService, mockSessionsService);
+			const agent = { ...getAgentData(sessionType), isDefault: true };
+			testDisposables.add(chatAgentService.registerAgent(sessionType, agent));
+			testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, {
+				async invoke() { assert.fail('The server-managed queue must not be sent locally'); },
+			}));
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const model = ref.object as ChatModel;
+			const queued = await service.sendRequest(sessionResource, 'queued', { agentIdSilent: sessionType, queue: ChatRequestQueueKind.Queued });
+			assert.ok(ChatSendResult.isQueued(queued));
+			const pendingId = model.getPendingRequests()[0].request.id;
+			const addRequest = (id: string) => model.addRequest(
+				{ parts: [], text: id }, { variables: [] }, 0, undefined, agent,
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, id,
+			);
+			const existing = outcome === 'existing' ? addRequest('server-turn') : undefined;
+			existing?.response!.complete();
+			if (outcome !== 'removedFromQueue') {
+				service.consumePendingRequest(sessionResource, pendingId, 'server-turn');
+			}
+			service.syncPendingRequestsFromRemote(sessionResource, []);
+			if (outcome === 'disposedBeforeStart' || outcome === 'removedFromQueue') {
+				if (outcome === 'disposedBeforeStart') {
+					model.dispose();
+				}
+				assert.strictEqual((await queued.deferred).kind, 'rejected');
+				return;
+			}
+			let resolved = false;
+			void queued.deferred.then(() => { resolved = true; });
+			addRequest('unrelated').response!.complete();
+			await timeout(0);
+			const resolvedBeforeMatchingRequest = resolved;
+			const request = existing ?? addRequest('server-turn');
+			const sent = await queued.deferred;
+			ChatSendResult.assertSent(sent);
+			const response = await sent.data.responseCreatedPromise;
+			let complete = false;
+			const completion = sent.data.responseCompletePromise.then(() => {
+				complete = true;
+				return 'complete';
+			}, error => {
+				assert.ok(isCancellationError(error));
+				return 'canceled';
+			});
+			await timeout(0);
+			const completeBeforeResponse = complete;
+			if (outcome === 'removed') {
+				model.removeRequest(request.id);
+			} else if (outcome === 'disposed') {
+				model.dispose();
+			} else if (outcome === 'canceled') {
+				model.cancelRequest(request);
+			} else if (outcome !== 'existing') {
+				if (outcome === 'failed') {
+					model.setResponse(request, { errorDetails: { message: 'Remote failure' } });
+				}
+				request.response!.complete();
+			}
+			assert.deepStrictEqual({
+				resolvedBeforeMatchingRequest, completeBeforeResponse, exactResponse: response === request.response,
+				completion: await completion, canceled: response.isCanceled, error: response.result?.errorDetails?.message,
+			}, {
+				resolvedBeforeMatchingRequest: outcome === 'existing', completeBeforeResponse: outcome === 'existing', exactResponse: true,
+				completion: outcome === 'removed' || outcome === 'disposed' ? 'canceled' : 'complete',
+				canceled: outcome === 'canceled', error: outcome === 'failed' ? 'Remote failure' : undefined,
+			});
+		});
+	}
 
 	test('does not locally dequeue an agent host queue when a streamed turn completes after its contribution is unregistered', async () => {
 		// When a remote connection is replaced, its session contribution is

@@ -705,6 +705,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			}());
 			reg.defineInstance(IInboxNotificationsService, new class extends mock<IInboxNotificationsService>() {
 				override readonly notifications = constObservable([]);
+				override readonly attentionCount = constObservable(0);
 				override readonly isLoading = constObservable(false);
 				override readonly sortMode = constObservable(InboxNotificationsSortMode.Priority);
 				override setSortMode(): void { }
