@@ -99,6 +99,7 @@ import { ChatDynamicVariableModel } from '../attachments/chatDynamicVariables.js
 import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
 import { ChatSuggestNextWidget } from './chatContentParts/chatSuggestNextWidget.js';
 import { ChatEditorOverflowWidgetsHost } from './chatEditorOverflowWidgetsHost.js';
+import { ChatWindowBlurListener } from './chatWindowBlurListener.js';
 import { resolveEditedRequestSelection } from './input/chatInputModelUtils.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './input/chatInputPart.js';
 import { setChatInputStackInputWorking } from './input/chatInputStack.js';
@@ -450,6 +451,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private focusedInputDOM!: HTMLElement;
 	private editorOverflowWidgetsDomNode: HTMLElement | undefined;
 	private editorOverflowWidgetsHost: ChatEditorOverflowWidgetsHost | undefined;
+	private windowBlurListener: ChatWindowBlurListener | undefined;
 	private editorOptions!: ChatEditorOptions;
 	private readonly readOnlyBanner: ChatReadOnlyBanner | undefined;
 	private readonly policyRequiresAgentHost: IObservable<boolean>;
@@ -1182,11 +1184,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const renderInputToolbarBelowInput = this.viewOptions.renderInputToolbarBelowInput ?? false;
 
 		this.container = dom.append(parent, $('.interactive-session'));
-		const targetWindow = dom.getWindow(this.container);
 		const focusTracker = this._register(dom.trackFocus(this.container));
 		this._register(focusTracker.onDidFocus(() => this.markSessionStateIndicatorVisited()));
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_DOWN, () => this.markSessionStateIndicatorVisited()));
-		this._register(dom.addDisposableListener(targetWindow, dom.EventType.BLUR, () => this.updateSessionStateIndicator()));
+		this.windowBlurListener = this._register(new ChatWindowBlurListener(this.container, () => this.updateSessionStateIndicator()));
 		this.updateSessionStateIndicator();
 		this._applyPersistentContentHeight();
 		this.editorOverflowWidgetsDomNode = this.viewOptions.editorOverflowWidgetsDomNode;
@@ -4482,6 +4483,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.bodyDimension = new dom.Dimension(width, height);
 		this.editorOverflowWidgetsHost?.update();
+		this.windowBlurListener?.update();
 		this._findController?.layout(width);
 
 		if (this.viewModel?.editing) {
