@@ -410,18 +410,19 @@ class CardDragSession extends Disposable {
 			return;
 		}
 
-		const rects = this.host.previewArrangement(this.draggedCell.id, candidate.drop);
-		if (!rects) {
+		// Merging, the cards stay as they are as the card lifted, the part it merges into highlighted: what the merge changes shows once it is done
+		const merge = hasKey(candidate.drop, { merge: true }) ? candidate.drop.merge : undefined;
+		const rects = merge === undefined ? this.host.previewArrangement(this.draggedCell.id, candidate.drop) : undefined;
+		if (merge === undefined && !rects) {
 			return;
 		}
 
 		this.current = { key: candidate.key, drop: candidate.drop };
-		const merge = hasKey(candidate.drop, { merge: true }) ? candidate.drop.merge : undefined;
 		if (this.motion) {
 			// The zones follow the cards to where they show
 			reflow.show(rects, this.draggedCell.id, merge);
 		} else {
-			this.showSlot(merge !== undefined ? reflow.states.get(merge)?.start : rects.get(this.draggedCell.id), merge !== undefined);
+			this.showSlot(merge !== undefined ? reflow.states.get(merge)?.start : rects?.get(this.draggedCell.id), merge !== undefined);
 		}
 	}
 
@@ -504,11 +505,17 @@ class CardDragSession extends Disposable {
 	private finish(): void {
 		const drop = this.pendingDrop;
 		this.pendingDrop = undefined;
-		// The move lays out the cards where they show; what it does not lay out, the clean up does
-		if (drop) {
+		if (drop && hasKey(drop, { merge: true })) {
+			// The cards are as they were: the merge, once they show so, glides them to where it puts them
+			this.cleanUp();
 			this.host.drop(this.draggedCell.id, drop);
+		} else {
+			// The move lays out the cards where they show; what it does not lay out, the clean up does
+			if (drop) {
+				this.host.drop(this.draggedCell.id, drop);
+			}
+			this.cleanUp();
 		}
-		this.cleanUp();
 		this.onDidEnd();
 	}
 

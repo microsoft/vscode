@@ -463,7 +463,8 @@ export class PartGrid extends Disposable {
 	 */
 	private dropCell(id: string, drop: PartGridCardDrop): void {
 		if (hasKey(drop, { merge: true })) {
-			this.mergeCell(id, drop.merge);
+			// The part that merged goes away, and the cards glide to where that leaves them
+			this.arrange(() => this.mergeCell(id, drop.merge));
 			return;
 		}
 

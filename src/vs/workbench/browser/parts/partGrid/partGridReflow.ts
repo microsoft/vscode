@@ -211,9 +211,10 @@ export class PartGridReflow extends Disposable {
 
 	/**
 	 * Shows the cards where they go, by the rects of a dry run, and the slot
-	 * at the rect of `slotId` in them, or, merging, the whole part it merges
-	 * into. Without rects, everything goes back to where it was. Without
-	 * motion, only where the cards show changes, as zones.
+	 * at the rect of `slotId` in them. Without rects, everything goes back to
+	 * where it was, the slot where what moves was. Merging, the part it
+	 * merges into is highlighted where it shows. Without motion, only where
+	 * the cards show changes, as zones.
 	 */
 	show(rects: ReadonlyMap<string, IPartGridRect> | undefined, slotId: string | undefined, mergeId?: string): void {
 		this.slotId = slotId;
@@ -251,8 +252,9 @@ export class PartGridReflow extends Disposable {
 		}, PART_GRID_REFLOW_DURATION + 20);
 		this.settled.value = toDisposable(() => clearTimeout(timer));
 
+		// The slot shows where what moves goes, or, without rects, where it was
 		const moving = this.movingId !== undefined ? this._states.get(this.movingId) : undefined;
-		this.placeSlot(mergeId !== undefined ? undefined : rects ? (slotId !== undefined ? rects.get(slotId) : undefined) : moving?.start);
+		this.placeSlot(rects ? (slotId !== undefined ? rects.get(slotId) : undefined) : moving?.start);
 		this.showMergeTarget(mergeId !== undefined ? target.get(mergeId) : undefined);
 	}
 

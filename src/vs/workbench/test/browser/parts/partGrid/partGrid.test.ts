@@ -775,6 +775,39 @@ suite('Part Grid', () => {
 		});
 	});
 
+	test('over the center of a part, the cards stay as they are as the card lifted, its slot where it was, and only the part it merges into is highlighted; dropped, it merges once, once the card settled', async () => {
+		const { grid, container, cellOf, start, middleY: y } = await createRowOfThree(true);
+		let merges = 0;
+		const merge = grid.mergeCell;
+		grid.mergeCell = (id, targetId) => { merges++; return merge.call(grid, id, targetId); };
+		const highlights = () => [...container.querySelectorAll<HTMLElement>('.part-grid-drop-indicator.merge')].map(element => { const r = element.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round).join(); });
+		const rectOf = (id: string) => [start[id].left, start[id].top, start[id].width, start[id].height].map(Math.round).join();
+		const centerOf = (id: string) => start[id].left + start[id].width / 2;
+
+		// c over the center of a: a merge, with the cards as they are
+		dragCard(container, 'c', [[centerOf('a'), y]], { hold: true });
+		const overCenter = { translated: ['a', 'b'].filter(id => !!cellOf(id).style.translate), highlights: highlights(), slot: !!container.querySelector('.part-grid-frame.slot') };
+
+		// Beside a, the cards make way; back over its center, they are as they were again
+		pointer(mainWindow.document.body, 'pointermove', start.a.left + 30, y);
+		const beside = { translated: ['a', 'b'].filter(id => !!cellOf(id).style.translate), highlights: highlights().length };
+		const shownA = grid.previewArrangement('c', { location: { reference: 'a', direction: Direction.Left } })!.get('a')!;
+		pointer(mainWindow.document.body, 'pointermove', shownA.left + shownA.width / 2, y);
+		const backOverCenter = { translated: ['a', 'b'].filter(id => !!cellOf(id).style.translate), highlights: highlights() };
+
+		pointer(mainWindow.document.body, 'pointerup', centerOf('a'), y);
+		const settling = { merges, cVisible: grid.isCellVisible('c') };
+		await timeout(PART_GRID_REFLOW_DURATION + 80);
+
+		assert.deepStrictEqual({ overCenter, beside, backOverCenter, settling, merged: { merges, cVisible: grid.isCellVisible('c') } }, {
+			overCenter: { translated: [], highlights: [rectOf('a')], slot: true },
+			beside: { translated: ['a', 'b'], highlights: 0 },
+			backOverCenter: { translated: [], highlights: [rectOf('a')] },
+			settling: { merges: 0, cVisible: true },
+			merged: { merges: 1, cVisible: false }
+		});
+	});
+
 	test('Escape puts the dragged card and the others back, and moves nothing', async () => {
 		const { grid, container, translates, start, middleY: y, arrangementChanges } = await createRowOfThree(true);
 		const before = grid.describe();
