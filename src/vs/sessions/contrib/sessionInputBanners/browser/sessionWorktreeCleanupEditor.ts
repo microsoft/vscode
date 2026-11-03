@@ -104,8 +104,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	private readonly renderedCells = new Map<string, Map<WorktreeColumn, IWorktreeCellTemplate>>();
 	private displayWorktreesById = new Map<string, ISessionWorktree>();
 	private mainWorktreeTable: WorkbenchTable<string> | undefined;
-	private showResults = false;
-	private resultsButton: Button | undefined;
 	private sortOrder: 'size' | 'recent' = 'size';
 	private readonly tableDimensions = new WeakMap<WorkbenchTable<string>, dom.Dimension>();
 	private readonly tableFocusElements = new WeakMap<WorkbenchTable<string>, HTMLElement>();
@@ -285,16 +283,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 		this.batchSummaryRow = dom.append(controlsContent, dom.$('.session-worktree-cleanup-summary-row.session-worktree-cleanup-batch.hidden'));
 		this.batchSummary = dom.append(this.batchSummaryRow, dom.$('span.session-worktree-cleanup-summary', { role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true' }));
-		this.resultsButton = this.editorDisposables.add(new Button(this.batchSummaryRow, { ...defaultButtonStyles, secondary: true }));
-		this.resultsButton.element.classList.add('session-worktree-cleanup-action');
-		this.resultsButton.label = localize('sessionWorktreeCleanup.showResults', "Show Results");
-		this.resultsButton.element.setAttribute('aria-pressed', 'false');
-		this.editorDisposables.add(this.resultsButton.onDidClick(() => {
-			this.showResults = !this.showResults;
-			this.resultsButton!.label = this.showResults ? localize('sessionWorktreeCleanup.hideResults', "Hide Results") : localize('sessionWorktreeCleanup.showResults', "Show Results");
-			this.resultsButton!.element.setAttribute('aria-pressed', String(this.showResults));
-			this.renderRows();
-		}));
 
 		const selection = dom.$('.session-worktree-cleanup-select-all');
 		summaryRow.insertBefore(selection, this.cleanupButton.element);
@@ -394,11 +382,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		this.cleanupBatch.clear();
 		this.restoredCleanupIds.clear();
 		this.refreshRestoredCleanup = false;
-		this.showResults = false;
-		if (this.resultsButton) {
-			this.resultsButton.label = localize('sessionWorktreeCleanup.showResults', "Show Results");
-			this.resultsButton.element.setAttribute('aria-pressed', 'false');
-		}
 		this.explicitSelections.clear();
 		this.renderBatchSummary();
 		this.pendingCleanupScheduler.cancel();
@@ -817,21 +800,19 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		const focusedCheckbox = focusedRow?.[1].get('selection')?.container.contains(activeElement);
 		this.updateCleanupBatch();
 		this.renderWorkspaceOptions();
-		const visible = this.getVisibleWorktrees().filter(worktree => this.showResults || this.cleanupBatch.get(getWorktreeCleanupId(worktree))?.state !== 'removed');
+		const visible = this.getVisibleWorktrees();
 		const selectable = visible.filter(worktree => this.isManuallySelectable(worktree));
 		const estimatedBytes = getWorktreeCleanupDiskUsage(selectable);
 		const selectableWorktrees = selectable.reduce((total, worktree) => total + worktree.worktreeCount, 0);
 		const totalWorktrees = visible.reduce((total, worktree) => total + (this.cleanupBatch.get(getWorktreeCleanupId(worktree))?.state === 'removed' ? 0 : worktree.worktreeCount), 0);
 		const isEmpty = visible.length === 0;
-		this.summaryRow?.classList.toggle('hidden', isEmpty);
+		this.summaryRow?.classList.toggle('hidden', totalWorktrees === 0);
 		this.list.classList.toggle('hidden', isEmpty);
 		this.emptyState?.classList.toggle('hidden', !isEmpty);
 		if (this.emptyStateMessage) {
-			this.emptyStateMessage.textContent = this.getVisibleWorktrees().some(worktree => this.cleanupBatch.get(getWorktreeCleanupId(worktree))?.state === 'removed')
-				? localize('sessionWorktreeCleanup.noRemainingWorktrees', "No remaining worktrees match the filters. Use Show Results to review completed cleanup.")
-				: this.minimumAgeDays === 0 && !this.selectedWorkspace
-					? localize('sessionWorktreeCleanup.noWorktrees', "No worktrees to clean up.")
-					: localize('sessionWorktreeCleanup.noMatchingWorktrees', "No worktrees match the selected filters.");
+			this.emptyStateMessage.textContent = this.minimumAgeDays === 0 && !this.selectedWorkspace
+				? localize('sessionWorktreeCleanup.noWorktrees', "No worktrees to clean up.")
+				: localize('sessionWorktreeCleanup.noMatchingWorktrees', "No worktrees match the selected filters.");
 		}
 		const summary = estimatedBytes !== undefined && estimatedBytes > 0
 			? localize('sessionWorktreeCleanup.matchingWorktreeDiskUsageSummary', "{0} of {1} matching worktrees can be cleaned up. Estimated disk usage: {2}.", selectableWorktrees, totalWorktrees, ByteSize.formatSize(estimatedBytes))
@@ -1322,9 +1303,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 				: localize('sessionWorktreeCleanup.batchRemoved', "Cleanup: {0} worktrees removed.", done);
 		if (this.batchSummary.textContent !== message) {
 			this.batchSummary.textContent = message;
-		}
-		if (this.resultsButton) {
-			dom.setVisibility(done > 0, this.resultsButton.element);
 		}
 	}
 

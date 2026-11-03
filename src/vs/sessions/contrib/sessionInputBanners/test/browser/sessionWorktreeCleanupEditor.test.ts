@@ -82,10 +82,6 @@ suite('SessionWorktreeCleanupEditor', () => {
 
 	}
 
-	function toggleResults(container: HTMLElement): void {
-		[...container.querySelectorAll<HTMLElement>('.session-worktree-cleanup-batch .monaco-button')].find(button => button.textContent === 'Show Results' || button.textContent === 'Hide Results')!.click();
-	}
-
 	function rowStatus(row: ParentNode): string | undefined {
 		return row.querySelector('.status')?.textContent?.replace(/^(?:Has session|No matching session): /, '');
 	}
@@ -229,7 +225,6 @@ suite('SessionWorktreeCleanupEditor', () => {
 		container.querySelectorAll<HTMLElement>('.session-worktree-cleanup-row [role="checkbox"]')[2].click();
 		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
 		await timeout(0);
-		toggleResults(container);
 		assert.deepStrictEqual({
 			errors,
 			titles: [...container.querySelectorAll('.session-worktree-cleanup-session-link')].map(link => link.textContent),
@@ -616,18 +611,16 @@ suite('SessionWorktreeCleanupEditor', () => {
 		await timeout(0);
 		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
 		await timeout(2_100);
-		const hiddenRows = container.querySelectorAll('.session-worktree-cleanup-row').length;
-		toggleResults(container);
-		assert.deepStrictEqual({ hiddenRows, rows: [...container.querySelectorAll('.session-worktree-cleanup-row:not(.header)')].map(row => ({
+		assert.deepStrictEqual({ rows: [...container.querySelectorAll('.session-worktree-cleanup-row:not(.header)')].map(row => ({
 			title: row.querySelector('.session-worktree-cleanup-session-link')?.textContent,
 			reason: rowStatus(row),
 			path: row.querySelector('.session-worktree-cleanup-reason')?.textContent,
 			storage: row.querySelector('.storage')?.textContent,
 			checkbox: row.querySelector('[role="checkbox"]'),
-		})) }, { hiddenRows: 0, rows: [{ title: 'agents/removed', reason: 'Worktree removed', path: '/repos/app.worktrees/removed', storage: '0B', checkbox: null }] });
+		})) }, { rows: [{ title: 'agents/removed', reason: 'Worktree removed', path: '/repos/app.worktrees/removed', storage: '0B', checkbox: null }] });
 	}));
 
-	test('results toggles preserve selection and show verified removals despite stale host errors without showing failures', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('live results preserve selection and show verified removals despite stale host errors without showing failures', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const completedSession = createWorktree('completed-session', '/repos/app', 'archived');
 		const completedUnlinked = createUnlinkedWorktree('completed-unlinked');
 		const failed: ISessionWorktree = { ...createUnlinkedWorktree('failed'), cleanupStatus: { state: 'failed', message: 'locked' } };
@@ -656,16 +649,14 @@ suite('SessionWorktreeCleanupEditor', () => {
 			selected: [...container.querySelectorAll('.session-worktree-cleanup-row [aria-checked="true"]')].length,
 			batch: container.querySelector('.session-worktree-cleanup-batch [role="status"]')?.textContent,
 		});
-		const hidden = snapshot();
-		toggleResults(container);
-		const shown = snapshot();
-		toggleResults(container);
-		const hiddenAgain = snapshot();
+		const completed = snapshot();
+		publish?.(worktrees);
+		await timeout(100);
 		const batch = 'Cleanup: 2 of 3 worktrees removed, 1 pending.';
-		assert.deepStrictEqual({ hidden, shown, hiddenAgain }, {
-			hidden: { titles: ['agents/pending', 'remaining'], selected: 1, batch },
-			shown: { titles: ['agents/completed-unlinked', 'agents/pending', 'completed-session', 'remaining'], selected: 1, batch },
-			hiddenAgain: { titles: ['agents/pending', 'remaining'], selected: 1, batch },
+		assert.deepStrictEqual({ completed, refreshed: snapshot(), resultsControls: container.querySelectorAll('.session-worktree-cleanup-batch .monaco-button').length }, {
+			completed: { titles: ['agents/completed-unlinked', 'agents/pending', 'completed-session', 'remaining'], selected: 1, batch },
+			refreshed: { titles: ['agents/completed-unlinked', 'agents/pending', 'completed-session', 'remaining'], selected: 1, batch },
+			resultsControls: 0,
 		});
 	}));
 
@@ -1214,7 +1205,6 @@ suite('SessionWorktreeCleanupEditor', () => {
 		const queued = { busy: row.getAttribute('aria-busy'), checkbox: row.querySelector('[role="checkbox"]'), spinning: !!row.querySelector('.codicon-loading.codicon-modifier-spin') };
 		await scheduling.complete();
 		await timeout(100);
-		toggleResults(container);
 		focusElement(progressListNode);
 		progressListNode.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
 		const retainedFocus = dom.getActiveElement() === progressListNode;
@@ -1306,7 +1296,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		}, { calls: ['fresh load'], buttons: [] });
 	});
 
-	test('keeps verified removed rows, session links, and focus when results are explicitly shown', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('updates cleanup rows in place through confirmed removal while preserving session links and focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const first = createWorktree('first', '/repos/app');
 		const second = createWorktree('second', '/repos/app');
 		const existing = createWorktree('existing', '/repos/app', 'archived');
@@ -1321,7 +1311,6 @@ suite('SessionWorktreeCleanupEditor', () => {
 		await timeout(0);
 		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
 		await timeout(0);
-		toggleResults(container);
 		const initialRows = [...container.querySelectorAll('.session-worktree-cleanup-row:not(.header)')];
 		const firstLink = initialRows[0].querySelector('a')!;
 		focusElement(firstLink);
@@ -1415,9 +1404,9 @@ suite('SessionWorktreeCleanupEditor', () => {
 		}, {
 			requests: [['first']],
 			checked: [['first']],
-			completed: { workspace: URI.file('/repos/app').toString(), rows: [], reason: undefined },
+			completed: { workspace: URI.file('/repos/app').toString(), rows: ['first'], reason: 'Worktree removed' },
 			failure: undefined,
-			restoredFilter: undefined,
+			restoredFilter: 'Worktree removed',
 			reopened: [],
 		});
 	}));
@@ -1448,7 +1437,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 			rowsAfterRemoval: [...container.querySelectorAll('.session-worktree-cleanup-session-link')].map(link => link.textContent),
 		}, {
 			rowsAfterShrink: ['first', 'second'],
-			rowsAfterRemoval: [],
+			rowsAfterRemoval: ['first', 'second'],
 		});
 	}));
 
@@ -1557,8 +1546,8 @@ suite('SessionWorktreeCleanupEditor', () => {
 			afterScheduling,
 			partial,
 			complete: container.querySelector('.session-worktree-cleanup-batch [role="status"]')?.textContent,
-			remaining: rows().map(row => row.querySelector('a')?.textContent),
-			checked: rows()[0].querySelector('[role="checkbox"]')?.getAttribute('aria-checked'),
+			rows: rows().map(row => row.querySelector('a')?.textContent),
+			checked: remainingRow.querySelector('[role="checkbox"]')?.getAttribute('aria-checked'),
 		}, {
 			queued: {
 				requests: 1,
@@ -1569,7 +1558,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 			afterScheduling: { sameRemainingRow: true, checked: 'false' },
 			partial: 'Cleanup: 2 of 3 worktrees removed, 1 pending.',
 			complete: 'Cleanup: 3 worktrees removed.',
-			remaining: ['remaining'],
+			rows: ['first', 'second', 'remaining'],
 			checked: 'false',
 		});
 	}));
@@ -2065,8 +2054,8 @@ suite('SessionWorktreeCleanupEditor', () => {
 		states.push(snapshot());
 		assert.deepStrictEqual(states, [
 			{ summary: 'Cleanup: 0 of 4 worktrees removed, 4 pending.', controlsHidden: false, removed: 0 },
-			{ summary: 'Cleanup: 1 of 4 worktrees removed, 3 pending.', controlsHidden: false, removed: 0 },
-			{ summary: 'Cleanup: 4 worktrees removed.', controlsHidden: false, removed: 0 },
+			{ summary: 'Cleanup: 1 of 4 worktrees removed, 3 pending.', controlsHidden: false, removed: 1 },
+			{ summary: 'Cleanup: 4 worktrees removed.', controlsHidden: false, removed: 4 },
 		]);
 	}));
 
@@ -2092,7 +2081,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		}, {
 			checks: 2, errors: ['Host disconnected'],
 			summary: 'Cleanup: 1 worktree removed.',
-			reason: undefined,
+			reason: 'Worktree removed',
 			controlsHidden: true,
 		});
 	}));
@@ -2280,7 +2269,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		});
 	});
 
-	test('keeps requested retries in inventory while pending and reveals confirmed removal only in results', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('keeps requested cleanup in inventory through running and confirmed removal', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const retry: ISessionWorktree = { ...createWorktree('retry', '/repos/app', 'archived'), cleanupStatus: { state: 'unknown' } };
 		const queued: ISessionWorktree = { ...createWorktree('queued', '/repos/app', 'archived'), cleanupStatus: { state: 'pending' } };
 		let requested = false;
@@ -2303,16 +2292,16 @@ suite('SessionWorktreeCleanupEditor', () => {
 		};
 		removed = true;
 		await timeout(30_100);
-		const hiddenResults = [...container.querySelectorAll('.session-worktree-cleanup-session-link')].map(link => link.textContent);
-		toggleResults(container);
 		assert.deepStrictEqual({
 			duringCleanup,
-			hiddenResults,
-			afterCleanup: { mainHidden: main.classList.contains('hidden'), rows: [...container.querySelectorAll('.session-worktree-cleanup-session-link')].map(link => link.textContent) },
+			afterCleanup: {
+				mainHidden: main.classList.contains('hidden'),
+				rows: [...container.querySelectorAll('.session-worktree-cleanup-session-link')].map(link => link.textContent),
+				reason: rowStatus(main),
+			},
 		}, {
 			duringCleanup: { title: 'retry', reason: 'Cleaning up…', checkboxes: 0, tables: 1 },
-			hiddenResults: ['queued'],
-			afterCleanup: { mainHidden: false, rows: ['retry', 'queued'] },
+			afterCleanup: { mainHidden: false, rows: ['retry', 'queued'], reason: 'Worktree removed' },
 		});
 	}));
 
