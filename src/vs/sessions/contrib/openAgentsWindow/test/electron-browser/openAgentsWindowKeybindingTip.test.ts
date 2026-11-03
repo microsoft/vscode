@@ -129,7 +129,7 @@ suite('OpenAgentsWindowSystemWideKeybindingTip', () => {
 			unsupported: createTip(false).provider.provideTip(),
 		}, {
 			tipId: 'sessions.openAgentsWindowSystemWideKeybinding',
-			content: '**Tip:** Open the Agents window while VS Code is running with `⌃⌘A`, even when another app is active. [Enable](command:sessions.action.enableOpenAgentsWindowSystemWideKeybinding)',
+			content: '**Tip:** [Enable ⌃⌘A](command:sessions.action.enableOpenAgentsWindowSystemWideKeybinding) to open the Agents Window from any app while VS Code is running.',
 			enabledCommands: [ENABLE_OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING_COMMAND_ID],
 			afterBinding: undefined,
 			unsupported: undefined,
@@ -179,13 +179,15 @@ suite('OpenAgentsWindowSystemWideKeybindingTip', () => {
 		});
 	});
 
-	test('Enable adds the system-wide user keybinding and hides tips for the session', async () => {
+	test('Enable adds the system-wide user keybinding and confirms it for the current session', async () => {
 		const fixture = createTip();
 		const command = CommandsRegistry.getCommand(ENABLE_OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING_COMMAND_ID);
 		assert.ok(command);
 		const instantiationService = store.add(new TestInstantiationService());
 
 		await instantiationService.invokeFunction(accessor => command.handler(accessor));
+		const confirmation = fixture.provider.provideTip();
+		fixture.provider.resetSession?.();
 
 		assert.deepStrictEqual({
 			additions: fixture.keybindingEditingService.additions.map(addition => ({
@@ -196,7 +198,12 @@ suite('OpenAgentsWindowSystemWideKeybindingTip', () => {
 				systemWide: addition.item.systemWide,
 			})),
 			hideTipsForSessionCount: fixture.chatTipService.hideTipsForSessionCount,
-			tip: fixture.provider.provideTip(),
+			confirmation: {
+				id: confirmation?.id,
+				content: confirmation?.content.value,
+				enabledCommands: confirmation?.enabledCommands,
+			},
+			afterReset: fixture.provider.provideTip(),
 		}, {
 			additions: [{
 				key: OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING,
@@ -205,8 +212,13 @@ suite('OpenAgentsWindowSystemWideKeybindingTip', () => {
 				args: { source: AgentsWindowOpenSource.KeyboardShortcut },
 				systemWide: true,
 			}],
-			hideTipsForSessionCount: 1,
-			tip: undefined,
+			hideTipsForSessionCount: 0,
+			confirmation: {
+				id: 'sessions.openAgentsWindowSystemWideKeybinding',
+				content: '**Shortcut enabled:** Press `⌃⌘A` from any app to open the Agents Window. [Manage Shortcut](command:workbench.action.openGlobalKeybindings?%5B%22%40command%3Aworkbench.action.openAgentsWindow%22%5D)',
+				enabledCommands: ['workbench.action.openGlobalKeybindings'],
+			},
+			afterReset: undefined,
 		});
 	});
 });

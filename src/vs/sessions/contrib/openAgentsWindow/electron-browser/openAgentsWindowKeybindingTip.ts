@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -20,6 +21,7 @@ import { IChatTip, IChatTipProvider, IChatTipService } from '../../../../workben
 import { OPEN_AGENTS_WINDOW_COMMAND_ID } from '../../../../workbench/contrib/chat/common/constants.js';
 import { selectSystemWideKeybindings } from '../../../../workbench/contrib/keybindings/electron-browser/systemWideKeybindings.js';
 import { IKeybindingEditingService } from '../../../../workbench/services/keybinding/common/keybindingEditing.js';
+import { createKeybindingCommandQuery } from '../../../../workbench/services/preferences/browser/keybindingsEditorModel.js';
 import { AgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
 
 export const ENABLE_OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING_COMMAND_ID = 'sessions.action.enableOpenAgentsWindowSystemWideKeybinding';
@@ -27,6 +29,7 @@ export const OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING = 'ctrl+cmd+a';
 
 const OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING_TIP_ID = 'sessions.openAgentsWindowSystemWideKeybinding';
 const OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING_TIP_DISMISSED = 'sessions.openAgentsWindowSystemWideKeybindingTip.dismissed';
+const OPEN_GLOBAL_KEYBINDINGS_COMMAND_ID = 'workbench.action.openGlobalKeybindings';
 
 export class OpenAgentsWindowSystemWideKeybindingTip extends Disposable implements IChatTipProvider {
 
@@ -35,6 +38,7 @@ export class OpenAgentsWindowSystemWideKeybindingTip extends Disposable implemen
 
 	private _enabled: boolean;
 	private _dismissed: boolean;
+	private _showEnabledConfirmation = false;
 	private _enablement: Promise<void> | undefined;
 
 	constructor(
@@ -57,23 +61,47 @@ export class OpenAgentsWindowSystemWideKeybindingTip extends Disposable implemen
 	}
 
 	provideTip(): IChatTip | undefined {
-		if (!this._supported || this._enabled || this._dismissed) {
+		if (!this._supported || this._dismissed) {
 			return undefined;
 		}
 
 		const keybindingLabel = this._keybindingService.resolveUserBinding(OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING)[0]?.getLabel()
 			?? localize('openAgentsWindowSystemWideKeybinding.label', "Ctrl+Cmd+A");
+		if (this._enabled) {
+			if (!this._showEnabledConfirmation) {
+				return undefined;
+			}
+
+			const commandArgs = encodeURIComponent(JSON.stringify([createKeybindingCommandQuery(OPEN_AGENTS_WINDOW_COMMAND_ID)]));
+			const content = new MarkdownString('', {
+				isTrusted: { enabledCommands: [OPEN_GLOBAL_KEYBINDINGS_COMMAND_ID] },
+			});
+			content.appendMarkdown(localize('openAgentsWindowSystemWideKeybinding.enabled', "**Shortcut enabled:** Press `{0}` from any app to open the Agents Window. ", keybindingLabel));
+			content.appendLink(`command:${OPEN_GLOBAL_KEYBINDINGS_COMMAND_ID}?${commandArgs}`, localize('openAgentsWindowSystemWideKeybinding.manage', "Manage Shortcut"));
+
+			return {
+				id: OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING_TIP_ID,
+				content,
+				enabledCommands: [OPEN_GLOBAL_KEYBINDINGS_COMMAND_ID],
+			};
+		}
+
 		const content = new MarkdownString('', {
 			isTrusted: { enabledCommands: [ENABLE_OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING_COMMAND_ID] },
 		});
-		content.appendMarkdown(localize('openAgentsWindowSystemWideKeybinding.tip', "**Tip:** Open the Agents window while VS Code is running with `{0}`, even when another app is active. ", keybindingLabel));
-		content.appendLink(`command:${ENABLE_OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING_COMMAND_ID}`, localize('openAgentsWindowSystemWideKeybinding.enable', "Enable"));
+		content.appendMarkdown(localize('openAgentsWindowSystemWideKeybinding.tipPrefix', "**Tip:** "));
+		content.appendLink(`command:${ENABLE_OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING_COMMAND_ID}`, localize('openAgentsWindowSystemWideKeybinding.enable', "Enable {0}", keybindingLabel));
+		content.appendMarkdown(localize('openAgentsWindowSystemWideKeybinding.tipSuffix', " to open the Agents Window from any app while VS Code is running."));
 
 		return {
 			id: OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING_TIP_ID,
 			content,
 			enabledCommands: [ENABLE_OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING_COMMAND_ID],
 		};
+	}
+
+	resetSession(): void {
+		this._showEnabledConfirmation = false;
 	}
 
 	dismissTip(tipId: string): void {
@@ -157,7 +185,8 @@ export class OpenAgentsWindowSystemWideKeybindingTip extends Disposable implemen
 		}
 
 		this._enabled = true;
-		this._chatTipService.hideTipsForSession();
+		this._showEnabledConfirmation = true;
+		status(localize('openAgentsWindowSystemWideKeybinding.enabledStatus', "Shortcut {0} enabled. Press it from any app to open the Agents Window.", resolvedKeybinding.getAriaLabel() ?? resolvedKeybinding.getLabel() ?? localize('openAgentsWindowSystemWideKeybinding.label', "Ctrl+Cmd+A")));
 		this._onDidChange.fire();
 	}
 }
