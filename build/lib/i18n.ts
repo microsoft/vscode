@@ -40,7 +40,7 @@ export const defaultLanguages: Language[] = [
 
 // languages requested by the community
 export const extraLanguages: Language[] = [
-	{ id: 'pt-br', folderName: 'ptb' },
+	{ id: 'pt-br', folderName: 'ptb', translationId: 'pt-BR' },
 	{ id: 'tr', folderName: 'trk' },
 	{ id: 'cs' },
 	{ id: 'pl' }
