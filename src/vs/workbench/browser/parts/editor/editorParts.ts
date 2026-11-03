@@ -201,8 +201,9 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		const container = options.container as HTMLElement;
 
 		const instantiationService = options.services ? disposables.add(this.instantiationService.createChild(options.services)) : this.instantiationService;
-		const part = disposables.add(instantiationService.createInstance(ContentPart, getWindow(container).vscodeWindowId, this, options));
-		disposables.add(this.registerPart(part));
+		const part = instantiationService.createInstance(ContentPart, getWindow(container).vscodeWindowId, this, options);
+		const registration = disposables.add(this.registerPart(part));
+		disposables.add(part);
 		part.create(container);
 
 		// Keep instantiation service
@@ -212,8 +213,17 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		this.mapPartToInstantiationService.set(part, scopedInstantiationService);
 		disposables.add(toDisposable(() => this.mapPartToInstantiationService.delete(part)));
 
-		// Release the part once its owner closed it
-		disposables.add(Event.once(part.onDidRelease)(() => disposables.dispose()));
+		// Release the part once its owner closed it: it leaves the parts first,
+		// then its groups are announced as removed, as those of a closing
+		// auxiliary window are, so that nothing sees a part without groups
+		disposables.add(Event.once(part.onDidRelease)(() => {
+			const groups = part.getGroups(GroupsOrder.CREATION_TIME);
+			registration.dispose();
+			for (const group of groups) {
+				this._onDidRemoveGroup.fire(group);
+			}
+			disposables.dispose();
+		}));
 
 		// Events
 		for (const group of part.getGroups(GroupsOrder.CREATION_TIME)) {
