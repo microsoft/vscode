@@ -27,7 +27,7 @@ import { captureCredentialSource, type IAgentHostCredentialSource } from '../com
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
 import { isRenameChatTool } from '../common/serverToolNames.js';
-import { type CodexModelProvider, AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { type AgentHostPrewarmSkipReason, type CodexModelProvider, AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentPermissionKind, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type AgentSubagentKind, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal, type IAgentSubagentStartedSignal } from '../common/agent.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
@@ -1760,6 +1760,20 @@ export class AgentSideEffects extends Disposable {
 			// Strip confirmationTitle so createToolReadyAction emits the
 			// auto-approved (no-options) action.
 			effective = { ...e, state: { ...e.state, confirmationTitle: undefined } };
+		} else if (e.unattended) {
+			// Nobody can answer, so hand the request back to the agent instead of showing a confirmation.
+			this._toolCallAgents.delete(toolCallKey);
+			this._managedApprovalToolCalls.delete(toolCallKey);
+			agent.respondToPermissionRequest(e.state.toolCallId, false, { decisionSource: 'unattended_fallback', userNotAvailable: true });
+			// A started call stays `Streaming` until it is ready, and only a ready call takes the failed
+			// result the agent reports. A running client tool is one its client executes, so a client tool
+			// is left as it is rather than run.
+			if (toolCall?.status === ToolCallStatus.Streaming && contributor?.kind !== ToolCallContributorKind.Client) {
+				const settled = this._permissionManager.createToolReadyAction({ ...e, state: { ...e.state, confirmationTitle: undefined } }, sessionKey, turnId);
+				this._stateManager.dispatchServerAction(sessionKey, settled);
+				this._turnTracker.markActivity(sessionKey, turnId, settled.type);
+			}
+			return;
 		} else if (effective.state.confirmationTitle) {
 			// Make sure the agent is registered for the eventual `ChatToolCallConfirmed` response.
 			this._toolCallAgents.set(toolCallKey, agent.id);
@@ -1793,7 +1807,7 @@ export class AgentSideEffects extends Disposable {
 		this._turnTracker.markActivity(sessionKey, turnId, readyAction.type);
 	}
 
-	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown, resumedTurn?: Turn, automaticArchive = false, clientSeq?: number, credentials?: IAgentHostCredentialSource): void {
+	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown, resumedTurn?: Turn, automaticArchive = false, clientSeq?: number, credentials?: IAgentHostCredentialSource, permissionFeedback?: string): void {
 		let clientContext = typeof clientContextOrType === 'string'
 			? createUnknownAgentHostClientTelemetryContext(clientContextOrType)
 			: clientContextOrType;
@@ -1897,6 +1911,7 @@ export class AgentSideEffects extends Disposable {
 					const agent = this._options.agents.get().find(a => a.id === agentId);
 					agent?.respondToPermissionRequest(action.toolCallId, action.approved, {
 						...readAgentPermissionResponseMeta(action),
+						...(permissionFeedback !== undefined ? { userFeedback: permissionFeedback } : {}),
 						selectedOptionId: action.selectedOptionId,
 						origin: clientId !== undefined && clientSeq !== undefined ? { clientId, clientSeq } : undefined,
 					});
@@ -2259,10 +2274,15 @@ export class AgentSideEffects extends Disposable {
 			// preparation is only logged: `sendMessage` then prepares as usual and
 			// surfaces any error exactly as it would without the overlap.
 			let providerPreparation: Promise<void> | undefined;
+			// Preparation can materialize the deferred session, so it reports how the send found its warm launch.
+			const prewarmReporters = {
+				reportPrewarmedSession: (discardReason?: string) => this._turnTracker.markPrewarmedSession(turnChannel, turnId, discardReason),
+				reportPrewarmSkipped: (reason: AgentHostPrewarmSkipReason) => this._turnTracker.markPrewarmSkipped(turnChannel, turnId, reason),
+			};
 			if (agent.chats.prepareTurn) {
 				this._overlapExperimentTrigger.report();
 				if (this._agentConfigService.getRootValue(platformRootSchema, AgentHostOverlapProviderPreparationConfigKey) === true) {
-					providerPreparation = agent.chats.prepareTurn(chatUri, turnId, resolvedWorkingDirectories, clientOperationContext).catch(err => {
+					providerPreparation = agent.chats.prepareTurn(chatUri, turnId, resolvedWorkingDirectories, { ...clientOperationContext, ...prewarmReporters }).catch(err => {
 						this._logService.warn(`[AgentSideEffects] Turn preparation failed for ${chat}; sending will prepare again`, err);
 					});
 				}
@@ -2278,7 +2298,7 @@ export class AgentSideEffects extends Disposable {
 				...clientOperationContext,
 				turnTelemetryCorrelation: { agentSessionId: AgentSession.id(sessionChannel), chatSessionId: getTelemetryChatSessionId(turnChannel), turnId },
 				reportCodexModelProvider: (provider: CodexModelProvider) => this._turnTracker.setCodexModelProvider(turnChannel, turnId, provider),
-				reportPrewarmedSession: (discardReason?: string) => this._turnTracker.markPrewarmedSession(turnChannel, turnId, discardReason),
+				...prewarmReporters,
 				...(turnTelemetryContext ? { turnTelemetryContext } : {}),
 				...(contribution.instructions?.length ? { hostInstructions: contribution.instructions } : {}),
 				sendStageRecorder: this._turnTracker.createProviderStageRecorder(turnChannel, turnId),

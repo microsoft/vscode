@@ -10,11 +10,12 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IFileDialogService, IOpenDialogOptions } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
-import { AgentContextValuePick, FileContextValuePick, GitHubContextValuePick, shouldShowOpenEditorsContext } from '../../../browser/actions/chatContext.js';
+import { AgentContextValuePick, ClipboardImageContextValuePick, FileContextValuePick, GitHubContextValuePick, shouldShowOpenEditorsContext } from '../../../browser/actions/chatContext.js';
 import { IChatAttachmentResolveService } from '../../../browser/attachments/chatAttachmentResolveService.js';
 import { ChatContextPickService } from '../../../browser/attachments/chatContextPickService.js';
 import { IChatWidget } from '../../../browser/chat.js';
@@ -103,6 +104,66 @@ function workspaceContextService(folders: readonly { readonly uri: URI; readonly
 suite('ChatContext', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('Clipboard image contribution', () => {
+		const image = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+
+		function createWidget(supportsImages = true, vision = true): IChatWidget {
+			return upcastPartial<IChatWidget>({
+				attachmentCapabilities: { supportsImageAttachments: supportsImages },
+				input: upcastPartial<ChatInputPart>({
+					selectedLanguageModel: observableValue('test', upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
+						metadata: upcastPartial<ILanguageModelChatMetadata>({ capabilities: { vision } }),
+					})),
+				}),
+			});
+		}
+
+		function createPick(readOnEnable: boolean, readImage: () => Promise<Uint8Array>) {
+			const warnings: string[] = [];
+			const clipboard = new class extends mock<IClipboardService>() {
+				override readImage = readImage;
+			}();
+			const notifications = new class extends mock<INotificationService>() {
+				override warn(message: string): void { warnings.push(message); }
+			}();
+			return { pick: new ClipboardImageContextValuePick(readOnEnable, clipboard, notifications), warnings };
+		}
+
+		for (const readOnEnable of [true, false]) {
+			test(`reads only at the entry's selected time (${readOnEnable})`, async () => {
+				let reads = 0;
+				const { pick, warnings } = createPick(readOnEnable, async () => { reads++; return image; });
+				const enabled = await pick.isEnabled(createWidget());
+				const readsBeforeSelection = reads;
+				const attachment = await pick.asAttachment();
+				assert.deepStrictEqual({ enabled, readsBeforeSelection, reads, kind: attachment?.kind, value: attachment?.value, warnings }, {
+					enabled: true, readsBeforeSelection: readOnEnable ? 1 : 0, reads: readOnEnable ? 2 : 1,
+					kind: 'image', value: image, warnings: [],
+				});
+			});
+
+			test(`capability checks never request clipboard access (${readOnEnable})`, async () => {
+				const { pick } = createPick(readOnEnable, async () => assert.fail('Clipboard must not be read'));
+				assert.deepStrictEqual([
+					await pick.isEnabled(createWidget(false)),
+					await pick.isEnabled(createWidget(true, false)),
+				], [false, false]);
+			});
+
+			test(`empty clipboard is reported after selection (${readOnEnable})`, async () => {
+				const { pick, warnings } = createPick(readOnEnable, async () => new Uint8Array());
+				assert.deepStrictEqual({ attachment: await pick.asAttachment(), warnings }, {
+					attachment: undefined, warnings: ['The clipboard does not contain an image.'],
+				});
+			});
+		}
+
+		test('clipboard read errors propagate to the context picker', async () => {
+			const { pick } = createPick(false, async () => { throw new Error('Clipboard access denied'); });
+			await assert.rejects(pick.asAttachment(), /Clipboard access denied/);
+		});
+	});
 
 	suite('Files picker', () => {
 		const file = URI.file('/outside-workspace/notes.txt');

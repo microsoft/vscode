@@ -333,6 +333,11 @@ export function computeChatSessionStateIndicatorState(input: {
 	return { state, requestActive, hasUnvisitedCompletion };
 }
 
+export interface IChatWidgetRequestAcceptedEvent {
+	readonly sessionResource: URI;
+	readonly result: ChatSendResult;
+}
+
 export class ChatWidget extends Disposable implements IChatWidget {
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -340,7 +345,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private readonly _onDidSubmitAgent = this._register(new Emitter<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>());
 	readonly onDidSubmitAgent = this._onDidSubmitAgent.event;
-	private readonly _onDidAcceptRequest = this._register(new Emitter<URI>());
+	private readonly _onDidAcceptRequest = this._register(new Emitter<IChatWidgetRequestAcceptedEvent>());
 	/** User input accepted by this widget for sending or queuing, excluding preserved-input background requests. */
 	readonly onDidAcceptRequest = this._onDidAcceptRequest.event;
 	private _submitHandlerInFlight = false;
@@ -2809,6 +2814,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			supportsChangingModes: this.viewOptions.supportsChangingModes,
 			dndContainer: this.viewOptions.dndContainer,
 			inputEditorMinLines: this.viewOptions.inputEditorMinLines,
+			inputEditorOptions: this.viewOptions.inputEditorOptions,
 			inputEditorPadding: this.viewOptions.inputEditorPadding,
 			isTransientChat: isTransientChat(this),
 			widgetViewKindTag: this.getWidgetViewKindTag(),
@@ -3135,12 +3141,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._setResponseIdentity(undefined);
 			this.updateWorkingProgressBorder();
 			this.onDidChangeItems();
+			this.requestInProgress.set(false);
+			this.hasActiveRequest.set(false);
 			this._hasPendingRequestsContextKey.set(false);
 			this._chatSessionSupportsRenameContextKey.set(false);
 			if (!this.viewOptions.isSessionsWindow) {
 				this.policyReadOnly = false;
 				this.setReadOnly(false);
 			}
+			this.inputPart.refreshToolbars();
 			return;
 		}
 
@@ -3289,6 +3298,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewOptions.renderArtifactsWidget !== false) {
 			this.input.renderArtifactsWidget(this.viewModel.sessionResource);
 		}
+		this.inputPart.refreshToolbars();
 	}
 
 	private bindSessionCapabilities(model: IChatModel): IDisposable {
@@ -4139,7 +4149,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const shouldUnlockQueueOrSteeringMessage = shouldUnlockChatPetQueueOrSteeringMessage(isUserQuery, options.queue);
 		const sent = await acceptAndAwaitSentRequest(result, () => {
 			if (!options.preserveInput) {
-				this._onDidAcceptRequest.fire(submittedSessionResource);
+				this._onDidAcceptRequest.fire({ sessionResource: submittedSessionResource, result });
 			}
 			if (shouldUnlockQueueOrSteeringMessage) {
 				this.chatPetService.unlockAchievement(ChatPetAchievementIds.QueueOrSteeringMessage);

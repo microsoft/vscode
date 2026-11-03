@@ -137,6 +137,7 @@ import '../workbench/services/textMate/browser/textMateTokenizationFeature.contr
 import '../workbench/services/treeSitter/browser/treeSitter.contribution.js';
 import '../workbench/services/userActivity/common/userActivityService.js';
 import '../workbench/services/userActivity/browser/userActivityBrowser.js';
+import '../workbench/services/lifecycle/common/unattendedRestart.js';
 import '../workbench/services/userAttention/browser/userAttentionBrowser.js';
 import '../workbench/services/editor/browser/editorPaneService.js';
 import '../workbench/services/editor/common/customEditorLabelService.js';
@@ -495,6 +496,8 @@ import './services/sessions/browser/sessionGroupsService.js';
 import './services/sessions/browser/sessionComparisonService.js';
 import './services/sessions/browser/sessionSectionOrderService.js';
 import './services/agentHostFilter/browser/agentHostFilterService.js';
+import './services/presentation/browser/defaultSessionRepositoryPicker.js';
+import './services/presentation/browser/defaultSessionsListPresentation.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';
 import './contrib/changes/browser/changes.contribution.js';
 import './contrib/codeReview/browser/codeReview.contributions.js';

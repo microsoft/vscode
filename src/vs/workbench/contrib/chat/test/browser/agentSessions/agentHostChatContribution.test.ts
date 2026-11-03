@@ -1150,6 +1150,10 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		removePendingRequest(sessionResource: URI, requestId: string) {
 			this.removePendingRequestCalls.push({ sessionResource, requestId });
 		},
+		consumePendingRequestCalls: [] as { sessionResource: URI; pendingRequestId: string; requestId: string }[],
+		consumePendingRequest(sessionResource: URI, pendingRequestId: string, requestId: string) {
+			this.consumePendingRequestCalls.push({ sessionResource, pendingRequestId, requestId });
+		},
 		setChatSessionTitleCalls: [] as { sessionResource: URI; title: string }[],
 		async setChatSessionTitle(sessionResource: URI, title: string) {
 			this.setChatSessionTitleCalls.push({ sessionResource, title });
@@ -1324,6 +1328,22 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 
 function createSessionListStore(disposables: DisposableStore, instantiationService: TestInstantiationService, connection: IAgentHostSessionListConnection): AgentHostSessionListStore {
 	return disposables.add(instantiationService.createInstance(AgentHostSessionListStore, connection, undefined));
+}
+
+function createAgentHostSessionHandler(
+	disposables: DisposableStore,
+	instantiationService: TestInstantiationService,
+	agentHostService: ReturnType<typeof createTestServices>['agentHostService']
+): AgentHostSessionHandler {
+	return disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+		provider: 'copilot',
+		agentId: 'agent-host-copilot',
+		sessionType: 'agent-host-copilot',
+		fullName: 'Agent Host - Copilot',
+		description: 'test',
+		connection: agentHostService,
+		connectionAuthority: 'local',
+	}));
 }
 
 function createSessionListController(disposables: DisposableStore, instantiationService: TestInstantiationService, connection: IAgentHostSessionListConnection, sessionType = 'agent-host-copilot', provider = 'copilot', description: string | undefined = undefined, useSessionTitleForDefaultChat = false): AgentHostSessionListController {
@@ -2211,6 +2231,39 @@ suite('AgentHostChatContribution', () => {
 						// The host-assigned chat resolves through the session state that lists it, so the tool call's metadata is preserved.
 						_meta: { [key]: { kind: 'write', intention: 'Edit file', fileName: '/workspaces/simple-server/index.js' }, 'agentHost.permissionDecisionSource': 'human_response' },
 					},
+				});
+			});
+		}
+
+		for (const [name, offered, reason] of [
+			['a person answers a host that offers it', true, { type: ToolConfirmKind.UserAction }],
+			['the host does not offer it', false, { type: ToolConfirmKind.UserAction }],
+			['the decision is automatic', true, { type: ToolConfirmKind.Setting, id: 'chat.tools.autoApprove' }],
+		] as const) {
+			test(`Assisted permissions feedback is sent only when ${name}`, async () => {
+				const { startRequest, fire, peer, echo } = await openWireSession();
+				const { turnId, progress, finish } = await startRequest();
+				fire({ type: ActionType.ChatToolCallStart, turnId, toolCallId: 'read-permission', toolName: 'view', displayName: 'Read' });
+				fire({
+					type: ActionType.ChatToolCallReady, turnId, toolCallId: 'read-permission',
+					invocationMessage: 'Read notes', confirmationTitle: 'Read notes?', toolInput: '/outside/notes.txt',
+					...(offered ? { _meta: { 'vscode.assistedApprovalFeedbackAccepted': true } } : {}),
+				});
+				const invocation = progress.find((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
+				assert.ok(invocation);
+				const field = IChatToolInvocation.getConfirmationMessages(invocation)?.feedback;
+				invocation.confirmationFeedback = '  The notes are public.  ';
+				const confirmation = peer.nextDispatch(ActionType.ChatToolCallConfirmed);
+				IChatToolInvocation.confirmWith(invocation, reason);
+				const sent = await confirmation;
+				echo(sent);
+				fire({ type: ActionType.ChatToolCallComplete, turnId, toolCallId: 'read-permission', result: { success: true, pastTenseMessage: 'Read notes', content: [] } });
+				await finish();
+				const meta = sent.action.type === ActionType.ChatToolCallConfirmed ? sent.action._meta : undefined;
+				assert.deepStrictEqual({ fieldShown: !!field, sentFeedback: meta?.['vscode.assistedApprovalFeedback'], draftKept: invocation.confirmationFeedback }, {
+					fieldShown: offered,
+					sentFeedback: offered && reason.type === ToolConfirmKind.UserAction ? 'The notes are public.' : undefined,
+					draftKept: undefined,
 				});
 			});
 		}
@@ -20925,6 +20978,7 @@ suite('AgentHostChatContribution', () => {
 			// The handler should have removed the consumed queued request from the chat model.
 			const removedQueueIds = chatService.removePendingRequestCalls.filter(c => c.requestId === 'q-1');
 			assert.strictEqual(removedQueueIds.length, 1, 'consumed queued message should be removed from chat model');
+			assert.deepStrictEqual(chatService.consumePendingRequestCalls, [{ sessionResource, pendingRequestId: 'q-1', requestId: 'server-turn-q' }]);
 		}));
 
 		test('a server-initiated turn names the removed notice turn it replaces', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -21101,15 +21155,7 @@ suite('AgentHostChatContribution', () => {
 			]);
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
 
-			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot' as const,
-				agentId: 'agent-host-copilot',
-				sessionType: 'agent-host-copilot',
-				fullName: 'Agent Host - Copilot',
-				description: 'test',
-				connection: agentHostService,
-				connectionAuthority: 'local',
-			}));
+			const sessionHandler = createAgentHostSessionHandler(disposables, instantiationService, agentHostService);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
@@ -21157,15 +21203,7 @@ suite('AgentHostChatContribution', () => {
 			]);
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
 
-			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot' as const,
-				agentId: 'agent-host-copilot',
-				sessionType: 'agent-host-copilot',
-				fullName: 'Agent Host - Copilot',
-				description: 'test',
-				connection: agentHostService,
-				connectionAuthority: 'local',
-			}));
+			const sessionHandler = createAgentHostSessionHandler(disposables, instantiationService, agentHostService);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
@@ -21185,15 +21223,7 @@ suite('AgentHostChatContribution', () => {
 			]);
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
 
-			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot' as const,
-				agentId: 'agent-host-copilot',
-				sessionType: 'agent-host-copilot',
-				fullName: 'Agent Host - Copilot',
-				description: 'test',
-				connection: agentHostService,
-				connectionAuthority: 'local',
-			}));
+			const sessionHandler = createAgentHostSessionHandler(disposables, instantiationService, agentHostService);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
@@ -21222,15 +21252,7 @@ suite('AgentHostChatContribution', () => {
 			]);
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
 
-			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot' as const,
-				agentId: 'agent-host-copilot',
-				sessionType: 'agent-host-copilot',
-				fullName: 'Agent Host - Copilot',
-				description: 'test',
-				connection: agentHostService,
-				connectionAuthority: 'local',
-			}));
+			const sessionHandler = createAgentHostSessionHandler(disposables, instantiationService, agentHostService);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
@@ -21279,15 +21301,7 @@ suite('AgentHostChatContribution', () => {
 				{ resolve: () => URI.parse('https://github.com/microsoft/vscode') });
 			agentHostService.setInitializeResult({ defaultDirectory: 'file:///workspaces/vscode' });
 
-			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot' as const,
-				agentId: 'agent-host-copilot',
-				sessionType: 'agent-host-copilot',
-				fullName: 'Agent Host - Copilot',
-				description: 'test',
-				connection: agentHostService,
-				connectionAuthority: 'local',
-			}));
+			const sessionHandler = createAgentHostSessionHandler(disposables, instantiationService, agentHostService);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
@@ -21328,15 +21342,7 @@ suite('AgentHostChatContribution', () => {
 				{ resolve: () => URI.file('/workspaces/vscode') });
 			agentHostService.setInitializeResult({ defaultDirectory: 'file:///workspaces/other' });
 
-			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot' as const,
-				agentId: 'agent-host-copilot',
-				sessionType: 'agent-host-copilot',
-				fullName: 'Agent Host - Copilot',
-				description: 'test',
-				connection: agentHostService,
-				connectionAuthority: 'local',
-			}));
+			const sessionHandler = createAgentHostSessionHandler(disposables, instantiationService, agentHostService);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
@@ -21514,15 +21520,7 @@ suite('AgentHostChatContribution', () => {
 			const initialResolution = new DeferredPromise<void>();
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations, isResolved, whenResolved: initialResolution.p }));
 
-			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot' as const,
-				agentId: 'agent-host-copilot',
-				sessionType: 'agent-host-copilot',
-				fullName: 'Agent Host - Copilot',
-				description: 'test',
-				connection: agentHostService,
-				connectionAuthority: 'local',
-			}));
+			const sessionHandler = createAgentHostSessionHandler(disposables, instantiationService, agentHostService);
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-initial-scope' });
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
@@ -21575,15 +21573,7 @@ suite('AgentHostChatContribution', () => {
 				lifecycle: SessionLifecycle.Ready,
 				activeClients: [],
 			});
-			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot' as const,
-				agentId: 'agent-host-copilot',
-				sessionType: 'agent-host-copilot',
-				fullName: 'Agent Host - Copilot',
-				description: 'test',
-				connection: agentHostService,
-				connectionAuthority: 'local',
-			}));
+			const sessionHandler = createAgentHostSessionHandler(disposables, instantiationService, agentHostService);
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
 			const cancellation = disposables.add(new CancellationTokenSource());
@@ -21614,15 +21604,7 @@ suite('AgentHostChatContribution', () => {
 			const customizations = observableValue<ClientPluginCustomization[]>('customizations', []);
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
 
-			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot' as const,
-				agentId: 'agent-host-copilot',
-				sessionType: 'agent-host-copilot',
-				fullName: 'Agent Host - Copilot',
-				description: 'test',
-				connection: agentHostService,
-				connectionAuthority: 'local',
-			}));
+			const sessionHandler = createAgentHostSessionHandler(disposables, instantiationService, agentHostService);
 
 			// Create a session first
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
@@ -21653,15 +21635,7 @@ suite('AgentHostChatContribution', () => {
 			]);
 			const tools = observableValue<readonly ToolDefinition[]>('driftTools', [{ name: 'drift_tool' }]);
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations, tools }));
-			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot' as const,
-				agentId: 'agent-host-copilot',
-				sessionType: 'agent-host-copilot',
-				fullName: 'Agent Host - Copilot',
-				description: 'test',
-				connection: agentHostService,
-				connectionAuthority: 'local',
-			}));
+			const sessionHandler = createAgentHostSessionHandler(disposables, instantiationService, agentHostService);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 			customizations.set([
@@ -21705,15 +21679,7 @@ suite('AgentHostChatContribution', () => {
 			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
 			const customizations = observableValue<readonly ClientPluginCustomization[]>('nonConvergingCustomizations', []);
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
-			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot' as const,
-				agentId: 'agent-host-copilot',
-				sessionType: 'agent-host-copilot',
-				fullName: 'Agent Host - Copilot',
-				description: 'test',
-				connection: agentHostService,
-				connectionAuthority: 'local',
-			}));
+			const sessionHandler = createAgentHostSessionHandler(disposables, instantiationService, agentHostService);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 			customizations.set([
@@ -21765,15 +21731,7 @@ suite('AgentHostChatContribution', () => {
 				lifecycle: SessionLifecycle.Ready,
 				activeClients: [{ clientId: agentHostService.clientId, tools: [], customizations: [] }],
 			});
-			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot' as const,
-				agentId: 'agent-host-copilot',
-				sessionType: 'agent-host-copilot',
-				fullName: 'Agent Host - Copilot',
-				description: 'test',
-				connection: agentHostService,
-				connectionAuthority: 'local',
-			}));
+			const sessionHandler = createAgentHostSessionHandler(disposables, instantiationService, agentHostService);
 
 			const turn = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				sessionResource,
@@ -21814,15 +21772,7 @@ suite('AgentHostChatContribution', () => {
 				lifecycle: SessionLifecycle.Ready,
 				activeClients: [{ clientId: agentHostService.clientId, tools: [], customizations: [] }],
 			});
-			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot' as const,
-				agentId: 'agent-host-copilot',
-				sessionType: 'agent-host-copilot',
-				fullName: 'Agent Host - Copilot',
-				description: 'test',
-				connection: agentHostService,
-				connectionAuthority: 'local',
-			}));
+			const sessionHandler = createAgentHostSessionHandler(disposables, instantiationService, agentHostService);
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
 			await timeout(10);
@@ -21907,15 +21857,7 @@ suite('AgentHostChatContribution', () => {
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations: customizationsA }, [rootA]));
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations: customizationsB }, [rootB]));
 
-			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot' as const,
-				agentId: 'agent-host-copilot',
-				sessionType: 'agent-host-copilot',
-				fullName: 'Agent Host - Copilot',
-				description: 'test',
-				connection: agentHostService,
-				connectionAuthority: 'local',
-			}));
+			const sessionHandler = createAgentHostSessionHandler(disposables, instantiationService, agentHostService);
 
 			const first = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				sessionResource: URI.from({ scheme: 'agent-host-copilot', path: '/scope-a' }),
@@ -21950,15 +21892,7 @@ suite('AgentHostChatContribution', () => {
 			const customizations = observableValue<readonly ClientPluginCustomization[]>('customizations', []);
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/disposed-session' });
-			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot' as const,
-				agentId: 'agent-host-copilot',
-				sessionType: 'agent-host-copilot',
-				fullName: 'Agent Host - Copilot',
-				description: 'test',
-				connection: agentHostService,
-				connectionAuthority: 'local',
-			}));
+			const sessionHandler = createAgentHostSessionHandler(disposables, instantiationService, agentHostService);
 
 			const turn = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
 			turn.fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session: turn.session, turnId: turn.turnId } as ChatAction);
@@ -21998,15 +21932,7 @@ suite('AgentHostChatContribution', () => {
 				}],
 			});
 
-			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot' as const,
-				agentId: 'agent-host-copilot',
-				sessionType: 'agent-host-copilot',
-				fullName: 'Agent Host - Copilot',
-				description: 'test',
-				connection: agentHostService,
-				connectionAuthority: 'local',
-			}));
+			const sessionHandler = createAgentHostSessionHandler(disposables, instantiationService, agentHostService);
 
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
@@ -22043,15 +21969,7 @@ suite('AgentHostChatContribution', () => {
 			const resolution = new DeferredPromise<void>();
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations, isResolved, whenResolved: resolution.p }));
 
-			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot' as const,
-				agentId: 'agent-host-copilot',
-				sessionType: 'agent-host-copilot',
-				fullName: 'Agent Host - Copilot',
-				description: 'test',
-				connection: agentHostService,
-				connectionAuthority: 'local',
-			}));
+			const sessionHandler = createAgentHostSessionHandler(disposables, instantiationService, agentHostService);
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
 			await timeout(10);
@@ -22091,15 +22009,7 @@ suite('AgentHostChatContribution', () => {
 				}],
 			});
 
-			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot' as const,
-				agentId: 'agent-host-copilot',
-				sessionType: 'agent-host-copilot',
-				fullName: 'Agent Host - Copilot',
-				description: 'test',
-				connection: agentHostService,
-				connectionAuthority: 'local',
-			}));
+			const sessionHandler = createAgentHostSessionHandler(disposables, instantiationService, agentHostService);
 
 			// Opening the session does NOT claim the active-client slot. The
 			// claim is deferred to the first turn so simply browsing a
@@ -22167,15 +22077,7 @@ suite('AgentHostChatContribution', () => {
 				lifecycle: SessionLifecycle.Ready,
 				activeClients: [{ clientId: 'other-client', tools: [], customizations: [] }],
 			});
-			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot' as const,
-				agentId: 'agent-host-copilot',
-				sessionType: 'agent-host-copilot',
-				fullName: 'Agent Host - Copilot',
-				description: 'test',
-				connection: agentHostService,
-				connectionAuthority: 'local',
-			}));
+			const sessionHandler = createAgentHostSessionHandler(disposables, instantiationService, agentHostService);
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
 			customizations.set([{ type: CustomizationType.Plugin, id: 'file:///other-client-plugin', uri: 'file:///other-client-plugin', name: 'Other Client Plugin', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] }], undefined);
@@ -22209,15 +22111,7 @@ suite('AgentHostChatContribution', () => {
 				}],
 			});
 
-			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot' as const,
-				agentId: 'agent-host-copilot',
-				sessionType: 'agent-host-copilot',
-				fullName: 'Agent Host - Copilot',
-				description: 'test',
-				connection: agentHostService,
-				connectionAuthority: 'local',
-			}));
+			const sessionHandler = createAgentHostSessionHandler(disposables, instantiationService, agentHostService);
 
 			// Opening refreshes this client's stale customizations without claiming
 			// a session where only another client is active.
@@ -22361,15 +22255,7 @@ suite('AgentHostChatContribution', () => {
 				activeClients: [],
 			});
 
-			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot' as const,
-				agentId: 'agent-host-copilot',
-				sessionType: 'agent-host-copilot',
-				fullName: 'Agent Host - Copilot',
-				description: 'test',
-				connection: agentHostService,
-				connectionAuthority: 'local',
-			}));
+			const sessionHandler = createAgentHostSessionHandler(disposables, instantiationService, agentHostService);
 
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));

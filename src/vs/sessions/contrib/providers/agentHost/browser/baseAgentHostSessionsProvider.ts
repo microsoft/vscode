@@ -58,6 +58,7 @@ import { observableConfigValue } from '../../../../../platform/observable/common
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { readAgentCustomizationMeta } from '../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
+import { getAgentModelPolicyError, IAgentModelPreferences, resolveAgentModelPreference, resolveAgentModelPreferences, resolveAgentReasoningEffort } from '../../../../../workbench/contrib/chat/common/promptSyntax/languageProviders/promptModelResolver.js';
 import { readAgentHeadBranchPullRequest, toAgentHeadBranchPullRequestMeta } from '../../../../../platform/agentHost/common/meta/agentSessionGitHubReferences.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin, type IRemoteSessionOrigin } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { getLegacySessionInitiator, readSessionInitiator, withSessionInitiator, SESSION_INITIATOR_METADATA_KEY } from '../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
@@ -3725,12 +3726,16 @@ class NewSession extends Disposable {
 	/** Untitled skeleton title used until the first request commits the session. */
 	get untitledTitle(): string { return this._kind.untitledTitle; }
 	setSelectedAgent(agent: ISessionAgentRef | undefined, source: ISessionAgentRef | undefined = agent): void {
+		if (source?.uri !== this._selectedAgentSource?.uri) {
+			this.agentModelPreferenceApplied = false;
+		}
 		this._selectedAgent = agent;
 		this._selectedAgentSource = source;
 		this._mode.set(agent ? { id: agent.uri, kind: AGENT_MODE_KIND } : undefined, undefined);
 	}
 
 	getSelectedAgent(): ISessionAgentRef | undefined { return this._selectedAgent; }
+	agentModelPreferenceApplied = false;
 	getSelectedAgentSource(): ISessionAgentRef | undefined { return this._selectedAgentSource ?? this._selectedAgent; }
 	getInitialSessionTemplate(): IAutomationSessionTemplate | undefined { return this._initialSessionTemplate; }
 	clearSelectedAgent(): void {
@@ -4733,7 +4738,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/** Backend chats active in a visible session, whose config subscriptions are held without an idle timer. */
 	private readonly _pinnedChatConfigs = new Set<string>();
 	private readonly _runningSessionConfigResolveSeq = new Map<string, number>();
-	private readonly _runningModelConfigurations = this._register(new DisposableMap<string, AutomationModelConfiguration>());
+	private readonly _runningModelConfigurations = this._register(new DisposableMap<string, DisposableMap<string, AutomationModelConfiguration>>());
 	/**
 	 * Model configuration a side chat inherited from its source chat's turn, keyed by chat
 	 * resource. Per chat rather than per session so it cannot change the session's other chats;
@@ -4896,7 +4901,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this.onDidChangeModels = Event.defer(Event.any(
 			this._languageModelsService.onDidChangeLanguageModels,
 			this._languageModelsService.onDidChangeModelVisibility,
+			this.onDidChangeCustomAgents,
 		), false, this._store);
+		this._register(this.onDidChangeModels(() => {
+			for (const draft of this._newSessions.values()) {
+				this._reconcileNewSessionAgent(draft);
+			}
+		}));
 		this._downloadProgress = this._register(this._instantiationService.createInstance(AgentHostDownloadProgress));
 		this._register(toDisposable(() => {
 			for (const cached of this._sessionCache.values()) {
@@ -6218,10 +6229,25 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return draft.modelConfiguration;
 		}
 		const rawId = this._sessionKeyFromChatId(sessionId);
-		if (!this._runningModelConfigurations.has(sessionId) && rawId && this._sessionCache.has(rawId)) {
-			this._runningModelConfigurations.set(sessionId, new AutomationModelConfiguration(this._languageModelsService));
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!cached) {
+			return undefined;
 		}
-		return this._runningModelConfigurations.get(sessionId);
+		const configurations = this._getRunningModelConfigurations(cached.sessionId);
+		const key = this._activeChatResource(cached).toString();
+		if (!configurations.has(key)) {
+			configurations.set(key, new AutomationModelConfiguration(this._languageModelsService));
+		}
+		return configurations.get(key);
+	}
+
+	private _getRunningModelConfigurations(sessionId: string): DisposableMap<string, AutomationModelConfiguration> {
+		let configurations = this._runningModelConfigurations.get(sessionId);
+		if (!configurations) {
+			configurations = new DisposableMap<string, AutomationModelConfiguration>();
+			this._runningModelConfigurations.set(sessionId, configurations);
+		}
+		return configurations;
 	}
 
 	async getAutomationSessionConfiguration(sessionId: string): Promise<IAutomationSessionConfiguration | undefined> {
@@ -7188,7 +7214,39 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				modelTarget: undefined,
 			};
 		}
-		return this._getModelsSnapshotForTarget(resourceScheme, desiredModelId);
+		const snapshot = this._getModelsSnapshotForTarget(resourceScheme, desiredModelId);
+		const agentModelPreferences = this._getAgentModelPreferences(sessionId, chat);
+		if (!agentModelPreferences) {
+			return snapshot;
+		}
+		const models = agentModelPreferences.required ? resolveAgentModelPreferences(agentModelPreferences.models, snapshot.models) : snapshot.models;
+		const resolvedModelId = snapshot.desiredModelResolution.kind === 'available' ? snapshot.desiredModelResolution.model.identifier : desiredModelId;
+		return {
+			...snapshot,
+			models,
+			agentModelPreferences,
+			desiredModelResolution: agentModelPreferences.required
+				? resolveModelIdentifier(models, resolvedModelId, snapshot.desiredModelResolution.kind !== 'pending')
+				: snapshot.desiredModelResolution,
+		};
+	}
+
+	private _getAgentModelPreferences(sessionId: string, chat?: URI): IAgentModelPreferences | undefined {
+		const newSession = this._getNewSession(sessionId);
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const uri = newSession?.getSelectedAgent()?.uri ?? (cached && cached.getChatMode(chat ?? this._activeChatResource(cached))?.id);
+		const published = uri ? this.resolveCustomAgent(sessionId, uri) : undefined;
+		const agent = published ?? (uri ? this.getCustomAgents(sessionId).find(agent => agent.uri === uri) : undefined);
+		if (!agent) {
+			return undefined;
+		}
+		const meta = readAgentCustomizationMeta(agent);
+		const models = meta['vscode.models'] ?? (agent.model ? [agent.model] : undefined);
+		const source = newSession?.getSelectedAgentSource();
+		const sourceUri = newSession && source ? newSession.getClientAgentSourceUri(URI.parse(source.uri))
+			: published ? this._toClientAgentUri(published) : URI.parse(agent.uri);
+		return models?.length ? { models, required: meta['vscode.modelPolicy'] === 'required', source: { name: agent.name, uri: sourceUri } } : undefined;
 	}
 
 	getModelsSnapshotForCreation(_workspaceUri: URI | undefined, sessionTypeId: string, desiredModelId?: string): ISessionModelsSnapshot {
@@ -7221,9 +7279,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const resourceScheme = this._resolveSessionResourceScheme(sessionId, chat);
 		const showAutoModel = !resourceScheme || this._chatSessionsService.supportsAutoModelForSessionType(resourceScheme);
 		return {
-			showUnavailableFeatured: true,
+			showUnavailableFeatured: !this._getAgentModelPreferences(sessionId, chat)?.required,
 			showManageModelsAction: true,
-			showAutoModel,
+			showAutoModel: showAutoModel && !this._getAgentModelPreferences(sessionId, chat)?.required,
 		};
 	}
 
@@ -7234,10 +7292,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * to its stale backend model) so the request is explicitly reset to Auto.
 	 */
 	private _resolveSendModelId(sessionId: string, selectedModelId: string | undefined, chat?: URI): string | undefined {
-		if (!selectedModelId) {
+		if (!selectedModelId && !this._getAgentModelPreferences(sessionId, chat)?.required) {
 			return selectedModelId;
 		}
 		const snapshot = this.getModelsSnapshot(sessionId, selectedModelId, chat);
+		const resolvedModelId = snapshot.desiredModelResolution.kind === 'available' ? snapshot.desiredModelResolution.model.identifier : selectedModelId;
+		const policyError = getAgentModelPolicyError(snapshot.agentModelPreferences, resolvedModelId, snapshot.models);
+		if (policyError) {
+			throw new Error(policyError);
+		}
+		if (!selectedModelId) {
+			return selectedModelId;
+		}
 		if (snapshot.desiredModelResolution.kind !== 'unavailable') {
 			// Available, pending (list not yet populated) or not requested: keep the selection.
 			return selectedModelId;
@@ -7267,8 +7333,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	setModel(sessionId: string, chatResource: URI, modelId: string, source: ChatModelSource): void {
 		this._assertSessionAvailable(sessionId);
+		if (this._getAgentModelPreferences(sessionId, chatResource)?.required) {
+			const snapshot = this.getModelsSnapshot(sessionId, modelId, chatResource);
+			const resolvedModelId = snapshot.desiredModelResolution.kind === 'available' ? snapshot.desiredModelResolution.model.identifier : modelId;
+			const policyError = getAgentModelPolicyError(snapshot.agentModelPreferences, resolvedModelId, snapshot.models);
+			if (policyError) {
+				throw new Error(policyError);
+			}
+		}
 		const newSession = this._getNewSession(sessionId);
 		if (newSession) {
+			if (source === ChatModelSource.Chosen && newSession.getSelectedAgent()) {
+				newSession.agentModelPreferenceApplied = true;
+			}
 			const previousModelId = newSession.getSelectedModelId();
 			if (previousModelId && previousModelId !== modelId) {
 				const resolution = this.getModelsSnapshot(sessionId, previousModelId).desiredModelResolution;
@@ -7317,8 +7394,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const connection = this.connection;
 		if (cached && rawId && connection) {
 			const chatResource = this._activeChatResource(cached);
+			const preference = agent && cached.getChatMode(chatResource)?.id !== agent.uri
+				? this._getAgentModelPreference(sessionId, chatResource, agent.uri, cached.getChatModelId(chatResource))
+				: undefined;
+			if (preference) {
+				if (preference.configuration) {
+					void this.getAutomationModelConfiguration(sessionId)?.setModelConfiguration(preference.model.identifier, preference.configuration, false)
+						.catch(error => this._logService.error(`[${this.id}] Failed to apply custom agent model configuration`, error));
+				}
+				cached.setChatModelId(chatResource, preference.model.identifier, ChatModelSource.Chosen);
+			}
 			cached.setChatAgent(chatResource, agent);
-			this._updateChatSessionState(chatResource, cached.getChatModelId(chatResource), agent?.uri).catch(err => this._logService.error(`[${this.id}] Failed to update chat model state for ${chatResource.toString()}`, err));
+			this._updateChatSessionState(chatResource, cached.getChatModelId(chatResource), agent?.uri, { modelConfiguration: preference?.configuration }).catch(err => this._logService.error(`[${this.id}] Failed to update chat model state for ${chatResource.toString()}`, err));
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
 	}
@@ -7376,7 +7463,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return newSession
 			? this._resolvePublishedDraftAgent(newSession,
 				selected && isEqual(URI.parse(selected.uri), URI.parse(uri)) ? newSession.getSelectedAgentSource() ?? { uri, name: '' } : { uri, name: '' }, published)
-			: published.find(agent => isEqual(URI.parse(agent.uri), URI.parse(uri)));
+			: published.find(agent => isEqual(URI.parse(agent.uri), URI.parse(uri)) || isEqual(this._toClientAgentUri(agent), URI.parse(uri)));
 	}
 
 	private _reconcileNewSessionAgent(newSession: NewSession): void {
@@ -7391,6 +7478,41 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (resolved && resolvedUri && !isEqual(resolvedUri, URI.parse(selected.uri))) {
 			newSession.setSelectedAgent({ uri: resolvedUri.toString(), name: resolved.name }, source);
 		}
+		if (!newSession.agentModelPreferenceApplied) {
+			const preference = this._getAgentModelPreference(newSession.sessionId, newSession.session.resource, source.uri, newSession.getSelectedModelId());
+			if (preference) {
+				// Apply once per agent choice, so later picker choices remain authoritative.
+				newSession.agentModelPreferenceApplied = true;
+				if (preference.configuration) {
+					void newSession.modelConfiguration.setModelConfiguration(preference.model.identifier, preference.configuration, false)
+						.catch(error => this._logService.error(`[${this.id}] Failed to apply custom agent model configuration`, error));
+				}
+				newSession.setSelectedModelId(preference.model.identifier, ChatModelSource.Chosen);
+			}
+		}
+	}
+
+	private _getAgentModelPreference(sessionId: string, chatResource: URI, uri: string, currentModelId: string | undefined) {
+		const agent = this.resolveCustomAgent(sessionId, uri) ?? this.getCustomAgents(sessionId).find(agent => agent.uri === uri);
+		if (!agent) {
+			return undefined;
+		}
+		const meta = readAgentCustomizationMeta(agent);
+		const preferences = meta['vscode.models'] ?? (agent.model ? [agent.model] : undefined);
+		const effort = meta['vscode.reasoningEffort'];
+		if (!preferences?.length && !effort) {
+			return undefined;
+		}
+		const resourceScheme = this._resolveSessionResourceScheme(sessionId, chatResource);
+		const models = resourceScheme ? this._getModelsSnapshotForTarget(resourceScheme, currentModelId).models : [];
+		const model = preferences?.length ? resolveAgentModelPreference(preferences, models) : models.find(model => model.identifier === currentModelId);
+		if (!model) {
+			if (models.length > 0) {
+				this._logService.warn(`[${this.id}] Custom agent model preference is not available`);
+			}
+			return undefined;
+		}
+		return { model, configuration: resolveAgentReasoningEffort(effort, model.metadata) };
 	}
 
 	getCustomizations(sessionId: string): Customization[] {
@@ -8198,6 +8320,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// `cached.chats`.
 		this._keepSessionStateAlive(cached.sessionId);
 		await connection.disposeChat(ahpChatUri);
+		this._runningModelConfigurations.get(cached.sessionId)?.deleteAndDispose(chatUri.toString());
 		return true;
 	}
 
@@ -8629,7 +8752,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._carriedOverChatModelConfigurations.delete(chatResource.toString());
 		const selectedModelConfiguration = carriedOverConfiguration && carriedOverConfiguration.modelId === selectedModelId
 			? carriedOverConfiguration.configuration
-			: this._runningModelConfigurations.get(cached.sessionId)?.getModelConfigurationForRequest(selectedModelId);
+			: this._runningModelConfigurations.get(cached.sessionId)?.get(chatResource.toString())?.getModelConfigurationForRequest(selectedModelId);
 		const selectedAgentUri = cached.getChatMode(chatResource)?.id;
 
 		const sendOptions: IChatSendRequestOptions = {
@@ -8689,7 +8812,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return cached;
 	}
 
-	private async _updateChatSessionState(chatResource: URI, modelId: string | undefined, agentUri: string | undefined, options?: { readonly clearDraft?: boolean }): Promise<void> {
+	private async _updateChatSessionState(chatResource: URI, modelId: string | undefined, agentUri: string | undefined, options?: { readonly clearDraft?: boolean; readonly modelConfiguration?: IAutomationSessionTemplate['modelConfiguration'] }): Promise<void> {
 		const modelRef = await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
 		if (!modelRef) {
 			return;
@@ -8737,9 +8860,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (modelId) {
 			const languageModel = this._languageModelsService.lookupLanguageModel(modelId);
 			if (languageModel) {
+				const state = inputModel.state.get();
+				const existingConfiguration = state?.selectedModel?.identifier === modelId ? state.modelConfiguration : undefined;
 				inputModel.setState({
 					selectedModel: { identifier: modelId, metadata: languageModel },
-					modelConfiguration: options?.modelConfiguration,
+					modelConfiguration: options?.modelConfiguration ? { ...existingConfiguration, ...options.modelConfiguration } : existingConfiguration,
 				});
 			}
 		}
@@ -8967,7 +9092,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		modelConfiguration: IAutomationSessionTemplate['modelConfiguration'],
 	): void {
 		if (modelConfiguration !== undefined) {
-			this._runningModelConfigurations.set(committedAdapter.sessionId, new AutomationModelConfiguration(this._languageModelsService, {
+			this._getRunningModelConfigurations(committedAdapter.sessionId).set(committedAdapter.resource.toString(), new AutomationModelConfiguration(this._languageModelsService, {
 				modelId,
 				modelConfiguration,
 			}, true));
@@ -9387,7 +9512,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				if (model) {
 					if (model.config !== undefined) {
 						const modelId = `${cached.resource.scheme}:${model.id}`;
-						this._runningModelConfigurations.set(cached.sessionId, new AutomationModelConfiguration(this._languageModelsService, {
+						this._getRunningModelConfigurations(cached.sessionId).set(cached.resource.toString(), new AutomationModelConfiguration(this._languageModelsService, {
 							modelId,
 							modelConfiguration: model.config,
 						}, true));
