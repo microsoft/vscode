@@ -7,13 +7,13 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { equals, deepClone } from '../../../../base/common/objects.js';
-import { Promises, ResourceQueue } from '../../../../base/common/async.js';
+import { DeferredPromise, Promises, ResourceQueue } from '../../../../base/common/async.js';
 import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from './workingCopyBackup.js';
 import { IFileService, FileOperationError, FileOperationResult, FileSystemProviderCapabilities } from '../../../../platform/files/common/files.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { isReadableStream, peekStream } from '../../../../base/common/stream.js';
 import { bufferToStream, prefixedBufferReadable, prefixedBufferStream, readableToBuffer, streamToBuffer, VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../base/common/buffer.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -122,6 +122,8 @@ export abstract class WorkingCopyBackupService extends Disposable implements IWo
 	declare readonly _serviceBrand: undefined;
 
 	private impl: WorkingCopyBackupServiceImpl | InMemoryWorkingCopyBackupService;
+	private readonly pendingOperations = new Set<Promise<void>>();
+	private backupPathTransition: DeferredPromise<void> | undefined;
 
 	constructor(
 		backupWorkspaceHome: URI | undefined,
@@ -158,15 +160,15 @@ export abstract class WorkingCopyBackupService extends Disposable implements IWo
 	}
 
 	backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadableStream | VSBufferReadable, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
-		return this.impl.backup(identifier, content, versionId, meta, token);
+		return this.trackOperation(() => this.impl.backup(identifier, content, versionId, meta, token));
 	}
 
 	discardBackup(identifier: IWorkingCopyIdentifier, token?: CancellationToken): Promise<void> {
-		return this.impl.discardBackup(identifier, token);
+		return this.trackOperation(() => this.impl.discardBackup(identifier, token));
 	}
 
 	discardBackups(filter?: { except: IWorkingCopyIdentifier[] }): Promise<void> {
-		return this.impl.discardBackups(filter);
+		return this.trackOperation(() => this.impl.discardBackups(filter));
 	}
 
 	getBackups(): Promise<IWorkingCopyIdentifier[]> {
@@ -181,8 +183,43 @@ export abstract class WorkingCopyBackupService extends Disposable implements IWo
 		return this.impl.toBackupResource(identifier);
 	}
 
-	joinBackups(): Promise<void> {
-		return this.impl.joinBackups();
+	async joinBackups(): Promise<void> {
+		await Promises.settled([...this.pendingOperations]);
+		await this.impl.joinBackups();
+	}
+
+	async beginBackupPathTransition(): Promise<IDisposable> {
+		if (this.backupPathTransition) {
+			throw new Error('Backup path transition already in progress');
+		}
+
+		const transition = new DeferredPromise<void>();
+		this.backupPathTransition = transition;
+		const pendingOperations = [...this.pendingOperations];
+		await Promises.settled(pendingOperations);
+
+		return toDisposable(() => {
+			if (this.backupPathTransition === transition) {
+				this.backupPathTransition = undefined;
+				transition.complete();
+			}
+		});
+	}
+
+	private trackOperation(operation: () => Promise<void>): Promise<void> {
+		const transition = this.backupPathTransition;
+		const pendingOperation = (async () => {
+			if (transition) {
+				await transition.p;
+			}
+			await operation();
+		})();
+		this.pendingOperations.add(pendingOperation);
+		pendingOperation.then(
+			() => this.pendingOperations.delete(pendingOperation),
+			() => this.pendingOperations.delete(pendingOperation)
+		);
+		return pendingOperation;
 	}
 }
 

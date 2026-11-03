@@ -20,7 +20,8 @@ import { toBufferOrReadable } from '../../../textfile/common/textfiles.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../../../../platform/files/common/files.js';
 import { NativeWorkingCopyBackupService } from '../../electron-browser/workingCopyBackupService.js';
 import { FileUserDataProvider } from '../../../../../platform/userData/common/fileUserDataProvider.js';
-import { bufferToReadable, bufferToStream, streamToBuffer, VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../../base/common/buffer.js';
+import { bufferToReadable, bufferToStream, newWriteableBufferStream, streamToBuffer, VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../../base/common/buffer.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { TestLifecycleService, toTypedWorkingCopyId, toUntypedWorkingCopyId } from '../../../../test/browser/workbenchTestServices.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from '../../common/workingCopy.js';
@@ -92,8 +93,18 @@ export class TestNativeWorkbenchEnvironmentService extends NativeWorkbenchEnviro
 }
 
 class AtomicInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
+	failRename = false;
+	atomicWrites = true;
+
 	override get capabilities(): FileSystemProviderCapabilities {
-		return super.capabilities | FileSystemProviderCapabilities.FileAtomicWrite;
+		return this.atomicWrites ? super.capabilities | FileSystemProviderCapabilities.FileAtomicWrite : super.capabilities;
+	}
+
+	override async rename(from: URI, to: URI, options: { overwrite: boolean }): Promise<void> {
+		if (this.failRename) {
+			throw new Error('rename failed');
+		}
+		return super.rename(from, to, options);
 	}
 }
 
@@ -106,6 +117,7 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 	private pendingBackupsArr: Promise<void>[];
 
 	readonly _fileService: IFileService;
+	readonly _fileSystemProvider: AtomicInMemoryFileSystemProvider;
 
 	constructor(testDir: URI, workspaceBackupPath: URI) {
 		const environmentService = new TestNativeWorkbenchEnvironmentService(testDir, workspaceBackupPath);
@@ -116,6 +128,7 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 
 		const fsp = new AtomicInMemoryFileSystemProvider();
 		fileService.registerProvider(Schemas.inMemory, fsp);
+		this._fileSystemProvider = fsp;
 		const uriIdentityService = new UriIdentityService(fileService);
 		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
 		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, fsp, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, logService));
@@ -143,7 +156,7 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 
 	override async backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadableStream | VSBufferReadable, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
 		const p = super.backup(identifier, content, versionId, meta, token);
-		const removeFromPendingBackups = insert(this.pendingBackupsArr, p.then(undefined, undefined));
+		const removeFromPendingBackups = insert(this.pendingBackupsArr, p.then(() => { }, () => { }));
 
 		try {
 			await p;
@@ -529,6 +542,95 @@ suite('WorkingCopyBackupService', () => {
 			const largeString = (new Array(30 * 1024)).join('Large String\n');
 
 			return testLargeTextFile(largeString, bufferToStream(VSBuffer.fromString(largeString)));
+		});
+
+		test('backup path transition drains in-flight backups and suspends new backups', async () => {
+			const identifier = toUntypedWorkingCopyId(fooFile);
+			const backupPath = joinPath(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
+			const stream = newWriteableBufferStream();
+			const backup = service.backup(identifier, stream, 1);
+			stream.write(VSBuffer.fromString('partial'));
+			await timeout(0);
+
+			let transitionReady = false;
+			const transition = service.beginBackupPathTransition().then(disposable => {
+				transitionReady = true;
+				return disposable;
+			});
+			const blockedBackup = service.backup(toUntypedWorkingCopyId(barFile), bufferToReadable(VSBuffer.fromString('blocked')), 1);
+			await timeout(0);
+			assert.strictEqual(transitionReady, false);
+
+			stream.end();
+			await backup;
+			const release = await transition;
+			assert.strictEqual(await fileService.exists(backupPath), true);
+			release.dispose();
+			await blockedBackup;
+		});
+
+		test('failed stream keeps previous backup and cleans temporary file', async () => {
+			const identifier = toUntypedWorkingCopyId(fooFile);
+			const backupPath = joinPath(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
+			const temporaryBackupPath = backupPath.with({ path: `${backupPath.path}${WORKING_COPY_BACKUP_TEMP_FILE_SUFFIX}` });
+			await service.backup(identifier, bufferToReadable(VSBuffer.fromString('previous')), 1, { value: 'old' });
+			const stream = newWriteableBufferStream();
+			const failedBackup = service.backup(identifier, stream, 2, { value: 'new' });
+			stream.write(VSBuffer.fromString('partial'));
+			stream.error(new Error('backup failed'));
+
+			await assert.rejects(failedBackup, /backup failed/);
+
+			assert.deepStrictEqual({
+				content: (await fileService.readFile(backupPath)).value.toString(),
+				hasOldVersion: service.hasBackupSync(identifier, 1, { value: 'old' }),
+				hasNewVersion: service.hasBackupSync(identifier, 2, { value: 'new' }),
+				temporaryExists: await fileService.exists(temporaryBackupPath)
+			}, {
+				content: toExpectedPreamble(identifier, 'previous', { value: 'old' }),
+				hasOldVersion: true,
+				hasNewVersion: false,
+				temporaryExists: false
+			});
+		});
+
+		test('failed atomic move keeps previous backup and supports retry', async () => {
+			const identifier = toUntypedWorkingCopyId(fooFile);
+			const backupPath = joinPath(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
+			const temporaryBackupPath = backupPath.with({ path: `${backupPath.path}${WORKING_COPY_BACKUP_TEMP_FILE_SUFFIX}` });
+			await service.backup(identifier, bufferToReadable(VSBuffer.fromString('previous')), 1, { value: 'old' });
+			service._fileSystemProvider.failRename = true;
+			try {
+				await assert.rejects(service.backup(identifier, bufferToReadable(VSBuffer.fromString('next')), 2, { value: 'new' }), /rename failed/);
+			} finally {
+				service._fileSystemProvider.failRename = false;
+			}
+
+			assert.deepStrictEqual({
+				content: (await fileService.readFile(backupPath)).value.toString(),
+				hasOldVersion: service.hasBackupSync(identifier, 1, { value: 'old' }),
+				hasNewVersion: service.hasBackupSync(identifier, 2, { value: 'new' }),
+				temporaryExists: await fileService.exists(temporaryBackupPath)
+			}, {
+				content: toExpectedPreamble(identifier, 'previous', { value: 'old' }),
+				hasOldVersion: true,
+				hasNewVersion: false,
+				temporaryExists: false
+			});
+
+			await service.backup(identifier, bufferToReadable(VSBuffer.fromString('next')), 2, { value: 'new' });
+			assert.strictEqual((await fileService.readFile(backupPath)).value.toString(), toExpectedPreamble(identifier, 'next', { value: 'new' }));
+		});
+
+		test('non atomic backup fallback', async () => {
+			const identifier = toUntypedWorkingCopyId(fooFile);
+			service._fileSystemProvider.atomicWrites = false;
+			try {
+				await service.backup(identifier, bufferToReadable(VSBuffer.fromString('fallback')), 1);
+				assert.strictEqual(await service.getBackupContents(identifier), toExpectedPreamble(identifier, 'fallback'));
+			} finally {
+				service._fileSystemProvider.atomicWrites = true;
+			}
 		});
 
 		test('text file (large file, readable)', async () => {

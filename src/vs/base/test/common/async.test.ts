@@ -2029,12 +2029,13 @@ suite('Async', () => {
 
 		test('emitMany emits all items', async function () {
 			const source = new async.AsyncIterableSource<number>();
+			const replayingIterable: async.AsyncIterableObject<number> = source.asyncIterable;
 			const values = [10, 20, 30, 40];
 			source.emitMany(values);
 			source.resolve();
 
 			const result: number[] = [];
-			for await (const item of source.asyncIterable) {
+			for await (const item of replayingIterable) {
 				result.push(item);
 			}
 
@@ -2046,7 +2047,7 @@ suite('Async', () => {
 				this.skip();
 			}
 
-			const source = new async.AsyncIterableSource<object>(undefined, { replay: false });
+			const source = new async.AsyncIterableSource<object, false>(undefined, { replay: false });
 			const valueRef = (() => {
 				const value = { payload: new ArrayBuffer(1024) };
 				source.emitOne(value);

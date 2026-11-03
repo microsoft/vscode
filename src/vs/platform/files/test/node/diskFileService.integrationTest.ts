@@ -704,6 +704,27 @@ flakySuite('Disk File Service', function () {
 		assert.deepStrictEqual({ source: readFileSync(source.fsPath).toString(), target: readFileSync(target.fsPath).toString() }, { source: 'new', target: 'old' });
 	});
 
+	test('move - atomic replaces file', async () => {
+		const source = URI.file(join(testDir, 'atomic-move-source-success.txt'));
+		const target = URI.file(join(testDir, 'atomic-move-target-success.txt'));
+		await service.writeFile(source, VSBuffer.fromString('new'));
+		await service.writeFile(target, VSBuffer.fromString('old'));
+
+		await service.move(source, target, true, { atomic: true });
+
+		assert.deepStrictEqual({ sourceExists: existsSync(source.fsPath), target: readFileSync(target.fsPath).toString() }, { sourceExists: false, target: 'new' });
+	});
+
+	test('move - atomic rejects replacing directories', async () => {
+		const source = URI.file(join(testDir, 'atomic-move-file.txt'));
+		const target = URI.file(join(testDir, 'atomic-move-folder'));
+		await service.writeFile(source, VSBuffer.fromString('new'));
+		await service.createFolder(target);
+
+		await assert.rejects(service.move(source, target, true, { atomic: true }), /only support replacing files/);
+		assert.deepStrictEqual({ source: readFileSync(source.fsPath).toString(), targetExists: existsSync(target.fsPath) }, { source: 'new', targetExists: true });
+	});
+
 	test('move - across providers (buffered => buffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);

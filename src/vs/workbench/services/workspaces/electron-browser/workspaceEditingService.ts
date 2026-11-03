@@ -181,21 +181,28 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			return;
 		}
 
-		const oldWorkspace = toWorkspaceIdentifier(this.contextService.getWorkspace());
-		const result = await this.doEnterWorkspace(workspaceUri);
-		if (result) {
+		const backupPathTransition = this.workingCopyBackupService instanceof WorkingCopyBackupService
+			? await this.workingCopyBackupService.beginBackupPathTransition()
+			: undefined;
+		try {
+			const oldWorkspace = toWorkspaceIdentifier(this.contextService.getWorkspace());
+			const result = await this.doEnterWorkspace(workspaceUri);
+			if (result) {
 
-			// Migrate storage to new workspace
-			await this.storageService.switch(result.workspace, true /* preserve data */);
+				// Migrate storage to new workspace
+				await this.storageService.switch(result.workspace, true /* preserve data */);
 
-			// Reinitialize backup service
-			if (this.workingCopyBackupService instanceof WorkingCopyBackupService) {
-				const newBackupWorkspaceHome = result.backupPath ? URI.file(result.backupPath).with({ scheme: this.environmentService.userRoamingDataHome.scheme }) : undefined;
-				this.workingCopyBackupService.reinitialize(newBackupWorkspaceHome);
+				// Reinitialize backup service
+				if (this.workingCopyBackupService instanceof WorkingCopyBackupService) {
+					const newBackupWorkspaceHome = result.backupPath ? URI.file(result.backupPath).with({ scheme: this.environmentService.userRoamingDataHome.scheme }) : undefined;
+					this.workingCopyBackupService.reinitialize(newBackupWorkspaceHome);
+				}
+
+				// Fire event to allow participants to join
+				await this.fireDidEnterWorkspace(oldWorkspace, result.workspace);
 			}
-
-			// Fire event to allow participants to join
-			await this.fireDidEnterWorkspace(oldWorkspace, result.workspace);
+		} finally {
+			backupPathTransition?.dispose();
 		}
 
 		// TODO@aeschli: workaround until restarting works

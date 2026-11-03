@@ -829,6 +829,16 @@ export class FileService extends Disposable implements IFileService {
 		// validation
 		const { exists, isSameResourceWithDifferentPathCase } = await this.doValidateMoveCopy(sourceProvider, source, targetProvider, target, mode, overwrite);
 
+		if (atomic) {
+			const sourceStat = await sourceProvider.stat(source);
+			if (!(sourceStat.type & FileType.File)) {
+				throw new Error(localize('atomicMoveSource', "Atomic moves only support files."));
+			}
+			if (exists && !((await targetProvider.stat(target)).type & FileType.File)) {
+				throw new Error(localize('atomicMoveTarget', "Atomic moves only support replacing files."));
+			}
+		}
+
 		// delete as needed (unless target is same resurce with different path case)
 		if (exists && !isSameResourceWithDifferentPathCase && overwrite && !(atomic && sourceProvider === targetProvider)) {
 			await this.del(target, { recursive: true });

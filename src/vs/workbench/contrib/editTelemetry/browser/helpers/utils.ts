@@ -29,7 +29,7 @@ export function mapObservableDelta<T, TDelta, TDeltaNew>(obs: IObservableWithCha
 }
 
 export function iterateObservableChanges<T, TChange>(obs: IObservableWithChange<T, TChange>, store: DisposableStore): AsyncIterable<{ value: T; prevValue: T; change: RemoveUndefined<TChange>[] }> {
-	const source = new AsyncIterableSource<{ value: T; prevValue: T; change: RemoveUndefined<TChange>[] }>(undefined, { replay: false });
+	const source = new AsyncIterableSource<{ value: T; prevValue: T; change: RemoveUndefined<TChange>[] }, false>(undefined, { replay: false });
 	if (!store.isDisposed) {
 		store.add(runOnChange(obs, (value, prevValue, change) => {
 			source.emitOne({ value, prevValue, change });

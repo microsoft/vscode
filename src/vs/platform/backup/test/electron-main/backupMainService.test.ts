@@ -222,7 +222,7 @@ flakySuite('BackupMainService', () => {
 
 		await service.initialize();
 
-		assertEqualFolderInfos(service.testGetFolderBackups(), []);
+		assert.deepStrictEqual({ folderBackups: service.testGetFolderBackups(), emptyWindowBackups: service.getEmptyWindowBackups() }, { folderBackups: [], emptyWindowBackups: [] });
 	});
 
 	test('service validates backup workspaces on startup and cleans up (root workspaces)', async function () {

@@ -2302,7 +2302,7 @@ export function createCancelableAsyncIterableProducer<T>(callback: (token: Cance
 	});
 }
 
-export class AsyncIterableSource<T> {
+export class AsyncIterableSource<T, TReplay extends boolean = true> {
 
 	private readonly _deferred = new DeferredPromise<void>();
 	private readonly _asyncIterable: AsyncIterable<T>;
@@ -2317,7 +2317,7 @@ export class AsyncIterableSource<T> {
 	 * has finished by the consumer, e.g the for-await-loop has be existed (break, return) early.
 	 * This is NOT called when resolving this source by its owner.
 	 */
-	constructor(onReturn?: () => Promise<void> | void, options: { replay?: boolean } = {}) {
+	constructor(onReturn?: () => Promise<void> | void, options: { replay?: TReplay } = {}) {
 		const executor: AsyncIterableExecutor<T> = emitter => {
 			if (earlyError) {
 				const error = earlyError;
@@ -2363,8 +2363,8 @@ export class AsyncIterableSource<T> {
 		};
 	}
 
-	get asyncIterable(): AsyncIterable<T> {
-		return this._asyncIterable;
+	get asyncIterable(): TReplay extends true ? AsyncIterableObject<T> : AsyncIterable<T> {
+		return this._asyncIterable as TReplay extends true ? AsyncIterableObject<T> : AsyncIterable<T>;
 	}
 
 	resolve(): void {
