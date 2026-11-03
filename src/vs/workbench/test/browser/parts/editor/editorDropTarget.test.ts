@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, addDisposableListener, append } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, DragAndDropObserver } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -249,6 +249,45 @@ suite('EditorDropTarget', () => {
 			taken: [true, true],
 			overlayAfter: false,
 			operations: [`split ${GroupDirection.LEFT}`, 'move 1 editor(s) to new group', `split ${GroupDirection.RIGHT}`, 'move 1 editor(s) to new group']
+		});
+	});
+
+	test('content that handles drops, such as a chat that shows its own drop feedback, gets the leave of a drag that leaves it, also through the edge overlay', () => {
+		const { groupElement, content, operations } = setup({ contentCoversGroup: true });
+		const child = append(content, $('div'));
+		child.style.cssText = 'position: absolute; left: 0; top: 0; width: 300px; height: 150px;';
+		const other = append(mainWindow.document.body, $('div'));
+		store.add(toDisposable(() => other.remove()));
+		const feedback: string[] = [];
+		store.add(new DragAndDropObserver(content, {
+			onDragOver: () => { if (feedback[feedback.length - 1] !== 'show') { feedback.push('show'); } },
+			onDragLeave: () => feedback.push('hide'),
+			onDrop: () => feedback.push('drop')
+		}));
+		const move = (from: Element, to: Element, x: number, y: number) => {
+			dispatch(to, 'dragenter', x, y);
+			dispatch(from, 'dragleave', x, y);
+			dispatch(to, 'dragover', x, y);
+		};
+
+		// Into the center of the content, out over its edge, where the overlay shows, and on to another part
+		dispatch(child, 'dragenter', 150, 100);
+		dispatch(child, 'dragover', 150, 100);
+		dispatch(child, 'dragover', 295, 100);
+		const overlay = getOverlay(groupElement)!;
+		move(child, overlay, 295, 100);
+		move(overlay, other, 400, 100);
+
+		// Into the content again and straight out to another part
+		move(other, child, 150, 100);
+		move(child, other, 400, 100);
+		dispatch(other, 'drop', 400, 100);
+		dispatch(groupElement, 'dragend', 400, 100);
+
+		assert.deepStrictEqual({ feedback, overlayAfter: !!getOverlay(groupElement), operations }, {
+			feedback: ['show', 'hide', 'show', 'hide'],
+			overlayAfter: false,
+			operations: []
 		});
 	});
 
