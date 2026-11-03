@@ -76,7 +76,7 @@ suite('SessionBrowserNetworkContribution', () => {
 			...services.sessionsManagement,
 		}));
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ activeSession: constObservable(undefined), ...services.sessions }));
-		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ ...services.providers }));
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProviders: () => [], onDidChangeProviders: Event.None, ...services.providers }));
 		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({ connections: [], onDidChangeConnections: Event.None, ...services.connections }));
 		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({ onWillOpenEditor: Event.None, ...services.editor }));
 		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ groups: [], ...services.editorGroups }));
@@ -177,6 +177,61 @@ suite('SessionBrowserNetworkContribution', () => {
 			},
 			after: { label: 'connecting host', connected: true, proxySupported: true },
 			changes: 1,
+		});
+	});
+
+	test('retains friendly host name after host disconnects and is removed from connections', () => {
+		const onDidChangeConnections = store.add(new Emitter<void>());
+		let currentConnections: IAgentHostConnectionInfo[] = [
+			upcastPartial<IAgentHostConnectionInfo>({ authority: 'tunnel__sneaky-ant', name: 'tpi-345466-agents-2' }),
+		];
+		const resolver = createResolver({
+			connections: {
+				get connections() { return currentConnections; },
+				onDidChangeConnections: onDidChangeConnections.event,
+				getConnectionByAuthority: authority => currentConnections.some(c => c.authority === authority) ? upcastPartial<IAgentConnection>({}) : undefined,
+			},
+		});
+
+		// While connected, the friendly name is used
+		assert.deepStrictEqual(resolver.getNetworkStatus({ authority: 'tunnel__sneaky-ant' }), {
+			label: 'tpi-345466-agents-2',
+			connected: true,
+			proxySupported: false,
+		});
+
+		// When the host disconnects and is removed from connections, the friendly name is retained
+		currentConnections = [];
+		onDidChangeConnections.fire();
+
+		assert.deepStrictEqual(resolver.getNetworkStatus({ authority: 'tunnel__sneaky-ant' }), {
+			label: 'tpi-345466-agents-2',
+			connected: false,
+			proxySupported: undefined,
+		});
+	});
+
+	test('resolves host name from session provider for offline hosts', () => {
+		const resolver = createResolver({
+			connections: {
+				connections: [],
+				getConnectionByAuthority: () => undefined,
+			},
+			providers: {
+				getProviders: () => [
+					upcastPartial<IAgentHostSessionsProvider>({
+						id: 'agenthost-hex-wsl',
+						label: 'Ubuntu-24.04',
+						remoteAddress: 'wsl:Ubuntu-24.04',
+					}),
+				],
+			},
+		});
+
+		assert.deepStrictEqual(resolver.getNetworkStatus({ authority: 'hex-wsl' }), {
+			label: 'Ubuntu-24.04',
+			connected: false,
+			proxySupported: undefined,
 		});
 	});
 
