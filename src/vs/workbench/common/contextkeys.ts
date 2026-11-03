@@ -86,6 +86,8 @@ export const ActiveEditorCanSplitInGroupContext = new RawContextKey<boolean>('ac
 export const ActiveEditorCannotCloseContext = new RawContextKey<boolean>('activeEditorCannotClose', false, localize('activeEditorCannotClose', "Whether the active editor cannot be closed through standard user actions"));
 
 // Editor Kind Context Keys
+/** The editor whose tab context menu is being shown, which may be inactive. */
+export const EditorTitleContextEditorIdContext = new RawContextKey<string>('editorTitleContextEditorId', '', localize('editorTitleContextEditorId', "The identifier of the editor whose tab context menu is being shown"));
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null, { type: 'string', description: localize('activeEditor', "The identifier of the active editor") });
 export const ActiveEditorAvailableEditorIdsContext = new RawContextKey<string>('activeEditorAvailableEditorIds', '', localize('activeEditorAvailableEditorIds', "The available editor identifiers that are usable for the active editor"));
 export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false, localize('textCompareEditorVisible', "Whether a text compare editor is visible"));

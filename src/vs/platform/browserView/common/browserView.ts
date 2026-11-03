@@ -20,6 +20,7 @@ export enum BrowserViewCommandId {
 	Open = `${commandPrefix}.open`,
 	OpenFile = `${commandPrefix}.openFile`,
 	NewTab = `${commandPrefix}.newTab`,
+	DuplicateTab = `${commandPrefix}.duplicateTab`,
 	QuickOpen = `${commandPrefix}.quickOpen`,
 	OpenOrList = `${commandPrefix}.openOrList`,
 	CloseAll = `${commandPrefix}.closeAll`,
