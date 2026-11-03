@@ -110,8 +110,7 @@ suite('Chat window grid', () => {
 			handle.dispatchEvent(new DragEvent('dragstart', { dataTransfer: new DataTransfer(), bubbles: true, cancelable: true }));
 			const main = cellOf(ChatWindowGridCell.Main).getBoundingClientRect();
 			cellOf(ChatWindowGridCell.Main).dispatchEvent(new DragEvent('dragover', { dataTransfer: new DataTransfer(), clientX: main.left + main.width * fraction, clientY: main.top + main.height / 2, bubbles: true, cancelable: true }));
-			// Beside it, its slot opens; the center would merge, which a chat window does not
-			const shown = !!container.querySelector('.part-grid-motion-slot') || (indicator.style.display !== 'none' && indicator.classList.contains('merge'));
+			const shown = indicator.style.display !== 'none' && !indicator.classList.contains('merge');
 			handle.dispatchEvent(new DragEvent('dragend', { dataTransfer: new DataTransfer(), bubbles: true, cancelable: true }));
 			return shown;
 		};

@@ -31,12 +31,6 @@ export const PART_GRID_WINDOW_EDGE_ZONE = 16;
 export interface IPartGridDropCell {
 	readonly id: string;
 	readonly element: HTMLElement;
-
-	/**
-	 * Where the cell is laid out, if not where its element shows, as while
-	 * it moves aside for a dragged part.
-	 */
-	readonly layoutRect?: IPartGridRect;
 }
 
 /**
@@ -102,7 +96,7 @@ export function getPartGridDrop(x: number, y: number, container: IRect, cells: r
 	}
 
 	const rects = cells.map(cell => {
-		const bounds = cell.layoutRect ?? cell.element.getBoundingClientRect();
+		const bounds = cell.element.getBoundingClientRect();
 		return { id: cell.id, rect: { left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height } };
 	}).filter(({ rect }) => rect.width > 0 && rect.height > 0);
 	const area = rects.length ? union(rects.map(({ rect }) => rect)) : container;
@@ -193,12 +187,6 @@ export interface IPartGridDropTargetHost {
 	 * The card of a cell, whose look the drop indicator takes.
 	 */
 	getCardStyle(id: string): HTMLElement | undefined;
-
-	/**
-	 * Shows the cells as they would be if a part moved to a location, or,
-	 * without one, as they are.
-	 */
-	reflow(id: string, location: PartGridLocation | undefined): void;
 }
 
 /**
@@ -240,10 +228,7 @@ export class PartGridDropTarget extends Disposable {
 				this.hideIndicator();
 			}
 		}));
-		this._register(addDisposableListener(getWindow(container), EventType.DRAG_END, () => {
-			this.hideIndicator();
-			this.host.reflow('', undefined);
-		}));
+		this._register(addDisposableListener(getWindow(container), EventType.DRAG_END, () => this.hideIndicator()));
 	}
 
 	/**
@@ -317,15 +302,6 @@ export class PartGridDropTarget extends Disposable {
 			return;
 		}
 
-		// A part that goes beside others shows there, the others making way
-		if (hasKey(dragged, { cellId: true })) {
-			this.host.reflow(dragged.cellId, hasKey(drop, { location: true }) ? drop.location : undefined);
-			if (hasKey(drop, { location: true })) {
-				hide(this.indicator);
-				return;
-			}
-		}
-
 		// The indicator of a part has the look of its card: a part goes there as a card
 		const card = hasKey(dragged, { cellId: true }) ? this.host.getCardStyle(dragged.cellId) : undefined;
 		const cardStyle = card ? getWindow(card).getComputedStyle(card) : undefined;
@@ -353,8 +329,7 @@ export class PartGridDropTarget extends Disposable {
 		}
 
 		EventHelper.stop(e, true);
-		// The cells stay where they show they go: the drop puts them there
-		hide(this.indicator);
+		this.hideIndicator();
 
 		if (hasKey(dragged, { cellId: true })) {
 			this.partTransfer.clearData(DraggedPartIdentifier.prototype);
@@ -362,8 +337,6 @@ export class PartGridDropTarget extends Disposable {
 				this.host.mergeCell(dragged.cellId, drop.merge);
 			} else if (drop) {
 				this.host.moveCell(dragged.cellId, drop.location);
-			} else {
-				this.host.reflow(dragged.cellId, undefined);
 			}
 		} else {
 			this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
@@ -376,10 +349,6 @@ export class PartGridDropTarget extends Disposable {
 
 	private hideIndicator(): void {
 		hide(this.indicator);
-		const dragged = this.partTransfer.getData(DraggedPartIdentifier.prototype)?.[0];
-		if (dragged?.grid === this.host.grid) {
-			this.host.reflow(dragged.cellId, undefined);
-		}
 	}
 }
 

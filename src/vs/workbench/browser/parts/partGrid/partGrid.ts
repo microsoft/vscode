@@ -372,7 +372,7 @@ export class PartGrid extends Disposable {
 		this._register(new PartGridDropTarget({
 			grid: this,
 			container,
-			getVisibleCells: () => Array.from(this.cells.values()).filter(cell => cell.part && this.isCellVisible(cell.id)).map(cell => ({ id: cell.id, element: cell.element, layoutRect: this.motion.getLayoutRect(cell.id) })),
+			getVisibleCells: () => Array.from(this.cells.values()).filter(cell => cell.part && this.isCellVisible(cell.id)),
 			moveCell: (id, location) => {
 				this.moveCell(id, location);
 				const part = this.cells.get(id)?.part;
@@ -385,7 +385,6 @@ export class PartGrid extends Disposable {
 			canMerge: (id, targetId) => this.canMergeCell(id, targetId),
 			mergeCell: (id, targetId) => this.mergeCell(id, targetId),
 			previewMove: (id, location) => this.previewMove(id, location),
-			reflow: (id, location) => this.reflow(id, location),
 			getCardStyle: id => this.cells.get(id)?.cardElement
 		}));
 	}
@@ -432,19 +431,10 @@ export class PartGrid extends Disposable {
 
 	/**
 	 * Where a cell would be, in client coordinates, if it moved to a
-	 * location: its card.
+	 * location: the grid moves a copy of itself, with what stands in for its
+	 * cells, and lays it out as it is laid out.
 	 */
 	previewMove(id: string, location: PartGridLocation): IPartGridRect | undefined {
-		return this.previewArrangement(id, location)?.slot;
-	}
-
-	/**
-	 * How the cells would be, in client coordinates, if a cell moved to a
-	 * location: where each visible cell would be, and the card of the moved
-	 * cell, its slot. The grid moves a copy of itself, with what stands in
-	 * for its cells, and lays it out as it is laid out.
-	 */
-	previewArrangement(id: string, location: PartGridLocation): { readonly cells: ReadonlyMap<string, IPartGridRect>; readonly slot: IPartGridRect } | undefined {
 		const current = this.grid;
 		if (!current || !this.dimension || !this.cells.has(id) || this.cells.size < 2) {
 			return undefined;
@@ -486,28 +476,20 @@ export class PartGrid extends Disposable {
 			});
 			grid.layout(state.width, state.height);
 
-			const origin = current.element.getBoundingClientRect();
-			const cells = new Map<string, IPartGridRect>();
-			for (const stub of stubs.values()) {
-				if (stub.box && grid.isViewVisible(stub)) {
-					cells.set(stub.id, { left: origin.left + stub.box.left, top: origin.top + stub.box.top, width: stub.box.width, height: stub.box.height });
-				}
-			}
-
-			const box = cells.get(id);
+			const box = stubOf(id).box;
 			if (!box) {
 				return undefined;
 			}
 
 			const insets = getGridEdgeInsets(grid, stubOf(id), this.gap, neighbor => grid.isViewVisible(neighbor) && !neighbor.keepsNoGap);
-			const slot = {
-				left: box.left + insets.left,
-				top: box.top + insets.top,
+			const origin = current.element.getBoundingClientRect();
+
+			return {
+				left: origin.left + box.left + insets.left,
+				top: origin.top + box.top + insets.top,
 				width: Math.max(0, box.width - insets.left - insets.right),
 				height: Math.max(0, box.height - insets.top - insets.bottom)
 			};
-
-			return { cells, slot };
 		} finally {
 			grid.dispose();
 		}
@@ -520,8 +502,8 @@ export class PartGrid extends Disposable {
 		const rects = new Map<string, IPartGridRect>();
 		for (const cell of this.cells.values()) {
 			if (this.grid?.isViewVisible(cell) && this.isCellVisible(cell.id)) {
-				const bounds = cell.element.getBoundingClientRect();
-				rects.set(cell.id, this.motion.getLayoutRect(cell.id) ?? { left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height });
+				const { left, top, width, height } = cell.element.getBoundingClientRect();
+				rects.set(cell.id, { left, top, width, height });
 			}
 		}
 
@@ -529,29 +511,12 @@ export class PartGrid extends Disposable {
 	}
 
 	/**
-	 * Shows the cells as they would be if a cell moved to a location: they
-	 * move aside, and the slot of the cell opens. Without a location, they
-	 * move back.
-	 */
-	reflow(id: string, location: PartGridLocation | undefined): void {
-		const preview = location ? this.previewArrangement(id, location) : undefined;
-		if (!preview) {
-			this.motion.reset();
-			return;
-		}
-
-		this.motion.reflow(this.getCellRects(), preview.cells, id, preview.slot);
-	}
-
-	/**
 	 * Changes the arrangement, the cells that move gliding from where they
-	 * were to where they are, or, if they show where they go already, as
-	 * when a dragged cell drops, at once.
+	 * were to where they are.
 	 */
 	private arrange(change: () => void): void {
-		if (this.motion.active) {
+		if (!this.motion.isMotionEnabled()) {
 			change();
-			this.motion.commit();
 			return;
 		}
 

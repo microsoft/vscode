@@ -516,8 +516,7 @@ suite('Part Grid', () => {
 			const rect = over === 'window' ? container.getBoundingClientRect() : cellOf(over).getBoundingClientRect();
 			const point = [x(rect), y(rect)] as const;
 			dispatch(cellOf(over === 'window' ? 'side' : over), 'dragover', ...point);
-			// Where the part goes shows: its slot opens, or, for a merge, the indicator
-			const indicatorShown = indicator.style.display !== 'none' || !!container.querySelector('.part-grid-motion-slot');
+			const indicatorShown = indicator.style.display !== 'none';
 			const editorOverlay = !!container.querySelector('#monaco-workbench-editor-drop-overlay');
 			dispatch(cellOf(over === 'window' ? 'side' : over), 'drop', ...point);
 			dispatch(cellOf(id).querySelector('.part-grid-drag-handle')!, 'dragend');
@@ -558,63 +557,19 @@ suite('Part Grid', () => {
 		const target = cellOf('left').getBoundingClientRect();
 		const point = [target.left + target.width * 0.1, target.top + target.height / 2] as const;
 		dispatch(cellOf('left'), 'dragover', ...point);
-		const shown = rectOf(container.querySelector<HTMLElement>('.part-grid-motion-slot')!);
-		const indicatorShown = indicator.style.display !== 'none';
+		const shown = rectOf(indicator);
 		dispatch(cellOf('left'), 'drop', ...point);
 		dispatch(handle, 'dragend');
 
-		assert.deepStrictEqual({ shape: grid.describe(), shown, slotAfterDrop: rectOf(cellOf('right')), halfOfTarget: shown[2] === Math.round(target.width / 2), indicatorShown, motionAfterDrop: !!container.querySelector('.part-grid-motion-layer') }, {
+		assert.deepStrictEqual({ shape: grid.describe(), shown, slotAfterDrop: rectOf(cellOf('right')), halfOfTarget: shown[2] === Math.round(target.width / 2) }, {
 			shape: 'row(right, left)',
 			shown: rectOf(cellOf('right')),
 			slotAfterDrop: rectOf(cellOf('right')),
-			halfOfTarget: false,
-			indicatorShown: false,
-			motionAfterDrop: false
+			halfOfTarget: false
 		});
 	});
 
-	test('while a part is dragged beside another, the other parts move aside to where the drop puts them, and they move back as the drag ends without a drop', async () => {
-		const parts = await createParts();
-		const container = boxAt(0, 0, 900, 600);
-		const grid = disposables.add(new PartGrid(container, parts));
-		const [a, b, c] = [createPart(parts), createPart(parts), createPart(parts)];
-		await Promise.all([openEditor(a, '/a.txt'), openEditor(b, '/b.txt'), openEditor(c, '/c.txt')]);
-		grid.addPart('a', a);
-		grid.addPart('b', b, { edge: Direction.Right });
-		grid.addPart('c', c, { edge: Direction.Right });
-		grid.layout(900, 600);
-
-		const cellOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!;
-		const rectOf = (element: HTMLElement) => { const r = element.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round).join(); };
-		const handle = cellOf('c').querySelector('.part-grid-drag-handle')!;
-		const hover = () => {
-			dispatch(handle, 'dragstart');
-			const target = cellOf('a').getBoundingClientRect();
-			const point = [target.left + target.width * 0.1, target.top + target.height / 2] as const;
-			dispatch(cellOf('a'), 'dragover', ...point);
-			return point;
-		};
-
-		const before = { a: rectOf(cellOf('a')), b: rectOf(cellOf('b')) };
-		hover();
-		const whileHovering = { a: rectOf(cellOf('a')), b: rectOf(cellOf('b')) };
-		dispatch(handle, 'dragend');
-		const afterEnd = { a: rectOf(cellOf('a')), b: rectOf(cellOf('b')), moving: container.querySelectorAll('.part-grid-moving').length, shape: grid.describe() };
-
-		const point = hover();
-		dispatch(cellOf('a'), 'drop', ...point);
-		dispatch(handle, 'dragend');
-		const afterDrop = { a: rectOf(cellOf('a')), b: rectOf(cellOf('b')) };
-
-		assert.deepStrictEqual({ movedAside: whileHovering.a !== before.a, whileHovering, afterEnd, shape: grid.describe() }, {
-			movedAside: true,
-			whileHovering: afterDrop,
-			afterEnd: { ...before, moving: 0, shape: 'row(a, b, c)' },
-			shape: 'row(c, a, b)'
-		});
-	});
-
-	test('a part that moves glides from where it was to where it is, only with motion', async () => {
+	test('while a part is dragged, no part moves, only its slot shows; dropped, the parts glide to where they go, only with motion', async () => {
 		const parts = await createParts();
 		const container = boxAt(0, 0, 900, 600);
 		const grid = disposables.add(new PartGrid(container, parts));
@@ -623,16 +578,36 @@ suite('Part Grid', () => {
 		grid.addPart('a', a);
 		grid.addPart('b', b, { edge: Direction.Right });
 		grid.layout(900, 600);
-		const moving = () => [...container.querySelectorAll<HTMLElement>('.part-grid-moving')].map(cell => cell.dataset.partGridCell).sort();
 
-		grid.moveCellInDirection('b', Direction.Left);
-		const withoutMotion = moving();
+		const cellOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!;
+		const indicator = container.querySelector<HTMLElement>('.part-grid-drop-indicator')!;
+		const rectOf = (element: HTMLElement) => { const r = element.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round).join(); };
+		const moving = () => [...container.querySelectorAll<HTMLElement>('.part-grid-moving')].map(cell => cell.dataset.partGridCell).sort();
+		const dragBeforeA = (id: string) => {
+			const handle = cellOf(id).querySelector('.part-grid-drag-handle')!;
+			dispatch(handle, 'dragstart');
+			const target = cellOf(id === 'a' ? 'b' : 'a').getBoundingClientRect();
+			const point = [target.left + target.width * 0.1, target.top + target.height / 2] as const;
+			dispatch(cellOf(id === 'a' ? 'b' : 'a'), 'dragover', ...point);
+			const hovering = { a: rectOf(cellOf('a')), b: rectOf(cellOf('b')), moving: moving(), slotShown: indicator.style.display !== 'none' };
+			dispatch(cellOf(id === 'a' ? 'b' : 'a'), 'drop', ...point);
+			dispatch(handle, 'dragend');
+			return { hovering, dropped: moving() };
+		};
+
+		const before = { a: rectOf(cellOf('a')), b: rectOf(cellOf('b')) };
+		const withoutMotion = dragBeforeA('b');
 		container.classList.add('monaco-enable-motion');
-		grid.moveCellInDirection('b', Direction.Right);
-		const withMotion = moving();
+		const afterFirst = { a: rectOf(cellOf('a')), b: rectOf(cellOf('b')) };
+		const withMotion = dragBeforeA('a');
 		await timeout(250);
 
-		assert.deepStrictEqual({ withoutMotion, withMotion, afterGlide: moving() }, { withoutMotion: [], withMotion: ['a', 'b'], afterGlide: [] });
+		assert.deepStrictEqual({ withoutMotion, withMotion, afterGlide: moving(), shape: grid.describe() }, {
+			withoutMotion: { hovering: { ...before, moving: [], slotShown: true }, dropped: [] },
+			withMotion: { hovering: { ...afterFirst, moving: [], slotShown: true }, dropped: ['a', 'b'] },
+			afterGlide: [],
+			shape: 'row(a, b)'
+		});
 	});
 
 	test('a part dropped on the center of another merges into it, the whole part highlighted, unless the window says parts do not merge', async () => {
