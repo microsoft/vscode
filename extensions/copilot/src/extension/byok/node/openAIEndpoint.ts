@@ -46,12 +46,17 @@ function hydrateBYOKErrorMessages(response: ChatResponse): ChatResponse {
 
 /**
  * Thinking-mode Chat Completions providers (e.g. DeepSeek, Kimi) reject requests whose
- * assistant `tool_calls` messages omit `reasoning_content`. A step can produce tool calls
- * without any streamed reasoning text, in which case no thinking part exists to replay,
- * so echo an empty reasoning string for those messages.
+ * current-turn assistant `tool_calls` messages omit `reasoning_content`. A step can produce
+ * tool calls without any streamed reasoning text, in which case no thinking part exists to
+ * replay, so echo an empty reasoning string for those messages. Messages before the latest
+ * user message are left untouched so history reasoning policies are preserved.
  */
 function ensureReasoningOnToolCallMessages(messages: CAPIChatMessage[]): void {
-	for (const message of messages) {
+	let lastUserIndex = messages.length - 1;
+	while (lastUserIndex >= 0 && messages[lastUserIndex].role !== 'user') {
+		lastUserIndex--;
+	}
+	for (const message of messages.slice(lastUserIndex + 1)) {
 		if (message.role !== 'assistant' || !message.tool_calls?.length || message.reasoning_content !== undefined) {
 			continue;
 		}

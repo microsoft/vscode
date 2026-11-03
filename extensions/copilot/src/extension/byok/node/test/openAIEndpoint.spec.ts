@@ -309,6 +309,9 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 				toolCalls: [{ id, type: 'function', function: { name: 'read_file', arguments: '{}' } }]
 			});
 			const conversation: Raw.ChatMessage[] = [
+				{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Earlier' }] },
+				toolCallMessage('call_0'),
+				{ role: Raw.ChatRole.Tool, toolCallId: 'call_0', content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'old' }] },
 				{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Read it' }] },
 				toolCallMessage('call_1', 'I should read the file.'),
 				{ role: Raw.ChatRole.Tool, toolCallId: 'call_1', content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'contents' }] },
@@ -329,8 +332,11 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 				return (body.messages as any[]).map(m => ({ role: m.role, reasoning_content: m.reasoning_content, reasoning: m.reasoning }));
 			};
 
-			it('emits empty reasoning on assistant tool-call messages that have none when thinking is supported', () => {
+			it('emits empty reasoning on current-turn assistant tool-call messages that have none when thinking is supported', () => {
 				expect(reasoningFields(true)).toStrictEqual([
+					{ role: 'user', reasoning_content: undefined, reasoning: undefined },
+					{ role: 'assistant', reasoning_content: undefined, reasoning: undefined },
+					{ role: 'tool', reasoning_content: undefined, reasoning: undefined },
 					{ role: 'user', reasoning_content: undefined, reasoning: undefined },
 					{ role: 'assistant', reasoning_content: 'I should read the file.', reasoning: 'I should read the file.' },
 					{ role: 'tool', reasoning_content: undefined, reasoning: undefined },
