@@ -111,15 +111,16 @@ suite('BaseLayoutController', () => {
 
 		// A user's key for the command, such as Cmd+I in the Agents window, runs it in a chat window, where it is enabled even
 		// while the main window shows a custom view.
-		const chatWindowContext = { [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: true, [LayoutModeContext.key]: ChatWindowLayoutMode.SideBySide, [CustomViewVisibleContext.key]: true };
+		const chatWindowValues: Record<string, ContextKeyValue> = { [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: true, [LayoutModeContext.key]: ChatWindowLayoutMode.SideBySide, [CustomViewVisibleContext.key]: true };
+		const chatWindowContext: IContext = { getValue: <T extends ContextKeyValue>(key: string) => chatWindowValues[key] as T | undefined };
 		const userKeybinding = new ResolvedKeybindingItem(createUSLayoutResolvedKeybinding(KeyMod.CtrlCmd | KeyCode.KeyI, OS), TOGGLE_SIDE_PANEL_COMMAND_ID, null, IsSessionsWindowContext, false, null, false);
-		const resolved = new KeybindingResolver([], [userKeybinding], () => { }).resolve({ getValue: key => chatWindowContext[key] }, [], userKeybinding.chords[0]);
+		const resolved = new KeybindingResolver([], [userKeybinding], () => { }).resolve(chatWindowContext, [], userKeybinding.chords[0]);
 		const precondition = CommandsRegistry.getCommand(TOGGLE_SIDE_PANEL_COMMAND_ID) && MenuRegistry.getCommand(TOGGLE_SIDE_PANEL_COMMAND_ID)?.precondition;
 
 		assert.deepStrictEqual({
 			hidden, shown, sidePaneToggles,
 			resolved: resolved.kind === ResultKind.KbFound ? resolved.commandId : undefined,
-			enabledInChatWindow: precondition?.evaluate({ getValue: key => chatWindowContext[key] }),
+			enabledInChatWindow: precondition?.evaluate(chatWindowContext),
 		}, {
 			hidden: ChatWindowLayoutMode.ChatOnly,
 			shown: ChatWindowLayoutMode.SideBySide,
