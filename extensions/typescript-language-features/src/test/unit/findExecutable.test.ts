@@ -22,6 +22,8 @@ suite('findExecutableOnPath', () => {
 			'C:\\trusted\\node.exe',
 			'C:\\quoted dir\\node.com',
 			'/usr/bin/node',
+			'/opt/link/../bin/node',
+			'/opt/bin/node',
 			'node',
 		]);
 		const isFile = (candidate: string) => existing.has(candidate);
@@ -31,6 +33,8 @@ suite('findExecutableOnPath', () => {
 			windowsOnlyRelative: findExecutableOnPath('node', { PATH: '.;workspace' }, 'win32', isFile),
 			windowsNoPath: findExecutableOnPath('node', {}, 'win32', isFile),
 			posix: findExecutableOnPath('node', { PATH: ':.:/usr/bin' }, 'linux', isFile),
+			posixTrailingSlash: findExecutableOnPath('node', { PATH: '/usr/bin/' }, 'linux', isFile),
+			posixKeepsDotDot: findExecutableOnPath('node', { PATH: '/opt/link/../bin' }, 'linux', isFile),
 			posixOnlyRelative: findExecutableOnPath('node', { PATH: '.:' }, 'linux', isFile),
 		}, {
 			windows: 'C:\\trusted\\node.exe',
@@ -38,8 +42,29 @@ suite('findExecutableOnPath', () => {
 			windowsOnlyRelative: undefined,
 			windowsNoPath: undefined,
 			posix: '/usr/bin/node',
+			posixTrailingSlash: '/usr/bin/node',
+			posixKeepsDotDot: '/opt/link/../bin/node',
 			posixOnlyRelative: undefined,
 		});
+	});
+
+	test('resolves PATH entries with .. after following symlinks', function () {
+		if (process.platform === 'win32') {
+			this.skip();
+		}
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), 'find-executable-'));
+		try {
+			// `<root>/link` points to `<root>/real/sub`, so `<root>/link/../bin` is `<root>/real/bin`.
+			fs.mkdirSync(path.join(root, 'real', 'sub'), { recursive: true });
+			fs.mkdirSync(path.join(root, 'real', 'bin'));
+			fs.writeFileSync(path.join(root, 'real', 'bin', 'node'), '', { mode: 0o755 });
+			fs.symlinkSync(path.join(root, 'real', 'sub'), path.join(root, 'link'));
+
+			const entry = `${root}/link/../bin`;
+			assert.strictEqual(findExecutableOnPath('node', { PATH: entry }), `${entry}/node`);
+		} finally {
+			fs.rmSync(root, { recursive: true, force: true });
+		}
 	});
 
 	test('ignores an executable in the current working directory', () => {

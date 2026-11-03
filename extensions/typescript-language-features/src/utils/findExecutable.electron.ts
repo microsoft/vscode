@@ -36,7 +36,11 @@ export function findExecutableOnPath(
 			continue;
 		}
 		for (const extension of extensions) {
-			const candidate = pathLib.join(directory, name + extension);
+			// `path.posix.join` would collapse `..` before the file system resolves symlinks,
+			// which can change the directory on POSIX. Windows resolves `..` lexically anyway.
+			const candidate = platform === 'win32'
+				? path.win32.join(directory, name + extension)
+				: `${directory.endsWith('/') ? directory : directory + '/'}${name}${extension}`;
 			if (isExecutableFile(candidate)) {
 				return candidate;
 			}
