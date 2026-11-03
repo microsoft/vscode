@@ -16,7 +16,7 @@ import { URI } from '../../../base/common/uri.js';
 import { IHeaders, IRequestContext, IRequestOptions, isOfflineError } from '../../../base/parts/request/common/request.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
-import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults, ExtensionGalleryError, ExtensionGalleryErrorCode, IProductVersion, IAllowedExtensionsService, EXTENSION_IDENTIFIER_REGEX, SortBy, FilterType, MaliciousExtensionInfo, ExtensionRequestsTimeoutConfigKey, IExtensionBlockingInfo, ExtensionBlockingOrigin } from './extensionManagement.js';
+import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults, ExtensionGalleryError, ExtensionGalleryErrorCode, IProductVersion, IAllowedExtensionsService, EXTENSION_IDENTIFIER_REGEX, SortBy, FilterType, MaliciousExtensionInfo, ExtensionRequestsTimeoutConfigKey, IExtensionBlockingInfo, ExtensionBlockingOrigin, ExtensionBlockingScope } from './extensionManagement.js';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from './extensionManagementUtil.js';
 import { IExtensionManifest, TargetPlatform } from '../../extensions/common/extensions.js';
 import { isEngineValid } from '../../extensions/common/extensionValidator.js';
@@ -396,10 +396,10 @@ export function getBlockingInfo(
 	version: { readonly flags?: string; readonly blocking?: IRawGalleryExtensionBlocking }
 ): IExtensionBlockingInfo | undefined {
 	if (isBlocked(extension.flags, extension.blocking)) {
-		return { origin: toBlockingOrigin(extension.blocking?.origin) };
+		return { origin: toBlockingOrigin(extension.blocking?.origin), scope: ExtensionBlockingScope.Extension };
 	}
 	if (isBlocked(version.flags, version.blocking)) {
-		return { origin: toBlockingOrigin(version.blocking?.origin) };
+		return { origin: toBlockingOrigin(version.blocking?.origin), scope: ExtensionBlockingScope.Version };
 	}
 	return undefined;
 }
@@ -1003,6 +1003,9 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 	async getCompatibleExtension(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform, productVersion: IProductVersion = { version: this.productService.version, date: this.productService.date }): Promise<IGalleryExtension | null> {
 		if (isNotWebExtensionInWebTargetPlatform(extension.allTargetPlatforms, targetPlatform)) {
 			return null;
+		}
+		if (extension.blockingInfo?.scope === ExtensionBlockingScope.Extension) {
+			return extension;
 		}
 		if (await this.isExtensionCompatible(extension, includePreRelease, targetPlatform)) {
 			return extension;
