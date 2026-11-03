@@ -16,6 +16,7 @@ import { distinct } from '../../../../base/common/arrays.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { UserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfileIpc.js';
 import { ErrorNoTelemetry } from '../../../../base/common/errors.js';
+import { equals } from '../../../../base/common/objects.js';
 
 const associatedRemoteProfilesKey = 'associatedRemoteProfiles';
 
@@ -26,7 +27,7 @@ export interface IRemoteUserDataProfilesService {
 	getRemoteProfile(localProfile: IUserDataProfile): Promise<IUserDataProfile>;
 }
 
-class RemoteUserDataProfilesService extends Disposable implements IRemoteUserDataProfilesService {
+export class RemoteUserDataProfilesService extends Disposable implements IRemoteUserDataProfilesService {
 
 	readonly _serviceBrand: undefined;
 
@@ -105,6 +106,10 @@ class RemoteUserDataProfilesService extends Disposable implements IRemoteUserDat
 		}
 
 		let profile = remoteUserDataProfilesService.profiles.find(p => p.id === localProfile.id);
+		if (profile && !equals(profile.useDefaultFlags, localProfile.useDefaultFlags)) {
+			// The remote profile may have been created without the local flags (e.g. by the server on connect)
+			profile = await remoteUserDataProfilesService.updateProfile(profile, { useDefaultFlags: localProfile.useDefaultFlags });
+		}
 		if (!profile) {
 			profile = await remoteUserDataProfilesService.createProfile(localProfile.id, localProfile.name, {
 				transient: localProfile.isTransient,
