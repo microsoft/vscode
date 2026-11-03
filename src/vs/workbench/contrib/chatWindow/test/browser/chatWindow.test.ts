@@ -350,6 +350,27 @@ suite('Chat window', () => {
 		});
 	});
 
+	test('the chat\'s editor merged into a part the window created is still the window: closing it there closes the window, and moving it out from there takes the chat out', async () => {
+		const merge = () => {
+			const created = createWindow({ otherPart: true });
+			created.other.group.open(created.chatInput);
+			created.chat.group.fireCloseEditor(created.chatInput, EditorCloseContext.MOVE);
+			return created;
+		};
+		const closed = merge();
+		const afterMerge = [...closed.events];
+		closed.other.group.fireCloseEditor(closed.chatInput);
+		await timeout(0);
+		const movedOut = merge();
+		movedOut.other.group.fireCloseEditor(movedOut.chatInput, EditorCloseContext.MOVE);
+
+		assert.deepStrictEqual({ afterMerge, closed: closed.events, movedOut: movedOut.events }, {
+			afterMerge: [],
+			closed: ['close chat', 'close main', 'will close', 'close window', 'closed'],
+			movedOut: ['moved out'],
+		});
+	});
+
 	test('the chat leads the window from the first group of its part, not after a group split off before it', () => {
 		const { window, chat } = createWindow();
 		const leads = [window.chatLeads.get()];
