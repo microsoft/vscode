@@ -10,6 +10,7 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IRadioOptionItem, Radio } from '../../../../../base/browser/ui/radio/radio.js';
 import { Action } from '../../../../../base/common/actions.js';
+import { Sequencer } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -49,6 +50,7 @@ export class ThisComputerSection extends Disposable {
 	private itemsKey: string | undefined;
 	/** The method the user chose while it is being applied, so the control does not snap back meanwhile. */
 	private pendingMethod: RemoteConnectionsMethod | undefined;
+	private readonly selections = new Sequencer();
 
 	constructor(
 		container: HTMLElement,
@@ -111,7 +113,8 @@ export class ThisComputerSection extends Disposable {
 		this.pendingMethod = method;
 		this.update();
 		try {
-			await this.sharing.selectMethod(method);
+			// A choice made while another is being applied must act on the resulting state rather than the transitional one.
+			await this.selections.queue(() => this.sharing.selectMethod(method));
 		} finally {
 			if (this.pendingMethod === method) {
 				this.pendingMethod = undefined;
@@ -158,17 +161,17 @@ export class ThisComputerSection extends Disposable {
 	}
 
 	private getItem(method: RemoteConnectionsMethod, availability: GitHubEnvironmentsAvailability): IRadioOptionItem {
-		switch (method) {
-			case 'off':
-				return { text: localize('thisComputer.methodOff', "Off"), tooltip: getOffDetail() };
-			case 'devTunnel':
-				return { text: getMethodLabel(method), tooltip: getDevTunnelsDetail() };
-			case 'githubEnvironment':
-				return {
-					text: localize('thisComputer.githubEnvironmentsPreview', "GitHub Environments (Preview)"),
-					tooltip: getGitHubEnvironmentsDetail(availability),
-					disabled: availability !== 'enabled',
-				};
-		}
+		const { text, detail } = method === 'off'
+			? { text: localize('thisComputer.methodOff', "Off"), detail: getOffDetail() }
+			: method === 'devTunnel'
+				? { text: getMethodLabel(method), detail: getDevTunnelsDetail() }
+				: { text: localize('thisComputer.githubEnvironmentsPreview', "GitHub Environments (Preview)"), detail: getGitHubEnvironmentsDetail(availability) };
+		return {
+			text,
+			tooltip: detail,
+			// The accessible name would otherwise default to the tooltip and hide the visible label.
+			ariaLabel: localize('thisComputer.methodAriaLabel', "{0}: {1}", text, detail),
+			disabled: method === 'githubEnvironment' && availability !== 'enabled',
+		};
 	}
 }

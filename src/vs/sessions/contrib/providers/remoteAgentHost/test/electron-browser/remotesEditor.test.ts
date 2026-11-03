@@ -221,11 +221,63 @@ suite('RemotesEditor', () => {
 		const before = read();
 		options()[2].click();
 		await timeout(0);
-		assert.deepStrictEqual({ before, after: read(), commands, accessible: editor.getAccessibilityContent().split('\n\n')[0] }, {
+		assert.deepStrictEqual({ before, after: read(), commands, accessible: editor.getAccessibilityContent().split('\n\n')[0], optionNames: options().map(button => button.getAttribute('aria-label')) }, {
 			before: { name: 'my-workstation', options: ['Off (selected)', 'GitHub Environments (Preview)', 'Dev Tunnels'], status: 'Remote connections are off.' },
 			after: { name: 'my-workstation', options: ['Off', 'GitHub Environments (Preview)', 'Dev Tunnels (selected)'], status: 'Remote connections are on via Dev Tunnels.' },
 			commands: [TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID],
 			accessible: 'This Computer\nSharing name: my-workstation\nRemote connections are on via Dev Tunnels.\nLocal sessions run directly here. Sharing lets other clients access agents and folders on this computer.\nLearn More: https://aka.ms/vscode-agent-environments',
+			optionNames: [
+				'Off: Only accessible from this machine.',
+				'GitHub Environments (Preview): Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot.',
+				'Dev Tunnels: Access workspaces and agents on this machine from VS Code or vscode.dev/agents.',
+			],
+		});
+	});
+
+	test('This Computer applies a method chosen while another is still being applied', async () => {
+		const { editor, container, input, instantiation, tunnel, configuration } = createEditor();
+		await configuration.setUserConfiguration(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING, true);
+		const connected: TunnelStatus = { type: 'connected', info: { tunnelName: 'my-workstation', isAttached: false }, serviceInstallFailed: false };
+		let sharing = false;
+		let release = new DeferredPromise<void>();
+		const commands: string[] = [];
+		instantiation.stub(ICommandService, {
+			executeCommand: async (id: string) => {
+				commands.push(id);
+				await release.p;
+				sharing = !sharing;
+				tunnel.fireStatus(sharing ? connected : { type: 'disconnected' });
+				return undefined;
+			},
+		});
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+		await timeout(0);
+		const section = container.querySelector<HTMLElement>('.remotes-this-computer')!;
+		const options = () => [...section.querySelectorAll<HTMLElement>('.monaco-custom-radio > .monaco-button')];
+		const option = (label: string) => options().find(button => button.textContent === label)!;
+		const selected = () => options().find(button => button.getAttribute('aria-checked') === 'true')?.textContent;
+		const status = () => section.querySelector('.remotes-this-computer-status')?.textContent;
+		option('Dev Tunnels').click();
+		await timeout(0);
+		await release.complete();
+		release = new DeferredPromise<void>();
+		await timeout(0);
+		const on = { selected: selected(), status: status() };
+		option('Off').click();
+		await timeout(0);
+		// Choose Dev Tunnels again before turning it off has finished.
+		option('Dev Tunnels').click();
+		await timeout(0);
+		const pending = { selected: selected(), commands: commands.length };
+		await release.complete();
+		release = new DeferredPromise<void>();
+		await timeout(0);
+		await release.complete();
+		await timeout(0);
+		assert.deepStrictEqual({ on, pending, final: { selected: selected(), status: status(), commands: commands.length } }, {
+			on: { selected: 'Dev Tunnels', status: 'Remote connections are on via Dev Tunnels.' },
+			pending: { selected: 'Dev Tunnels', commands: 2 },
+			final: { selected: 'Dev Tunnels', status: 'Remote connections are on via Dev Tunnels.', commands: 3 },
 		});
 	});
 

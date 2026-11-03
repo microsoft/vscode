@@ -193,6 +193,27 @@ suite('Mission Control inventory', () => {
 		assert.deepStrictEqual({ remembered, forgotten: second.service.ownEnvironmentId.get() }, { remembered: 'own', forgotten: undefined });
 	});
 
+	test('identifies this computer once sharing turns on and remembers it for later windows', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const withOwn = [host('remote'), host('own')];
+		const first = fixture(storage);
+		first.setOwn(undefined);
+		void first.setList(Promise.resolve(withOwn));
+		await first.service.refresh(CancellationToken.None);
+		const beforeSharing = first.service.ownEnvironmentId.get();
+		first.setOwn('own');
+		first.setSharingState('enabled');
+		await timeout(0);
+		const afterSharing = first.service.ownEnvironmentId.get();
+		const later = fixture(storage);
+		later.setOwn(undefined);
+		void later.setList(Promise.resolve(withOwn));
+		await later.service.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ beforeSharing, afterSharing, laterWindow: later.service.ownEnvironmentId.get() }, {
+			beforeSharing: undefined, afterSharing: 'own', laterWindow: 'own',
+		});
+	});
+
 	for (const status of ['online', 'offline']) {
 		test(`deletes ${status} user-local registrations, withdraws connections and persists removal`, async () => {
 			const context = fixture();
