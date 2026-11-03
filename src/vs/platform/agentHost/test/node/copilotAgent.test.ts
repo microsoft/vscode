@@ -55,6 +55,7 @@ import type { IByokLmBridgeConnection, IByokLmModelInfo } from '../../common/age
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { TelemetryService } from '../../../telemetry/common/telemetryService.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
+import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostStartupPerformance, IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../node/agentHostStartupPerformance.js';
@@ -1065,28 +1066,13 @@ class McpAuthChallengeCopilotClient extends TestCopilotClient {
 	}
 }
 
-class RecordingTelemetryService extends NullTelemetryServiceShape {
-	readonly events: Array<{ eventName: string; data: unknown }> = [];
-	readonly errorEvents: Array<{ eventName: string; data: unknown }> = [];
-	readonly experimentProperties: Record<string, string> = {};
-	readonly commonPropertyUpdates: Array<{ name: string; value: string | boolean | undefined }> = [];
-
-	override setExperimentProperty(name?: string, value?: string): void {
-		this.experimentProperties[name ?? ''] = value ?? '';
-	}
-
-	override setCommonProperty(name?: string, value?: string | boolean): void {
-		if (name) {
-			this.commonPropertyUpdates.push({ name, value });
-		}
-	}
-
-	override publicLog2(eventName?: string, data?: unknown): void {
-		this.events.push({ eventName: eventName ?? '', data });
-	}
-
-	override publicLogError2(eventName?: string, data?: unknown): void {
-		this.errorEvents.push({ eventName: eventName ?? '', data });
+class RecordingTelemetryService extends CapturingTelemetryService {
+	constructor() {
+		super({
+			telemetryLevel: TelemetryLevel.NONE,
+			captureErrors: true,
+			separateErrors: true,
+		});
 	}
 }
 

@@ -50,7 +50,8 @@ import { NullLogService } from '../../../log/common/log.js';
 import { createFileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
 import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
@@ -205,31 +206,26 @@ class FailingReconnectAgentHostFileSystemProvider extends AgentHostFileSystemPro
 	}
 }
 
-class TestTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
-	readonly telemetryLevel = TelemetryLevel.USAGE;
-	readonly sendErrorTelemetry = true;
-	readonly sessionId = 'session';
-	readonly machineId = 'machine';
-	readonly sqmId = 'sqm';
-	readonly devDeviceId = 'device';
-	readonly firstSessionDate = 'first-session';
-	readonly events: { eventName: string; data: unknown }[] = [];
+class TestTelemetryService extends CapturingTelemetryService {
 	throwOnClientConnection = false;
 
-	publicLog(): void { }
-	publicLog2(eventName?: string, data?: unknown): void {
+	constructor() {
+		super({
+			sendErrorTelemetry: true,
+			sessionId: 'session',
+			machineId: 'machine',
+			sqmId: 'sqm',
+			devDeviceId: 'device',
+			firstSessionDate: 'first-session',
+		});
+	}
+
+	override publicLog2(eventName?: string, data?: unknown): void {
 		if (this.throwOnClientConnection && eventName === 'agentHost.clientConnection') {
 			throw new Error('client connection telemetry failed');
 		}
-		if (eventName) {
-			this.events.push({ eventName, data });
-		}
+		super.publicLog2(eventName, data);
 	}
-	publicLogError(): void { }
-	publicLogError2(): void { }
-	setExperimentProperty(): void { }
-	setCommonProperty(): void { }
 }
 
 /** Resolves chat owners from the live registry, then from owners a test records for chats that are not registered. */
