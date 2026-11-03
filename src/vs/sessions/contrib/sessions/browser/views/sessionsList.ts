@@ -6454,11 +6454,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 				this.suspendCollapseStatePersistence = previousSuspendCollapseStatePersistence;
 			}
 		}
-		if (this.tree.getRelativeTop(chatItem) === null && !this.hasUserCollapsedAncestor(chatItem)) {
+		const collapsedAncestor = this.getUserCollapsedAncestor(chatItem);
+		if (this.tree.getRelativeTop(chatItem) === null && !collapsedAncestor) {
 			this.tree.reveal(chatItem, 0.5);
 		}
-		this.tree.setFocus([chatItem]);
-		this.tree.setSelection([chatItem]);
+		this.tree.setFocus([collapsedAncestor ?? chatItem]);
+		this.tree.setSelection([collapsedAncestor ?? chatItem]);
 	}
 
 	/**
@@ -6510,20 +6511,23 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return visibleSessions;
 	}
 
-	/** Whether automatically revealing a row would reopen a section the user collapsed. */
-	private hasUserCollapsedAncestor(element: SessionListItem): boolean {
+	/** Returns the visible collapsed header when restoring selection must preserve the user's collapse choice. */
+	private getUserCollapsedAncestor(element: SessionListItem): SessionListItem | undefined {
+		let collapsedAncestor: SessionListItem | undefined;
+		let userCollapsed = false;
 		for (let ancestor = this.tree.getParentElement(element); ancestor; ancestor = this.tree.getParentElement(ancestor)) {
 			if (!this.tree.isCollapsed(ancestor)) {
 				continue;
 			}
+			collapsedAncestor = ancestor;
 			const sectionId = isSessionGroupItem(ancestor)
 				? getSessionGroupSectionId(ancestor.group.id)
 				: isSessionSection(ancestor) ? ancestor.collapseStateId ?? ancestor.id : undefined;
 			if (sectionId && this.getSavedCollapseState(sectionId) === true) {
-				return true;
+				userCollapsed = true;
 			}
 		}
-		return false;
+		return userCollapsed ? collapsedAncestor : undefined;
 	}
 
 	reveal(sessionResource: URI, preserveCollapsedSections = false): boolean {
@@ -6531,11 +6535,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		for (const session of this.sessions) {
 			if (session.resource.toString() === resourceStr) {
 				if (this.tree.hasElement(session)) {
-					if (this.tree.getRelativeTop(session) === null && (!preserveCollapsedSections || !this.hasUserCollapsedAncestor(session))) {
+					const collapsedAncestor = preserveCollapsedSections ? this.getUserCollapsedAncestor(session) : undefined;
+					if (this.tree.getRelativeTop(session) === null && !collapsedAncestor) {
 						this.tree.reveal(session, 0.5);
 					}
-					this.tree.setFocus([session]);
-					this.tree.setSelection([session]);
+					this.tree.setFocus([collapsedAncestor ?? session]);
+					this.tree.setSelection([collapsedAncestor ?? session]);
 					return true;
 				}
 			}
