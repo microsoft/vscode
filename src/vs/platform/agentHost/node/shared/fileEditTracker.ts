@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isThenable, SequencerByKey } from '../../../../base/common/async.js';
+import { DeferredPromise, isThenable, SequencerByKey } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -41,9 +41,6 @@ interface IPendingEdit extends IEditIdentity {
 	readonly before: Promise<IFileSnapshot & { readonly completionsBefore: number }>;
 	readonly mode: string | undefined;
 	readonly lease: DisposableStore;
-	/** Synchronous completion claim order, regardless of snapshot settlement. */
-	completionOrder?: number;
-	failure?: IFailedEdit;
 }
 
 interface ICompletedEdit extends IEditIdentity {
@@ -55,10 +52,16 @@ interface ICompletedEdit extends IEditIdentity {
 	readonly lease: IDisposable;
 }
 
-interface IFailedEdit {
-	readonly original: IEditIdentity;
-	callback: IEditIdentity;
-	readonly completionOrder: number | undefined;
+interface IEditOperation extends IEditIdentity {
+	readonly settled: DeferredPromise<void>;
+	resultReserved: boolean;
+	completion?: IEditIdentity & { readonly order: number };
+	state:
+	| { readonly kind: 'pending'; readonly edit: IPendingEdit }
+	| { readonly kind: 'completing'; readonly edit: IPendingEdit }
+	| { readonly kind: 'completed'; readonly edit: ICompletedEdit }
+	| { readonly kind: 'failed' }
+	| { readonly kind: 'claimed' };
 }
 
 /**
@@ -66,12 +69,7 @@ interface IFailedEdit {
  * Callbacks for one spelling are ordered, but aliases can finish out of order.
  */
 interface IFileEdits {
-	readonly pending: IPendingEdit[];
-	readonly completed: ICompletedEdit[];
-	/** Failed spellings cannot claim another alias with the same multi-file tool input. */
-	readonly failed: IFailedEdit[];
-	/** Edits that are completing, which are in neither list meanwhile. */
-	completing: number;
+	readonly operations: IEditOperation[];
 	/** How many edits of the file completed. */
 	completions: number;
 	nextCompletionOrder: number;
@@ -80,20 +78,33 @@ interface IFileEdits {
 }
 
 /**
- * Matches the callback's path and input first; legacy input-less callbacks use the physical file's FIFO.
+ * Claims each completion once, including a failed start's post-tool callback.
  */
-function indexOfEdit(edits: readonly IEditIdentity[], failedEdits: readonly IFailedEdit[], toolInput: unknown, filePath: string): number {
-	const failed = indexOfFailedEdit(failedEdits, toolInput, filePath) !== -1;
-	if (toolInput === undefined) {
-		return failed ? edits.findIndex(edit => edit.filePath === filePath) : edits.length ? 0 : -1;
-	}
-	const exact = edits.findIndex(edit => edit.filePath === filePath && equals(edit.toolInput, toolInput));
-	return exact >= 0 ? exact : failed ? -1 : edits.findIndex(edit => equals(edit.toolInput, toolInput));
+function findCompletionOperation(edits: IFileEdits, toolInput: unknown, filePath: string): IEditOperation | undefined {
+	const candidates = edits.operations.filter(operation => !operation.completion
+		&& (operation.state.kind === 'pending' || operation.state.kind === 'failed')
+		&& (toolInput === undefined || equals(operation.toolInput, toolInput)));
+	return (toolInput === undefined ? undefined : candidates.find(operation => operation.filePath === filePath)) ?? candidates[0];
 }
 
-function indexOfFailedEdit(edits: readonly IFailedEdit[], toolInput: unknown, filePath: string): number {
-	const callbackIndex = edits.findIndex(edit => edit.callback.filePath === filePath && equals(edit.callback.toolInput, toolInput));
-	return callbackIndex !== -1 ? callbackIndex : edits.findIndex(edit => edit.original.filePath === filePath && equals(edit.original.toolInput, toolInput));
+/** Failed and live operations with the same raw identity share one result FIFO. */
+function findResultOperation(edits: IFileEdits, toolInput: unknown, filePath: string): IEditOperation | undefined {
+	const candidates: IEditOperation[] = [];
+	for (const operation of edits.operations) {
+		if (operation.state.kind === 'claimed' || operation.resultReserved
+			|| (toolInput !== undefined && !equals(operation.toolInput, toolInput) && (!operation.completion || !equals(operation.completion.toolInput, toolInput)))) {
+			continue;
+		}
+		if (!candidates.some(candidate => candidate.filePath === operation.filePath && equals(candidate.toolInput, operation.toolInput))) {
+			candidates.push(operation);
+		}
+	}
+	const matches = (identity: IEditIdentity) => identity.filePath === filePath && (toolInput === undefined || equals(identity.toolInput, toolInput));
+	const priority = (operation: IEditOperation) => (operation.state.kind === 'pending' ? 3 : 0)
+		+ (operation.completion && matches(operation.completion) ? 0 : matches(operation) ? 1 : 2);
+	candidates.sort((a, b) => priority(a) - priority(b)
+		|| (a.completion?.order ?? Number.MAX_SAFE_INTEGER) - (b.completion?.order ?? Number.MAX_SAFE_INTEGER));
+	return candidates[0];
 }
 
 /**
@@ -134,6 +145,12 @@ export class FileEditTracker extends Disposable {
 	}
 
 	override dispose(): void {
+		for (const edits of this._edits.values()) {
+			for (const operation of edits.operations) {
+				operation.state = { kind: 'claimed' };
+				operation.settled.complete();
+			}
+		}
 		this._edits.clear();
 		super.dispose();
 	}
@@ -178,15 +195,14 @@ export class FileEditTracker extends Disposable {
 			mode,
 			lease,
 		};
-		edits.pending.push(entry);
+		const operation: IEditOperation = { filePath, toolInput, settled: new DeferredPromise<void>(), resultReserved: false, state: { kind: 'pending', edit: entry } };
+		edits.operations.push(operation);
 		try {
 			await entry.before;
 		} catch (error) {
-			const index = edits.pending.indexOf(entry);
-			if (index !== -1) {
-				edits.pending.splice(index, 1);
+			if (operation.state.kind !== 'claimed') {
+				operation.state = { kind: 'failed' };
 			}
-			this._rememberFailedEdit(edits, entry);
 			this._runningEdits.delete(lease);
 			this._deleteIfSettled(filePath, edits);
 			throw error;
@@ -204,31 +220,36 @@ export class FileEditTracker extends Disposable {
 	async completeEdit(filePath: string, toolInput?: unknown): Promise<void> {
 		const key = getFileEditPathKey(filePath, this._fileEditCoordinator.uriIdentity);
 		const edits = this._edits.get(key);
-		if (!edits?.pending.length) {
+		if (!edits) {
 			return;
 		}
-		const index = indexOfEdit(edits.pending, edits.failed, toolInput, filePath);
-		if (index < 0) {
+		const operation = findCompletionOperation(edits, toolInput, filePath);
+		if (!operation) {
 			this._logService.trace(`[FileEditTracker] No matching pending edit: ${filePath}`);
 			return;
 		}
-		const pending = this._takeEdit(edits.pending, index);
-		pending.completionOrder = edits.nextCompletionOrder++;
-		edits.completing++;
+		operation.completion = { filePath, toolInput, order: edits.nextCompletionOrder++ };
+		if (operation.state.kind !== 'pending') {
+			return;
+		}
+		this._discardEarlierOperations(edits, operation, 'pending');
+		const pending = operation.state.edit;
+		operation.state = { kind: 'completing', edit: pending };
+		const isCancelled = () => this._store.isDisposed || operation.state.kind === 'claimed';
 		return this._snapshotSequencer.queue(key, async () => {
 			try {
 				const snapshot = await pending.before;
-				if (this._store.isDisposed) {
+				if (isCancelled()) {
 					return;
 				}
 				const after = await this._readFileWithExistence(filePath);
-				if (this._store.isDisposed) {
+				if (isCancelled()) {
 					return;
 				}
 				// An edit that started before others of the file completed starts from what the last of them wrote.
 				const before = edits.lastAfter && edits.completions > snapshot.completionsBefore ? edits.lastAfter : snapshot;
 				edits.completions++;
-				edits.lastAfter = edits.pending.length || edits.completing > 1 ? after : undefined;
+				edits.lastAfter = edits.operations.some(other => other !== operation && (other.state.kind === 'pending' || other.state.kind === 'completing')) ? after : undefined;
 				const ref = this._sessionDataService.openDatabase(URI.parse(this._sessionUri));
 				let order: number;
 				try {
@@ -236,25 +257,30 @@ export class FileEditTracker extends Disposable {
 				} finally {
 					ref.dispose();
 				}
-				if (this._store.isDisposed) {
+				if (isCancelled()) {
 					return;
 				}
-				edits.completed.push({
-					filePath: pending.filePath,
-					order,
-					beforeContent: before.content,
-					beforeExisted: before.existed,
-					afterContent: after.content,
-					toolInput: pending.toolInput,
-					mode: pending.mode,
-					lease: pending.lease,
-				});
+				operation.state = {
+					kind: 'completed',
+					edit: {
+						filePath: pending.filePath,
+						order,
+						beforeContent: before.content,
+						beforeExisted: before.existed,
+						afterContent: after.content,
+						toolInput: pending.toolInput,
+						mode: pending.mode,
+						lease: pending.lease,
+					},
+				};
 			} catch (error) {
-				this._rememberFailedEdit(edits, pending, { filePath, toolInput });
+				if (operation.state.kind !== 'claimed') {
+					operation.state = { kind: 'failed' };
+				}
 				this._runningEdits.delete(pending.lease);
 				throw error;
 			} finally {
-				edits.completing--;
+				operation.settled.complete();
 				this._deleteIfSettled(filePath, edits);
 			}
 		});
@@ -277,72 +303,77 @@ export class FileEditTracker extends Disposable {
 		if (!edits) {
 			return Promise.resolve(undefined);
 		}
-		const completedIndex = indexOfEdit(edits.completed, edits.failed, toolInput, filePath);
-		const pendingIndex = indexOfEdit(edits.pending, edits.failed, toolInput, filePath);
-		if (completedIndex === -1) {
-			if (pendingIndex !== -1) {
-				this._runningEdits.delete(this._takeEdit(edits.pending, pendingIndex).lease);
-			} else {
-				this._logService.trace(`[FileEditTracker] No matching edit result: ${filePath}`);
-				const failedIndex = indexOfFailedEdit(edits.failed, toolInput, filePath);
-				if (failedIndex !== -1) {
-					edits.failed.splice(failedIndex, 1);
-				}
-			}
-			this._deleteIfSettled(filePath, edits);
+		const operation = findResultOperation(edits, toolInput, filePath);
+		if (!operation) {
+			this._logService.trace(`[FileEditTracker] No matching edit result: ${filePath}`);
 			return Promise.resolve(undefined);
 		}
-		const edit = this._takeEdit(edits.completed, completedIndex);
-		this._deleteIfSettled(filePath, edits);
-		// Claimed persistence can outlive the tracker, so its promise now owns the lease.
-		this._runningEdits.deleteAndLeak(edit.lease);
-		return this._completedEditSequencer.queue(key, () => this._processCompletedEdit(edit, turnId, toolCallId, filePath, toolName, toolInput, modelId, isSubagent, clientContext, chatUri, autoTierSnapshot, fusionModel))
-			.finally(() => edit.lease.dispose());
+		operation.resultReserved = true;
+		const claim = (): Promise<ToolResultFileEditContent | undefined> => {
+			const state = operation.state;
+			if (state.kind === 'completing') {
+				return operation.settled.p.then(claim);
+			}
+			if (state.kind === 'claimed') {
+				return Promise.resolve(undefined);
+			}
+			if (state.kind === 'pending' || state.kind === 'completed') {
+				this._discardEarlierOperations(edits, operation, state.kind);
+			}
+			operation.state = { kind: 'claimed' };
+			operation.settled.complete();
+			const index = edits.operations.indexOf(operation);
+			if (index !== -1) {
+				edits.operations.splice(index, 1);
+			}
+			this._deleteIfSettled(filePath, edits);
+			if (state.kind !== 'completed') {
+				if (state.kind === 'pending') {
+					this._runningEdits.delete(state.edit.lease);
+				}
+				return Promise.resolve(undefined);
+			}
+			const edit = state.edit;
+			// Claimed persistence can outlive the tracker, so its promise now owns the lease.
+			this._runningEdits.deleteAndLeak(edit.lease);
+			return this._completedEditSequencer.queue(key, () => this._processCompletedEdit(edit, turnId, toolCallId, filePath, toolName, toolInput, modelId, isSubagent, clientContext, chatUri, autoTierSnapshot, fusionModel))
+				.finally(() => edit.lease.dispose());
+		};
+		return claim();
 	}
 
 	private _getEdits(filePath: string): IFileEdits {
 		const key = getFileEditPathKey(filePath, this._fileEditCoordinator.uriIdentity);
 		let edits = this._edits.get(key);
 		if (!edits) {
-			edits = { pending: [], completed: [], failed: [], completing: 0, completions: 0, nextCompletionOrder: 0, lastAfter: undefined };
+			edits = { operations: [], completions: 0, nextCompletionOrder: 0, lastAfter: undefined };
 			this._edits.set(key, edits);
 		}
 		return edits;
 	}
 
-	private _rememberFailedEdit(edits: IFileEdits, pending: IPendingEdit, callback?: IEditIdentity): void {
-		if (!pending.failure) {
-			if (pending.lease.isDisposed) {
-				return;
-			}
-			const original = { filePath: pending.filePath, toolInput: pending.toolInput };
-			const completionOrder = pending.completionOrder;
-			pending.failure = { original, callback: original, completionOrder };
-			const index = completionOrder === undefined ? -1 : edits.failed.findIndex(failure => failure.completionOrder === undefined || failure.completionOrder > completionOrder);
-			edits.failed.splice(index === -1 ? edits.failed.length : index, 0, pending.failure);
-		}
-		if (callback) {
-			pending.failure.callback = { filePath: callback.filePath, toolInput: callback.toolInput };
-		}
-	}
-
 	/** Forgets the edits of a file once none is left, which releases the content they hold. */
 	private _deleteIfSettled(filePath: string, edits: IFileEdits): void {
 		const key = getFileEditPathKey(filePath, this._fileEditCoordinator.uriIdentity);
-		if (!edits.pending.length && !edits.completed.length && !edits.completing && this._edits.get(key) === edits) {
+		if (!edits.operations.some(operation => operation.state.kind === 'pending' || operation.state.kind === 'completing')) {
+			edits.lastAfter = undefined;
+		}
+		if (!edits.operations.length && this._edits.get(key) === edits) {
 			this._edits.delete(key);
 		}
 	}
 
-	private _takeEdit<T extends { readonly filePath: string; readonly lease: IDisposable }>(edits: T[], index: number): T {
-		const [edit] = edits.splice(index, 1);
-		// Earlier callbacks of this spelling were missed; other spellings may still be running.
-		for (let i = index - 1; i >= 0; i--) {
-			if (edits[i].filePath === edit.filePath) {
-				this._runningEdits.delete(edits.splice(i, 1)[0].lease);
+	private _discardEarlierOperations(edits: IFileEdits, operation: IEditOperation, kind: 'pending' | 'completed'): void {
+		for (let i = edits.operations.indexOf(operation) - 1; i >= 0; i--) {
+			const earlier = edits.operations[i];
+			const state = earlier.state;
+			if (!earlier.resultReserved && earlier.filePath === operation.filePath && (state.kind === 'pending' || state.kind === 'completed') && state.kind === kind) {
+				earlier.state = { kind: 'claimed' };
+				earlier.settled.complete();
+				edits.operations.splice(i, 1);
+				this._runningEdits.delete(state.edit.lease);
 			}
 		}
-		return edit;
 	}
 
 	private async _processCompletedEdit(edit: ICompletedEdit, turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext: IAgentHostClientTelemetryContext | undefined, chatUri: string | undefined, autoTierSnapshot: string | Promise<string | undefined> | undefined, fusionModel: string | undefined): Promise<ToolResultFileEditContent | undefined> {

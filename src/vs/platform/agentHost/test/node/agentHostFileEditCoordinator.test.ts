@@ -35,6 +35,60 @@ suite('AgentHostFileEditCoordinator', () => {
 		});
 	});
 
+	for (const observed of [false, true]) {
+		test(`a dot-segment edit holds the canonical file's exclusive decision (observed: ${observed})`, async () => {
+			const coordinator = createTestFileEditCoordinator(disposables);
+			const dotted = URI.file('/repo/./src/file.ts');
+			const lease = disposables.add(observed ? coordinator.markEditing(dotted) : await coordinator.beginEdit(dotted));
+			let decisionRan = false;
+			const decision = coordinator.runExclusive(file, async () => { decisionRan = true; });
+			await Promise.resolve();
+			await Promise.resolve();
+			const whileWriting = { canonical: coordinator.isEditing(file), dotted: coordinator.isEditing(dotted), decisionRan };
+			lease.dispose();
+			await decision;
+			assert.deepStrictEqual({ whileWriting, after: coordinator.isEditing(file), decisionRan }, {
+				whileWriting: { canonical: true, dotted: true, decisionRan: false }, after: false, decisionRan: true,
+			});
+		});
+	}
+
+	test('a canonical edit waits for an exclusive decision through a dot-segment alias', async () => {
+		const coordinator = createTestFileEditCoordinator(disposables);
+		const entered = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const decision = coordinator.runExclusive(URI.file('/repo/./src/file.ts'), async () => {
+			entered.complete();
+			await release.p;
+		});
+		await entered.p;
+		let editStarted = false;
+		const edit = coordinator.beginEdit(file).then(lease => {
+			editStarted = true;
+			disposables.add(lease).dispose();
+		});
+		await Promise.resolve();
+		await Promise.resolve();
+		const startedBeforeRelease = editStarted;
+		release.complete();
+		await Promise.all([decision, edit]);
+		assert.deepStrictEqual({ startedBeforeRelease, editStarted, editing: coordinator.isEditing(file) }, {
+			startedBeforeRelease: false, editStarted: true, editing: false,
+		});
+	});
+
+	test('dot normalization preserves parent traversals, authorities and opaque providers', () => {
+		const { uriIdentity } = createTestFileEditCoordinator(disposables);
+		assert.deepStrictEqual({
+			dot: uriIdentity.isEqual(file, URI.file('/repo/./src/./file.ts')),
+			parent: uriIdentity.isEqualOrParent(file, URI.file('/repo/./src')),
+			traversal: uriIdentity.isEqual(file, URI.file('/repo/link/../src/file.ts')),
+			authority: uriIdentity.isEqual(file, file.with({ authority: 'other', path: '/repo/./src/file.ts' })),
+			provider: uriIdentity.isEqual(URI.parse('opaque:/repo/./file.ts'), URI.parse('opaque:/repo/file.ts')),
+			root: uriIdentity.isEqual(URI.file('/.'), URI.file('/')),
+		}, { dot: true, parent: true, traversal: false, authority: false, provider: false, root: true });
+	});
+
 	test('runs a change of a file between its edit tool calls: after the running ones, before those that start later', async () => {
 		const coordinator = createTestFileEditCoordinator(disposables);
 		const log: string[] = [];

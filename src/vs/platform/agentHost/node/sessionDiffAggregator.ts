@@ -13,7 +13,7 @@ import type { IDiffComputeService } from '../common/diffComputeService.js';
 import { FileEditKind, type ISessionFileDiff } from '../common/state/sessionState.js';
 import { buildSessionDbUri } from '../common/sessionDbUri.js';
 import { fileEditContentEquals, getWorkingSetFileEditRecords, isFileEditAcceptRecord } from './fileEditAccept.js';
-import { getFileEditPathKey, getFileEditRecordKey } from './fileEditIdentity.js';
+import { getFileEditPathKey, getFileEditRecordKey, getFileEditResourceKey, normalizeFileEditResource } from './fileEditIdentity.js';
 import { computeWorkingSetFileContents } from './workingSetFileContents.js';
 
 /** The recorded changes among `records`, leaving out rows that record accepting changes. */
@@ -32,13 +32,13 @@ function createSessionFileDiff(beforeSessionUri: string, afterSessionUri: string
 	return {
 		...(hasBefore ? {
 			before: {
-				uri: URI.file(beforePath).toString(),
+				uri: normalizeFileEditResource(URI.file(beforePath)).toString(),
 				content: { uri: buildSessionDbUri(beforeSessionUri, identity.firstToolCallId, identity.firstFilePath, 'before') },
 			},
 		} : {}),
 		...(hasAfter ? {
 			after: {
-				uri: URI.file(identity.terminalPath).toString(),
+				uri: normalizeFileEditResource(URI.file(identity.terminalPath)).toString(),
 				content: { uri: buildSessionDbUri(afterSessionUri, identity.lastToolCallId, identity.lastFilePath, 'after') },
 			},
 		} : {}),
@@ -59,6 +59,7 @@ interface IFileIdentity {
 	firstToolCallId: string;
 	/** File path used in the first edit's database record. */
 	firstFilePath: string;
+	/** Resource path before the first edit, including a rename's original path, used for the published before URI. */
 	firstResourcePath: string;
 	/** The kind of the first edit (Create means no "before" content). */
 	firstKind: FileEditKind;
@@ -165,7 +166,7 @@ export async function computeSessionDiffs(
 
 	const getDiffKey = (diff: ISessionFileDiff) => {
 		const uri = getFileEditUri(diff);
-		return uri === undefined ? undefined : db.fileEditUriIdentity.getComparisonKey(URI.parse(uri));
+		return uri === undefined ? undefined : getFileEditResourceKey(URI.parse(uri), db.fileEditUriIdentity);
 	};
 	const previousDiffsUris = new Set(previousDiffs.map(getDiffKey));
 	const needsFullHistory = turnEdits.some(e =>
@@ -695,7 +696,7 @@ async function computeSingleSourceWorkingSetDiff(
 	return {
 		...(hasBefore ? {
 			before: {
-				uri: URI.file(last.filePath).toString(),
+				uri: normalizeFileEditResource(URI.file(last.filePath)).toString(),
 				// A rebased baseline is computed from the records when it is read.
 				content: {
 					uri: rebased
@@ -706,7 +707,7 @@ async function computeSingleSourceWorkingSetDiff(
 		} : {}),
 		...(hasAfter ? {
 			after: {
-				uri: URI.file(last.filePath).toString(),
+				uri: normalizeFileEditResource(URI.file(last.filePath)).toString(),
 				content: { uri: buildSessionDbUri(source.sessionUri, last.toolCallId, last.filePath, 'after') },
 			},
 		} : {}),
@@ -722,8 +723,8 @@ async function computeSingleSourceWorkingSetDiff(
  * Containment follows the host file provider's declared case sensitivity.
  */
 export function isPathWithinFolderScope(filePath: string, folderRoots: readonly URI[], identity: IExtUri): boolean {
-	const fileUri = URI.file(filePath);
-	return folderRoots.some(root => identity.isEqualOrParent(fileUri, root));
+	const fileUri = normalizeFileEditResource(URI.file(filePath));
+	return folderRoots.some(root => identity.isEqualOrParent(fileUri, normalizeFileEditResource(root)));
 }
 
 /** Returns `true` when the file identified by `diff` is within any of `folderRoots`. */
@@ -732,8 +733,8 @@ function isFileDiffWithinFolderScope(diff: ISessionFileDiff, folderRoots: readon
 	if (!uri) {
 		return false;
 	}
-	const fileUri = URI.parse(uri);
-	return folderRoots.some(root => identity.isEqualOrParent(fileUri, root));
+	const fileUri = normalizeFileEditResource(URI.parse(uri));
+	return folderRoots.some(root => identity.isEqualOrParent(fileUri, normalizeFileEditResource(root)));
 }
 
 /**

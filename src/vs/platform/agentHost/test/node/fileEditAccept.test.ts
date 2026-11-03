@@ -92,6 +92,22 @@ suite('fileEditAccept', () => {
 		return copy.db;
 	}
 
+	test('coalesces redundant dot segments while preserving exact historical snapshot keys', async () => {
+		const db = disposables.add(await SessionDatabase.open(':memory:'));
+		const sources = [{ sessionUri: SESSION, db }];
+		const dotted = '/repo/./file.ts';
+		await storeEdit(db, 't1', 'first', FileEditKind.Edit, 'original', 'first');
+		await storeEdit(db, 't1', 'second', FileEditKind.Edit, 'first', 'second', dotted);
+		const diffService = new InProcessDiffComputeService();
+		const expected = [{ file: URI.file(FILE).toString(), before: 'original', after: 'second' }];
+		assert.deepStrictEqual({
+			workingSet: await readDiffs(sources, await computeWorkingSetDiffs(sources, diffService)),
+			session: await readDiffs(sources, await computeUnionedDiffs(sources, diffService)),
+			paths: (await db.getAllFileEdits()).map(record => record.filePath),
+			second: new TextDecoder().decode((await db.readFileEditContent('second', dotted))?.afterContent),
+		}, { workingSet: expected, session: expected, paths: [FILE, dotted], second: 'second' });
+	});
+
 	(isLinux ? test.skip : test)('coalesces pre-existing case aliases without losing their ordered snapshots', async () => {
 		const db = disposables.add(await SessionDatabase.open(':memory:'));
 		const sources = [{ sessionUri: SESSION, db }];

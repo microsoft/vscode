@@ -144,6 +144,42 @@ suite('Agent Host file edit identity', () => {
 		{ name: 'identical spelling', paths: root => [join(root, 'f.md'), join(root, 'f.md')] },
 	];
 
+	for (const operation of ['keep', 'undo'] as const) {
+		test(`native dot-segment alias: ${operation} settles after reload without rewriting snapshot keys`, async () => {
+			const harness = await createHarness();
+			try {
+				const path = join(harness.root, 'file.md');
+				const dotted = `${harness.root}/./file.md`;
+				await harness.fileService.writeFile(URI.file(path), VSBuffer.fromString('before\n'));
+				await harness.edit(dotted, 'edit', 'after\n');
+				const beforeReload = await harness.contents();
+				const recorded = await harness.db.getAllFileEdits();
+				const [canonicalStat, dottedStat] = await Promise.all([fs.stat(path), fs.stat(dotted)]);
+				await harness.resume();
+				const afterReload = await harness.contents();
+				await harness.decide(operation, path);
+				assert.deepStrictEqual({
+					sameFile: canonicalStat.dev === dottedStat.dev && canonicalStat.ino === dottedStat.ino,
+					beforeReload: beforeReload.map(({ resource, before, after }) => ({ resource, before, after })),
+					afterReload,
+					rawPaths: recorded.map(record => record.filePath),
+					content: await fs.readFile(path, 'utf8'),
+					workingSet: await harness.workingSet(),
+					editing: harness.coordinator.isEditing(URI.file(path)),
+				}, {
+					sameFile: true,
+					beforeReload: [{ resource: URI.file(path).toString(), before: 'before\n', after: 'after\n' }],
+					afterReload: beforeReload,
+					rawPaths: [dotted],
+					content: operation === 'keep' ? 'after\n' : 'before\n',
+					workingSet: [], editing: false,
+				});
+			} finally {
+				await harness.dispose();
+			}
+		});
+	}
+
 	for (const { name, paths } of windowsAliases) {
 		for (const operation of ['keep', 'undo'] as const) {
 			(isWindows ? test : test.skip)(`native Windows ${name}: ${operation} settles after reload with one ordered file history`, async () => {
