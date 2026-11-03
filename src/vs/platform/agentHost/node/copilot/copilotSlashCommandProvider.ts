@@ -52,7 +52,7 @@ export class CopilotSlashCommandProvider {
 		}
 		try {
 			const catalog = await this._getRuntimeSlashCommandCatalog(maxWaitMs);
-			return this._withHandler(catalog.byName.get(key) ?? catalog.byAlias.get(key) ?? catalog.bySkillName.get(key) ?? (key === copilotSandboxPolicyCommand.name ? copilotSandboxPolicyCommand : undefined));
+			return this._withHandler(catalog.byName.get(key) ?? catalog.byAlias.get(key) ?? (key === copilotSandboxPolicyCommand.name ? copilotSandboxPolicyCommand : catalog.bySkillName.get(key)));
 		} catch (err) {
 			if (key !== copilotSandboxPolicyCommand.name) {
 				throw err;

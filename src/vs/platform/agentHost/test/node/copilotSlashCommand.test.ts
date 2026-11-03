@@ -9,6 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { renderCopilotSlashCommandOutput, type CopilotSlashCommandOutput, type ICopilotSlashCommandHandler, type RuntimeSlashCommandInfo } from '../../node/copilot/copilotSlashCommand.js';
 import { CopilotSlashCommandProvider } from '../../node/copilot/copilotSlashCommandProvider.js';
+import { copilotSandboxPolicyCommand } from '../../node/copilot/copilotSandboxPolicyDisplay.js';
 import { getCopilotCustomizationCommandHandler, invokeCopilotPluginCommand, type ICopilotMcpCommandServer, type ICopilotPluginCommandApi, type ReloadCopilotPlugins } from '../../node/copilot/copilotCustomizationCommandDisplay.js';
 
 function pluginApi(calls: string[]): ICopilotPluginCommandApi {
@@ -157,7 +158,8 @@ suite('Copilot slash command handlers', () => {
 		const second: RuntimeSlashCommandInfo = { name: 'plugin-b:review', kind: 'skill', description: 'Review B', allowDuringAgentExecution: false };
 		const shadowed: RuntimeSlashCommandInfo = { name: 'plugin-c:diagnostic', kind: 'skill', description: 'Shadowed', allowDuringAgentExecution: false };
 		const clientCommand: RuntimeSlashCommandInfo = { name: 'ext:deploy', kind: 'client', description: 'Deploy', allowDuringAgentExecution: false };
-		const provider = new CopilotSlashCommandProvider(async () => [command, synced, first, second, shadowed, clientCommand], undefined, store.add(new NullLogService()));
+		const sandboxSkill: RuntimeSlashCommandInfo = { name: 'plugin-d:sandbox', kind: 'skill', description: 'Sandbox skill', allowDuringAgentExecution: false };
+		const provider = new CopilotSlashCommandProvider(async () => [command, synced, first, second, shadowed, clientCommand, sandboxSkill], undefined, store.add(new NullLogService()));
 
 		assert.deepStrictEqual({
 			unique: await provider.resolveSlashCommand('/Commit'),
@@ -165,12 +167,14 @@ suite('Copilot slash command handlers', () => {
 			exactWins: await provider.resolveSlashCommand('diagnostic'),
 			notSkill: await provider.resolveSlashCommand('deploy'),
 			namespaced: await provider.resolveSlashCommand('plugin-a:review'),
+			hostCommandWins: (await provider.resolveSlashCommand('sandbox'))?.name,
 		}, {
 			unique: synced,
 			ambiguous: undefined,
 			exactWins: command,
 			notSkill: undefined,
 			namespaced: first,
+			hostCommandWins: copilotSandboxPolicyCommand.name,
 		});
 	});
 
