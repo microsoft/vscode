@@ -256,7 +256,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		const { openMenu, menuItems } = fixture();
 		openMenu();
 		assert.deepStrictEqual(menuItems(), [
-			{ label: 'Off', detail: 'Only this machine can access its workspaces and agents.', badge: undefined, role: 'menuitemcheckbox' },
+			{ label: 'Off', detail: 'Only accessible from this machine.', badge: undefined, role: 'menuitemcheckbox' },
 			{ label: 'GitHub Environments', detail: 'Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot.', badge: 'Preview', role: 'menuitemcheckbox' },
 			{ label: 'Dev Tunnels', detail: 'Access workspaces and agents on this machine from VS Code or vscode.dev/agents.', badge: undefined, role: 'menuitemcheckbox' },
 		]);

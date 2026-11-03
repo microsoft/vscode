@@ -30,7 +30,7 @@ import { IProgress, IProgressService } from '../../../../../platform/progress/co
 import { IRemoteTunnelService, TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { DevContainerAgentHostEnabledSettingId, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
-import { IAgentHostSessionsProvider, isAgentHostProvider, isRemoteSessionCreationEnvironment, LocalAgentHostRegistration } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider, isRemoteSessionCreationEnvironment } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { changeRemoteAgentHostLocationPreference, confirmTunnelDeletion, disconnectSSHEntry, reconnectRemoteHost, removeRemoteHost, renameRemoteHost, sshConnectionKey, upgradeRemoteHost } from './remoteHostOptions.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from './remoteAgentHostPickerVisibility.js';
@@ -58,8 +58,6 @@ export interface ICustomizationRemote {
 	readonly unavailableReason?: string;
 	readonly hidden?: boolean;
 	readonly pickerUnavailableReason?: string;
-	/** Set when this remote is a sharing registration of the computer running this window. */
-	readonly localRegistration?: LocalAgentHostRegistration;
 	/** Last reported availability of the remote's host, independent of this window's connection. */
 	readonly hostAvailability?: 'online' | 'offline';
 }
@@ -728,9 +726,9 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					break;
 			}
 			const provider = providersByAddress.get(id);
-			const localRegistration = provider?.localRegistration?.read(reader);
-			if (localRegistration === 'githubEnvironment') {
-				unavailableReason = localize('remotes.localEnvironment', "This is this computer's GitHub environment. Run sessions here with This Computer in the Environment picker.");
+			// This window already runs sessions on this computer, so its own sharing registrations are not remotes to manage.
+			if (provider?.localRegistration?.read(reader)) {
+				continue;
 			}
 			const connectionStatus = connectionStatuses.get(id) ?? RemoteAgentHostConnectionStatus.disconnected;
 			const hostAvailability = this.getHostAvailability(target, connectionStatus);
@@ -741,7 +739,6 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			const hidden = this.pickerVisibility.isHidden(this.getPickerKey(target), reader);
 			remotes.push({
 				id, kind: target.kind, name, detail, canRemove, unavailableReason,
-				...(localRegistration ? { localRegistration } : {}),
 				...(hostAvailability ? { hostAvailability } : {}),
 				...(target.kind === 'tunnel' ? {
 					canDelete: this.tunnelService.canDeleteTunnels && !!this.remoteTunnelStatus
@@ -750,9 +747,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				...(target.kind === 'ssh' ? {
 					canDelete: this.registered.has(id) && target.entry.connection.type === RemoteAgentHostEntryType.SSH && !this.isSSHHostConfigured(target.entry.connection),
 				} : {}),
-				hidden, pickerUnavailableReason: localRegistration === 'githubEnvironment'
-					? localize('remotes.pickerLocalEnvironment', "This computer appears as This Computer in the Environment picker.")
-					: this.getPickerUnavailableReason(target, provider, hidden, reader),
+				hidden, pickerUnavailableReason: this.getPickerUnavailableReason(target, provider, hidden, reader),
 				connectionStatus,
 				...(connectionErrors.has(id) ? { lastConnectionError: connectionErrors.get(id) } : {}),
 			});

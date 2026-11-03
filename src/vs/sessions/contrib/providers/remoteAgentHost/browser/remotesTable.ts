@@ -223,9 +223,8 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				listRow.setAttribute('aria-busy', String(entry.type === 'group' ? entry.refreshing : entry.type === 'remote' ? entry.busy : signingIn));
 				template.label.textContent = entry.type === 'remote' ? entry.remote.name : entry.label;
 				template.label.classList.toggle('remotes-empty-label', entry.type === 'empty');
-				template.count.textContent = entry.type === 'group' ? String(entry.count)
-					: entry.type === 'remote' && entry.remote.localRegistration ? localize('remotes.thisComputerLabel', "This Computer") : '';
-				template.count.hidden = !template.count.textContent;
+				template.count.textContent = entry.type === 'group' ? String(entry.count) : '';
+				template.count.hidden = entry.type !== 'group';
 				template.progress.hidden = entry.type !== 'group' || !entry.refreshing;
 				dom.clearNode(template.warning);
 				if (entry.type === 'group' && entry.warning) {

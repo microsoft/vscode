@@ -38,7 +38,7 @@ import { ISessionsProvider } from '../../../../../services/sessions/common/sessi
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IConnectionDiagnosticsService } from '../../browser/connectionDiagnostics.js';
-import { RemoteAgentHostSessionsProvider } from '../../browser/remoteAgentHostSessionsProvider.js';
+import { IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { TunnelAgentHostContribution } from '../../browser/tunnelAgentHost.contribution.js';
 
 class StubProvider extends mock<RemoteAgentHostSessionsProvider>() {
@@ -258,10 +258,12 @@ class StubFilterService {
 class TestTunnelContribution extends TunnelAgentHostContribution {
 	protected override get isWebPlatform(): boolean { return true; }
 	readonly stubProviders = new Map<string, StubProvider>();
+	readonly providerConfigs = new Map<string, IRemoteAgentHostSessionsProviderConfig>();
 
-	protected override _instantiateProvider(address: string, name: string): RemoteAgentHostSessionsProvider {
-		const stub = new StubProvider(address, name);
-		this.stubProviders.set(address, stub);
+	protected override _instantiateProvider(config: IRemoteAgentHostSessionsProviderConfig): RemoteAgentHostSessionsProvider {
+		const stub = new StubProvider(config.address, config.name);
+		this.stubProviders.set(config.address, stub);
+		this.providerConfigs.set(config.address, config);
 		return stub as unknown as RemoteAgentHostSessionsProvider;
 	}
 }
@@ -540,6 +542,49 @@ suite('TunnelAgentHostContribution', () => {
 			remembered: 'tunnel-local',
 			afterEmptyDiscovery: 'tunnel-local',
 			afterHostingAnotherTunnel: 'tunnel-replaced',
+		});
+	});
+
+	test('keeps this computer\'s own tunnel out of the environment pickers', () => {
+		const tunnelService = store.add(new StubTunnelService());
+		const remoteService = store.add(new StubRemoteAgentHostService());
+		const providersService = store.add(new StubSessionsProvidersService());
+		const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
+		const remoteTunnelService = store.add(new StubRemoteTunnelService());
+		const instantiationService = createInstantiationService();
+		instantiationService.stub(ITunnelAgentHostService, tunnelService);
+		instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
+		instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(INotificationService, { notify: () => ({ close() { } }) } as unknown as INotificationService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
+		instantiationService.stub(ITelemetryService, { publicLog2: () => { } } as unknown as ITelemetryService);
+		instantiationService.stub(IHostService, new StubHostService());
+		instantiationService.stub(IRemoteTunnelService, remoteTunnelService);
+		instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
+		const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
+		tunnelService.setCached([
+			{ tunnelId: 'tunnel-local', clusterId: 'use', name: 'This Computer' },
+			{ tunnelId: 'tunnel-other', clusterId: 'use', name: 'Other Computer' },
+		]);
+		const read = () => [...contribution.providerConfigs.values()].map(config => ({
+			name: config.name,
+			localRegistration: config.localRegistration?.get(),
+			pickerVisible: config.isVisibleInEnvironmentPicker?.get(),
+		}));
+		const before = read();
+		remoteTunnelService.setStatus({ type: 'connected', info: { tunnelName: 'This Computer', tunnelId: 'tunnel-local', isAttached: false }, serviceInstallFailed: false });
+
+		assert.deepStrictEqual({ before, after: read() }, {
+			before: [
+				{ name: 'This Computer', localRegistration: undefined, pickerVisible: true },
+				{ name: 'Other Computer', localRegistration: undefined, pickerVisible: true },
+			],
+			after: [
+				{ name: 'This Computer', localRegistration: 'devTunnel', pickerVisible: false },
+				{ name: 'Other Computer', localRegistration: undefined, pickerVisible: true },
+			],
 		});
 	});
 

@@ -23,7 +23,7 @@ import { logTunnelConnectAttempt, logTunnelConnectResolved, logTunnelDiscoveryRe
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IConnectionDiagnosticsService } from './connectionDiagnostics.js';
-import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
+import { IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
 
 /** Minimum interval between silent status checks (5 minutes). */
@@ -231,7 +231,18 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 	private _createProvider(address: string, name: string): void {
 		const store = new DisposableStore();
-		const provider = this._instantiateProvider(address, name);
+		const tunnelId = address.slice(TUNNEL_ADDRESS_PREFIX.length);
+		const isLocal = derived(this, reader => this._localTunnelId.read(reader) === tunnelId);
+		const provider = this._instantiateProvider({
+			address,
+			name,
+			localRegistration: derived(this, reader => isLocal.read(reader) ? 'devTunnel' : undefined),
+			// This computer's own tunnel runs sessions directly as This Computer.
+			isVisibleInEnvironmentPicker: derived(this, reader => !isLocal.read(reader)),
+			connectOnDemand: () => this._connectTunnel(address, { userInitiated: true }),
+			disconnectOnDemand: () => this._disconnectTunnel(address),
+			removeOnDemand: () => this._removeTunnel(address),
+		});
 		// Surface as "Connecting" until the first silent status check determines
 		// the real state; otherwise the picker
 		// flashes "Offline" for every cached tunnel on startup.
@@ -247,18 +258,8 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		this._providerStores.set(address, store);
 	}
 
-	protected _instantiateProvider(address: string, name: string): RemoteAgentHostSessionsProvider {
-		const tunnelId = address.slice(TUNNEL_ADDRESS_PREFIX.length);
-		return this._instantiationService.createInstance(
-			RemoteAgentHostSessionsProvider, {
-			address,
-			name,
-			localRegistration: derived(this, reader => this._localTunnelId.read(reader) === tunnelId ? 'devTunnel' : undefined),
-			connectOnDemand: () => this._connectTunnel(address, { userInitiated: true }),
-			disconnectOnDemand: () => this._disconnectTunnel(address),
-			removeOnDemand: () => this._removeTunnel(address),
-		},
-		);
+	protected _instantiateProvider(config: IRemoteAgentHostSessionsProviderConfig): RemoteAgentHostSessionsProvider {
+		return this._instantiationService.createInstance(RemoteAgentHostSessionsProvider, config);
 	}
 
 	// -- Connection status --

@@ -314,6 +314,13 @@ suite('RemotesModel', () => {
 			getProviders: () => [...providers.values()],
 		});
 		const model = store.add(instantiationService.createInstance(RemotesModel, discover));
+		const addProvider = (address: string, localRegistration?: LocalAgentHostRegistration) => {
+			const provider = createProvider(address);
+			Object.assign(provider, { localRegistration: constObservable(localRegistration) });
+			providers.set(address, provider);
+			providersChanged.fire({ added: [], removed: [] });
+			return provider;
+		};
 		return {
 			model, storage, configuration, removals, sshDisconnects, removedConnections, logEntries, initializationReentered, providers, providersChanged, connectionChanges, reconnects, signIns,
 			copiedAddresses, locationPromptResult, locationPreferences, notifications, upgrades, upgrade,
@@ -336,14 +343,8 @@ suite('RemotesModel', () => {
 					change: { keys: [key], overrides: [] }, affectsConfiguration: section => section === key,
 				});
 			},
-			addEnvironmentProvider: (id: string, localRegistration?: LocalAgentHostRegistration) => {
-				const address = cloudSandboxAddress(id);
-				const provider = createProvider(address);
-				Object.assign(provider, { localRegistration: constObservable(localRegistration) });
-				providers.set(address, provider);
-				providersChanged.fire({ added: [], removed: [] });
-				return provider;
-			},
+			addEnvironmentProvider: (id: string, localRegistration?: LocalAgentHostRegistration) => addProvider(cloudSandboxAddress(id), localRegistration),
+			addProvider,
 		};
 	}
 
@@ -1497,8 +1498,8 @@ suite('RemotesModel', () => {
 		});
 	});
 
-	test('identifies this computer\'s registration and reports host availability separately from the connection', async () => {
-		const { model, configuration, environmentAvailable, environmentHosts, addEnvironmentProvider } = setup();
+	test('omits this computer\'s own registrations and reports host availability separately from the connection', async () => {
+		const { model, configuration, environmentAvailable, environmentHosts, addEnvironmentProvider, addProvider } = setup();
 		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
 		environmentAvailable.set(true, undefined);
 		environmentHosts.set([
@@ -1509,19 +1510,19 @@ suite('RemotesModel', () => {
 		addEnvironmentProvider('desktop');
 		const summarize = () => model.remotes.get()
 			.filter(remote => remote.kind === 'environment' || remote.kind === 'tunnel')
-			.map(({ name, connectionStatus, localRegistration, hostAvailability, unavailableReason, pickerUnavailableReason }) => ({ name, connection: connectionStatus.kind, localRegistration, hostAvailability, unavailableReason, pickerUnavailableReason }));
+			.map(({ name, connectionStatus, hostAvailability, unavailableReason, pickerUnavailableReason }) => ({ name, connection: connectionStatus.kind, hostAvailability, unavailableReason, pickerUnavailableReason }));
 		const cached = summarize();
 		await model.refresh(CancellationToken.None);
-		assert.deepStrictEqual({ cached, discovered: summarize() }, {
-			cached: [
-				{ name: 'Desktop', connection: 'disconnected', localRegistration: undefined, hostAvailability: 'offline', unavailableReason: 'This environment is not online. Start its owning application before connecting.', pickerUnavailableReason: 'Available in the picker when the owning application is online.' },
-				{ name: 'Workstation', connection: 'disconnected', localRegistration: 'githubEnvironment', hostAvailability: 'online', unavailableReason: 'This is this computer\'s GitHub environment. Run sessions here with This Computer in the Environment picker.', pickerUnavailableReason: 'This computer appears as This Computer in the Environment picker.' },
-			],
+		const discovered = summarize();
+		addProvider('tunnel:laptop', 'devTunnel');
+		const desktop = { name: 'Desktop', connection: 'disconnected', hostAvailability: 'offline', unavailableReason: 'This environment is not online. Start its owning application before connecting.', pickerUnavailableReason: 'Available in the picker when the owning application is online.' };
+		assert.deepStrictEqual({ cached, discovered, ownTunnel: summarize() }, {
+			cached: [desktop],
 			discovered: [
-				{ name: 'Laptop', connection: 'disconnected', localRegistration: undefined, hostAvailability: 'online', unavailableReason: undefined, pickerUnavailableReason: undefined },
-				{ name: 'Desktop', connection: 'disconnected', localRegistration: undefined, hostAvailability: 'offline', unavailableReason: 'This environment is not online. Start its owning application before connecting.', pickerUnavailableReason: 'Available in the picker when the owning application is online.' },
-				{ name: 'Workstation', connection: 'disconnected', localRegistration: 'githubEnvironment', hostAvailability: 'online', unavailableReason: 'This is this computer\'s GitHub environment. Run sessions here with This Computer in the Environment picker.', pickerUnavailableReason: 'This computer appears as This Computer in the Environment picker.' },
+				{ name: 'Laptop', connection: 'disconnected', hostAvailability: 'online', unavailableReason: undefined, pickerUnavailableReason: undefined },
+				desktop,
 			],
+			ownTunnel: [desktop],
 		});
 	});
 

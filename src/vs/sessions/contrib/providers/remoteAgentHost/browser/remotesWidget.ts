@@ -583,7 +583,7 @@ export class RemotesWidget extends Disposable {
 		const name = remote.pickerUnavailableReason
 			? localize('remotes.unavailablePickerName', "{0} (not shown in Environment picker: {1})", remote.name, remote.pickerUnavailableReason)
 			: remote.hidden ? localize('remotes.hiddenName', "{0} (hidden from Environment picker)", remote.name) : remote.name;
-		let label = localize('remotes.accessibleRow', "{0}. Connection: {1}", remote.localRegistration ? localize('remotes.accessibleThisComputer', "{0}, This Computer", name) : name,
+		let label = localize('remotes.accessibleRow', "{0}. Connection: {1}", name,
 			getConnectionLabel(remote, this.pendingConnections.get(remote.id)));
 		const availability = getHostAvailabilityLabel(remote);
 		if (availability) {

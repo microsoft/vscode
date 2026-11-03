@@ -1308,26 +1308,25 @@ suite('RemotesWidget', () => {
 		});
 	});
 
-	test('labels this computer\'s registration and shows host availability only where it is known', () => {
+	test('shows host availability only where it is known', () => {
 		const { parent, model, widget } = createWidget();
 		model.environmentsEnabled.set(true, undefined);
 		model.remotes.set([
-			{ id: 'environment:self', kind: 'environment', name: 'Workstation', detail: 'self', canRemove: true, localRegistration: 'githubEnvironment', hostAvailability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+			{ id: 'environment:desktop', kind: 'environment', name: 'Workstation', detail: 'desktop', canRemove: true, hostAvailability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 			{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
 		], undefined);
 		const read = (id: string) => {
 			const row = parent.querySelector<HTMLElement>(`[data-remote-id="${id}"]`)!;
-			const label = row.querySelector<HTMLElement>('.remotes-group-count')!;
 			const host = row.querySelector<HTMLElement>('.remotes-host-availability')!;
-			return { label: label.hidden ? undefined : label.textContent, host: host.hidden ? undefined : host.textContent, height: row.closest<HTMLElement>('.monaco-list-row')!.style.height };
+			return { host: host.hidden ? undefined : host.textContent, height: row.closest<HTMLElement>('.monaco-list-row')!.style.height };
 		};
 		assert.deepStrictEqual({
-			self: read('environment:self'),
+			environment: read('environment:desktop'),
 			ssh: read('ssh:build'),
-			accessible: widget.getAccessibilityContent().includes('Workstation, This Computer. Connection: Disconnected. Host online'),
+			accessible: widget.getAccessibilityContent().includes('Workstation. Connection: Disconnected. Host online'),
 		}, {
-			self: { label: 'This Computer', host: 'Host online', height: '42px' },
-			ssh: { label: undefined, host: undefined, height: '26px' },
+			environment: { host: 'Host online', height: '42px' },
+			ssh: { host: undefined, height: '26px' },
 			accessible: true,
 		});
 	});

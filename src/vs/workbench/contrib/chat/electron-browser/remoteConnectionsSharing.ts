@@ -38,7 +38,7 @@ export type RemoteConnectionsMethod = 'off' | 'devTunnel' | 'githubEnvironment';
 export type GitHubEnvironmentsAvailability = 'enabled' | 'policyDisabled' | 'unavailable';
 
 export function getOffDetail(): string {
-	return localize('remoteConnections.off.detail', "Only this machine can access its workspaces and agents.");
+	return localize('remoteConnections.off.detail', "Only accessible from this machine.");
 }
 
 export function getDevTunnelsDetail(): string {
