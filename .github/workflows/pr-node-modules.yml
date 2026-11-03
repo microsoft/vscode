@@ -7,13 +7,6 @@ on:
       # Pull requests to a release branch restore the caches of the release branch, whose dependencies
       # usually differ from those of main.
       - 'release/*'
-  # TEMPORARY: saves caches with descriptions for this pull request, so that a later push that changes the
-  # dependencies tests the fallback to the cache of other dependencies. Remove before merging.
-  pull_request:
-    branches:
-      - main
-    paths:
-      - .github/workflows/pr-node-modules.yml
 
 permissions: {}
 
