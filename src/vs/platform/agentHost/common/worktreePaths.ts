@@ -10,6 +10,11 @@ import { URI } from '../../../base/common/uri.js';
 /** Branch-name prefix for worktree-isolated agent sessions. */
 export const AGENT_BRANCH_PREFIX = 'agents/';
 
+/** Recognizes the agent branch namespace, including slash-delimited user prefixes. */
+export function isAgentWorktreeBranch(branch: string | undefined): boolean {
+	return branch !== undefined && /^(?:[^/]+\/)*agents\/[^/]+(?:\/[^/]+)*$/.test(branch);
+}
+
 /**
  * The `<repo>.worktrees` sibling directory where per-session isolated worktrees
  * are created, e.g. `/src/vscode` → `/src/vscode.worktrees`.

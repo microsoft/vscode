@@ -6,10 +6,19 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getRepositoryRootFromWorktree } from '../../common/worktreePaths.js';
+import { getRepositoryRootFromWorktree, isAgentWorktreeBranch } from '../../common/worktreePaths.js';
 
 suite('worktreePaths', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('recognizes the agent branch namespace with segment boundaries independently of the configured prefix', () => {
+		const branches = [
+			'agents/task', 'agents/task/detail', 'users/alice/agents/task', 'team/agents/task',
+			undefined, '', 'agents/', 'agents', 'myagents/task', 'users/alice/myagents/task',
+			'users/alice/agents-other/task', 'feature/task', '/agents/task', 'users//agents/task', 'agents//task',
+		];
+		assert.deepStrictEqual(branches.map(branch => [branch, isAgentWorktreeBranch(branch)]), branches.map((branch, index) => [branch, index < 4]));
+	});
 
 	test('derives the repository of a VS Code-created worktree from its path', () => {
 		const derive = (uri: URI) => getRepositoryRootFromWorktree(uri)?.toString();
