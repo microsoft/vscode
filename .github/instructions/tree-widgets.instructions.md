@@ -4,9 +4,7 @@ description: Use when asked to consume workbench tree widgets in VS Code.
 
 # Workbench Tree Widgets Overview
 
-**Location**: `src/vs/platform/list/browser/listService.ts`
-**Type**: Platform Services
-**Layer**: Platform
+**Location**: `src/vs/platform/list/browser/listService.ts` **Type**: Platform Services **Layer**: Platform
 
 ## Purpose
 
@@ -48,7 +46,6 @@ The Workbench Tree Widgets provide high-level, workbench-integrated tree compone
 ### Key Files
 
 - **`src/vs/platform/list/browser/listService.ts`**: Contains all workbench tree widget implementations, shared workbench functionality (`WorkbenchTreeInternals`), and configuration utilities
-	- `src/vs/platform/list/browser/test/listService.test.ts`: Unit tests for workbench trees
 - **`src/vs/base/browser/ui/tree/objectTree.ts`**: Base implementation for static trees and compressible trees
 	- `src/vs/base/test/browser/ui/tree/objectTree.test.ts`: Base tree tests
 - **`src/vs/base/browser/ui/tree/asyncDataTree.ts`**: Base implementation for async trees with lazy loading support

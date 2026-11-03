@@ -7,6 +7,8 @@ import { describe, expect, it } from 'vitest';
 import type { ChatPromptReference } from 'vscode';
 import { TestLogService } from '../../../../../platform/testing/common/testLogService';
 import { mock } from '../../../../../util/common/test/simpleMock';
+import { safeIntl } from '../../../../../util/vs/base/common/date';
+import { language } from '../../../../../util/vs/base/common/platform';
 import { URI } from '../../../../../util/vs/base/common/uri';
 import {
 	ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponsePullRequestPart, ChatResponseThinkingProgressPart, ChatResponseTurn2, ChatToolInvocationPart, MarkdownString
@@ -15,7 +17,7 @@ import { CancellationToken } from '../../../../../util/vs/base/common/cancellati
 import {
 	buildChatHistoryFromEvents, createCopilotCLIToolInvocation, enrichToolInvocationWithSubagentMetadata, extractCdPrefix, FakeToolsService, getAffectedUrisForEditTool, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, isTodoRelatedSqlQuery, processToolExecutionComplete, processToolExecutionStart, RequestIdDetails, stripReminders, ToolCall, updateTodoListFromSqlItems
 } from '../copilotCLITools';
-import { formatModelDetailsWithCredits } from '../../../../../platform/chat/common/chatModelDetails';
+import { formatModelDetails, formatModelDetailsWithCredits, formatModelDetailsWithMultiplier } from '../../../../../platform/chat/common/chatModelDetails';
 import { IChatDelegationSummaryService } from '../delegationSummaryService';
 
 // Helper to extract invocation message text independent of MarkdownString vs string
@@ -86,6 +88,20 @@ describe('CopilotCLITools', () => {
 		});
 	});
 
+	describe('formatModelDetails', () => {
+		it('prefers credits over multiplier when credits are available', () => {
+			expect(formatModelDetails('GPT 5.4', 2, 5)).toBe('GPT 5.4 \u2022 5 credits');
+		});
+
+		it('falls back to multiplier when credits are undefined', () => {
+			expect(formatModelDetails('GPT 5.4', 2, undefined)).toBe('GPT 5.4 \u2022 2x');
+		});
+
+		it('returns just model name when both credits and multiplier are absent', () => {
+			expect(formatModelDetails('GPT 5.4', undefined, undefined)).toBe('GPT 5.4');
+		});
+	});
+
 	describe('formatModelDetailsWithCredits', () => {
 		it('formats integer credits as plural', () => {
 			expect(formatModelDetailsWithCredits('GPT 5.4', 5)).toBe('GPT 5.4 \u2022 5 credits');
@@ -97,6 +113,41 @@ describe('CopilotCLITools', () => {
 
 		it('formats fractional credits with one decimal place', () => {
 			expect(formatModelDetailsWithCredits('GPT 5.4', 16.31565)).toBe('GPT 5.4 \u2022 16.3 credits');
+		});
+
+		it('groups credit totals using the display language', () => {
+			const credits = [1000, 12268, 12268.4, 1234567.8];
+			const formatter = safeIntl.NumberFormat(language, { maximumFractionDigits: 1 }).value;
+			expect(credits.map(value => formatModelDetailsWithCredits('GPT 5.4', value))).toEqual(
+				credits.map(value => `GPT 5.4 \u2022 ${formatter.format(value)} credits`),
+			);
+		});
+
+		it('preserves fractional precision and pluralization with grouped credits', () => {
+			const integerFormatter = safeIntl.NumberFormat(language, { maximumFractionDigits: 0 }).value;
+			const fractionalFormatter = safeIntl.NumberFormat(language, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).value;
+			expect([0, 1, 1.04, 2.55, 12268.04, 999.96].map(value => formatModelDetailsWithCredits('GPT 5.4', value))).toEqual([
+				`GPT 5.4 \u2022 ${integerFormatter.format(0)} credits`,
+				`GPT 5.4 \u2022 ${integerFormatter.format(1)} credit`,
+				`GPT 5.4 \u2022 ${fractionalFormatter.format(1)} credits`,
+				`GPT 5.4 \u2022 ${fractionalFormatter.format(2.5)} credits`,
+				`GPT 5.4 \u2022 ${fractionalFormatter.format(12268)} credits`,
+				`GPT 5.4 \u2022 ${fractionalFormatter.format(1000)} credits`,
+			]);
+		});
+	});
+
+	describe('formatModelDetailsWithMultiplier', () => {
+		it('formats with multiplier suffix', () => {
+			expect(formatModelDetailsWithMultiplier('GPT 5.4', 2)).toBe('GPT 5.4 \u2022 2x');
+		});
+
+		it('formats 0x multiplier for included models', () => {
+			expect(formatModelDetailsWithMultiplier('GPT 5.4', 0)).toBe('GPT 5.4 \u2022 0x');
+		});
+
+		it('returns just the model name when multiplier is undefined', () => {
+			expect(formatModelDetailsWithMultiplier('GPT 5.4', undefined)).toBe('GPT 5.4');
 		});
 	});
 
@@ -178,7 +229,7 @@ describe('CopilotCLITools', () => {
 				{ type: 'user.message', data: { content: 'Hello', attachments: [] } },
 				{ type: 'assistant.message', data: { content: 'Hi there' } }
 			];
-			const turns = buildChatHistoryFromEvents('', 'base', events, getVSCodeRequestId, delegationSummary, logger, undefined, undefined, new Map([['base', 'Base • 2x']]));
+			const turns = buildChatHistoryFromEvents('', 'base', events, getVSCodeRequestId, delegationSummary, logger, undefined, undefined, new Map([['base', { name: 'Base', multiplier: 2 }]]));
 			expect(turns).toHaveLength(2);
 			const responseTurn = turns[1] as ChatResponseTurn2;
 			expect(responseTurn.result).toEqual({ details: 'Base • 2x' });
@@ -186,10 +237,10 @@ describe('CopilotCLITools', () => {
 
 		it('uses session model changes for each rebuilt response turn', () => {
 			const modelDetails = new Map([
-				['opus-4.6', 'Opus 4.6 • 4x'],
-				['opus-4.7', 'Opus 4.7 • 4x'],
-				['gpt-5.4', 'GPT 5.4 • 2x'],
-				['gpt-5.3', 'GPT 5.3 • 1x'],
+				['opus-4.6', { name: 'Opus 4.6', multiplier: 4 }],
+				['opus-4.7', { name: 'Opus 4.7', multiplier: 4 }],
+				['gpt-5.4', { name: 'GPT 5.4', multiplier: 2 }],
+				['gpt-5.3', { name: 'GPT 5.3', multiplier: 1 }],
 			]);
 			const events: any[] = [
 				{ type: 'session.start', data: { selectedModel: 'opus-4.6' } },
@@ -224,7 +275,7 @@ describe('CopilotCLITools', () => {
 				{ type: 'assistant.usage', data: { model: 'gpt-5.4', inputTokens: 10, outputTokens: 5 } },
 			];
 
-			const turns = buildChatHistoryFromEvents('', undefined, events, getVSCodeRequestId, delegationSummary, logger, undefined, undefined, new Map([['gpt-5.4', 'GPT 5.4 • 2x']]));
+			const turns = buildChatHistoryFromEvents('', undefined, events, getVSCodeRequestId, delegationSummary, logger, undefined, undefined, new Map([['gpt-5.4', { name: 'GPT 5.4', multiplier: 2 }]]));
 
 			expect(turns).toHaveLength(2);
 			expect((turns[0] as ChatRequestTurn2).modelId).toBe('gpt-5.4');
@@ -252,8 +303,8 @@ describe('CopilotCLITools', () => {
 			const lookup = (sdkRequestId: string) => detailsByEventId[sdkRequestId];
 
 			const turns = buildChatHistoryFromEvents('', 'auto', events, lookup, delegationSummary, logger, undefined, undefined, new Map([
-				['gpt-5.4', 'GPT 5.4 • 2x'],
-				['claude-opus-4.7', 'Claude Opus 4.7 • 4x'],
+				['gpt-5.4', { name: 'GPT 5.4', multiplier: 2 }],
+				['claude-opus-4.7', { name: 'Claude Opus 4.7', multiplier: 4 }],
 			]));
 
 			expect(turns).toHaveLength(4);
@@ -275,7 +326,7 @@ describe('CopilotCLITools', () => {
 			const lookup = (sdkRequestId: string) => detailsByEventId[sdkRequestId];
 
 			const turns = buildChatHistoryFromEvents('', undefined, events, lookup, delegationSummary, logger, undefined, undefined, new Map([
-				['gpt-5.4', 'GPT 5.4 • 2x'],
+				['gpt-5.4', { name: 'GPT 5.4', multiplier: 2 }],
 			]));
 
 			expect(turns).toHaveLength(2);
@@ -293,7 +344,7 @@ describe('CopilotCLITools', () => {
 			const lookup = (sdkRequestId: string) => detailsByEventId[sdkRequestId];
 
 			const turns = buildChatHistoryFromEvents('', undefined, events, lookup, delegationSummary, logger, undefined, undefined, new Map([
-				['gpt-5.4', 'GPT 5.4 • 2x'],
+				['gpt-5.4', { name: 'GPT 5.4', multiplier: 2 }],
 			]));
 
 			expect((turns[1] as ChatResponseTurn2).result).toEqual({ details: 'GPT 5.4 \u2022 1 credit' });
@@ -310,7 +361,7 @@ describe('CopilotCLITools', () => {
 			const lookup = (sdkRequestId: string) => detailsByEventId[sdkRequestId];
 
 			const turns = buildChatHistoryFromEvents('', undefined, events, lookup, delegationSummary, logger, undefined, undefined, new Map([
-				['gpt-5.4', 'GPT 5.4 • 2x'],
+				['gpt-5.4', { name: 'GPT 5.4', multiplier: 2 }],
 			]));
 
 			expect((turns[1] as ChatResponseTurn2).result).toEqual({ details: 'GPT 5.4 • 2x' });
@@ -330,7 +381,7 @@ describe('CopilotCLITools', () => {
 			const lookup = (sdkRequestId: string) => detailsByEventId[sdkRequestId];
 
 			const turns = buildChatHistoryFromEvents('', undefined, events, lookup, delegationSummary, logger, undefined, undefined, new Map([
-				['gpt-5.4', 'GPT 5.4 • 2x'],
+				['gpt-5.4', { name: 'GPT 5.4', multiplier: 2 }],
 			]));
 
 			expect(turns.filter(turn => turn instanceof ChatResponseTurn2).map(turn => (turn as ChatResponseTurn2).result)).toEqual([

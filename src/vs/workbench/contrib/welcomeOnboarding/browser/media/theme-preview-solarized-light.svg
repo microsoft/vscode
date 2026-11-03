@@ -10,7 +10,7 @@
 	<line x1="30" y1="16" x2="64" y2="16" stroke="#268BD2" stroke-width="1.5"/>
 	<text x="70" y="12" font-family="monospace" font-size="7" fill="#93A1A1" opacity="0.4">app.ts</text>
 	<text x="28" y="32" font-family="monospace" font-size="9"><tspan fill="#859900">function </tspan><tspan fill="#268BD2">greet</tspan><tspan fill="#657B83">() {</tspan></text>
-	<text x="28" y="45" font-family="monospace" font-size="9"><tspan fill="#657B83">  </tspan><tspan fill="#93A1A1">// hello</tspan></text>
-	<text x="28" y="58" font-family="monospace" font-size="9"><tspan fill="#657B83">  </tspan><tspan fill="#859900">return </tspan><tspan fill="#2AA198">"Hi"</tspan></text>
+	<text x="39" y="45" font-family="monospace" font-size="9"><tspan fill="#93A1A1">// hello</tspan></text>
+	<text x="39" y="58" font-family="monospace" font-size="9"><tspan fill="#859900">return </tspan><tspan fill="#2AA198">"Hi"</tspan></text>
 	<text x="28" y="71" font-family="monospace" font-size="9" fill="#657B83">}</text>
 </svg>

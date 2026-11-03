@@ -4,24 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
+import { FileChangesEvent, FileChangeType, IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IJSONEditingService, IJSONValue } from '../../../../../workbench/services/configuration/common/jsonEditing.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
-import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { INonSessionTaskEntry, ISessionsTasksService, SessionsTasksService, ITaskEntry } from '../../browser/sessionsTasksService.js';
+import { DidChangeUserDataProfileEvent, IUserDataProfileService } from '../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
+import { INonSessionTaskEntry, SessionsTasksService, ITaskEntry } from '../../browser/sessionsTasksService.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
-import { Task } from '../../../../../workbench/contrib/tasks/common/tasks.js';
-import { ITaskService } from '../../../../../workbench/contrib/tasks/common/taskService.js';
-import { IChat, ISession, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionTaskRunner, ISessionTaskRunnerRegistry, SessionTaskRunnerRegistry } from '../../browser/sessionTaskRunner.js';
 
 function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession {
 	const workspace = opts.repository ? {
@@ -36,19 +35,23 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 			gitRepository: { uri: opts.repository, workTreeUri: opts.worktree, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
 		} satisfies ISessionFolder],
 		requiresWorkspaceTrust: false,
+		isVirtualWorkspace: false,
 	} : undefined;
 	const chat: IChat = {
 		resource: URI.parse('file:///session'),
 		createdAt: new Date(),
+		workspace: constObservable(workspace),
 		title: observableValue('title', 'session'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status: observableValue('status', SessionStatus.Untitled),
-		changesets: observableValue('changesets', []),
 		changes: observableValue('changes', []),
+		changesets: constObservable([]),
 		modelId: observableValue('modelId', undefined),
+		modelSource: observableValue('modelSource', undefined),
 		mode: observableValue('mode', undefined),
 		isArchived: observableValue('isArchived', false),
 		isRead: observableValue('isRead', true),
+		interactivity: observableValue('interactivity', ChatInteractivity.Full),
 		checkpoints: observableValue('checkpoints', undefined),
 		lastTurnEnd: observableValue('lastTurnEnd', undefined),
 		description: observableValue('description', undefined),
@@ -58,14 +61,15 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 		resource: chat.resource,
 		providerId: 'test',
 		sessionType: 'background',
+		harness: 'copilot',
+		environment: 'local',
+		application: constObservable({ id: 'vscode', label: 'VS Code' }),
 		icon: Codicon.copilot,
 		createdAt: chat.createdAt,
 		workspace: observableValue('workspace', workspace as ISessionWorkspace | undefined),
 		title: chat.title,
-		updatedAt: chat.updatedAt,
+		updatedAt: constObservable(chat.updatedAt.get() ?? chat.createdAt),
 		status: chat.status,
-		changesets: chat.changesets,
-		changes: chat.changes,
 		modelId: chat.modelId,
 		mode: chat.mode,
 		loading: observableValue('loading', false),
@@ -74,8 +78,8 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 		lastTurnEnd: chat.lastTurnEnd,
 		description: chat.description,
 		chats: observableValue('chats', [chat]),
-		mainChat: chat,
-		capabilities: { supportsMultipleChats: false },
+		mainChat: constObservable(chat),
+		capabilities: constObservable({ supportsMultipleChats: false }),
 	} satisfies ISession;
 	return session;
 }
@@ -98,16 +102,18 @@ function tasksJsonContent(tasks: ITaskEntry[]): string {
 
 suite('SessionsTasksService', () => {
 
-	const store = new DisposableStore();
-	let service: ISessionsTasksService;
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	let service: SessionsTasksService;
 	let fileContents: Map<string, string>;
 	let jsonEdits: { uri: URI; values: IJSONValue[] }[];
-	let ranTasks: { label: string }[];
+	let ranTasks: { label: string; session: ISession; chat: IChat | undefined }[];
 	let storageService: InMemoryStorageService;
 	let readFileCalls: URI[];
-	let activeSessionObs: ReturnType<typeof observableValue<IActiveSession | undefined>>;
-	let tasksByLabel: Map<string, Task>;
-	let workspaceFoldersByUri: Map<string, IWorkspaceFolder>;
+	let activeWatches: Set<string>;
+	let activeFileChangeListeners: number;
+	let onDidFilesChange: Emitter<FileChangesEvent>;
+	let onDidChangeCurrentProfile: Emitter<DidChangeUserDataProfileEvent>;
+	let runnerCanRun: (session: ISession) => boolean;
 	let preferencesService: IPreferencesService & { userSettingsResource: URI };
 
 	const userSettingsUri = URI.parse('file:///user/settings.json');
@@ -119,11 +125,13 @@ suite('SessionsTasksService', () => {
 		jsonEdits = [];
 		ranTasks = [];
 		readFileCalls = [];
-		tasksByLabel = new Map();
-		workspaceFoldersByUri = new Map();
+		activeWatches = new Set();
+		activeFileChangeListeners = 0;
+		onDidFilesChange = store.add(new Emitter<FileChangesEvent>());
+		onDidChangeCurrentProfile = store.add(new Emitter<DidChangeUserDataProfileEvent>());
+		runnerCanRun = () => true;
 
 		const instantiationService = store.add(new TestInstantiationService());
-		activeSessionObs = observableValue('activeSession', undefined);
 
 		instantiationService.stub(IFileService, new class extends mock<IFileService>() {
 			override async readFile(resource: URI) {
@@ -134,8 +142,23 @@ suite('SessionsTasksService', () => {
 				}
 				return { value: VSBuffer.fromString(content) } as IFileContent;
 			}
-			override watch() { return { dispose() { } }; }
-			override onDidFilesChange: any = () => ({ dispose() { } });
+			override watch(resource: URI) {
+				const key = resource.toString();
+				activeWatches.add(key);
+				return { dispose() { activeWatches.delete(key); } };
+			}
+			override onDidFilesChange: Event<FileChangesEvent> = listener => {
+				activeFileChangeListeners++;
+				const disposable = onDidFilesChange.event(listener);
+				return toDisposable(() => {
+					activeFileChangeListeners--;
+					disposable.dispose();
+				});
+			};
+		});
+
+		instantiationService.stub(IUserDataProfileService, new class extends mock<IUserDataProfileService>() {
+			override onDidChangeCurrentProfile = onDidChangeCurrentProfile.event;
 		});
 
 		instantiationService.stub(IJSONEditingService, new class extends mock<IJSONEditingService>() {
@@ -149,28 +172,18 @@ suite('SessionsTasksService', () => {
 		};
 		instantiationService.stub(IPreferencesService, preferencesService);
 
-		instantiationService.stub(ITaskService, new class extends mock<ITaskService>() {
-			override async getTask(_workspaceFolder: any, alias: string | any) {
-				const label = typeof alias === 'string' ? alias : '';
-				return tasksByLabel.get(label);
-			}
-			override async run(task: Task | undefined) {
-				if (task) {
-					ranTasks.push({ label: task._label });
-				}
-				return undefined;
-			}
-		});
-
-		instantiationService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
-			override getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {
-				return workspaceFoldersByUri.get(resource.toString()) ?? null;
-			}
-		});
-
-		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override activeSession = activeSessionObs;
-		});
+		// Real registry with a recording fake runner so we exercise the
+		// dispatch path in SessionsTasksService.runTask without pulling in the
+		// workbench runner's dependencies.
+		const registry = new SessionTaskRunnerRegistry();
+		const fakeRunner: ISessionTaskRunner = {
+			id: 'fake',
+			priority: 0,
+			canRun: session => runnerCanRun(session),
+			runTask: async (task, session, chat) => { ranTasks.push({ label: task.label, session, chat }); },
+		};
+		store.add(registry.register(fakeRunner));
+		instantiationService.stub(ISessionTaskRunnerRegistry, registry);
 
 		storageService = store.add(new InMemoryStorageService());
 		instantiationService.stub(IStorageService, storageService);
@@ -178,13 +191,145 @@ suite('SessionsTasksService', () => {
 		service = store.add(instantiationService.createInstance(SessionsTasksService));
 	});
 
-	teardown(() => {
-		store.clear();
+	// --- getSessionTasks ---
+
+	test('getSessionTasks of two sessions with different folders reads each tasks.json once, however often and in whatever order they are asked', async () => {
+		const otherRepo = URI.parse('file:///other');
+		fileContents.set('file:///repo/.vscode/tasks.json', tasksJsonContent([makeTask('a', 'a', true)]));
+		fileContents.set('file:///other/.vscode/tasks.json', tasksJsonContent([makeTask('b', 'b', true)]));
+		const first = makeSession({ repository: repoUri });
+		const second = makeSession({ repository: otherRepo });
+
+		const a = service.getSessionTasks(first);
+		const b = service.getSessionTasks(second);
+		for (let i = 0; i < 5; i++) {
+			service.getSessionTasks(first);
+			service.getSessionTasks(second);
+		}
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({
+			a: a.get().map(t => t.task.label),
+			b: b.get().map(t => t.task.label),
+			sameObservable: service.getSessionTasks(first) === a,
+			reads: readFileCalls.map(uri => uri.toString()).sort(),
+		}, {
+			a: ['a'],
+			b: ['b'],
+			sameObservable: true,
+			reads: [
+				'file:///other/.vscode/tasks.json',
+				'file:///repo/.vscode/tasks.json',
+				'file:///user/tasks.json',
+			],
+		});
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	test('getSessionTasks keeps at most 16 folders watched, evicting the least recently used and keeping the single user tasks.json watcher', async () => {
+		const sessions = Array.from({ length: 17 }, (_, i) => makeSession({ repository: URI.parse(`file:///repo${i}`) }));
+		for (const session of sessions) {
+			service.getSessionTasks(session);
+		}
+		service.getSessionTasks(sessions[0]);
+		await new Promise(resolve => setTimeout(resolve, 0));
 
-	// --- getSessionTasks ---
+		assert.deepStrictEqual([...activeWatches].sort(), [
+			'file:///repo0/.vscode/tasks.json',
+			...Array.from({ length: 15 }, (_, i) => `file:///repo${i + 2}/.vscode/tasks.json`),
+			'file:///user/tasks.json',
+		].sort());
+	});
+
+	test('getSessionTasks updates the retained observable when its workspace tasks.json changes, without re-reading the user tasks.json', async () => {
+		fileContents.set('file:///repo/.vscode/tasks.json', tasksJsonContent([makeTask('a', 'a', true)]));
+		fileContents.set('file:///user/tasks.json', tasksJsonContent([makeTask('u', 'u', true)]));
+		const tasks = service.getSessionTasks(makeSession({ repository: repoUri }));
+		await new Promise(resolve => setTimeout(resolve, 0));
+		readFileCalls = [];
+
+		fileContents.set('file:///repo/.vscode/tasks.json', tasksJsonContent([makeTask('a2', 'a2', true)]));
+		onDidFilesChange.fire(new FileChangesEvent([{ resource: URI.parse('file:///repo/.vscode/tasks.json'), type: FileChangeType.UPDATED }], false));
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({
+			tasks: tasks.get().map(t => `${t.target}:${t.task.label}`),
+			reads: readFileCalls.map(uri => uri.toString()),
+		}, {
+			tasks: ['workspace:a2', 'user:u'],
+			reads: ['file:///repo/.vscode/tasks.json'],
+		});
+	});
+
+	test('getSessionTasks updates all cached folders when the user tasks.json changes, without re-reading workspace tasks.json files', async () => {
+		const otherRepo = URI.parse('file:///other');
+		fileContents.set('file:///repo/.vscode/tasks.json', tasksJsonContent([makeTask('a', 'a', true)]));
+		fileContents.set('file:///other/.vscode/tasks.json', tasksJsonContent([makeTask('b', 'b', true)]));
+		fileContents.set('file:///user/tasks.json', tasksJsonContent([makeTask('u', 'u', true)]));
+		const a = service.getSessionTasks(makeSession({ repository: repoUri }));
+		const b = service.getSessionTasks(makeSession({ repository: otherRepo }));
+		await new Promise(resolve => setTimeout(resolve, 0));
+		readFileCalls = [];
+
+		fileContents.set('file:///user/tasks.json', tasksJsonContent([makeTask('u2', 'u2', true)]));
+		onDidFilesChange.fire(new FileChangesEvent([{ resource: URI.parse('file:///user/tasks.json'), type: FileChangeType.UPDATED }], false));
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({
+			a: a.get().map(t => `${t.target}:${t.task.label}`),
+			b: b.get().map(t => `${t.target}:${t.task.label}`),
+			reads: readFileCalls.map(uri => uri.toString()),
+		}, {
+			a: ['workspace:a', 'user:u2'],
+			b: ['workspace:b', 'user:u2'],
+			reads: ['file:///user/tasks.json'],
+		});
+	});
+
+	test('getSessionTasks follows the user tasks.json of the current profile after a profile switch', async () => {
+		fileContents.set('file:///repo/.vscode/tasks.json', tasksJsonContent([makeTask('a', 'a', true)]));
+		fileContents.set('file:///other/.vscode/tasks.json', tasksJsonContent([makeTask('b', 'b', true)]));
+		fileContents.set('file:///user/tasks.json', tasksJsonContent([makeTask('u', 'u', true)]));
+		fileContents.set('file:///profile/tasks.json', tasksJsonContent([makeTask('p', 'p', true)]));
+		const a = service.getSessionTasks(makeSession({ repository: repoUri }));
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		preferencesService.userSettingsResource = URI.parse('file:///profile/settings.json');
+		onDidChangeCurrentProfile.fire(new class extends mock<DidChangeUserDataProfileEvent>() { });
+		const b = service.getSessionTasks(makeSession({ repository: URI.parse('file:///other') }));
+		await new Promise(resolve => setTimeout(resolve, 0));
+		readFileCalls = [];
+
+		// The previous profile's tasks.json is no longer watched
+		fileContents.set('file:///user/tasks.json', tasksJsonContent([makeTask('u2', 'u2', true)]));
+		onDidFilesChange.fire(new FileChangesEvent([{ resource: URI.parse('file:///user/tasks.json'), type: FileChangeType.UPDATED }], false));
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({
+			a: a.get().map(t => `${t.target}:${t.task.label}`),
+			b: b.get().map(t => `${t.target}:${t.task.label}`),
+			watches: [...activeWatches].sort(),
+			reads: readFileCalls.map(uri => uri.toString()),
+		}, {
+			a: ['workspace:a', 'user:p'],
+			b: ['workspace:b', 'user:p'],
+			watches: ['file:///other/.vscode/tasks.json', 'file:///profile/tasks.json', 'file:///repo/.vscode/tasks.json'],
+			reads: [],
+		});
+	});
+
+	test('disposing the service releases all tasks.json watchers and file change listeners', async () => {
+		service.getSessionTasks(makeSession({ repository: repoUri }));
+		service.getSessionTasks(makeSession({ repository: URI.parse('file:///other') }));
+		await new Promise(resolve => setTimeout(resolve, 0));
+		const before = { watches: activeWatches.size, listeners: activeFileChangeListeners };
+
+		service.dispose();
+
+		assert.deepStrictEqual({ before, after: { watches: activeWatches.size, listeners: activeFileChangeListeners } }, {
+			before: { watches: 3, listeners: 3 },
+			after: { watches: 0, listeners: 0 },
+		});
+	});
 
 	test('getSessionTasks returns tasks with inAgents: true from worktree', async () => {
 		const worktreeTasksUri = URI.parse('file:///worktree/.vscode/tasks.json');
@@ -207,6 +352,28 @@ suite('SessionsTasksService', () => {
 		const tasks = obs.get();
 
 		assert.deepStrictEqual(tasks.map(t => t.task.label), ['build', 'test', 'watch', 'gulp-task']);
+	});
+
+	test('getSessionTasks reads from a chat workspace', async () => {
+		const chatWorktree = URI.parse('file:///chat-worktree');
+		const chatTasksUri = URI.parse('file:///chat-worktree/.vscode/tasks.json');
+		fileContents.set(chatTasksUri.toString(), tasksJsonContent([
+			makeTask('chat-build', 'npm run build', true),
+		]));
+		const userTasksUri = URI.from({ scheme: userSettingsUri.scheme, path: '/user/tasks.json' });
+		fileContents.set(userTasksUri.toString(), tasksJsonContent([]));
+		const chat = makeSession({ worktree: chatWorktree, repository: URI.parse('file:///chat-repo') }).mainChat.get();
+
+		const tasks = service.getSessionTasks(chat);
+		await new Promise(r => setTimeout(r, 10));
+
+		assert.deepStrictEqual({
+			labels: tasks.get().map(task => task.task.label),
+			workspaceRead: readFileCalls.some(resource => resource.toString() === chatTasksUri.toString()),
+		}, {
+			labels: ['chat-build'],
+			workspaceRead: true,
+		});
 	});
 
 	test('getSessionTasks returns empty array when no worktree', async () => {
@@ -643,52 +810,24 @@ suite('SessionsTasksService', () => {
 
 	// --- runTask ---
 
-	function registerMockTask(label: string, folder: URI): void {
-		tasksByLabel.set(label, { _label: label } as unknown as Task);
-		workspaceFoldersByUri.set(folder.toString(), { uri: folder, name: 'folder', index: 0, toResource: () => folder } as IWorkspaceFolder);
-	}
-
-	test('runTask looks up task by label and runs it via the task service', async () => {
-		registerMockTask('build', worktreeUri);
+	test('runTask delegates to the registry runner', async () => {
 		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+		const chat = session.mainChat.get();
 
-		await service.runTask(makeTask('build', 'npm run build'), session);
+		await service.runTask(makeTask('build', 'npm run build'), session, chat);
 
 		assert.strictEqual(ranTasks.length, 1);
 		assert.strictEqual(ranTasks[0].label, 'build');
+		assert.strictEqual(ranTasks[0].session, session);
+		assert.strictEqual(ranTasks[0].chat, chat);
 	});
 
-	test('runTask does nothing when no cwd available', async () => {
-		const session = makeSession({ repository: undefined, worktree: undefined });
-		await service.runTask(makeTask('build', 'npm run build'), session);
-
-		assert.strictEqual(ranTasks.length, 0);
-	});
-
-	test('runTask does nothing when workspace folder not found', async () => {
-		// No workspace folder registered for worktreeUri
+	test('runTask is a no-op when no runner claims the session', async () => {
+		runnerCanRun = () => false;
 		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
-		await service.runTask(makeTask('build', 'npm run build'), session);
-
-		assert.strictEqual(ranTasks.length, 0);
-	});
-
-	test('runTask does nothing when task not found by label', async () => {
-		workspaceFoldersByUri.set(worktreeUri.toString(), { uri: worktreeUri, name: 'folder', index: 0, toResource: () => worktreeUri } as IWorkspaceFolder);
-		// No task registered for 'nonexistent'
-		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
-		await service.runTask(makeTask('nonexistent', 'echo hi'), session);
-
-		assert.strictEqual(ranTasks.length, 0);
-	});
-
-	test('runTask uses repository as cwd when worktree is not available', async () => {
-		registerMockTask('build', repoUri);
-		const session = makeSession({ repository: repoUri });
 
 		await service.runTask(makeTask('build', 'npm run build'), session);
 
-		assert.strictEqual(ranTasks.length, 1);
-		assert.strictEqual(ranTasks[0].label, 'build');
+		assert.strictEqual(ranTasks.length, 0);
 	});
 });

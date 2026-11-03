@@ -21,14 +21,15 @@ interface IGettingStartedContentProvider {
 
 const defaultChat = {
 	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
-	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
 	provider: product.defaultChatAgent?.provider ?? { default: { name: '' } },
 	publicCodeMatchesUrl: product.defaultChatAgent?.publicCodeMatchesUrl ?? '',
 	termsStatementUrl: product.defaultChatAgent?.termsStatementUrl ?? '',
 	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? ''
 };
 
-export const copilotSettingsMessage = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "{0} Copilot may show [public code]({1}) suggestions and use your data to improve the product. You can change these [settings]({2}) anytime.", defaultChat.provider.default.name, defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
+export function copilotSettingsMessage(manageSettingsUrl: string): string {
+	return localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "{0} Copilot may show [public code]({1}) suggestions and use your data to improve the product. You can change these [settings]({2}) anytime.", defaultChat.provider.default.name, defaultChat.publicCodeMatchesUrl, manageSettingsUrl);
+}
 
 class GettingStartedContentProviderRegistry {
 
@@ -209,17 +210,6 @@ export const startEntries: GettingStartedStartEntryContent = [
 			command: 'command:workbench.action.remote.showWebStartEntryActions',
 		}
 	},
-	{
-		id: 'topLevelNewWorkspaceChat',
-		title: localize('gettingStarted.newWorkspaceChat.title', "Generate New Workspace..."),
-		description: localize('gettingStarted.newWorkspaceChat.description', "Chat to create a new workspace"),
-		icon: Codicon.chatSparkle,
-		when: '!isWeb && !chatSetupHidden && !chatSetupDisabledInWorkspace',
-		content: {
-			type: 'startEntry',
-			command: 'command:welcome.newWorkspaceChat',
-		}
-	},
 ];
 
 const Button = (title: string, href: string) => `[${title}](${href})`;
@@ -262,7 +252,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 			type: 'steps',
 			steps: [
 				createCopilotSetupStep('CopilotSetupAnonymous', CopilotAnonymousButton, 'chatAnonymous && !chatSetupCompleted', true),
-				createCopilotSetupStep('CopilotSetupSignedOut', CopilotSignedOutButton, 'chatEntitlementSignedOut && !chatAnonymous', false),
+				createCopilotSetupStep('CopilotSetupSignedOut', CopilotSignedOutButton, 'chatEntitlementSignedOut && !chatAnonymous && !github.copilot.hasByokModels', false),
 				createCopilotSetupStep('CopilotSetupComplete', CopilotCompleteButton, 'chatSetupCompleted && !chatSetupDisabled && (chatAnonymous || chatPlanPro || chatPlanProPlus || chatPlanMax || chatPlanBusiness || chatPlanEnterprise || chatPlanFree)', false),
 				createCopilotSetupStep('CopilotSetupSignedIn', CopilotSignedInButton, '!chatEntitlementSignedOut && (!chatSetupCompleted || chatSetupDisabled || chatPlanCanSignUp)', false),
 				{

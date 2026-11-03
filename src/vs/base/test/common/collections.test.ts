@@ -33,6 +33,18 @@ suite('Collections', () => {
 		assert.strictEqual(grouped[group2][0].value, value3);
 	});
 
+	test('equalSets', () => {
+		assert.strictEqual(collections.equalSets(new Set(), new Set()), true);
+		assert.strictEqual(collections.equalSets(new Set(['a', 'b']), new Set(['b', 'a'])), true);
+
+		const same = new Set(['a']);
+		assert.strictEqual(collections.equalSets(same, same), true);
+
+		assert.strictEqual(collections.equalSets(new Set(['a']), new Set(['a', 'b'])), false);
+		assert.strictEqual(collections.equalSets(new Set(['a', 'b']), new Set(['a'])), false);
+		assert.strictEqual(collections.equalSets(new Set(['a', 'b']), new Set(['a', 'c'])), false);
+	});
+
 	suite('SetWithKey', () => {
 		let setWithKey: collections.SetWithKey<{ someProp: string }>;
 

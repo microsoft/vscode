@@ -309,6 +309,7 @@
 				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
 				"VSCODE_SKIP_PRELAUNCH": "1",
 				"VSCODE_DEV_DEBUG_OBSERVABLES": "1",
+				// "VSCODE_DEV_DISABLE_DISPOSABLE_TRACKING": "1",
 			},
 			"cleanUp": "wholeBrowser",
 			"killBehavior": "polite",
@@ -495,7 +496,7 @@
 			"type": "node",
 			"request": "launch",
 			"name": "Git Unit Tests",
-			"program": "${workspaceFolder}/extensions/git/node_modules/mocha/bin/_mocha",
+			"program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
 			"stopOnEntry": false,
 			"cwd": "${workspaceFolder}/extensions/git",
 			"outFiles": [
@@ -744,6 +745,7 @@
 				"Attach to Main Process",
 				"Attach to Extension Host",
 				"Attach to Shared Process",
+				"Attach to Agent Host Process"
 			],
 			"preLaunchTask": "Ensure Prelaunch Dependencies",
 			"presentation": {

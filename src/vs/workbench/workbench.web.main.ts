@@ -71,6 +71,7 @@ import './services/configurationResolver/browser/configurationResolverService.js
 import '../platform/extensionResourceLoader/browser/extensionResourceLoaderService.js';
 import './services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import './services/power/browser/powerService.js';
+import './services/localTranscription/browser/localTranscriptionService.js';
 import '../platform/sandbox/browser/sandboxHelperService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
@@ -102,9 +103,11 @@ import { IMcpGalleryManifestService } from '../platform/mcp/common/mcpGalleryMan
 import { WorkbenchMcpGalleryManifestService } from './services/mcp/browser/mcpGalleryManifestService.js';
 import { UserDataSyncResourceProviderService } from '../platform/userDataSync/common/userDataSyncResourceProvider.js';
 import { IAgentHostService } from '../platform/agentHost/common/agentService.js';
-import { NullAgentHostService } from '../platform/agentHost/browser/nullAgentHostService.js';
-import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../platform/agentHost/common/remoteAgentHostService.js';
+import { EditorRemoteAgentHostServiceClient } from './services/agentHost/browser/editorRemoteAgentHostServiceClient.js';
+import { IRemoteAgentHostService } from '../platform/agentHost/common/remoteAgentHostService.js';
+import { EditorWindowRemoteAgentHostService } from '../platform/agentHost/browser/remoteAgentHostServiceImpl.js';
 import { BrowserAgentHostDebugLogsExportService, IAgentHostDebugLogsExportService } from './contrib/chat/browser/actions/exportAgentHostDebugLogsAction.js';
+import './services/agentHost/browser/webAgentHostEnablementService.js';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
 registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType.Delayed);
@@ -125,8 +128,8 @@ registerSingleton(ILanguagePackService, WebLanguagePacksService, InstantiationTy
 registerSingleton(IWebContentExtractorService, NullWebContentExtractorService, InstantiationType.Delayed);
 registerSingleton(ISharedWebContentExtractorService, NullSharedWebContentExtractorService, InstantiationType.Delayed);
 registerSingleton(IMcpGalleryManifestService, WorkbenchMcpGalleryManifestService, InstantiationType.Delayed);
-registerSingleton(IAgentHostService, NullAgentHostService, InstantiationType.Delayed);
-registerSingleton(IRemoteAgentHostService, NullRemoteAgentHostService, InstantiationType.Delayed);
+registerSingleton(IAgentHostService, EditorRemoteAgentHostServiceClient, InstantiationType.Delayed);
+registerSingleton(IRemoteAgentHostService, EditorWindowRemoteAgentHostService, InstantiationType.Delayed);
 registerSingleton(IAgentHostDebugLogsExportService, BrowserAgentHostDebugLogsExportService, InstantiationType.Delayed);
 
 //#endregion
@@ -171,6 +174,9 @@ import './contrib/tags/browser/workspaceTagsService.js';
 
 // Issues
 import './contrib/issue/browser/issue.contribution.js';
+
+// Surveys
+import './contrib/surveys/browser/survey.contribution.js';
 
 // Splash
 import './contrib/splash/browser/splash.contribution.js';

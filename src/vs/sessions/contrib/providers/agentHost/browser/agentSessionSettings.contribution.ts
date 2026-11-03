@@ -12,9 +12,9 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../platform
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
-import { ChatSessionProviderIdContext } from '../../../../common/contextkeys.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
-import { SessionItemContextMenuId } from '../../../sessions/browser/views/sessionsList.js';
+import { SessionItemIsMultiSelectionContext, SessionProviderIdContext } from '../../../../common/contextkeys.js';
+import { Menus } from '../../../../browser/menus.js';
 import { agentSessionSettingsUri, AGENT_SESSION_SETTINGS_SCHEME, AgentSessionSettingsFileSystemProvider, AgentSessionSettingsSchemaRegistrar } from './agentSessionSettingsFileSystemProvider.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 
@@ -54,11 +54,12 @@ registerAction2(class OpenSessionSettingsAction extends Action2 {
 		super({
 			id: 'sessionsViewPane.openSessionSettings',
 			title: localize2('openSessionSettings', "Open Session Settings"),
+			precondition: SessionItemIsMultiSelectionContext.negate(),
 			menu: [{
-				id: SessionItemContextMenuId,
-				group: '2_settings',
+				id: Menus.SessionItemSettings,
+				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
+				when: ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 			}]
 		});
 	}

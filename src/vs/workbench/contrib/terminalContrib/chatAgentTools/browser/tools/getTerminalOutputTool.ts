@@ -20,7 +20,7 @@ export const GetTerminalOutputToolData: IToolData = {
 	toolReferenceName: 'getTerminalOutput',
 	legacyToolReferenceFullNames: ['runCommands/getTerminalOutput'],
 	displayName: localize('getTerminalOutputTool.displayName', 'Get Terminal Output'),
-	modelDescription: `Get output from an active terminal execution (identified by the \`id\` returned from ${TerminalToolId.RunInTerminal}).`,
+	modelDescription: `Get output from a terminal execution that was moved to background (identified by the \`id\` returned from ${TerminalToolId.RunInTerminal}). Use this ONLY when the ${TerminalToolId.RunInTerminal} result explicitly says the command was moved to background, timed out, or needs input. Do NOT call this after a sync command that completed normally — sync commands return full output inline. If a background command has not yet completed, you will be automatically notified when it finishes — do NOT poll; end your turn and wait.`,
 	icon: Codicon.terminal,
 	source: ToolDataSource.Internal,
 	inputSchema: {
@@ -49,6 +49,7 @@ interface IOutputSnapshot {
 export class GetTerminalOutputTool extends Disposable implements IToolImpl {
 
 	private static readonly _maxOutputSnapshots = 100;
+	private static readonly _tailCharBudget = 8000;
 	private readonly _lastOutputSnapshotByExecutionId = new Map<string, IOutputSnapshot>();
 
 	constructor(
@@ -101,7 +102,7 @@ export class GetTerminalOutputTool extends Disposable implements IToolImpl {
 	private _formatOutput(id: string, terminalInstanceId: number, output: string): string {
 		if (!this._configurationService.getValue<boolean>(TerminalChatAgentToolsSettingId.OutputDeltas)) {
 			this._lastOutputSnapshotByExecutionId.clear();
-			return `Output of terminal ${id}:\n${output}`;
+			return this._formatTailOrFull(output, `Output of terminal ${id}`);
 		}
 
 		const previousOutputSnapshot = this._lastOutputSnapshotByExecutionId.get(id);
@@ -109,17 +110,38 @@ export class GetTerminalOutputTool extends Disposable implements IToolImpl {
 		this._rememberOutput(id, currentOutputSnapshot);
 
 		if (previousOutputSnapshot === undefined) {
-			return `Output of terminal ${id}:\n${output}`;
+			return this._formatTailOrFull(output, `Output of terminal ${id}`);
 		}
 		if (currentOutputSnapshot.length === previousOutputSnapshot.length && currentOutputSnapshot.hash === previousOutputSnapshot.hash) {
-			return `Output of terminal ${id} unchanged since previous poll (${output.length} characters already shown). No new output.`;
+			return `Output of terminal ${id} unchanged since previous poll (${output.length} total characters in buffer). No new output.`;
 		}
 
 		if (output.length > previousOutputSnapshot.length && this._hashOutput(output, previousOutputSnapshot.length) === previousOutputSnapshot.hash) {
 			const delta = output.slice(previousOutputSnapshot.length);
 			return `Output of terminal ${id} since previous poll (${delta.length} new characters, ${output.length} total characters):\n${delta}`;
 		}
-		return `Output of terminal ${id} changed since previous poll; returning current output (${output.length} characters):\n${output}`;
+		return this._formatTailOrFull(output, `Output of terminal ${id} changed since previous poll`);
+	}
+
+	private _formatTailOrFull(output: string, prefix: string): string {
+		if (output.length <= GetTerminalOutputTool._tailCharBudget) {
+			return `${prefix}:\n${output}`;
+		}
+		const tail = this._tailOf(output, GetTerminalOutputTool._tailCharBudget);
+		const omitted = output.length - tail.length;
+		return `${prefix}; showing last ${tail.length} of ${output.length} characters (${omitted} earlier characters omitted). If you need the omitted earlier output, re-run the command and redirect output to a file, then read that file:\n${tail}`;
+	}
+
+	private _tailOf(output: string, charBudget: number): string {
+		if (output.length <= charBudget) {
+			return output;
+		}
+		const startIndex = output.length - charBudget;
+		const newlineIndex = output.indexOf('\n', startIndex);
+		if (newlineIndex !== -1 && newlineIndex < output.length - 1) {
+			return output.slice(newlineIndex + 1);
+		}
+		return output.slice(startIndex);
 	}
 
 	private _rememberOutput(id: string, snapshot: IOutputSnapshot): void {

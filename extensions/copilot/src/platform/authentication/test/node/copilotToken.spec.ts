@@ -13,7 +13,7 @@ import { IDomainService } from '../../../endpoint/common/domainService';
 import { IEnvService } from '../../../env/common/envService';
 import { NullBaseOctoKitService } from '../../../github/common/nullOctokitServiceImpl';
 import { ILogService } from '../../../log/common/logService';
-import { FetchOptions, IAbortController, IFetcherService, PaginationOptions, Response, WebSocketConnection } from '../../../networking/common/fetcherService';
+import { FetchOptions, IAbortController, IFetcherService, IHeaders, PaginationOptions, Response, WebSocketConnection } from '../../../networking/common/fetcherService';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
 import { createFakeResponse } from '../../../test/node/fetcher';
 import { createPlatformServices, ITestingServicesAccessor } from '../../../test/node/services';
@@ -229,6 +229,22 @@ describe('Copilot token unit tests', function () {
 		expect(result).toEqual({
 			kind: 'failure',
 			reason: 'RateLimited',
+		});
+	});
+
+	it('rate limiting honors Retry-After', async function () {
+		const fetcher = new RateLimitedFetcherService();
+		const testingServiceCollection = createPlatformServices();
+		testingServiceCollection.define(IFetcherService, fetcher);
+		accessor = disposables.add(testingServiceCollection.createTestingAccessor());
+
+		const tokenManager = accessor.get(IInstantiationService).createInstance(CopilotTokenManagerFromGitHubToken, 'valid', 'valid-user');
+		const result = await tokenManager.checkCopilotToken();
+
+		expect(result).toEqual({
+			kind: 'failure',
+			reason: 'RateLimited',
+			retryAfterMs: 120_000,
 		});
 	});
 
@@ -607,6 +623,21 @@ describe('CopilotToken class', function () {
 		expect(enabledToken.isExpandedClientSideIndexingEnabled()).toBe(true);
 		expect(disabledToken.isExpandedClientSideIndexingEnabled()).toBe(false);
 	});
+
+	it('isBlackbirdExternalIndexingEnabled returns false when flag is absent', function () {
+		const token = new CopilotToken(createTestExtendedTokenInfo({ token: 'tid=test' }));
+		expect(token.isBlackbirdExternalIndexingEnabled()).toBe(false);
+	});
+
+	it('isBlackbirdExternalIndexingEnabled returns false when flag is 0', function () {
+		const token = new CopilotToken(createTestExtendedTokenInfo({ token: 'blackbird_external_indexing=0;tid=test' }));
+		expect(token.isBlackbirdExternalIndexingEnabled()).toBe(false);
+	});
+
+	it('isBlackbirdExternalIndexingEnabled returns true when flag is 1', function () {
+		const token = new CopilotToken(createTestExtendedTokenInfo({ token: 'blackbird_external_indexing=1;tid=test' }));
+		expect(token.isBlackbirdExternalIndexingEnabled()).toBe(true);
+	});
 });
 
 class StaticFetcherService implements IFetcherService {
@@ -684,5 +715,34 @@ class HttpStatusFetcherService extends StaticFetcherService {
 	override async fetch(url: string, options: FetchOptions): Promise<Response> {
 		this.requests.set(url, options);
 		return createFakeResponse(this.status, {});
+	}
+}
+
+class RateLimitedFetcherService extends StaticFetcherService {
+	constructor() {
+		super({});
+	}
+
+	override async fetch(url: string, options: FetchOptions): Promise<Response> {
+		this.requests.set(url, options);
+		return Response.fromText(
+			429,
+			'Too Many Requests',
+			new TestHeaders({ 'retry-after': '120' }),
+			JSON.stringify({ message: 'rate limited' }),
+			'test-stub',
+		);
+	}
+}
+
+class TestHeaders implements IHeaders {
+	constructor(private readonly headers: Record<string, string>) { }
+
+	get(name: string): string | null {
+		return this.headers[name.toLowerCase()] ?? null;
+	}
+
+	*[Symbol.iterator](): Iterator<[string, string]> {
+		yield* Object.entries(this.headers);
 	}
 }

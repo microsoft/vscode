@@ -255,7 +255,10 @@ export class BulkTextEdits {
 					if (!newEdits) {
 						oldEdits.forEach(task.addEdit, task);
 					} else {
-						newEdits.forEach(edit => task.addEdit(new ResourceTextEdit(ref.object.textEditorModel.uri, edit, undefined, undefined)));
+						// All edits in the group have the same version id since we group the edits
+						// in the constructor by the resource URI.
+						const versionId = oldEdits[0]?.versionId;
+						newEdits.forEach(edit => task.addEdit(new ResourceTextEdit(ref.object.textEditorModel.uri, edit, versionId, undefined)));
 					}
 				};
 

@@ -1,0 +1,265 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@microsoft/1ds-core-js':
+        specifier: ^3.2.13
+        version: 3.2.13
+      '@microsoft/1ds-post-js':
+        specifier: ^3.2.13
+        version: 3.2.13
+      '@vscode/codicons':
+        specifier: ^0.0.46-49
+        version: 0.0.46-49
+      '@vscode/iconv-lite-umd':
+        specifier: 0.7.1
+        version: 0.7.1
+      '@vscode/tree-sitter-wasm':
+        specifier: ^0.3.1
+        version: 0.3.1
+      '@vscode/vscode-languagedetection':
+        specifier: 1.0.23
+        version: 1.0.23
+      '@xterm/addon-clipboard':
+        specifier: ^0.3.0-beta.303
+        version: 0.3.0-beta.303(@xterm/xterm@6.1.0-beta.304)
+      '@xterm/addon-image':
+        specifier: ^0.10.0-beta.301
+        version: 0.10.0-beta.301(@xterm/xterm@6.1.0-beta.304)
+      '@xterm/addon-ligatures':
+        specifier: ^0.11.0-beta.301
+        version: 0.11.0-beta.301(@xterm/xterm@6.1.0-beta.304)
+      '@xterm/addon-progress':
+        specifier: ^0.3.0-beta.301
+        version: 0.3.0-beta.301(@xterm/xterm@6.1.0-beta.304)
+      '@xterm/addon-search':
+        specifier: ^0.17.0-beta.301
+        version: 0.17.0-beta.301(@xterm/xterm@6.1.0-beta.304)
+      '@xterm/addon-serialize':
+        specifier: ^0.15.0-beta.301
+        version: 0.15.0-beta.301(@xterm/xterm@6.1.0-beta.304)
+      '@xterm/addon-unicode11':
+        specifier: ^0.10.0-beta.301
+        version: 0.10.0-beta.301(@xterm/xterm@6.1.0-beta.304)
+      '@xterm/addon-webgl':
+        specifier: ^0.20.0-beta.300
+        version: 0.20.0-beta.300(@xterm/xterm@6.1.0-beta.304)
+      '@xterm/xterm':
+        specifier: ^6.1.0-beta.304
+        version: 6.1.0-beta.304
+      jschardet:
+        specifier: 3.1.4
+        version: 3.1.4
+      katex:
+        specifier: ^0.16.22
+        version: 0.16.47
+      tas-client:
+        specifier: 0.4.6
+        version: 0.4.6
+      vscode-oniguruma:
+        specifier: 1.7.0
+        version: 1.7.0
+      vscode-textmate:
+        specifier: ^9.3.2
+        version: 9.3.2
+
+packages:
+
+  '@microsoft/1ds-core-js@3.2.13':
+    resolution: {integrity: sha512-CluYTRWcEk0ObG5EWFNWhs87e2qchJUn0p2D21ZUa3PWojPZfPSBs4//WIE0MYV8Qg1Hdif2ZTwlM7TbYUjfAg==}
+
+  '@microsoft/1ds-post-js@3.2.13':
+    resolution: {integrity: sha512-HgS574fdD19Bo2vPguyznL4eDw7Pcm1cVNpvbvBLWiW3x4e1FCQ3VMXChWnAxCae8Hb0XqlA2sz332ZobBavTA==}
+
+  '@microsoft/applicationinsights-core-js@2.8.15':
+    resolution: {integrity: sha512-yYAs9MyjGr2YijQdUSN9mVgT1ijI1FPMgcffpaPmYbHAVbQmF7bXudrBWHxmLzJlwl5rfep+Zgjli2e67lwUqQ==}
+    peerDependencies:
+      tslib: '*'
+
+  '@microsoft/applicationinsights-shims@2.0.2':
+    resolution: {integrity: sha512-PoHEgsnmcqruLNHZ/amACqdJ6YYQpED0KSRe6J7gIJTtpZC1FfFU9b1fmDKDKtFoUSrPzEh1qzO3kmRZP0betg==}
+
+  '@microsoft/dynamicproto-js@1.1.9':
+    resolution: {integrity: sha512-n1VPsljTSkthsAFYdiWfC+DKzK2WwcRp83Y1YAqdX552BstvsDjft9YXppjUzp11BPsapDoO1LDgrDB0XVsfNQ==}
+
+  '@vscode/codicons@0.0.46-49':
+    resolution: {integrity: sha512-0McyVlyRjenut3PBwULxuaC5YoKPF8qkNHf9DhS6UOXUmLr31Ga6vECnNx70SSIZnI4ULLOEktcIkRqiwFvkbg==}
+
+  '@vscode/iconv-lite-umd@0.7.1':
+    resolution: {integrity: sha512-tK6k0DXFHW7q5+GGuGZO+phpAqpxO4WXl+BLc/8/uOk3RsM2ssAL3CQUQDb1TGfwltjsauhN6S4ghYZzs4sPFw==}
+
+  '@vscode/tree-sitter-wasm@0.3.1':
+    resolution: {integrity: sha512-RJFoomET6FajjG511fmQxeBQfU6M24a0aFZPqpid+ttIxanWf1VGytBG0UmsGjt07qmIPJS8U31D+aecuCucsQ==}
+
+  '@vscode/vscode-languagedetection@1.0.23':
+    resolution: {integrity: sha512-Ywk6vXC81nUHvc9WX3uFJG/UHFLXDYJgNeUVirBLJGvmchXHdapsGeAYclNqO1thQLmykmJhSouIZV+JJS8o1A==}
+    hasBin: true
+
+  '@xterm/addon-clipboard@0.3.0-beta.303':
+    resolution: {integrity: sha512-AVw9y9f50uVcI1/LIzp4vkQzPXiRad8SFHjqo33kg7wWL4jes+Z/08jWDBLGvNfYNGhmElp9H2cg/ITErex55g==}
+    peerDependencies:
+      '@xterm/xterm': ^6.1.0-beta.304
+
+  '@xterm/addon-image@0.10.0-beta.301':
+    resolution: {integrity: sha512-PJZL4GlQ1ReIgbffFMaOAFxc3wOit21/G2UEM82RpH3hNHjn6MH8ilz3ToDeBjYuOqU7ienBaeIuMbNktX4/HA==}
+    peerDependencies:
+      '@xterm/xterm': ^6.1.0-beta.304
+
+  '@xterm/addon-ligatures@0.11.0-beta.301':
+    resolution: {integrity: sha512-8F3D/DHbi3W+ool0xIV90paDGJYqUU/SQ9Pdltgx2nw9QFFgjtq+OscXANhrNhDzIU80p2GCnwV0jW+a6Dal0w==}
+    engines: {node: '>8.0.0'}
+    peerDependencies:
+      '@xterm/xterm': ^6.1.0-beta.304
+
+  '@xterm/addon-progress@0.3.0-beta.301':
+    resolution: {integrity: sha512-9V04P0yncSSOZTgNvlEo6D3xiaHxALqoxEgQqgGhf20mj2eOQE0sfVPRMtO6wJwi4uI2viORUkBuiYBObvif3g==}
+    peerDependencies:
+      '@xterm/xterm': ^6.1.0-beta.304
+
+  '@xterm/addon-search@0.17.0-beta.301':
+    resolution: {integrity: sha512-Dj8q+p2/5c4fcS4hag6QaXngxstnc4DdzREN/IhpGxz5a1JpW/3FnF9/JE1P1wvNLp9fApgGmZqBMW4xCF6HKg==}
+    peerDependencies:
+      '@xterm/xterm': ^6.1.0-beta.304
+
+  '@xterm/addon-serialize@0.15.0-beta.301':
+    resolution: {integrity: sha512-zWT0Sy5GCSTnarAXRiicu3XYHgam8DPtpkWfSLPME+A3s7U1A6Jy+ZATt8vMkatyeVOPI0GICYRuQJLZVgnVow==}
+    peerDependencies:
+      '@xterm/xterm': ^6.1.0-beta.304
+
+  '@xterm/addon-unicode11@0.10.0-beta.301':
+    resolution: {integrity: sha512-SS5BzfbvfFIikE4xZFAtHu6n0Kl5R1ZCPx41RL2WULLSE+HFo/WmYee53tMxNK/QUjpcQWepeVB7HebCPhHnig==}
+    peerDependencies:
+      '@xterm/xterm': ^6.1.0-beta.304
+
+  '@xterm/addon-webgl@0.20.0-beta.300':
+    resolution: {integrity: sha512-BJQiOx8I+zz2woe+/E9nWprRRPevo9slPgyOd43E8o18aG307ccsyaTJoIbSu99uqfDoVLWDRLTy91ZXTFsdig==}
+    peerDependencies:
+      '@xterm/xterm': ^6.1.0-beta.304
+
+  '@xterm/xterm@6.1.0-beta.304':
+    resolution: {integrity: sha512-Wq9d4qFYslYQBIan+riXotdyurtREc6v+HWdAwV6Y2JSDI9eJ1dkWm/fzYb2rCGgGnM3baiYuSK4Z6OLNKLzDw==}
+
+  commander@8.3.0:
+    resolution: {integrity: sha512-OkTL9umf+He2DZkUq8f8J9of7yL6RJKI24dVITBmNfZBmri9zYZQrKkuXiKhyfPSu8tUhnVBB1iKXevvnlR4Ww==}
+    engines: {node: '>= 12'}
+
+  jschardet@3.1.4:
+    resolution: {integrity: sha512-/kmVISmrwVwtyYU40iQUOp3SUPk2dhNCMsZBQX0R1/jZ8maaXJ/oZIzUOiyOqcgtLnETFKYChbJ5iDC/eWmFHg==}
+    engines: {node: '>=0.1.90'}
+
+  katex@0.16.47:
+    resolution: {integrity: sha512-Eeo8Ys1doU1z+x8AZsPpQu+p/QcZBI5PeOo7QGQdy2x2m0MU/hYagBbGOmXwr5KVbEfVuWv9LpnQWeehogurjg==}
+    hasBin: true
+
+  lru-cache@11.5.1:
+    resolution: {integrity: sha512-RPimw/7aMdv2oqRrxKwvZXcPfwBrn/JZ2xYcY9Hus/6LaS3VOAKVWKWgNLCFSiOm1ESXinjsDlidVU7JlnCN2A==}
+    engines: {node: 20 || >=22}
+
+  opentype.js@2.0.0:
+    resolution: {integrity: sha512-kCyjv6xdDY1W/jLWZ/L3QhhTlKUqDZMQ5+Jdlw12b3dXkKNpYBqqlMMj0YDQPShWFTMwgZI1hG14kN3XUDSg/A==}
+    hasBin: true
+
+  tas-client@0.4.6:
+    resolution: {integrity: sha512-mmefC5nu8YZ5zGY4IyeXWnvK6YWv2YCz60/7q5banNU+R8JGZT2Q4lOS4g4xJyvnQIbqBFXzMFPsIitI8kVXqA==}
+    engines: {node: '>=22'}
+
+  vscode-oniguruma@1.7.0:
+    resolution: {integrity: sha512-L9WMGRfrjOhgHSdOYgCt/yRMsXzLDJSL7BPrOZt73gU0iWO4mpqzqQzOz5srxqTvMBaR0XZTSrVWo4j55Rc6cA==}
+
+  vscode-textmate@9.3.2:
+    resolution: {integrity: sha512-n2uGbUcrjhUEBH16uGA0TvUfhWwliFZ1e3+pTjrkim1Mt7ydB41lV08aUvsi70OlzDWp6X7Bx3w/x3fAXIsN0Q==}
+
+snapshots:
+
+  '@microsoft/1ds-core-js@3.2.13':
+    dependencies:
+      '@microsoft/applicationinsights-core-js': 2.8.15
+      '@microsoft/applicationinsights-shims': 2.0.2
+      '@microsoft/dynamicproto-js': 1.1.9
+    transitivePeerDependencies:
+      - tslib
+
+  '@microsoft/1ds-post-js@3.2.13':
+    dependencies:
+      '@microsoft/1ds-core-js': 3.2.13
+      '@microsoft/applicationinsights-shims': 2.0.2
+      '@microsoft/dynamicproto-js': 1.1.9
+    transitivePeerDependencies:
+      - tslib
+
+  '@microsoft/applicationinsights-core-js@2.8.15':
+    dependencies:
+      '@microsoft/applicationinsights-shims': 2.0.2
+      '@microsoft/dynamicproto-js': 1.1.9
+
+  '@microsoft/applicationinsights-shims@2.0.2': {}
+
+  '@microsoft/dynamicproto-js@1.1.9': {}
+
+  '@vscode/codicons@0.0.46-49': {}
+
+  '@vscode/iconv-lite-umd@0.7.1': {}
+
+  '@vscode/tree-sitter-wasm@0.3.1': {}
+
+  '@vscode/vscode-languagedetection@1.0.23': {}
+
+  '@xterm/addon-clipboard@0.3.0-beta.303(@xterm/xterm@6.1.0-beta.304)':
+    dependencies:
+      '@xterm/xterm': 6.1.0-beta.304
+
+  '@xterm/addon-image@0.10.0-beta.301(@xterm/xterm@6.1.0-beta.304)':
+    dependencies:
+      '@xterm/xterm': 6.1.0-beta.304
+
+  '@xterm/addon-ligatures@0.11.0-beta.301(@xterm/xterm@6.1.0-beta.304)':
+    dependencies:
+      '@xterm/xterm': 6.1.0-beta.304
+      lru-cache: 11.5.1
+      opentype.js: 2.0.0
+
+  '@xterm/addon-progress@0.3.0-beta.301(@xterm/xterm@6.1.0-beta.304)':
+    dependencies:
+      '@xterm/xterm': 6.1.0-beta.304
+
+  '@xterm/addon-search@0.17.0-beta.301(@xterm/xterm@6.1.0-beta.304)':
+    dependencies:
+      '@xterm/xterm': 6.1.0-beta.304
+
+  '@xterm/addon-serialize@0.15.0-beta.301(@xterm/xterm@6.1.0-beta.304)':
+    dependencies:
+      '@xterm/xterm': 6.1.0-beta.304
+
+  '@xterm/addon-unicode11@0.10.0-beta.301(@xterm/xterm@6.1.0-beta.304)':
+    dependencies:
+      '@xterm/xterm': 6.1.0-beta.304
+
+  '@xterm/addon-webgl@0.20.0-beta.300(@xterm/xterm@6.1.0-beta.304)':
+    dependencies:
+      '@xterm/xterm': 6.1.0-beta.304
+
+  '@xterm/xterm@6.1.0-beta.304': {}
+
+  commander@8.3.0: {}
+
+  jschardet@3.1.4: {}
+
+  katex@0.16.47:
+    dependencies:
+      commander: 8.3.0
+
+  lru-cache@11.5.1: {}
+
+  opentype.js@2.0.0: {}
+
+  tas-client@0.4.6: {}
+
+  vscode-oniguruma@1.7.0: {}
+
+  vscode-textmate@9.3.2: {}

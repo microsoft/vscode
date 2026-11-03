@@ -19,7 +19,7 @@ import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IDetectedLinks, TerminalLinkManager } from '../../browser/terminalLinkManager.js';
 import { ITerminalCapabilityImplMap, ITerminalCapabilityStore, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalConfiguration, ITerminalProcessManager } from '../../../../terminal/common/terminal.js';
-import { TestViewDescriptorService } from '../../../../terminal/test/browser/xterm/xtermTerminal.test.js';
+import { TestViewDescriptorService } from '../../../../terminal/test/browser/xterm/xtermTestUtils.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import type { ILink, Terminal } from '@xterm/xterm';
 import { IXtermCore } from '../../../../terminal/browser/xterm-private.js';
@@ -30,6 +30,13 @@ import { TestXtermLogger } from '../../../../../../platform/terminal/test/common
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { ILinkHoverTargetOptions } from '../../../../terminal/browser/widgets/terminalHoverWidget.js';
+import { TerminalWidgetManager } from '../../../../terminal/browser/widgets/widgetManager.js';
+import { TerminalLink } from '../../browser/terminalLink.js';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -219,6 +226,77 @@ suite('TerminalLinkManager', () => {
 				});
 			});
 		}));
+
+		test('hover links to the exact URL', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			await configurationService.setUserConfiguration('workbench.hover.delay', 0);
+			const linkHandler = xterm.options.linkHandler;
+			if (!linkHandler?.hover) {
+				throw new Error('Expected linkHandler with hover callback');
+			}
+			const hovers: IMarkdownString[] = [];
+			const testableLinkManager = linkManager as unknown as TestableLinkManager;
+			const originalShowHover = testableLinkManager._showHover;
+			testableLinkManager._showHover = (...args: unknown[]) => {
+				hovers.push(args[1] as IMarkdownString);
+				return undefined;
+			};
+			const renderServiceRestore = mockXtermCoreRenderService();
+			const range: Parameters<typeof linkHandler.hover>[2] = { start: { x: 1, y: 1 }, end: { x: 10, y: 1 } };
+			const urls = ['https://example.com/search?q=a>b', 'https://github.com/a/b#readme', 'https://x.y/foo_bar(1)', 'https://x.y/a\\b'];
+			try {
+				for (const url of urls) {
+					linkHandler.hover(new MouseEvent('mousemove'), url, range);
+					await timeout(0);
+				}
+			} finally {
+				renderServiceRestore.dispose();
+				testableLinkManager._showHover = originalShowHover;
+			}
+			const hrefs = hovers.map(hover => {
+				const rendered = renderMarkdown(hover);
+				const href = rendered.element.querySelector('a')?.dataset.href;
+				rendered.dispose();
+				return href;
+			});
+			deepStrictEqual(hrefs, urls);
+		}));
+	});
+
+	suite('link hover invalidation', () => {
+		type ShowHover = (
+			targetOptions: ILinkHoverTargetOptions,
+			text: MarkdownString,
+			actions: undefined,
+			linkHandler: (url: string) => void,
+			link?: TerminalLink
+		) => IDisposable | undefined;
+
+		test('replacing or invalidating a link hover disposes the previous hover and its invalidation listener', () => {
+			instantiationService.stub(IHoverService, upcastPartial<IHoverService>({}));
+
+			// Fake widget manager that records disposal of each attached hover and disposes the widget
+			const disposedAttached: boolean[] = [];
+			linkManager.setWidgetManager(upcastPartial<TerminalWidgetManager>({
+				attachWidget: widget => {
+					const index = disposedAttached.push(false) - 1;
+					return { dispose: () => { disposedAttached[index] = true; widget.dispose(); } };
+				}
+			}));
+
+			const showHover = (linkManager as unknown as { _showHover: ShowHover })._showHover.bind(linkManager);
+			const onInvalidated1 = store.add(new Emitter<void>());
+			const onInvalidated2 = store.add(new Emitter<void>());
+			const link1 = upcastPartial<TerminalLink>({ onInvalidated: onInvalidated1.event });
+			const link2 = upcastPartial<TerminalLink>({ onInvalidated: onInvalidated2.event });
+			const targetOptions = upcastPartial<ILinkHoverTargetOptions>({});
+
+			// Showing a second link hover should dispose the first, then invalidating the second disposes it
+			showHover(targetOptions, new MarkdownString('hover'), undefined, () => { }, link1);
+			showHover(targetOptions, new MarkdownString('hover'), undefined, () => { }, link2);
+			onInvalidated2.fire();
+
+			deepStrictEqual(disposedAttached, [true, true]);
+		});
 	});
 
 	suite('getLinks and open recent link', () => {

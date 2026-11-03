@@ -1,0 +1,527 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { observableValue } from '../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../../common/enablement.js';
+import { AgentPluginCollisionEnablementModel, AgentPluginEnablementService, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy, isAgentPluginForceEnabledByPolicy } from '../../../common/plugins/agentPluginEnablement.js';
+import { AgentPluginDiscoveryPriority, IAgentPlugin, setAgentPluginEnablement } from '../../../common/plugins/agentPluginService.js';
+import { IMarketplacePlugin, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
+import { TestUserDataProfileService } from '../../../../../test/common/workbenchTestServices.js';
+
+suite('AgentPlugin enablement', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('layers stored decisions over discovered defaults', () => {
+		const service = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
+		const plugin = URI.file('/plugins/copilot-cli').toString();
+
+		service.setDefaultEnabled(plugin, false);
+		const disabledByDefault = service.readEnabled(plugin);
+		service.setEnabled(plugin, ContributionEnablementState.EnabledWorkspace);
+		service.setDefaultEnabled(plugin, true);
+		const workspaceOverride = service.readEnabled(plugin);
+		service.setDefaultEnabled(plugin, false);
+		const workspaceOverrideAfterDefaultChange = service.readEnabled(plugin);
+		service.setEnabled(plugin, ContributionEnablementState.EnabledProfile);
+		const profileOverride = service.readEnabled(plugin);
+
+		assert.deepStrictEqual({
+			disabledByDefault,
+			workspaceOverride,
+			workspaceOverrideAfterDefaultChange,
+			profileOverride,
+		}, {
+			disabledByDefault: ContributionEnablementState.DisabledProfile,
+			workspaceOverride: ContributionEnablementState.EnabledWorkspace,
+			workspaceOverrideAfterDefaultChange: ContributionEnablementState.EnabledWorkspace,
+			profileOverride: ContributionEnablementState.EnabledProfile,
+		});
+	});
+
+	test('preserves another workspace override through multiple updates and reopening', () => {
+		const storageA = store.add(new InMemoryStorageService());
+		const storageB = store.add(new InMemoryStorageService());
+		const workspaceA = store.add(new AgentPluginEnablementService(storageA, new TestUserDataProfileService()));
+		const workspaceB = store.add(new AgentPluginEnablementService(storageB, new TestUserDataProfileService()));
+		const original = URI.file('/plugins/original');
+		const intermediate = URI.file('/plugins/intermediate');
+		const current = URI.file('/plugins/current');
+		workspaceB.setEnabled(original.toString(), ContributionEnablementState.DisabledWorkspace);
+
+		workspaceA.copyEnablement(original, intermediate);
+		workspaceA.copyEnablement(intermediate, current);
+		for (const key of storageA.keys(StorageScope.APPLICATION, StorageTarget.MACHINE)) {
+			storageB.store(key, storageA.get(key, StorageScope.APPLICATION), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		}
+		const reopenedB = store.add(new AgentPluginEnablementService(storageB, new TestUserDataProfileService()));
+		const before = reopenedB.readEnabled(current.toString());
+		reopenedB.setEnabled(current.toString(), ContributionEnablementState.EnabledWorkspace);
+		reopenedB.copyEnablement(current, original);
+
+		assert.deepStrictEqual({
+			workspaceA: workspaceA.readEnabled(current.toString()),
+			workspaceBBefore: before,
+			workspaceBAfter: reopenedB.readEnabled(current.toString()),
+			workspaceBOriginal: reopenedB.readEnabled(original.toString()),
+		}, {
+			workspaceA: ContributionEnablementState.EnabledProfile,
+			workspaceBBefore: ContributionEnablementState.DisabledWorkspace,
+			workspaceBAfter: ContributionEnablementState.EnabledWorkspace,
+			workspaceBOriginal: ContributionEnablementState.EnabledWorkspace,
+		});
+	});
+
+	for (const state of [
+		ContributionEnablementState.EnabledProfile,
+		ContributionEnablementState.DisabledProfile,
+		ContributionEnablementState.EnabledWorkspace,
+		ContributionEnablementState.DisabledWorkspace,
+	]) {
+		test(`persists enablement across install location changes (${state})`, () => {
+			const storage = store.add(new InMemoryStorageService());
+			const service = store.add(new AgentPluginEnablementService(storage, new TestUserDataProfileService()));
+			const oldUri = URI.file('/plugins/old-revision');
+			const newUri = URI.file('/plugins/new-revision');
+			service.setEnabled(oldUri.toString(), ContributionEnablementState.DisabledProfile);
+			service.setEnabled(oldUri.toString(), state);
+
+			service.copyEnablement(oldUri, newUri);
+			const restored = store.add(new AgentPluginEnablementService(storage, new TestUserDataProfileService()));
+
+			assert.deepStrictEqual({
+				profileEnabled: restored.readProfileEnabled(newUri.toString()),
+				effective: restored.readEnabled(newUri.toString()),
+			}, {
+				profileEnabled: state === ContributionEnablementState.EnabledProfile,
+				effective: state,
+			});
+		});
+	}
+
+	for (const state of [ContributionEnablementState.DisabledProfile, ContributionEnablementState.DisabledWorkspace]) {
+		test(`keeps copied identities when stored identities are cleared (${state})`, () => {
+			const storage = store.add(new class extends InMemoryStorageService {
+				clearIdentities(): void {
+					this.getStorage(StorageScope.APPLICATION).delete('agentPlugins.enablementIdentities', true);
+				}
+			}());
+			const service = store.add(new AgentPluginEnablementService(storage, new TestUserDataProfileService()));
+			const original = URI.file('/plugins/original');
+			const intermediate = URI.file('/plugins/intermediate');
+			const current = URI.file('/plugins/current');
+			service.setEnabled(original.toString(), state);
+			service.copyEnablement(original, intermediate);
+			service.copyEnablement(intermediate, current);
+			const reopened = store.add(new AgentPluginEnablementService(storage, new TestUserDataProfileService()));
+			reopened.copyEnablement(current, original);
+
+			storage.clearIdentities();
+			const afterSwitch = service.readEnabled(current.toString());
+			const originalAfterSwitch = reopened.readEnabled(original.toString());
+			const profileEnabled = service.readProfileEnabled(current.toString());
+			service.setEnabled(current.toString(), ContributionEnablementState.EnabledProfile);
+			const afterEnable = service.readEnabled(original.toString());
+			service.setEnabled(current.toString(), state);
+			service.remove(current.toString());
+
+			assert.deepStrictEqual({
+				afterSwitch,
+				originalAfterSwitch,
+				profileEnabled,
+				afterEnable,
+				afterRemove: service.readEnabled(original.toString()),
+			}, {
+				afterSwitch: state,
+				originalAfterSwitch: state,
+				profileEnabled: state !== ContributionEnablementState.DisabledProfile,
+				afterEnable: ContributionEnablementState.EnabledProfile,
+				afterRemove: ContributionEnablementState.EnabledProfile,
+			});
+		});
+	}
+
+	function makePlugin(uri: URI, label: string, fromMarketplace?: IMarketplacePlugin): IAgentPlugin {
+		return {
+			uri,
+			format: PluginFormat.Copilot,
+			label,
+			enablement: observableValue('testPluginEnablement', ContributionEnablementState.EnabledProfile),
+			hooks: observableValue('testPluginHooks', []),
+			commands: observableValue('testPluginCommands', []),
+			skills: observableValue('testPluginSkills', []),
+			agents: observableValue('testPluginAgents', []),
+			instructions: observableValue('testPluginInstructions', []),
+			mcpServerDefinitions: observableValue('testPluginMcpServerDefinitions', []),
+			automations: observableValue('testPluginAutomations', []),
+			fromMarketplace,
+		};
+	}
+
+	test('persists runtime enablement before the local decision and leaves workspace overrides local', async () => {
+		const service = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
+		const plugin = makePlugin(URI.file('/plugins/direct'), 'direct');
+		service.setDefaultEnabled(plugin.uri.toString(), false);
+		const calls: { enabled: boolean; local: ContributionEnablementState }[] = [];
+		plugin.setEnabled = async enabled => { calls.push({ enabled, local: service.readEnabled(plugin.uri.toString()) }); };
+		await setAgentPluginEnablement(plugin, service, ContributionEnablementState.EnabledProfile);
+		await setAgentPluginEnablement(plugin, service, ContributionEnablementState.DisabledWorkspace);
+		await setAgentPluginEnablement(plugin, service, ContributionEnablementState.DisabledProfile);
+		assert.deepStrictEqual({ calls, local: service.readEnabled(plugin.uri.toString()) }, {
+			calls: [
+				{ enabled: true, local: ContributionEnablementState.DisabledProfile },
+				{ enabled: false, local: ContributionEnablementState.DisabledWorkspace },
+			],
+			local: ContributionEnablementState.DisabledProfile,
+		});
+	});
+
+	test('does not publish local success when runtime enablement fails', async () => {
+		const service = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
+		const plugin = makePlugin(URI.file('/plugins/direct'), 'direct');
+		service.setDefaultEnabled(plugin.uri.toString(), false);
+		plugin.setEnabled = async () => { throw new Error('runtime refused'); };
+		await assert.rejects(setAgentPluginEnablement(plugin, service, ContributionEnablementState.EnabledProfile), /runtime refused/);
+		assert.strictEqual(service.readEnabled(plugin.uri.toString()), ContributionEnablementState.DisabledProfile);
+	});
+
+	test('does not invoke the runtime for policy-managed plugins', async () => {
+		const service = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
+		let calls = 0;
+		const plugin = { ...makePlugin(URI.file('/plugins/managed'), 'managed'), policyEnablement: observableValue('policy', false) };
+		plugin.setEnabled = async () => { calls++; };
+		await assert.rejects(setAgentPluginEnablement(plugin, service, ContributionEnablementState.EnabledProfile), /managed by your organization/);
+		assert.strictEqual(calls, 0);
+	});
+
+	function makeMarketplacePlugin(): IMarketplacePlugin {
+		const marketplaceReference = parseMarketplaceReference('microsoft/vscode-team-kit');
+		assert.ok(marketplaceReference);
+		return {
+			name: 'model-council',
+			description: '',
+			version: '',
+			source: 'model-council',
+			sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'model-council' },
+			marketplace: 'microsoft/vscode-team-kit',
+			marketplaceReference,
+			marketplaceType: MarketplaceType.Copilot,
+		};
+	}
+
+	function makeTestEnablementModel(): IEnablementModel {
+		const state = new Map<string, ContributionEnablementState>();
+		return {
+			readEnabled: key => state.get(key) ?? ContributionEnablementState.EnabledProfile,
+			readProfileEnabled: key => (state.get(key) ?? ContributionEnablementState.EnabledProfile) === ContributionEnablementState.EnabledProfile,
+			setEnabled: (key, value) => state.set(key, value),
+			remove: key => state.delete(key),
+		};
+	}
+
+	test('colliding marketplace and Copilot CLI direct installs use priority-ordered enablement', () => {
+		const marketplaceUri = URI.file('/Users/test/.vscode-insiders/agent-plugins/github.com/microsoft/vscode-team-kit/model-council');
+		const copilotCliDirectUri = URI.file('/Users/test/.copilot/installed-plugins/_direct/microsoft--vscode-team-kit--model-council');
+		const discoveries: IDiscoveredAgentPlugins[] = [
+			{
+				priority: AgentPluginDiscoveryPriority.CopilotCli,
+				order: 3,
+				plugins: [makePlugin(copilotCliDirectUri, 'model-council')],
+			},
+			{
+				priority: AgentPluginDiscoveryPriority.Marketplace,
+				order: 1,
+				plugins: [makePlugin(marketplaceUri, 'model-council', makeMarketplacePlugin())],
+			},
+		];
+
+		const plugins = getSortedAgentPlugins(discoveries);
+		const collisionGroups = observableValue('pluginCollisionGroups', getCanonicalAgentPluginCollisionGroups(discoveries));
+		const enablementModel = new AgentPluginCollisionEnablementModel(makeTestEnablementModel(), collisionGroups);
+
+		enablementModel.setEnabled(copilotCliDirectUri.toString(), ContributionEnablementState.EnabledWorkspace);
+
+		assert.deepStrictEqual({
+			plugins: plugins.map(plugin => plugin.uri.toString()),
+			marketplaceInitiallyEnabled: isContributionEnabled(new AgentPluginCollisionEnablementModel(makeTestEnablementModel(), collisionGroups).readEnabled(marketplaceUri.toString())),
+			copilotCliInitiallyEnabled: isContributionEnabled(new AgentPluginCollisionEnablementModel(makeTestEnablementModel(), collisionGroups).readEnabled(copilotCliDirectUri.toString())),
+			marketplaceAfterEnablingCli: enablementModel.readEnabled(marketplaceUri.toString()),
+			copilotCliAfterEnablingCli: enablementModel.readEnabled(copilotCliDirectUri.toString()),
+		}, {
+			plugins: [copilotCliDirectUri.toString(), marketplaceUri.toString()],
+			marketplaceInitiallyEnabled: true,
+			copilotCliInitiallyEnabled: false,
+			marketplaceAfterEnablingCli: ContributionEnablementState.DisabledWorkspace,
+			copilotCliAfterEnablingCli: ContributionEnablementState.EnabledWorkspace,
+		});
+	});
+
+	test('policy-blocked duplicate does not suppress allowed duplicate', () => {
+		const marketplaceUri = URI.file('/Users/test/.vscode-insiders/agent-plugins/github.com/microsoft/vscode-team-kit/model-council');
+		const copilotCliDirectUri = URI.file('/Users/test/.copilot/installed-plugins/_direct/microsoft--vscode-team-kit--model-council');
+		const discoveries: IDiscoveredAgentPlugins[] = [
+			{
+				priority: AgentPluginDiscoveryPriority.Marketplace,
+				order: 1,
+				plugins: [makePlugin(marketplaceUri, 'model-council', makeMarketplacePlugin())],
+			},
+			{
+				priority: AgentPluginDiscoveryPriority.CopilotCli,
+				order: 3,
+				plugins: [makePlugin(copilotCliDirectUri, 'model-council')],
+			},
+		];
+
+		const collisionGroups = observableValue(
+			'pluginCollisionGroups',
+			getCanonicalAgentPluginCollisionGroups(discoveries, plugin => plugin.uri.toString() === marketplaceUri.toString()),
+		);
+		const enablementModel = new AgentPluginCollisionEnablementModel(makeTestEnablementModel(), collisionGroups);
+
+		assert.ok(isContributionEnabled(enablementModel.readEnabled(copilotCliDirectUri.toString())));
+	});
+
+	test('managed enablement overrides user state without replacing it', () => {
+		const required = URI.file('/plugins/required').toString();
+		const blocked = URI.file('/plugins/blocked').toString();
+		const unmanaged = URI.file('/plugins/unmanaged').toString();
+		const stored = new Map<string, ContributionEnablementState>([
+			[required, ContributionEnablementState.DisabledWorkspace],
+			[blocked, ContributionEnablementState.EnabledProfile],
+			[unmanaged, ContributionEnablementState.DisabledProfile],
+		]);
+		const base: IEnablementModel = {
+			readEnabled: key => stored.get(key) ?? ContributionEnablementState.EnabledProfile,
+			readProfileEnabled: key => (stored.get(key) ?? ContributionEnablementState.EnabledProfile) === ContributionEnablementState.EnabledProfile,
+			setEnabled: (key, value) => stored.set(key, value),
+			remove: key => stored.delete(key),
+		};
+		const policy = observableValue<ReadonlyMap<string, boolean>>('managedPluginEnablement', new Map([
+			[required, true],
+			[blocked, false],
+		]));
+		const enablementModel = new AgentPluginCollisionEnablementModel(base, observableValue('emptyCollisionGroups', new Map()), policy);
+
+		enablementModel.setEnabled(required, ContributionEnablementState.DisabledProfile);
+		enablementModel.setEnabled(blocked, ContributionEnablementState.EnabledProfile);
+		enablementModel.setEnabled(unmanaged, ContributionEnablementState.EnabledProfile);
+
+		assert.deepStrictEqual({
+			required: enablementModel.readEnabled(required),
+			requiredProfile: enablementModel.readProfileEnabled(required),
+			blocked: enablementModel.readEnabled(blocked),
+			blockedProfile: enablementModel.readProfileEnabled(blocked),
+			unmanaged: enablementModel.readEnabled(unmanaged),
+			storedRequired: stored.get(required),
+			storedBlocked: stored.get(blocked),
+		}, {
+			required: ContributionEnablementState.EnabledProfile,
+			requiredProfile: true,
+			blocked: ContributionEnablementState.DisabledProfile,
+			blockedProfile: false,
+			unmanaged: ContributionEnablementState.EnabledProfile,
+			storedRequired: ContributionEnablementState.DisabledWorkspace,
+			storedBlocked: ContributionEnablementState.EnabledProfile,
+		});
+
+		policy.set(new Map(), undefined);
+
+		assert.deepStrictEqual({
+			required: enablementModel.readEnabled(required),
+			blocked: enablementModel.readEnabled(blocked),
+		}, {
+			required: ContributionEnablementState.DisabledWorkspace,
+			blocked: ContributionEnablementState.EnabledProfile,
+		});
+	});
+
+	test('force-enabled duplicate wins collision priority', () => {
+		const marketplaceUri = URI.file('/Users/test/.vscode-insiders/agent-plugins/github.com/microsoft/vscode-team-kit/model-council');
+		const copilotCliDirectUri = URI.file('/Users/test/.copilot/installed-plugins/_direct/microsoft--vscode-team-kit--model-council');
+		const marketplacePlugin = makePlugin(marketplaceUri, 'model-council', makeMarketplacePlugin());
+		const discoveries: IDiscoveredAgentPlugins[] = [
+			{
+				priority: AgentPluginDiscoveryPriority.CopilotCli,
+				order: 1,
+				plugins: [makePlugin(copilotCliDirectUri, 'model-council')],
+			},
+			{
+				priority: AgentPluginDiscoveryPriority.Marketplace,
+				order: 2,
+				plugins: [marketplacePlugin],
+			},
+		];
+		const collisionGroups = getCanonicalAgentPluginCollisionGroups(
+			discoveries,
+			undefined,
+			plugin => plugin === marketplacePlugin,
+		);
+
+		assert.deepStrictEqual(collisionGroups.get(copilotCliDirectUri.toString()), [
+			marketplaceUri.toString(),
+			copilotCliDirectUri.toString(),
+		]);
+	});
+
+	test('cannot enable an unmanaged duplicate while another duplicate is force-enabled', () => {
+		const required = URI.file('/plugins/required').toString();
+		const unmanaged = URI.file('/plugins/unmanaged').toString();
+		const stored = new Map<string, ContributionEnablementState>([
+			[unmanaged, ContributionEnablementState.DisabledProfile],
+		]);
+		const base: IEnablementModel = {
+			readEnabled: key => stored.get(key) ?? ContributionEnablementState.EnabledProfile,
+			readProfileEnabled: key => (stored.get(key) ?? ContributionEnablementState.EnabledProfile) === ContributionEnablementState.EnabledProfile,
+			setEnabled: (key, value) => stored.set(key, value),
+			remove: key => stored.delete(key),
+		};
+		const policy = observableValue<ReadonlyMap<string, boolean>>('managedPluginEnablement', new Map([[required, true]]));
+		const groups = observableValue<ReadonlyMap<string, readonly string[]>>('collisionGroups', new Map([
+			[required, [required, unmanaged]],
+			[unmanaged, [required, unmanaged]],
+		]));
+		const enablementModel = new AgentPluginCollisionEnablementModel(base, groups, policy);
+
+		enablementModel.setEnabled(unmanaged, ContributionEnablementState.EnabledProfile);
+
+		assert.deepStrictEqual({
+			required: enablementModel.readEnabled(required),
+			unmanaged: enablementModel.readEnabled(unmanaged),
+			storedUnmanaged: stored.get(unmanaged),
+		}, {
+			required: ContributionEnablementState.EnabledProfile,
+			unmanaged: ContributionEnablementState.DisabledProfile,
+			storedUnmanaged: ContributionEnablementState.DisabledProfile,
+		});
+	});
+
+	for (const policyTiming of ['before runtime enablement', 'during runtime enablement'] as const) {
+		test(`rejects a forced plugin collision ${policyTiming}`, async () => {
+			const plugin = makePlugin(URI.file('/plugins/direct'), 'direct');
+			const key = plugin.uri.toString();
+			const required = URI.file('/plugins/required').toString();
+			const base = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
+			base.setDefaultEnabled(key, false);
+			const policy = observableValue<ReadonlyMap<string, boolean>>('policy', new Map(policyTiming === 'before runtime enablement' ? [[required, true]] : []));
+			const group = [required, key];
+			const groups = observableValue<ReadonlyMap<string, readonly string[]>>('groups', new Map([[required, group], [key, group]]));
+			const model = new AgentPluginCollisionEnablementModel(base, groups, policy);
+			const calls: boolean[] = [];
+			plugin.setEnabled = async enabled => {
+				calls.push(enabled);
+				policy.set(new Map([[required, true]]), undefined);
+			};
+			await assert.rejects(setAgentPluginEnablement(plugin, model, ContributionEnablementState.EnabledProfile), /rejected by the local enablement model/);
+			assert.deepStrictEqual({ calls, state: model.readEnabled(key) }, {
+				calls: policyTiming === 'before runtime enablement' ? [] : [true, false],
+				state: ContributionEnablementState.DisabledProfile,
+			});
+		});
+	}
+
+	for (const rollbackFails of [false, true]) {
+		test(`reports a rejected local commit and ${rollbackFails ? 'failed' : 'successful'} runtime rollback`, async () => {
+			const plugin = makePlugin(URI.file('/plugins/direct'), 'direct');
+			const calls: boolean[] = [];
+			const model: IEnablementModel = {
+				readEnabled: () => ContributionEnablementState.DisabledProfile,
+				readProfileEnabled: () => false,
+				setEnabled: () => { },
+				remove: () => { },
+			};
+			plugin.setEnabled = async enabled => {
+				calls.push(enabled);
+				if (!enabled && rollbackFails) {
+					throw new Error('rollback refused');
+				}
+			};
+			await assert.rejects(setAgentPluginEnablement(plugin, model, ContributionEnablementState.EnabledProfile), rollbackFails ? /runtime state could not be restored/ : /rejected by the local enablement model/);
+			assert.deepStrictEqual(calls, [true, false]);
+		});
+	}
+
+	test('same-URI duplicates collapse before collision grouping', () => {
+		const sharedUri = URI.file('/Users/test/.copilot/installed-plugins/team/model-council');
+		const discoveries: IDiscoveredAgentPlugins[] = [
+			{
+				priority: AgentPluginDiscoveryPriority.Configured,
+				order: 0,
+				plugins: [makePlugin(sharedUri, 'model-council')],
+			},
+			{
+				priority: AgentPluginDiscoveryPriority.CopilotCli,
+				order: 3,
+				plugins: [makePlugin(sharedUri, 'model-council')],
+			},
+		];
+
+		assert.deepStrictEqual({
+			plugins: getSortedAgentPlugins(discoveries).map(plugin => plugin.uri.toString()),
+			collisionGroupCount: getCanonicalAgentPluginCollisionGroups(discoveries).size,
+		}, {
+			plugins: [sharedUri.toString()],
+			collisionGroupCount: 0,
+		});
+	});
+
+	suite('isAgentPluginBlockedByPolicy', () => {
+		const policyId = 'model-council@microsoft/vscode-team-kit';
+
+		function makeMarketplacePluginForPolicy(): IAgentPlugin {
+			const uri = URI.file('/Users/test/.vscode-insiders/agent-plugins/github.com/microsoft/vscode-team-kit/model-council');
+			return makePlugin(uri, 'model-council', makeMarketplacePlugin());
+		}
+
+		test('no policy set: nothing is blocked', () => {
+			const plugin = makeMarketplacePluginForPolicy();
+			assert.strictEqual(isAgentPluginBlockedByPolicy(plugin, undefined), false);
+			assert.strictEqual(isAgentPluginBlockedByPolicy(plugin, {}), false);
+		});
+
+		test('additive: a plugin the policy never mentions is not blocked', () => {
+			const plugin = makeMarketplacePluginForPolicy();
+			// Enterprise enables a different plugin; the user's own plugin must keep working.
+			assert.strictEqual(isAgentPluginBlockedByPolicy(plugin, { 'workiq@copilot-plugins': true }), false);
+		});
+
+		test('a plugin explicitly enabled by policy is not blocked', () => {
+			const plugin = makeMarketplacePluginForPolicy();
+			assert.strictEqual(isAgentPluginBlockedByPolicy(plugin, { [policyId]: true }), false);
+		});
+
+		test('deny list: a plugin explicitly disabled by policy is blocked', () => {
+			const plugin = makeMarketplacePluginForPolicy();
+			assert.strictEqual(isAgentPluginBlockedByPolicy(plugin, { [policyId]: false }), true);
+		});
+
+		test('a plugin without a policy identity is never blocked', () => {
+			const plugin = makePlugin(URI.file('/Users/test/local-plugins/my-plugin'), 'my-plugin');
+			assert.strictEqual(isAgentPluginBlockedByPolicy(plugin, { [policyId]: false }), false);
+		});
+
+		suite('isAgentPluginForceEnabledByPolicy', () => {
+			test('requires an explicit managed true entry for the plugin identity', () => {
+				const plugin = makePlugin(
+					URI.file('/Users/test/.vscode-insiders/agent-plugins/github.com/microsoft/vscode-team-kit/model-council'),
+					'model-council',
+					makeMarketplacePlugin(),
+				);
+
+				assert.strictEqual(isAgentPluginForceEnabledByPolicy(plugin, undefined), false);
+				assert.strictEqual(isAgentPluginForceEnabledByPolicy(plugin, { 'model-council@microsoft/vscode-team-kit': false }), false);
+				assert.strictEqual(isAgentPluginForceEnabledByPolicy(plugin, { 'model-council@microsoft/vscode-team-kit': true }), true);
+			});
+
+			test('sideloaded plugins without a managed identity are not force-enabled', () => {
+				const plugin = makePlugin(URI.file('/Users/test/local-plugins/model-council'), 'model-council');
+				assert.strictEqual(isAgentPluginForceEnabledByPolicy(plugin, { 'model-council@microsoft/vscode-team-kit': true }), false);
+			});
+		});
+	});
+});

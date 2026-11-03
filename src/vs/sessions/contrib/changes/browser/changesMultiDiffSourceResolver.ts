@@ -8,85 +8,58 @@ import { derivedObservableWithCache, derivedOpts, ValueWithChangeEventFromObserv
 import { equals as arraysEqual } from '../../../../base/common/arrays.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { comparePaths } from '../../../../base/common/comparers.js';
-import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService.js';
+import { sortMultiDiffEditorFileListItems } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
-import { ChangesViewModel } from './changesViewModel.js';
-
-const CHANGES_MULTI_DIFF_SOURCE_SCHEME = 'changes-multi-diff-source';
-
-interface ChangesMultiDiffUriFields {
-	readonly sessionResource: string;
-}
+import { ChangesViewMode } from '../common/changes.js';
+import { IChangesViewService } from '../common/changesViewService.js';
+import { ISessionChangesService } from './sessionChangesService.js';
+import { getChangesEditorFileResource } from './changesEditorLabels.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 /**
- * Build the multi-diff source URI for a session. The URI is used to identify
- * the multi-diff editor so subsequent opens with the same session reuse the
- * same input while the resource list updates reactively.
+ * Global context key holding the URIs (as strings) of every file the user has
+ * marked as reviewed in the active session. Combined with
+ * {@link SessionChangesFileResourceContext} via the `in` / `not in` operators,
+ * file toolbar menu items can toggle between "Mark as Reviewed" and
+ * "Unmark as Reviewed".
  */
-export function getChangesMultiDiffSourceUri(sessionResource: URI): URI {
-	return URI.from({
-		scheme: CHANGES_MULTI_DIFF_SOURCE_SCHEME,
-		query: JSON.stringify({ sessionResource: sessionResource.toString() } satisfies ChangesMultiDiffUriFields),
-	});
-}
+export const SessionChangesReviewedFilesContext = new RawContextKey<string[]>('sessions.changesReviewedFiles', []);
 
-function parseUri(uri: URI): { sessionResource: URI } | undefined {
-	if (uri.scheme !== CHANGES_MULTI_DIFF_SOURCE_SCHEME) {
-		return undefined;
-	}
-
-	let query: ChangesMultiDiffUriFields;
-	try {
-		query = JSON.parse(uri.query) as ChangesMultiDiffUriFields;
-	} catch {
-		return undefined;
-	}
-
-	if (typeof query !== 'object' || query === null || typeof query.sessionResource !== 'string') {
-		return undefined;
-	}
-
-	return { sessionResource: URI.parse(query.sessionResource) };
-}
-
-function compareChanges(a: ISessionFileChange, b: ISessionFileChange): number {
-	const aPath = isIChatSessionFileChange2(a) ? a.uri.fsPath : a.modifiedUri.fsPath;
-	const bPath = isIChatSessionFileChange2(b) ? b.uri.fsPath : b.modifiedUri.fsPath;
-	return comparePaths(aPath, bPath);
-}
+/**
+ * Per-file context key set on each entry in the changes multi-diff editor.
+ * Holds the URI (as a string) of the file shown in that diff row, so it can be
+ * tested for membership in {@link SessionChangesReviewedFilesContext}.
+ */
+export const SessionChangesFileResourceContext = new RawContextKey<string>('sessions.changesFileResource', undefined);
 
 export class ChangesMultiDiffSourceResolver extends Disposable implements IMultiDiffSourceResolver {
 
 	constructor(
-		private readonly _viewModel: ChangesViewModel,
-		@IMultiDiffSourceResolverService multiDiffSourceResolverService: IMultiDiffSourceResolverService
+		@IChangesViewService private readonly changesViewService: IChangesViewService,
+		@IMultiDiffSourceResolverService multiDiffSourceResolverService: IMultiDiffSourceResolverService,
+		@ISessionChangesService private readonly _sessionChangesService: ISessionChangesService,
 	) {
 		super();
 		this._register(multiDiffSourceResolverService.registerResolver(this));
 	}
 
 	canHandleUri(uri: URI): boolean {
-		return parseUri(uri) !== undefined;
+		return this._sessionChangesService.getSessionResource(uri) !== undefined;
 	}
 
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
-		const parsed = parseUri(uri)!;
+		const sessionResource = this._sessionChangesService.getSessionResource(uri)!;
 
 		const changesObs = derivedObservableWithCache<readonly ISessionFileChange[]>({
 			owner: this,
 		}, (reader, lastValue) => {
-			if (this._viewModel.activeSessionIsLoadingObs.read(reader)) {
+			const activeSessionResource = this.changesViewService.activeSessionResourceObs.read(reader);
+			if (!activeSessionResource || !isEqual(activeSessionResource, sessionResource)) {
 				return lastValue ?? [];
 			}
 
-			const activeSessionResource = this._viewModel.activeSessionResourceObs.read(reader);
-			if (!activeSessionResource || !isEqual(activeSessionResource, parsed.sessionResource)) {
-				return lastValue ?? [];
-			}
-
-			return this._viewModel.activeSessionChangesObs.read(reader);
+			return this.changesViewService.activeSessionChangesObs.read(reader);
 		});
 
 		const resourcesObs = derivedOpts<readonly MultiDiffEditorItem[]>({
@@ -96,8 +69,14 @@ export class ChangesMultiDiffSourceResolver extends Disposable implements IMulti
 				isEqual(x.modifiedUri, y.modifiedUri)),
 		}, reader => {
 			const changes = changesObs.read(reader);
-			return [...changes].sort(compareChanges).map(change =>
-				new MultiDiffEditorItem(change.originalUri, change.modifiedUri, change.modifiedUri));
+			// Order the diffs like the Changes view, which sorts its list and tree like the Source Control view.
+			const viewMode = this.changesViewService.viewModeObs.read(reader) === ChangesViewMode.Tree ? 'tree' : 'list';
+			return sortMultiDiffEditorFileListItems(changes, getChangesEditorFileResource, viewMode).map(change => {
+				const resource = getChangesEditorFileResource(change);
+				return new MultiDiffEditorItem(change.originalUri, change.modifiedUri, resource, undefined, {
+					[SessionChangesFileResourceContext.key]: resource.toString(),
+				});
+			});
 		});
 
 		return { resources: new ValueWithChangeEventFromObservable(resourcesObs) };

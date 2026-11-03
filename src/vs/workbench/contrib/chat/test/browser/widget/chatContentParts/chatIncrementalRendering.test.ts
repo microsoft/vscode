@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -346,6 +347,29 @@ suite('IncrementalDOMMorpher', () => {
 			// The render callback should now have the full content
 			assert.strictEqual(rendered.length, 2);
 			assert.strictEqual(rendered[1], fullContent);
+		});
+
+		test('signals when word-buffered content has drained to the DOM', async () => {
+			configService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'word');
+			const morpher = createMorpher();
+			morpher.setRenderCallback(() => { });
+			let drainCount = 0;
+			disposables.add(morpher.onDidDrain(() => drainCount++));
+			const didDrain = Event.toPromise(morpher.onDidDrain);
+
+			morpher.seed('one two three');
+			morpher.updateStreamRate(2000, true);
+			assert.strictEqual(morpher.isDrained, false);
+
+			await didDrain;
+
+			assert.deepStrictEqual({
+				isDrained: morpher.isDrained,
+				drainCount,
+			}, {
+				isDrained: true,
+				drainCount: 1,
+			});
 		});
 	});
 });

@@ -11,12 +11,12 @@ import { IConversationOptions } from '../../../platform/chat/common/conversation
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { DevContainerConfigGeneratorArguments, IDevContainerConfigurationService } from '../../../platform/devcontainer/common/devContainerConfigurationService';
 import { ICombinedEmbeddingIndex } from '../../../platform/embeddings/common/vscodeIndex';
-import { FEEDBACK_URL } from '../../../platform/endpoint/common/domainService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IGitCommitMessageService } from '../../../platform/git/common/gitCommitMessageService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { ISettingsEditorSearchService } from '../../../platform/settingsEditor/common/settingsEditorSearchService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
+import { buildGitCommitCommand } from '../../../platform/terminal/common/shellQuoting';
 import { ChatExtGlobalPerfMark, markChatExtGlobal } from '../../../util/common/performance';
 import { isUri } from '../../../util/common/types';
 import { DeferredPromise } from '../../../util/vs/base/common/async';
@@ -28,7 +28,6 @@ import { ContributionCollection, IExtensionContribution } from '../../common/con
 import { vscodeNodeChatContributions } from '../../extension/vscode-node/contributions';
 import { IMergeConflictService } from '../../git/common/mergeConflictService';
 import { registerInlineChatCommands } from '../../inlineChat/vscode-node/inlineChatCommands';
-import { INewWorkspacePreviewContentManager } from '../../intents/node/newIntent';
 import { FindInFilesArgs } from '../../intents/node/searchIntent';
 import { TerminalExplainIntent } from '../../intents/node/terminalExplainIntent';
 import { ILinkifyService } from '../../linkify/common/linkifyService';
@@ -40,7 +39,6 @@ import { IntentDetector } from '../../prompt/node/intentDetector';
 import { SemanticSearchTextSearchProvider } from '../../workspaceSemanticSearch/node/semanticSearchTextSearchProvider';
 import { GitHubPullRequestProviders } from '../node/githubPullRequestProviders';
 import { startFeedbackCollection } from './feedbackCollection';
-import { registerNewWorkspaceIntentCommand } from './newWorkspaceFollowup';
 import { generateTerminalFixes, setLastCommandMatchResult } from './terminalFixGenerator';
 
 /**
@@ -79,38 +77,72 @@ export class ConversationFeature implements IExtensionContribution {
 		@IMergeConflictService private readonly mergeConflictService: IMergeConflictService,
 		@ILinkifyService private readonly linkifyService: ILinkifyService,
 		@IVSCodeExtensionContext private readonly extensionContext: IVSCodeExtensionContext,
-		@INewWorkspacePreviewContentManager private readonly newWorkspacePreviewContentManager: INewWorkspacePreviewContentManager,
 		@ISettingsEditorSearchService private readonly settingsEditorSearchService: ISettingsEditorSearchService,
 	) {
 		this._enabled = false;
 		this._activated = false;
 
-		// Register Copilot token listener
-		this.registerCopilotTokenListener();
-
 		const activationBlockerDeferred = new DeferredPromise<void>();
 		this.activationBlocker = activationBlockerDeferred.p;
+
+		// Activation and chat enablement can be driven by either a Copilot token OR the presence of a BYOK model.
+		let hasByokModels = false;
+		const reevaluate = () => {
+			const hasToken = !!authenticationService.copilotToken;
+			const shouldActivate = hasToken || hasByokModels;
+			if (hasToken) {
+				this.logService.info(`copilot token sku: ${authenticationService.copilotToken?.sku ?? ''}`);
+			}
+			this.enabled = shouldActivate;
+			this.activated = shouldActivate;
+			if (shouldActivate && !activationBlockerDeferred.isSettled) {
+				if (hasToken) {
+					markChatExtGlobal(ChatExtGlobalPerfMark.DidWaitForCopilotToken);
+				}
+				activationBlockerDeferred.complete();
+			}
+		};
+
 		if (authenticationService.copilotToken) {
 			this.logService.info(`ConversationFeature: Copilot token already available`);
-			this.activated = true;
-			activationBlockerDeferred.complete();
 		} else {
 			markChatExtGlobal(ChatExtGlobalPerfMark.WillWaitForCopilotToken);
-			this.logService.info(`ConversationFeature: Waiting for copilot token to activate conversation feature`);
+			this.logService.info(`ConversationFeature: Waiting for copilot token or BYOK model to activate conversation feature`);
 		}
 
-		this._disposables.add(authenticationService.onDidAuthenticationChange(async () => {
-			const hasSession = !!authenticationService.copilotToken;
-			this.logService.info(`ConversationFeature: onDidAuthenticationChange has token: ${hasSession}`);
-			if (hasSession) {
-				markChatExtGlobal(ChatExtGlobalPerfMark.DidWaitForCopilotToken);
-				this.activated = true;
-			} else {
-				this.activated = false;
+		const refreshHasByokModels = async () => {
+			try {
+				const models = await vscode.lm.selectChatModels({});
+				const value = models.some(m => m.vendor !== 'copilot');
+				if (value !== hasByokModels) {
+					hasByokModels = value;
+					this.logService.info(`ConversationFeature: BYOK models ${value ? 'available' : 'unavailable'}`);
+					reevaluate();
+				}
+			} catch (e) {
+				this.logService.warn(`ConversationFeature: failed to query language models: ${e}`);
 			}
+		};
+		void refreshHasByokModels();
+		this._disposables.add(vscode.lm.onDidChangeChatModels(() => void refreshHasByokModels()));
 
-			activationBlockerDeferred.complete();
+		// Re-evaluate enablement whenever the Copilot token changes (including routine refreshes),
+		// since reevaluate() checks `copilotToken` to decide whether to enable/activate.
+		this._disposables.add(authenticationService.onDidCopilotTokenChange(() => {
+			reevaluate();
 		}));
+
+		// Always unblock activation when the identity settles; chat enablement is driven by `reevaluate` independently.
+		// Without this, BYOK-only sessions can deadlock (the BYOK query needs this extension fully activated,
+		// while activation waits for the BYOK query to set `hasByokModels`).
+		this._disposables.add(authenticationService.onDidAuthenticationChange(() => {
+			reevaluate();
+			if (!activationBlockerDeferred.isSettled) {
+				activationBlockerDeferred.complete();
+			}
+		}));
+
+		reevaluate();
 	}
 
 	get enabled() {
@@ -170,13 +202,17 @@ export class ConversationFeature implements IExtensionContribution {
 		} else {
 			this._searchProviderRegistered = true;
 
-			// Don't register for no auth user
-			if (this.authenticationService.copilotToken?.isNoAuthUser) {
+			// Don't register for no auth user or BYOK-only users
+			if (!this.authenticationService.anyGitHubSession || this.authenticationService.copilotToken?.isNoAuthUser) {
 				this.logService.debug('ConversationFeature: Skipping search provider registration - no GitHub session available');
 				return;
 			}
 
-			return vscode.workspace.registerAITextSearchProvider('file', this.instantiationService.createInstance(SemanticSearchTextSearchProvider));
+			const provider = this.instantiationService.createInstance(SemanticSearchTextSearchProvider);
+			return combinedDisposable(
+				provider,
+				vscode.workspace.registerAITextSearchProvider('file', provider),
+			);
 		}
 	}
 
@@ -186,6 +222,13 @@ export class ConversationFeature implements IExtensionContribution {
 		}
 
 		this._settingsSearchProviderRegistered = true;
+
+		// Don't register for no auth user or or BYOK-only users
+		if (!this.authenticationService.anyGitHubSession || this.authenticationService.copilotToken?.isNoAuthUser) {
+			this.logService.debug('ConversationFeature: Skipping settings search provider registration - no GitHub session available');
+			return;
+		}
+
 		return vscode.ai.registerSettingsSearchProvider(this.settingsEditorSearchService);
 	}
 
@@ -213,6 +256,11 @@ export class ConversationFeature implements IExtensionContribution {
 	}
 
 	private registerParticipantDetectionProvider() {
+		// Many BYOK models are slow and we don't want to risk invalid detection with those, at least for now.
+		if (!this.authenticationService.anyGitHubSession) {
+			return;
+		}
+
 		if ('registerChatParticipantDetectionProvider' in vscode.chat) {
 			const provider = this.instantiationService.createInstance(IntentDetector);
 			return vscode.chat.registerChatParticipantDetectionProvider(provider);
@@ -223,10 +271,8 @@ export class ConversationFeature implements IExtensionContribution {
 		const disposables = new DisposableStore();
 
 		[
-			vscode.commands.registerCommand('github.copilot.interactiveSession.feedback', async () => {
-				return vscode.env.openExternal(vscode.Uri.parse(FEEDBACK_URL));
-			}),
-			vscode.commands.registerCommand('github.copilot.chat.compact', () => vscode.commands.executeCommand('workbench.action.chat.open', { query: '/compact' })),
+			vscode.commands.registerCommand('github.copilot.interactiveSession.feedback', () => vscode.commands.executeCommand('github.copilot.report', 'Copilot chat feedback')),
+			vscode.commands.registerCommand('github.copilot.chat.compact', () => vscode.commands.executeCommand('workbench.action.chat.open', { query: '/compact', preserveInput: true })),
 			vscode.commands.registerCommand('github.copilot.terminal.explainTerminalLastCommand', async () => this.triggerTerminalChat({ query: `/${TerminalExplainIntent.intentName} #terminalLastCommand` })),
 			vscode.commands.registerCommand('github.copilot.terminal.fixTerminalLastCommand', async () => generateTerminalFixes(this.instantiationService)),
 			vscode.commands.registerCommand('github.copilot.terminal.generateCommitMessage', async () => {
@@ -246,11 +292,12 @@ export class ConversationFeature implements IExtensionContribution {
 				}
 
 				const commitMessage = await this.gitCommitMessageService.generateCommitMessage(repository, CancellationToken.None);
-				if (commitMessage) {
-					// Sanitize the message by escaping double quotes, backslashes, and $ characters
-					const sanitizedMessage = commitMessage.replace(/"/g, '\\"').replace(/\\/g, '\\\\').replace(/\$/g, '\\$'); // CodeQL [SM02383] Backslashes are escaped as part of the second replace.
-					const message = `git commit -m "${sanitizedMessage}"`;
-					vscode.window.activeTerminal?.sendText(message, false);
+				const terminal = vscode.window.activeTerminal;
+				if (commitMessage && terminal) {
+					const command = buildGitCommitCommand(commitMessage, terminal.state.shell);
+					if (command) {
+						terminal.sendText(command, false);
+					}
 				}
 			}),
 			vscode.commands.registerCommand('github.copilot.git.generateCommitMessage', async (rootUri: vscode.Uri | undefined, _: unknown, cancellationToken: vscode.CancellationToken | undefined) => {
@@ -297,7 +344,6 @@ export class ConversationFeature implements IExtensionContribution {
 			}),
 			this.instantiationService.invokeFunction(registerInlineChatCommands),
 			this.registerTerminalQuickFixProviders(),
-			registerNewWorkspaceIntentCommand(this.newWorkspacePreviewContentManager, this.logService, options),
 			registerGitHubPullRequestTitleAndDescriptionProvider(this.instantiationService),
 			registerSearchIntentCommand(),
 		].forEach(d => disposables.add(d));
@@ -338,14 +384,6 @@ export class ConversationFeature implements IExtensionContribution {
 			)
 		].forEach(d => disposables.add(d));
 		return disposables;
-	}
-
-	private registerCopilotTokenListener() {
-		this._disposables.add(this.authenticationService.onDidAuthenticationChange(() => {
-			const chatEnabled = this.authenticationService.copilotToken !== undefined;
-			this.logService.info(`copilot token sku: ${this.authenticationService.copilotToken?.sku ?? ''}`);
-			this.enabled = chatEnabled ?? false;
-		}));
 	}
 
 	private registerTerminalQuickFixProviders() {

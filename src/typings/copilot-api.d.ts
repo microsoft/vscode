@@ -88,10 +88,25 @@ declare module '@vscode/copilot-api' {
 		makeRequest<T>(requestOptions: MakeRequestOptions, requestMetadata: RequestMetadata): Promise<T>;
 	}
 
+	interface CCAModelTokenPriceTier {
+		input_price?: number;
+		cache_price?: number;
+		cache_write_price?: number;
+		output_price?: number;
+		context_max?: number;
+	}
+
+	interface CCAModelTokenPrices {
+		batch_size?: number;
+		default?: CCAModelTokenPriceTier;
+		long_context?: CCAModelTokenPriceTier;
+	}
+
 	interface CCAModelBilling {
 		is_premium: boolean;
 		multiplier: number;
 		restricted_to: string[];
+		token_prices?: CCAModelTokenPrices;
 	}
 
 	interface CCAModelVisionLimits {
@@ -138,6 +153,7 @@ declare module '@vscode/copilot-api' {
 		is_chat_fallback: boolean;
 		model_picker_category: string;
 		model_picker_enabled: boolean;
+		model_picker_price_category?: string;
 		name: string;
 		object: string;
 		policy: CCAModelPolicy;

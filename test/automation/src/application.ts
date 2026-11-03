@@ -61,9 +61,17 @@ export class Application {
 		return this.options.extensionsPath;
 	}
 
+	get logsPath(): string {
+		return this.options.logsPath;
+	}
+
 	private _userDataPath: string | undefined;
 	get userDataPath(): string | undefined {
 		return this._userDataPath;
+	}
+
+	get extraEnv(): Readonly<Record<string, string | undefined>> | undefined {
+		return this.options.extraEnv;
 	}
 
 	private _profiler: Profiler | undefined;

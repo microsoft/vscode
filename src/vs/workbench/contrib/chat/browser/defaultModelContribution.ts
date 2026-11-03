@@ -27,17 +27,37 @@ export interface DefaultModelContributionOptions {
 	readonly logPrefix: string;
 	/** Additional filter beyond `isUserSelectable`. Return `true` to include the model. */
 	readonly filter?: (metadata: ILanguageModelChatMetadata) => boolean;
+	/**
+	 * How model identifiers are encoded in the stored setting value.
+	 * - `'qualifiedName'` (default): `${name} (${vendor})` — matches
+	 *   {@link ILanguageModelChatMetadata.asQualifiedName}. Kept for backward
+	 *   compatibility with existing settings (plan/explore agent).
+	 * - `'vendorAndId'`: `${vendor}/${id}` — stable composite of API-stable
+	 *   fields, directly usable with `vscode.lm.selectChatModels`.
+	 */
+	readonly storageFormat?: 'qualifiedName' | 'vendorAndId';
+	/**
+	 * Optional override for the label of the default ("empty") enum entry.
+	 * When omitted, defaults to `"Auto (Vendor Default)"`.
+	 */
+	readonly defaultEntryLabel?: string;
+	/**
+	 * Optional override for the description of the default ("empty") enum
+	 * entry. See {@link defaultEntryLabel}.
+	 */
+	readonly defaultEntryDescription?: string;
 }
 
 /**
  * Creates the initial static arrays used by configuration registration code.
  * The returned arrays are mutated in-place by {@link DefaultModelContribution}.
+ *
  */
-export function createDefaultModelArrays(): DefaultModelArrays {
+export function createDefaultModelArrays(defaultEntryLabel?: string, defaultEntryDescription?: string): DefaultModelArrays {
 	return {
 		modelIds: [''],
-		modelLabels: [localize('defaultModel', 'Auto (Vendor Default)')],
-		modelDescriptions: [localize('defaultModelDescription', "Use the vendor's default model")],
+		modelLabels: [defaultEntryLabel ?? localize('defaultModel', 'Auto (Vendor Default)')],
+		modelDescriptions: [defaultEntryDescription ?? localize('defaultModelDescription', "Use the vendor's default model")],
 	};
 }
 
@@ -60,7 +80,7 @@ export abstract class DefaultModelContribution extends Disposable {
 
 	private _updateModelValues(): void {
 		const { modelIds, modelLabels, modelDescriptions } = this._arrays;
-		const { configKey, configSectionId, logPrefix, filter } = this._options;
+		const { configKey, configSectionId, logPrefix, filter, storageFormat, defaultEntryLabel, defaultEntryDescription } = this._options;
 
 		try {
 			// Clear arrays
@@ -70,8 +90,8 @@ export abstract class DefaultModelContribution extends Disposable {
 
 			// Add default/empty option
 			modelIds.push('');
-			modelLabels.push(localize('defaultModel', 'Auto (Vendor Default)'));
-			modelDescriptions.push(localize('defaultModelDescription', "Use the vendor's default model"));
+			modelLabels.push(defaultEntryLabel ?? localize('defaultModel', 'Auto (Vendor Default)'));
+			modelDescriptions.push(defaultEntryDescription ?? localize('defaultModelDescription', "Use the vendor's default model"));
 
 			const models: { identifier: string; metadata: ILanguageModelChatMetadata }[] = [];
 			const allModelIds = this._languageModelsService.getLanguageModelIds();
@@ -89,8 +109,18 @@ export abstract class DefaultModelContribution extends Disposable {
 				}
 			}
 
+			const vendors = this._languageModelsService.getVendors();
+			const visibleVendors = new Set(vendors.map(vendor => vendor.vendor));
 			const supportedModels = models.filter(model => {
-				if (!model.metadata?.isUserSelectable) {
+				if (!visibleVendors.has(model.metadata.vendor)) {
+					return false;
+				}
+				if (model.metadata?.isUserSelectable === false) {
+					return false;
+				}
+				// Models scoped to a specific chat session type (e.g. agent-host
+				// providers) are intentionally hidden from general model pickers.
+				if (model.metadata?.targetChatSessionType !== undefined) {
 					return false;
 				}
 				if (filter && !filter(model.metadata)) {
@@ -101,11 +131,50 @@ export abstract class DefaultModelContribution extends Disposable {
 
 			supportedModels.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
 
+			// Build a vendor id -> display name lookup so labels can show the
+			// human-readable provider name (e.g. "Copilot") instead of the
+			// vendor id (e.g. "copilot") which is what gets stored.
+			const vendorDisplayNames = new Map<string, string>();
+			for (const vendor of vendors) {
+				vendorDisplayNames.set(vendor.vendor, vendor.displayName);
+			}
+
+			// When the storage format is `vendorAndId`, two models can collapse
+			// to the same `${vendor}/${id}` key. The override resolver does not
+			// filter on `isUserSelectable`, so a hidden/internal model with the
+			// same vendor/id as a visible one would make the chosen value
+			// silently fall back to the default at runtime. Compute ambiguity
+			// across *all* models (not just `supportedModels`) so any such
+			// collision excludes the visible entry from the picker too.
+			const ambiguousVendorIds = new Set<string>();
+			if (storageFormat === 'vendorAndId') {
+				const counts = new Map<string, number>();
+				for (const model of models) {
+					const key = `${model.metadata.vendor}/${model.metadata.id}`;
+					counts.set(key, (counts.get(key) ?? 0) + 1);
+				}
+				for (const [key, count] of counts) {
+					if (count > 1) {
+						ambiguousVendorIds.add(key);
+					}
+				}
+			}
+
 			for (const model of supportedModels) {
 				try {
-					const qualifiedName = ILanguageModelChatMetadata.asQualifiedName(model.metadata);
-					modelIds.push(qualifiedName);
-					modelLabels.push(model.metadata.name);
+					const storedId = storageFormat === 'vendorAndId'
+						? `${model.metadata.vendor}/${model.metadata.id}`
+						: ILanguageModelChatMetadata.asQualifiedName(model.metadata);
+					if (ambiguousVendorIds.has(storedId)) {
+						this._logService.trace(`${logPrefix} Skipping model '${model.metadata.name}' (${storedId}): key collides with another registered model.`);
+						continue;
+					}
+					const vendorDisplayName = vendorDisplayNames.get(model.metadata.vendor);
+					if (!vendorDisplayName) {
+						this._logService.trace(`${logPrefix} No vendor descriptor for '${model.metadata.vendor}' (model '${model.metadata.id}'); falling back to vendor id in label.`);
+					}
+					modelIds.push(storedId);
+					modelLabels.push(localize('modelLabelWithVendor', "{0} ({1})", model.metadata.name, vendorDisplayName ?? model.metadata.vendor));
 					modelDescriptions.push(model.metadata.tooltip ?? model.metadata.detail ?? '');
 				} catch (e) {
 					this._logService.error(`${logPrefix} Error adding model ${model.metadata.name}:`, e);

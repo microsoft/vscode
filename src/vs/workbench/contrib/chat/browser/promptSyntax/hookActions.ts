@@ -10,14 +10,12 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { ChatViewId } from '../chat.js';
-import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from '../actions/chatActions.js';
+import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType, Target, getSourceDescription } from '../../common/promptSyntax/promptTypes.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -26,7 +24,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { HOOK_METADATA, HOOKS_BY_TARGET, HookType, IHookTypeMeta } from '../../common/promptSyntax/hookTypes.js';
 import { formatHookCommandLabel, getEffectiveCommandFieldKey } from '../../common/promptSyntax/hookSchema.js';
 import { getCopilotCliHookTypeName, resolveCopilotCliHookType } from '../../common/promptSyntax/hookCopilotCliCompat.js';
-import { getHookSourceFormat, HookSourceFormat, buildNewHookEntry } from '../../common/promptSyntax/hookCompatibility.js';
+import { getHookSourceFormat, HookSourceFormat, buildNewHookEntry, buildNewHookFile } from '../../common/promptSyntax/hookCompatibility.js';
 import { getClaudeHookTypeName, resolveClaudeHookType } from '../../common/promptSyntax/hookClaudeCompat.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -39,7 +37,7 @@ import { IBulkEditService, ResourceTextEdit } from '../../../../../editor/browse
 import { Range } from '../../../../../editor/common/core/range.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
-import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
+import { OS } from '../../../../../base/common/platform.js';
 
 /**
  * Action ID for the `Configure Hooks` action.
@@ -102,7 +100,7 @@ async function addHookToFile(
 	openEditorOverride?: (resource: URI, options?: { selection?: ITextEditorSelection }) => Promise<void>,
 ): Promise<void> {
 	// Parse existing file
-	let hooksContent: { hooks: Record<string, unknown[]> };
+	let hooksContent: { version?: number; hooks: Record<string, unknown[]> };
 	const fileExists = await fileService.exists(hookFileUri);
 
 	if (fileExists) {
@@ -128,8 +126,7 @@ async function addHookToFile(
 	const sourceFormat = getHookSourceFormat(hookFileUri);
 	const isClaude = sourceFormat === HookSourceFormat.Claude;
 
-	// Detect naming convention from existing keys
-	const useCopilotCliNamingConvention = !isClaude && usesCopilotCliNaming(hooksContent.hooks);
+	const useCopilotCliNamingConvention = !isClaude && (!fileExists || typeof hooksContent.version === 'number' || usesCopilotCliNaming(hooksContent.hooks));
 	const hookTypeKeyName = isClaude
 		? (getClaudeHookTypeName(hookTypeId) ?? hookTypeId)
 		: getHookTypeKeyName(hookTypeId, useCopilotCliNamingConvention);
@@ -166,7 +163,7 @@ async function addHookToFile(
 		jsonContent = applyEdits(originalText, edits);
 	} else {
 		// New file - use JSON.stringify since there are no comments to preserve
-		const newContent = { hooks: { [keyToUse]: [newHookEntry] } };
+		const newContent = buildNewHookFile(sourceFormat, hookTypeId);
 		jsonContent = JSON.stringify(newContent, null, '\t');
 	}
 
@@ -309,6 +306,14 @@ export interface IHookQuickPickOptions {
 	readonly onHookFileCreated?: (uri: URI) => void;
 	/** Filter the displayed hook types to those supported by the given target. */
 	readonly target?: Target;
+	/** Restrict hook files and creation destinations to one storage scope. */
+	readonly preferredStorage?: PromptsStorage;
+	/** Restrict workspace hook files and creation destinations to one workspace folder. */
+	readonly workspaceFolder?: URI;
+}
+
+export function isHookResourceInWorkspace(resource: URI, workspaceFolder: URI | undefined, workspaceService: IWorkspaceContextService): boolean {
+	return !workspaceFolder || isEqual(workspaceService.getWorkspaceFolder(resource)?.uri, workspaceFolder);
 }
 
 /**
@@ -335,13 +340,15 @@ export async function showConfigureHooksQuickPick(
 	const targetOS = remoteEnv?.os ?? OS;
 
 	// Get workspace root and user home for path resolution
-	const workspaceFolder = workspaceService.getWorkspace().folders[0];
+	const workspaceFolder = options?.workspaceFolder
+		? workspaceService.getWorkspaceFolder(options.workspaceFolder)
+		: workspaceService.getWorkspace().folders[0];
 	const workspaceRootUri = workspaceFolder?.uri;
 	const userHomeUri = await pathService.userHome();
 	const userHome = userHomeUri.fsPath ?? userHomeUri.path;
 
 	// Parse all hook files upfront to count hooks per type
-	const hookEntries = await parseAllHookFiles(
+	const hookEntries = (await parseAllHookFiles(
 		promptsService,
 		fileService,
 		labelService,
@@ -349,8 +356,8 @@ export async function showConfigureHooksQuickPick(
 		userHome,
 		targetOS,
 		CancellationToken.None,
-		{ includeAgentHooks: true }
-	);
+		{ includeAgentHooks: true, preferredStorage: options?.preferredStorage }
+	)).filter(entry => isHookResourceInWorkspace(entry.fileUri, options?.workspaceFolder, workspaceService));
 
 	// Count hooks per type
 	const hookCountByType = new Map<HookType, number>();
@@ -400,7 +407,7 @@ export async function showConfigureHooksQuickPick(
 							.filter(([hookType]) => targetHookTypes.has(hookType))
 							.map(makeItem);
 					} else {
-						// No target: group into Default (shared), VS Code Only, Copilot CLI Only
+						// No target: group into Default (shared), VS Code Only, Copilot Only
 						const vscodeTypes = new Set(Object.values(HOOKS_BY_TARGET[Target.VSCode]));
 						const copilotTypes = new Set(Object.values(HOOKS_BY_TARGET[Target.GitHubCopilot]));
 						const allEntries = Object.entries(HOOK_METADATA) as [HookType, IHookTypeMeta][];
@@ -411,7 +418,7 @@ export async function showConfigureHooksQuickPick(
 
 						pickerItems = [];
 						if (shared.length > 0) {
-							pickerItems.push({ type: 'separator', label: localize('hookSection.default', "Local/Copilot CLI Agents") });
+							pickerItems.push({ type: 'separator', label: localize('hookSection.default', "Local/Copilot Agents") });
 							pickerItems.push(...shared.map(makeItem));
 						}
 						if (vscodeOnly.length > 0) {
@@ -419,7 +426,7 @@ export async function showConfigureHooksQuickPick(
 							pickerItems.push(...vscodeOnly.map(makeItem));
 						}
 						if (copilotOnly.length > 0) {
-							pickerItems.push({ type: 'separator', label: localize('hookSection.copilotCliOnly', "Copilot CLI Agents") });
+							pickerItems.push({ type: 'separator', label: localize('hookSection.copilotCliOnly', "Copilot Agents") });
 							pickerItems.push(...copilotOnly.map(makeItem));
 						}
 					}
@@ -575,9 +582,10 @@ export async function showConfigureHooksQuickPick(
 				}
 
 				case Step.SelectFile: {
-					// Step 3: Handle "Add new hook" - show create new file + existing hook files
-					// Get existing hook files (local storage only, not User Data)
-					const hookFiles = await promptsService.listPromptFilesForStorage(PromptsType.hook, PromptsStorage.local, CancellationToken.None);
+					// Step 3: Handle "Add new hook" - show create new file + existing hook files.
+					const hookStorage = options?.preferredStorage ?? PromptsStorage.local;
+					const hookFiles = (await promptsService.listPromptFilesForStorage(PromptsType.hook, hookStorage, CancellationToken.None))
+						.filter(file => isHookResourceInWorkspace(file.uri, options?.workspaceFolder, workspaceService));
 
 					const fileItems: (IHookFileQuickPickItem | IQuickPickSeparator)[] = [];
 
@@ -649,10 +657,14 @@ export async function showConfigureHooksQuickPick(
 				case Step.SelectFolder: {
 					// Get source folders for hooks (uses getSourceFolders which
 					// excludes Claude paths and normalizes to directories)
-					const allFolders = await promptsService.getSourceFolders(PromptsType.hook);
+					const allFolders = (await promptsService.getSourceFolders(PromptsType.hook))
+						.filter(folder => (options?.preferredStorage === undefined || folder.storage === options.preferredStorage)
+							&& isHookResourceInWorkspace(folder.uri, options?.workspaceFolder, workspaceService));
 
 					if (allFolders.length === 0) {
-						notificationService.error(localize('commands.hook.noLocalFolders', "Please open a workspace folder to configure hooks."));
+						notificationService.error(options?.preferredStorage === PromptsStorage.user
+							? localize('commands.hook.noUserFolders', "No user hooks folder is available.")
+							: localize('commands.hook.noLocalFolders', "Please open a workspace folder to configure hooks."));
 						return;
 					}
 
@@ -660,7 +672,7 @@ export async function showConfigureHooksQuickPick(
 					selectedFolder = allFolders[0];
 					if (allFolders.length > 1) {
 						const folderItems = allFolders.map((folder, index) => {
-							const basePath = labelService.getUriLabel(folder.uri, { relative: folder.storage === PromptsStorage.local });
+							const basePath = labelService.getUriLabel(folder.uri, { relative: folder.storage === PromptsStorage.local, noPrefix: !!options?.workspaceFolder && folder.storage === PromptsStorage.local });
 							const label = index === 0 ? localize('commands.hook.defaultFolder', "{0} (default)", basePath) : basePath;
 							return {
 								label,
@@ -774,31 +786,8 @@ export async function showConfigureHooksQuickPick(
 
 					// Detect if new file is a Claude hooks file based on its path
 					const newFileFormat = getHookSourceFormat(hookFileUri);
-					const isClaudeNewFile = newFileFormat === HookSourceFormat.Claude;
-					const isCopilotCliOnly = !isClaudeNewFile
-						&& !new Set(Object.values(HOOKS_BY_TARGET[Target.VSCode])).has(selectedHookType!.hookType)
-						&& new Set(Object.values(HOOKS_BY_TARGET[Target.GitHubCopilot])).has(selectedHookType!.hookType);
-					const hookTypeKey = isClaudeNewFile
-						? (getClaudeHookTypeName(selectedHookType!.hookType) ?? selectedHookType!.hookType)
-						: isCopilotCliOnly
-							? (getCopilotCliHookTypeName(selectedHookType!.hookType) ?? selectedHookType!.hookType)
-							: selectedHookType!.hookType;
-					const newFileHookEntry = isCopilotCliOnly
-						? { type: 'command', [targetOS === OperatingSystem.Windows ? 'powershell' : 'bash']: '' }
-						: buildNewHookEntry(newFileFormat);
-					const commandFieldKey = isCopilotCliOnly
-						? (targetOS === OperatingSystem.Windows ? 'powershell' : 'bash')
-						: 'command';
-
-					// Create new hook file with the selected hook type
-					const hooksContent: Record<string, unknown> = {
-						...(isCopilotCliOnly ? { version: 1 } : {}),
-						hooks: {
-							[hookTypeKey]: [
-								newFileHookEntry
-							]
-						}
-					};
+					const hooksContent = buildNewHookFile(newFileFormat, selectedHookType!.hookType);
+					const hookTypeKey = Object.keys(hooksContent.hooks)[0];
 
 					const jsonContent = JSON.stringify(hooksContent, null, '\t');
 					await fileService.writeFile(hookFileUri, VSBuffer.fromString(jsonContent));
@@ -806,7 +795,7 @@ export async function showConfigureHooksQuickPick(
 					options?.onHookFileCreated?.(hookFileUri);
 
 					// Find the selection for the new hook's command field
-					const selection = findHookCommandSelection(jsonContent, hookTypeKey, 0, commandFieldKey);
+					const selection = findHookCommandSelection(jsonContent, hookTypeKey, 0, 'command');
 
 					// Open editor with selection
 					if (options?.openEditor) {
@@ -838,13 +827,7 @@ class ManageHooksAction extends Action2 {
 			icon: Codicon.zap,
 			f1: true,
 			precondition: ChatContextKeys.enabled,
-			category: CHAT_CATEGORY,
-			menu: {
-				id: CHAT_CONFIG_MENU_ID,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-				order: 12,
-				group: '1_level'
-			}
+			category: CHAT_CATEGORY
 		});
 	}
 
@@ -858,6 +841,9 @@ class ManageHooksAction extends Action2 {
 /**
  * Helper to register the `Manage Hooks` action.
  */
-export function registerHookActions(): void {
-	registerAction2(ManageHooksAction);
+export function registerHookActions(): DisposableStore {
+	const store = new DisposableStore();
+	store.add(registerAction2(ManageHooksAction));
+
+	return store;
 }

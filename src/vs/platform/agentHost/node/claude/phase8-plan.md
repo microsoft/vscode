@@ -398,7 +398,7 @@ get _currentTurnId(): string {
 
 **Depends on:** Steps 1–5
 
-**Done when:** all tests green; `npm run compile-check-ts-native` clean; smoke row added.
+**Done when:** all tests green; `npm run typecheck-client` clean; smoke row added.
 
 ## Files to Modify or Create
 
@@ -471,7 +471,7 @@ Test I: proxy-backed session produces `ToolResultFileEditContent` in `SessionToo
 
 Type-check:
 ```
-npm run compile-check-ts-native
+npm run typecheck-client
 npm run valid-layers-check
 ```
 

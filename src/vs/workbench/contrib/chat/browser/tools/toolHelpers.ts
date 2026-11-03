@@ -7,7 +7,12 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
+import type { ITerminalSandboxPrecheckInputs } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import type { IChatWidgetService } from '../chat.js';
+import type { IChatService } from '../../common/chatService/chatService.js';
+import { ChatPermissionLevel, isAutoApproveLevel } from '../../common/constants.js';
 import { IToolResult } from '../../common/tools/languageModelToolsService.js';
 import { createToolSimpleTextResult } from '../../common/tools/builtinTools/toolHelpers.js';
 import { WorkingDirectory } from '../../common/workingDirectory.js';
@@ -20,19 +25,79 @@ export interface ISymbolToolInput {
 }
 
 /**
- * Resolves a URI from tool input. Accepts either a full URI string or a
- * workspace-relative file path. When a {@link workingDirectory} is provided
- * (agents window), relative paths are resolved against it first.
+ * Returns whether a resource is within the active working directory, or within
+ * a workspace folder when no explicit working directory is set.
  */
-export function resolveToolUri(input: ISymbolToolInput, workspaceContextService: IWorkspaceContextService, workingDirectory?: URI): URI | undefined {
+export function isSymbolToolResourceInScope(resource: URI, workspaceContextService: IWorkspaceContextService, uriIdentityService: IUriIdentityService, workingDirectory?: URI): boolean {
+	const normalizedResource = uriIdentityService.extUri.normalizePath(resource);
+	const scopeRoots = workingDirectory ? [workingDirectory] : workspaceContextService.getWorkspace().folders.map(folder => folder.uri);
+	return scopeRoots.some(root => uriIdentityService.extUri.isEqualOrParent(normalizedResource, uriIdentityService.extUri.normalizePath(root)));
+}
+
+/**
+ * Resolves an in-scope URI from tool input. Accepts either a full URI string or
+ * a file path relative to the working directory when one is provided, or to the
+ * first workspace folder otherwise.
+ */
+export function resolveSymbolToolFileUri(input: ISymbolToolInput, workspaceContextService: IWorkspaceContextService, uriIdentityService: IUriIdentityService, workingDirectory?: URI): URI | undefined {
 	if (input.uri) {
-		return URI.parse(input.uri);
+		const uri = uriIdentityService.extUri.normalizePath(URI.parse(input.uri));
+		return isSymbolToolResourceInScope(uri, workspaceContextService, uriIdentityService, workingDirectory) ? uri : undefined;
 	}
 	if (input.filePath) {
 		const workingDir = new WorkingDirectory(workspaceContextService, workingDirectory);
-		return workingDir.resolveRelativePath(input.filePath);
+		const uri = workingDir.resolveRelativePath(input.filePath);
+		return uri && isSymbolToolResourceInScope(uri, workspaceContextService, uriIdentityService, workingDirectory) ? uri : undefined;
 	}
 	return undefined;
+}
+
+/**
+ * Gets the chat permission level that should apply to a tool invocation.
+ *
+ * When a request id is available, the request-stamped permission level is the
+ * source of truth for that invocation. If the request cannot be resolved (for
+ * example during early streaming), fall back to the live session widget and then
+ * the latest request in the chat model.
+ */
+export function getChatPermissionLevelForToolInvocation(
+	chatSessionResource: URI | undefined,
+	chatRequestId: string | undefined,
+	chatWidgetService: IChatWidgetService,
+	chatService: IChatService,
+): ChatPermissionLevel | undefined {
+	if (!chatSessionResource) {
+		return undefined;
+	}
+
+	const model = chatService.getSession(chatSessionResource);
+	const request = chatRequestId
+		? model?.getRequests().find(request => request.id === chatRequestId)
+		: undefined;
+	if (request) {
+		return request.modeInfo?.permissionLevel ?? ChatPermissionLevel.Default;
+	}
+
+	const widget = chatWidgetService.getWidgetBySessionResource(chatSessionResource);
+	if (widget) {
+		return widget.input.currentModeInfo.permissionLevel ?? ChatPermissionLevel.Default;
+	}
+
+	return model?.getRequests().at(-1)?.modeInfo?.permissionLevel ?? ChatPermissionLevel.Default;
+}
+
+/**
+ * Translates the chat permission level for a tool invocation into the
+ * platform-neutral sandbox precheck inputs.
+ */
+export function getSandboxPrecheckInputsForToolInvocation(
+	chatSessionResource: URI | undefined,
+	chatRequestId: string | undefined,
+	chatWidgetService: IChatWidgetService,
+	chatService: IChatService,
+): ITerminalSandboxPrecheckInputs | undefined {
+	const chatPermissionLevel = getChatPermissionLevelForToolInvocation(chatSessionResource, chatRequestId, chatWidgetService, chatService);
+	return chatPermissionLevel === undefined ? undefined : { isDefaultApprovalPermissionEnabled: !isAutoApproveLevel(chatPermissionLevel) };
 }
 
 /**

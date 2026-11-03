@@ -27,6 +27,12 @@ Use tabs, not spaces.
 ## Comments
 
 - Use JSDoc style comments for functions, interfaces, enums, and classes
+- Do not write large comments in the middle of a method or comments that explain a single line. If a line or block needs a paragraph of explanation to be understood, treat that as a signal that the code itself is unclear: extract a well-named function, introduce an explanatory variable, or simplify the logic instead. Keep any remaining inline comment to a brief note.
+- **Default to NO comment.** Add one only when the code cannot be made self-explanatory by naming. Code that is obvious from its identifiers must not be commented.
+- **Hard limits** (treat as rules, not suggestions):
+  - JSDoc on a function/interface/property: at most 1–2 short sentences. Do not enumerate every branch/feature, restate the signature, list what it does NOT do, or explain parameters that are obvious from their names/types.
+  - Inline comment inside a method body: at most 1 line, and only for a genuine workaround/hack, a non-obvious ordering constraint, or a surprising side effect. Never narrate the next statement (e.g. `// Expand the variable`, `// loop over args`).
+- Before writing any comment longer than one line, stop and either delete it or shorten it to a single line. A multi-line block comment inside a method body is almost always wrong.
 
 ## Strings
 
@@ -57,7 +63,7 @@ Use tabs, not spaces.
 - Prefer named regex capture groups over numbered ones
 - Do not use `any` or `unknown` unless absolutely necessary
 - Register disposables immediately after creation — use `DisposableStore`, `MutableDisposable`, or `this._register()`
-- Declare service dependencies in constructors via DI — never access services through `IInstantiationService` elsewhere
+- Declare service dependencies in constructors via DI — never access services through `IInstantiationService` elsewhere. In particular, do **not** lazily resolve a service with `this.instantiationService.invokeFunction(accessor => accessor.get(ISomeService))`; add `@ISomeService` as a constructor parameter instead. If a constructor cycle prevents direct injection, break the cycle (e.g. pass the dependency into an `init()`/wiring method from the orchestrator, or relocate the call) rather than reaching through `invokeFunction`/`accessor.get`.
 - Use `IEditorService` to open editors, not `IEditorGroupsService.activeGroup.openEditor`
 - Avoid `bind()`/`call()`/`apply()` solely for `this` — prefer arrow functions
 - Avoid events for control flow between components — prefer direct method calls

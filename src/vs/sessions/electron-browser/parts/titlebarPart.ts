@@ -16,16 +16,17 @@ import { INativeHostService } from '../../../platform/native/common/native.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { hasNativeTitlebar, useWindowControlsOverlay } from '../../../platform/window/common/window.js';
+import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getMacOSWindowControlsPosition, hasNativeTitlebar, useWindowControlsOverlay } from '../../../platform/window/common/window.js';
 import { IsWindowAlwaysOnTopContext } from '../../../workbench/common/contextkeys.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
-import { IWorkbenchLayoutService, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { IAuxiliaryTitlebarPart } from '../../../workbench/browser/parts/titlebar/titlebarPart.js';
 import { IEditorGroupsContainer } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { TitlebarPart, TitleService } from '../../browser/parts/titlebarPart.js';
 import { isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { localize } from '../../../nls.js';
+import { INativeWorkbenchEnvironmentService } from '../../../workbench/services/environment/electron-browser/environmentService.js';
 
 export class NativeTitlebarPart extends TitlebarPart {
 
@@ -34,6 +35,7 @@ export class NativeTitlebarPart extends TitlebarPart {
 
 	private cachedWindowControlStyles: { bgColor: string; fgColor: string } | undefined;
 	private cachedWindowControlHeight: number | undefined;
+	private cachedWindowControlHorizontalInset: number | undefined;
 
 	constructor(
 		id: string,
@@ -48,6 +50,7 @@ export class NativeTitlebarPart extends TitlebarPart {
 		@IHostService hostService: IHostService,
 		@IProductService private readonly productService: IProductService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 	) {
 		super(id, targetWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService);
 
@@ -189,12 +192,20 @@ export class NativeTitlebarPart extends TitlebarPart {
 		super.layout(width, height);
 
 		if (useWindowControlsOverlay(this.configurationService)) {
-			const newHeight = Math.round(height * getZoomFactor(getWindow(this.element)));
-			if (newHeight !== this.cachedWindowControlHeight) {
+			const zoomFactor = getZoomFactor(getWindow(this.element));
+			// Mirror the default-density toolbar's optical padding in the native button center.
+			const opticalPadding = isMacintosh && this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) !== ModernUIDensity.Compact ? 2 : 0;
+			const newHeight = Math.round(height * zoomFactor + opticalPadding * (this.preventZoom ? 1 : zoomFactor));
+			const horizontalInset = isMacintosh
+				? getMacOSWindowControlsPosition(Math.round(DEFAULT_CUSTOM_TITLEBAR_HEIGHT * (this.preventZoom ? 1 : zoomFactor)), this.environmentService.os.release)?.x
+				: undefined;
+			if (newHeight !== this.cachedWindowControlHeight || horizontalInset !== this.cachedWindowControlHorizontalInset) {
 				this.cachedWindowControlHeight = newHeight;
+				this.cachedWindowControlHorizontalInset = horizontalInset;
 				this.nativeHostService.updateWindowControls({
 					targetWindowId: getWindowId(getWindow(this.element)),
-					height: newHeight
+					height: newHeight,
+					horizontalInset
 				});
 			}
 		}
@@ -214,8 +225,9 @@ class MainNativeTitlebarPart extends NativeTitlebarPart {
 		@IHostService hostService: IHostService,
 		@IProductService productService: IProductService,
 		@INativeHostService nativeHostService: INativeHostService,
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 	) {
-		super(Parts.TITLEBAR_PART, mainWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, productService, nativeHostService);
+		super(Parts.TITLEBAR_PART, mainWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, productService, nativeHostService, environmentService);
 	}
 }
 
@@ -238,9 +250,10 @@ class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements IAuxilia
 		@IHostService hostService: IHostService,
 		@IProductService productService: IProductService,
 		@INativeHostService nativeHostService: INativeHostService,
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 	) {
 		const id = AuxiliaryNativeTitlebarPart.COUNTER++;
-		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, productService, nativeHostService);
+		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, productService, nativeHostService, environmentService);
 	}
 
 	override get preventZoom(): boolean {

@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { ContentBlockParam, ImageBlockParam, MessageParam, RedactedThinkingBlockParam, TextBlockParam, ThinkingBlockParam } from '@anthropic-ai/sdk/resources';
+import { ContentBlockParam, DocumentBlockParam, ImageBlockParam, MessageParam, RedactedThinkingBlockParam, TextBlockParam, ThinkingBlockParam } from '@anthropic-ai/sdk/resources';
 import { Raw } from '@vscode/prompt-tsx';
 import type { LanguageModelChatMessage } from 'vscode';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
@@ -50,27 +50,40 @@ function apiContentToAnthropicContent(content: (LanguageModelTextPart | Language
 			}
 		} else if (part instanceof LanguageModelDataPart) {
 			if (part.mimeType !== CustomDataPartMimeTypes.StatefulMarker) {
-				convertedContent.push({
-					type: 'image',
-					source: {
-						type: 'base64',
-						data: Buffer.from(part.data).toString('base64'),
-						media_type: part.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
-					}
-				});
+				if (part.mimeType === 'application/pdf') {
+					convertedContent.push({
+						type: 'document',
+						source: {
+							type: 'base64',
+							data: Buffer.from(part.data).toString('base64'),
+							media_type: 'application/pdf',
+						}
+					});
+				} else {
+					convertedContent.push({
+						type: 'image',
+						source: {
+							type: 'base64',
+							data: Buffer.from(part.data).toString('base64'),
+							media_type: part.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
+						}
+					});
+				}
 			}
 		} else if (part instanceof LanguageModelToolResultPart || part instanceof LanguageModelToolResultPart2) {
 			convertedContent.push({
 				type: 'tool_result',
 				tool_use_id: part.callId,
-				content: part.content.map((p): TextBlockParam | ImageBlockParam | undefined => {
+				content: part.content.map((p): TextBlockParam | ImageBlockParam | DocumentBlockParam | undefined => {
 					if (p instanceof LanguageModelTextPart) {
 						return { type: 'text', text: p.value };
 					} else if (p instanceof LanguageModelDataPart && p.mimeType === CustomDataPartMimeTypes.CacheControl && p.data.toString() === 'ephemeral') {
 						// Empty string is invalid
 						return { type: 'text', text: ' ', cache_control: { type: 'ephemeral' } };
+					} else if (p instanceof LanguageModelDataPart && p.mimeType === 'application/pdf') {
+						return { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: Buffer.from(p.data).toString('base64') } };
 					} else if (p instanceof LanguageModelDataPart) {
-						return { type: 'image', source: { type: 'base64', media_type: p.mimeType as any, data: Buffer.from(p.data).toString('base64') } };
+						return { type: 'image', source: { type: 'base64', media_type: p.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp', data: Buffer.from(p.data).toString('base64') } };
 					}
 				}).filter(isDefined),
 			});
@@ -153,6 +166,12 @@ export function anthropicMessagesToRawMessagesForLogging(messages: MessageParam[
 					imageUrl: { url: '(image)' }
 				};
 			}
+			if (part.type === Raw.ChatCompletionContentPartKind.Document) {
+				return {
+					...part,
+					documentData: { ...part.documentData, data: '(document)' }
+				};
+			}
 			return part;
 		});
 
@@ -204,6 +223,15 @@ export function anthropicMessagesToRawMessages(messages: MessageParam[], system:
 			}
 		};
 
+		const toRawDocument = (document: DocumentBlockParam): Raw.ChatCompletionContentPartDocument | undefined => {
+			if (document.source.type === 'base64') {
+				return {
+					type: Raw.ChatCompletionContentPartKind.Document,
+					documentData: { data: document.source.data, mediaType: document.source.media_type }
+				};
+			}
+		};
+
 		const pushImage = (img: ImageBlockParam) => {
 			const imagePart = toRawImage(img);
 			if (imagePart) {
@@ -225,6 +253,12 @@ export function anthropicMessagesToRawMessages(messages: MessageParam[], system:
 				} else if (block.type === 'image') {
 					pushImage(block);
 					pushCache(block);
+				} else if (block.type === 'document') {
+					const documentPart = toRawDocument(block);
+					if (documentPart) {
+						content.push(documentPart);
+						pushCache(block);
+					}
 				} else if (block.type === 'thinking') {
 					// Include thinking content for logging
 					content.push({
@@ -261,6 +295,11 @@ export function anthropicMessagesToRawMessages(messages: MessageParam[], system:
 								const imagePart = toRawImage(c);
 								if (imagePart) {
 									toolContent.push(imagePart);
+								}
+							} else if (c.type === 'document') {
+								const documentPart = toRawDocument(c);
+								if (documentPart) {
+									toolContent.push(documentPart);
 								}
 							}
 						}

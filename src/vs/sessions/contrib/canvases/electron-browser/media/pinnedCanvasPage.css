@@ -1,0 +1,10 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The canvas fills the page edge to edge, so the shared content padding is removed. */
+.custom-view-node .custom-view-content.pinned-canvas-page {
+	padding: 0;
+	overflow: hidden;
+}

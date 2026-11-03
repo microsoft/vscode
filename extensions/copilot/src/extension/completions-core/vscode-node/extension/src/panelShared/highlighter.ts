@@ -40,7 +40,7 @@ export class Highlighter {
 
 	createSnippet(text: string): string {
 		if (!this.highlighter || !this.languageId || !this.languageSupported()) {
-			return `<pre>${text}</pre>`;
+			return `<pre>${escapeHtml(text)}</pre>`;
 		}
 
 		return this.highlighter.codeToHtml(text, { lang: this.languageId, theme: getCurrentTheme() });
@@ -55,6 +55,19 @@ export class Highlighter {
 
 		return false;
 	}
+}
+
+function escapeHtml(text: string): string {
+	return text.replace(/[&<>"]/g, char => {
+		switch (char) {
+			case '&': return '&amp;';
+			case '<': return '&lt;';
+			case '>': return '&gt;';
+			case '"': return '&quot;';
+		}
+
+		return char;
+	});
 }
 
 function getCurrentTheme(): ThemeRegistration {

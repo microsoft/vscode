@@ -5,19 +5,11 @@
 
 import { Iterable } from '../../../../base/common/iterator.js';
 import { isLinux, isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { IConfigurationVariable, parseConfigurationVariable } from '../../../../platform/configuration/common/configurationVariables.js';
 import { ConfiguredInput } from './configurationResolver.js';
 
 /** A replacement found in the object, as ${name} or ${name:arg} */
-export type Replacement = {
-	/** ${name:arg} */
-	id: string;
-	/** The `name:arg` in ${name:arg} */
-	inner: string;
-	/** The `name` in ${name:arg} */
-	name: string;
-	/** The `arg` in ${name:arg} */
-	arg?: string;
-};
+export type Replacement = IConfigurationVariable;
 
 interface IConfigurationResolverExpression<T> {
 	/**
@@ -116,47 +108,6 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 		delete config.linux;
 	}
 
-	private parseVariable(str: string, start: number): { replacement: Replacement; end: number } | undefined {
-		if (str[start] !== '$' || str[start + 1] !== '{') {
-			return undefined;
-		}
-
-		let end = start + 2;
-		let braceCount = 1;
-		while (end < str.length) {
-			if (str[end] === '{') {
-				braceCount++;
-			} else if (str[end] === '}') {
-				braceCount--;
-				if (braceCount === 0) {
-					break;
-				}
-			}
-			end++;
-		}
-
-		if (braceCount !== 0) {
-			return undefined;
-		}
-
-		const id = str.slice(start, end + 1);
-		const inner = str.substring(start + 2, end);
-		const colonIdx = inner.indexOf(':');
-		if (colonIdx === -1) {
-			return { replacement: { id, name: inner, inner }, end };
-		}
-
-		return {
-			replacement: {
-				id,
-				inner,
-				name: inner.slice(0, colonIdx),
-				arg: inner.slice(colonIdx + 1)
-			},
-			end
-		};
-	}
-
 	private parseObject(obj: any): void {
 		if (typeof obj !== 'object' || obj === null) {
 			return;
@@ -192,7 +143,7 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 			if (match === -1) {
 				break;
 			}
-			const parsed = this.parseVariable(value, match);
+			const parsed = parseConfigurationVariable(value, match);
 			if (parsed) {
 				pos = parsed.end + 1;
 				if (replacementPath?.includes(parsed.replacement.id)) {

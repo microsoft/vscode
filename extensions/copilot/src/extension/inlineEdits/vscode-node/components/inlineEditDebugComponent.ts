@@ -91,7 +91,7 @@ export class InlineEditDebugComponent extends Disposable {
 			await openIssueReporter({
 				title: '',
 				data: data.toString(),
-				issueBody: '# Description\nPlease describe the expected outcome and attach a screenshot!',
+				issueBody: 'Please describe the expected outcome and attach a screenshot!',
 				public: !isInternalUser
 			});
 		}));

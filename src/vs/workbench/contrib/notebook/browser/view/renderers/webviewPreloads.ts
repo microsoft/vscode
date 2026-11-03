@@ -657,7 +657,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 				}
 
 				// if the node is not scrollable, we can continue. We don't check the computed style always as it's expensive
-				if (window.getComputedStyle(node).overflowY === 'hidden' || window.getComputedStyle(node).overflowY === 'visible') {
+				const overflowY = window.getComputedStyle(node).overflowY;
+				if (overflowY === 'hidden' || overflowY === 'visible') {
 					continue;
 				}
 
