@@ -1801,6 +1801,8 @@ export interface IAgentSessionPlan {
 
 export interface IAgentChatCanvasWatchHost {
 	readonly published: () => readonly string[] | undefined;
+	/** Whether the chat or its session is archived; an archived chat's retained canvases are discarded rather than restored. */
+	readonly isArchived?: () => boolean;
 	resolveContext(): Promise<IAgentChatContext>;
 }
 
