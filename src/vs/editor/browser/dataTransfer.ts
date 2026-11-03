@@ -4,11 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DataTransfers } from '../../base/browser/dnd.js';
-import { createFileDataTransferItem, createStringDataTransferItem, IDataTransferItem, UriList, VSDataTransfer } from '../../base/common/dataTransfer.js';
+import { createFileDataTransferItem, createStringDataTransferItem, IDataTransferItem, IReadonlyVSDataTransfer, UriList, VSDataTransfer } from '../../base/common/dataTransfer.js';
 import { Mimes } from '../../base/common/mime.js';
 import { URI } from '../../base/common/uri.js';
 import { CodeDataTransfers, getPathForFile } from '../../platform/dnd/browser/dnd.js';
 
+export async function toDataTransfer(source: IReadonlyVSDataTransfer): Promise<DataTransfer> {
+	const data = new DataTransfer();
+	for (const [mime, item] of source) {
+		const file = item.asFile();
+		if (file) {
+			data.items.add(new File([new Uint8Array(await file.data())], file.name, { type: mime }));
+		} else {
+			data.setData(mime, await item.asString());
+		}
+	}
+	return data;
+}
 
 export function toVSDataTransfer(dataTransfer: DataTransfer): VSDataTransfer {
 	const vsDataTransfer = new VSDataTransfer();
