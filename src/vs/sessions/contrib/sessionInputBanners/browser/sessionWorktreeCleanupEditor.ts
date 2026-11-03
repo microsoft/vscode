@@ -284,6 +284,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			void this.cleanupSelected(candidates);
 		}));
 		this.resultsButton = this.editorDisposables.add(new Button(this.batchSummaryRow, { ...defaultButtonStyles, secondary: true }));
+		this.resultsButton.element.classList.add('session-worktree-cleanup-action');
 		this.resultsButton.label = localize('sessionWorktreeCleanup.showResults', "Show Results");
 		this.resultsButton.element.setAttribute('aria-pressed', 'false');
 		this.editorDisposables.add(this.resultsButton.onDidClick(() => {
@@ -1291,6 +1292,9 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 	private hasRemovalIssue(worktree: ISessionWorktree): boolean {
 		const batch = this.cleanupBatch.get(getWorktreeCleanupId(worktree));
+		if (worktree.worktreeExists === false || batch?.state === 'removed') {
+			return false;
+		}
 		return worktree.cleanupStatus?.state === 'failed' || worktree.cleanupStatus?.state === 'skipped' || worktree.cleanupStatus?.state === 'inUse'
 			|| worktree.isListedByHost === false || !!worktree.worktreeCheckError || !!worktree.cleanupStatusError || worktree.measurementFailed === true
 			|| batch?.state === 'failed' || batch?.state === 'attention';

@@ -471,6 +471,54 @@ suite('SessionWorktreeCleanupEditor', () => {
 		})) }, { hiddenRows: 0, rows: [{ title: 'agents/removed', reason: 'Worktree removed', path: '/repos/app.worktrees/removed', storage: '0B', checkbox: null }] });
 	}));
 
+	test('results toggles preserve selection and exclude completed removals from Needs attention despite stale host errors', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const completedSession = createWorktree('completed-session', '/repos/app', 'archived');
+		const completedUnlinked = createUnlinkedWorktree('completed-unlinked');
+		const failed: ISessionWorktree = { ...createUnlinkedWorktree('failed'), cleanupStatus: { state: 'failed', message: 'locked' } };
+		const pending: ISessionWorktree = { ...createUnlinkedWorktree('pending'), cleanupStatus: { state: 'pending' } };
+		const remaining = createWorktree('remaining', '/repos/app');
+		let worktrees: readonly ISessionWorktree[] = [
+			...[completedSession, completedUnlinked].map(worktree => ({ ...worktree, cleanupStatus: { state: 'pending' as const } })),
+			failed, pending, remaining,
+		];
+		let publish: ((worktrees: readonly ISessionWorktree[]) => void) | undefined;
+		const { editor, container } = createEditor({
+			getWorktrees: async (_age, onUpdate) => { publish = onUpdate; return worktrees; },
+			refreshPendingCleanup: async () => worktrees,
+		});
+		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+		await timeout(0);
+		worktrees = [
+			{ ...removedWorktree(completedSession), cleanupStatus: { state: 'failed', message: 'old error' } },
+			{ ...removedWorktree(completedUnlinked), isListedByHost: false, cleanupStatusError: 'No longer listed' },
+			failed, pending, remaining,
+		];
+		publish?.(worktrees);
+		await timeout(100);
+		const snapshot = () => ({
+			titles: [...container.querySelectorAll('.session-worktree-cleanup-session-link')].map(link => link.textContent).sort(),
+			selected: [...container.querySelectorAll('.session-worktree-cleanup-row [aria-checked="true"]')].length,
+			batch: container.querySelector('.session-worktree-cleanup-batch [role="status"]')?.textContent,
+		});
+		const hidden = snapshot();
+		toggleResults(container);
+		const shown = snapshot();
+		toggleResults(container);
+		const hiddenAgain = snapshot();
+		showAttention(container);
+		const attentionHidden = snapshot();
+		toggleResults(container);
+		const attentionShown = snapshot();
+		const batch = 'Cleanup: 2 of 3 worktrees removed, 1 pending, 0 failed, 0 need attention.';
+		assert.deepStrictEqual({ hidden, shown, hiddenAgain, attentionHidden, attentionShown }, {
+			hidden: { titles: ['agents/failed', 'agents/pending', 'remaining'], selected: 1, batch },
+			shown: { titles: ['agents/completed-unlinked', 'agents/failed', 'agents/pending', 'completed-session', 'remaining'], selected: 1, batch },
+			hiddenAgain: { titles: ['agents/failed', 'agents/pending', 'remaining'], selected: 1, batch },
+			attentionHidden: { titles: ['agents/failed'], selected: 0, batch },
+			attentionShown: { titles: ['agents/failed'], selected: 0, batch },
+		});
+	}));
+
 	test('retains an unresolved failed batch row after the host stops listing it, including later empty snapshots', async () => {
 		const worktree = createUnlinkedWorktree('eligible');
 		let publish: ((worktrees: readonly ISessionWorktree[]) => void) | undefined;
