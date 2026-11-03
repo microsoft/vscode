@@ -8,8 +8,9 @@ import assert from 'assert';
 import { createHash } from 'crypto';
 import * as zlib from 'zlib';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostGitHubTelemetryRouter } from '../../node/agentHostGitHubTelemetryRouter.js';
-import type { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
+import { AgentHostRestrictedTelemetrySender, type IAgentHostInternalTelemetryContext, type IAgentHostRestrictedTelemetry, type IAgentHostRestrictedTelemetryContext, type TelemetryMeasurements, type TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 
 interface ICapturedEvent {
 	readonly destination: 'enhancedGH' | 'internalMSFT';
@@ -129,16 +130,112 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 			{
 				destination: 'enhancedGH',
 				eventName: 'engine.messages',
-				properties: { existing: 'value', modelCallId: 'model-call-1', initiatorClientType: 'agents_window' },
+				properties: { existing: 'value', modelCallId: 'model-call-1', initiatorClientType: 'agents_window', sdkSessionId: 'session-1', sdkAgentId: undefined },
 				measurements: { count: 2 },
 			},
 			{
 				destination: 'enhancedGH',
 				eventName: 'engine.messages',
-				properties: { existing: 'value', modelCallId: 'existing-model-call' },
+				properties: { existing: 'value', modelCallId: 'existing-model-call', sdkSessionId: 'session-1', sdkAgentId: undefined },
 				measurements: { count: 2 },
 			},
 		]);
+	});
+
+	test('copies engine conversation and child identity from the producing notification, not enrichment', async () => {
+		const telemetry = new TestRestrictedTelemetry();
+		const router = new AgentHostGitHubTelemetryRouter(telemetry);
+		for (const kind of ['engine.messages', 'engine.messages.length']) {
+			for (const agentId of [undefined, 'child-1', 'nested-child-2']) {
+				const source = notification(kind);
+				source.event.properties = {
+					modelCallId: 'engine-call',
+					conversationId: 'existing-host-scope',
+					...(agentId ? { agent_id: agentId } : {}),
+					sdkSessionId: 'untrusted-alias',
+					sdkAgentId: 'untrusted-child-alias',
+				};
+				const original = structuredClone(source);
+				await router.route(source, internalContext, { sdkSessionId: 'current-ui-session', sdkAgentId: 'current-ui-child' });
+				assert.deepStrictEqual(source, original);
+			}
+		}
+		assert.deepStrictEqual(telemetry.events.map(({ properties }) => [
+			properties?.sdkSessionId, properties?.sdkAgentId, properties?.modelCallId, properties?.conversationId,
+		]), [
+			['session-1', undefined, 'engine-call', 'existing-host-scope'],
+			['session-1', 'child-1', 'engine-call', 'existing-host-scope'],
+			['session-1', 'nested-child-2', 'engine-call', 'existing-host-scope'],
+			['session-1', undefined, 'engine-call', 'existing-host-scope'],
+			['session-1', undefined, 'engine-call', 'existing-host-scope'],
+			['session-1', 'child-1', 'engine-call', 'existing-host-scope'],
+			['session-1', 'child-1', 'engine-call', 'existing-host-scope'],
+			['session-1', 'nested-child-2', 'engine-call', 'existing-host-scope'],
+			['session-1', 'nested-child-2', 'engine-call', 'existing-host-scope'],
+		]);
+	});
+
+	test('does not infer missing SDK identity from host IDs, telemetry session IDs or stale aliases', async () => {
+		const telemetry = new TestRestrictedTelemetry();
+		const router = new AgentHostGitHubTelemetryRouter(telemetry);
+		for (const sessionId of [undefined, '']) {
+			const source = notification('engine.messages');
+			source.sessionId = sessionId;
+			source.event.session_id = 'normalized-telemetry-session';
+			source.event.properties = { conversationId: 'host-session', sdkSessionId: 'stale-session', sdkAgentId: 'stale-child', agent_id: '' };
+			await router.route(source, internalContext);
+		}
+		await router.route(notification('conversation.repetition.detected'), internalContext);
+		assert.deepStrictEqual(telemetry.events.map(({ properties }) => ({
+			sdkSessionId: properties?.sdkSessionId,
+			sdkAgentId: properties?.sdkAgentId,
+		})), [
+			{ sdkSessionId: undefined, sdkAgentId: undefined },
+			{ sdkSessionId: undefined, sdkAgentId: undefined },
+			{ sdkSessionId: undefined, sdkAgentId: undefined },
+		]);
+	});
+
+	test('preserves independent conversations and branch identity in restricted upload envelopes', async () => {
+		const envelopes: { data: { baseData: { name: string; properties: TelemetryProps } } }[] = [];
+		const sender = new AgentHostRestrictedTelemetrySender({}, new NullLogService(), undefined, undefined, async (_url, init) => {
+			envelopes.push(JSON.parse(String(init?.body)));
+			return new Response(null, { status: 200 });
+		});
+		const router = new AgentHostGitHubTelemetryRouter(sender);
+		for (const sessionId of ['sdk-a', 'sdk-b', 'sdk-a']) {
+			for (const direction of ['input', 'output']) {
+				const source = notification('engine.messages');
+				source.sessionId = sessionId;
+				source.event.properties = {
+					modelCallId: `engine-${sessionId}`,
+					message_direction: direction,
+					headerRequestId: `${direction}-${sessionId}`,
+					agent_id: 'child-1',
+					messagesJson: JSON.stringify([{ role: direction === 'input' ? 'user' : 'assistant', content: 'synthetic' }]),
+				};
+				await router.route(source, internalContext);
+			}
+		}
+		await router.route(notification('engine.messages'), { ...internalContext, restrictedTelemetryEnabled: false, isInternal: false });
+		await router.route(notification('engine.messages', false), internalContext);
+		assert.deepStrictEqual(envelopes.map(({ data: { baseData } }) => ({
+			name: baseData.name,
+			session: baseData.properties.sdkSessionId,
+			agent: baseData.properties.sdkAgentId,
+			call: baseData.properties.modelCallId,
+			direction: baseData.properties.message_direction,
+			header: baseData.properties.headerRequestId,
+			messages: zlib.gunzipSync(Buffer.from(baseData.properties.messagesJSONChunk!, 'base64')).toString('utf8'),
+		})), ['sdk-a', 'sdk-b', 'sdk-a'].flatMap(session => ['input', 'output'].map(direction => ({
+			name: 'copilot-chat/engine.messages',
+			session,
+			agent: 'child-1',
+			call: `engine-${session}`,
+			direction,
+			header: `${direction}-${session}`,
+			messages: JSON.stringify([{ role: direction === 'input' ? 'user' : 'assistant', content: 'synthetic' }]),
+		}))));
 	});
 
 	test('preserves runtime content metadata through compressed engine message routing', async () => {

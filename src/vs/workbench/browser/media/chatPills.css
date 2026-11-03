@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Shared workbench chat-pill presentation. */
-.chat-pill-hover-panel .action-list-submenu-hover-header {
-	max-width: 100%;
+.chat-pill-hover-panel .action-list-submenu-hover-header,
+.chat-pill-hover-content {
+	max-width: min(420px, 70vw, 100%);
 }
 
 .chat-pill-hover-content {
@@ -13,9 +14,14 @@
 	display: flex;
 	flex-direction: column;
 	gap: var(--vscode-spacing-size80);
-	max-width: 100%;
+	width: 420px;
 	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
 	color: var(--vscode-editorHoverWidget-foreground);
+}
+
+.chat-pill-hover-content.content-sized {
+	/* Let the hover host include footer actions in its intrinsic width. */
+	width: auto;
 }
 
 .chat-pill-hover-content.compact {
@@ -38,7 +44,6 @@
 
 .chat-pill-location-hover {
 	box-sizing: border-box;
-	max-width: 100%;
 	white-space: normal;
 	overflow-wrap: anywhere;
 }
@@ -65,7 +70,8 @@
 	gap: var(--vscode-spacing-size60);
 }
 
-.chat-pill-item {
+.chat-pills .monaco-action-bar .chat-pill-item,
+.chat-pills .monaco-action-bar .chat-pill-segmented {
 	display: inline-flex;
 	align-items: center;
 	flex-shrink: 0;
@@ -76,10 +82,14 @@
 	align-items: center;
 	width: auto;
 	gap: var(--vscode-spacing-size40);
-	border-radius: var(--vscode-cornerRadius-medium);
 	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
 	touch-action: manipulation;
+}
+
+.chat-pill-item .monaco-button.chat-pill-button,
+.chat-pill-item.chat-pill-segmented {
+	border-radius: var(--vscode-cornerRadius-medium);
 }
 
 /* Tint the opaque base `chatPills.ts` sets, so a translucent pill color never
@@ -104,6 +114,54 @@
 	in the row, including hosted ones. */
 .chat-pills .monaco-button:focus {
 	outline-offset: -1px !important;
+}
+
+.chat-pill-sections {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	border-radius: inherit;
+}
+
+.chat-pill-sections[hidden] {
+	display: none;
+}
+
+.chat-pill-item.chat-pill-segmented .monaco-button.chat-pill-button {
+	border-radius: 0;
+	border-inline-width: 0;
+}
+
+.chat-pill-item.chat-pill-segmented > .monaco-button.chat-pill-button {
+	border-start-start-radius: inherit;
+	border-end-start-radius: inherit;
+	border-inline-start-width: var(--vscode-strokeThickness);
+}
+
+.chat-pill-item.chat-pill-segmented .chat-pill-sections > .monaco-button.chat-pill-button:last-child {
+	border-start-end-radius: inherit;
+	border-end-end-radius: inherit;
+	border-inline-end-width: var(--vscode-strokeThickness);
+}
+
+.chat-pill-sections > .chat-pill-button {
+	position: relative;
+	min-width: 0;
+}
+
+.chat-pill-sections > .chat-pill-button::before {
+	content: '';
+	position: absolute;
+	inset-inline-start: 0;
+	top: 25%;
+	bottom: 25%;
+	width: var(--vscode-strokeThickness);
+	background-color: var(--vscode-widget-border, var(--vscode-descriptionForeground));
+}
+
+.hc-black .chat-pill-sections > .chat-pill-button::before,
+.hc-light .chat-pill-sections > .chat-pill-button::before {
+	background-color: var(--vscode-contrastBorder);
 }
 
 .chat-pills .monaco-action-bar .chat-hosted-pill {
@@ -138,11 +196,46 @@
 	overflow: hidden;
 }
 
-.chat-dropdown-pill-button .chat-pill-label {
+.chat-pill-button .chat-pill-label {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+/* A lone entry can mirror its promoted action onto the pill, like the remove
+	action of a chat attachment: quiet until hovered. It rides on trailing padding
+	its button reserves, adding no width of its own. */
+.chat-pill-item.has-promoted-action > .monaco-button.chat-pill-button {
+	padding-right: calc(var(--vscode-spacing-size40) + var(--vscode-spacing-size160) + var(--vscode-spacing-size20));
+}
+
+.monaco-workbench .chat-pill-item > .chat-pill-promoted-action.codicon {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: var(--vscode-spacing-size160);
+	height: var(--vscode-spacing-size160);
+	margin: 0 calc(var(--vscode-spacing-size20) + var(--vscode-strokeThickness)) 0 calc(-1 * (var(--vscode-spacing-size160) + var(--vscode-spacing-size20) + var(--vscode-strokeThickness)));
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-spacing-size160);
+	cursor: pointer;
+}
+
+.monaco-workbench .chat-pill-item > .chat-pill-promoted-action.codicon:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+/* Compact pills keep only their icon; the compact padding rules also drop the reserved space. */
+.monaco-workbench .chat-pills-row.compact .chat-pill-item > .chat-pill-promoted-action.codicon,
+.monaco-workbench .chat-pill-item > .chat-pill-button.compact + .chat-pill-promoted-action.codicon {
+	display: none;
 }
 
 /* The chevron shares the leading glyph's compact box. `chevron-down-compact` is
@@ -219,10 +312,6 @@
 	line-height: inherit;
 }
 
-.chat-pill-image-preview {
-	width: 320px;
-}
-
 .chat-pill-image-preview .chat-image-hover {
 	padding: 0;
 }
@@ -247,6 +336,23 @@
 	min-width: 0;
 	box-sizing: border-box;
 	padding: var(--vscode-spacing-size20) 0 var(--vscode-spacing-size40) 0;
+}
+
+.chat-pills-row.can-scroll-left > .chat-pills-row-content {
+	mask-image: linear-gradient(to right, transparent, black var(--vscode-spacing-size160));
+}
+
+.chat-pills-row.can-scroll-right > .chat-pills-row-content {
+	mask-image: linear-gradient(to left, transparent, black var(--vscode-spacing-size160));
+}
+
+.chat-pills-row.can-scroll-left.can-scroll-right > .chat-pills-row-content {
+	mask-image: linear-gradient(to right, transparent, black var(--vscode-spacing-size160), black calc(100% - var(--vscode-spacing-size160)), transparent);
+}
+
+.monaco-workbench.hc-black .chat-pills-row > .chat-pills-row-content,
+.monaco-workbench.hc-light .chat-pills-row > .chat-pills-row-content {
+	mask-image: none;
 }
 
 .chat-pills-row-content > .chat-pills {

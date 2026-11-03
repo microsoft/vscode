@@ -9,11 +9,12 @@ import type { URI } from '../../../../base/common/uri.js';
 import { packErrorForTelemetry } from '../../../telemetry/common/errorTelemetry.js';
 import type { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agent.js';
+import { isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { toInitiatorTelemetry, type IAgentHostCopilotSkuClassification, type IAgentHostCopilotSkuTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry } from '../agentHostTelemetryReporter.js';
 
-export type CopilotClientOperation = 'abort' | 'changeAgent' | 'changeModel' | 'getSessionMetadata' | 'installPlugin' | 'listSessions' | 'modelRefresh' | 'resumeTurn' | 'sendMessage' | 'uninstallPlugin';
+export type CopilotClientOperation = 'abort' | 'addPluginMarketplace' | 'browsePluginMarketplace' | 'changeAgent' | 'changeModel' | 'getSessionMetadata' | 'installPlugin' | 'listExtensions' | 'listPluginInstallations' | 'listPluginMarketplaces' | 'listSessions' | 'modelRefresh' | 'refreshPluginMarketplaces' | 'removePluginMarketplace' | 'resumeTurn' | 'sendMessage' | 'setExtensionEnabled' | 'setPluginEnabled' | 'uninstallPlugin';
 export type CopilotClientOperationFailureKind = 'clientNotConnected' | 'connectionClosed' | 'connectionDisposed' | 'runtimeConnectionClosed';
 type CopilotClientStartupOutcome = 'success' | 'failure' | 'cancelled';
 type CopilotStartupFailureCause = 'nativeModuleProcedureNotFound' | 'nativeModuleInitializationFailed' | 'nativeModuleNotFound' | 'permissionDenied' | 'timeout' | 'spawnFailed' | 'processExitedUnexpectedly' | 'processExited' | 'configurationChanged' | 'other';
@@ -33,7 +34,7 @@ export interface ICopilotFailureCorrelation extends IAgentHostEventTelemetry {
 	readonly sdkSessionId?: string;
 }
 
-type CopilotSessionFailureCorrelation = IAgentHostEventTelemetry & {
+export type CopilotSessionFailureCorrelation = IAgentHostEventTelemetry & {
 	readonly agentSessionId: string;
 	readonly chatSessionId: string;
 	readonly turnId: string | undefined;
@@ -381,6 +382,10 @@ type CopilotModelCallFailureEvent = CopilotSessionFailureCorrelation & {
 	reasoningEffort: string | undefined;
 	isAuto: boolean | undefined;
 	isByok: boolean | undefined;
+	fusionId?: string;
+	fusionModel?: string;
+	fusionPattern?: string;
+	fusionPhaseKind?: string;
 	rte: boolean | undefined;
 	badRequestKind: string | undefined;
 	apiCallId: string | undefined;
@@ -412,6 +417,10 @@ type CopilotModelCallFailureClassification = IAgentHostEventClassification & {
 	reasoningEffort: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reasoning effort used by the failed call, when applicable.' };
 	isAuto: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether Auto selected the model for the failed call.' };
 	isByok: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the failed call used a bring-your-own-key provider.' };
+	fusionId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Opaque HydraFusion workflow that made the failed call, for joining with agentHost.fusionPhaseCompleted and copilotSdk/hydrafusion_* events. Absent for calls not made by a HydraFusion phase.' };
+	fusionModel?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The HydraFusion model (hydrafusion or hydrafusion-max) whose workflow made the failed call.' };
+	fusionPattern?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded HydraFusion workflow pattern of the failed call, such as single, cascade, or critique.' };
+	fusionPhaseKind?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded HydraFusion phase kind that made the failed call, such as primary, judge, or repair.' };
 	rte: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The SDK runtime RTE flag for the failed call, when available.' };
 	badRequestKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded HTTP 400 response category, when available.' };
 	apiCallId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The model-provider completion identifier, when available.' };
@@ -426,6 +435,24 @@ type CopilotModelCallFailureClassification = IAgentHostEventClassification & {
 	owner: 'roblourens';
 	comment: 'Captures structured Copilot SDK model-call failures. Raw model error messages remain restricted to SDK-owned telemetry and are not duplicated here.';
 };
+
+const BOUNDED_FUSION_VALUE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+
+/** The HydraFusion workflow and phase that made a model call, reduced to bounded identifiers. */
+function toFusionCallTelemetry(fusion: SessionEventPayload<'model.call_failure'>['data']['fusion']): Pick<CopilotModelCallFailureEvent, 'fusionId' | 'fusionModel' | 'fusionPattern' | 'fusionPhaseKind'> {
+	if (!fusion) {
+		return {};
+	}
+	const bounded = (value: string | undefined) => value && BOUNDED_FUSION_VALUE.test(value) ? value : value ? 'other' : undefined;
+	const fusionModel = isCopilotHydraFusionModelId(fusion.syntheticModel) ? fusion.syntheticModel : undefined;
+	const fusionPhaseKind = bounded(fusion.phaseKind);
+	return {
+		fusionId: bounded(fusion.fusionId),
+		...(fusionModel !== undefined ? { fusionModel } : {}),
+		fusionPattern: bounded(fusion.pattern),
+		...(fusionPhaseKind !== undefined ? { fusionPhaseKind } : {}),
+	};
+}
 
 export function reportCopilotModelCallFailure(telemetryService: ITelemetryService, event: SessionEventPayload<'model.call_failure'>, correlation: CopilotSessionFailureCorrelation): void {
 	const fingerprint = event.data.requestFingerprint;
@@ -444,6 +471,7 @@ export function reportCopilotModelCallFailure(telemetryService: ITelemetryServic
 		reasoningEffort: event.data.reasoningEffort,
 		isAuto: event.data.isAuto,
 		isByok: event.data.isByok,
+		...toFusionCallTelemetry(event.data.fusion),
 		rte: event.data.rte,
 		badRequestKind: event.data.badRequestKind,
 		apiCallId: event.data.apiCallId,

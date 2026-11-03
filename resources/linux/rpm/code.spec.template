@@ -49,10 +49,14 @@ cp usr/share/bash-completion/completions/%{name} %{buildroot}%{_datadir}/bash-co
 cp usr/share/zsh/site-functions/_%{name} %{buildroot}%{_datadir}/zsh/site-functions/_%{name}
 
 %post
+@@COPILOT_LINK_HELPER@@
+
 # Remove the legacy bin command if this is the stable build
 if [ "%{name}" = "code" ]; then
 	rm -f /usr/local/bin/code
 fi
+
+vscode_copilot_link install "%{name}" || :
 
 # Register yum repository
 # TODO: #229: Enable once the yum repository is signed
@@ -71,6 +75,12 @@ update-desktop-database &> /dev/null || :
 update-mime-database %{_datadir}/mime &> /dev/null || :
 
 %postun
+@@COPILOT_LINK_HELPER@@
+
+if [ "$1" = 0 ]; then
+	vscode_copilot_link remove "%{name}" || :
+fi
+
 # Uninstall the desktop entry
 update-desktop-database &> /dev/null || :
 

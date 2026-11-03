@@ -142,17 +142,17 @@ suite('ModelPickerHover', () => {
 		});
 	});
 
-	test('auto names its navigation option Optimize for, while Ensemble and other models keep the schema title', () => {
-		const results = ['auto', 'ensemble', 'gpt-5'].map(id => {
-			const model = createModel(id === 'ensemble' ? 'auto' : id, id);
+	test('auto names its navigation option Optimize for, while Fusion and other models keep the schema title', () => {
+		const results = ['auto', 'fusion', 'gpt-5'].map(id => {
+			const model = createModel(id === 'fusion' ? 'auto' : id, id);
 			model.metadata = {
 				...model.metadata,
-				...(id === 'ensemble' && { autoModelEnsemble: { intelligenceUsesHydraFusion: false } }),
+				...(id === 'fusion' && { autoModelFusion: true }),
 				configurationSchema: {
 					properties: {
 						navigationOption: {
 							type: 'string',
-							title: id === 'auto' ? undefined : id === 'ensemble' ? 'Thinking Level' : 'Thinking Effort',
+							title: id === 'auto' ? undefined : id === 'fusion' ? 'Effort Level' : 'Effort Level',
 							enum: ['efficiency', 'intelligence'],
 							group: 'navigation',
 						},
@@ -174,8 +174,8 @@ suite('ModelPickerHover', () => {
 
 		assert.deepStrictEqual(results, [
 			['Optimize for', 'Context Size'],
-			['Thinking Level', 'Context Size'],
-			['Thinking Effort', 'Context Size'],
+			['Effort Level', 'Context Size'],
+			['Effort Level', 'Context Size'],
 		]);
 	});
 });

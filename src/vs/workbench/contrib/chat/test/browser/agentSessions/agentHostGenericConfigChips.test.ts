@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -28,7 +29,7 @@ import { IAgentHostEnablementService } from '../../../../../../platform/agentHos
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../../platform/dialogs/test/common/testDialogService.js';
@@ -66,16 +67,36 @@ function createSubscription<T>(): IAgentSubscription<T> {
 suite('AgentHostGenericConfigChips', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createUntitledChips(generic: boolean) {
+	function createChips(generic: boolean, { sessionResource = URI.parse('agent-host-copilotcli:/untitled-restoration'), configuration = new TestConfigurationService(), initialConfig, preparedConfig }: { sessionResource?: URI; configuration?: TestConfigurationService; initialConfig?: Record<string, unknown>; preparedConfig?: ResolveSessionConfigResult } = {}) {
 		const requests: Parameters<IAgentHostService['resolveSessionConfig']>[0][] = [];
 		const answers: DeferredPromise<ResolveSessionConfigResult>[] = [];
+		const acquired: string[] = [];
+		const released: string[] = [];
+		const provisionalRequests: Parameters<IAgentHostUntitledProvisionalSessionService['getOrCreate']>[] = [];
+		const provisionalChanged = disposables.add(new Emitter<URI>());
+		const sessionChanged = disposables.add(new Emitter<SessionState>());
+		const sessionErrored = disposables.add(new Emitter<Error>());
+		let provisionalBackend: URI | undefined;
+		let sessionState: SessionState | Error | undefined;
+		const subscriptions: { [K in StateComponents]?: IAgentSubscription<ComponentToState[K]> } = {
+			[StateComponents.Session]: {
+				get value() { return sessionState; },
+				get verifiedValue() { return sessionState instanceof Error ? undefined : sessionState; },
+				onDidChange: sessionChanged.event, onDidError: sessionErrored.event, onWillApplyAction: Event.None, onDidApplyAction: Event.None,
+			},
+		};
 		const restarted = disposables.add(new Emitter<void>());
 		const exited = disposables.add(new Emitter<number>());
 		const agentHost = new class extends mock<IAgentHostService>() {
+			override readonly initializeResult = constObservable(undefined);
 			override readonly onAgentHostStart = restarted.event;
 			override readonly onAgentHostExit = exited.event;
 			override readonly onDidNotification = Event.None;
 			override readonly resourceUris = identityAgentHostResourceUriMapper;
+			override getSubscription<T extends StateComponents>(kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
+				acquired.push(resource.toString());
+				return { object: subscriptions[kind] ?? createSubscription<ComponentToState[T]>(), dispose: () => released.push(resource.toString()) };
+			}
 			override resolveSessionConfig(request: Parameters<IAgentHostService['resolveSessionConfig']>[0]): Promise<ResolveSessionConfigResult> {
 				requests.push(request);
 				const answer = new DeferredPromise<ResolveSessionConfigResult>();
@@ -89,7 +110,6 @@ suite('AgentHostGenericConfigChips', () => {
 		}();
 		const connections = disposables.add(new AgentHostConnectionsService(agentHost, remoteService, new TestPathService(), new NullLogService()));
 		const changed = disposables.add(new Emitter<IChatWidgetViewModelChangeEvent>());
-		const sessionResource = URI.parse('agent-host-copilotcli:/untitled-restoration');
 		const widget = new class extends mock<IChatWidget>() {
 			override readonly onDidChangeViewModel = changed.event;
 			override readonly viewModel = new class extends mock<IChatViewModel>() {
@@ -101,16 +121,19 @@ suite('AgentHostGenericConfigChips', () => {
 		instantiation.set(IAgentHostService, agentHost);
 		instantiation.set(ILogService, new NullLogService());
 		instantiation.stub(IAgentHostUntitledProvisionalSessionService, {
-			onDidChange: Event.None, get: () => undefined, getOrCreate: async () => undefined,
+			onDidChange: provisionalChanged.event, get: () => provisionalBackend,
+			getInitialSessionConfig: () => initialConfig,
+			getPreparedSessionConfig: () => preparedConfig,
+			getResolvedConfig: () => undefined,
+			getOrCreate: async (...args) => { provisionalRequests.push(args); return undefined; },
 		});
 		instantiation.stub(IAgentHostSessionWorkingDirectoryResolver, { resolve: () => URI.file('/workspace') });
 		instantiation.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined });
 		instantiation.stub(IWorkspaceContextService, {});
-		const configuration = new TestConfigurationService();
 		disposables.add(configuration.onDidChangeConfigurationEmitter);
 		instantiation.set(IConfigurationService, configuration);
 		instantiation.stub(IActionWidgetService, { isVisible: false, hide: () => { } });
-		instantiation.stub(IHoverService, {});
+		instantiation.set(IHoverService, NullHoverService);
 		instantiation.stub(IOpenerService, {});
 		instantiation.stub(IDialogService, {});
 		instantiation.stub(IStorageService, {});
@@ -125,12 +148,132 @@ suite('AgentHostGenericConfigChips', () => {
 		const chips = disposables.add(generic
 			? instantiation.createInstance(AgentHostGenericConfigChips, widget)
 			: instantiation.createInstance(AgentHostChatInputPicker, widget, 'mode'));
-		return { chips, connections, requests, answers, sessionResource, restarted, exited, changed };
+		return {
+			chips, connections, requests, answers, acquired, released, provisionalRequests, sessionResource, restarted, exited, changed,
+			setProvisional: (backend: URI) => {
+				provisionalBackend = backend;
+				provisionalChanged.fire(sessionResource);
+			},
+			setSessionState: (state: SessionState | Error) => {
+				sessionState = state;
+				if (state instanceof Error) {
+					sessionErrored.fire(state);
+				} else {
+					sessionChanged.fire(state);
+				}
+			},
+		};
 	}
 
 	for (const generic of [false, true]) {
+		test(`${generic ? 'generic' : 'dedicated'} chips clear prepared controls when the first snapshot fails`, () => {
+			const property = generic ? 'choice' : 'mode';
+			const preparedConfig: ResolveSessionConfigResult = {
+				schema: { type: 'object', properties: { [property]: { type: 'string', title: 'Mode', enum: ['interactive', 'autopilot'], enumLabels: ['Interactive', 'Autopilot'] } } },
+				values: { [property]: 'autopilot' },
+			};
+			const rig = createChips(generic, { preparedConfig });
+			const container = dom.$('div');
+			rig.chips.render(container);
+			rig.setProvisional(URI.parse('ahp-session:/failed-first-snapshot'));
+			const snapshot = () => ({
+				label: container.querySelector('.agent-host-chat-input-picker-label')?.textContent,
+				busy: container.querySelector('[aria-busy="true"]') !== null,
+			});
+			const pending = snapshot();
+			rig.setSessionState(new Error('Initial snapshot failed'));
+			assert.deepStrictEqual({ pending, failed: snapshot() }, {
+				pending: { label: 'Autopilot', busy: true },
+				failed: { label: undefined, busy: false },
+			});
+		});
+
+		test(`${generic ? 'generic' : 'dedicated'} chips render prepared defaults synchronously without another read`, async () => {
+			const property = generic ? 'choice' : 'mode';
+			const preparedConfig: ResolveSessionConfigResult = {
+				schema: { type: 'object', properties: { [property]: { type: 'string', title: 'Mode', enum: ['interactive', 'autopilot'], enumLabels: ['Interactive', 'Autopilot'] } } },
+				values: { [property]: 'autopilot' },
+			};
+			const rig = createChips(generic, { preparedConfig });
+			const container = dom.$('div');
+			rig.chips.render(container);
+			const label = container.querySelector('.agent-host-chat-input-picker-label')?.textContent;
+			await timeout(0);
+			assert.deepStrictEqual({ label, requests: rig.requests }, { label: 'Autopilot', requests: [] });
+		});
+
+		test(`${generic ? 'generic' : 'dedicated'} prepared defaults never override hydrated host configuration`, async () => {
+			const property = generic ? 'choice' : 'mode';
+			const preparedConfig: ResolveSessionConfigResult = {
+				schema: { type: 'object', properties: { [property]: { type: 'string', title: 'Mode', enum: ['interactive', 'autopilot'], enumLabels: ['Interactive', 'Autopilot'] } } },
+				values: { [property]: 'interactive' },
+			};
+			const rig = createChips(generic, { preparedConfig });
+			const container = dom.$('div');
+			rig.chips.render(container);
+			rig.setProvisional(URI.parse('ahp-session:/opaque-prepared'));
+			const hydrating = container.textContent;
+			rig.setSessionState(new class extends mock<SessionState>() {
+				override readonly provider = 'copilotcli';
+				override readonly config = { schema: preparedConfig.schema, values: { [property]: 'autopilot' } };
+				override readonly chats = [];
+			}());
+			assert.deepStrictEqual({ hydrating, hydrated: container.textContent }, { hydrating: 'Interactive', hydrated: 'Autopilot' });
+		});
+
+		test(`${generic ? 'generic' : 'dedicated'} chips resolve the configured new-chat defaults`, async () => {
+			const initialConfig = { mode: 'autopilot', autoApprove: 'autoApprove', isolation: 'folder' };
+			const rig = createChips(generic, { initialConfig });
+			await timeout(0);
+			assert.deepStrictEqual(rig.requests, [{
+				provider: 'copilotcli',
+				workingDirectory: URI.file('/workspace'),
+				config: initialConfig,
+			}]);
+			await rig.answers[0].complete({ schema: { type: 'object', properties: {} }, values: initialConfig });
+		});
+
+		test(`${generic ? 'generic' : 'dedicated'} chips keep resolved configuration during provisional hydration`, async () => {
+			const rig = createChips(generic);
+			const property = generic ? 'choice' : 'mode';
+			const result: ResolveSessionConfigResult = {
+				schema: { type: 'object', properties: { [property]: { type: 'string', title: 'Mode', enum: ['interactive', 'autopilot'], enumLabels: ['Interactive', 'Autopilot'] } } },
+				values: { [property]: 'autopilot' },
+			};
+			const container = dom.$('div');
+			rig.chips.render(container);
+			const snapshot = () => ({
+				label: container.querySelector('.agent-host-chat-input-picker-label')?.textContent,
+				busy: container.querySelector('[aria-busy="true"]') !== null,
+			});
+			await timeout(0);
+			await rig.answers[0].complete(result);
+			await timeout(0);
+			if (generic) {
+				await rig.answers[1].complete(result);
+				await timeout(0);
+			}
+			const resolved = snapshot();
+			rig.setProvisional(URI.parse('ahp-session:/opaque-provisional'));
+			const hydrating = snapshot();
+			rig.setSessionState(new class extends mock<SessionState>() {
+				override readonly provider = 'copilotcli';
+				override readonly config = result;
+				override readonly chats = [];
+			}());
+			const hydrated = snapshot();
+			rig.setSessionState(new Error('Session no longer available'));
+			const failed = snapshot();
+			assert.deepStrictEqual({ resolved, hydrating, hydrated, failed }, {
+				resolved: { label: 'Autopilot', busy: false },
+				hydrating: { label: 'Autopilot', busy: true },
+				hydrated: { label: 'Autopilot', busy: false },
+				failed: { label: undefined, busy: false },
+			});
+		});
+
 		test(`${generic ? 'generic' : 'dedicated'} chips preserve a pending cold-start read and refresh a settled value on restart`, async () => {
-			const rig = createUntitledChips(generic);
+			const rig = createChips(generic);
 			await timeout(0);
 			rig.restarted.fire();
 			await timeout(0);
@@ -150,7 +293,7 @@ suite('AgentHostGenericConfigChips', () => {
 		});
 
 		test(`${generic ? 'generic' : 'dedicated'} chips invalidate a pending read when the host exits before restarting`, async () => {
-			const rig = createUntitledChips(generic);
+			const rig = createChips(generic);
 			await timeout(0);
 			rig.exited.fire(0);
 			rig.restarted.fire();
@@ -162,7 +305,7 @@ suite('AgentHostGenericConfigChips', () => {
 		});
 
 		test(`${generic ? 'generic' : 'dedicated'} chips ignore 1780 unrelated restored identities and share pending reads`, async () => {
-			const rig = createUntitledChips(generic);
+			const rig = createChips(generic);
 			await timeout(0);
 			for (let i = 0; i < 1780; i++) {
 				rig.connections.registerSessionResource(URI.parse(`ahp-session:/restored-${i}`), AMBIENT_AGENT_HOST_AUTHORITY, 'copilotcli');
@@ -184,7 +327,7 @@ suite('AgentHostGenericConfigChips', () => {
 		});
 
 		test(`${generic ? 'generic' : 'dedicated'} chips re-resolve identity changes and restart, and stop reading after disposal`, async () => {
-			const rig = createUntitledChips(generic);
+			const rig = createChips(generic);
 			await timeout(0);
 			rig.connections.registerSessionResource(URI.parse('ahp-session:/untitled-restoration'), AMBIENT_AGENT_HOST_AUTHORITY, 'copilotcli');
 			await timeout(0);
@@ -214,12 +357,69 @@ suite('AgentHostGenericConfigChips', () => {
 		});
 	}
 
+	for (const generic of [false, true]) {
+		for (const provider of ['claude', 'codex']) {
+			for (const untitled of [false, true]) {
+				for (const initiallyBlocked of [false, true]) {
+					test(`policy-disabled ${provider} ${generic ? 'generic' : 'dedicated'} config chips suspend provider access (untitled=${untitled}, cold=${initiallyBlocked})`, async () => {
+						const setting = `chat.agentHost.${provider}Agent.enabled`;
+						const configuration = new class extends TestConfigurationService {
+							blocked = initiallyBlocked;
+							override inspect<T>(key: string) {
+								const value = super.inspect<T>(key);
+								return { ...value, policyValue: key === setting && this.blocked ? value.value : undefined };
+							}
+						}({ [setting]: !initiallyBlocked });
+						const sessionResource = URI.parse(`agent-host-${provider}:/${untitled ? 'untitled-' : ''}policy`);
+						const rig = createChips(generic, { sessionResource, configuration });
+						await timeout(0);
+						const snapshot = () => ({ acquired: rig.acquired.length, released: rig.released.length, requests: rig.requests.length, provisionals: rig.provisionalRequests.length });
+						const opened = snapshot();
+						const setPolicy = async (blocked: boolean) => {
+							configuration.blocked = blocked;
+							await configuration.setUserConfiguration(setting, !blocked);
+							configuration.onDidChangeConfigurationEmitter.fire({
+								source: ConfigurationTarget.USER,
+								affectedKeys: new Set([setting]),
+								change: { keys: [setting], overrides: [] },
+								affectsConfiguration: key => key === setting,
+							});
+						};
+						await setPolicy(true);
+						rig.changed.fire({ previousSessionResource: sessionResource, currentSessionResource: sessionResource });
+						rig.restarted.fire();
+						await timeout(0);
+						const blocked = snapshot();
+						for (const answer of rig.answers) {
+							await answer.complete({ schema: { type: 'object', properties: {} }, values: {} });
+						}
+						await setPolicy(false);
+						await timeout(0);
+						assert.deepStrictEqual({ opened, blocked, recovered: snapshot() }, {
+							opened: { acquired: !untitled && !initiallyBlocked ? 1 : 0, released: 0, requests: untitled && !initiallyBlocked ? 1 : 0, provisionals: untitled && !generic && !initiallyBlocked ? 1 : 0 },
+							blocked: { acquired: !untitled && !initiallyBlocked ? 1 : 0, released: !untitled && !initiallyBlocked ? 1 : 0, requests: untitled && !initiallyBlocked ? 1 : 0, provisionals: untitled && !generic && !initiallyBlocked ? 1 : 0 },
+							recovered: { acquired: untitled ? 0 : initiallyBlocked ? 1 : 2, released: !untitled && !initiallyBlocked ? 1 : 0, requests: untitled ? initiallyBlocked ? 1 : 2 : 0, provisionals: untitled && !generic ? initiallyBlocked ? 1 : 2 : 0 },
+						});
+					});
+				}
+			}
+		}
+	}
+
 	for (const provider of ['copilotcli', 'codex', 'claude']) {
 		for (const remote of [false, true]) {
 			test(`peer selection subscribes only to its owning ${provider} session (${remote ? 'remote' : 'local'})`, () => {
 				const acquired: string[] = [];
 				const released: string[] = [];
+				const configuration = new class extends TestConfigurationService {
+					override inspect<T>(key: string) {
+						const value = super.inspect<T>(key);
+						return { ...value, policyValue: remote ? value.value : undefined };
+					}
+				}({ 'chat.agentHost.claudeAgent.enabled': false, 'chat.agentHost.codexAgent.enabled': false });
+				disposables.add(configuration.onDidChangeConfigurationEmitter);
 				const agentHost = new class extends mock<IAgentHostService>() {
+					override readonly initializeResult = constObservable(undefined);
 					override readonly onAgentHostStart = Event.None;
 					override readonly onAgentHostExit = Event.None;
 					override readonly onDidNotification = Event.None;
@@ -256,6 +456,7 @@ suite('AgentHostGenericConfigChips', () => {
 						new class extends mock<IAgentHostNewSessionFolderService>() { }(),
 						new NullLogService(),
 						agentHost,
+						configuration,
 					));
 					chips.dispose();
 				}
@@ -280,6 +481,7 @@ suite('AgentHostGenericConfigChips', () => {
 		const acquired: string[] = [];
 		const released: string[] = [];
 		const agentHostService = new class extends mock<IAgentHostService>() {
+			override readonly initializeResult = constObservable(undefined);
 			declare readonly _serviceBrand: undefined;
 			override readonly onDidNotification = Event.None;
 			override readonly onAgentHostStart = Event.None;
@@ -297,6 +499,8 @@ suite('AgentHostGenericConfigChips', () => {
 			viewModel: { sessionResource },
 			onDidChangeViewModel: Event.None,
 		} as Partial<IChatWidget> as IChatWidget;
+		const configuration = new TestConfigurationService();
+		disposables.add(configuration.onDidChangeConfigurationEmitter);
 		const chips = disposables.add(new AgentHostGenericConfigChips(
 			widget,
 			disposables.add(new TestInstantiationService()),
@@ -315,6 +519,7 @@ suite('AgentHostGenericConfigChips', () => {
 			{} as IAgentHostNewSessionFolderService,
 			new NullLogService(),
 			agentHostService,
+			configuration,
 		));
 
 		currentBackend = secondBackend;
@@ -335,11 +540,38 @@ suite('AgentHostGenericConfigChips', () => {
 suite('AgentHostInitialSessionConfig', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('shares equal defaults and discards results for superseded defaults', async () => {
+		const configs: (Record<string, unknown> | undefined)[] = [];
+		const answers: DeferredPromise<ResolveSessionConfigResult>[] = [];
+		const connection = new class extends mock<IAgentConnection>() {
+			override resolveSessionConfig(request: Parameters<IAgentConnection['resolveSessionConfig']>[0]): Promise<ResolveSessionConfigResult> {
+				configs.push(request.config);
+				const answer = new DeferredPromise<ResolveSessionConfigResult>();
+				answers.push(answer);
+				return answer.p;
+			}
+		}();
+		const resource = URI.parse('agent-host-copilotcli:/untitled-test');
+		const resolution = { connection, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession: URI.parse('ahp-session:/opaque') };
+		const resolver = store.add(new AgentHostInitialSessionConfig(error => { throw error; }));
+		const initial = resolver.resolve(resource, 'copilotcli', resolution, undefined, { mode: 'interactive' });
+		const shared = resolver.resolve(resource, 'copilotcli', resolution, undefined, { mode: 'interactive' });
+		await timeout(0);
+		const updated = resolver.resolve(resource, 'copilotcli', resolution, undefined, { mode: 'autopilot' });
+		await timeout(0);
+		await answers[0].complete({ schema: { type: 'object', properties: {} }, values: { mode: 'interactive' } });
+		await answers[1].complete({ schema: { type: 'object', properties: {} }, values: { mode: 'autopilot' } });
+		assert.deepStrictEqual({ shared: initial === shared, configs, stale: await initial, updated: (await updated)?.values }, {
+			shared: true, configs: [{ mode: 'interactive' }, { mode: 'autopilot' }], stale: undefined, updated: { mode: 'autopilot' },
+		});
+	});
+
 	test('shares reads, retries logged failures and invalidates changed owning connections and folders', async () => {
 		const requests: string[] = [];
 		const answers: DeferredPromise<ResolveSessionConfigResult>[] = [];
 		const errors: unknown[] = [];
 		const makeConnection = (name: string) => new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
 			override resolveSessionConfig(): Promise<ResolveSessionConfigResult> {
 				requests.push(name);
 				const answer = new DeferredPromise<ResolveSessionConfigResult>();
@@ -421,6 +653,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 			},
 		};
 		const connection = new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
 			override readonly onDidNotification = Event.None;
 			acquired = 0;
 			released = 0;
@@ -465,6 +698,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 		}
 		remoteConnections.set('host-two', secondHost.connection);
 		const ambient = new class extends mock<IAgentHostService>() {
+			override readonly initializeResult = constObservable(undefined);
 			override readonly onAgentHostStart = Event.None;
 			override readonly onAgentHostExit = Event.None;
 			override readonly resourceUris = identityAgentHostResourceUriMapper;
@@ -583,6 +817,26 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 			chips: 3,
 			buttons: ['Custom Choice: First Option', 'Toggle: Off'],
 			readOnly: 1,
+		});
+	});
+
+	test('hides the input request timeout picker without changing host configuration', () => {
+		const config = makeConfig();
+		config.schema.properties.inputRequestTimeout = { type: 'string', title: 'Question timeout', enum: ['5m', '4h', 'none'], default: '5m', sessionMutable: true };
+		config.values.inputRequestTimeout = '4h';
+		const originalConfig = structuredClone(config);
+		const { container, host } = setup(config);
+
+		assert.deepStrictEqual({
+			timeout: container.querySelector('.agent-host-chat-input-picker-host-inputRequestTimeout'),
+			buttons: [...container.querySelectorAll('[role="button"]')].map(element => element.getAttribute('aria-label')),
+			config,
+			writes: host.connection.dispatches,
+		}, {
+			timeout: null,
+			buttons: ['Custom Choice: First Option', 'Toggle: Off'],
+			config: originalConfig,
+			writes: [],
 		});
 	});
 
@@ -706,6 +960,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 				return subscribeCalls === 1 ? initial.p : { resource: resource.toString(), state, fromSeq: 0 };
 			}, () => { }));
 			const connection = new class extends mock<IAgentConnection>() {
+				override readonly initializeResult = constObservable(undefined);
 				override readonly onDidNotification = notifications.event;
 				override getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
 					return manager.getSubscription(kind, resource, owner);
@@ -750,6 +1005,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 			onDidError: errors.event,
 		};
 		const connection = new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
 			override readonly onDidNotification = notifications.event;
 		}();
 		let retries = 0;

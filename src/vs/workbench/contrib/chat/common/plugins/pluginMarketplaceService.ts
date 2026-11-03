@@ -13,6 +13,7 @@ import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual, isEqualOrParent, joinPath, normalizePath, relativePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -25,11 +26,13 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMeteredConnectionService } from '../../../../../platform/meteredConnection/common/meteredConnection.js';
 import { ObservableMemento, observableMemento } from '../../../../../platform/observable/common/observableMemento.js';
+import { COPILOT_STRICT_MARKETPLACES_KEY, IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { asJson, IRequestService } from '../../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import type { Dto } from '../../../../services/extensions/common/proxyIdentifier.js';
 import { AutoUpdateConfigurationKey, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatConfiguration } from '../constants.js';
+import { customizationSearchMatchesAny } from '../aiCustomizationSearch.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
 import { IAgentPluginEnablementService } from './agentPluginService.js';
 import { FileBackedInstalledPluginsStore, IStoredInstalledPlugin } from './fileBackedInstalledPluginsStore.js';
@@ -119,6 +122,76 @@ export interface IMarketplacePlugin {
 	/** The type of marketplace this plugin comes from. */
 	readonly marketplaceType: MarketplaceType;
 	readonly readmeUri?: URI;
+}
+
+export function getMarketplacePluginRepositoryUri(plugin: Pick<IMarketplacePlugin, 'sourceDescriptor' | 'marketplaceReference'>): URI | undefined {
+	switch (plugin.sourceDescriptor.kind) {
+		case PluginSourceKind.GitHub:
+			return getGitHubRepositoryUri(plugin.sourceDescriptor.repo);
+		case PluginSourceKind.GitUrl:
+			return getGitHubRepositoryUri(plugin.sourceDescriptor.url);
+		case PluginSourceKind.RelativePath:
+			return getGitHubRepositoryUri(plugin.marketplaceReference.githubRepo);
+		case PluginSourceKind.Npm:
+		case PluginSourceKind.Pip:
+			return undefined;
+	}
+}
+
+export function getMarketplacePluginSourceUri(plugin: Pick<IMarketplacePlugin, 'sourceDescriptor' | 'marketplaceReference'>): URI | undefined {
+	const repository = getMarketplacePluginRepositoryUri(plugin);
+	if (!repository) {
+		return undefined;
+	}
+	switch (plugin.sourceDescriptor.kind) {
+		case PluginSourceKind.GitHub:
+		case PluginSourceKind.GitUrl:
+			return getGitHubRepositorySourceUri(repository, plugin.sourceDescriptor.sha ?? plugin.sourceDescriptor.ref, plugin.sourceDescriptor.path);
+		case PluginSourceKind.RelativePath:
+			return getGitHubRepositorySourceUri(repository, plugin.marketplaceReference.ref, plugin.sourceDescriptor.path);
+		case PluginSourceKind.Npm:
+		case PluginSourceKind.Pip:
+			return undefined;
+	}
+}
+
+export function getGitHubRepositoryUri(repository: string | URI | undefined): URI | undefined {
+	if (!repository) {
+		return undefined;
+	}
+	let uri: URI;
+	if (URI.isUri(repository)) {
+		uri = repository;
+	} else if (isValidGitHubRepo(repository)) {
+		uri = URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${repository}` });
+	} else {
+		try {
+			uri = URI.parse(repository);
+		} catch {
+			return undefined;
+		}
+	}
+	if (uri.scheme !== Schemas.https || uri.authority.toLowerCase() !== 'github.com' || uri.query || uri.fragment) {
+		return undefined;
+	}
+	const segments = uri.path.replace(/\.git$/, '').split('/').filter(Boolean);
+	if (segments.length !== 2 || !isValidGitHubRepo(segments.join('/'))) {
+		return undefined;
+	}
+	return URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${segments[0]}/${segments[1]}` });
+}
+
+export function getGitHubRepositorySourceUri(repository: string | URI | undefined, ref: string | undefined, path: string | undefined): URI | undefined {
+	const repositoryUri = getGitHubRepositoryUri(repository);
+	if (!repositoryUri) {
+		return undefined;
+	}
+	const sourceRef = ref?.trim();
+	const sourcePath = path?.replace(/^\/+|\/+$/g, '');
+	if (!sourceRef && !sourcePath) {
+		return repositoryUri;
+	}
+	return repositoryUri.with({ path: `${repositoryUri.path}/tree/${sourceRef || 'HEAD'}${sourcePath ? `/${sourcePath}` : ''}` });
 }
 
 /** Raw JSON shape of a remote plugin source object in marketplace.json. */
@@ -219,7 +292,7 @@ export interface IPluginMarketplaceService {
 	isMarketplaceTrusted(ref: IMarketplaceReference): boolean;
 	/**
 	 * Returns whether the strict-marketplace enterprise policy
-	 * (`chat.plugins.strictMarketplaces`) is active — i.e. an allowlist is
+	 * (`strictKnownMarketplaces`) is active — i.e. an allowlist is
 	 * configured. When active, blocked marketplaces cannot be trusted by the user.
 	 */
 	isStrictMarketplacePolicyActive(): boolean;
@@ -388,6 +461,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IMeteredConnectionService private readonly _meteredConnectionService: IMeteredConnectionService,
 		@IAgentPluginEnablementService pluginEnablementService: IAgentPluginEnablementService,
+		@IManagedSettingsService private readonly _managedSettingsService: IManagedSettingsService,
 	) {
 		super();
 
@@ -448,6 +522,8 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			return keys;
 		});
 
+		const strictMarketplaces = observableFromEvent(this, this._managedSettingsService.onDidChangeManagedSettings,
+			() => this._managedSettingsService.getManagedSettingValue(COPILOT_STRICT_MARKETPLACES_KEY));
 		this.onDidChangeMarketplaces = Event.any(
 			Event.filter(
 				_configurationService.onDidChangeConfiguration,
@@ -457,21 +533,20 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			) as Event<unknown> as Event<void>,
 			Event.fromObservableLight(this._workspacePluginSettingsService.extraMarketplaces),
 			Event.map(this._workspaceTrustService.onDidChangeTrust, () => { }),
+			Event.fromObservableLight(strictMarketplaces),
 		);
 		this._register(this.onDidChangeMarketplaces(() => this._invalidateQueries()));
-		this._register(Event.filter(
-			_configurationService.onDidChangeConfiguration,
-			event => event.affectsConfiguration(ChatConfiguration.StrictMarketplaces),
-		)(() => this._invalidateQueries()));
 
 		this._register(runWhenGlobalIdle(() => {
 			this._updateChecksInitialized = true;
 			this._scheduleUpdateCheck();
-			this._register(Event.filter(
-				_configurationService.onDidChangeConfiguration,
-				e => e.affectsConfiguration(AutoUpdateConfigurationKey)
-					|| e.affectsConfiguration(ChatConfiguration.ExtraMarketplaces)
-					|| e.affectsConfiguration(ChatConfiguration.StrictMarketplaces),
+			this._register(Event.any(
+				Event.filter(
+					_configurationService.onDidChangeConfiguration,
+					e => e.affectsConfiguration(AutoUpdateConfigurationKey)
+						|| e.affectsConfiguration(ChatConfiguration.ExtraMarketplaces),
+				),
+				Event.fromObservableLight(strictMarketplaces),
 			)(() => {
 				this._marketplacesWithUpdates.set(new Set(), undefined);
 				this._scheduleUpdateCheck(0);
@@ -548,7 +623,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		}
 		const items = continuation?.items ?? plugins.filter(plugin =>
 			options.marketplaceTypes.has(plugin.marketplaceType) &&
-			(!text || [plugin.name, plugin.description, plugin.marketplace].some(value => value.toLowerCase().includes(text))));
+			customizationSearchMatchesAny(text, [plugin.name, plugin.description, plugin.marketplace]));
 		const offset = continuation?.offset ?? 0;
 		const end = Math.min(offset + pageSize, items.length);
 		const nextCursor = end < items.length ? generateUuid() : undefined;
@@ -831,12 +906,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	}
 
 	isMarketplaceTrusted(ref: IMarketplaceReference): boolean {
-		// In strict mode (`chat.plugins.strictMarketplaces`, typically delivered via the
-		// `ChatStrictMarketplaces` enterprise policy), trust is governed entirely by the
-		// allowlist: a marketplace is trusted only if it matches one of the configured
-		// source entries. The user-trusted store is bypassed — that's the whole point of
-		// "strict": the enterprise fully controls the allowed marketplaces.
-		const allowlist = getStrictKnownMarketplaces(this._configurationService.getValue(ChatConfiguration.StrictMarketplaces));
+		const allowlist = this._getStrictMarketplaces();
 		if (allowlist !== undefined) {
 			return isMarketplaceReferenceAllowed(allowlist, ref);
 		}
@@ -844,7 +914,20 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	}
 
 	isStrictMarketplacePolicyActive(): boolean {
-		return getStrictKnownMarketplaces(this._configurationService.getValue(ChatConfiguration.StrictMarketplaces)) !== undefined;
+		return this._getStrictMarketplaces() !== undefined;
+	}
+
+	private _getStrictMarketplaces() {
+		const value = this._managedSettingsService.getManagedSettingValue(COPILOT_STRICT_MARKETPLACES_KEY);
+		if (typeof value !== 'string') {
+			return undefined;
+		}
+		try {
+			return getStrictKnownMarketplaces(JSON.parse(value));
+		} catch (error) {
+			this._logService.warn('Invalid managed strictKnownMarketplaces JSON', error);
+			return undefined;
+		}
 	}
 
 	isMarketplaceAutoUpdateEnabled(ref: IMarketplaceReference): boolean {

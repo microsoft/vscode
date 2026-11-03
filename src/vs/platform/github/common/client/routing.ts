@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { GitHubRequestError } from '../githubTypes.js';
-import { MAX_PER_PAGE } from './types.js';
+import { MAX_PER_PAGE, RepositoryRef } from './types.js';
 
 /** Encodes one opaque API identifier, rejecting empty identifiers and URL dot segments. */
 export function pathSegment(value: string): string {
@@ -22,9 +22,16 @@ export function numberSegment(value: number): string {
 	return String(value);
 }
 
-/** Encodes a repository path while preserving directory separators. */
-export function encodePathSegments(path: string): string {
-	return path.split('/').map(encodeURIComponent).join('/');
+/** Encodes a relative path with a leading slash; null, undefined, and empty paths produce an empty string. */
+export function pathSegments(path: string | null | undefined): string {
+	if (path === null || path === undefined || path === '') {
+		return '';
+	}
+	const segments = path.split('/');
+	if (segments.some(segment => !segment || segment === '.' || segment === '..')) {
+		throw new GitHubRequestError('Expected a repository-relative path without empty or dot segments.', 'validation');
+	}
+	return `/${segments.map(encodeURIComponent).join('/')}`;
 }
 
 /** Appends query parameters, repeating array values and omitting undefined entries. */
@@ -60,12 +67,12 @@ export function withQuery(path: string, parameters: Readonly<Record<string, stri
 }
 
 /** Constructs the API path for a repository. */
-export function repositoryPath(ref: { owner: string; name: string }): string;
+export function repositoryPath(ref: RepositoryRef): string;
 export function repositoryPath(owner: string, repo: string): string;
-export function repositoryPath(arg1: string | { owner: string; name: string }, arg2?: string): string {
+export function repositoryPath(arg1: string | RepositoryRef, arg2?: string): string {
 	if (typeof arg1 === 'string') {
 		return `/repos/${pathSegment(arg1)}/${pathSegment(arg2 as string)}`;
 	} else {
-		return `/repos/${pathSegment(arg1.owner)}/${pathSegment(arg1.name)}`;
+		return `/repos/${pathSegment(arg1.owner)}/${pathSegment(arg1.repo)}`;
 	}
 }

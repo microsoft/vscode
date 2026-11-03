@@ -4,65 +4,342 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { SessionComparisonModelSelection } from '../../browser/sessionComparisonModelSelection.js';
 
 suite('SessionComparisonModelSelection', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	let instantiationService: TestInstantiationService;
 
-	test('one model supports two to ten independent attempts', () => {
-		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
-		selection.start();
-		selection.select('model');
-		const initial = selection.state.get()?.summary;
-		selection.setCount(10);
-		const count = selection.state.get()?.count?.value;
-		for (const count of [1, 11, 2.5, NaN, Infinity]) {
-			assert.throws(() => selection.setCount(count), /integer between 2 and 10/);
+	setup(() => {
+		instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+	});
+
+	function createModelSelection(
+		available: IObservable<boolean>,
+		resolving: IObservable<boolean> = constObservable(false),
+		getModelLabel: ((modelId: string) => string | undefined) | undefined = undefined,
+		reviewAvailable: IObservable<boolean> = constObservable(true),
+		showPickerHint: IObservable<boolean> = constObservable(false),
+	): SessionComparisonModelSelection {
+		return instantiationService.createInstance(SessionComparisonModelSelection, available, resolving, getModelLabel, reviewAvailable, showPickerHint);
+	}
+
+	function selectAttempts(selection: SessionComparisonModelSelection, ...modelIds: string[]): void {
+		for (const modelId of modelIds) {
+			selection.select(modelId);
 		}
-		selection.next();
-		selection.finish();
-		assert.deepStrictEqual({ initial, maximum: selection.attemptModelIds.get(), count }, {
-			initial: '2 Attempts', maximum: Array(10).fill('model'), count: 10,
+	}
+
+	test('discovery hint stays hidden after starting, cancelling, resetting, and recreating comparison setup', () => {
+		const createSelection = () => store.add(createModelSelection(constObservable(true), undefined, undefined, undefined, constObservable(true)));
+		const selection = createSelection();
+		const otherSelection = createSelection();
+		const hints = [selection.showPickerHint.get(), otherSelection.showPickerHint.get()];
+		selection.start();
+		hints.push(selection.showPickerHint.get(), otherSelection.showPickerHint.get());
+		selection.cancel();
+		hints.push(selection.showPickerHint.get());
+		selection.reset();
+		hints.push(selection.showPickerHint.get());
+		selection.dispose();
+		const recreated = createSelection();
+		hints.push(recreated.showPickerHint.get());
+		recreated.start();
+		assert.deepStrictEqual({ hints, setupAvailable: !!recreated.state.get() }, {
+			hints: [true, true, false, false, false, false, false],
+			setupAvailable: true,
 		});
 	});
 
-	test('multiple models run once each and are capped at ten', () => {
-		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+	test('starting comparison retires the hint even while its setting is disabled', () => {
+		const showHint = observableValue('showHint', false);
+		const selection = store.add(createModelSelection(constObservable(true), undefined, undefined, undefined, showHint));
+		const hints = [selection.showPickerHint.get()];
+		showHint.set(true, undefined);
+		hints.push(selection.showPickerHint.get());
+		showHint.set(false, undefined);
 		selection.start();
-		for (let index = 0; index < 11; index++) {
-			selection.select(`model-${index}`);
-		}
-		const draft = { count: selection.state.get()?.count, next: selection.state.get()?.canGoNext };
-		selection.next();
-		selection.finish();
-		assert.deepStrictEqual({
-			attempts: selection.attemptModelIds.get(),
-			...draft,
-		}, { attempts: Array.from({ length: 10 }, (_, index) => `model-${index}`), count: undefined, next: true });
+		selection.cancel();
+		showHint.set(true, undefined);
+		hints.push(selection.showPickerHint.get());
+		assert.deepStrictEqual(hints, [false, true, false]);
 	});
 
-	test('skipping Judge finishes an attempts-only comparison', () => {
-		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+	test('an unavailable comparison does not retire the discovery hint', () => {
+		const available = observableValue('available', false);
+		const selection = store.add(createModelSelection(available, undefined, undefined, undefined, constObservable(true)));
+		assert.throws(() => selection.start(), /not available/);
+		available.set(true, undefined);
+		assert.deepStrictEqual({ hint: selection.showPickerHint.get(), setup: selection.state.get() }, { hint: true, setup: undefined });
+	});
+
+	test('Done and Next are enabled only for two to ten models, and more than ten can be selected', () => {
+		const selection = store.add(createModelSelection(constObservable(true)));
 		selection.start();
+		const actions = () => {
+			const state = selection.state.get();
+			return { selected: state?.selectedModelIds.length, canFinish: state?.canFinish, canGoNext: state?.canGoNext, hasNextStep: state?.hasNextStep, status: state?.status };
+		};
+		const none = actions();
+		selection.select('model-0');
+		const one = actions();
 		assert.throws(() => selection.next(), /not ready/);
-		selection.select('model');
+		assert.throws(() => selection.finish(), /not ready/);
+		selection.select('model-1');
+		const two = actions();
+		for (let index = 2; index < 10; index++) {
+			selection.select(`model-${index}`);
+		}
+		const ten = actions();
+		selection.select('model-10');
+		const eleven = actions();
+		assert.throws(() => selection.finish(), /not ready/);
+		selection.select('model-10');
+		const deselected = actions();
+		assert.deepStrictEqual({ none, one, two, ten, eleven, deselected }, {
+			none: { selected: 0, canFinish: false, canGoNext: false, hasNextStep: true, status: undefined },
+			one: { selected: 1, canFinish: false, canGoNext: false, hasNextStep: true, status: { text: '1 selected' } },
+			two: { selected: 2, canFinish: true, canGoNext: true, hasNextStep: true, status: { text: '2 selected' } },
+			ten: { selected: 10, canFinish: true, canGoNext: true, hasNextStep: true, status: { text: '10 selected' } },
+			eleven: { selected: 11, canFinish: false, canGoNext: false, hasNextStep: true, status: { text: '11 selected · 10 max', warning: true } },
+			deselected: { selected: 10, canFinish: true, canGoNext: true, hasNextStep: true, status: { text: '10 selected' } },
+		});
+	});
+
+	test('comparison description explains the available workflow before opening setup', () => {
+		const reviewAvailable = observableValue('reviewAvailable', true);
+		const selection = store.add(createModelSelection(constObservable(true), undefined, undefined, reviewAvailable));
+		const withReview = selection.description.get();
+		reviewAvailable.set(false, undefined);
+		const withoutReview = selection.description.get();
+		selection.start();
+		assert.deepStrictEqual({ withReview, withoutReview, setupDescription: selection.state.get()?.description }, {
+			withReview: 'Select two or more models to run one prompt in parallel. Compare results or have them judged and combined.',
+			withoutReview: 'Select two or more models to run one prompt in parallel and compare their responses side by side.',
+			setupDescription: withoutReview,
+		});
+	});
+
+	test('comparison navigation labels describe the configuration step', () => {
+		const selection = store.add(createModelSelection(constObservable(true)));
+		selection.start();
+		selectAttempts(selection, 'model-0', 'model-1');
+		const attempts = selection.state.get();
 		selection.next();
+		const judgeBeforeSelection = selection.state.get();
+		selection.select('judge-model');
+		const judge = selection.state.get();
+		selection.next();
+		const synthesizer = selection.state.get();
+
+		assert.deepStrictEqual({
+			attempts: { backLabel: attempts?.backLabel, nextLabel: attempts?.nextLabel },
+			judgeBeforeSelection: { backLabel: judgeBeforeSelection?.backLabel, nextLabel: judgeBeforeSelection?.nextLabel },
+			judge: { backLabel: judge?.backLabel, nextLabel: judge?.nextLabel },
+			synthesizer: { backLabel: synthesizer?.backLabel, nextLabel: synthesizer?.nextLabel },
+		}, {
+			attempts: { backLabel: 'Configure Judge', nextLabel: 'Configure Judge' },
+			judgeBeforeSelection: { backLabel: 'Configure Attempts', nextLabel: 'Configure Synthesis' },
+			judge: { backLabel: 'Configure Attempts', nextLabel: 'Configure Synthesis' },
+			synthesizer: { backLabel: 'Configure Judge', nextLabel: 'Configure Synthesis' },
+		});
+	});
+
+	test('multiple models run once each, up to ten', () => {
+		const selection = store.add(createModelSelection(constObservable(true)));
+		selection.start();
+		for (let index = 0; index < 10; index++) {
+			selection.select(`model-${index}`);
+		}
+		selection.finish();
+		assert.deepStrictEqual(selection.attemptModelIds.get(), Array.from({ length: 10 }, (_, index) => `model-${index}`));
+	});
+
+	test('folderless comparisons finish after Attempts without offering review steps', () => {
+		const selection = store.add(createModelSelection(constObservable(true), constObservable(false), undefined, constObservable(false)));
+		selection.start();
+		selectAttempts(selection, 'first', 'second');
+		const state = selection.state.get();
+		assert.throws(() => selection.next(), /not ready/);
 		selection.finish();
 		assert.deepStrictEqual({
-			state: selection.state.get(),
-			summary: selection.summary.get(),
-			configured: selection.configured.get(),
+			canFinish: state?.canFinish,
+			canGoNext: state?.canGoNext,
+			hasNextStep: state?.hasNextStep,
+			attempts: selection.attemptModelIds.get(),
 			judge: selection.judgeModelId.get(),
 			synthesizer: selection.synthesizerModelId.get(),
-		}, { state: undefined, summary: '2 Attempts', configured: true, judge: undefined, synthesizer: undefined });
+		}, {
+			canFinish: true, canGoNext: false, hasNextStep: false,
+			attempts: ['first', 'second'], judge: undefined, synthesizer: undefined,
+		});
+	});
+
+	test('a selected model can add variant attempts at other configurations, counted toward Done/Next and run alongside the default attempt', () => {
+		const selection = store.add(createModelSelection(constObservable(true)));
+		selection.start();
+		assert.throws(() => selection.addVariant('gpt-5.5', { effort: 'max' }, 'Max'), /Select the model/);
+		selection.select('gpt-5.5');
+		// Exactly one model and no variants: still below the two-attempt minimum.
+		assert.deepStrictEqual({ canFinish: selection.state.get()?.canFinish, variants: selection.getVariants('gpt-5.5') }, { canFinish: false, variants: [] });
+
+		selection.addVariant('gpt-5.5', { effort: 'max' }, 'Max');
+		const withOneVariant = { canFinish: selection.state.get()?.canFinish, status: selection.state.get()?.status, variants: selection.getVariants('gpt-5.5') };
+		selection.finish();
+		assert.deepStrictEqual({
+			withOneVariant,
+			attempts: selection.attempts.get(),
+			attemptModelIds: selection.attemptModelIds.get(),
+			summary: selection.summary.get(),
+		}, {
+			withOneVariant: { canFinish: true, status: { text: '2 selected' }, variants: [{ configuration: { effort: 'max' }, label: 'Max' }] },
+			attempts: [{ modelId: 'gpt-5.5' }, { modelId: 'gpt-5.5', configuration: { effort: 'max' }, variantLabel: 'Max' }],
+			attemptModelIds: ['gpt-5.5', 'gpt-5.5'],
+			summary: '2 Attempts',
+		});
+
+		// Deselecting the model discards its queued variants; reselecting starts fresh.
+		selection.start();
+		selection.select('gpt-5.5'); // deselect
+		selection.select('gpt-5.5'); // reselect
+		assert.deepStrictEqual(selection.getVariants('gpt-5.5'), []);
+	});
+
+	test('removeVariant removes exactly the targeted variant by index', () => {
+		const selection = store.add(createModelSelection(constObservable(true)));
+		selection.start();
+		selection.select('gpt-5.5');
+		selection.addVariant('gpt-5.5', { effort: 'low' }, 'Low');
+		selection.addVariant('gpt-5.5', { effort: 'max' }, 'Max');
+		selection.removeVariant('gpt-5.5', 0);
+		assert.deepStrictEqual(selection.getVariants('gpt-5.5'), [{ configuration: { effort: 'max' }, label: 'Max' }]);
+	});
+
+	test('variants stay distinct from the persisted base configuration and from each other', () => {
+		const selection = store.add(createModelSelection(constObservable(true)));
+		selection.start();
+		selection.select('gpt-5.5');
+		selection.addVariant('gpt-5.5', { effort: 'high' }, 'High', { effort: 'low' });
+		selection.addVariant('gpt-5.5', { effort: 'high' }, 'High duplicate', { effort: 'low' });
+		const beforeBaseChange = {
+			variants: selection.getVariants('gpt-5.5'),
+			canFinish: selection.state.get()?.canFinish,
+		};
+
+		selection.reconcileVariants('gpt-5.5', { effort: 'high' });
+		const afterBaseChange = {
+			variants: selection.getVariants('gpt-5.5'),
+			canFinish: selection.state.get()?.canFinish,
+		};
+		assert.throws(() => selection.finish(), /not ready/);
+
+		selection.addVariant('gpt-5.5', { effort: 'max' }, 'Max', { effort: 'high' });
+		selection.finish();
+		assert.deepStrictEqual({
+			beforeBaseChange,
+			afterBaseChange,
+			attempts: selection.attempts.get(),
+		}, {
+			beforeBaseChange: {
+				variants: [{ configuration: { effort: 'high' }, label: 'High' }],
+				canFinish: true,
+			},
+			afterBaseChange: {
+				variants: [],
+				canFinish: false,
+			},
+			attempts: [
+				{ modelId: 'gpt-5.5' },
+				{ modelId: 'gpt-5.5', configuration: { effort: 'max' }, variantLabel: 'Max' },
+			],
+		});
+	});
+
+	test('persisted base changes reconcile committed variants even when editing is cancelled', () => {
+		const selection = store.add(createModelSelection(constObservable(true)));
+		selection.start();
+		selection.select('gpt-5.5');
+		selection.addVariant('gpt-5.5', { effort: 'high' }, 'High', { effort: 'low' });
+		selection.finish();
+
+		selection.start();
+		selection.reconcileVariants('gpt-5.5', { effort: 'high' });
+		const during = {
+			configured: selection.configured.get(),
+			canFinish: selection.state.get()?.canFinish,
+			variants: selection.getVariants('gpt-5.5'),
+		};
+		selection.cancel();
+
+		assert.deepStrictEqual({
+			during,
+			configured: selection.configured.get(),
+			attempts: selection.attempts.get(),
+			summary: selection.summary.get(),
+		}, {
+			during: { configured: false, canFinish: false, variants: [] },
+			configured: false,
+			attempts: [],
+			summary: undefined,
+		});
+	});
+
+	test('the composer summary names the attempt models, falling back to a count when a label is missing', () => {
+		const labels = new Map([['model-a', 'Claude Haiku 4.5'], ['model-b', 'GPT-5.4 mini']]);
+		const named = store.add(createModelSelection(constObservable(true), undefined, modelId => labels.get(modelId)));
+		named.start();
+		selectAttempts(named, 'model-a', 'model-b');
+		named.finish();
+		assert.strictEqual(named.summary.get(), 'Claude Haiku 4.5, GPT-5.4 mini');
+
+		const unresolvedLabel = store.add(createModelSelection(constObservable(true), undefined, modelId => labels.get(modelId)));
+		unresolvedLabel.start();
+		selectAttempts(unresolvedLabel, 'model-a', 'model-unknown');
+		unresolvedLabel.finish();
+		assert.strictEqual(unresolvedLabel.summary.get(), '2 Attempts');
+
+		const noResolver = store.add(createModelSelection(constObservable(true)));
+		noResolver.start();
+		selectAttempts(noResolver, 'model-a', 'model-b');
+		noResolver.finish();
+		assert.strictEqual(noResolver.summary.get(), '2 Attempts');
+	});
+
+	test('Done finishes from any step and keeps what was chosen so far', () => {
+		const selection = store.add(createModelSelection(constObservable(true)));
+		selection.start();
+		selectAttempts(selection, 'one', 'two');
+		selection.finish();
+		const attemptsOnly = {
+			state: selection.state.get(), summary: selection.summary.get(), configured: selection.configured.get(),
+			judge: selection.judgeModelId.get(), synthesizer: selection.synthesizerModelId.get(),
+		};
+		selection.start();
+		selection.next();
+		const judgeWithoutChoice = { canFinish: selection.state.get()?.canFinish, canGoNext: selection.state.get()?.canGoNext };
+		selection.select('judge');
+		const judgeWithChoice = { canFinish: selection.state.get()?.canFinish, canGoNext: selection.state.get()?.canGoNext };
+		selection.finish();
+		assert.deepStrictEqual({
+			attemptsOnly, judgeWithoutChoice, judgeWithChoice,
+			judge: selection.judgeModelId.get(), synthesizer: selection.synthesizerModelId.get(),
+		}, {
+			attemptsOnly: { state: undefined, summary: '2 Attempts', configured: true, judge: undefined, synthesizer: undefined },
+			judgeWithoutChoice: { canFinish: true, canGoNext: false },
+			judgeWithChoice: { canFinish: true, canGoNext: true },
+			judge: 'judge', synthesizer: undefined,
+		});
 	});
 
 	test('Judge and Synthesizer selections survive back navigation', () => {
-		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		const selection = store.add(createModelSelection(constObservable(true)));
 		selection.start();
-		selection.select('model');
+		selectAttempts(selection, 'one', 'two');
 		selection.next();
 		selection.select('judge');
 		selection.next();
@@ -77,13 +354,13 @@ suite('SessionComparisonModelSelection', () => {
 			judge: selection.judgeModelId.get(),
 			synthesizer: selection.synthesizerModelId.get(),
 			configured: selection.configured.get(),
-		}, { models: ['model', 'model'], judge: 'judge', synthesizer: 'synthesizer', configured: true });
+		}, { models: ['one', 'two'], judge: 'judge', synthesizer: 'synthesizer', configured: true });
 	});
 
 	test('Synthesizer can be skipped, and removing Judge clears Synthesizer', () => {
-		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		const selection = store.add(createModelSelection(constObservable(true)));
 		selection.start();
-		selection.select('model');
+		selectAttempts(selection, 'one', 'two');
 		selection.next();
 		selection.select('judge');
 		selection.next();
@@ -105,10 +382,9 @@ suite('SessionComparisonModelSelection', () => {
 
 	test('unavailable committed models return the composer to single-model sending', () => {
 		const available = observableValue('available', true);
-		const selection = store.add(new SessionComparisonModelSelection(available));
+		const selection = store.add(createModelSelection(available));
 		selection.start();
-		selection.select('one');
-		selection.select('two');
+		selectAttempts(selection, 'one', 'two');
 		selection.next();
 		selection.finish();
 		selection.retainModels(new Set(['two']));
@@ -122,10 +398,9 @@ suite('SessionComparisonModelSelection', () => {
 	test('preserves comparison selections while draft configuration resolves', () => {
 		const resolving = observableValue('resolving', false);
 		const available = derived(reader => !resolving.read(reader));
-		const selection = store.add(new SessionComparisonModelSelection(available, resolving));
+		const selection = store.add(createModelSelection(available, resolving));
 		selection.start();
-		selection.select('attempt');
-		selection.setCount(3);
+		selectAttempts(selection, 'one', 'two', 'three');
 		selection.next();
 		selection.select('judge');
 		selection.next();
@@ -142,17 +417,16 @@ suite('SessionComparisonModelSelection', () => {
 		}, {
 			during: { enabled: true, configured: true, available: false },
 			enabled: true, configured: true, available: true,
-			attempts: ['attempt', 'attempt', 'attempt'], judge: 'judge', synthesizer: 'synthesizer',
+			attempts: ['one', 'two', 'three'], judge: 'judge', synthesizer: 'synthesizer',
 		});
 	});
 
 	test('clears an invalid comparison once configuration finishes resolving', () => {
 		const available = observableValue('available', true);
 		const resolving = observableValue('resolving', false);
-		const selection = store.add(new SessionComparisonModelSelection(available, resolving));
+		const selection = store.add(createModelSelection(available, resolving));
 		selection.start();
-		selection.select('attempt');
-		selection.next();
+		selectAttempts(selection, 'one', 'two');
 		selection.finish();
 		resolving.set(true, undefined);
 		available.set(false, undefined);
@@ -164,11 +438,11 @@ suite('SessionComparisonModelSelection', () => {
 	});
 
 	for (const configured of [false, true]) {
-		test(`unavailable workflow resets setup and does not revive it (configured: ${configured})`, () => {
+		test(`unavailable comparison resets setup and does not revive it (configured: ${configured})`, () => {
 			const available = observableValue('available', true);
-			const selection = store.add(new SessionComparisonModelSelection(available));
+			const selection = store.add(createModelSelection(available));
 			selection.start();
-			selection.select('attempt');
+			selectAttempts(selection, 'one', 'two');
 			selection.next();
 			selection.select('judge');
 			selection.next();
@@ -193,10 +467,9 @@ suite('SessionComparisonModelSelection', () => {
 	}
 
 	test('first-time setup stays uncommitted and cancellation does not resume unfinished work', () => {
-		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		const selection = store.add(createModelSelection(constObservable(true)));
 		selection.start();
-		selection.select('model');
-		selection.setCount(5);
+		selectAttempts(selection, 'one', 'two');
 		selection.next();
 		selection.select('judge');
 		const during = { enabled: selection.enabled.get(), summary: selection.summary.get(), attempts: selection.attemptModelIds.get() };
@@ -211,9 +484,9 @@ suite('SessionComparisonModelSelection', () => {
 	});
 
 	test('editing a comparison preserves committed choices until Done and cancellation restores them', () => {
-		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		const selection = store.add(createModelSelection(constObservable(true)));
 		selection.start();
-		selection.select('original');
+		selectAttempts(selection, 'one', 'two');
 		selection.next();
 		selection.select('judge');
 		selection.next();
@@ -221,9 +494,7 @@ suite('SessionComparisonModelSelection', () => {
 		selection.finish();
 
 		selection.start();
-		selection.select('replacement');
-		selection.select('original');
-		selection.setCount(4);
+		selectAttempts(selection, 'three', 'one');
 		selection.next();
 		selection.select('judge');
 		const during = {
@@ -232,27 +503,26 @@ suite('SessionComparisonModelSelection', () => {
 		};
 		selection.cancel();
 		selection.start();
-		assert.deepStrictEqual({
-			during, reopened: selection.state.get()?.selectedModelIds, count: selection.state.get()?.count?.value,
-		}, {
-			during: { configured: true, attempts: ['original', 'original'], judge: 'judge', synthesizer: 'synthesizer', summary: '2 Attempts' },
-			reopened: ['original'], count: 2,
-		});
+		const reopened = selection.state.get()?.selectedModelIds;
 
-		selection.setCount(3);
+		selection.select('three');
 		selection.next();
 		selection.next();
 		selection.finish();
 		assert.deepStrictEqual({
+			during, reopened,
 			attempts: selection.attemptModelIds.get(), summary: selection.summary.get(), state: selection.state.get(),
-		}, { attempts: ['original', 'original', 'original'], summary: '3 Attempts', state: undefined });
+		}, {
+			during: { configured: true, attempts: ['one', 'two'], judge: 'judge', synthesizer: 'synthesizer', summary: '2 Attempts' },
+			reopened: ['one', 'two'],
+			attempts: ['one', 'two', 'three'], summary: '3 Attempts', state: undefined,
+		});
 	});
 
 	test('reset clears both committed and working selections', () => {
-		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		const selection = store.add(createModelSelection(constObservable(true)));
 		selection.start();
-		selection.select('model');
-		selection.next();
+		selectAttempts(selection, 'one', 'two');
 		selection.finish();
 		selection.start();
 		selection.reset();

@@ -246,61 +246,51 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			}
 		}));
 
-		this._register(autorun(reader => {
-			const activeState = this._activeRunState.read(reader);
-			if (!activeState) {
-				return;
+		// Registered once, in one fixed group and without state-dependent conditions: they only keep the submenu
+		// non-empty (the Run view item builds its own dropdown), and any change to the menu would rebuild every
+		// toolbar showing it.
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: CONFIGURE_DEFAULT_RUN_ACTION_ID,
+					title: localize2('configureDefaultRunAction', "Add Task..."),
+					category: SessionsCategories.Sessions,
+					icon: Codicon.add,
+					menu: { id: RunScriptDropdownMenuId, group: '1_configure', order: 0 }
+				});
 			}
 
-			const { session, chat, tasks } = activeState;
-			const folder = chat.workspace.read(reader)?.folders[0];
-			const configureScriptPrecondition = folder?.workingDirectory ? ContextKeyExpr.true() : ContextKeyExpr.false();
-
-			reader.store.add(registerAction2(class extends Action2 {
-				constructor() {
-					super({
-						id: CONFIGURE_DEFAULT_RUN_ACTION_ID,
-						title: localize2('configureDefaultRunAction', "Add Task..."),
-						category: SessionsCategories.Sessions,
-						icon: Codicon.add,
-						precondition: configureScriptPrecondition,
-						menu: [{
-							id: RunScriptDropdownMenuId,
-							group: tasks.length === 0 ? 'navigation' : '1_configure',
-							order: 0
-						}]
-					});
+			async run(): Promise<void> {
+				const state = that._activeRunState.get();
+				if (!state) {
+					return;
 				}
-
-				async run(): Promise<void> {
-					logSessionsInteraction(that._telemetryService, 'addTask', 'menu');
-					const task = await that._showConfigureQuickPick(session, chat);
-					if (task) {
-						await that._sessionsConfigService.runTask(task, session, chat);
-					}
+				logSessionsInteraction(that._telemetryService, 'addTask', 'menu');
+				const task = await that._showConfigureQuickPick(state.session, state.chat);
+				if (task) {
+					await that._sessionsConfigService.runTask(task, state.session, state.chat);
 				}
-			}));
+			}
+		}));
 
-			reader.store.add(registerAction2(class extends Action2 {
-				constructor() {
-					super({
-						id: GENERATE_RUN_ACTION_ID,
-						title: localize2('generateRunAction', "Generate New Task..."),
-						category: SessionsCategories.Sessions,
-						precondition: SessionWorkspaceIsVirtualContext.toNegated(),
-						menu: [{
-							id: RunScriptDropdownMenuId,
-							group: tasks.length === 0 ? 'navigation' : '1_configure',
-							order: 1
-						}]
-					});
-				}
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: GENERATE_RUN_ACTION_ID,
+					title: localize2('generateRunAction', "Generate New Task..."),
+					category: SessionsCategories.Sessions,
+					menu: { id: RunScriptDropdownMenuId, group: '1_configure', order: 1 }
+				});
+			}
 
-				async run(): Promise<void> {
-					logSessionsInteraction(that._telemetryService, 'generateNewTask', 'menu');
-					await that._generateNewTask(session, chat);
+			async run(): Promise<void> {
+				const state = that._activeRunState.get();
+				if (!state) {
+					return;
 				}
-			}));
+				logSessionsInteraction(that._telemetryService, 'generateNewTask', 'menu');
+				await that._generateNewTask(state.session, state.chat);
+			}
 		}));
 	}
 

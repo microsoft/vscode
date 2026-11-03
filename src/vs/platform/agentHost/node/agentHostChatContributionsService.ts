@@ -8,6 +8,7 @@ import { NKeyMap } from '../../../base/common/map.js';
 import { observableValue, type ISettableObservable } from '../../../base/common/observable.js';
 import { IInstantiationService, type IConstructorSignature } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
+import type { IAgentChatUsageSignal } from '../common/agent.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IAgentHostChatContributionHost, IAgentHostChatContributions, IChatMementoKey, IHydrationContext, IIncomingRequest, IAppliedClientAction, IDispatchedAction, IOutgoingTurn, IOutgoingTurnContributionResult, IncomingRequestDisposition, IRestoredChat, ISessionMementoKey, ITurnEnd } from '../common/agentHostChatContributionsService.js';
 import { isAhpChatChannel, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 
@@ -173,6 +174,41 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 			}
 			try {
 				contribution.onDidDispatchAction(dispatched);
+			} catch (err) {
+				this._logContributionFailure(registration, err);
+			}
+		}
+	}
+
+	chatUsage(signal: IAgentChatUsageSignal): void {
+		for (const registration of this._getOrderedContributions()) {
+			const { contribution } = registration;
+			if (!contribution.onChatUsage) {
+				continue;
+			}
+			try {
+				contribution.onChatUsage(signal);
+			} catch (err) {
+				this._logContributionFailure(registration, err);
+			}
+		}
+	}
+
+	didRestoreSession(session: ProtocolURI): void {
+		for (const registration of this._getOrderedContributions()) {
+			try {
+				registration.contribution.onDidRestoreSession?.(session);
+			} catch (err) {
+				this._logContributionFailure(registration, err);
+			}
+		}
+	}
+
+	didHandOverWorktree(session: ProtocolURI, chat: ProtocolURI): void {
+		this._recordChatOwner(chat, session);
+		for (const registration of this._getOrderedContributions()) {
+			try {
+				registration.contribution.onDidHandOverWorktree?.(session, chat);
 			} catch (err) {
 				this._logContributionFailure(registration, err);
 			}

@@ -14,7 +14,6 @@ import { GitHubGraphQLError, IGitHubTransport } from './githubTransport.js';
 const unavailableCapabilities: GitHubHostCapabilities = {
 	graphql: false,
 	mergeQueue: false,
-	internalMergeStatus: false,
 	reviewThreads: false,
 	checkContextRequiredness: false,
 };
@@ -82,8 +81,7 @@ interface IDegradedCapabilities {
 }
 
 export interface IGitHubCapabilities {
-	getCapabilities(credential: GitHubCredential, enterpriseVersion: string | undefined, signal: AbortSignal): Promise<GitHubHostCapabilities>;
-	clear(): void;
+	getCapabilities(credential: GitHubCredential, signal: AbortSignal): Promise<GitHubHostCapabilities>;
 }
 
 export class GitHubHostCapabilitiesService extends Disposable implements IGitHubCapabilities {
@@ -101,14 +99,14 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 	) {
 		super();
 		this._scheduler = scheduler ?? systemRequestScheduler;
-		this._register(this._endpointService.onDidChange(() => this.clear()));
+		this._register(this._endpointService.onDidChange(() => this._clear()));
 	}
 
-	getCapabilities(credential: GitHubCredential, enterpriseVersion: string | undefined, signal: AbortSignal): Promise<GitHubHostCapabilities> {
+	getCapabilities(credential: GitHubCredential, signal: AbortSignal): Promise<GitHubHostCapabilities> {
 		if (signal.aborted) {
 			return Promise.reject(signal.reason);
 		}
-		const key = `${credential.account.host.toLowerCase()}\x00${enterpriseVersion ?? ''}`;
+		const key = credential.account.host.toLowerCase();
 		const degraded = this._degraded.get(key);
 		if (degraded && degraded.generation !== credential.generation) {
 			// A new credential has never been refused, so it is probed at once
@@ -121,7 +119,7 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 		}
 		let cached = this._cache.get(key);
 		if (!cached) {
-			this._logService?.debug(`[GitHubHostCapabilitiesService] Probing capabilities for ${credential.account.host}${enterpriseVersion ? ` (${enterpriseVersion})` : ''}`);
+			this._logService?.debug(`[GitHubHostCapabilitiesService] Probing capabilities for ${credential.account.host}`);
 			const controller = new AbortController();
 			const entry: ICachedCapabilities = {
 				controller,
@@ -152,7 +150,7 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 			cached = entry;
 			this._cache.set(key, cached);
 		} else {
-			this._logService?.trace(`[GitHubHostCapabilitiesService] Reusing capability probe for ${credential.account.host}${enterpriseVersion ? ` (${enterpriseVersion})` : ''}`);
+			this._logService?.trace(`[GitHubHostCapabilitiesService] Reusing capability probe for ${credential.account.host}`);
 		}
 		cached.waiters++;
 		return waitForCapabilities(cached.promise, signal).finally(() => {
@@ -164,7 +162,7 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 		});
 	}
 
-	clear(): void {
+	private _clear(): void {
 		if (this._cache.size > 0) {
 			this._logService?.debug(`[GitHubHostCapabilitiesService] Clearing ${this._cache.size} cached capability probe(s)`);
 		}
@@ -176,7 +174,7 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 	}
 
 	override dispose(): void {
-		this.clear();
+		this._clear();
 		super.dispose();
 	}
 
@@ -199,7 +197,7 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 			{},
 			AbortSignal.any([signal, credential.signal]),
 			'enrichment',
-			{ caller: 'github.capabilities' },
+			{ caller: 'github.capabilities', domain: 'capabilities' },
 		);
 		if (response.errors.length > 0) {
 			const schemaValidation = response.errors.every(isSchemaValidationError);
@@ -226,7 +224,6 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 			capabilities: {
 				graphql: true,
 				mergeQueue: pullRequestFields.has('mergeQueueEntry') && repositoryFields.has('mergeQueue'),
-				internalMergeStatus: false,
 				reviewThreads: pullRequestFields.has('reviewThreads'),
 				checkContextRequiredness: typeof response.data.requirableByPullRequest?.name === 'string',
 			},

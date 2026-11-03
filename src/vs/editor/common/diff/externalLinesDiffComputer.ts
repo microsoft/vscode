@@ -15,8 +15,6 @@ import { lineRangeMappingFromRangeMappings, LineRangeMapping, RangeMapping } fro
 type ExternalDiffModule = { createDiffComputer: typeof createExternalDiffComputer };
 
 let externalModulePromise: Promise<ExternalDiffModule> | undefined;
-let externalDiffComputerPromise: Promise<IExternalDiffComputer> | undefined;
-let externalWasmDiffComputerPromise: Promise<IExternalDiffComputer> | undefined;
 
 function loadExternalModule(): Promise<ExternalDiffModule> {
 	if (!externalModulePromise) {
@@ -27,24 +25,24 @@ function loadExternalModule(): Promise<ExternalDiffModule> {
 	return externalModulePromise;
 }
 
-function loadExternalComputer(useWasm: boolean): Promise<IExternalDiffComputer> {
-	if (useWasm) {
-		if (!externalWasmDiffComputerPromise) {
-			externalWasmDiffComputerPromise = loadExternalModule().then(m => m.createDiffComputer({ useWasm: true }));
-		}
-		return externalWasmDiffComputerPromise;
+const externalComputers = new Map<boolean, Promise<ILinesDiffComputer>>();
+
+export function getExternalLinesDiffComputer(useWasm: boolean): Promise<ILinesDiffComputer> {
+	let computer = externalComputers.get(useWasm);
+	if (!computer) {
+		computer = loadExternalModule().then(m => createExternalLinesDiffComputer(m, useWasm));
+		externalComputers.set(useWasm, computer);
 	}
-	if (!externalDiffComputerPromise) {
-		externalDiffComputerPromise = loadExternalModule().then(m => m.createDiffComputer({ useWasm: false }));
-	}
-	return externalDiffComputerPromise;
+	return computer;
 }
 
-export async function getExternalLinesDiffComputer(useWasm: boolean): Promise<ILinesDiffComputer> {
-	const computer = await loadExternalComputer(useWasm);
-	return new ExternalLinesDiffComputer(computer);
+export async function createExternalLinesDiffComputer(externalModule: ExternalDiffModule, useWasm: boolean): Promise<ILinesDiffComputer> {
+	return new ExternalLinesDiffComputer(await externalModule.createDiffComputer({ useWasm }));
 }
 
+/**
+ * Adapts the offset-based string edit of `@vscode/diff` to line range mappings.
+ */
 class ExternalLinesDiffComputer implements ILinesDiffComputer {
 	constructor(private readonly _computer: IExternalDiffComputer) { }
 
@@ -54,12 +52,11 @@ class ExternalLinesDiffComputer implements ILinesDiffComputer {
 		const originalText = new StringText(originalLines.join('\n'));
 		const modifiedText = new StringText(modifiedLines.join('\n'));
 
+		// Always diff whitespace, so that the edit reproduces the modified text.
+		// Ignoring trim whitespace only hides some of its replacements.
 		const result = this._computer.computeDiff(originalText.value, modifiedText.value, {
-			// TODO: this currently throws
-			ignoreTrimWhitespace: true,
-			// ignoreTrimWhitespace: options.ignoreTrimWhitespace,
-			// TODO: support this. Currently throws with "Time is not implemented in this environment."
-			// maxComputationTimeMs: options.maxComputationTimeMs,
+			ignoreTrimWhitespace: false,
+			// TODO: forward `maxComputationTimeMs` after updating @vscode/diff. The wasm build of the pinned version panics when measuring time.
 			computeMoves: options.computeMoves,
 			extendToSubwords: options.extendToSubwords,
 		});
@@ -70,12 +67,14 @@ class ExternalLinesDiffComputer implements ILinesDiffComputer {
 		const rangeMappings: RangeMapping[] = [];
 		let delta = 0;
 		for (const r of result.edits.replacements) {
-			const modifiedStart = r.range.start + delta;
-			const modifiedEndExclusive = modifiedStart + r.newText.length;
-			const originalRange = originalTransformer.getRange(new OffsetRange(r.range.start, r.range.endExclusive));
-			const modifiedRange = modifiedTransformer.getRange(new OffsetRange(modifiedStart, modifiedEndExclusive));
-			rangeMappings.push(new RangeMapping(originalRange, modifiedRange));
-			delta += r.newText.length - (r.range.endExclusive - r.range.start);
+			const originalRange = new OffsetRange(r.range.start, r.range.endExclusive);
+			const modifiedRange = new OffsetRange(r.range.start + delta, r.range.start + delta + r.newText.length);
+			delta += r.newText.length - originalRange.length;
+
+			if (options.ignoreTrimWhitespace && isInTrimWhitespace(originalText.value, originalRange) && isInTrimWhitespace(modifiedText.value, modifiedRange)) {
+				continue;
+			}
+			rangeMappings.push(new RangeMapping(originalTransformer.getRange(originalRange), modifiedTransformer.getRange(modifiedRange)));
 		}
 
 		const changes = lineRangeMappingFromRangeMappings(rangeMappings, originalText, modifiedText);
@@ -95,4 +94,21 @@ class ExternalLinesDiffComputer implements ILinesDiffComputer {
 
 		return new LinesDiff(changes, moves, result.hitTimeout);
 	}
+}
+
+const whitespaceWithoutLineBreak = /^[^\S\n]*$/;
+
+/**
+ * Whether `range` only covers whitespace before the first or after the last non-whitespace character of a single line.
+ * Changes to such whitespace are hidden when ignoring trim whitespace.
+ */
+function isInTrimWhitespace(text: string, range: OffsetRange): boolean {
+	if (!whitespaceWithoutLineBreak.test(range.substring(text))) {
+		return false;
+	}
+	const lineStart = range.start === 0 ? 0 : text.lastIndexOf('\n', range.start - 1) + 1;
+	const nextLineBreak = text.indexOf('\n', range.endExclusive);
+	const lineEnd = nextLineBreak === -1 ? text.length : nextLineBreak;
+	return whitespaceWithoutLineBreak.test(text.substring(lineStart, range.start))
+		|| whitespaceWithoutLineBreak.test(text.substring(range.endExclusive, lineEnd));
 }

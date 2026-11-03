@@ -6,7 +6,7 @@
 import type { JsonValue, SessionEvent } from '@github/copilot-sdk';
 import { isObject } from '../../../../base/common/types.js';
 import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
-import { getInlineToolInput, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type ToolCallCompletedState, type ToolResultContent, type ToolResultSubagentContent, type Turn } from '../../common/state/sessionState.js';
+import { getInlineToolInput, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type MarkdownResponsePart, type ReasoningResponsePart, type ToolCallCompletedState, type ToolResultContent, type ToolResultSubagentContent, type Turn } from '../../common/state/sessionState.js';
 
 /**
  * Default schema version stamped on the synthesized `session.start` event.
@@ -44,6 +44,8 @@ export interface IBuildSessionEventsOptions {
 	readonly schemaVersion?: number;
 	/** Base time for the synthesized (monotonically increasing) event timestamps. Defaults to now. */
 	readonly startTime?: Date;
+	/** Associates original response parts with their synthesized user-turn and assistant-event IDs. */
+	readonly onAssistantMessage?: (turnId: string, responseId: string, parts: readonly (MarkdownResponsePart | ReasoningResponsePart)[]) => void;
 }
 
 /**
@@ -167,8 +169,9 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 		// UUID (the runtime rejects non-UUID event ids) so the reconstructed turn
 		// keeps the id the SDK's fork/truncate RPCs address and a caller can seed
 		// a matching protocol turn; otherwise mint a fresh UUID.
+		const turnId = isUUID(turn.id) ? turn.id : generateUuid();
 		push({
-			id: isUUID(turn.id) ? turn.id : generateUuid(),
+			id: turnId,
 			parentId,
 			timestamp: nextTimestamp(),
 			type: 'user.message',
@@ -180,12 +183,14 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 
 		let markdown = '';
 		let reasoning = '';
+		let parts: (MarkdownResponsePart | ReasoningResponsePart)[] = [];
 		const flushAssistantMessage = (): void => {
 			if (!markdown && !reasoning) {
 				return;
 			}
+			const responseId = generateUuid();
 			push({
-				id: generateUuid(),
+				id: responseId,
 				parentId,
 				timestamp: nextTimestamp(),
 				type: 'assistant.message',
@@ -196,8 +201,10 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 					...(options.model ? { model: options.model } : {}),
 				},
 			});
+			options.onAssistantMessage?.(turnId, responseId, parts);
 			markdown = '';
 			reasoning = '';
+			parts = [];
 		};
 
 		for (const part of turn.responseParts) {
@@ -210,11 +217,13 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 					flushAssistantMessage();
 				}
 				markdown += part.content;
+				parts.push({ ...part });
 			} else if (part.kind === ResponsePartKind.Reasoning) {
 				if (markdown) {
 					flushAssistantMessage();
 				}
 				reasoning += part.content;
+				parts.push({ ...part });
 			} else if (part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed) {
 				// Flush accumulated assistant text before the tool call so the
 				// reconstructed part order matches the original interleaving.

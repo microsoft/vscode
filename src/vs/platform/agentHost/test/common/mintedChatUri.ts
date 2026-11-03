@@ -5,7 +5,7 @@
 
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
-import { AHP_CHAT_SCHEME, isDefaultChatUri } from '../../common/state/sessionState.js';
+import { AHP_CHAT_SCHEME, buildDefaultChatUri } from '../../common/state/sessionState.js';
 
 /**
  * Test fakes stand in for a host's chat records with the session a test
@@ -38,7 +38,18 @@ export function requireMintedTestChatOwner(chat: URI | string): string {
 	return owner;
 }
 
+/**
+ * Whether `chat` is a default chat minted for its session: {@link buildDefaultChatUri},
+ * with the generation query the host adds when it recreates a session. Test
+ * fakes stand in for a host's recorded default chat with it; production code
+ * reads the recorded default instead.
+ */
+export function isMintedTestDefaultChat(chat: URI | string): boolean {
+	const owner = mintedTestChatOwner(chat);
+	return owner !== undefined && URI.parse(buildDefaultChatUri(owner)).toString() === URI.parse(chat.toString()).with({ query: '' }).toString();
+}
+
 /** The storage a host records for a chat the test minted: its session for a default chat, otherwise the chat itself. */
 export function mintedTestChatStorage(chat: URI | string): URI {
-	return isDefaultChatUri(chat.toString()) ? URI.parse(requireMintedTestChatOwner(chat)) : URI.parse(chat.toString());
+	return isMintedTestDefaultChat(chat) ? URI.parse(requireMintedTestChatOwner(chat)) : URI.parse(chat.toString());
 }

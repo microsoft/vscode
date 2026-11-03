@@ -6,6 +6,30 @@
 import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
 import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHostRestrictedTelemetryContext, type TelemetryProps } from './agentHostRestrictedTelemetry.js';
 
+/* __GDPR__FRAGMENT__
+	"AgentHostRestrictedSdkSession": {
+		"sdkSessionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Existing Copilot SDK conversation identifier, independent of host session grouping and telemetry process lifetime." }
+	}
+*/
+
+/* __GDPR__
+	"copilot-chat/engine.messages": {
+		"owner": "amunger",
+		"comment": "SDK conversation and branch correlation on existing restricted engine snapshots.",
+		"${include}": [ "${AgentHostRestrictedSdkSession}" ],
+		"sdkAgentId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Native SDK subagent identifier within the root SDK conversation; absent for root calls." }
+	}
+*/
+
+/* __GDPR__
+	"copilot-chat/engine.messages.length": {
+		"owner": "amunger",
+		"comment": "SDK conversation and branch correlation on existing restricted engine length events.",
+		"${include}": [ "${AgentHostRestrictedSdkSession}" ],
+		"sdkAgentId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Native SDK subagent identifier within the root SDK conversation; absent for root calls." }
+	}
+*/
+
 const enum TelemetryDestination {
 	EnhancedGH = 1,
 	InternalMSFT = 2,
@@ -48,6 +72,10 @@ export class AgentHostGitHubTelemetryRouter {
 			...event.properties,
 			...(event.model_call_id && event.properties.modelCallId === undefined ? { modelCallId: event.model_call_id } : {}),
 			...additionalProperties,
+			...(eventName === 'engine.messages' || eventName === 'engine.messages.length' ? {
+				sdkSessionId: notification.sessionId || undefined,
+				sdkAgentId: event.properties.agent_id || undefined,
+			} : {}),
 		};
 		const multiplexedProperties = await multiplexProperties(properties);
 		if ((destinations & TelemetryDestination.EnhancedGH) && context.restrictedTelemetryEnabled) {

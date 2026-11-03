@@ -17,10 +17,11 @@ import { AgentSession } from '../../../common/agent.js';
 import { AgentHostWorkspaceSnapshotEnabledConfigKey, platformRootSchema } from '../../../common/agentHostSchema.js';
 import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IDispatchedAction, type IHydrationContext, type IOutgoingTurn, type ISendContribution } from '../../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { ChatOriginKind, isAhpChatChannel, isDefaultChatUri, type Turn, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { ChatOriginKind, isAhpChatChannel, type Turn, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 import { resolveAgentHostFileCompletionRoots } from '../../agentHostFileCompletionUtils.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
+import { AgentHostStateManager, ChatRemovalReason, IAgentHostStateManager } from '../../agentHostStateManager.js';
+import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type AgentHostWorkspaceSnapshotPreparation, type IAgentHostWorkspaceSnapshotEvent } from '../../agentHostTelemetryReporter.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../agentHostTurnTracker.js';
 import { IAgentHostWorktreeIsolation } from '../../shared/worktreeIsolation.js';
@@ -111,6 +112,7 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 	constructor(
 		private readonly _context: IAgentHostChatContributionContext,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		@IAgentHostWorktreeIsolation private readonly _worktreeIsolation: IAgentHostWorktreeIsolation,
 		@IFileService private readonly _fileService: IFileService,
 		@IAgentHostTelemetryReporter private readonly _telemetryReporter: AgentHostTelemetryReporter,
@@ -188,7 +190,10 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 			return;
 		}
 		if (action.type === ActionType.SessionChatRemoved) {
-			this._release(action.chat);
+			// A moved chat keeps its preparation.
+			if (this._stateManager.chatRemovalReason(session, action.chat) === ChatRemovalReason.Deleted) {
+				this._release(action.chat);
+			}
 		} else if (isAhpChatChannel(channel)) {
 			if (action.type === ActionType.ChatTurnStarted) {
 				this._onTurnStarted(channel, session, action.turnId);
@@ -250,7 +255,7 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 			return;
 		}
 		// The session's worktree may already exist, e.g. when its creation finished before this turn started.
-		const worktree = isDefaultChatUri(chat) ? this._worktreeIsolation.getResolvedWorktree(sessionId) : undefined;
+		const worktree = this._chatOwnership.isDefaultChat(session, chat) ? this._worktreeIsolation.getResolvedWorktree(sessionId) : undefined;
 		this._prepare(chat, worktree ? withProcessRoot(worktree, workingDirectories) : workingDirectories);
 	}
 

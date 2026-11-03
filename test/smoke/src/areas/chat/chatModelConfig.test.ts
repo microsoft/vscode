@@ -40,8 +40,8 @@ const MODEL_ID = 'mock-config-model';
 
 /**
  * Combinations of model-configuration picker selections to exercise. Each case
- * selects a Context Size (and, unless it is verifying the untouched default, a
- * Thinking Effort) in the model-picker UI, sends a tagged prompt, and verifies
+ * selects a Context Size (and, unless it is verifying the untouched default, an
+ * Effort Level) in the model-picker UI, sends a tagged prompt, and verifies
  * the values the mock server received in the `/responses` request body:
  *  - reasoning effort  → `body.reasoning.effort`
  *  - context size      → `body.context_management[0].compact_threshold`
@@ -57,7 +57,7 @@ const MODEL_ID = 'mock-config-model';
 interface ConfigCase {
 	readonly name: string;
 	/**
-	 * Thinking Effort label to select, or `undefined` to leave the picker
+	 * Effort Level label to select, or `undefined` to leave the picker
 	 * untouched and verify its schema default (`medium`) is forwarded. A case
 	 * that relies on the default must run before any case selects an effort (the
 	 * per-editor config is sticky), so it is listed first.
@@ -75,7 +75,7 @@ interface ConfigCase {
 }
 
 const CONFIG_CASES: readonly ConfigCase[] = [
-	// Listed first so the Thinking Effort picker is still at its schema default
+	// Listed first so the Effort Level picker is still at its schema default
 	// (`medium`): this case leaves the effort untouched and only selects the
 	// context size, verifying that an unmodified picker forwards its default.
 	{ name: 'Default effort (untouched), full context', expectedEffort: 'medium', contextLabel: '1M', expectedCompactThreshold: 829_800, expectedConfigLabel: 'Medium \u00b7 1M', expectedContextWindowLabel: '1M', scenarioId: 'smoke-model-config-default-long', reply: 'MOCKED_MODEL_CONFIG_DEFAULT_LONG' },
@@ -285,7 +285,7 @@ export function setup(logger: Logger) {
 				for (const testCase of CONFIG_CASES) {
 					logger.log(`[Chat Model Config] case '${testCase.name}': selecting effort='${testCase.effortLabel ?? '(default)'}', context='${testCase.contextLabel}'`);
 
-					// Select the Thinking Effort (when the case specifies one) and the
+					// Select the Effort Level (when the case specifies one) and the
 					// Context Size on the model's details page. Cases without an
 					// `effortLabel` leave the effort untouched to verify its default is
 					// forwarded.

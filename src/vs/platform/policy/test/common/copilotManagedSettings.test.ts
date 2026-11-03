@@ -8,7 +8,7 @@ import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { ManagedSettingsData } from '../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_PERMISSION_RULES_KEYS, COPILOT_SANDBOX_ALLOWED_HOSTS_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_DENIED_PATHS_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_SANDBOX_READONLY_PATHS_KEY, COPILOT_SANDBOX_READWRITE_PATHS_KEY, COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, MANAGED_SETTINGS_CONTROL_DEFINITIONS, hasManagedPermissions, hasManagedSettingsDefinitions, IManagedSettingsService, NullManagedSettingsService, managedModelValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, projectManagedSettings, pickManagedSettings, requiresCopilotAgentHost, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, COPILOT_DEFAULT_PERMISSIONS_MODE_KEY, COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, managedDefaultConfigurationValue, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_PERMISSION_RULES_KEYS, COPILOT_SANDBOX_ALLOWED_HOSTS_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_DENIED_PATHS_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_SANDBOX_READONLY_PATHS_KEY, COPILOT_SANDBOX_READWRITE_PATHS_KEY, COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, MANAGED_SETTINGS_CONTROL_DEFINITIONS, hasManagedPermissionDenials, hasManagedSettingsDefinitions, IManagedSettingsService, NullManagedSettingsService, managedModelValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, projectManagedSettings, pickManagedSettings, requiresCopilotAgentHost, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
 import { PolicyDefinition } from '../../common/policy.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 
@@ -16,7 +16,7 @@ suite('Copilot managed settings projection', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('permission rules including empty lists require Agent Host', () => {
+	test('only non-empty deny rules require Agent Host across delivery channels', () => {
 		const read = (values: ManagedSettingsData): IManagedSettingsService => new class extends NullManagedSettingsService {
 			override getManagedSettingValue(key: string) { return values[key]; }
 			override getManagedSettings() { return values; }
@@ -28,21 +28,21 @@ suite('Copilot managed settings projection', () => {
 			return {
 				empty, rules,
 				watched: MANAGED_SETTINGS_CONTROL_DEFINITIONS[key],
-				absent: hasManagedPermissions(read({})),
-				emptyGate: hasManagedPermissions(read(empty)),
-				rulesGate: hasManagedPermissions(read(rules)),
-				overridden: hasManagedPermissions(read(pickManagedSettings(empty, rules, rules).values)),
-				server: hasManagedPermissions(read(pickManagedSettings({}, rules, {}).values)),
-				file: hasManagedPermissions(read(pickManagedSettings({}, {}, rules).values)),
+				absent: hasManagedPermissionDenials(read({})),
+				emptyGate: hasManagedPermissionDenials(read(empty)),
+				rulesGate: hasManagedPermissionDenials(read(rules)),
+				overridden: hasManagedPermissionDenials(read(pickManagedSettings(empty, rules, rules).values)),
+				server: hasManagedPermissionDenials(read(pickManagedSettings({}, rules, {}).values)),
+				file: hasManagedPermissionDenials(read(pickManagedSettings({}, {}, rules).values)),
 			};
 		});
 		assert.deepStrictEqual(results, COPILOT_PERMISSION_RULES_KEYS.map(key => ({
 			empty: { [key]: '[]' }, rules: { [key]: '["Shell"]' }, watched: { type: 'string' },
-			absent: false, emptyGate: true, rulesGate: true, overridden: true, server: true, file: true,
+			absent: false, emptyGate: false, rulesGate: key === 'permissions.deny', overridden: false, server: key === 'permissions.deny', file: key === 'permissions.deny',
 		})));
 	});
 
-	test('all permission settings select Agent Host by presence rather than their value', () => {
+	test('permission settings other than deny do not require Agent Host', () => {
 		const values: ManagedSettingsData[] = [
 			normalizeManagedSettings({ permissions: {} }),
 			normalizeManagedSettings({ telemetry: { enabled: true }, sandbox: { enabled: false } }),
@@ -50,18 +50,26 @@ suite('Copilot managed settings projection', () => {
 			normalizeManagedSettings({ permissions: { disableAssistedPermissionsMode: false } }),
 			normalizeManagedSettings({ permissions: { disableBypassPermissionsMode: 'enable' } }),
 			normalizeManagedSettings({ permissions: { limitTo: [] } }),
+			normalizeManagedSettings({ permissions: { allow: ['Shell'], ask: ['Read'] } }),
 			normalizeManagedSettings({ permissions: { future: {} } }),
 			normalizeManagedSettings({ permissions: { future: null } }),
 			normalizeManagedSettings({ permissions: { defaultMode: 'manual', disableBypassPermissionsMode: 'disable' } }),
 			{ 'permissions.ask': 'not json' }, { 'permissions.allow': '{}' }, { 'permissions.deny': false },
 		];
-		assert.deepStrictEqual(values.map(bag => hasManagedPermissions(new class extends NullManagedSettingsService {
+		assert.deepStrictEqual(values.map(bag => hasManagedPermissionDenials(new class extends NullManagedSettingsService {
 			override getManagedSettingValue(key: string) { return bag[key]; }
 			override getManagedSettings() { return bag; }
-		}())), [false, false, true, true, true, true, true, true, true, true, true, true]);
+		}())), [false, false, false, false, false, false, false, false, false, false, false, false, true]);
 	});
 
-	test('managed sandbox enablement or rules require Copilot, but other sandbox keys and false do not', () => {
+	test('deny lists are empty only when they are valid empty JSON arrays', () => {
+		const values = ['[]', ' [ \n\t ] ', '["Shell"]', '[""]', '[null]', '[{}]', '{}', 'null', 'false', '""', '', 'not json', '[', '[] trailing', '[/*comment*/]', false, 0, undefined];
+		assert.deepStrictEqual(values.map(value => hasManagedPermissionDenials(new class extends NullManagedSettingsService {
+			override getManagedSettingValue(key: string) { return key === 'permissions.deny' ? value : undefined; }
+		}())), [false, false, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, false]);
+	});
+
+	test('only managed sandbox true or non-empty deny rules require Copilot', () => {
 		const configurationService = new TestConfigurationService();
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 		const values: ManagedSettingsData[] = [
@@ -72,11 +80,17 @@ suite('Copilot managed settings projection', () => {
 			{ [COPILOT_SANDBOX_ENABLED_KEY]: true, [COPILOT_SANDBOX_ALLOW_BYPASS_KEY]: true },
 			{ [COPILOT_SANDBOX_ENABLED_KEY]: false, 'permissions.ask': '["Shell"]' },
 			{ [COPILOT_SANDBOX_ENABLED_KEY]: false, 'permissions.ask': '[]' },
+			{ [COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: true, [COPILOT_SANDBOX_ENABLED_KEY]: true },
+			{ [COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: true, 'permissions.allow': '[]' },
+			{ [COPILOT_SANDBOX_ENABLED_KEY]: false, 'permissions.deny': '["Shell"]' },
+			{ [COPILOT_SANDBOX_ENABLED_KEY]: false, 'permissions.deny': '[]' },
+			{ [COPILOT_SANDBOX_ENABLED_KEY]: 'true' },
+			{ [COPILOT_SANDBOX_MCP_SERVERS_KEY]: true, [COPILOT_SANDBOX_ALLOWED_HOSTS_KEY]: '[]' },
 		];
 		assert.deepStrictEqual(values.map(bag => requiresCopilotAgentHost(new class extends NullManagedSettingsService {
 			override getManagedSettingValue(key: string) { return bag[key]; }
 			override getManagedSettings() { return bag; }
-		}(), configurationService)), [false, true, false, false, true, true, true]);
+		}(), configurationService)), [false, true, false, false, true, false, false, true, false, true, false, false, false]);
 	});
 
 	test('only a managed true Local escape hatch overrides required sandbox and permission routing', () => {
@@ -89,7 +103,7 @@ suite('Copilot managed settings projection', () => {
 		const results = [undefined, false, true, 'true'].map(value => {
 			const normalized = normalizeManagedSettings({ vscode: { temporaryDefaultToLocalHarness: value } });
 			const projected = projectManagedSettings(normalized, declarations);
-			const bag: ManagedSettingsData = { ...projected, [COPILOT_SANDBOX_ENABLED_KEY]: true, 'permissions.allow': '[]' };
+			const bag: ManagedSettingsData = { ...projected, [COPILOT_SANDBOX_ENABLED_KEY]: true, 'permissions.deny': '["Shell"]' };
 			return {
 				projected,
 				required: requiresCopilotAgentHost(new class extends NullManagedSettingsService {
@@ -104,6 +118,42 @@ suite('Copilot managed settings projection', () => {
 			{ projected: { [key]: true }, required: false },
 			{ projected: {}, required: true },
 		]);
+	});
+
+	test('only boolean false prohibits Local without permission or sandbox requirements', () => {
+		const configuration = new TestConfigurationService();
+		disposables.add(configuration.onDidChangeConfigurationEmitter);
+		const key = COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY;
+		const results = [undefined, false, true, 'false', 0, null].map(value => {
+			const bag = normalizeManagedSettings({ vscode: { temporaryAllowLocalHarness: value } });
+			return {
+				projected: projectManagedSettings(bag, MANAGED_SETTINGS_CONTROL_DEFINITIONS),
+				required: requiresCopilotAgentHost(new class extends NullManagedSettingsService {
+					override getManagedSettingValue(key: string) { return bag[key]; }
+					override getManagedSettings() { return bag; }
+				}(), configuration),
+			};
+		});
+		assert.deepStrictEqual({ results, watched: MANAGED_SETTINGS_CONTROL_DEFINITIONS[key] }, {
+			results: [
+				{ projected: {}, required: false },
+				{ projected: { [key]: false }, required: true },
+				{ projected: { [key]: true }, required: false },
+				{ projected: {}, required: false },
+				{ projected: {}, required: false },
+				{ projected: {}, required: false },
+			],
+			watched: { type: 'boolean' },
+		});
+	});
+
+	test('temporary Local permission uses native MDM over server over file precedence', () => {
+		const key = COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY;
+		assert.deepStrictEqual([
+			pickManagedSettings({ [key]: false }, { [key]: true }, { [key]: true }).values,
+			pickManagedSettings({}, { [key]: false }, { [key]: true }).values,
+			pickManagedSettings({}, {}, { [key]: true }).values,
+		], [{ [key]: false }, { [key]: false }, { [key]: true }]);
 	});
 
 	const definitions: IStringDictionary<PolicyDefinition> = {
@@ -147,6 +197,71 @@ suite('Copilot managed settings projection', () => {
 		}, {
 			denied: { [key]: false }, allowed: { [key]: true }, invalid: {},
 			absent: undefined, explicitFalse: false,
+		});
+	});
+
+	test('uses ordinary flattening and projection for managed telemetry file paths without losing sibling controls', () => {
+		const filePath = 'telemetry.filePath';
+		const declarations = {
+			[filePath]: { type: 'string' as const },
+			'telemetry.enabled': { type: 'boolean' as const },
+			'telemetry.capture.identity': { type: 'boolean' as const },
+			'telemetry.resourceAttributes': { type: 'string' as const },
+		};
+		const normalize = (value: unknown) => normalizeManagedSettings({
+			telemetry: {
+				filePath: value,
+				enabled: false,
+				capture: { identity: false },
+				resourceAttributes: { 'service.namespace': 'acme' },
+			},
+		});
+		const project = (value: unknown, warnings: string[] = []) => projectManagedSettings(normalize(value), declarations, warning => warnings.push(warning));
+		const numberWarnings: string[] = [];
+
+		assert.deepStrictEqual({
+			string: project('/var/log/copilot.jsonl'),
+			null: project(null),
+			object: normalize({ path: '/var/log/copilot.jsonl' }),
+			objectProjected: project({ path: '/var/log/copilot.jsonl' }),
+			array: project(['/var/log/copilot.jsonl']),
+			number: project(1, numberWarnings),
+			missing: projectManagedSettings(normalizeManagedSettings({ telemetry: { enabled: false } }), declarations),
+			numberWarnings,
+		}, {
+			string: {
+				[filePath]: '/var/log/copilot.jsonl',
+				'telemetry.enabled': false,
+				'telemetry.capture.identity': false,
+				'telemetry.resourceAttributes': '{"service.namespace":"acme"}',
+			},
+			null: {
+				'telemetry.enabled': false, 'telemetry.capture.identity': false,
+				'telemetry.resourceAttributes': '{"service.namespace":"acme"}',
+			},
+			object: {
+				'telemetry.filePath.path': '/var/log/copilot.jsonl',
+				'telemetry.enabled': false,
+				'telemetry.capture.identity': false,
+				'telemetry.resourceAttributes': '{"service.namespace":"acme"}',
+			},
+			objectProjected: {
+				'telemetry.enabled': false,
+				'telemetry.capture.identity': false,
+				'telemetry.resourceAttributes': '{"service.namespace":"acme"}',
+			},
+			array: {
+				'telemetry.enabled': false,
+				'telemetry.capture.identity': false,
+				'telemetry.resourceAttributes': '{"service.namespace":"acme"}',
+			},
+			number: {
+				'telemetry.enabled': false,
+				'telemetry.capture.identity': false,
+				'telemetry.resourceAttributes': '{"service.namespace":"acme"}',
+			},
+			missing: { 'telemetry.enabled': false },
+			numberWarnings: ['Ignoring managed setting "telemetry.filePath": expected string, got number'],
 		});
 	});
 
@@ -214,6 +329,41 @@ suite('Copilot managed settings projection', () => {
 
 	test('managedModelValue returns the same memoized callback (stable reference identity)', () => {
 		assert.strictEqual(managedModelValue(), managedModelValue());
+	});
+
+	test('managedModelValue reads the Copilot Fusion name as Auto', () => {
+		const value = managedModelValue();
+		assert.deepStrictEqual(
+			{
+				topLevel: value({ managedSettings: { [COPILOT_TOP_LEVEL_MODEL_KEY]: ' Fusion ' } } as IPolicyData),
+				legacy: value({ managedSettings: { [COPILOT_MODEL_KEY]: 'fusion' } } as IPolicyData),
+				otherModel: value({ managedSettings: { [COPILOT_TOP_LEVEL_MODEL_KEY]: 'fusion-preview' } } as IPolicyData),
+			},
+			{ topLevel: 'auto', legacy: 'auto', otherModel: 'fusion-preview' },
+		);
+	});
+
+	test('managedDefaultConfigurationValue projects the managed permission mode onto approvals, clamped by its restrictions', () => {
+		const value = (settings: Record<string, string | boolean>) => managedDefaultConfigurationValue({ managedSettings: settings } as IPolicyData);
+		assert.deepStrictEqual({
+			unset: value({}),
+			manual: value({ [COPILOT_DEFAULT_PERMISSIONS_MODE_KEY]: 'manual' }),
+			assisted: value({ [COPILOT_DEFAULT_PERMISSIONS_MODE_KEY]: 'assisted' }),
+			allowAll: value({ [COPILOT_DEFAULT_PERMISSIONS_MODE_KEY]: 'allow-all' }),
+			unrecognized: value({ [COPILOT_DEFAULT_PERMISSIONS_MODE_KEY]: 'yolo' }),
+			assistedDisabled: value({ [COPILOT_DEFAULT_PERMISSIONS_MODE_KEY]: 'assisted', [COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY]: true }),
+			allowAllDisabled: value({ [COPILOT_DEFAULT_PERMISSIONS_MODE_KEY]: 'allow-all', [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' }),
+			restrictionsOnly: value({ [COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY]: true, [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' }),
+		}, {
+			unset: undefined,
+			manual: '{"approvals":"manual"}',
+			assisted: '{"approvals":"assisted"}',
+			allowAll: '{"approvals":"allowAll"}',
+			unrecognized: '{"approvals":"manual"}',
+			assistedDisabled: '{"approvals":"manual"}',
+			allowAllDisabled: '{"approvals":"manual"}',
+			restrictionsOnly: undefined,
+		});
 	});
 
 	test('managedSettingsDisabledValue forces false only while managed settings are active', () => {
@@ -404,6 +554,17 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 			}]]),
 			suppressedTelemetry: new Map([['telemetry.enabled', [{ channel: 'server', value: true }]]]),
 			activeSources: ['nativeMdm'],
+		});
+	});
+
+	test('an omitted malformed file path leaves the existing higher telemetry controls authoritative', () => {
+		const pick = pickManagedSettings(
+			undefined,
+			normalizeManagedSettings({ telemetry: { filePath: null, enabled: false } }),
+			normalizeManagedSettings({ telemetry: { endpoint: 'https://collector.example', enabled: true } }),
+		);
+		assert.deepStrictEqual(pick.values, {
+			'telemetry.enabled': false,
 		});
 	});
 

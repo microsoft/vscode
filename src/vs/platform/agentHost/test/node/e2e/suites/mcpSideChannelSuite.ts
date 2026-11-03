@@ -15,12 +15,11 @@ import { AgentHostMcpServersConfigKey } from '../../../../common/agentHostSchema
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { buildDefaultChatUri, CustomizationType, ROOT_STATE_URI, type McpServerCustomization, type RootState, type SessionState } from '../../../../common/state/sessionState.js';
+import { CustomizationType, ROOT_STATE_URI, type McpServerCustomization, type RootState, type SessionState } from '../../../../common/state/sessionState.js';
 import { McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../../../common/state/sessionProtocol.js';
 import { createRealSession, driveTurnToCompletion } from '../harness/agentHostE2ETestHarness.js';
-import { assertExpectedFailure } from '../harness/expectedFailure.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
 
@@ -268,7 +267,6 @@ export function defineMcpSideChannelTests(context: IAgentHostE2ETestContext): vo
 		});
 	});
 
-	// Skip Codex recording so the known decoding failure cannot replace its complete fixture.
 	regressionScenario('preserves ordered text image and embedded resource tool content', async ({ channel, calls }) => {
 		CallToolResultSchema.parse(mixedToolResult);
 		const [outcome] = await Promise.allSettled([
@@ -286,17 +284,8 @@ export function defineMcpSideChannelTests(context: IAgentHostE2ETestContext): vo
 				content: outcome.value.content, error: outcome.value.isError === true,
 			}, { content: mixedToolResult.content, error: false });
 		};
-		if (context.config.provider === 'codex') {
-			await assertExpectedFailure(
-				'Codex MCP side-channel mixed-content response decoding',
-				// AHP includes the remote stack in error.message; permit only stack-frame suffixes.
-				/^JsonRpcError: tool call failed for `side_channel\/echo`: Unexpected response type(?:\r?\n[ \t]+at [^\r\n]+)*$/,
-				assertResult,
-			);
-		} else {
-			assertResult();
-		}
-	}, context.config.provider !== 'codex' || !(process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1'));
+		assertResult();
+	});
 
 	regressionScenario('returns resource links that can be read on the same advertised channel', async ({ channel, calls, reads }) => {
 		const result = await context.client.call<IToolResult>('tools/call', { channel, name: 'echo', arguments: { tag: 'resource-link' } });
@@ -544,7 +533,7 @@ export function defineMcpSideChannelTests(context: IAgentHostE2ETestContext): vo
 	scenario('rejects an unsupported method without closing the AHP connection', async ({ channel, session }) => {
 		await assert.rejects(context.client.call('prompts/list', { channel }), error => error instanceof ProtocolError && error.code === JsonRpcErrorCodes.MethodNotFound);
 		await context.client.call('ping', { channel: ROOT_STATE_URI });
-		const result = await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(session) });
+		const result = await context.client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(session) });
 		assert.ok(result.snapshot);
 	});
 

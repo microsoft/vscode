@@ -47,6 +47,8 @@ export interface ILocalChatCommandContext {
 	getState(channel: ProtocolURI): ISessionWithDefaultChat | undefined;
 	/** The session a session or chat channel belongs to. */
 	getOwner(channel: ProtocolURI): ProtocolURI;
+	/** Whether `chat` is the recorded default chat of `session`. */
+	isDefaultChat(session: ProtocolURI, chat: ProtocolURI): boolean;
 	/** Rename a single chat (independently of the session title). */
 	updateChatTitle(session: ProtocolURI, chat: ProtocolURI, title: string): void;
 	/** Persist a session-metadata key/value pair (e.g. a custom title). */
@@ -164,6 +166,7 @@ export class AgentHostLocalCommands extends Disposable {
 			dispatch: (channel, action) => this._stateManager.dispatchServerAction(channel, action),
 			getState: channel => this._stateManager.getSessionState(channel),
 			getOwner: channel => this._ownerOf(channel),
+			isDefaultChat: (session, chat) => this._chatOwnership.isDefaultChat(session, chat),
 			updateChatTitle: (session, chat, title) => this._stateManager.updateChatTitle(session, chat, title),
 			persistSessionFlag: (resource, key, value) => {
 				void this._chatPersistence.persistMetadata(URI.parse(this._ownerOf(resource)), URI.parse(resource), { [key]: value }).catch(error =>

@@ -23,6 +23,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { ISharedWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { ChatMemoryFileResource } from '../../common/chatArtifactExtraction.js';
 import { IChatArtifact, IChatArtifactsService, IArtifactSourceGroup, ArtifactSource } from '../../common/tools/chatArtifactsService.js';
@@ -115,6 +116,7 @@ export class ChatArtifactsWidget extends Disposable {
 		@IFileService private readonly _fileService: IFileService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@IChatImageCarouselService private readonly _chatImageCarouselService: IChatImageCarouselService,
+		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
 	) {
 		super();
 		this.domNode = dom.$('.chat-artifacts-widget');
@@ -291,7 +293,7 @@ export class ChatArtifactsWidget extends Disposable {
 	}
 
 	private async _saveArtifact(artifact: IChatArtifact): Promise<void> {
-		await saveChatArtifact(artifact, this._fileService, this._fileDialogService);
+		await saveChatArtifact(artifact, this._fileService, this._fileDialogService, this._webContentExtractorService);
 	}
 }
 

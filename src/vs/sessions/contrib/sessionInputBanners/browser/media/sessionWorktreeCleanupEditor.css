@@ -13,13 +13,6 @@
 	max-width: 960px;
 	margin: 0 auto;
 	padding: var(--vscode-spacing-size240);
-	container-type: inline-size;
-}
-
-.session-worktree-cleanup-content h1 {
-	font-size: var(--vscode-fontSize-heading1);
-	font-weight: var(--vscode-fontWeight-semiBold);
-	margin: 0 0 var(--vscode-spacing-size80);
 }
 
 .session-worktree-cleanup-intro,
@@ -42,7 +35,17 @@
 	gap: var(--vscode-spacing-size80);
 }
 
-.session-worktree-cleanup-age,
+.session-worktree-cleanup-controls label {
+	cursor: default;
+}
+
+.session-worktree-cleanup-controls select {
+	cursor: pointer;
+	max-width: 100%;
+	min-width: 0;
+}
+
+.session-worktree-cleanup-controls select,
 .session-worktree-cleanup-setting input[type="number"] {
 	color: var(--vscode-input-foreground);
 	background: var(--vscode-input-background);
@@ -73,6 +76,21 @@
 	width: auto;
 }
 
+.session-worktree-cleanup-select-all {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.session-worktree-cleanup-select-all > span {
+	cursor: pointer;
+}
+
+.session-worktree-cleanup-editor .session-worktree-cleanup-select-all > .monaco-checkbox {
+	margin-right: 0;
+	flex-shrink: 0;
+}
+
 .session-worktree-cleanup-info {
 	display: inline-flex;
 	align-items: center;
@@ -95,14 +113,101 @@
 	overflow: hidden;
 }
 
-.session-worktree-cleanup-row {
-	display: grid;
-	grid-template-columns: 28px minmax(0, 1fr) 120px 100px;
+.session-worktree-cleanup-summary-row.hidden,
+.session-worktree-cleanup-progress.hidden,
+.session-worktree-cleanup-available-heading.hidden,
+.session-worktree-cleanup-list.hidden,
+.session-worktree-cleanup-unavailable.hidden,
+.session-worktree-cleanup-empty.hidden {
+	display: none;
+}
+
+.session-worktree-cleanup-progress,
+.session-worktree-cleanup-unavailable {
+	margin-top: var(--vscode-spacing-size160);
+}
+
+.session-worktree-cleanup-progress h2,
+.session-worktree-cleanup-available-heading {
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	margin: var(--vscode-spacing-size160) 0 var(--vscode-spacing-size80);
+}
+
+.session-worktree-cleanup-row .actions {
+	display: flex;
+	align-items: center;
+}
+
+.session-worktree-cleanup-force-remove {
+	width: auto;
+}
+
+.session-worktree-cleanup-unavailable > summary {
+	padding: var(--vscode-spacing-size80) 0;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+}
+
+.session-worktree-cleanup-unavailable > summary:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+.session-worktree-cleanup-empty {
+	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
-	min-height: 36px;
-	padding: 0 var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size120);
+	color: var(--vscode-foreground);
+	background: var(--vscode-editorWidget-background);
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.session-worktree-cleanup-empty .codicon {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-worktree-cleanup-row {
+	box-sizing: border-box;
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}
+
+.session-worktree-cleanup-table-body {
+	width: 100%;
+	padding-bottom: var(--vscode-spacing-size120);
+}
+
+.session-worktree-cleanup-list .monaco-table-th,
+.session-worktree-cleanup-list .monaco-table-td {
+	padding: 0 var(--vscode-spacing-size80);
+}
+
+.session-worktree-cleanup-list .monaco-table-th {
+	background: var(--vscode-editorWidget-background);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-worktree-cleanup-row .title,
+.session-worktree-cleanup-row .selection {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	line-height: normal;
+}
+
+.session-worktree-cleanup-row .selection {
+	align-items: center;
+}
+
+.session-worktree-cleanup-reason {
+	display: block;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .session-worktree-cleanup-session-link {
@@ -124,41 +229,6 @@
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
-/*
- * The editor hides horizontal scrolling, so the fixed table columns cannot fit in a narrow
- * Agents window. Below the full table width, keep the checkbox in its own column and stack the
- * remaining cells so the storage and the session link stay reachable instead of being clipped.
- */
-@container (max-width: 600px) {
-	.session-worktree-cleanup-row {
-		grid-template-columns: 28px minmax(0, 1fr);
-		row-gap: var(--vscode-spacing-size40);
-		padding-top: var(--vscode-spacing-size80);
-		padding-bottom: var(--vscode-spacing-size80);
-	}
-
-	.session-worktree-cleanup-row > *:not(:first-child) {
-		grid-column: 2;
-	}
-
-	.session-worktree-cleanup-row.header {
-		display: none;
-	}
-}
-
-.session-worktree-cleanup-row.header {
-	border-top: 0;
-	background: var(--vscode-editorWidget-background);
-	font-weight: var(--vscode-fontWeight-semiBold);
-}
-
-.session-worktree-cleanup-row .title {
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
 .session-worktree-cleanup-automatic {
 	margin: var(--vscode-spacing-size200) 0;
 	padding: var(--vscode-spacing-size160);
@@ -172,50 +242,8 @@
 	margin: 0 0 var(--vscode-spacing-size80);
 }
 
-.session-worktree-cleanup-settings-heading {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size60);
-}
-
 .session-worktree-cleanup-setting {
 	min-height: 36px;
-}
-
-.session-worktree-cleanup-setting .disabled {
-	color: var(--vscode-disabledForeground);
-}
-
-.session-worktree-cleanup-configure {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	flex-shrink: 0;
-	width: 20px;
-	height: 20px;
-	margin-left: auto;
-	padding: 0;
-	border: none;
-	border-radius: var(--vscode-cornerRadius-small);
-	cursor: pointer;
-	color: var(--vscode-icon-foreground);
-	background: transparent;
-	outline: none;
-}
-
-.session-worktree-cleanup-configure:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.session-worktree-cleanup-configure:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.session-worktree-cleanup-setting-description {
-	margin: calc(-1 * var(--vscode-spacing-size40)) 0 var(--vscode-spacing-size80) 28px;
-	color: var(--vscode-descriptionForeground);
-	line-height: 18px;
 }
 
 .session-worktree-cleanup-setting input[type="number"] {

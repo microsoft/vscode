@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
+import { getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, readSessionApprovalLevel } from '../../common/sessionConfigProperties.js';
 import type { SessionConfigState } from '../../common/state/sessionState.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -47,6 +48,73 @@ suite('Mission Control session config', () => {
 		});
 	});
 
+	for (const [effectiveApprovalMode, availableApprovalModes] of [
+		['default', ['default', 'assisted', 'autoApprove']],
+		['autoApprove', ['default', 'autoApprove']],
+		['default', ['default']],
+		['assisted', []],
+	] as const) {
+		test(`projects approval reports for ${effectiveApprovalMode} with choices ${availableApprovalModes.join(',')}`, () => {
+			const reports = { effectiveApprovalMode, availableApprovalModes: [...availableApprovalModes] };
+			const config: SessionConfigState = {
+				schema: {
+					type: 'object',
+					properties: {
+						autoApprove: platformSessionSchema.definition.autoApprove.protocol,
+						effectiveApprovalMode: { type: 'string', title: 'Effective approvals', readOnly: true },
+						availableApprovalModes: { type: 'array', title: 'Available approvals', readOnly: true },
+					},
+				},
+				values: { autoApprove: 'assisted', ...reports },
+			};
+			const projected = toMissionControlSessionConfig(config);
+			const approval = getSessionApprovalProperty(projected.schema)!;
+			const wireReports = {
+				effectiveApprovalMode: effectiveApprovalMode === 'default' ? 'manual' : effectiveApprovalMode === 'autoApprove' ? 'allow-all' : effectiveApprovalMode,
+				availableApprovalModes: availableApprovalModes.map(value => value === 'default' ? 'manual' : value === 'autoApprove' ? 'allow-all' : value),
+			};
+			const action = { type: ActionType.SessionConfigChanged as const, config: reports };
+			assert.deepStrictEqual({
+				values: projected.values,
+				effectiveSchema: projected.schema.properties.effectiveApprovalMode,
+				availableSchema: projected.schema.properties.availableApprovalModes,
+				effectiveLevel: readSessionApprovalLevel(approval, getEffectiveSessionApprovalValue(approval, projected.schema, projected.values)),
+				availableLevels: getAvailableSessionApprovalValues(approval, projected.schema, projected.values).map(value => readSessionApprovalLevel(approval, value)),
+				reportOnlyAction: missionControlSessionConfigAdapter.toClientAction(action, false),
+				nativeValues: config.values,
+				reportOnlyValues: toMissionControlConfigValues(reports),
+			}, {
+				values: { approvalMode: 'assisted', ...wireReports },
+				effectiveSchema: config.schema.properties.effectiveApprovalMode,
+				availableSchema: config.schema.properties.availableApprovalModes,
+				effectiveLevel: effectiveApprovalMode,
+				availableLevels: [...availableApprovalModes],
+				reportOnlyAction: { ...action, config: wireReports },
+				nativeValues: { autoApprove: 'assisted', ...reports },
+				reportOnlyValues: wireReports,
+			});
+		});
+	}
+
+	test('projects approval report schema defaults and enums', () => {
+		const effective = { type: 'string' as const, title: 'Effective approvals', readOnly: true, enum: ['default', 'assisted', 'autoApprove'], default: 'autoApprove' };
+		const available = {
+			type: 'array' as const, title: 'Available approvals', readOnly: true, default: ['default', 'assisted'],
+			items: { type: 'string' as const, title: 'Approval mode', enum: ['default', 'assisted', 'autoApprove'] },
+		};
+		const projected = toMissionControlSessionConfig({
+			schema: { type: 'object', properties: { autoApprove: platformSessionSchema.definition.autoApprove.protocol, effectiveApprovalMode: effective, availableApprovalModes: available } },
+			values: {},
+		});
+		assert.deepStrictEqual({
+			effective: projected.schema.properties.effectiveApprovalMode,
+			available: projected.schema.properties.availableApprovalModes,
+		}, {
+			effective: { ...effective, enum: ['manual', 'assisted', 'allow-all'], default: 'allow-all' },
+			available: { ...available, default: ['manual', 'assisted'], items: { ...available.items, enum: ['manual', 'assisted', 'allow-all'] } },
+		});
+	});
+
 	test('preserves narrowed enums, labels, descriptions and required keys', () => {
 		const projected = toMissionControlSessionConfig({
 			schema: {
@@ -76,12 +144,24 @@ suite('Mission Control session config', () => {
 	});
 
 	test('does not rewrite another host schema or unrelated configuration', () => {
-		const config = { schema: { type: 'object' as const, properties: { approvalMode: { type: 'string' as const, title: 'Approvals', enum: ['manual'] } } }, values: { approvalMode: 'manual', mode: 'plan' } };
+		const config = {
+			schema: {
+				type: 'object' as const,
+				properties: {
+					approvalMode: { type: 'string' as const, title: 'Approvals', enum: ['manual'] },
+					isolation: { type: 'string' as const, title: 'Isolation', enum: ['folder', 'worktree'] },
+				},
+			},
+			values: { approvalMode: 'manual', mode: 'plan', isolation: 'folder', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual'] },
+		};
 		assert.deepStrictEqual({
-			sameConfig: toMissionControlSessionConfig(config) === config,
+			values: toMissionControlSessionConfig(config).values,
 			noConfig: fromMissionControlConfigValues(undefined),
 			patch: toMissionControlConfigValues({ mode: 'plan' }),
-		}, { sameConfig: true, noConfig: undefined, patch: { mode: 'plan' } });
+		}, {
+			values: { approvalMode: 'manual', mode: 'plan', target: 'workspace', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual'] },
+			noConfig: undefined, patch: { mode: 'plan' },
+		});
 	});
 
 	test('publishes the authoritative native preference rather than a stray alias', () => {

@@ -5,7 +5,7 @@
 
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
 import { buildFolderChangesetOwnerUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
-import { buildDefaultChatUri, isAhpChatChannel, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { ChatOriginKind, isAhpChatChannel, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { getEffectiveWorkingDirectories } from './agentConfigurationService.js';
 
@@ -27,12 +27,12 @@ export function resolveChangesetOwnerScope(stateManager: AgentHostStateManager, 
 		return {
 			ownerUri,
 			sessionUri: folderOwner.sessionUri,
-			sourceUri: buildDefaultChatUri(folderOwner.sessionUri),
+			sourceUri: defaultChatSource(stateManager, folderOwner.sessionUri),
 			workingDirectories: [],
 		};
 	}
 	const sessionUri = (isAhpChatChannel(ownerUri) ? stateManager.getChatOwner(ownerUri) : undefined) ?? ownerUri;
-	const sourceUri = isAhpChatChannel(ownerUri) ? ownerUri : buildDefaultChatUri(sessionUri);
+	const sourceUri = isAhpChatChannel(ownerUri) ? ownerUri : defaultChatSource(stateManager, sessionUri);
 	return {
 		ownerUri,
 		sessionUri,
@@ -41,10 +41,15 @@ export function resolveChangesetOwnerScope(stateManager: AgentHostStateManager, 
 	};
 }
 
+/** A session's changes come from its default chat, or from the session itself while it records none. */
+function defaultChatSource(stateManager: AgentHostStateManager, sessionUri: ProtocolURI): ProtocolURI {
+	return stateManager.getDefaultChat(sessionUri) ?? sessionUri;
+}
+
 function getScopeCandidates(stateManager: AgentHostStateManager, sessionUri: ProtocolURI): readonly ProtocolURI[] {
-	const defaultChat = buildDefaultChatUri(sessionUri);
+	const defaultChat = stateManager.getDefaultChat(sessionUri);
 	return [
-		defaultChat,
+		...(defaultChat !== undefined ? [defaultChat] : []),
 		...stateManager.getSessionState(sessionUri)?.chats
 			.map(chat => chat.resource)
 			.filter(chat => chat !== defaultChat) ?? [],
@@ -57,13 +62,13 @@ export function resolveBranchChangesetScopeForSource(stateManager: AgentHostStat
 		return resolveBranchChangesetScopeForOwner(stateManager, sourceUri) ?? {
 			ownerUri: sourceUri,
 			sessionUri: folderOwner.sessionUri,
-			sourceUri: buildDefaultChatUri(folderOwner.sessionUri),
+			sourceUri: defaultChatSource(stateManager, folderOwner.sessionUri),
 			workingDirectories: [],
 		};
 	}
 
 	const sessionUri = (isAhpChatChannel(sourceUri) ? stateManager.getChatOwner(sourceUri) : undefined) ?? sourceUri;
-	const effectiveSource = isAhpChatChannel(sourceUri) ? sourceUri : buildDefaultChatUri(sessionUri);
+	const effectiveSource = isAhpChatChannel(sourceUri) ? sourceUri : defaultChatSource(stateManager, sessionUri);
 	const workingDirectories = getEffectiveWorkingDirectories(stateManager, effectiveSource) ?? [];
 	return {
 		ownerUri: buildFolderChangesetOwnerUri(sessionUri, getWorkingDirectoryScopeId(workingDirectories)),
@@ -142,9 +147,35 @@ export function isSessionChatInFolder(stateManager: AgentHostStateManager, sessi
 	if (!isAhpChatChannel(chat)) {
 		return false;
 	}
-	const isSessionChat = chat === buildDefaultChatUri(session)
+	const isSessionChat = stateManager.isDefaultChat(session, chat)
 		|| stateManager.getSessionState(session)?.chats.some(candidate => candidate.resource === chat) === true;
 	return isSessionChat && chatWorksInFolder(stateManager, chat, folderKey);
+}
+
+/**
+ * The chat whose own settings Agent Merge elevates for a folder: the chat that
+ * owns the folder's repairs ({@link resolveAgentMergeOwningChat}) unless that is
+ * a subagent, else the
+ * first chat with the folder among any of its working directories, in the
+ * order the recorded chat, the default chat, then the session's other chats.
+ * Chats spawned by a tool call are never chosen: their values are their
+ * spawning chat's. `undefined` when no chat of the session has the folder.
+ */
+export function resolveAgentMergeElevatedChat(stateManager: AgentHostStateManager, session: ProtocolURI, folderKey: string, recordedChat: ProtocolURI | undefined): ProtocolURI | undefined {
+	const owner = resolveAgentMergeOwningChat(stateManager, session, folderKey, recordedChat);
+	if (owner !== undefined && stateManager.getChatOrigin(owner)?.kind !== ChatOriginKind.Tool) {
+		return owner;
+	}
+	const state = stateManager.getSessionState(session);
+	const defaultChat = stateManager.getDefaultChat(session);
+	const isSessionChat = (chat: ProtocolURI) => chat === defaultChat || state?.chats.some(candidate => candidate.resource === chat) === true;
+	const candidates = [
+		...(recordedChat !== undefined && isAhpChatChannel(recordedChat) && isSessionChat(recordedChat) ? [recordedChat] : []),
+		...(defaultChat !== undefined ? [defaultChat] : []),
+		...state?.chats.map(chat => chat.resource) ?? [],
+	];
+	return candidates.find(chat => stateManager.getChatOrigin(chat)?.kind !== ChatOriginKind.Tool
+		&& getEffectiveWorkingDirectories(stateManager, chat)?.some(directory => getWorkingDirectoryKey(directory) === folderKey));
 }
 
 /**
@@ -156,15 +187,15 @@ export function isSessionChatInFolder(stateManager: AgentHostStateManager, sessi
  */
 export function resolveAgentMergeOwningChat(stateManager: AgentHostStateManager, session: ProtocolURI, folderKey: string, recordedChat: ProtocolURI | undefined): ProtocolURI | undefined {
 	const state = stateManager.getSessionState(session);
-	const defaultChat = buildDefaultChatUri(session);
+	const defaultChat = stateManager.getDefaultChat(session);
 	const worksInFolder = (chat: ProtocolURI) => chatWorksInFolder(stateManager, chat, folderKey);
 	if (recordedChat && isSessionChatInFolder(stateManager, session, recordedChat, folderKey)) {
 		return recordedChat;
 	}
-	if (worksInFolder(defaultChat)) {
+	if (defaultChat !== undefined && worksInFolder(defaultChat)) {
 		return defaultChat;
 	}
-	for (const chat of [defaultChat, ...state?.chats.map(chat => chat.resource).filter(chat => chat !== defaultChat) ?? []]) {
+	for (const chat of [...(defaultChat !== undefined ? [defaultChat] : []), ...state?.chats.map(chat => chat.resource).filter(chat => chat !== defaultChat) ?? []]) {
 		if (worksInFolder(chat)) {
 			return chat;
 		}

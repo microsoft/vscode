@@ -17,6 +17,9 @@ import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
 import { NodeAgentHostStarter } from '../../node/nodeAgentHostStarter.js';
+import { AgentHostAhpJsonlLoggingEnvVar } from '../../common/ahpJsonlLogger.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostMultipleChatProvidersEnabledEnvVar } from '../../common/agentService.js';
+import { ChatProvidersSettingId } from '../../common/agentHostChatProviders.js';
 
 class TestNodeAgentHostStarter extends NodeAgentHostStarter {
 	readonly environments: IProcessEnvironment[] = [];
@@ -34,9 +37,9 @@ class TestNodeAgentHostStarter extends NodeAgentHostStarter {
 suite('NodeAgentHostStarter', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createStarter(): TestNodeAgentHostStarter {
+	function createStarter(configuration = new TestConfigurationService()): TestNodeAgentHostStarter {
 		return disposables.add(new TestNodeAgentHostStarter(
-			new TestConfigurationService(),
+			configuration,
 			new class extends mock<INativeEnvironmentService>() {
 				override readonly args = { _: [] };
 				override readonly isBuilt = true;
@@ -47,6 +50,24 @@ suite('NodeAgentHostStarter', () => {
 			NullTelemetryService,
 		));
 	}
+
+	test('forwards AHP capture enablement to the host and refreshes it on restart', async () => {
+		const configuration = new TestConfigurationService({ [AgentHostAhpJsonlLoggingSettingId]: true });
+		const starter = createStarter(configuration);
+		disposables.add((await starter.start()).store);
+		await configuration.setUserConfiguration(AgentHostAhpJsonlLoggingSettingId, false);
+		disposables.add((await starter.start()).store);
+		assert.deepStrictEqual(starter.environments.map(env => env[AgentHostAhpJsonlLoggingEnvVar]), ['true', 'false']);
+	});
+
+	test('forwards chats with their own agents to the host only while the setting is on', async () => {
+		const configuration = new TestConfigurationService({ [ChatProvidersSettingId.Enabled]: true });
+		const starter = createStarter(configuration);
+		disposables.add((await starter.start()).store);
+		await configuration.setUserConfiguration(ChatProvidersSettingId.Enabled, false);
+		disposables.add((await starter.start()).store);
+		assert.deepStrictEqual(starter.environments.map(env => env[AgentHostMultipleChatProvidersEnabledEnvVar]), ['true', undefined]);
+	});
 
 	test('applies resolver overrides without replacing launcher-owned environment values', async () => {
 		const starter = createStarter();

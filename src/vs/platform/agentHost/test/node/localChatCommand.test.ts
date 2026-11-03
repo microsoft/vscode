@@ -10,8 +10,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IAgentHostChatContributions, type ITurnEnd } from '../../common/agentHostChatContributionsService.js';
-import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, MessageKind, SessionStatus } from '../../common/state/sessionState.js';
+import { chatTurnStarted } from '../common/chatActionBuilders.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import { IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
@@ -38,9 +38,9 @@ suite('AgentHostLocalCommands', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const session = 'copilot:/local-command-owner';
 		const chat = buildChatUri('copilot:/encoded', 'peer');
-		stateManager.createSession({ resource: session, provider: 'copilot', title: 'Session', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() });
-		stateManager.addChat(session, chat, creationTimeChatStorageResource(session, chat));
-		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date(0).toISOString(), message: { text: '/hold', origin: { kind: MessageKind.User } } });
+		stateManager.createSession({ resource: session, provider: 'copilot', title: 'Session', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: buildDefaultChatUri(session) });
+		stateManager.addChat(session, chat, creationTimeChatStorageResource(session, chat, buildDefaultChatUri(session)));
+		stateManager.dispatchServerAction(chat, chatTurnStarted('turn-1', '/hold', new Date(0).toISOString()));
 		const turnEnds: ITurnEnd[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IAgentHostStateManager, stateManager);

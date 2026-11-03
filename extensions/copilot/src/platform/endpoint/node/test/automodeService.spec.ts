@@ -5,9 +5,10 @@
 
 import { RequestType } from '@vscode/copilot-api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ChatRequest } from 'vscode';
+import type { ChatRequest, ExtendedChatResponsePart } from 'vscode';
 import { SpyChatResponseStream } from '../../../../util/common/test/mockChatResponseStream';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
+import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { Emitter } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -589,7 +590,7 @@ describe('AutomodeService', () => {
 		it.each([true, false])('stamps the resolved tier on edits and clears it on failure or request (visible routing: %s)', async reportRouting => {
 			automodeService = createService();
 			const spies = [request.id, 'unrelated', undefined].map(() => new SpyChatResponseStream());
-			const [reporter] = spies.map((spy, i) => disposables.add(reportAutoModeRouting({ ...request, id: [request.id, 'unrelated', undefined][i] } as ChatRequest, spy, automodeService, reportRouting)));
+			const [reporter] = spies.map((spy, i) => disposables.add(reportAutoModeRouting({ ...request, id: [request.id, 'unrelated', undefined][i] } as ChatRequest, spy, automodeService, CancellationToken.None, reportRouting)));
 
 			await automodeService.resolveAutoModeEndpoint(request, [mockChatEndpoint]);
 			reporter.stream.textEdit(uri, []);
@@ -620,7 +621,7 @@ describe('AutomodeService', () => {
 			const pending = new DeferredPromise<ReturnType<typeof makeAutoResponse>>();
 			vi.mocked(mockCAPIClientService.makeRequest).mockImplementationOnce(() => pending.p);
 			const spy = new SpyChatResponseStream();
-			const reporter = disposables.add(reportAutoModeRouting(request, spy, automodeService));
+			const reporter = disposables.add(reportAutoModeRouting(request, spy, automodeService, CancellationToken.None));
 
 			const result = automodeService.resolveAutoModeEndpoint(request, [mockChatEndpoint]);
 			reporter.dispose();
@@ -631,6 +632,30 @@ describe('AutomodeService', () => {
 			reporter.stream.textEdit(uri, []);
 
 			expect(spy.items).toEqual([new ChatResponseAutoModeResolutionPart(), edit(undefined)]);
+		});
+
+		it('does not push routing parts to a closed stream after cancellation', async () => {
+			automodeService = createService();
+			const cts = disposables.add(new CancellationTokenSource());
+			// Mirror core, which closes the response stream once the turn is
+			// cancelled: pushing afterwards throws "Response stream has been closed".
+			const spy = new class extends SpyChatResponseStream {
+				override push(part: ExtendedChatResponsePart): void {
+					if (cts.token.isCancellationRequested) {
+						throw new Error('Response stream has been closed');
+					}
+					super.push(part);
+				}
+			}();
+			disposables.add(reportAutoModeRouting(request, spy, automodeService, cts.token));
+
+			cts.cancel();
+			// The routing listener must swallow neither the routing nor the
+			// resolution push onto the now-closed stream: it must not attempt them.
+			const endpoint = await automodeService.resolveAutoModeEndpoint(request, [mockChatEndpoint]);
+
+			expect(endpoint.model).toBe(mockChatEndpoint.model);
+			expect(spy.items).toEqual([]);
 		});
 	});
 

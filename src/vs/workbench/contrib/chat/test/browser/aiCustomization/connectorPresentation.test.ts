@@ -7,6 +7,7 @@ import assert from 'assert';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -89,6 +90,130 @@ suite('Connector presentation', () => {
 			{ status: 'Connection failed', action: 'Try Again' },
 			{ status: 'Currently unavailable', action: undefined },
 		]);
+	});
+
+	test('detail shows disconnecting progress until the disconnect request completes', async () => {
+		const container = DOM.append(document.body, DOM.$('.connector-detail-test'));
+		disposables.add(toDisposable(() => container.remove()));
+		const change = disposables.add(new Emitter<void>());
+		const result = new DeferredPromise<void>();
+		let connectors: readonly ICopilotConnector[] = [connector('connected')];
+		const service = new class extends mock<ICopilotConnectorsService>() {
+			override readonly onDidChange = change.event;
+			override get connectors() { return connectors; }
+			override async disconnect(): Promise<void> {
+				await result.p;
+			}
+			override async getConnectors(): Promise<readonly ICopilotConnector[]> {
+				return connectors;
+			}
+		}();
+		const detail = disposables.add(new EmbeddedConnectorDetail(
+			container, () => { }, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(),
+		));
+		const snapshot = () => {
+			const button = container.querySelector<HTMLElement>('.embedded-detail-title-actions .monaco-button');
+			return {
+				status: container.querySelector('.connector-detail-facts .embedded-detail-fact-value')?.textContent,
+				action: button?.textContent,
+				disabled: button?.getAttribute('aria-disabled'),
+				busy: button?.getAttribute('aria-busy') ?? null,
+			};
+		};
+		detail.setInput(connectors[0]);
+		container.querySelector<HTMLElement>('.embedded-detail-title-actions .monaco-button')?.click();
+		const pending = snapshot();
+		change.fire();
+		const pendingAfterChange = snapshot();
+		connectors = [connector('not_connected')];
+		result.complete();
+		await result.p;
+		await timeout(0);
+
+		assert.deepStrictEqual([pending, pendingAfterChange, snapshot()], [
+			{ status: 'Disconnecting', action: 'Disconnecting...', disabled: 'true', busy: 'true' },
+			{ status: 'Disconnecting', action: 'Disconnecting...', disabled: 'true', busy: 'true' },
+			{ status: 'Not connected', action: 'Connect', disabled: 'false', busy: null },
+		]);
+	});
+
+	for (const action of ['connect', 'disconnect'] as const) {
+		test(`detail preserves ${action} while authorization temporarily invalidates the catalog`, async () => {
+			const container = DOM.append(document.body, DOM.$('.connector-detail-test'));
+			disposables.add(toDisposable(() => container.remove()));
+			const change = disposables.add(new Emitter<void>());
+			const authorization = new DeferredPromise<void>();
+			let connectors: readonly ICopilotConnector[] = [connector(action === 'connect' ? 'not_connected' : 'connected')];
+			let known = true;
+			let actionToken: CancellationToken | undefined;
+			let closed = 0;
+			const run = async (token: CancellationToken) => {
+				actionToken = token;
+				connectors = [];
+				known = false;
+				change.fire();
+				await authorization.p;
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				connectors = [connector(action === 'connect' ? 'connected' : 'not_connected')];
+				known = true;
+				change.fire();
+			};
+			const service = new class extends mock<ICopilotConnectorsService>() {
+				override readonly onDidChange = change.event;
+				override get connectors() { return connectors; }
+				override get connectionStateKnown() { return known; }
+				override connect(_name: string, token: CancellationToken) { return run(token); }
+				override disconnect(_name: string, token: CancellationToken) { return run(token); }
+				override async getConnectors() { return connectors; }
+			}();
+			const detail = disposables.add(new EmbeddedConnectorDetail(
+				container, () => { closed++; }, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(),
+			));
+			detail.setInput(connectors[0]);
+			container.querySelector<HTMLElement>('.embedded-detail-title-actions .monaco-button')?.click();
+			const pending = { closed, cancelled: actionToken?.isCancellationRequested };
+			await authorization.complete();
+			await timeout(0);
+			assert.deepStrictEqual({
+				pending, closed, name: container.querySelector('.embedded-detail-name')?.textContent,
+				status: container.querySelector('.connector-detail-facts .embedded-detail-fact-value')?.textContent,
+			}, {
+				pending: { closed: 0, cancelled: false }, closed: 0, name: 'Mail',
+				status: action === 'connect' ? 'Connected' : 'Not connected',
+			});
+		});
+	}
+
+	test('detail closes after a cancelled action leaves its catalog unavailable', async () => {
+		const container = DOM.append(document.body, DOM.$('.connector-detail-test'));
+		disposables.add(toDisposable(() => container.remove()));
+		const change = disposables.add(new Emitter<void>());
+		const result = new DeferredPromise<void>();
+		let connectors: readonly ICopilotConnector[] = [connector('connected')];
+		let closed = 0;
+		const service = new class extends mock<ICopilotConnectorsService>() {
+			override readonly onDidChange = change.event;
+			override get connectors() { return connectors; }
+			override readonly connectionStateKnown = false;
+			override async disconnect() {
+				connectors = [];
+				change.fire();
+				await result.p;
+			}
+		}();
+		const detail = disposables.add(new EmbeddedConnectorDetail(
+			container, () => { closed++; }, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(),
+		));
+		detail.setInput(connectors[0]);
+		container.querySelector<HTMLElement>('.embedded-detail-title-actions .monaco-button')?.click();
+		const closedWhilePending = closed;
+		await result.error(new CancellationError());
+		await timeout(0);
+		assert.deepStrictEqual({ closedWhilePending, closed, name: container.querySelector('.embedded-detail-name')?.textContent }, {
+			closedWhilePending: 0, closed: 1, name: '',
+		});
 	});
 
 	test('disposing detail cancels an in-flight connector consent action', async () => {

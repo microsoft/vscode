@@ -13,7 +13,7 @@ import { CheckoutBlockedByLocalChangesError, IAgentHostGitService } from '../../
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { CheckoutOperationPreAction, checkoutOperationMeta } from '../../common/meta/agentCheckoutOperationMeta.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildChatUri, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostCheckoutOperationHandler } from '../../node/agentHostCheckoutOperationHandler.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 
@@ -32,10 +32,11 @@ suite('AgentHostCheckoutOperationHandler', () => {
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
 			workingDirectories: [workingDirectory.toString()],
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		const peer = buildChatUri(session.toString(), 'peer');
 		const peerWorkingDirectory = URI.file('/peer-repo');
-		stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer), { workingDirectories: [peerWorkingDirectory.toString()] });
+		stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, buildDefaultChatUri(session.toString())), { workingDirectories: [peerWorkingDirectory.toString()] });
 		const gitCalls: string[] = [];
 		const gitService = new class extends mock<IAgentHostGitService>() {
 			declare readonly _serviceBrand: undefined;
@@ -120,6 +121,7 @@ suite('AgentHostCheckoutOperationHandler', () => {
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
 			workingDirectories: [workingDirectory.toString()],
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		const gitCalls: string[] = [];
 		const gitService = new class extends mock<IAgentHostGitService>() {
@@ -215,6 +217,7 @@ suite('AgentHostCheckoutOperationHandler', () => {
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
 			workingDirectories: [workingDirectory.toString()],
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		const gitService = new class extends mock<IAgentHostGitService>() {
 			declare readonly _serviceBrand: undefined;

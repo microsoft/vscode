@@ -23,6 +23,7 @@ import { AgentSession } from '../../common/agent.js';
 import type { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { AgentHostWorkspaceSnapshotEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { chatTurnComplete } from '../common/chatActionBuilders.js';
 import { buildChatUri, buildDefaultChatUri, ChatOriginKind, MessageKind, ROOT_STATE_URI, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
@@ -123,6 +124,7 @@ suite('WorkspaceContextContribution', () => {
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
 			workingDirectories: [...roots],
+			defaultChat: buildDefaultChatUri(session),
 		});
 		const telemetry = new AgentHostTelemetryReporter(NullTelemetryService);
 		const reported = sinon.spy(telemetry, 'workspaceSnapshotSent');
@@ -163,7 +165,7 @@ suite('WorkspaceContextContribution', () => {
 				return;
 			}
 			activeTurns.delete(channel);
-			const action = reason === 'cancelled' ? { type: ActionType.ChatTurnCancelled, turnId, duration: 0 } as const : { type: ActionType.ChatTurnComplete, turnId, duration: 0 } as const;
+			const action = reason === 'cancelled' ? { type: ActionType.ChatTurnCancelled, turnId, duration: 0 } as const : chatTurnComplete(turnId, 0);
 			state.dispatchServerAction(channel, action);
 			service.didDispatchAction({ channel, session, action });
 			service.turnEnd({ session, channel, turnId, reason: { kind: reason } });
@@ -190,7 +192,7 @@ suite('WorkspaceContextContribution', () => {
 		};
 		const addChat = (name: string, origin: Parameters<AgentHostStateManager['addChat']>[3] extends infer O ? O extends { origin?: infer R } ? R : never : never = { kind: ChatOriginKind.User }) => {
 			const peer = buildChatUri(session, name);
-			state.addChat(session, peer, creationTimeChatStorageResource(session, peer), { title: name, origin });
+			state.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)), { title: name, origin });
 			return peer;
 		};
 		const events = (): Omit<IAgentHostWorkspaceSnapshotEvent, 'waitMs'>[] => reported.getCalls().map(call => {
@@ -224,8 +226,8 @@ suite('WorkspaceContextContribution', () => {
 		const context = await setupContext();
 		const [peer, restored, empty] = ['peer', 'restored', 'empty'].map(name => context.addChat(name));
 		const turn: Turn = { id: 'old', state: TurnState.Complete, message: { text: 'old', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined };
-		await context.service.hydrateTurns({ session: context.session, chat: restored, storageResource: creationTimeChatStorageResource(context.session, restored) }, [turn]);
-		await context.service.hydrateTurns({ session: context.session, chat: empty, storageResource: creationTimeChatStorageResource(context.session, empty) }, []);
+		await context.service.hydrateTurns({ session: context.session, chat: restored, isDefaultChat: false, storageResource: creationTimeChatStorageResource(context.session, restored, buildDefaultChatUri(context.session)) }, [turn]);
+		await context.service.hydrateTurns({ session: context.session, chat: empty, isDefaultChat: false, storageResource: creationTimeChatStorageResource(context.session, empty, buildDefaultChatUri(context.session)) }, []);
 		const results = [];
 		for (const chat of [context.chat, context.chat, peer, peer, restored, empty]) {
 			results.push(!!(await context.firstTurn(chat)).instructions?.length);
@@ -434,7 +436,7 @@ suite('WorkspaceContextContribution', () => {
 		const restored = buildChatUri(context.session, 'restored');
 		const previousTurn: Turn = { id: 'old', state: TurnState.Complete, message: { text: 'old', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined };
 		context.state.registerRestoredChatSummary(context.session, restored, {
-			storageResource: creationTimeChatStorageResource(context.session, restored),
+			storageResource: creationTimeChatStorageResource(context.session, restored, buildDefaultChatUri(context.session)),
 			title: 'Restored',
 			origin: { kind: ChatOriginKind.User },
 			resolver: async () => ({ turns: [previousTurn] }),

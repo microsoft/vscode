@@ -9,7 +9,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, MessageKind, SessionStatus } from '../../common/state/sessionState.js';
+import { chatTurnStarted } from '../common/chatActionBuilders.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 import { createSessionIsolationToolGroup } from '../../node/shared/sessionIsolationTools.js';
@@ -26,8 +27,9 @@ suite('Session isolation tool', () => {
 		stateManager.createSession({
 			resource: session, provider: 'copilotcli', title: 'Project', status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(session),
 		});
-		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer));
+		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)));
 		const calls: { chat: string; turnId: string }[] = [];
 		let enabled = true;
 		const group = createSessionIsolationToolGroup({
@@ -46,6 +48,7 @@ suite('Session isolation tool', () => {
 		stateManager.createSession({
 			resource: childSession, provider: 'copilotcli', title: 'Worker', status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(childSession),
 		});
 		assert.deepStrictEqual({
 			session: host.getDefinitionsForSession(session).map(tool => tool.name),
@@ -71,10 +74,7 @@ suite('Session isolation tool', () => {
 			const harness = createHarness();
 			const { stateManager, host, calls } = harness;
 			const chat = harness[target];
-			stateManager.dispatchServerAction(chat, {
-				type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date().toISOString(),
-				message: { text: 'Continue in isolation', origin: { kind: MessageKind.User } },
-			});
+			stateManager.dispatchServerAction(chat, chatTurnStarted('turn-1', 'Continue in isolation'));
 			assert.throws(() => host.executeTool(chat, SessionServerToolName.IsolateSession, { workspace: '/other' }), /no arguments/);
 			const result = host.executeTool(chat, SessionServerToolName.IsolateSession, {});
 			assert.deepStrictEqual(calls, [{ chat, turnId: 'turn-1' }]);

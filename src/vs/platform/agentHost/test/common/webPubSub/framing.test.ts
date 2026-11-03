@@ -77,6 +77,26 @@ suite('WebPubSub - framing', () => {
 		assert.strictEqual(first.kind, 'pending');
 	});
 
+	test('recognizes scoped MC offline advisories separately from AHP and ignores other client notices', () => {
+		const parse = (data: object, group = 'user.u1.env.e1.clients') => parseInbound({
+			type: 'message', from: 'group', group, dataType: 'json', data: { kind: 'message', data },
+		}, { reassembler: new Reassembler() });
+		const notice = { kind: 'host_offline', environment_id: 'e1', status: 'offline', timestamp: '2026-10-13T00:00:00Z' };
+		assert.deepStrictEqual({
+			offline: parse(notice),
+			raw: parseInbound({ type: 'message', from: 'group', group: 'user.u1.env.e1.clients', dataType: 'json', data: notice }, { reassembler: new Reassembler() }),
+			unknown: parse({ kind: 'future_notice' }),
+			ordinary: parse(notice, GROUP).kind,
+		}, {
+			offline: { kind: 'hostOffline', group: { scope: 'env', lane: 'clients', uid: 'u1', eid: 'e1' } },
+			raw: { kind: 'hostOffline', group: { scope: 'env', lane: 'clients', uid: 'u1', eid: 'e1' } },
+			unknown: { kind: 'ignored' }, ordinary: 'payload',
+		});
+		for (const data of [{ ...notice, environment_id: 'e2' }, { ...notice, status: 'online' }, { ...notice, timestamp: 'invalid' }]) {
+			assert.throws(() => parse(data), /Invalid Mission Control host-offline/);
+		}
+	});
+
 	test('stamps every fragment without exceeding its serialized ceiling', () => {
 		let ack = 0;
 		const frames = buildPublish({ group: GROUP, nextAckId: () => ++ack, payload: 'x'.repeat(4096), generation: Number.MAX_SAFE_INTEGER, chunkOptions: { maxChunkBytes: 512 } });

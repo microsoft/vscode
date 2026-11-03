@@ -5,10 +5,36 @@
 
 import assert from 'assert';
 import { Color } from '../../../../../base/common/color.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IExtensionResourceLoaderService } from '../../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { editorBackground, foreground, inputBackground, inputForeground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { ColorThemeData } from '../../common/colorThemeData.js';
+
+suite('ColorThemeData - loading', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('includes the theme location when plist settings are not an array', async () => {
+		const theme = ColorThemeData.createUnloadedTheme('vs-dark');
+		theme.location = URI.file('/themes/invalid.tmTheme');
+		const resourceLoaderService = new class extends mock<IExtensionResourceLoaderService>() {
+			override async readExtensionResource(): Promise<string> {
+				return '<plist><dict><key>settings</key><string>invalid</string></dict></plist>';
+			}
+		};
+
+		let message: string | undefined;
+		try {
+			await theme.ensureLoaded(resourceLoaderService);
+		} catch (error) {
+			assert.ok(error instanceof Error);
+			message = error.message;
+		}
+		assert.strictEqual(message, `Problem parsing tmTheme file: ${theme.location.toString()}. 'settings' is not array.`);
+	});
+});
 
 suite('ColorThemeData - transient colors', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

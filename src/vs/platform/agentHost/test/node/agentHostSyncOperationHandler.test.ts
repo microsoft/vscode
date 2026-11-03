@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { createTestGitHubService } from './testGitHubService.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -33,6 +34,7 @@ suite('AgentHostSyncOperationHandler', () => {
 			modifiedAt: new Date(1).toISOString(),
 			workingDirectories: [workingDirectory.toString()],
 			_meta: withSessionGitState(undefined, { branchName, baseBranchName: 'main' }),
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		const refreshedSessions: string[] = [];
 		return {
@@ -46,6 +48,7 @@ suite('AgentHostSyncOperationHandler', () => {
 				}(),
 				new NullLogService(),
 				stateManager,
+				createTestGitHubService(),
 			),
 			stateManager,
 			refreshedSessions,
@@ -131,7 +134,7 @@ suite('AgentHostSyncOperationHandler', () => {
 		}();
 		const { handler, stateManager, refreshedSessions } = createHandler(gitService, 'feature');
 		const peer = buildChatUri(session.toString(), 'peer');
-		stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer), { workingDirectories: [URI.file('/peer-repo').toString()] });
+		stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, buildDefaultChatUri(session.toString())), { workingDirectories: [URI.file('/peer-repo').toString()] });
 
 		await handler.invoke({
 			channel: buildUncommittedChangesetUri(peer),

@@ -48,11 +48,9 @@ export function resolveAgentHostSession(resource: URI, getChatOwner: AgentHostCh
 	}
 	const annotationsSession = parseAnnotationsUri(resourceString)?.sessionUri;
 	const folderSession = parseFolderChangesetOwnerUri(resourceString)?.sessionUri;
-	const terminalSession = parseNonPtyShellTerminalUri(resource)?.session.toString();
-	let sessionString = annotationsSession ?? folderSession ?? terminalSession;
+	let sessionString = annotationsSession ?? folderSession;
 	if (sessionString === undefined) {
-		const canvasChat = parseCanvasChatUri(resource);
-		const chat = canvasChat ? canvasChat.toString() : isAhpChatChannel(resourceString) ? resourceString : undefined;
+		const chat = resourceChat(resource);
 		if (chat !== undefined) {
 			sessionString = getChatOwner(chat);
 			if (sessionString === undefined) {
@@ -61,6 +59,23 @@ export function resolveAgentHostSession(resource: URI, getChatOwner: AgentHostCh
 		}
 	}
 	return resolveAgentHostRootSession(URI.parse(sessionString ?? resourceString));
+}
+
+/**
+ * The chat a chat-scoped resource belongs to: a chat channel, a chat's canvas,
+ * or a retained terminal link (by the chat it names, not the session it embeds).
+ */
+export function resourceChat(resource: URI): string | undefined {
+	const terminalChat = parseNonPtyShellTerminalUri(resource)?.chat.toString();
+	if (terminalChat !== undefined) {
+		return terminalChat;
+	}
+	const canvasChat = parseCanvasChatUri(resource);
+	if (canvasChat) {
+		return canvasChat.toString();
+	}
+	const resourceString = resource.toString();
+	return isAhpChatChannel(resourceString) ? resourceString : undefined;
 }
 
 /** Maps a (possibly nested subagent) session URI to its top-level session. */

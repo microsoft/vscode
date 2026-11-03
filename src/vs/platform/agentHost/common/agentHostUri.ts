@@ -6,7 +6,9 @@
 import { decodeBase64, encodeBase64, encodeHex, VSBuffer } from '../../../base/common/buffer.js';
 import { Schemas } from '../../../base/common/network.js';
 import { OperatingSystem } from '../../../base/common/platform.js';
+import { isEqualAuthority } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
+import { createURITransformer } from '../../../base/common/uriTransformer.js';
 import type { ResourceLabelFormatter } from '../../label/common/label.js';
 
 /**
@@ -109,7 +111,8 @@ function wrapAgentHostUri(originalUri: URI, connectionAuthority: string, content
 		return originalUri;
 	}
 
-	const path = fileUri?.path ?? originalUri.path;
+	const displayPath = fileUri?.path ?? originalUri.path;
+	const path = displayPath && !displayPath.startsWith('/') ? `/${displayPath}` : displayPath;
 	const meta: IAgentHostUriMeta = {
 		scheme: originalUri.scheme,
 		...(originalUri.authority ? { authority: originalUri.authority } : {}),
@@ -188,7 +191,30 @@ export function fromAgentHostUri(agentHostUri: URI): URI {
 export function createAgentHostResourceUriMapper(connectionAuthority: string): IAgentHostResourceUriMapper {
 	return {
 		fromAgentHost: resource => toAgentHostUri(resource, connectionAuthority),
-		toAgentHost: resource => fromAgentHostUri(resource),
+		toAgentHost: resource => unwrapOwnAgentHostUri(resource, connectionAuthority),
+	};
+}
+
+/** Unwraps resources of this connection only; another connection's wrapped resources name files on that host, not this one. */
+function unwrapOwnAgentHostUri(resource: URI, connectionAuthority: string): URI {
+	return resource.scheme === AGENT_HOST_SCHEME && !isEqualAuthority(resource.authority, connectionAuthority) ? resource : fromAgentHostUri(resource);
+}
+
+/**
+ * Maps the editor's remote filesystem to host-local files while retaining the window's workspace identities.
+ */
+export function createEditorRemoteAgentHostResourceUriMapper(remoteAuthority: string, connectionAuthority: string): IAgentHostResourceUriMapper {
+	const transformer = createURITransformer(remoteAuthority);
+	return {
+		toAgentHost: resource => resource.scheme === Schemas.vscodeRemote && isEqualAuthority(resource.authority, remoteAuthority)
+			? URI.revive(transformer.transformIncoming(resource))
+			: unwrapOwnAgentHostUri(resource, connectionAuthority),
+		fromAgentHost: resource => {
+			if (resource.scheme === Schemas.file) {
+				return URI.revive(transformer.transformOutgoing(resource));
+			}
+			return resource.scheme === Schemas.vscodeRemote ? resource : toAgentHostUri(resource, connectionAuthority);
+		},
 	};
 }
 

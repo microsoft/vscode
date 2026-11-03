@@ -25,7 +25,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { getLocationBasedViewColors } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IViewDescriptorService, IViewsRegistry, ViewContainerLocation, Extensions as ViewExtensions } from '../../../common/views.js';
-import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerContainers, McpServerEnablementState } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IMcpWorkbenchService, InstalledMcpServersViewId, IWorkbenchMcpServer, McpServerContainers, McpServerEnablementState } from '../common/mcpTypes.js';
 import { DropDownAction, getContextMenuActions, InstallAction, InstallingLabelAction, ManageMcpServerAction, McpServerStatusAction } from './mcpServerActions.js';
 import { PublisherWidget, StarredWidget, McpServerIconWidget, McpServerHoverWidget, McpServerScopeBadgeWidget } from './mcpServerWidgets.js';
 import { ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
@@ -34,7 +34,7 @@ import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { SearchMcpServersContext } from '../../extensions/common/extensions.js';
+import { DefaultViewsContext, SearchMcpServersContext } from '../../extensions/common/extensions.js';
 import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { AICustomizationManagementSection } from '../../chat/common/aiCustomizationWorkspaceService.js';
@@ -43,7 +43,6 @@ import { AbstractExtensionsListView } from '../../extensions/browser/extensionsV
 import { ExtensionListRendererOptions } from '../../extensions/browser/extensionsList.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
-import { mcpServerIcon } from './mcpServerIcons.js';
 import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
 import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -262,7 +261,6 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 
 	private createWelcomeContent(welcomeContainer: HTMLElement): void {
 		this._register(this.instantiationService.createInstance(CustomizationMarketplaceWelcome, welcomeContainer, {
-			icon: mcpServerIcon,
 			title: localize('mcp.welcome.title', "Find MCP Servers in Customizations"),
 			description: new MarkdownString(localize('mcp.welcome.descriptionWithLink', "Browse and install [Model Context Protocol (MCP) servers](https://code.visualstudio.com/docs/agent-customization/mcp-servers) from the Customizations marketplace.")),
 			buttonLabel: localize('mcp.welcome.openCustomizationsButton', "Browse MCP Servers"),
@@ -486,6 +484,15 @@ export class McpServersViewsContribution extends Disposable implements IWorkbenc
 		super();
 
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([
+			{
+				id: InstalledMcpServersViewId,
+				name: localize2('mcp-installed', "MCP Servers - Installed"),
+				ctorDescriptor: new SyncDescriptor(McpServersListView, [{}]),
+				when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledMcpServersContext, ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
+				weight: 40,
+				order: 4,
+				canToggleVisibility: true
+			},
 			{
 				id: 'workbench.views.mcp.marketplace',
 				name: localize2('mcp', "MCP Servers"),

@@ -100,7 +100,8 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper > .editor-group-watermark  {
 	display: flex;
 	height: 100%;
-	max-width: 272px;
+	width: calc(100% - var(--vscode-spacing-size240) - var(--vscode-spacing-size240));
+	max-width: 320px;
 	margin: auto;
 	flex-direction: column;
 	align-items: center;
@@ -164,29 +165,53 @@
 	flex-direction: column;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper .editor-group-watermark .shortcuts dl {
+.monaco-workbench .editor-group-watermark .watermark-box .monaco-action-bar.vertical .actions-container {
+	display: block;
+}
+
+.monaco-workbench .editor-group-watermark .watermark-entry {
 	display: flex;
-	justify-content: space-between;
-	margin: 4px 0;
-	cursor: default;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	height: var(--vscode-spacing-size280);
+	padding: 0 var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-regular);
+	text-decoration: none;
+}
+
+.monaco-workbench .editor-group-watermark .watermark-entry:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.monaco-workbench .editor-group-watermark .watermark-entry:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.monaco-workbench .editor-group-watermark .watermark-entry > .watermark-icon {
+	flex: 0 0 auto;
+	width: var(--vscode-codiconFontSize);
+	font-size: var(--vscode-codiconFontSize);
 	color: var(--vscode-descriptionForeground);
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper .editor-group-watermark .shortcuts dl:first-of-type {
-	margin-top: 0;
+.monaco-workbench .editor-group-watermark .watermark-label {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper .editor-group-watermark .shortcuts dl:last-of-type {
-	margin-bottom: 0;
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper .editor-group-watermark .shortcuts dt {
-	letter-spacing: 0.04em;
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper .editor-group-watermark .shortcuts dd {
-	text-align: left;
-	margin-inline-start: 24px;
+.monaco-workbench .editor-group-watermark .watermark-keybinding {
+	flex: 0 0 auto;
+	color: var(--vscode-descriptionForeground);
 }
 
 /* Title */

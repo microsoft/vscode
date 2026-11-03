@@ -10,7 +10,7 @@ import { AgentHostClientConnectionKind } from './agentHostTelemetry.js';
 import { AhpJsonlLogger, getAhpLogByteLength } from './ahpJsonlLogger.js';
 import { type IEstablishedTransport, ReconnectingTransport } from './reconnectingTransport.js';
 import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from './state/sessionProtocol.js';
-import type { IProtocolTransport } from './state/sessionTransport.js';
+import { parseProtocolMessage, type IProtocolTransport } from './state/sessionTransport.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from './transportConstants.js';
 
 /**
@@ -85,7 +85,7 @@ export class RelayTransport extends Disposable implements IProtocolTransport {
 			if (this._connectionId !== undefined && msg.connectionId === this._connectionId) {
 				let parsed: ProtocolMessage;
 				try {
-					parsed = JSON.parse(msg.data) as ProtocolMessage;
+					parsed = parseProtocolMessage(msg.data);
 				} catch (err) {
 					this._malformedFrames++;
 					if (this._malformedFrames <= MALFORMED_FRAMES_LOG_CAP) {

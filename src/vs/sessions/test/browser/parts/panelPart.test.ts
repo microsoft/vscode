@@ -15,11 +15,14 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
-import { Part } from '../../../../workbench/browser/part.js';
+import { IPartOptions, Part } from '../../../../workbench/browser/part.js';
 import { IPaneCompositeBarOptions } from '../../../../workbench/browser/parts/paneCompositeBar.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts, Position } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ViewDescriptorService } from '../../../../workbench/services/views/browser/viewDescriptorService.js';
 import { TestLayoutService, workbenchInstantiationService } from '../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
+// eslint-disable-next-line local/code-import-patterns
+import '../../../../workbench/contrib/modernUI/browser/media/tabs.css';
 import { PanelPart } from '../../../browser/parts/panelPart.js';
 
 interface IPanelPartTestHarness {
@@ -80,6 +83,101 @@ function getAlignmentSubmenu(actions: readonly IAction[]): SubmenuAction {
 	return submenu;
 }
 
+function createPanelTab(root: HTMLElement): {
+	panel: HTMLElement;
+	title: HTMLElement;
+	actionItem: HTMLElement;
+	actionLabel: HTMLElement;
+	badge: HTMLElement;
+	indicator: HTMLElement;
+	secondActionItem: HTMLElement;
+	secondIndicator: HTMLElement;
+	titleActions: HTMLElement;
+	titleActionItem: HTMLElement;
+} {
+	const panel = mainWindow.document.createElement('div');
+	panel.className = 'part panel bottom pane-composite-part panel-labels';
+	panel.style.setProperty('--part-border-color', '#345678');
+	root.appendChild(panel);
+
+	const title = mainWindow.document.createElement('div');
+	title.className = 'composite title has-composite-bar';
+	title.style.height = '32px';
+	panel.appendChild(title);
+
+	const compositeBarContainer = mainWindow.document.createElement('div');
+	compositeBarContainer.className = 'composite-bar-container';
+	title.appendChild(compositeBarContainer);
+
+	const compositeBar = mainWindow.document.createElement('div');
+	compositeBar.className = 'composite-bar';
+	compositeBarContainer.appendChild(compositeBar);
+
+	const actionBar = mainWindow.document.createElement('div');
+	actionBar.className = 'monaco-action-bar';
+	compositeBar.appendChild(actionBar);
+
+	const actionsContainer = mainWindow.document.createElement('div');
+	actionsContainer.className = 'actions-container';
+	actionBar.appendChild(actionsContainer);
+
+	const actionItem = mainWindow.document.createElement('div');
+	actionItem.className = 'action-item checked';
+	actionsContainer.appendChild(actionItem);
+
+	const actionLabel = mainWindow.document.createElement('a');
+	actionLabel.className = 'action-label';
+	actionItem.appendChild(actionLabel);
+
+	const badge = mainWindow.document.createElement('div');
+	badge.className = 'badge';
+	actionItem.appendChild(badge);
+
+	const badgeContent = mainWindow.document.createElement('div');
+	badgeContent.className = 'badge-content';
+	badgeContent.textContent = '1';
+	badge.appendChild(badgeContent);
+
+	const indicator = mainWindow.document.createElement('div');
+	indicator.className = 'active-item-indicator';
+	actionItem.appendChild(indicator);
+
+	const secondActionItem = mainWindow.document.createElement('div');
+	secondActionItem.className = 'action-item';
+	actionsContainer.appendChild(secondActionItem);
+
+	const secondActionLabel = mainWindow.document.createElement('a');
+	secondActionLabel.className = 'action-label';
+	secondActionItem.appendChild(secondActionLabel);
+
+	const secondIndicator = mainWindow.document.createElement('div');
+	secondIndicator.className = 'active-item-indicator';
+	secondActionItem.appendChild(secondIndicator);
+
+	const titleActions = mainWindow.document.createElement('div');
+	titleActions.className = 'title-actions';
+	title.appendChild(titleActions);
+
+	const titleToolbar = mainWindow.document.createElement('div');
+	titleToolbar.className = 'monaco-toolbar';
+	titleActions.appendChild(titleToolbar);
+
+	const titleActionBar = mainWindow.document.createElement('div');
+	titleActionBar.className = 'monaco-action-bar';
+	titleToolbar.appendChild(titleActionBar);
+
+	const titleActionsContainer = mainWindow.document.createElement('div');
+	titleActionsContainer.className = 'actions-container';
+	titleActionBar.appendChild(titleActionsContainer);
+
+	const titleActionItem = mainWindow.document.createElement('div');
+	titleActionItem.className = 'action-item';
+	titleActionItem.style.height = '22px';
+	titleActionsContainer.appendChild(titleActionItem);
+
+	return { panel, title, actionItem, actionLabel, badge, indicator, secondActionItem, secondIndicator, titleActions, titleActionItem };
+}
+
 suite('Sessions - Panel Part', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -104,6 +202,32 @@ suite('Sessions - Panel Part', () => {
 			[800, 200, 400, 0],
 			[800, 200, 400, 0],
 		]);
+	});
+
+	test('matches labeled panel height to editor tab density', () => {
+		const configurationService = new TestConfigurationService({
+			'window.density.editorTabHeight': 'default',
+			'workbench.panel.showLabels': true,
+		});
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => configurationService
+		}, disposables);
+		const viewDescriptorService = disposables.add(instantiationService.createInstance(ViewDescriptorService));
+		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
+		const panelPart = disposables.add(instantiationService.createInstance(PanelPart));
+		const titleHeight = (Reflect.get(panelPart, 'options') as IPartOptions).titleHeight;
+
+		const defaultHeight = titleHeight?.();
+		configurationService.setUserConfiguration('window.density.editorTabHeight', 'compact');
+		const compactHeight = titleHeight?.();
+		configurationService.setUserConfiguration('workbench.panel.showLabels', false);
+		const iconHeight = titleHeight?.();
+
+		assert.deepStrictEqual({ defaultHeight, compactHeight, iconHeight }, {
+			defaultHeight: 32,
+			compactHeight: 28,
+			iconHeight: undefined,
+		});
 	});
 
 	test('replaces only view container movement with panel alignment actions', async () => {
@@ -207,5 +331,251 @@ suite('Sessions - Panel Part', () => {
 			finalAlignment: 'justify',
 			phoneActionsPreserved: true,
 		});
+	});
+
+	test('keeps the panel title border override scoped to the Agents window', () => {
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add({ dispose: () => container.remove() });
+		const workbench = mainWindow.document.createElement('div');
+		workbench.className = 'monaco-workbench';
+		container.appendChild(workbench);
+		const sessions = mainWindow.document.createElement('div');
+		sessions.className = 'monaco-workbench agent-sessions-workbench';
+		container.appendChild(sessions);
+
+		const workbenchTitle = createPanelTab(workbench).title;
+		const sessionsTitle = createPanelTab(sessions).title;
+
+		assert.deepStrictEqual({
+			workbenchHasBorder: parseFloat(mainWindow.getComputedStyle(workbenchTitle).borderTopWidth) > 0,
+			sessionsBorder: mainWindow.getComputedStyle(sessionsTitle).borderTopWidth,
+		}, {
+			workbenchHasBorder: true,
+			sessionsBorder: '0px',
+		});
+	});
+
+	test('uses the editor tab presentation for bottom panel tabs', () => {
+		const root = mainWindow.document.createElement('div');
+		root.className = 'monaco-workbench agent-sessions-workbench modern-ui-tabs';
+		root.style.cssText = [
+			'--vscode-agentsPanel-background: #112233',
+			'--vscode-cornerRadius-small: 4px',
+			'--vscode-cornerRadius-medium: 6px',
+			'--vscode-fontSize-body1: 13px',
+			'--vscode-fontWeight-regular: 400',
+			'--vscode-modernEditorTab-activeBackground: #203040',
+			'--vscode-spacing-size20: 2px',
+			'--vscode-spacing-size40: 4px',
+			'--vscode-spacing-size60: 6px',
+			'--vscode-spacing-size80: 8px',
+			'--vscode-spacing-size100: 10px',
+			'--vscode-spacing-size240: 24px',
+			'--vscode-spacing-size280: 28px',
+			'--vscode-strokeThickness: 1px',
+			'--modern-ui-editor-tab-border: transparent',
+			'--modern-ui-connected-tab-strip-background: #445566',
+			'--modern-ui-editor-tab-active-background: #203040',
+			'--modern-ui-editor-tab-active-foreground: #abcdef',
+		].join(';');
+		mainWindow.document.body.appendChild(root);
+		disposables.add({ dispose: () => root.remove() });
+		const { panel, title, actionItem, actionLabel, badge, indicator, secondActionItem, secondIndicator, titleActions, titleActionItem } = createPanelTab(root);
+		const targetWindow = mainWindow;
+		const getTitleActionLayout = () => {
+			const titleRect = title.getBoundingClientRect();
+			const actionItemRect = titleActionItem.getBoundingClientRect();
+			return {
+				height: titleActions.getBoundingClientRect().height,
+				centerOffset: actionItemRect.top + actionItemRect.height / 2 - (titleRect.top + titleRect.height / 2),
+			};
+		};
+
+		const pill = {
+			titleHeight: title.getBoundingClientRect().height,
+			titleActions: getTitleActionLayout(),
+			background: targetWindow.getComputedStyle(indicator).backgroundColor,
+			foreground: targetWindow.getComputedStyle(actionLabel).color,
+			itemPadding: targetWindow.getComputedStyle(actionItem).padding,
+			top: targetWindow.getComputedStyle(indicator).top,
+			right: targetWindow.getComputedStyle(indicator).right,
+			bottom: targetWindow.getComputedStyle(indicator).bottom,
+			left: targetWindow.getComputedStyle(indicator).left,
+			boxHeight: indicator.getBoundingClientRect().height,
+			boxTopOffset: indicator.getBoundingClientRect().top - title.getBoundingClientRect().top,
+			radius: targetWindow.getComputedStyle(indicator).borderRadius,
+		};
+
+		root.classList.add('modern-ui-connected-editor-tabs');
+		const connected = {
+			titleHeight: title.getBoundingClientRect().height,
+			titleBackground: targetWindow.getComputedStyle(title).backgroundColor,
+			background: targetWindow.getComputedStyle(indicator).backgroundColor,
+			foreground: targetWindow.getComputedStyle(actionLabel).color,
+			labelZIndex: targetWindow.getComputedStyle(actionLabel).zIndex,
+			badgeDisplay: targetWindow.getComputedStyle(badge).display,
+			badgeZIndex: targetWindow.getComputedStyle(badge).zIndex,
+			badgeText: badge.textContent,
+			top: targetWindow.getComputedStyle(indicator).top,
+			bottom: targetWindow.getComputedStyle(indicator).bottom,
+			borderTopColor: targetWindow.getComputedStyle(indicator).borderTopColor,
+			borderBottomWidth: targetWindow.getComputedStyle(indicator).borderBottomWidth,
+			radius: targetWindow.getComputedStyle(indicator).borderRadius,
+			leftShoulder: targetWindow.getComputedStyle(indicator, '::before').content,
+			rightShoulder: targetWindow.getComputedStyle(indicator, '::after').content,
+			firstTabOmitsLeftShoulder: actionItem === actionItem.parentElement?.firstElementChild,
+		};
+
+		actionItem.classList.remove('checked');
+		secondActionItem.classList.add('checked');
+		const nonFirstConnected = {
+			leftShoulder: targetWindow.getComputedStyle(secondIndicator, '::before').content,
+			leftShoulderBorderBottomColor: targetWindow.getComputedStyle(secondIndicator, '::before').borderBottomColor,
+			leftShoulderBorderBottomWidth: targetWindow.getComputedStyle(secondIndicator, '::before').borderBottomWidth,
+		};
+		secondActionItem.classList.remove('checked');
+		actionItem.classList.add('checked');
+
+		root.classList.remove('modern-ui-connected-editor-tabs');
+		title.style.height = '28px';
+		const compact = {
+			titleHeight: title.getBoundingClientRect().height,
+			itemHeight: actionItem.getBoundingClientRect().height,
+			indicatorHeight: indicator.getBoundingClientRect().height,
+			indicatorTopOffset: indicator.getBoundingClientRect().top - title.getBoundingClientRect().top,
+			titleActions: getTitleActionLayout(),
+		};
+
+		panel.classList.remove('panel-labels');
+		title.style.removeProperty('height');
+		actionItem.classList.add('icon');
+		const iconMode = {
+			titleHeight: title.getBoundingClientRect().height,
+			titleActions: getTitleActionLayout(),
+			titleBackground: targetWindow.getComputedStyle(title).backgroundColor,
+			itemPadding: targetWindow.getComputedStyle(actionItem).padding,
+			indicatorTop: targetWindow.getComputedStyle(indicator).top,
+			indicatorBottom: targetWindow.getComputedStyle(indicator).bottom,
+			indicatorHeight: targetWindow.getComputedStyle(indicator).height,
+			indicatorRadius: targetWindow.getComputedStyle(indicator).borderRadius,
+		};
+
+		root.classList.remove('agent-sessions-workbench');
+		const workbenchBorderTopWidth = targetWindow.getComputedStyle(title).borderTopWidth;
+
+		assert.deepStrictEqual({ pill, connected, nonFirstConnected, compact, iconMode, workbenchBorderTopWidth }, {
+			pill: {
+				titleHeight: 32,
+				titleActions: {
+					height: 32,
+					centerOffset: 0,
+				},
+				background: 'rgb(32, 48, 64)',
+				foreground: 'rgb(171, 205, 239)',
+				itemPadding: '0px 8px',
+				top: '16px',
+				right: '2px',
+				bottom: '-8px',
+				left: '2px',
+				boxHeight: 24,
+				boxTopOffset: 4,
+				radius: '4px',
+			},
+			connected: {
+				titleHeight: 32,
+				titleBackground: 'rgb(68, 85, 102)',
+				background: 'rgb(17, 34, 51)',
+				foreground: 'rgb(171, 205, 239)',
+				labelZIndex: '2',
+				badgeDisplay: 'flex',
+				badgeZIndex: '2',
+				badgeText: '1',
+				top: '-1px',
+				bottom: '-1px',
+				borderTopColor: 'rgb(52, 86, 120)',
+				borderBottomWidth: '0px',
+				radius: '0px 7px 0px 0px',
+				leftShoulder: 'none',
+				rightShoulder: '""',
+				firstTabOmitsLeftShoulder: true,
+			},
+			nonFirstConnected: {
+				leftShoulder: '""',
+				leftShoulderBorderBottomColor: 'rgb(52, 86, 120)',
+				leftShoulderBorderBottomWidth: '1px',
+			},
+			compact: {
+				titleHeight: 28,
+				itemHeight: 28,
+				indicatorHeight: 24,
+				indicatorTopOffset: 2,
+				titleActions: {
+					height: 28,
+					centerOffset: 0,
+				},
+			},
+			iconMode: {
+				titleHeight: 35,
+				titleActions: {
+					height: 35,
+					centerOffset: 0,
+				},
+				titleBackground: 'rgb(17, 34, 51)',
+				itemPadding: '0px 6px',
+				indicatorTop: '13.5px',
+				indicatorBottom: '-10.5px',
+				indicatorHeight: '24px',
+				indicatorRadius: '4px',
+			},
+			workbenchBorderTopWidth: '1px',
+		});
+	});
+
+	test('lets the panel frame own only the first connected tab leading edge', () => {
+		const root = mainWindow.document.createElement('div');
+		root.className = 'monaco-workbench agent-sessions-workbench modern-ui-tabs modern-ui-connected-editor-tabs';
+		root.style.cssText = '--vscode-strokeThickness: 1px; --vscode-cornerRadius-medium: 6px';
+		mainWindow.document.body.appendChild(root);
+		disposables.add({ dispose: () => root.remove() });
+		const { actionItem, indicator, secondActionItem, secondIndicator } = createPanelTab(root);
+
+		for (const compact of [false, true]) {
+			root.classList.toggle('modern-ui-compact', compact);
+			for (const direction of ['ltr', 'rtl']) {
+				root.dir = direction;
+				const getLeadingEdge = (element: HTMLElement) => {
+					const style = mainWindow.getComputedStyle(element);
+					return {
+						color: style.borderInlineStartColor,
+						width: style.borderInlineStartWidth,
+						radius: style.borderStartStartRadius,
+						backgroundClip: style.backgroundClip,
+					};
+				};
+
+				actionItem.classList.add('checked');
+				secondActionItem.classList.remove('checked');
+				const firstTab = getLeadingEdge(indicator);
+				actionItem.classList.remove('checked');
+				secondActionItem.classList.add('checked');
+				const secondTab = getLeadingEdge(secondIndicator);
+
+				assert.deepStrictEqual({ firstTab, secondTab }, {
+					firstTab: {
+						color: 'rgba(0, 0, 0, 0)',
+						width: '1px',
+						radius: '0px',
+						backgroundClip: 'border-box',
+					},
+					secondTab: {
+						color: 'rgb(52, 86, 120)',
+						width: '1px',
+						radius: '7px',
+						backgroundClip: 'border-box',
+					},
+				}, `${direction}, compact: ${compact}`);
+			}
+		}
 	});
 });

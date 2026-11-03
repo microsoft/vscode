@@ -22,6 +22,7 @@ class FakeOwnershipDatabase extends mock<IAgentHostDatabase>() {
 	readonly owners = new Map<string, IAgentHostDatabaseChatOwner>();
 	readonly payloadOwners = new Map<string, IAgentHostDatabaseChatOwner>();
 	readonly sessions: IAgentHostDatabaseSession[] = [];
+	readonly normalizedCatalogs: { session: string; defaultChatUri: string }[] = [];
 	inventoryReads = 0;
 
 	override async findCentralChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
@@ -35,12 +36,12 @@ class FakeOwnershipDatabase extends mock<IAgentHostDatabase>() {
 	}
 	override async readSessionRegistrations(): Promise<IAgentHostDatabaseSessionRegistrations> {
 		this.inventoryReads++;
-		return { generation: this.sessions.length, current: [...this.sessions], legacy: [] };
+		return { generation: this.sessions.length, current: [...this.sessions], legacy: [], normalizedCatalogs: [...this.normalizedCatalogs] };
 	}
 }
 
-function summary(resource: string): SessionSummary {
-	return { resource, provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: '2025-01-01T00:00:00.000Z', modifiedAt: '2025-01-01T00:00:00.000Z' };
+function summary(resource: string): SessionSummary & { readonly defaultChat: string } {
+	return { resource, defaultChat: buildDefaultChatUri(resource), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: '2025-01-01T00:00:00.000Z', modifiedAt: '2025-01-01T00:00:00.000Z' };
 }
 
 function registeredSession(session: string): IAgentHostDatabaseSession {
@@ -271,6 +272,23 @@ suite('AgentHostChatOwnershipService', () => {
 			resolved: { owner: legacy, spawnedBy: undefined },
 			payloadScans: 0,
 		});
+	});
+
+	test('the registered default-chat index never claims a chat its session does not record as default', async () => {
+		const { stateManager, database, service } = create();
+		// A resident session whose recorded default chat is not default-shaped.
+		const resident = 'copilot:/resident';
+		stateManager.restoreSession({ ...summary(resident), defaultChat: buildChatUri(resident, 'primary') }, [], creationTimeChatStorageResource);
+		// A cold session whose normalized catalog records a default chat that is not default-shaped.
+		const normalized = 'copilot:/normalized';
+		database.normalizedCatalogs.push({ session: normalized, defaultChatUri: buildChatUri(normalized, 'primary') });
+		// A cold legacy session that records no default chat.
+		const legacy = 'copilot:/legacy';
+		database.sessions.push(registeredSession(resident), registeredSession(normalized), registeredSession(legacy));
+
+		const owners = await Promise.all([resident, normalized, legacy].map(async session => (await service.resolveChatOwner(buildDefaultChatUri(session)))?.owner));
+
+		assert.deepStrictEqual(owners, [undefined, undefined, legacy]);
 	});
 
 	test('a chat listed only in a cached catalog payload still resolves, as the last recorded source', async () => {
