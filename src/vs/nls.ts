@@ -15,6 +15,7 @@ declare const document: { location?: { hash?: string } } | undefined;
 const isPseudo = getNLSLanguage() === 'pseudo' || (typeof document !== 'undefined' && document.location && typeof document.location.hash === 'string' && document.location.hash.indexOf('pseudo=true') >= 0);
 
 export interface ILocalizeInfo {
+	/** Use a new key when changing the number or meaning of placeholders to avoid reusing incompatible translations. */
 	key: string;
 	comment: string[];
 }
@@ -68,7 +69,7 @@ export function localize(info: ILocalizeInfo, message: string, ...args: (string 
 /**
  * Marks a string to be localized. Returns the localized string.
  *
- * @param key The key to use for localizing the string
+ * @param key The key to use for localizing the string. Change it when changing the number or meaning of placeholders.
  * @param message The string to localize
  * @param args The arguments to the string
  *
@@ -124,7 +125,7 @@ export function localize2(info: ILocalizeInfo, message: string, ...args: (string
  * Marks a string to be localized. Returns an {@linkcode ILocalizedString}
  * which contains the localized string and the original string.
  *
- * @param key The key to use for localizing the string
+ * @param key The key to use for localizing the string. Change it when changing the number or meaning of placeholders.
  * @param message The string to localize
  * @param args The arguments to the string
  *

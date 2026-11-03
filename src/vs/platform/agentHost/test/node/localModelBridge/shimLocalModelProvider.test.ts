@@ -310,9 +310,17 @@ class RecordingTelemetry extends NullTelemetryServiceShape {
 
 const proxyResolver: IAgentHostProxyResolver = {
 	_serviceBrand: undefined,
+	clientCertificates: [],
+	registerCertificateProvider: () => toDisposable(() => { }),
+	loadClientCertificates: async () => [],
+	setClientCertificates: () => { },
+	loadCertificates: async () => [],
 	onDidRegisterConnection: Event.None,
 	onDidChangeConfiguration: Event.None,
 	register: () => toDisposable(() => { }),
+	registerSharedNetworkClient: () => toDisposable(() => { }),
+	notifySharedNetworkClientChanged: () => { },
+	lookupClientKerberosAuthorization: async () => undefined,
 	getConfigurationValue: () => undefined,
 	resolveProxy: async () => undefined,
 	fetch: () => Promise.reject(new Error('no network in tests')),

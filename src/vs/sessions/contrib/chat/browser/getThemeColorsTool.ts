@@ -117,7 +117,7 @@ export class GetThemeColorsToolContribution extends Disposable implements IWorkb
 	) {
 		super();
 		const tool = instantiationService.createInstance(GetThemeColorsTool);
-		const enabled = observableConfigValue(AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, true, configurationService);
+		const enabled = observableConfigValue(AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, false, configurationService);
 		this._register(autorun(reader => {
 			if (enabled.read(reader)) {
 				reader.store.add(toolsService.registerTool(tool.getToolData(), tool));

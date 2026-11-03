@@ -106,8 +106,13 @@
 /* Follows the checked rule at equal specificity, so a disabled action never looks pressed or interactive. */
 .action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action.disabled {
 	background-color: transparent;
-	color: var(--vscode-disabledForeground);
+	color: var(--vscode-descriptionForeground);
 	cursor: default;
+}
+
+/* Dims only the icon, matching disabled buttons and toggles, so the focus outline stays fully visible. */
+.action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action.disabled > .codicon {
+	opacity: 0.4;
 }
 
 .action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action:focus-visible {

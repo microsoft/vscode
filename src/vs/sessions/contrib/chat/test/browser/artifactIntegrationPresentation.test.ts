@@ -22,7 +22,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
-import { ArtifactDetails, ArtifactRun, ArtifactSnapshot, artifactBindingId, IArtifactDetailsModel, IArtifactModel } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactDetails, ArtifactJsonValue, ArtifactRun, ArtifactSnapshot, artifactBindingId, IArtifactDetailsModel, IArtifactModel } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -279,7 +279,7 @@ suite('Artifact Integration Presentation', () => {
 			const details = Object.fromEntries(Object.entries(detailValues).map(([id, value]) => [id, observableValue(id, value)]));
 			const acquired: string[] = [];
 			const released: string[] = [];
-			const invoked: { integrationId: string; actionId: string; chat: string }[] = [];
+			const invoked: { integrationId: string; actionId: string; chat: string; input?: ArtifactJsonValue }[] = [];
 			const itemActions: { detailsId: string; itemId: string; actionId: string }[] = [];
 			let itemActionResult: Promise<void> | undefined;
 			const configured: { integrationId: string; revision: number; values: Readonly<Record<string, boolean | string>> }[] = [];
@@ -313,12 +313,13 @@ suite('Artifact Integration Presentation', () => {
 						} : contribution)
 					}, undefined);
 				},
-				invoke: async (integrationId, actionId, chat, requestId) => {
+				invoke: async (integrationId, actionId, chat, requestId, _actor, input) => {
 					onInvoke?.();
-					invoked.push({ integrationId, actionId, chat });
+					invoked.push({ integrationId, actionId, chat, ...input === undefined ? {} : { input } });
 					const run: ArtifactRun = {
 						id: requestId, requestId, bindingId: artifactBindingId('client', 'session', id, integrationId), integrationId, actionId, actionKind: 'prompt', actionConsent: 'consent',
 						source: 'manual', state: 'queued', createdAt: 0, updatedAt: 0, reason: actionId, chat, dispatched: false,
+						...input === undefined ? {} : { input },
 					};
 					snapshot.set({ ...snapshot.get(), runs: [...snapshot.get().runs, run] }, undefined);
 					return run;
@@ -431,6 +432,8 @@ suite('Artifact Integration Presentation', () => {
 		const data = model.data.get();
 		const summary = {
 			loading: loading.lists.map(list => list.loading),
+			panelLoading: [loading.loading, data.loading],
+			loadingMessages: [loading.message, ...loading.lists.map(list => list.message)],
 			title: data.title, description: data.description, resource: data.resource,
 			lists: data.lists.map(list => ({ id: list.id, title: list.title, items: list.items.map(item => item.label), loading: list.loading })),
 			actions: data.stateActions.map(action => ({ id: action.id, label: action.label, enabled: action.enabled, primary: action.primary })),
@@ -440,7 +443,7 @@ suite('Artifact Integration Presentation', () => {
 			panels: f.host.querySelectorAll('.artifact-integration-panel').length,
 		};
 		assert.deepStrictEqual(summary, {
-			loading: [true, true], title: 'Full title for artifact', description: 'The actual resource description.', resource: 'https://example.test/artifact',
+			loading: [true, true], panelLoading: [true, false], loadingMessages: ['', '', ''], title: 'Full title for artifact', description: 'The actual resource description.', resource: 'https://example.test/artifact',
 			lists: [
 				{ id: artifactViewKey('test', 'checks'), title: 'Checks', items: ['Lint', 'Build'], loading: false },
 				{ id: artifactViewKey('test', 'comments'), title: 'Review threads', items: ['Preserve focus after refresh'], loading: false },
@@ -486,7 +489,7 @@ suite('Artifact Integration Presentation', () => {
 		const commands: string[] = [];
 		const data: IArtifactDetailsViewData = {
 			title: 'Deployment', resource: 'https://example.test/deployment', icon: { id: 'package' }, titleDescription: 'Ready to deploy',
-			description: 'Deploy the selected revision.', message: '',
+			description: 'Deploy the selected revision.', message: '', loading: false,
 			lists: [{ id: 'health', title: 'Health', icon: { id: 'pulse' }, description: 'Checks in the target environment.', message: 'No failures.', loading: false, items: [], itemActions: new Map(), openItem: () => { commands.push('openItem'); } }],
 			selectedList: 'health',
 			stateActions: [{ id: 'deploy', label: 'Deploy', primary: true, enabled: true, run: () => { commands.push('deploy'); } }],
@@ -496,7 +499,7 @@ suite('Artifact Integration Presentation', () => {
 				rules: [{ id: 'autoDeploy', label: 'Deploy When Healthy', description: 'Wait for healthy checks.', checked: false, disabled: false, pending: false, setEnabled: async value => { commands.push(`rule:${value}`); } }],
 				setExpanded: expanded => { commands.push(`expand:${expanded}`); }, setEnabled: async value => { commands.push(`group:${value}`); },
 			}],
-			activities: { expanded: false, items: [], summary: '0 loaded', message: '', setExpanded: () => { } }, sections: [], accessibleText: 'Deployment\nHealth\nDeploy\nAutopilot',
+			activities: { expanded: false, loading: false, items: [], summary: '0 loaded', message: '', setExpanded: () => { } }, sections: [], accessibleText: 'Deployment\nHealth\nDeploy\nAutopilot',
 			openResource: () => { commands.push('open'); }, selectList: id => { commands.push(`select:${id}`); },
 		};
 		const input = observableValue<IArtifactDetailsViewData>('static panel data', data);
@@ -564,6 +567,20 @@ suite('Artifact Integration Presentation', () => {
 		function rows(panel: HTMLElement): HTMLElement[] {
 			return [...panel.querySelectorAll<HTMLElement>('.artifact-activity-row')];
 		}
+
+		test('clicking anywhere on the heading toggles expansion', async () => {
+			const f = fixture();
+			const a = f.artifact();
+			setActivities(a, [activity(a, 'first')]);
+			const panel = await open(f, a);
+			const heading = panel.querySelector<HTMLElement>('.artifact-activities .artifact-card-heading')!;
+			heading.querySelector<HTMLElement>('.artifact-activities-summary')!.click();
+			await settle(f);
+			const afterSummary = button(panel, 'Activities').getAttribute('aria-expanded');
+			heading.click();
+			await settle(f);
+			assert.deepStrictEqual({ afterSummary, afterHeading: button(panel, 'Activities').getAttribute('aria-expanded') }, { afterSummary: 'true', afterHeading: 'false' });
+		});
 
 		test('appears only with history, starts collapsed, and remembers expansion across reopening', async () => {
 			const f = fixture();
@@ -649,17 +666,18 @@ suite('Artifact Integration Presentation', () => {
 			}, { collapsed: '1 loaded', expanded: '2 loaded', described: '2 loaded', afterTitle: true, atRight: true, accessibleCount: true, historyRequests: [undefined] });
 		});
 
-		test('uses historical labels, newest-first ordering, and inert informational rows', async () => {
+		test('uses historical labels, action icons, newest-first ordering, hides skipped runs, and inert informational rows', async () => {
 			const f = fixture();
 			const a = f.artifact();
 			setActivities(a, [
 				activity(a, 'old', {
 					createdAt: 1, presentation: {
 						version: 1, source: 'manual', integrationLabel: 'Previous provider',
-						action: { label: 'Original Repair Title', iconId: 'tools' }, artifact: a.snapshot.get().artifact, details: [],
+						action: { label: 'Original Repair Title', iconId: 'wrench' }, artifact: a.snapshot.get().artifact, details: [],
 					}
 				}),
-				activity(a, 'new', { actionId: 'merge', actionKind: 'code', state: 'skipped', createdAt: 2, dispatched: false }),
+				activity(a, 'new', { actionId: 'merge', actionKind: 'code', state: 'failed', createdAt: 2 }),
+				activity(a, 'skipped', { actionId: 'reviews', state: 'skipped', createdAt: 3, dispatched: false }),
 			]);
 			const panel = await open(f, a);
 			await expand(f, panel);
@@ -669,11 +687,15 @@ suite('Artifact Integration Presentation', () => {
 			const text = accessible.provideContent();
 			assert.deepStrictEqual({
 				labels: rows(panel).map(row => row.querySelector('.artifact-activity-label')?.textContent),
+				icons: rows(panel).map(row => [...row.querySelector('.artifact-activity-icon .codicon')?.classList ?? []].find(name => name !== 'codicon' && name.startsWith('codicon-'))),
 				revealable: rows(panel).map(row => row.classList.contains('actionable')),
 				panelOpen: panel.isConnected, chats: f.openedChats,
 				readingOrder: text.indexOf('Merge Automatically:') < text.indexOf('Activities\n'),
-				reasons: text.includes('Activity new') && text.includes('Activity old'),
-			}, { labels: ['Merge: Skipped', 'Original Repair Title: Completed'], revealable: [false, false], panelOpen: true, chats: [], readingOrder: true, reasons: true });
+				reasons: text.includes('Activity new') && text.includes('Activity old') && !text.includes('Activity skipped'),
+			}, {
+				labels: ['Merge: Failed', 'Original Repair Title: Completed'], icons: ['codicon-git-merge', 'codicon-tools'],
+				revealable: [false, false], panelOpen: true, chats: [], readingOrder: true, reasons: true,
+			});
 		});
 
 		for (const destination of ['turn', 'queued', 'response'] as const) {
@@ -835,6 +857,48 @@ suite('Artifact Integration Presentation', () => {
 			}, { requests: [undefined, 'entry-10'], firstPageCount: 50, totalCount: 60, newest: 'Fix CI: Completed', summaries: ['50 loaded', '60 loaded'], moreHidden: true });
 		});
 
+		test('discovers older activity past history that was all skipped', async () => {
+			const f = fixture();
+			const a = f.artifact();
+			const older = activity(a, 'older', { createdAt: 0, updatedAt: 0, state: 'failed' });
+			const skipped = Array.from({ length: 60 }, (_, index) => activity(a, `skipped-${index}`, { createdAt: index + 1, updatedAt: index + 1, state: 'skipped', dispatched: false }));
+			a.setHistory([older, ...skipped]);
+			setActivities(a, skipped.slice(-50));
+			const panel = await open(f, a);
+			const hidden = panel.querySelector<HTMLElement>('.artifact-activities')!.hidden;
+			await expand(f, panel);
+			assert.deepStrictEqual({
+				hidden, labels: rows(panel).map(row => row.querySelector('.artifact-activity-label')?.textContent),
+				requests: a.historyRequests, moreHidden: panel.querySelector<HTMLElement>('.artifact-activities-more')?.hidden,
+			}, { hidden: false, labels: ['Fix CI: Failed'], requests: [undefined, 'skipped-10'], moreHidden: true });
+		});
+
+		test('loading activity history remains accessible without adding a message or moving existing rows', async () => {
+			const f = fixture();
+			const a = f.artifact();
+			const recent = activity(a, 'recent');
+			setActivities(a, [recent]);
+			const history = new DeferredPromise<{ runs: readonly ArtifactRun[] }>();
+			a.setHistoryResult(history.p);
+			const panel = await open(f, a);
+			const activities = panel.querySelector<HTMLElement>('.artifact-activities')!;
+			const initiallyBusy = activities.getAttribute('aria-busy');
+			await expand(f, panel);
+			const bounds = () => {
+				const panelBounds = panel.getBoundingClientRect();
+				const rowBounds = rows(panel)[0].getBoundingClientRect();
+				const message = panel.querySelector<HTMLElement>('.artifact-activities-message')!;
+				return { top: panelBounds.top, height: panelBounds.height, rowTop: rowBounds.top, busy: activities.getAttribute('aria-busy'), message: message.textContent, hidden: message.hidden };
+			};
+			const loading = bounds();
+			await history.complete({ runs: [recent] });
+			await settle(f);
+			assert.deepStrictEqual({ initiallyBusy, loading, loaded: bounds() }, {
+				initiallyBusy: 'false',
+				loading: { ...loading, busy: 'true', message: '', hidden: true }, loaded: { ...loading, busy: 'false', message: '', hidden: true },
+			});
+		});
+
 		test('retains recent activity on load failures and offers an explicit retry', async () => {
 			const f = fixture();
 			const a = f.artifact();
@@ -852,8 +916,9 @@ suite('Artifact Integration Presentation', () => {
 			await settle(f);
 			assert.deepStrictEqual({
 				message, retained, requests: a.historyRequests,
+				busy: panel.querySelector('.artifact-activities')?.getAttribute('aria-busy'),
 				errorHidden: panel.querySelector<HTMLElement>('.artifact-activities-message')?.hidden,
-			}, { message: 'Could not load activities: History offline', retained: 1, requests: [undefined, undefined], errorHidden: true });
+			}, { message: 'Could not load activities: History offline', retained: 1, requests: [undefined, undefined], busy: 'false', errorHidden: true });
 		});
 
 		test('ignores history completed after switching to another artifact', async () => {
@@ -1277,6 +1342,79 @@ suite('Artifact Integration Presentation', () => {
 		]);
 	});
 
+	test('refreshing artifact details does not add loading messages or move the panel and its rows', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		const panel = await open(f, a, 0);
+		const list = panel.querySelector<HTMLElement>('[role="tabpanel"]:not([hidden])')!;
+		const geometry = () => [panel, ...list.querySelectorAll<HTMLElement>('.artifact-details-item')].map(element => {
+			const { top, height } = element.getBoundingClientRect();
+			return { top, height };
+		});
+		const original = a.snapshot.get();
+		const originalDetails = Object.values(a.details).map(details => details.get());
+		const before = geometry();
+		const results = [];
+		for (const loading of [true, false, true, false]) {
+			transaction(tx => {
+				a.snapshot.set({
+					...original, contributions: original.contributions.map(contribution => ({
+						...contribution, view: { ...contribution.view, availability: { kind: loading ? 'loading' : 'available' } },
+					})),
+				}, tx);
+				Object.values(a.details).forEach((details, index) => {
+					details.set({ ...originalDetails[index], availability: { kind: loading ? 'loading' : 'available' } }, tx);
+				});
+			});
+			await settle(f);
+			results.push({
+				geometry: geometry(), busy: list.getAttribute('aria-busy'),
+				messages: [...panel.querySelectorAll<HTMLElement>('.artifact-details-availability, .artifact-state-list-message')].map(message => ({ text: message.textContent, hidden: message.hidden })),
+			});
+		}
+		assert.deepStrictEqual(results, [true, false, true, false].map(loading => ({
+			geometry: before, busy: String(loading), messages: Array.from({ length: 3 }, () => ({ text: '', hidden: true })),
+		})));
+	});
+
+	for (const withLists of [false, true]) {
+		test(`main and contribution loading remains accessible ${withLists ? 'with available lists' : 'without lists'}`, async () => {
+			const f = fixture();
+			const a = f.artifact();
+			if (!withLists) {
+				updateContribution(a, contribution => ({ ...contribution, view: { ...contribution.view, lists: [], sections: [] } }));
+			}
+			const acquisition = new DeferredPromise<void>();
+			a.setAcquireResult(acquisition.p);
+			const panel = await open(f, a);
+			const state = () => {
+				const message = panel.querySelector<HTMLElement>('.artifact-details-availability')!;
+				return {
+					busy: panel.getAttribute('aria-busy'), message: message.textContent, hidden: message.hidden,
+					lists: [...panel.querySelectorAll<HTMLElement>('[role="tabpanel"]')].map(list => list.getAttribute('aria-busy')),
+				};
+			};
+			const states = [state()];
+			await acquisition.complete();
+			await settle(f);
+			states.push(state());
+			for (const kind of ['loading', 'available'] as const) {
+				a.details.main.set({ ...a.details.main.get(), availability: { kind } }, undefined);
+				await settle(f);
+				states.push(state());
+			}
+			for (const kind of ['loading', 'available'] as const) {
+				updateContribution(a, contribution => ({ ...contribution, view: { ...contribution.view, availability: { kind } } }));
+				await settle(f);
+				states.push(state());
+			}
+			assert.deepStrictEqual(states, [true, false, true, false, true, false].map((loading, index) => ({
+				busy: String(loading), message: '', hidden: true,
+				lists: withLists ? [String(index === 0), String(index === 0)] : [],
+			})));
+		});
+	}
+
 	test('refresh does not reclaim focus after the user moves to another control', async () => {
 		const f = fixture();
 		const a = f.artifact();
@@ -1431,6 +1569,66 @@ suite('Artifact Integration Presentation', () => {
 			focusKept: true,
 			calls: [{ detailsId: 'checks', itemId: 'lint', actionId: 'rerun' }], invoked: [], opened: [], open: true,
 			accessible: ['Lint: Failed (actions: Rerun Check)'],
+		});
+	});
+
+	test('row actions can run a registered action for their item, and follow its availability', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		a.details.checks.set({
+			...a.details.checks.get(), itemActions: [{ id: 'fixCheck', label: 'Fix Check', iconId: 'tools', actionId: 'fix' }, { id: 'mergeCheck', label: 'Merge', iconId: 'git-merge', actionId: 'merge' }],
+			items: a.details.checks.get().items.map(item => ({ ...item, actions: ['fixCheck', 'mergeCheck'] })),
+		}, undefined);
+		const panel = await open(f, a, 0);
+		const actions = (label: string) => [...itemRow(panel, label).querySelectorAll<HTMLElement>('.action-label')].map(action => [action.getAttribute('aria-label'), action.classList.contains('disabled')]);
+		const before = actions('Lint');
+		itemRow(panel, 'Lint').querySelector<HTMLElement>('.action-label')!.click();
+		await settle(f);
+		itemRow(panel, 'Lint').querySelector<HTMLElement>('.action-label')!.click();
+		await settle(f);
+		assert.deepStrictEqual({
+			before, queued: actions('Lint'), other: actions('Build'),
+			invoked: a.invoked, itemActions: a.itemActions, open: f.controller.selected.get() === a.presentation,
+		}, {
+			before: [['Fix Check', false], ['Merge. Checks must pass.', true]],
+			// The item stays busy until its run settles, while the same action remains available on other items.
+			queued: [['Fix Check. Running', true], ['Merge. Checks must pass.', true]],
+			other: [['Fix Check', false], ['Merge. Checks must pass.', true]],
+			invoked: [{ integrationId: 'test', actionId: 'fix', chat: 'invoking-chat', input: { detailsId: 'checks', itemId: 'lint' } }],
+			itemActions: [], open: true,
+		});
+	});
+
+	test('revealing rerun actions and their loading spinner keeps the row icon and label vertically centered', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		withRerunActions(a);
+		const finish = new DeferredPromise<void>();
+		a.setItemActionResult(finish.p);
+		const panel = await open(f, a, 0);
+		panel.focus();
+		const row = itemRow(panel, 'Build');
+		const bounds = () => {
+			const rowBounds = row.getBoundingClientRect();
+			return ['.artifact-details-item-icon', '.artifact-details-item-label'].map(selector => {
+				const element = row.querySelector<HTMLElement>(selector)!.getBoundingClientRect();
+				return { top: element.top - rowBounds.top, height: element.height };
+			});
+		};
+		const idle = bounds();
+		row.classList.add('hovered');
+		const hovered = bounds();
+		row.classList.remove('hovered');
+		row.classList.add('focused');
+		const focused = bounds();
+		row.querySelector<HTMLElement>('.artifact-details-item-actions .action-label')!.click();
+		await settle(f);
+		const spinner = !!row.querySelector('.codicon-loading.codicon-modifier-spin');
+		const running = bounds();
+		await finish.complete();
+		await settle(f);
+		assert.deepStrictEqual({ hovered, focused, running, completed: bounds(), spinner }, {
+			hovered: idle, focused: idle, running: idle, completed: idle, spinner: true,
 		});
 	});
 
@@ -1593,17 +1791,44 @@ suite('Artifact Integration Presentation', () => {
 		assert.deepStrictEqual({ errors: f.errors, acquired: a.acquired, requests: a.authentications }, { errors: ['The artifact operation failed: Authentication failed'], acquired: [], requests: ['test', 'test'] });
 	});
 
-	test('missing descriptions never fall back to a status sentence, and errors stay visible', async () => {
+	test('sign-in opens the page that authorizes the current credential instead of signing in again', async () => {
 		const f = fixture();
 		const a = f.artifact();
-		a.details.main.set({ ...a.details.main.get(), description: '' }, undefined);
+		const authorizationUrl = 'https://github.com/orgs/octo/sso?authorization_request=example';
+		updateContribution(a, c => ({ ...c, authentication: { enabled: true }, view: { ...c.view, availability: { kind: 'authenticationRequired', reason: 'Authorize single sign-on.', authorizationUrl }, sections: [], lists: [] } }));
+		const panel = await open(f, a);
+		button(panel, 'Sign In').click();
+		await settle(f);
+		assert.deepStrictEqual({ opened: f.openedItems, requests: a.authentications, errors: f.errors }, { opened: [authorizationUrl], requests: [], errors: [] });
+	});
+
+	test('missing descriptions are hidden, and errors stay visible', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		a.details.main.set({ ...a.details.main.get(), description: undefined }, undefined);
 		a.details.comments.set({ ...a.details.comments.get(), items: [], availability: { kind: 'error', reason: 'Reviews could not be loaded.' } }, undefined);
 		const panel = await open(f, a);
 		assert.deepStrictEqual({
 			description: panel.querySelector('.artifact-details-description-content')?.textContent,
+			hidden: panel.querySelector<HTMLElement>('.artifact-details-description')?.hidden,
 			error: panel.querySelectorAll('.artifact-state-list-message')[1]?.textContent,
 			expand: panel.querySelector('.artifact-description-actions') === null,
-		}, { description: 'No description provided.', error: 'Reviews could not be loaded.', expand: true });
+		}, { description: '', hidden: true, error: 'Reviews could not be loaded.', expand: true });
+	});
+
+	test('refreshing after an action or Autopilot change shows no transient status', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		const panel = await open(f, a);
+		const stale = { kind: 'stale', reason: 'Refreshing.' } as const;
+		updateContribution(a, c => ({ ...c, view: { ...c.view, availability: stale } }));
+		a.details.main.set({ ...a.details.main.get(), availability: stale }, undefined);
+		a.details.comments.set({ ...a.details.comments.get(), availability: stale }, undefined);
+		await settle(f);
+		assert.deepStrictEqual({
+			state: panel.querySelector<HTMLElement>('.artifact-details-availability')?.hidden,
+			listMessages: [...panel.querySelectorAll<HTMLElement>('.artifact-state-list-message')].filter(message => !message.hidden).map(message => message.textContent),
+		}, { state: true, listMessages: [] });
 	});
 
 	test('a short description has no expansion control; remote Markdown is rendered safely as plain text', async () => {
@@ -2084,6 +2309,32 @@ suite('Artifact Integration Presentation', () => {
 				keyboard: { ringVisible: true, spansWholeTab: true, inside: true, radius: '4px', cursor: 'pointer', buttonOutline: 'none' },
 				firstFocused: true, mouseRingHidden: true, enterKeepsTabFocus: true, emptyListFocused: true,
 				collapsedByClick: { selected: null, visibleLists: 0, tabFocused: true },
+			});
+		});
+
+		test('the whole heading except the master switch toggles expansion and shows hover feedback', async () => {
+			const f = fixture();
+			const a = f.artifact();
+			const panel = await open(f, a);
+			const group = panel.querySelector<HTMLElement>('.artifact-autopilot-group')!;
+			const heading = group.querySelector<HTMLElement>('.artifact-card-heading')!;
+			const master = heading.querySelector<HTMLButtonElement>('[role="switch"]')!;
+			const expanded = () => group.querySelector('.artifact-card-disclosure')!.getAttribute('aria-expanded');
+			const states: { expanded: string | null; controlHovered?: boolean }[] = [];
+			heading.querySelector<HTMLElement>('.artifact-autopilot-summary')!.click();
+			await settle(f);
+			states.push({ expanded: expanded() });
+			master.click();
+			await settle(f);
+			master.dispatchEvent(new MouseEvent('mouseenter'));
+			states.push({ expanded: expanded(), controlHovered: heading.classList.contains('artifact-card-heading-control-hovered') });
+			master.dispatchEvent(new MouseEvent('mouseleave'));
+			heading.click();
+			await settle(f);
+			states.push({ expanded: expanded(), controlHovered: heading.classList.contains('artifact-card-heading-control-hovered') });
+			assert.deepStrictEqual({ states, configured: a.configured.length, focused: getActiveElement() === group.querySelector('.artifact-card-disclosure') }, {
+				states: [{ expanded: 'true' }, { expanded: 'true', controlHovered: true }, { expanded: 'false', controlHovered: false }],
+				configured: 1, focused: true,
 			});
 		});
 

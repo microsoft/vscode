@@ -9,7 +9,7 @@ import { readAttachmentDetail, withAttachmentDetail } from '../../common/meta/at
 import { isPolicyResolutionErrorData, readErrorDetail, toPolicyResolutionErrorData } from '../../common/meta/errorMeta.js';
 import { readAgentMessagePresentation, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript } from '../../common/meta/agentMessageMeta.js';
 import { readAgentModelCallDetail } from '../../common/meta/agentModelCallMeta.js';
-import { readAgentModelPricingMeta } from '../../common/meta/agentModelMeta.js';
+import { createPricingMetaFromBilling, normalizeCAPIBilling, readAgentModelPricingMeta } from '../../common/meta/agentModelMeta.js';
 import { AgentPermissionRequestKind, readAgentPermissionRequestMeta, withPermissionDiff } from '../../common/meta/agentPermissionRequestMeta.js';
 import { readAgentToolOutputDelta, readToolCallMeta, withAgentToolPreferences } from '../../common/meta/agentToolCallMeta.js';
 import { readAgentContextUsage, readUsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
@@ -30,6 +30,21 @@ function readerMatrix<T>(name: string, read: (meta: Record<string, unknown> | un
 
 suite('Metadata compatibility', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('normalizes legacy nano-AIU, tiered credit and SDK prices to credits per million tokens', () => {
+		const prices = (billing: object) => createPricingMetaFromBilling(normalizeCAPIBilling(billing));
+		assert.deepStrictEqual([
+			prices({ token_prices: { batch_size: 1_000_000, input_price: 200_000_000_000, output_price: 1_000_000_000_000, cache_price: 10_000_000_000 } }),
+			prices({ token_prices: { batch_size: 1000, input_price: 200_000_000, output_price: 1_000_000_000, cache_price: 0 } }),
+			prices({ token_prices: { batch_size: 1_000_000, default: { input_price: 200, output_price: 1000, cache_read_price: 10, cache_write_price: 250 } } }),
+			prices({ tokenPrices: { inputPrice: 200, outputPrice: 1000, cacheReadPrice: 10, cacheWritePrice: 250 } }),
+		], [
+			{ inputCost: 200, outputCost: 1000, cacheCost: 10 },
+			{ inputCost: 200, outputCost: 1000, cacheCost: 0 },
+			{ inputCost: 200, outputCost: 1000, cacheCost: 10, cacheWriteCost: 250 },
+			{ inputCost: 200, outputCost: 1000, cacheCost: 10, cacheWriteCost: 250 },
+		]);
+	});
 
 	test('policy errors survive JSON without classifying absent or malformed metadata', () => {
 		const invalid = [undefined, null, {}, [], { _meta: null }, { _meta: [] }, { _meta: { 'vscode.policyResolutionFailed': 'true' } }, { _meta: { 'vscode.policyResolutionFailed': false } }];

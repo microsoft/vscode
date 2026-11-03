@@ -1032,7 +1032,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private _waitForTurnEdits(owner: ProtocolURI, turnId: string): Promise<void> | undefined {
 		const session = this._containingSessionUri(owner);
 		const chat = this._chatOwnership.getChatOwner(owner) !== undefined ? owner : this._chatOwnership.getDefaultChat(session);
-		return chat ? this._providerService.getProviderForSession(session)?.waitForTurnEdits?.(URI.parse(chat), turnId) : undefined;
+		// The chat's own agent writes its edits.
+		return chat ? this._providerService.getProviderForChat(session, chat)?.waitForTurnEdits?.(URI.parse(chat), turnId) : undefined;
 	}
 
 	private async _computeTurnDiffsUsingGit(session: ProtocolURI, turnId: string, source: GitTurnDiffSource): Promise<ITurnDiffResult> {

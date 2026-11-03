@@ -10,21 +10,30 @@ import { extUriBiasedIgnorePathCase, getComparisonKey, isEqual } from '../../../
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionSchemeAlias } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import type { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionMatchesByProjectRoot, readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { IObservable } from '../../../../../../base/common/observable.js';
+import { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { ChatIsArchivedChangedAction, ChatIsReadChangedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
+import { isActionKnownToVersion } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 
 /**
  * Minimal agent-host connection surface needed by the session list store.
  */
 export interface IAgentHostSessionListConnection {
 	readonly onDidNotification: Event<INotification>;
+	readonly resourceUris: IAgentHostResourceUriMapper;
+	readonly initializeResult?: IObservable<InitializeResult | undefined>;
+	/** Fires when the same logical connection finishes reconnecting. */
+	readonly onDidReconnect?: Event<void>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	disposeChat(chat: URI): Promise<void>;
 	disposeSession(session: URI): Promise<void>;
-	dispatch(channel: string, action: SessionAction): void;
+	dispatch(channel: string, action: SessionAction | ChatIsArchivedChangedAction | ChatIsReadChangedAction): void;
 }
 
 /**
@@ -114,6 +123,14 @@ export class AgentHostSessionListStore extends Disposable {
 		super();
 
 		this._register(this._connection.onDidNotification(n => this._onNotification(n)));
+
+		// Sessions may have changed on the host while the connection was down.
+		if (this._connection.onDidReconnect) {
+			this._register(this._connection.onDidReconnect(() => {
+				this.resetCache();
+				void this.refresh(CancellationToken.None);
+			}));
+		}
 
 		// Re-fetch the session list whenever the set of VS Code workspace
 		// folders changes, since filtering depends on it. The agent host itself
@@ -210,6 +227,28 @@ export class AgentHostSessionListStore extends Disposable {
 			type: ActionType.SessionIsArchivedChanged,
 			isArchived: archived,
 		});
+	}
+
+	get canArchiveChat(): boolean {
+		const result = this._connection.initializeResult?.get();
+		return !!result && isActionKnownToVersion({ type: ActionType.ChatIsArchivedChanged, isArchived: false }, result.protocolVersion);
+	}
+
+	setChatArchived(chat: URI, archived: boolean): void {
+		this._dispatchChatFlag(chat, { type: ActionType.ChatIsArchivedChanged, isArchived: archived });
+	}
+
+	setChatRead(chat: URI, isRead: boolean): void {
+		this._dispatchChatFlag(chat, { type: ActionType.ChatIsReadChanged, isRead });
+	}
+
+	private _dispatchChatFlag(chat: URI, action: ChatIsArchivedChangedAction | ChatIsReadChangedAction): void {
+		const result = this._connection.initializeResult?.get();
+		if (!result || !isActionKnownToVersion(action, result.protocolVersion)) {
+			throw new Error('This host does not support independent chat read or archive state.');
+		}
+		this._mutationGeneration++;
+		this._connection.dispatch(chat.toString(), action);
 	}
 
 	setSessionRead(provider: string, session: URI, isRead: boolean): void {
@@ -387,6 +426,9 @@ export class AgentHostSessionListStore extends Disposable {
 			}
 
 			const { activity, ...changes } = notification.changes;
+			if (changes.workingDirectories) {
+				changes.workingDirectories = changes.workingDirectories.map(directory => this._connection.resourceUris.fromAgentHost(URI.parse(directory)).toString());
+			}
 			const updated: IAgentHostSessionListEntry = {
 				provider,
 				rawId: cached.rawId,
@@ -436,9 +478,13 @@ export class AgentHostSessionListStore extends Disposable {
 					resource: chat.chat.toString(),
 					title: chat.summary ?? '',
 					origin: chat.origin,
+					status: chat.status ?? (chat.archived !== undefined || chat.isRead !== undefined
+						? SessionStatus.Idle | (chat.archived ? SessionStatus.IsArchived : 0) | (chat.isRead ? SessionStatus.IsRead : 0)
+						: undefined),
 					...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 				})),
 				defaultChat: session.chats?.find(chat => chat.kind === 'default')?.chat.toString(),
+				origin: session.origin,
 				// The repository root a worktree-isolated session belongs to; the
 				// workspace filter matches on it because the worktree itself lives
 				// outside the repository folder.
@@ -461,7 +507,10 @@ export class AgentHostSessionListStore extends Disposable {
 			provider,
 			rawId: AgentSession.id(summary.resource),
 			statusKnown: true,
-			summary,
+			summary: {
+				...summary,
+				...(summary.workingDirectories ? { workingDirectories: summary.workingDirectories.map(directory => this._connection.resourceUris.fromAgentHost(URI.parse(directory)).toString()) } : {}),
+			},
 		};
 	}
 

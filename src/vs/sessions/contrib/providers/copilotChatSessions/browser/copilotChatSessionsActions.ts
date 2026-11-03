@@ -66,4 +66,4 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 	}
 }
 
-registerWorkbenchContribution2(CopilotPickerActionViewItemContribution.ID, CopilotPickerActionViewItemContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(CopilotPickerActionViewItemContribution.ID, CopilotPickerActionViewItemContribution, WorkbenchPhase.BlockRestore);

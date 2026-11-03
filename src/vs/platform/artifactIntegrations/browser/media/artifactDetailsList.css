@@ -73,6 +73,7 @@
 /* Row actions float at the end of the row while it is hovered, focused, or selected. */
 .artifact-details-list .artifact-details-item.has-actions {
 	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: center;
 }
 
 .artifact-details-item-actions {

@@ -557,6 +557,7 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		}();
 		const sent: { session: ISession; query: string }[] = [];
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+			override getNewSessionTarget() { return undefined; }
 			override isNewSessionTargetAvailable(): boolean { return false; }
 			override async sendNewChatRequest(session: ISession, options: { query: string }): Promise<void> {
 				sent.push({ session, query: options.query });
@@ -623,6 +624,7 @@ suite('SessionsVoiceNewComposerContribution', () => {
 			}
 		}();
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+			override getNewSessionTarget() { return undefined; }
 			override isNewSessionTargetAvailable(_folderUri: URI, options?: ICreateNewSessionOptions): boolean {
 				return options?.providerId === 'selected-provider' && options.sessionTypeId === 'selected-type';
 			}

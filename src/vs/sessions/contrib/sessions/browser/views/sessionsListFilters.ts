@@ -55,7 +55,11 @@ export function getSessionEnvironments(environments: readonly ISessionEnvironmen
 	return [...byId.values()].sort(compareSessionEnvironments);
 }
 
-export function getSessionFilterOptions(sessions: readonly ISession[], environments: readonly ISessionEnvironment[], reader?: IReader): ISessionFilterOption[] {
+/**
+ * The filter options for the given sessions. Only sessions the list includes, as
+ * decided by `isSessionListed`, contribute their creating applications.
+ */
+export function getSessionFilterOptions(sessions: readonly ISession[], environments: readonly ISessionEnvironment[], isSessionListed: (session: ISession, reader: IReader | undefined) => boolean, reader?: IReader): ISessionFilterOption[] {
 	const options: ISessionFilterOption[] = [
 		{ filter: { kind: 'harness', id: 'copilot' }, label: localize('harness.copilot', "Copilot"), group: '1_harnesses' },
 		{ filter: { kind: 'harness', id: 'claude' }, label: localize('harness.claude', "Claude"), group: '1_harnesses' },
@@ -71,7 +75,7 @@ export function getSessionFilterOptions(sessions: readonly ISession[], environme
 	for (const [index, environment] of ordered.entries()) {
 		const applications = new Map<string, string>();
 		for (const session of sessions) {
-			if (session.environment === environment.id && !session.isAutomation?.read(reader)) {
+			if (session.environment === environment.id && isSessionListed(session, reader)) {
 				const application = session.application.read(reader);
 				if (application.id !== UNKNOWN_SESSION_APPLICATION_ID) {
 					applications.set(application.id, application.label);

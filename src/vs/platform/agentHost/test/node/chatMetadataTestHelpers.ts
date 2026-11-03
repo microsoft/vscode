@@ -5,6 +5,8 @@
 
 import { DisposableStore, markAsSingleton, toDisposable } from '../../../../base/common/lifecycle.js';
 import type { URI } from '../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentHostChatRowStore } from '../../common/agentHostSessionStateStore.js';
 import { AgentHostSessionStateStore } from '../../node/agentHostSessionStateStore.js';
@@ -174,7 +176,15 @@ export abstract class SessionStateUnsupportedDatabase implements IAgentHostSessi
 		this._sessionStateDatabase = undefined;
 	}
 
+	hideSession(...args: Parameters<IAgentHostDatabase['hideSession']>): ReturnType<IAgentHostDatabase['hideSession']> { return this._sessionState.hideSession(...args); }
+	isSessionSuppressed(...args: Parameters<IAgentHostDatabase['isSessionSuppressed']>): ReturnType<IAgentHostDatabase['isSessionSuppressed']> { return this._sessionState.isSessionSuppressed(...args); }
+	isSessionHidden(...args: Parameters<IAgentHostDatabase['isSessionHidden']>): ReturnType<IAgentHostDatabase['isSessionHidden']> { return this._sessionState.isSessionHidden(...args); }
+	listHiddenSessions(...args: Parameters<IAgentHostDatabase['listHiddenSessions']>): ReturnType<IAgentHostDatabase['listHiddenSessions']> { return this._sessionState.listHiddenSessions(...args); }
 	readSessionState(...args: Parameters<IAgentHostSessionStateDatabase['readSessionState']>): ReturnType<IAgentHostSessionStateDatabase['readSessionState']> { return this._sessionState.readSessionState(...args); }
+	getWorktreeDiskUsageRevision(...args: Parameters<IAgentHostDatabase['getWorktreeDiskUsageRevision']>): ReturnType<IAgentHostDatabase['getWorktreeDiskUsageRevision']> { return this._sessionState.getWorktreeDiskUsageRevision(...args); }
+	readWorktreeDiskUsage(...args: Parameters<IAgentHostDatabase['readWorktreeDiskUsage']>): ReturnType<IAgentHostDatabase['readWorktreeDiskUsage']> { return this._sessionState.readWorktreeDiskUsage(...args); }
+	writeWorktreeDiskUsage(...args: Parameters<IAgentHostDatabase['writeWorktreeDiskUsage']>): ReturnType<IAgentHostDatabase['writeWorktreeDiskUsage']> { return this._sessionState.writeWorktreeDiskUsage(...args); }
+	deleteWorktreeDiskUsage(...args: Parameters<IAgentHostDatabase['deleteWorktreeDiskUsage']>): ReturnType<IAgentHostDatabase['deleteWorktreeDiskUsage']> { return this._sessionState.deleteWorktreeDiskUsage(...args); }
 	readSessionStateValues(...args: Parameters<IAgentHostSessionStateDatabase['readSessionStateValues']>): ReturnType<IAgentHostSessionStateDatabase['readSessionStateValues']> { return this._sessionState.readSessionStateValues(...args); }
 	importSessionState(...args: Parameters<IAgentHostSessionStateDatabase['importSessionState']>): ReturnType<IAgentHostSessionStateDatabase['importSessionState']> { return this._sessionState.importSessionState(...args); }
 	writeSessionState(...args: Parameters<IAgentHostSessionStateDatabase['writeSessionState']>): ReturnType<IAgentHostSessionStateDatabase['writeSessionState']> { return this._sessionState.writeSessionState(...args); }
@@ -222,7 +232,7 @@ export function createTestSessionStateStore(database: IAgentHostDatabase, servic
 
 /** A real worktree clean-up service over `worktree` and a private in-memory agent-host.db. */
 export function createTestWorktreeCleanupService(disposables: Pick<DisposableStore, 'add'>, worktree: IAgentHostWorktreeIsolation, database: IAgentHostDatabase = disposables.add(new AgentHostDatabase(':memory:'))): AgentHostWorktreeCleanupService {
-	return disposables.add(new AgentHostWorktreeCleanupService(undefined, database, worktree, new NullLogService()));
+	return disposables.add(new AgentHostWorktreeCleanupService(undefined, database, worktree, new NullLogService(), upcastPartial<IAgentHostGitService>({})));
 }
 
 /** The chat rows of a real session state store over `service`; the store and its database are released with `disposables`. */

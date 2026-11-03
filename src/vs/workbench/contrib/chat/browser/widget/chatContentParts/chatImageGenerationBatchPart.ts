@@ -21,6 +21,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { createZip } from '../../../../../../base/common/zip.js';
 import { localize } from '../../../../../../nls.js';
 import { WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
+import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -37,6 +38,8 @@ import { IChatRendererContent, IChatResponseViewModel, isResponseVM } from '../.
 import { isToolResultInputOutputDetails } from '../../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../chat.js';
 import { GlyphSurface } from '../../attachments/chatImageGlyphSurface.js';
+import { hookUpResourceContextMenu } from '../../attachments/chatAttachmentWidgets.js';
+import { createChatImageCopyActions } from '../../chatImageActions.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatResourceGroupWidget } from './chatResourceGroupWidget.js';
 import { IChatCollapsibleIODataPart } from './chatToolInputOutputContentPart.js';
@@ -326,6 +329,11 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 				const thumbnail = item;
 				const store = thumbnail.imageStore.value = new DisposableStore();
 				const image = dom.append(thumbnail.button.element, dom.$<HTMLImageElement>('img', { alt: '', draggable: false }));
+				const part = slot.part;
+				const readData = async () => part.base64Value !== undefined
+					? decodeBase64(part.base64Value).buffer
+					: (await this.fileService.readFile(part.uri)).value.buffer;
+				store.add(this.instantiationService.invokeFunction(accessor => hookUpResourceContextMenu(accessor, thumbnail.button.element, part.uri, MenuId.ChatImageContext, createChatImageCopyActions(accessor, thumbnail.button.element, part.uri, readData, part.mimeType))));
 				// Browsers can paint a loaded image before dispatching its load event, which shapes the tile,
 				// so show it from that event rather than letterboxed in the square placeholder.
 				image.hidden = true;

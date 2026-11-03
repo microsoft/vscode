@@ -18,7 +18,8 @@ import { ISessionSummaryHoverData, ISessionSummaryHoverLocation, ISessionSummary
 import { SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { UNKNOWN_SESSION_APPLICATION_ID } from '../../../common/sessionApplication.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, getSessionOwnedGitHubPullRequestRefs, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, ISession, ISessionFolder, ISessionWorkspace, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
+import { getHarnessPresentationOrDefault } from '../../../services/sessions/common/sessionsProvider.js';
+import { BRANCH_CHANGES_CHANGESET_ID, getChatHarness, getSessionOwnedGitHubPullRequestRefs, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, ISession, ISessionFolder, ISessionWorkspace, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
 import { ISessionChangesStats, readChatChangesStats, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 
 /** Shared session diff counts, omitting entries without line changes. */
@@ -130,8 +131,11 @@ export function getChatSummaryHoverData(
 	includeUpdatedAt = false,
 ): ISessionSummaryHoverData {
 	const updatedAt = includeUpdatedAt ? chat.updatedAt.get() : undefined;
+	const chatHarnessLabel = getDistinctChatHarnessLabel(session, chat, sessionsProvidersService, undefined);
 	return {
 		...getProviderDetails(session, sessionsProvidersService),
+		// A chat answered by another harness than its session's names that harness, as its tab does.
+		...(chatHarnessLabel !== undefined ? { providerLabel: chatHarnessLabel } : {}),
 		title: chat.title.get().trim() || localize('untitledChat', "Untitled Chat"),
 		...(updatedAt ? { updatedAt } : {}),
 		location: getLocation(
@@ -270,7 +274,8 @@ function toHoverPullRequests(refs: Iterable<SessionPullRequestRef>, openerServic
 		title: ref.title ?? `#${ref.number}`,
 		icon: ref.icon,
 		uri: ref.uri,
-		onOpen: () => openerService.open(ref.uri, { openExternal: true }).catch(onUnexpectedError),
+		// Contributed openers let an installed extension (e.g. GitHub Pull Requests) open the pull request in product.
+		onOpen: () => openerService.open(ref.uri, { openExternal: true, allowContributedOpeners: true, fromUserGesture: true }).catch(onUnexpectedError),
 	}));
 	return pullRequests.length ? pullRequests : undefined;
 }
@@ -287,6 +292,15 @@ function getApplication(session: ISession, openerService: IOpenerService): ISess
 			openerService.open(URI.from({ scheme: Schemas.command, path: SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID }), { allowCommands: true }).catch(onUnexpectedError);
 		},
 	};
+}
+
+/**
+ * The label of a chat's harness when it differs from its session's (with the generic
+ * fallback while unknown), or `undefined` for a chat on the session's harness.
+ */
+export function getDistinctChatHarnessLabel(session: ISession, chat: IChat, sessionsProvidersService: ISessionsProvidersService, reader: IReader | undefined): string | undefined {
+	const harness = getChatHarness(session, chat);
+	return harness === session.harness ? undefined : getHarnessPresentationOrDefault(sessionsProvidersService.getProvider(session.providerId), harness, reader).label;
 }
 
 function getProviderDetails(

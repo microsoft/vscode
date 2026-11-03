@@ -37,7 +37,6 @@ export interface ISessionOptionsRowOptions {
 	/** Names the responsive layout, e.g. for its measurements. */
 	readonly user: string;
 	readonly hoverDelegate?: IHoverDelegate;
-	readonly useExperimentalLayout: IObservable<boolean>;
 	readonly screenReaderOptimized: IObservable<boolean>;
 	readonly expanded: IObservable<boolean>;
 	/** Whether a collapsed tray keeps its pickers as an icon rail rather than hiding them. */
@@ -50,20 +49,20 @@ export interface ISessionOptionsRowOptions {
 	onDidCollapse?(): void;
 	/** Called after the row's presentation changes. */
 	onDidChangeLayout?(): void;
-	/** In the experimental layout, lets the user collapse individual pickers to their icon from their context menu. */
+	/** Lets the user collapse individual pickers to their icon from their context menu. */
 	readonly iconOnlyPickers?: ISessionOptionsIconOnlyPickers;
 }
 
 /**
  * The options row above a new-session composer: the primary pickers already in `row` (such as the
- * workspace), followed by the session options ({@link details}) that the experimental composer layout
+ * workspace), followed by the session options ({@link details}) that the composer layout
  * groups into a tray with a disclosure toggle. Keyboard users move through the row with the arrow keys.
  */
 export class SessionOptionsRow extends Disposable {
 
-	/** Session options that follow the primary pickers, collapsible in the experimental layout. */
+	/** Collapsible session options that follow the primary pickers. */
 	readonly details: HTMLElement;
-	/** Where the composer's repository controls go while the experimental layout shows them in the row. */
+	/** Hosts the composer's repository controls in the row. */
 	readonly repositoryControlsHost: HTMLElement;
 	readonly toggle: Button;
 	private readonly _responsiveLayout: ChatInputPickerResponsiveLayout;
@@ -102,7 +101,7 @@ export class SessionOptionsRow extends Disposable {
 			return controls;
 		};
 		this._register(dom.addDisposableListener(row, dom.EventType.KEY_DOWN, event => {
-			if (!options.useExperimentalLayout.get() || event.altKey || event.ctrlKey || event.metaKey || !['Tab', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+			if (event.altKey || event.ctrlKey || event.metaKey || !['Tab', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
 				return;
 			}
 			const controls = getRowControls(event.key !== 'Tab');
@@ -120,7 +119,7 @@ export class SessionOptionsRow extends Disposable {
 			controls[(nextIndex + controls.length) % controls.length].focus();
 		}, true));
 		const iconOnlyPickers = options.iconOnlyPickers;
-		const getIconOnlyPickerIds = (): ReadonlySet<string> => iconOnlyPickers && options.useExperimentalLayout.get()
+		const getIconOnlyPickerIds = (): ReadonlySet<string> => iconOnlyPickers
 			? iconOnlyPickers.iconOnlyPickerIds.get()
 			: new Set();
 		const responsiveLayout = this._responsiveLayout = this._register(new ChatInputPickerResponsiveLayout(options.user, container, {
@@ -148,13 +147,13 @@ export class SessionOptionsRow extends Disposable {
 		if (iconOnlyPickers) {
 			this._register(dom.addDisposableListener(row, dom.EventType.CONTEXT_MENU, event => {
 				const target = event.target;
-				if (!options.useExperimentalLayout.get() || !dom.isHTMLElement(target)) {
+				if (!dom.isHTMLElement(target)) {
 					return;
 				}
 				// The innermost picker under the pointer; its own context menu is replaced by one that also collapses it.
 				const picker = findLast(getLabeledPickerResponsiveItems(row), item => !!item.element?.contains(target));
 				const pickerId = picker?.element && iconOnlyPickers.getPickerId(picker.element);
-				if (!pickerId) {
+				if (!pickerId && target !== row && target !== sessionOptions && !toggle.element.contains(target)) {
 					return;
 				}
 				dom.EventHelper.stop(event, true);
@@ -162,16 +161,12 @@ export class SessionOptionsRow extends Disposable {
 			}, true));
 		}
 		this._register(autorun(reader => {
-			const useExperimentalLayout = options.useExperimentalLayout.read(reader);
-			if (useExperimentalLayout) {
-				// Re-measure below when the user collapses a picker to its icon or shows its label again.
-				iconOnlyPickers?.iconOnlyPickerIds.read(reader);
-			}
+			iconOnlyPickers?.iconOnlyPickerIds.read(reader);
 			const screenReaderOptimized = options.screenReaderOptimized.read(reader);
 			const hasDetails = options.hasDetails?.read(reader) ?? true;
 			// Screen reader users should never have the options collapsed out of the accessibility
 			// tree: keep the tray expanded and drop the disclosure toggle entirely.
-			const disclosureAvailable = useExperimentalLayout && !screenReaderOptimized && hasDetails;
+			const disclosureAvailable = !screenReaderOptimized && hasDetails && (iconOnlyPickers?.showOptionsToggle.read(reader) ?? true);
 			const expanded = options.expanded.read(reader);
 			const collapsed = disclosureAvailable && !expanded;
 			if (collapsed) {
@@ -181,10 +176,13 @@ export class SessionOptionsRow extends Disposable {
 			// rail (labels hidden) unless the user has opted to hide them entirely.
 			const iconRail = collapsed && options.collapsedShowIcons.read(reader);
 			const showDetails = hasDetails && (!disclosureAvailable || expanded || iconRail);
-			row.classList.toggle('new-chat-session-options', useExperimentalLayout);
-			sessionOptions.classList.toggle('legacy-session-options-details', !useExperimentalLayout);
+			row.classList.add('new-chat-session-options');
 			sessionOptions.classList.toggle('collapsed-icon-rail', iconRail);
+			const toggleHadFocus = toggle.element === dom.getActiveElement();
 			toggle.element.hidden = !disclosureAvailable;
+			if (toggle.element.hidden && toggleHadFocus) {
+				getRowControls().find(control => control !== toggle.element)?.focus();
+			}
 			if (!showDetails && sessionOptions.contains(dom.getActiveElement())) {
 				if (!toggle.element.hidden) {
 					toggle.focus();

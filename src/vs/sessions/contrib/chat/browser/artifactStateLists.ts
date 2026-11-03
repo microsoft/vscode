@@ -116,6 +116,7 @@ class ArtifactStateList extends Disposable {
 		this.message.textContent = data.message;
 		this.message.hidden = !data.message;
 		this.element.setAttribute('aria-description', data.message);
+		this.element.setAttribute('aria-busy', String(data.loading));
 		this.more.update(data.more ? [data.more] : []);
 	}
 

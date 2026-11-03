@@ -43,27 +43,33 @@ suite('Sessions - Generate Chat Background skill', () => {
 		});
 	});
 
-	test('owns theme-aware generation guidance without imposing either recipe', () => {
+	test('keeps the user\'s request first and applies through the appearance tools', () => {
 		assert.deepStrictEqual({
-			userFirst: content.includes('user\'s requested subject, style, colors, and composition take priority'),
-			optional: content.includes('suggestions, not requirements'),
-			pattern: content.includes('### Pattern option'),
-			atmospheric: content.includes('### Atmospheric option'),
-			otherApproachesAllowed: content.includes('combine them, or use another approach'),
-			unrestrictedPalette: content.includes('not an allowed palette'),
-			currentColors: content.includes('call `getThemeColors` before generating'),
-			appliesThroughTool: content.includes('apply it using `setChatBackground`'),
-			existingImagesBypassGeneration: content.includes('Do not generate or restyle an image unless asked'),
+			userFirst: content.includes('user\'s requested subject, style, and colors take priority'),
+			existingImagesBypassGeneration: content.includes('Do not generate an image unless asked'),
+			unavailableToolsExplained: content.includes('explain that rather than generating an image you cannot apply'),
+			paletteIsContext: content.includes('Call `getThemeColors` and use the palette as context'),
+			appliesThroughTool: content.includes('pass its path to `setChatBackground`'),
 		}, {
 			userFirst: true,
-			optional: true,
-			pattern: true,
-			atmospheric: true,
-			otherApproachesAllowed: true,
-			unrestrictedPalette: true,
-			currentColors: true,
-			appliesThroughTool: true,
 			existingImagesBypassGeneration: true,
+			unavailableToolsExplained: true,
+			paletteIsContext: true,
+			appliesThroughTool: true,
+		});
+	});
+
+	test('verifies the applied background in a window screenshot', () => {
+		assert.deepStrictEqual({
+			capturesAfterApplying: content.includes('After `setChatBackground` succeeds, call `screenshotWindow`'),
+			boundedRevisions: content.includes('for at most a couple of rounds'),
+			noUnrelatedContent: content.includes('do not comment on unrelated content'),
+			honestWithoutScreenshot: content.includes('say that the result was not visually verified'),
+		}, {
+			capturesAfterApplying: true,
+			boundedRevisions: true,
+			noUnrelatedContent: true,
+			honestWithoutScreenshot: true,
 		});
 	});
 });

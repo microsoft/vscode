@@ -30,16 +30,14 @@ import {
 	RemoteAgentHostAutoConnectSettingId,
 	RemoteAgentHostsEnabledSettingId,
 	RemoteAgentHostsSettingId,
-	WEBSOCKET_ENTRY_TYPE_CONFIG,
+	WorkspaceRemoteAgentHostsSettingId,
 	getEntryTypeConfig,
-	isLegacySshRawEntry,
-	isRawRemoteAgentHostEntry,
+	parseWebSocketRemoteAgentHostEntries,
 	type IRemoteAgentHostConnectionFactory,
 	type IRemoteAgentHostConnectionInfo,
 	type IRemoteAgentHostConnectOptions,
 	type IRemoteAgentHostCreatedConnection,
 	type IRemoteAgentHostEntry,
-	type IRawRemoteAgentHostEntry,
 	type IRemoteAgentHostProtocolClient,
 	type IRemoteAgentHostPendingConnection,
 	type RemoteAgentHostConnectionObserver,
@@ -114,9 +112,9 @@ function isTerminalConnectError(err: unknown): boolean {
 class WebSocketConnectionFactory extends Disposable implements IRemoteAgentHostConnectionFactory {
 	readonly kind = RemoteAgentHostEntryType.WebSocket;
 	readonly entries: IObservable<readonly IRemoteAgentHostEntry[]>;
-	private readonly _rawEntries: IObservable<readonly IRawRemoteAgentHostEntry[]>;
 
 	constructor(
+		settingId: string,
 		private readonly _clientInfo: () => typeof editorWindowAgentHostClientInfo,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -124,16 +122,8 @@ class WebSocketConnectionFactory extends Disposable implements IRemoteAgentHostC
 		@IAgentHostAdvertisedAuthenticationResolver private readonly _authenticationResolver: IAgentHostAdvertisedAuthenticationResolver,
 	) {
 		super();
-		this._rawEntries = observableConfigValue<readonly IRawRemoteAgentHostEntry[]>(
-			RemoteAgentHostsSettingId,
-			[],
-			this._configurationService,
-		);
-		this.entries = derived(this, reader => this._rawEntries.read(reader)
-			.filter(isRawRemoteAgentHostEntry)
-			.filter(entry => !isLegacySshRawEntry(entry))
-			.map(entry => WEBSOCKET_ENTRY_TYPE_CONFIG.fromRaw(entry))
-		);
+		const rawEntries = observableConfigValue<unknown>(settingId, [], this._configurationService);
+		this.entries = derived(this, reader => parseWebSocketRemoteAgentHostEntries(rawEntries.read(reader)));
 	}
 
 	createConnection(entry: IRemoteAgentHostEntry, _options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
@@ -246,8 +236,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		return editorWindowAgentHostClientInfo;
 	}
 
-	protected get supportsWebSocketConnections(): boolean {
-		return true;
+	/** The setting listing the WebSocket hosts this window dials. */
+	protected get webSocketEntriesSettingId(): string {
+		return RemoteAgentHostsSettingId;
 	}
 
 	constructor(
@@ -277,11 +268,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// The service creates these built-in factories, so it owns their
 		// lifetime too; `registerConnectionFactory` only manages registry
 		// membership so externally-supplied factories stay owned by their producer.
-		if (this.supportsWebSocketConnections) {
-			this._register(this.registerConnectionFactory(this._register(this._instantiationService.createInstance(WebSocketConnectionFactory,
-				() => this.clientInfo,
-			))));
-		}
+		this._register(this.registerConnectionFactory(this._register(this._instantiationService.createInstance(WebSocketConnectionFactory,
+			this.webSocketEntriesSettingId,
+			() => this.clientInfo,
+		))));
 		this._register(autorun(reader => {
 			this._configuredEntries.read(reader);
 			this._remoteAgentHostsEnabled.read(reader);
@@ -1260,8 +1250,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 export class EditorWindowRemoteAgentHostService extends RemoteAgentHostService {
 
-	protected override get supportsWebSocketConnections(): boolean {
-		return false;
+	/** Editor windows dial only the hosts their workspace lists; user-level hosts belong to the Agents window. */
+	protected override get webSocketEntriesSettingId(): string {
+		return WorkspaceRemoteAgentHostsSettingId;
 	}
 }
 

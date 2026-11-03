@@ -8,7 +8,7 @@ import { toAction } from '../../../base/common/actions.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { INotification, IPromptChoice, IPromptChoiceWithMenu, NotificationPriority, Severity } from '../../../platform/notification/common/notification.js';
-import { extensionNotificationTelemetry, getNotificationActionTelemetry, getNotificationTelemetrySource, NotificationActionTelemetryId, NotificationTelemetryId, withNotificationActionTelemetry } from '../../../platform/notification/common/notificationTelemetry.js';
+import { extensionNotificationTelemetry, ExtensionNotificationTelemetryId, getNotificationActionTelemetry, getNotificationTelemetrySource, NotificationActionTelemetryId, NotificationTelemetryId, withNotificationActionTelemetry } from '../../../platform/notification/common/notificationTelemetry.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
 import { logNotificationAction, logNotificationExpansion, logNotificationInteraction, logNotificationShown, NotificationInteractionClassification, NotificationInteractionEvent, NotificationShownClassification, NotificationShownEvent } from '../../common/notificationTelemetry.js';
 import { ChoiceAction } from '../../common/notifications.js';
@@ -134,6 +134,77 @@ suite('Notification telemetry contract', () => {
 			source: { origin: 'core', notificationId: 'authentication.continue', extensionId: 'none' },
 			shown: [],
 			actions: [['continue', 'primary', -1, 'unknown'], ['reload', 'secondary', -1, 'unknown'], ['decline', 'primary', -1, 'unknown']]
+		});
+	});
+
+	test('approved extension notification types are scoped to the originating extension and kind', () => {
+		const ids = Object.values(ExtensionNotificationTelemetryId);
+		const sources = ids.map(id => {
+			const extensionId = id.startsWith('githubAuthentication.') ? 'vscode.github-authentication'
+				: id.startsWith('git.') ? 'vscode.git' : 'vscode.typescript-language-features';
+			const kind = id === ExtensionNotificationTelemetryId.GitHubSignInBrowser || id === ExtensionNotificationTelemetryId.GitHubSignInDeviceCode ? 'progress' : 'message';
+			return getNotificationTelemetrySource(extensionNotificationTelemetry(extensionId, kind, id));
+		});
+
+		assert.deepStrictEqual({
+			unique: new Set(ids).size,
+			ids: sources.map(source => source.notificationId),
+			origins: [...new Set(sources.map(source => source.origin))],
+			normalized: getNotificationTelemetrySource(extensionNotificationTelemetry('VSCode.Git', 'message', ExtensionNotificationTelemetryId.GitParentRepository)),
+			wrongExtension: getNotificationTelemetrySource(extensionNotificationTelemetry('publisher.extension', 'message', ExtensionNotificationTelemetryId.GitParentRepository)),
+			wrongKind: getNotificationTelemetrySource(extensionNotificationTelemetry('vscode.github-authentication', 'message', ExtensionNotificationTelemetryId.GitHubSignInBrowser)),
+			wrongProgressKind: getNotificationTelemetrySource(extensionNotificationTelemetry('vscode.git', 'progress', ExtensionNotificationTelemetryId.GitParentRepository)),
+		}, {
+			unique: ids.length,
+			ids,
+			origins: ['extension'],
+			normalized: { origin: 'extension', notificationId: 'git.parentRepository', extensionId: 'vscode.git' },
+			wrongExtension: { origin: 'extension', notificationId: 'extension.message', extensionId: 'publisher.extension' },
+			wrongKind: { origin: 'extension', notificationId: 'extension.message', extensionId: 'vscode.github-authentication' },
+			wrongProgressKind: { origin: 'extension', notificationId: 'extension.progress', extensionId: 'vscode.git' },
+		});
+	});
+
+	test('unapproved extension IDs retain generic attribution without exposing their values', () => {
+		for (const id of [undefined, '', 'private/path', 'private@example.com', 'git.parentRepository.private', NotificationTelemetryId.AuthenticationSignIn]) {
+			const { item } = notify({
+				telemetry: extensionNotificationTelemetry('vscode.git', 'message', id),
+				message: 'private message',
+				id: 'private dedup ID'
+			});
+			logNotificationShown(telemetry, item, 'toast');
+			logNotificationInteraction(telemetry, item, 'dismiss', 'toast');
+			item.close();
+		}
+
+		assert.deepStrictEqual({
+			ids: telemetry.events.map(event => event.data.notificationId),
+			privatePayload: JSON.stringify(telemetry.events).includes('private')
+		}, {
+			ids: Array(12).fill('extension.message'),
+			privatePayload: false
+		});
+	});
+
+	test('approved extension IDs survive updates and do not inherit exposure across different notification types', () => {
+		const options = { id: 'private dedup', message: 'private message' };
+		const first = notify({ ...options, telemetry: extensionNotificationTelemetry('vscode.git', 'message', ExtensionNotificationTelemetryId.GitParentRepository) }).item;
+		logNotificationShown(telemetry, first, 'toast');
+		const second = notify({ ...options, telemetry: extensionNotificationTelemetry('vscode.git', 'message', ExtensionNotificationTelemetryId.GitAutoFetch) }).item;
+		second.updateMessage('another private message');
+		logNotificationShown(telemetry, second, 'toast');
+		logNotificationInteraction(telemetry, second, 'dismiss', 'toast');
+
+		assert.deepStrictEqual({
+			shown: telemetry.shown.map(event => [event.notificationId, event.extensionId]),
+			interaction: telemetry.interactions.map(event => [event.notificationId, event.extensionId]),
+			sameInstance: telemetry.shown[0].instanceId === telemetry.shown[1].instanceId,
+			privatePayload: JSON.stringify(telemetry.events).includes('private')
+		}, {
+			shown: [['git.parentRepository', 'vscode.git'], ['git.autoFetch', 'vscode.git']],
+			interaction: [['git.autoFetch', 'vscode.git']],
+			sameInstance: false,
+			privatePayload: false
 		});
 	});
 

@@ -30,6 +30,7 @@ async function createRunnerRepository(repoRoot: string): Promise<IRunnerReposito
 		'test/integration/agentHost/runner.ts',
 		'test/integration/agentHost/child.ps1',
 		'build/lib/electronVersion.ts',
+		'build/lib/pnpm.ts',
 		'src/vs/platform/agentHost/test/node/agentHostTestProfile.ts',
 	]) {
 		await fs.mkdir(path.dirname(path.join(repoRoot, file)), { recursive: true });
@@ -39,6 +40,8 @@ async function createRunnerRepository(repoRoot: string): Promise<IRunnerReposito
 	await fs.writeFile(path.join(repoRoot, 'package.json'), JSON.stringify({
 		type: 'module', scripts: { electron: 'node setup-electron.ts' },
 	}));
+	// Like the repository: `pnpm run` doesn't install dependencies first.
+	await fs.writeFile(path.join(repoRoot, 'pnpm-workspace.yaml'), 'verifyDepsBeforeRun: false\n');
 	await fs.writeFile(path.join(repoRoot, '.npmrc'), 'target="42.9.3"\nms_build_id="test"\n');
 	await fs.writeFile(path.join(repoRoot, 'product.json'), JSON.stringify({
 		nameLong: 'Code - OSS', nameShort: 'Code - OSS', applicationName: 'code-oss',
@@ -136,6 +139,41 @@ test('Agent Host E2E runs only the suites that a --runList file lists, and prepa
 			noneListed: noneListed.includes('None of the 6 Agent Host E2E suites is listed in'),
 			prepared: await exists(path.join(repoRoot, '.build/preparations')),
 		}, { suitesPassed: ['Conformance', 'Claude'], noneListed: true, prepared: false });
+	} finally {
+		await fs.rm(repoRoot, { recursive: true, force: true });
+	}
+});
+
+test('Agent Host E2E shards take the listed suites in turn, and a shard without suites prepares nothing', async () => {
+	const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'vscode-e2e-shard-'));
+	try {
+		const { executable, run } = await createRunnerRepository(repoRoot);
+		await fs.writeFile(path.join(repoRoot, 'three.txt'), [
+			'src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts',
+			'src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts',
+			'src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts',
+		].join('\n'));
+		await fs.writeFile(path.join(repoRoot, 'one.txt'), 'src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts\n');
+		const passed = (output: string) => [...output.matchAll(/^ {2}PASS (?<suite>[^:]+):/gm)].map(match => match.groups!.suite);
+		const everySuite = run({}, ['--shard', '2/2']);
+		const firstListed = run({}, ['--shard', '1/2', '--runList', 'three.txt']);
+		const secondListed = run({}, ['--shard=2/2', '--runList', 'three.txt']);
+		// Without the runtime, a run that prepares it records a preparation.
+		await fs.rm(path.join(repoRoot, executable));
+		const emptyShard = run({}, ['--shard', '2/2', '--runList', 'one.txt']);
+		assert.deepStrictEqual({
+			everySuite: passed(everySuite),
+			firstListed: passed(firstListed),
+			secondListed: passed(secondListed),
+			emptyShard: emptyShard.includes('Agent Host E2E shard 2/2 has none of the 1 selected suites.'),
+			prepared: await exists(path.join(repoRoot, '.build/preparations')),
+		}, {
+			everySuite: ['Claude', 'Copilot', 'Copilot managed settings'],
+			firstListed: ['Conformance', 'Copilot'],
+			secondListed: ['Claude'],
+			emptyShard: true,
+			prepared: false,
+		});
 	} finally {
 		await fs.rm(repoRoot, { recursive: true, force: true });
 	}

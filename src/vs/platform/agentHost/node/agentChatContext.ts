@@ -166,6 +166,7 @@ function buildAgentChatContext(stateManager: AgentHostStateManager, authenticati
 		? isChatPrimaryFolderWorkspaceless(stateManager, creationWorkingDirectories[0], sessionState, sessionSettings?.workspaceless === true)
 		: isChatWorkspaceless(stateManager, chatKey, sessionState, sessionSettings?.workspaceless === true);
 	const isToolChat = typeof origin === 'object' && origin !== null && !Array.isArray(origin) && origin.kind === ChatOriginKind.Tool;
+	const chatSurface = stateManager.getSessionSurfaceMeta(sessionKey)?.surface;
 	return {
 		resource: storageResource === sessionKey ? sessionUri : storageResource === chatKey ? toUri(chat) : URI.parse(storageResource),
 		owner: createChatOwnerRef(stateManager, chat, session),
@@ -175,6 +176,7 @@ function buildAgentChatContext(stateManager: AgentHostStateManager, authenticati
 		...(origin ? { origin } : {}),
 		...(customizations ? { customizations } : {}),
 		...(credentials ? { credentials } : {}),
+		...(chatSurface ? { chatSurface } : {}),
 	};
 }
 

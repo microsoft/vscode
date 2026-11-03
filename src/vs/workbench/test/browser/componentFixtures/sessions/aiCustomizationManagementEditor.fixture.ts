@@ -61,6 +61,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSource } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { matchesCustomizationSearchQuery } from '../../../../contrib/chat/common/aiCustomizationSearch.js';
 import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../../contrib/chat/common/customizationMarketplaceInstallService.js';
 import { CustomizationMarketplaceInstallService } from '../../../../contrib/chat/browser/aiCustomization/customizationMarketplaceInstallService.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../../contrib/chat/browser/aiCustomization/copilotConnectorsService.js';
@@ -90,7 +91,7 @@ import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostM
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../../contrib/extensions/common/extensions.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
-import { IMarketplaceReference, MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
+import { IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
 import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { aiCustomizationManagementSectionRegistry } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
@@ -826,6 +827,36 @@ const overflowingExtensionToolSets: readonly IToolSet[] = Array.from({ length: 8
 	};
 });
 
+/** Names whose separators differ from natural search queries, for dash/space search fixtures. */
+const searchSeparatorMarketplaceResources: readonly ICustomizationMarketplaceResource[] = [
+	{
+		sourceId: 'testSource',
+		identifier: 'example/handy-commands',
+		displayName: 'handy-commands',
+		description: 'Shortcuts for everyday repository tasks.',
+		mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+		publisher: 'Example Tools',
+		version: '1.0.0',
+		tags: ['productivity'],
+		capabilities: [],
+		representativeQueries: [],
+		installation: { kind: 'plugin', repository: 'example/handy-commands', ref: 'main', path: '' },
+	},
+	{
+		sourceId: 'testSource',
+		identifier: 'io.github.example/chrome-devtools-mcp',
+		displayName: 'Chrome DevTools MCP',
+		description: 'Inspect, debug, and automate a live Chrome browser.',
+		mediaType: CustomizationMarketplaceMediaType.McpServer,
+		publisher: 'Example Browser Tools',
+		version: '0.9.0',
+		stars: 512,
+		tags: ['browser', 'debugging'],
+		capabilities: [],
+		representativeQueries: [],
+	},
+];
+
 const customizationMarketplaceResources: readonly ICustomizationMarketplaceResource[] = [
 	{
 		sourceId: 'testSource',
@@ -1077,6 +1108,7 @@ function createEmptyCustomizationMarketplaceInstallService(): ICustomizationMark
 	return new class extends mock<ICustomizationMarketplaceInstallService>() {
 		override readonly onDidChange = Event.None;
 		override readonly installations = constObservable(emptyCustomizationMarketplaceInstallationSnapshot);
+		override findInstallation() { return undefined; }
 	}();
 }
 
@@ -1189,10 +1221,12 @@ interface IRenderEditorOptions {
 	readonly otherSourceEnabled?: boolean;
 	readonly toggleMarketplaceVisibility?: boolean;
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore' | 'partialLoading' | 'cachedRefresh';
-	readonly customizationMarketplaceInstallationState?: 'mixed' | 'missing' | 'error';
+	readonly customizationMarketplaceInstallationState?: 'mixed' | 'missing' | 'error' | 'requiredPlugin';
 	readonly customizationMarketplaceDetailState?: 'missing' | 'error' | 'unavailable';
 	readonly useRealConnectorInstallService?: boolean;
 	readonly discoveryQuery?: string;
+	/** Adds catalog entries named `handy-commands` and "Chrome DevTools MCP". */
+	readonly searchSeparatorResources?: boolean;
 	readonly directConnectorName?: string;
 	readonly clearDiscoveryQuery?: boolean;
 	readonly selectDiscoveryResult?: boolean;
@@ -1250,6 +1284,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const marketplaceResources = [
 		...(agentFinderPublicFeedEnabled ? customizationMarketplaceResources : []),
 		...(options.copilotConnectorsEnabled ? [copilotConnectorMarketplaceResource] : []),
+		...(options.searchSeparatorResources ? searchSeparatorMarketplaceResources : []),
 	];
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
@@ -1266,6 +1301,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const mcpServerCompatibility = options.mcpServerCompatibility;
 	const marketplaceManagementProvider: ICustomizationMarketplaceManagementProvider | undefined = options.pluginMarketplaceMigration ? {
 		onDidChange: Event.None,
+		onDidChangeMarketplaces: Event.None,
 		list: async () => [],
 		add: async (_sessionResource, source) => ({ name: 'vscode-team-kit', source, isDefault: false, managed: false, available: true }),
 		queryMarketplace: async () => ({ items: [], total: 0 }),
@@ -1410,6 +1446,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	} else if (options.customizationMarketplaceInstallationState === 'missing') {
 		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[0]), { kind: 'missing', target: getFixtureInstallationTarget(customizationMarketplaceResources[0]) });
 	}
+	const requiredPluginResource = customizationMarketplaceResources.find(resource => resource.identifier === 'example/figma-plugin')!;
+	const requiredPluginUri = URI.file('/user/plugins/figma-plugin');
+	const requiredPluginTarget: CustomizationMarketplaceInstallationTarget = { kind: 'plugin', uri: requiredPluginUri };
+	const fixturePlugins = options.customizationMarketplaceInstallationState === 'requiredPlugin'
+		? [...installedPlugins, makeInstalledPlugin('Figma', requiredPluginUri, true, false, undefined, true)]
+		: installedPlugins;
+	if (options.customizationMarketplaceInstallationState === 'requiredPlugin') {
+		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(requiredPluginResource), { kind: 'installed', target: requiredPluginTarget });
+	}
 	if (options.customizationMarketplaceDetailState) {
 		const resource = customizationMarketplaceResources[0];
 		const target = getFixtureInstallationTarget(resource);
@@ -1541,11 +1586,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 							: Promise.reject(new Error('The catalog is temporarily unavailable. Try again later.'));
 						case 'empty': return Promise.resolve({ items: [], total: 0 });
 					}
-					const text = query.query?.toLowerCase() ?? '';
+					const text = query.query ?? '';
 					const resources = marketplaceResources.filter(resource =>
 						(!query.mediaType || resource.mediaType === query.mediaType)
 						&& (!query.sourceIds || query.sourceIds.includes(resource.sourceId))
-						&& (!text || `${resource.displayName} ${resource.description} ${resource.tags.join(' ')}`.toLowerCase().includes(text)));
+						&& (!text.trim() || !!matchesCustomizationSearchQuery(text, `${resource.displayName} ${resource.description} ${resource.tags.join(' ')}`)));
 					const offset = Number(query.cursor?.token ?? 0);
 					const page = {
 						items: resources.slice(offset, offset + pageSize),
@@ -1572,6 +1617,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				reg.defineInstance(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 					override readonly onDidChange = customizationMarketplaceInstallChanged.event;
 					override readonly installations = observableFromEvent(customizationMarketplaceInstallChanged.event, getCustomizationMarketplaceInstallations);
+					override findInstallation(resource: ICustomizationMarketplaceResource) {
+						return getCustomizationMarketplaceInstallations().findByResource(resource);
+					}
 					override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
 						// The outgoing Discover view may read installation state while the visibility change disposes it.
 						assert(sourceEnabled() || (options.toggleMarketplaceVisibility === true && customizationMarketplaceQueryCount > 0), 'A disabled Marketplace fixture must not request installation state.');
@@ -2067,7 +2115,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IAgentPluginRepositoryService, createMockAgentPluginRepositoryService());
 			reg.defineInstance(IPluginGitService, new class extends mock<IPluginGitService>() { }());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
-				override readonly plugins = constObservable(installedPlugins);
+				override readonly plugins = constObservable(fixturePlugins);
 				override readonly enablementModel = undefined as never;
 			}());
 			reg.defineInstance(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
@@ -2141,7 +2189,17 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			'Copilot customization rows did not finish rendering.',
 		);
 	}
-	assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabled ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must describe the active surface.');
+	if (options.selectedSection === AICustomizationManagementSection.Canvases) {
+		const create = ctx.container.querySelector<HTMLElement>('[aria-label="Create a Canvas"]');
+		const browse = ctx.container.querySelector<HTMLElement>('[aria-label="Browse Canvas Extensions"]');
+		assert(create !== null && create.style.display !== 'none', 'Canvases must render its Create a Canvas action.');
+		assert(browse !== null, 'Canvases must render its Browse action.');
+		assert(
+			browse.style.display === (marketplaceVisibilityEnabled ? '' : 'none'),
+			`Canvases Browse visibility must follow Marketplace availability; received "${browse.style.display}".`,
+		);
+	}
+	assert(!ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title, 'Home button must not duplicate its managed hover with a native tooltip.');
 	if (options.selectedSection === AICustomizationManagementSection.McpServers && options.marketplaceVisibilityEnabled === false) {
 		editor.revealLastItem();
 		await timeout(50);
@@ -2265,7 +2323,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(Boolean(discover) === discoverEnabledAfterToggle, 'Switching Marketplace visibility must replace the home surface.');
 		assert(Boolean(home?.querySelector('.welcome-prompts-content-container')) === !discoverEnabledAfterToggle, 'Overview must be visible only when Marketplace is hidden.');
 		assert(ctx.container.querySelector('.sidebar-home-button')?.textContent?.includes(discoverEnabledAfterToggle ? 'Browse' : 'Overview') === true, 'Home navigation must match the selected surface.');
-		assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabledAfterToggle ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must update when Marketplace visibility changes.');
+		assert(!ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title, 'Home button must not add a native tooltip when Marketplace visibility changes.');
 		const expectedQueryCount = queryCountBeforeToggle + (discoverEnabledAfterToggle ? 1 : 0);
 		assert(customizationMarketplacePrimaryQueryCount === expectedQueryCount, `Toggling Marketplace visibility must issue a primary query only when enabling Discover. Expected ${expectedQueryCount} queries, got ${customizationMarketplacePrimaryQueryCount}.`);
 		assert(!home?.textContent?.includes('Could not load available customizations.'), 'Changing Marketplace visibility must not show a catalog error.');
@@ -2828,7 +2886,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 // Plugin Browse Mode — standalone widget with marketplace results
 // ============================================================================
 
-function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | ContributionEnablementState, policyBlocked = false, fromMarketplace?: IMarketplacePlugin): IAgentPlugin {
+function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | ContributionEnablementState, policyBlocked = false, fromMarketplace?: IMarketplacePlugin, policyRequired = false): IAgentPlugin {
 	const contributionName = name.toLowerCase().replace(/\s+/g, '-');
 	const enablementState = typeof enablement === 'boolean'
 		? (enablement ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile)
@@ -2841,6 +2899,7 @@ function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | Contr
 		override readonly version = constObservable('1.0.0');
 		override readonly enablement = constObservable(enablementState);
 		override readonly policyBlocked = constObservable(policyBlocked);
+		override readonly policyEnablement = constObservable(policyRequired ? true : undefined);
 		override readonly hooks = constObservable([]);
 		override readonly commands = constObservable([
 			{ uri: URI.joinPath(uri, 'commands', `${contributionName}-lookup.md`), name: `${name} lookup`, description: `Search ${name} from chat.` },
@@ -3248,11 +3307,32 @@ function renderEmbeddedMcpDetail(
 	}
 }
 
-function renderEmbeddedPluginDetail(ctx: ComponentFixtureContext, item: IAgentPluginItem | undefined): void {
-	const width = 480;
-	const height = 320;
+function renderEmbeddedPluginDetail(
+	ctx: ComponentFixtureContext,
+	item: IAgentPluginItem | undefined,
+	options?: {
+		readonly marketplaceResource?: ICustomizationMarketplaceResource;
+		readonly deferMarketplaceResource?: boolean;
+		readonly width?: number;
+		readonly height?: number;
+		readonly focusRepository?: boolean;
+		readonly focusEnablementAction?: boolean;
+	},
+): void {
+	const width = options?.width ?? 480;
+	const height = options?.height ?? 320;
 	ctx.container.style.width = `${width}px`;
 	ctx.container.style.height = `${height}px`;
+	const installedMarketplaceResource = item?.kind === AgentPluginItemKind.Installed && options?.marketplaceResource
+		? createCustomizationMarketplaceInstallationSnapshot([{
+			resource: options.marketplaceResource,
+			state: { kind: 'installed', target: { kind: 'plugin', uri: item.plugin.uri, name: item.name } },
+		}])
+		: emptyCustomizationMarketplaceInstallationSnapshot;
+	const marketplaceInstallations = observableValue(
+		'embeddedPluginDetail.marketplaceInstallations',
+		options?.deferMarketplaceResource ? emptyCustomizationMarketplaceInstallationSnapshot : installedMarketplaceResource,
+	);
 
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
@@ -3280,7 +3360,10 @@ function renderEmbeddedPluginDetail(ctx: ComponentFixtureContext, item: IAgentPl
 				override readonly enablementModel = undefined!;
 			}());
 			reg.defineInstance(IPluginInstallService, new class extends mock<IPluginInstallService>() { }());
-			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
+			reg.defineInstance(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
+				override readonly onDidChange = Event.None;
+				override readonly installations = marketplaceInstallations;
+			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override async readFile(): Promise<IFileContent> { throw new Error('Fixture README not found'); }
 			}());
@@ -3299,16 +3382,59 @@ function renderEmbeddedPluginDetail(ctx: ComponentFixtureContext, item: IAgentPl
 	const detail = ctx.disposableStore.add(instantiationService.createInstance(EmbeddedAgentPluginDetail, host));
 	if (item) {
 		detail.setInput(item);
+		const focusedEnablementAction = options?.focusEnablementAction
+			? host.querySelector<HTMLElement>('.monaco-button-dropdown > .monaco-button:not(.monaco-dropdown-button)')
+			: undefined;
+		if (options?.focusRepository) {
+			host.querySelector<HTMLAnchorElement>('.embedded-detail-fact-link[href*="github.com"]')?.focus();
+		}
+		focusedEnablementAction?.focus();
+		if (options?.deferMarketplaceResource) {
+			marketplaceInstallations.set(installedMarketplaceResource, undefined);
+		}
+		if (options?.focusEnablementAction) {
+			assert(!!focusedEnablementAction && focusedEnablementAction.isConnected && focusedEnablementAction.ownerDocument.activeElement === focusedEnablementAction, 'Repository metadata refresh must preserve the focused enablement action.');
+		}
 	}
 }
 
-function makeInstalledPluginItem(name: string, description: string, enablement = ContributionEnablementState.EnabledProfile, policyBlocked = false): IAgentPluginItem {
+function makeInstalledPluginItem(name: string, description: string, enablement = ContributionEnablementState.EnabledProfile, policyBlocked = false, fromMarketplace?: IMarketplacePlugin, policyRequired = false): IAgentPluginItem {
 	return {
 		kind: AgentPluginItemKind.Installed,
 		name,
 		description,
-		marketplace: 'GitHub',
-		plugin: makeInstalledPlugin(name, URI.file(`/workspace/.copilot/plugins/${name.toLowerCase()}`), enablement, policyBlocked),
+		marketplace: fromMarketplace?.marketplace,
+		plugin: makeInstalledPlugin(name, URI.file(`/workspace/.copilot/plugins/${name.toLowerCase()}`), enablement, policyBlocked, fromMarketplace, policyRequired),
+	};
+}
+
+function makeConfiguredMarketplacePlugin(name: string, marketplaceRepository: string): IMarketplacePlugin {
+	const marketplaceReference = parseMarketplaceReference(marketplaceRepository)!;
+	return {
+		name,
+		description: `${name} from a configured plugin marketplace`,
+		version: '1.0.0',
+		source: `plugins/${name.toLowerCase()}`,
+		sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: `plugins/${name.toLowerCase()}` },
+		marketplace: marketplaceReference.displayLabel,
+		marketplaceReference,
+		marketplaceType: MarketplaceType.Copilot,
+	};
+}
+
+function makePluginMarketplaceResource(name: string, repository: string): ICustomizationMarketplaceResource {
+	return {
+		sourceId: 'github-feed',
+		identifier: `fixture/${name.toLowerCase()}`,
+		displayName: name,
+		description: `${name} from GitHub Feed`,
+		mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+		publisher: repository.split('/')[0],
+		version: '1.0.0',
+		tags: [],
+		capabilities: [],
+		representativeQueries: [],
+		repository: URI.parse(`https://github.com/${repository}`),
 	};
 }
 
@@ -3544,10 +3670,23 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	CanvasesTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Canvases literally reuses the shared Tools content container, including its recessed panel background, border, padding, title/search alignment, and source-group tree styling. It groups every supported inventory extension under User, Workspace, and Plugins sections, including extensions that report no Canvases. Extension rows do not repeat source icons; User and Plugin parents have enablement switches, while Workspace parents are read-only.'],
+		expectedVisualDescriptions: ['Canvases literally reuses the shared Tools content container, including its recessed panel background, border, padding, title/search alignment, and source-group tree styling. Its header includes secondary Create a Canvas and Browse actions for guided authoring and filtered discovery. It groups every supported inventory extension under User, Workspace, and Plugins sections, including extensions that report no Canvases. Extension rows do not repeat source icons; User and Plugin parents have enablement switches, while Workspace parents are read-only.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.Canvases,
+			marketplaceVisibilityEnabled: true,
+			copilotExtensionInventory: fixtureCopilotExtensionInventory,
+			copilotCanvases: fixtureCopilotCanvases,
+		}),
+	}),
+
+	CanvasesTabWithoutBrowse: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Canvases keeps the Create a Canvas action plus the same title, documentation, search, and source-group tree layout when customization marketplace discovery is unavailable, without showing the Browse action.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.Canvases,
+			marketplaceVisibilityEnabled: false,
 			copilotExtensionInventory: fixtureCopilotExtensionInventory,
 			copilotCanvases: fixtureCopilotCanvases,
 		}),
@@ -3614,6 +3753,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				label: 'Extensions',
 				icon: Codicon.extensions,
 				description: 'Choose which installed extensions run in the Agents window.',
+				separatorBefore: true,
 				supportsHarness: () => true,
 				getBadge: () => constObservable('Some installed extensions can be enabled in the Agents window.'),
 				create: () => ({ dispose: () => { } }),
@@ -3827,6 +3967,18 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			mcpSearchQuery: 'search',
+		}),
+	}),
+
+	McpServersSearchDashedQuery: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Searching MCP servers for "remote-browser" finds the Remote Browser server.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			isSessionsWindow: true,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			activeSessionMcpServers,
+			mcpSearchQuery: 'remote-browser',
 		}),
 	}),
 
@@ -4251,10 +4403,20 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Plugins tab
 	PluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Plugins page uses a classic tree with separate collapsible User and Workspace groups, plus Remote Session and Available groups when applicable. Header action buttons use the standard gap.'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The Plugins page uses a classic tree with separate collapsible User and Workspace groups, plus Remote Session and Available groups when applicable. Header action buttons use the standard gap. The add split button has a borderless, narrow compact-chevron segment and matches the Agents run split button resting and segment hover states.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
+			availableHarnesses: [{
+				...createVSCodeHarnessDescriptor(),
+				pluginActions: [{
+					id: 'fixture.createPlugin',
+					label: 'Create Plugin',
+					tooltip: 'Create Plugin',
+					run: async () => { },
+				}],
+			}],
 		}),
 	}),
 
@@ -4362,6 +4524,30 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			width: 1200,
 			discoveryQuery: 'review',
 			expectedDiscoveryContentWidth: 840,
+		}),
+	}),
+
+	DiscoverSearchSpacedQueryMatchesDashedName: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Searching Discover for "handy commands" finds the handy-commands plugin.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			searchSeparatorResources: true,
+			width: 1200,
+			discoveryQuery: 'handy commands',
+		}),
+	}),
+
+	DiscoverSearchDashedQueryMatchesSpacedName: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Searching Discover for "chrome-devtools" finds the Chrome DevTools MCP server.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			searchSeparatorResources: true,
+			width: 1200,
+			discoveryQuery: 'chrome-devtools',
 		}),
 	}),
 
@@ -4579,7 +4765,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverCachedRefresh: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Browse reuses cached customization cards immediately while a quiet status reports background source refresh progress and the shared progress bar remains active.'],
+		expectedVisualDescriptions: ['Browse reuses cached customization cards immediately beneath the search row while the shared indeterminate progress bar remains active without loading text or an empty status gap.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
@@ -4614,6 +4800,17 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			marketplaceVisibilityEnabled: true,
 			discoveryQuery: 'repository review',
 			customizationMarketplaceInstallationState: 'missing',
+		}),
+	}),
+
+	DiscoverRequiredPlugin: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The Figma plugin required by the organization shows a disabled Uninstall action instead of Retry Uninstall.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			discoveryQuery: 'figma',
+			customizationMarketplaceInstallationState: 'requiredPlugin',
 		}),
 	}),
 
@@ -5140,8 +5337,65 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	EmbeddedPluginDetailInstalled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['The installed plugin detail has Uninstall and Disable actions. The Disable split-button divider is visible without leaking through the outer border at its top or bottom edge.'],
-		render: ctx => renderEmbeddedPluginDetail(ctx, makeInstalledPluginItem('Linear', 'Issue tracking and project management integration')),
+		expectedVisualDescriptions: ['The installed plugin detail shows its version and linked GitHub repository alongside Disable and Uninstall actions. Uninstall uses the standard secondary button style, and the Disable split-button divider is visible without leaking through the outer border at its top or bottom edge.'],
+		render: ctx => renderEmbeddedPluginDetail(
+			ctx,
+			makeInstalledPluginItem('Linear', 'Issue tracking and project management integration'),
+			{ marketplaceResource: makePluginMarketplaceResource('Linear', 'acme/linear-plugin') },
+		),
+	}),
+
+	EmbeddedPluginDetailInstalledRepositoryFocused: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The installed plugin repository link has visible keyboard focus in the Details table.'],
+		render: ctx => renderEmbeddedPluginDetail(
+			ctx,
+			makeInstalledPluginItem('Linear', 'Issue tracking and project management integration'),
+			{ marketplaceResource: makePluginMarketplaceResource('Linear', 'acme/linear-plugin'), focusRepository: true },
+		),
+	}),
+
+	EmbeddedPluginDetailAsyncRepositoryPreservesFocus: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The installed plugin repository appears after installation metadata arrives while keyboard focus remains on the Disable action.'],
+		render: ctx => renderEmbeddedPluginDetail(
+			ctx,
+			makeInstalledPluginItem('Linear', 'Issue tracking and project management integration'),
+			{
+				marketplaceResource: makePluginMarketplaceResource('Linear', 'acme/linear-plugin'),
+				deferMarketplaceResource: true,
+				focusEnablementAction: true,
+			},
+		),
+	}),
+
+	EmbeddedPluginDetailConfiguredMarketplace: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['An installed plugin from a configured marketplace falls back to the marketplace GitHub repository when the plugin has no direct repository metadata.'],
+		render: ctx => renderEmbeddedPluginDetail(
+			ctx,
+			makeInstalledPluginItem('Accessibility Kanban', 'Kanban board for accessibility remediation', ContributionEnablementState.EnabledProfile, false, makeConfiguredMarketplacePlugin('Accessibility Kanban', 'github/awesome-copilot')),
+		),
+	}),
+
+	EmbeddedPluginDetailInstalledNoRepository: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['An installed plugin without trustworthy repository metadata omits the Repository row while retaining Version and Location.'],
+		render: ctx => renderEmbeddedPluginDetail(ctx, makeInstalledPluginItem('Local Tools', 'Local-only plugin without marketplace provenance')),
+	}),
+
+	EmbeddedPluginDetailInstalledRepositoryNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['A narrow installed plugin detail keeps a long GitHub repository link contained in the Details table without overlapping the location actions.'],
+		render: ctx => renderEmbeddedPluginDetail(
+			ctx,
+			makeInstalledPluginItem('Dependency Maintenance', 'Cross-repository dependency maintenance'),
+			{
+				marketplaceResource: makePluginMarketplaceResource('Dependency Maintenance', 'example-enterprise-organization/dependency-maintenance-and-compatibility-plugin'),
+				width: 360,
+				height: 360,
+			},
+		),
 	}),
 
 	EmbeddedPluginDetailExcludedWorkspace: defineComponentFixture({
@@ -5152,6 +5406,12 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	EmbeddedPluginDetailPolicyBlocked: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEmbeddedPluginDetail(ctx, makeInstalledPluginItem('Deployment Guard', 'Deployment controls managed by your organization', ContributionEnablementState.DisabledProfile, true)),
+	}),
+
+	EmbeddedPluginDetailRequiredByOrganization: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The organization-required plugin detail shows only a disabled Uninstall action, with no Managed by Organization button.'],
+		render: ctx => renderEmbeddedPluginDetail(ctx, makeInstalledPluginItem('Handy Commands', 'Commands required by your organization', ContributionEnablementState.EnabledProfile, false, undefined, true)),
 	}),
 
 	// Standalone embedded plugin detail widget — marketplace plugin.

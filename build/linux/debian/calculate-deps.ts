@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawnSync } from 'child_process';
-import { constants, mkdtempSync, readFileSync, rmSync, statSync } from 'fs';
+import { constants, mkdtempSync, statSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
-import manifests from '../../../cgmanifest.json' with { type: 'json' };
+import { downloadChromiumFile } from '../../lib/chromiumSource.ts';
 import { additionalDeps } from './dep-lists.ts';
 import type { DebianArchString } from './types.ts';
 
@@ -22,43 +22,12 @@ let dpkgShlibdepsScript: string | undefined;
 
 // Get the Chromium dpkg-shlibdeps file once per process.
 function getDpkgShlibdepsScript(): string {
-	if (dpkgShlibdepsScript) {
-		return dpkgShlibdepsScript;
+	if (!dpkgShlibdepsScript) {
+		const location = path.join(mkdtempSync(path.join(tmpdir(), 'dpkg-shlibdeps-')), 'dpkg-shlibdeps.pl');
+		downloadChromiumFile('third_party/dpkg-shlibdeps/dpkg-shlibdeps.pl', location);
+		dpkgShlibdepsScript = location;
 	}
-
-	const chromiumManifest = manifests.registrations.find(registration => {
-		return registration.component.type === 'git' && registration.component.git!.name === 'chromium';
-	});
-	if (!chromiumManifest) {
-		throw new Error('Cannot find the chromium registration in cgmanifest.json');
-	}
-	const dpkgShlibdepsUrl = `https://raw.githubusercontent.com/chromium/chromium/${chromiumManifest.version}/third_party/dpkg-shlibdeps/dpkg-shlibdeps.pl`;
-	const dpkgShlibdepsScriptLocation = path.join(mkdtempSync(path.join(tmpdir(), 'dpkg-shlibdeps-')), 'dpkg-shlibdeps.pl');
-
-	// Pass the token through a curl config on stdin so it does not appear in the process list.
-	// Authenticated requests avoid the anonymous rate limit on shared agent IPs, but an invalid
-	// token gets a 404, so alternate with anonymous attempts.
-	const token = process.env['GITHUB_TOKEN'];
-	const maxAttempts = 5;
-	let lastError = '';
-	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-		const useToken = !!token && attempt % 2 === 1;
-		const curlConfig = useToken ? `header = "Authorization: Bearer ${token}"\n` : '';
-		rmSync(dpkgShlibdepsScriptLocation, { force: true });
-		const result = spawnSync('curl', ['-fsSL', '--config', '-', '-o', dpkgShlibdepsScriptLocation, dpkgShlibdepsUrl], { input: curlConfig });
-		if (result.status === 0 && readFileSync(dpkgShlibdepsScriptLocation, 'utf8').startsWith('#!')) {
-			dpkgShlibdepsScript = dpkgShlibdepsScriptLocation;
-			return dpkgShlibdepsScript;
-		}
-		lastError = result.status === 0
-			? 'Downloaded file is not a Perl script'
-			: `curl failed (status ${result.status}, signal ${result.signal}${result.error ? `, error ${result.error.message}` : ''}). Stderr:\n${result.stderr?.toString('utf8')}`;
-		console.error(`Attempt ${attempt}/${maxAttempts} (${useToken ? 'authenticated' : 'anonymous'}) to retrieve dpkg-shlibdeps failed: ${lastError}`);
-		if (attempt < maxAttempts) {
-			Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, attempt * 5000);
-		}
-	}
-	throw new Error(`Cannot retrieve dpkg-shlibdeps from ${dpkgShlibdepsUrl}. ${lastError}`);
+	return dpkgShlibdepsScript;
 }
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/debian/calculate_package_deps.py.

@@ -119,6 +119,14 @@ const otherEntries: WatermarkEntry[] = [
 	openSettings,
 ];
 
+const allEntries: WatermarkEntry[] = [...new Set([...emptyWindowEntries, ...workspaceEntries, ...otherEntries])];
+
+function getWhen(entry: WatermarkEntry): ContextKeyExpression | undefined {
+	return isWeb ? entry.when?.web : entry.when?.native;
+}
+
+const whenKeys = new Set(allEntries.flatMap(entry => getWhen(entry)?.keys() ?? []));
+
 export class EditorGroupWatermark extends Disposable {
 
 	private static readonly CACHED_WHEN = 'editorGroupWatermark.whenConditions';
@@ -126,6 +134,7 @@ export class EditorGroupWatermark extends Disposable {
 	private static readonly MINIMUM_ENTRIES = 3;
 
 	private readonly cachedWhen: { [when: string]: boolean };
+	private readonly renderedWhenResults = new Map<string, boolean>();
 
 	private readonly shortcuts: HTMLElement;
 	private readonly toolbarContainer: HTMLElement;
@@ -193,11 +202,33 @@ export class EditorGroupWatermark extends Disposable {
 			}
 		}));
 
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (!e.affectsSome(whenKeys)) {
+				return;
+			}
+
+			let visibilityChanged = false;
+			for (const entry of allEntries) {
+				const when = getWhen(entry);
+				if (when && e.affectsSome(new Set(when.keys()))) {
+					// Once a condition changes, the live value replaces the result cached from the previous session
+					const matches = this.contextKeyService.contextMatchesRules(when);
+					this.cachedWhen[entry.id] = matches;
+					if (this.renderedWhenResults.has(entry.id) && this.renderedWhenResults.get(entry.id) !== matches) {
+						visibilityChanged = true;
+					}
+				}
+			}
+
+			if (visibilityChanged) {
+				this.render();
+			}
+		}));
+
 		this._register(this.storageService.onWillSaveState(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				const entries = [...emptyWindowEntries, ...workspaceEntries, ...otherEntries];
-				for (const entry of entries) {
-					const when = isWeb ? entry.when?.web : entry.when?.native;
+				for (const entry of allEntries) {
+					const when = getWhen(entry);
 					if (when) {
 						this.cachedWhen[entry.id] = this.contextKeyService.contextMatchesRules(when);
 					}
@@ -214,6 +245,7 @@ export class EditorGroupWatermark extends Disposable {
 		clearNode(this.shortcuts);
 		this.transientDisposables.clear();
 		this.shortcutDisposables.clear();
+		this.renderedWhenResults.clear();
 
 		if (!this.enabled) {
 			return;
@@ -266,12 +298,14 @@ export class EditorGroupWatermark extends Disposable {
 	private filterEntries(entries: WatermarkEntry[]): WatermarkEntry[] {
 		const filteredEntries = entries
 			.filter(entry => {
-				if (this.cachedWhen[entry.id]) {
-					return true; // cached from previous session
+				const contextKey = getWhen(entry);
+				if (!contextKey) {
+					return true; // works without context
 				}
 
-				const contextKey = isWeb ? entry.when?.web : entry.when?.native;
-				return !contextKey /* works without context */ || this.contextKeyService.contextMatchesRules(contextKey);
+				const matches = !!this.cachedWhen[entry.id] /* cached from previous session */ || this.contextKeyService.contextMatchesRules(contextKey);
+				this.renderedWhenResults.set(entry.id, matches);
+				return matches;
 			})
 			.filter(entry => !!CommandsRegistry.getCommand(entry.id))
 			.filter(entry => !!this.keybindingService.lookupKeybinding(entry.id));

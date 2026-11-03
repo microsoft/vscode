@@ -98,10 +98,11 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 				referenceName: 'vscodeAppearance',
 				icon: Codicon.paintcan,
 				description: localize('clientToolSet.appearance.description', "Appearance"),
-				detail: localize('clientToolSet.appearance.detail', "Read theme colors and change the chat background of the Agents window."),
+				detail: localize('clientToolSet.appearance.detail', "Read theme colors, change the chat background, and capture the Agents window."),
 				members: [
 					'getThemeColors',
 					'setChatBackground',
+					'screenshotWindow',
 				],
 			}));
 		}

@@ -9,6 +9,8 @@ import { Action, Separator } from '../../common/actions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 import { createToggleActionViewItemProvider, ToggleActionViewItem, unthemedToggleStyles } from '../../browser/ui/toggle/toggle.js';
 import { ActionViewItem } from '../../browser/ui/actionbar/actionViewItems.js';
+import { $, append } from '../../browser/dom.js';
+import { toDisposable } from '../../common/lifecycle.js';
 
 suite('Actionbar', () => {
 
@@ -62,6 +64,30 @@ suite('Actionbar', () => {
 		actionbar.clear();
 		assert.strictEqual(actionbar.hasAction(a1), false);
 	});
+
+	for (const focusElsewhere of [false, true]) {
+		test(`clear preserves focus only while the action bar owns it (focus elsewhere: ${focusElsewhere})`, () => {
+			const container = append(document.body, $('div'));
+			store.add(toDisposable(() => container.remove()));
+			const button = append(container, $('button'));
+			const actionbar = store.add(new ActionBar(container));
+			const action = store.add(new Action('action', 'Action'));
+			actionbar.push(action);
+			actionbar.focus(0);
+			assert.strictEqual(actionbar.isFocused(0), true);
+
+			if (focusElsewhere) {
+				button.focus();
+			}
+			actionbar.clear();
+			actionbar.push(action);
+
+			assert.deepStrictEqual({
+				actionFocused: actionbar.isFocused(0),
+				buttonFocused: document.activeElement === button,
+			}, { actionFocused: !focusElsewhere, buttonFocused: focusElsewhere });
+		});
+	}
 
 	suite('ToggleActionViewItemProvider', () => {
 

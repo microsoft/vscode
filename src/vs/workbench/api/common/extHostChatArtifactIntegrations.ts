@@ -179,7 +179,7 @@ export class ExtHostChatArtifactIntegrations extends Disposable implements ExtHo
 				const model = integration.acquireDetails(detailsId);
 				try {
 					initialDetails[detailsId] = {
-						details: convertDetails(model.details, actions, options, integration.state.availability),
+						details: convertDetails(model, actions, options, integration.state.availability),
 						canLoadMore: !!model.loadMore,
 					};
 				} finally {
@@ -206,7 +206,7 @@ export class ExtHostChatArtifactIntegrations extends Disposable implements ExtHo
 		this.details.set(detailsHandle, model);
 		this.detailsOwners.set(detailsHandle, resourceHandle);
 		try {
-			const convert = () => convertDetails(model.details, entry.actions, entry.options, entry.integration.state.availability);
+			const convert = () => convertDetails(model, entry.actions, entry.options, entry.integration.state.availability);
 			this.detailsListeners.set(detailsHandle, model.onDidChange(() => {
 				try {
 					this.proxy.$onDidChangeDetails(detailsHandle, convert());
@@ -229,6 +229,16 @@ export class ExtHostChatArtifactIntegrations extends Disposable implements ExtHo
 			throw new Error('Artifact details cannot load another page');
 		}
 		await model.loadMore(token);
+	}
+
+	async $runItemAction(detailsHandle: number, itemId: string, actionId: string, token: CancellationToken): Promise<void> {
+		const model = this.details.get(detailsHandle);
+		const action = model?.details.itemActions?.find(action => action.id === actionId);
+		if (!model?.runItemAction || !action || action.actionId !== undefined
+			|| !model.details.items?.some(item => item.id === itemId && item.actions?.includes(actionId))) {
+			throw new Error('This artifact item action is no longer available');
+		}
+		await model.runItemAction(itemId, actionId, token);
 	}
 
 	$disposeDetails(detailsHandle: number): void {
@@ -503,11 +513,16 @@ function convertPresentation(value: vscode.ChatArtifactPresentation) {
 }
 
 function convertDetails(
-	value: vscode.ChatArtifactDetails,
+	model: vscode.ChatArtifactDetailsModel,
 	actions: ReadonlyMap<string, vscode.ChatArtifactAction>,
 	options: readonly ArtifactAutomationOption[],
 	fallbackAvailability: vscode.ChatArtifactAvailability | undefined,
 ): ArtifactDetails {
+	const value = model.details;
+	const itemActions = value.itemActions?.map(action => ({
+		id: action.id, label: action.label, iconId: convertIcon(action.icon).id,
+		...(action.actionId === undefined ? {} : { actionId: action.actionId }),
+	}));
 	const result: ArtifactDetails = {
 		title: value.title, description: value.description, descriptionFormat: value.descriptionFormat, availability: value.availability ?? fallbackAvailability ?? { kind: 'available' },
 		facts: value.facts?.map(fact => ({ ...fact })),
@@ -515,11 +530,17 @@ function convertDetails(
 			...(value.actions ?? []).map(actionId => ({ kind: 'action' as const, actionId })),
 			...(value.automations ?? []).map(optionId => ({ kind: 'automation' as const, optionId })),
 		],
-		items: (value.items ?? []).map(item => ({ id: item.id, icon: convertIcon(item.icon), label: item.label, description: item.description, resource: item.resource.toString() })),
+		...(itemActions ? { itemActions } : {}),
+		items: (value.items ?? []).map(item => ({
+			id: item.id, icon: convertIcon(item.icon), label: item.label, description: item.description, resource: item.resource.toString(),
+			...(item.actions ? { actions: [...item.actions] } : {}),
+		})),
 		completeness: value.completeness ?? 'complete',
 	};
+	// Item actions either run a registered action or need the model to run them directly.
 	if (!isArtifactDetails(result) || value.actions?.some(id => !actions.has(id))
-		|| value.automations?.some(id => !options.some(option => option.id === id))) {
+		|| value.automations?.some(id => !options.some(option => option.id === id))
+		|| itemActions?.some(action => action.actionId === undefined ? typeof model.runItemAction !== 'function' : !actions.has(action.actionId))) {
 		throw new Error('Invalid artifact integration details');
 	}
 	return result;
@@ -530,6 +551,7 @@ function convertState(state: vscode.ChatArtifactIntegrationState, actions: Reado
 	const view = {
 		availability: state.availability ?? { kind: 'available' as const },
 		main: state.main ? part(state.main) : undefined,
+		...(state.groupId !== undefined ? { groupId: state.groupId } : {}),
 		...(state.group ? { group: { icon: convertIcon(state.group.icon), priority: state.group.priority } } : {}),
 		sections: (state.sections ?? []).map(section => ({ ...part(section), id: section.id })),
 		lists: state.lists?.map(list => ({

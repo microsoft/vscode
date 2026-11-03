@@ -64,10 +64,13 @@ export const enum AccessibleViewProviderId {
 	SessionCanvas = 'sessionCanvas',
 	Survey = 'survey',
 	Automations = 'automations',
+	InboxNotifications = 'inboxNotifications',
 	AgentsWindowExtensions = 'agentsWindowExtensions',
 	ConnectionDiagnostics = 'connectionDiagnostics',
 	BrowserElementCommenting = 'browserElementCommenting',
 	ChatPetAchievements = 'chatPetAchievements',
+	/** Shared by the jump game's accessibility help and current-state view. */
+	ChatPetJumpGame = 'chatPetJumpGame',
 }
 
 export const enum AccessibleViewType {

@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { disposableTimeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
@@ -148,6 +148,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 
 	test('routes marketplace management through the Agent Host provider', async () => {
 		const calls: { readonly operation: string; readonly args: readonly unknown[] }[] = [];
+		const customizationChanges = store.add(new Emitter<void>());
 		const frontendSession = URI.parse('agent-host-copilotcli:/frontend-session');
 		const backendSession = URI.parse('agent-host-copilotcli:/backend-session');
 		const backendChat = URI.parse('vendor-chat://opaque-host/peer-chat');
@@ -202,7 +203,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				}
 			}(),
 			new class extends mock<IAgentHostCustomizationService>() {
-				override readonly onDidChangeCustomizations = Event.None;
+				override readonly onDidChangeCustomizations = customizationChanges.event;
 				override getBackendChatResource() { return backendChat; }
 			}(),
 			new class extends mock<IDialogService>() { }(),
@@ -210,7 +211,9 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			pluginService,
 		));
 		let changeCount = 0;
+		let marketplaceChangeCount = 0;
 		store.add(provider.onDidChange(() => changeCount++));
+		store.add(provider.onDidChangeMarketplaces(() => marketplaceChangeCount++));
 
 		const listed = await provider.list(frontendSession);
 		const added = await provider.add(frontendSession, 'owner/repository');
@@ -220,6 +223,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const removed = await provider.remove(frontendSession, 'marketplace', true);
 		const refreshed = await provider.refresh(frontendSession, 'marketplace');
 		await provider.addGlobal('demo', { type: McpServerType.REMOTE, url: 'https://example.com/mcp' });
+		customizationChanges.fire();
 
 		assert.deepStrictEqual({
 			listed,
@@ -230,6 +234,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			removed,
 			refreshed,
 			changeCount,
+			marketplaceChangeCount,
 			calls,
 		}, {
 			listed: [{
@@ -289,7 +294,8 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			refused: { removed: false, dependentPlugins: ['plugin'] },
 			removed: { removed: true, dependentPlugins: undefined },
 			refreshed: [{ name: 'marketplace', success: true }],
-			changeCount: 3,
+			changeCount: 4,
+			marketplaceChangeCount: 3,
 			calls: [
 				{ operation: 'list', args: ['copilotcli', backendSession.toString(), backendChat.toString()] },
 				{ operation: 'add', args: ['copilotcli', backendSession.toString(), 'owner/repository', backendChat.toString()] },
@@ -987,6 +993,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const session = URI.parse('agent-host-copilotcli:/frontend-session');
 		const calls: string[] = [];
 		const requests: unknown[] = [];
+		const details: string[] = [];
 		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
 			'copilotcli',
 			async () => {
@@ -1006,6 +1013,9 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 						displayName: 'Demo MCP',
 						serverName: 'owner/demo',
 						target: 'owner/demo',
+						command: 'uvx',
+						args: ['markitdown-mcp'],
+						env: { MODE: 'stdio' },
 						configurationFields: [],
 					};
 				}
@@ -1023,7 +1033,10 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				override readonly onDidChangeCustomizations = Event.None;
 			}(),
 			new class extends mock<IDialogService>() {
-				override async confirm() { return { confirmed: true }; }
+				override readonly confirm: IDialogService['confirm'] = async confirmation => {
+					details.push(typeof confirmation.detail === 'string' ? confirmation.detail : confirmation.detail?.value ?? '');
+					return { confirmed: true };
+				};
 			}(),
 			new NullLogService(),
 			pluginService,
@@ -1048,8 +1061,9 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			},
 		}, CancellationToken.None);
 
-		assert.deepStrictEqual({ calls, requests }, {
+		assert.deepStrictEqual({ calls, requests, localReviewVisible: details.some(detail => detail.includes('Command: uvx') && detail.includes('Arguments: ["markitdown-mcp"]') && detail.includes('Environment: {"MODE":"stdio"}')) }, {
 			calls: ['authenticate', 'prepare', 'apply'],
+			localReviewVisible: true,
 			requests: [{
 				mediaType: 'application/mcp-server+json',
 				identifier: 'default:io.example/demo',

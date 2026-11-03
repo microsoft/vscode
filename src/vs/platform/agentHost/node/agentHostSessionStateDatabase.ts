@@ -241,7 +241,7 @@ export interface IAgentHostSessionStateDatabase {
 	 * session identities equal to it.
 	 */
 	countStorageReferences(storage: string, excludingSession: string): Promise<number>;
-	/** Sessions with session state that are tombstoned or absent from both registries. */
+	/** Non-hidden sessions with session state that are tombstoned or absent from both registries. */
 	listSessionStateGarbage(limit: number): Promise<readonly string[]>;
 	/** Deletes the session state of `session` if it still is garbage. */
 	deleteSessionStateGarbage(session: string): Promise<boolean>;
@@ -256,6 +256,8 @@ export interface ISessionStateSqlConnection {
 	all(sql: string, parameters: readonly unknown[]): Promise<SqlRow[]>;
 	/** Whether the session is tombstoned. */
 	isTombstoned(session: string): Promise<boolean>;
+	/** Whether the session carries a hidden marker. */
+	isHidden(session: string): Promise<boolean>;
 	/** Whether the session is registered in either registry. */
 	isRegistered(session: string): Promise<boolean>;
 	/** Marks the session's catalog payload dirty when it has one. */
@@ -803,15 +805,16 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 			throw new Error('Session state garbage limit must be a positive safe integer');
 		}
 		return this._host.read(async connection => (await connection.all(`SELECT session_uri FROM session_state AS state
-			WHERE EXISTS (SELECT 1 FROM metadata WHERE key = 'sessionTombstone:' || state.session_uri AND value = 'true')
-				OR (NOT EXISTS (SELECT 1 FROM sessions WHERE session_uri = state.session_uri)
-					AND NOT EXISTS (SELECT 1 FROM sessions_v2 WHERE session_uri = state.session_uri))
+			WHERE NOT EXISTS (SELECT 1 FROM metadata WHERE key = 'sessionHidden:' || state.session_uri)
+				AND (EXISTS (SELECT 1 FROM metadata WHERE key = 'sessionTombstone:' || state.session_uri AND value = 'true')
+					OR (NOT EXISTS (SELECT 1 FROM sessions WHERE session_uri = state.session_uri)
+						AND NOT EXISTS (SELECT 1 FROM sessions_v2 WHERE session_uri = state.session_uri)))
 			ORDER BY session_uri LIMIT ?`, [limit])).map(row => row.session_uri as string));
 	}
 
 	deleteSessionStateGarbage(session: string): Promise<boolean> {
 		return this._host.write(`Failed to delete the session state of ${session}`, async connection => {
-			if (!await connection.isTombstoned(session) && await connection.isRegistered(session)) {
+			if (await connection.isHidden(session) || (!await connection.isTombstoned(session) && await connection.isRegistered(session))) {
 				return false;
 			}
 			await deleteSessionStateRows(connection, session);

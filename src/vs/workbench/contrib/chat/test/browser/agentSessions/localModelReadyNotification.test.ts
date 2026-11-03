@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -71,9 +70,7 @@ function context(currentModel: ILanguageModelChatMetadataAndIdentifier | undefin
 }
 
 suite('LocalModelReadyNotification', () => {
-	const disposables = new DisposableStore();
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('resolveBody', () => {
 		test('Auto, auto-capable and passing the Auto gate: New Auto Chat', () => {

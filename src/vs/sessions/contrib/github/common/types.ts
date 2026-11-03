@@ -290,6 +290,8 @@ export const enum GitHubCIOverallStatus {
 	Success = 'success',
 	Failure = 'failure',
 	Neutral = 'neutral',
+	/** It is not known yet which checks count, so neither whether they pass. */
+	Loading = 'loading',
 }
 
 //#endregion

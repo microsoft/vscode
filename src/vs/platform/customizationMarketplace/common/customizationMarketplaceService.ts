@@ -244,13 +244,22 @@ export function createLazyCustomizationMarketplaceProvider(id: string, createPro
 
 export const ICustomizationMarketplaceService = createDecorator<ICustomizationMarketplaceService>('customizationMarketplaceService');
 
+/** Describes which marketplace sources a {@link ICustomizationMarketplaceService.onDidChangeSources} change may affect. */
+export interface ICustomizationMarketplaceSourcesChangeEvent {
+	/**
+	 * Identifiers of sources whose availability or contents may have changed, or `undefined` when
+	 * any source may be affected. Listeners may skip work for sources outside this list.
+	 */
+	readonly sourceIds?: readonly string[];
+}
+
 export interface ICustomizationMarketplaceService {
 	readonly _serviceBrand: undefined;
 	readonly sources: readonly ICustomizationMarketplaceSourceInfo[];
 	/** Complete source metadata, including sources that are not currently available. */
 	readonly allSources?: readonly ICustomizationMarketplaceSourceInfo[];
-	/** Fires when non-configuration inputs change source availability or query identity. */
-	readonly onDidChangeSources?: Event<void>;
+	/** Fires when non-configuration inputs change source availability, contents, or query identity. */
+	readonly onDidChangeSources?: Event<ICustomizationMarketplaceSourcesChangeEvent>;
 	query(options: ICustomizationMarketplaceQuery, token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback): Promise<ICustomizationMarketplacePage>;
 	/** Optional ordered editorial sections for queryless Browse. */
 	getBrowseSections?(options: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>, token: CancellationToken, onProgress?: (progress: ICustomizationMarketplaceBrowseSectionsProgress) => void): Promise<ICustomizationMarketplaceBrowseSections | undefined>;
@@ -360,15 +369,34 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 
 	private readonly continuations = new LRUCache<string, IMarketplaceContinuation>(maxContinuations);
 	private readonly browseCache = new LRUCache<string, IMarketplaceBrowseCacheEntry>(maxBrowseCacheEntries);
+	private readonly prioritizedProviderIndexes: ReadonlyMap<string, number>;
 
-	constructor(private readonly sources: readonly ICustomizationMarketplaceProvider[]) {
+	constructor(
+		private readonly sources: readonly ICustomizationMarketplaceProvider[],
+		prioritizedProviderIds: readonly string[] = [],
+	) {
 		if (sources.some(source => !source.id || source.sourceId === '') || new Set(sources.map(source => source.id)).size !== sources.length) {
 			throw new Error('Marketplace sources must have unique, nonempty identifiers.');
 		}
+		if (new Set(prioritizedProviderIds).size !== prioritizedProviderIds.length || prioritizedProviderIds.some(id => !sources.some(source => source.id === id))) {
+			throw new Error('Prioritized marketplace providers must have unique registered identifiers.');
+		}
+		this.prioritizedProviderIndexes = new Map(prioritizedProviderIds.map((id, index) => [id, index]));
 	}
 
-	clearBrowseCache(): void {
-		this.browseCache.clear();
+	/** Clears cached Browse pages for the given sources, or for every source when `sourceIds` is undefined. */
+	clearBrowseCache(sourceIds?: readonly string[]): void {
+		if (!sourceIds) {
+			this.browseCache.clear();
+			return;
+		}
+		const providerIds = new Set(this.sources.filter(source => sourceIds.includes(source.sourceId ?? source.id)).map(source => source.id));
+		for (const [key] of [...this.browseCache]) {
+			const [providerId] = JSON.parse(key) as [string];
+			if (providerIds.has(providerId)) {
+				this.browseCache.delete(key);
+			}
+		}
 	}
 
 	async query(options: ICustomizationMarketplaceRequest, token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback): Promise<ICustomizationMarketplacePage> {
@@ -377,6 +405,12 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 		}
 		const requestedSourceIds = new Set(options.sourceIds);
 		const sources = this.sources.filter(source => requestedSourceIds.has(source.sourceId ?? source.id));
+		const providerQueryIndexes = sources
+			.map((_, index) => index)
+			.sort((first, second) =>
+				(this.prioritizedProviderIndexes.get(sources[first].id) ?? Number.MAX_SAFE_INTEGER) -
+				(this.prioritizedProviderIndexes.get(sources[second].id) ?? Number.MAX_SAFE_INTEGER) ||
+				first - second);
 		const selectedSourceIds = new Set(sources.map(source => source.sourceId ?? source.id));
 		const query = options.query?.trim() ?? '';
 		const requestedPageSize = options.pageSize ?? defaultPageSize;
@@ -453,7 +487,8 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 		try {
 			const items: ICustomizationMarketplaceResource[] = [];
 			while (items.length < pageSize) {
-				await raceCancellationError(Promise.all(states.map(async (state, index) => {
+				await raceCancellationError(Promise.all(providerQueryIndexes.map(async index => {
+					const state = states[index];
 					if (state.items.length || state.exhausted) {
 						return;
 					}

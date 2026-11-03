@@ -25,6 +25,8 @@ const url = require('url');
 const net = require('net');
 const createStatsCollector = require('mocha/lib/stats-collector');
 const { applyReporter, importMochaReporter } = require('../reporter');
+const { getWorkerCount, getWorkerCountForFiles, removeArgument, runInWorkers, writeWorkerReport } = require('../parallel.ts');
+const { findTestFiles } = require('./testFiles.ts');
 
 const minimist = require('minimist');
 
@@ -61,11 +63,14 @@ protocol.registerSchemesAsPrivileged([
  * coverageFormats: string | string[];
  * 'per-test-coverage': boolean;
  * 'rerun-failed-files': string;
+ * workers: string;
+ * worker: string;
+ * workerDir: string;
  * help: boolean;
  * }}
  */
 const args = minimist(process.argv.slice(2), {
-	string: ['grep', 'run', 'runList', 'runGlob', 'excludeRunGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit', 'rerun-failed-files'],
+	string: ['grep', 'run', 'runList', 'runGlob', 'excludeRunGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit', 'rerun-failed-files', 'workers', 'worker', 'workerDir'],
 	boolean: ['build', 'coverage', 'help', 'dev', 'per-test-coverage'],
 	alias: {
 		'grep': ['g', 'f'],
@@ -110,6 +115,7 @@ Options:
 --timeout <ms>                timeout for tests
 --crash-reporter-directory <path> crash reporter directory
 --rerun-failed-files <count>  rerun failed tests (suites for failed hooks) in a fresh window up to <count> more times; use whole files for many failures
+--workers <count>             run all test files, or those of --runList, in <count> parallel processes, at most one per CPU and per 2 GB of memory; with --runList, one per 75 test files that run, but at least 2 and at most one per file; ignored with --run, --runGlob, --grep, --testSplit, --dev, --waitServer or coverage; reruns use one window
 --tfs <url>                   TFS server URL
 --help, -h                    show the help`);
 	process.exit(0);
@@ -123,10 +129,27 @@ if (bareFiles.length > 0) {
 	args._ = (args._ || []).filter(a => !bareFiles.includes(a));
 }
 
-// The renderer reads the --runList file (see loadTestModules in renderer.js)
+// The renderer reads the --runList file (see findTestFiles in testFiles.ts)
 if (args.runList) {
 	args.runList = path.resolve(args.runList);
 }
+
+// A run of all test files, or of those of --runList, is spread across worker processes, reruns of failed tests run in one window
+let workerCount = 1;
+try {
+	workerCount = getWorkerCount(args.workers);
+} catch (error) {
+	console.error(/** @type {Error} */ (error).message);
+	app.exit(1);
+}
+const workersApply = workerCount > 1 && !args.run && !args.runGlob && !args.grep && !args.testSplit && !args.dev && !args.waitServer && !args.coverage && !args['per-test-coverage'];
+if (workerCount > 1 && !workersApply) {
+	console.log('Running in a single window, because --workers only applies when all test files or those of --runList run, without --run, --runGlob, --grep, --testSplit, --dev, --waitServer or coverage');
+}
+// The number of workers for --runList depends on the listed files that run, so find them while the app starts
+const listedTestFiles = workersApply && args.runList ? findTestFiles(args, path.join(__dirname, `../../../${args.build ? 'out-build' : 'out'}`)) : undefined;
+// Awaited when the app is ready, and an error is reported there
+listedTestFiles?.catch(() => { });
 
 let crashReporterDirectory = args['crash-reporter-directory'];
 if (crashReporterDirectory) {
@@ -217,6 +240,29 @@ function deserializeError(err) {
  * A test that passed.
  * @typedef {{ title: string; file: string }} IPassed
  */
+
+/**
+ * What an attempt ran, in one window or in parallel worker processes.
+ * @typedef {{ didFail: boolean; failures: IFailure[]; passed: IPassed[]; unattributedFailures: string[] }} IAttemptResult
+ */
+
+/**
+ * Runs the test files once in `count` worker processes. Each worker is a separate
+ * instance of this script that runs the test files it claims in its own window, and does not
+ * rerun its failures: this process reruns them in one window.
+ * @param {number} count
+ * @returns {Promise<IAttemptResult>}
+ */
+async function runFirstAttemptInWorkers(count) {
+	const { failures, unattributedFailures } = await runInWorkers({
+		name: 'Electron unit tests',
+		count,
+		command: process.execPath,
+		args: [__filename, ...removeArgument(removeArgument(process.argv.slice(2), 'workers'), 'rerun-failed-files')],
+	});
+	// Only reruns check which tests passed
+	return { didFail: failures.length > 0 || unattributedFailures.length > 0, failures, passed: [], unattributedFailures };
+}
 
 /**
  * Relays the mocha events of the test run in one window to the reporters in the
@@ -383,28 +429,76 @@ app.on('ready', async () => {
 		}
 	});
 
-	ipcMain.handle('vscode:test-file-resource', async (_event, requestUrl, roots) => {
+	ipcMain.handle('vscode:test-file-resource', async (_event, requestUrl, roots, options) => {
 		const [{ ProtocolMainService }, { URI }] = await Promise.all([
 			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/platform/protocol/electron-main/protocolMainService.js`)).href),
 			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/base/common/uri.js`)).href),
 		]);
-		// Preserve the production root registration and guard; replace only protocol registration and file transport.
+		// Preserve the production root registration and guard; replace only protocol registration.
 		class TestProtocolMainService extends ProtocolMainService {
 			handleProtocols() { }
-			async createFileResponse(_request, filePath) {
-				return new Response(filePath);
-			}
 		}
 		/** @type {string[]} */
 		const errors = [];
 		const service = new TestProtocolMainService(
-			{ ...roots, workspaceStorageHome: URI.file(roots.workspaceStorageHome), isBuilt: true },
+			{ ...roots, ...options, workspaceStorageHome: URI.file(roots.workspaceStorageHome), isBuilt: options?.isBuilt ?? true },
 			{ defaultProfile: { globalStorageHome: URI.file(roots.globalStorageHome) } },
 			{ error: message => errors.push(message) },
 		);
 		try {
-			const response = await service.handleResourceRequest(new Request(requestUrl));
-			return { status: response.status, path: response.ok ? await response.text() : undefined, errors };
+			const response = await new Promise(resolve => {
+				service.handleResourceRequest({ url: requestUrl, method: 'GET', headers: {}, referrer: '' }, response => {
+					const allowed = 'path' in response;
+					resolve({
+						status: allowed ? 200 : 0,
+						path: allowed ? response.path : undefined,
+						headers: allowed ? response.headers : undefined,
+						error: allowed ? undefined : response.error,
+						errors,
+					});
+				});
+			});
+			let stack;
+			if (options?.sampleStack) {
+				const stackSession = session.fromPartition(`stack-sampling-test-${Date.now()}`);
+				stackSession.protocol.registerStringProtocol('vscode-file', (request, callback) => {
+					service.handleResourceRequest(request, response => {
+						callback('path' in response ? { data: '<!doctype html>', mimeType: 'text/html', headers: response.headers } : response);
+					});
+				});
+				const stackWindow = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, contextIsolation: false, session: stackSession } });
+				const readyChannel = `vscode:test-stack-ready-${stackWindow.id}`;
+				let signalReady;
+				let readyTimeout;
+				const ready = new Promise((resolve, reject) => {
+					signalReady = resolve;
+					readyTimeout = setTimeout(() => reject(new Error('The stack sampling probe did not start')), 5000);
+				});
+				const onReady = event => {
+					if (event.sender === stackWindow.webContents) {
+						signalReady();
+					}
+				};
+				ipcMain.on(readyChannel, onReady);
+				try {
+					await stackWindow.loadURL(requestUrl);
+					const execution = stackWindow.webContents.executeJavaScript(`(function stackSamplingProbe() {
+						require('electron').ipcRenderer.send(${JSON.stringify(readyChannel)});
+						const end = performance.now() + 1000;
+						while (performance.now() < end) { }
+					})()`);
+					[, stack] = await Promise.all([execution, (async () => {
+						await ready;
+						return stackWindow.webContents.mainFrame.collectJavaScriptCallStack();
+					})()]);
+				} finally {
+					clearTimeout(readyTimeout);
+					ipcMain.removeListener(readyChannel, onReady);
+					stackWindow.destroy();
+					stackSession.protocol.unregisterProtocol('vscode-file');
+				}
+			}
+			return { ...response, ...(options?.sampleStack ? { stack } : {}) };
 		} finally {
 			service.dispose();
 		}
@@ -578,15 +672,20 @@ app.on('ready', async () => {
 			return [applyReporter(runner, args)];
 		}
 
-		// every attempt writes its own results file, so that reruns do not overwrite earlier failures
+		// every attempt and worker writes its own results file, so that reruns do not overwrite earlier failures
 		const attemptSuffix = attempt > 1 ? `-attempt-${attempt}` : '';
+		const workerSuffix = args.worker ? `-worker${args.worker}` : '';
 		const testResultsRoot = process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE;
+		// without a results folder, mocha-junit-reporter writes test-results.xml to the working directory
+		const mochaFile = testResultsRoot
+			? path.join(testResultsRoot, `test-results/${process.platform}-${process.arch}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}${workerSuffix}${attemptSuffix}-results.xml`)
+			: args.worker ? `test-results${workerSuffix}.xml` : undefined;
 		return [
 			new mocha.reporters.Spec(runner),
 			new MochaJUnitReporter(runner, {
 				reporterOptions: {
-					testsuitesTitle: `${args.tfs} ${process.platform}${attempt > 1 ? ` (attempt ${attempt})` : ''}`,
-					mochaFile: testResultsRoot ? path.join(testResultsRoot, `test-results/${process.platform}-${process.arch}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}${attemptSuffix}-results.xml`) : undefined
+					testsuitesTitle: `${args.tfs} ${process.platform}${args.worker ? ` (worker ${args.worker})` : ''}${attempt > 1 ? ` (attempt ${attempt})` : ''}`,
+					mochaFile
 				}
 			}),
 		];
@@ -635,7 +734,27 @@ app.on('ready', async () => {
 		return;
 	}
 
-	// Coverage is collected from the first window only
+	// With --runList, only as many workers as the listed test files that run need, see getWorkerCountForFiles
+	let parallelWorkers = workersApply ? workerCount : 1;
+	let firstRunArgs = args;
+	if (listedTestFiles) {
+		try {
+			const { files, listed } = await listedTestFiles;
+			// the renderers do not report them then, see loadTestModules in renderer.js
+			console.log(`Running the ${files.length} test files of the ${listed} files listed in ${args.runList}`);
+			parallelWorkers = getWorkerCountForFiles(workerCount, files.length);
+			if (parallelWorkers === 1) {
+				// the window loads the files found here as if they were passed with --run, instead of finding them again
+				firstRunArgs = { ...args, run: files };
+			}
+		} catch (error) {
+			console.error(error);
+			app.exit(1);
+			return;
+		}
+	}
+
+	// Coverage is collected from the first window only. A worker only runs the first attempt, see runFirstAttemptInWorkers.
 	const maxReruns = args.coverage || args['per-test-coverage'] ? 0 : Math.max(0, Number(args['rerun-failed-files']) || 0);
 
 	/** @type {Map<string, IRerunRecord>} every failure that was a rerun target, by key */
@@ -644,17 +763,27 @@ app.on('ready', async () => {
 	let targets = new Map();
 	/** @type {IRerunPlan | undefined} what the current attempt reruns, unless it is the first */
 	let plan;
-	let runArgs = args;
+	let runArgs = firstRunArgs;
 	let previousWindow;
 	let exitCode = 0;
 
 	for (let attempt = 1; ; attempt++) {
-		const { win, done } = runInWindow(runArgs, attempt);
-		previousWindow?.destroy();
-		previousWindow = win;
+		/** @type {IAttemptResult} */
+		let runner;
+		if (attempt === 1 && parallelWorkers > 1) {
+			runner = await runFirstAttemptInWorkers(parallelWorkers);
+		} else {
+			const { win, done } = runInWindow(runArgs, attempt);
+			previousWindow?.destroy();
+			previousWindow = win;
 
-		const runner = await done;
-		runner.dispose();
+			const windowRunner = await done;
+			windowRunner.dispose();
+			if (args.worker && args.workerDir) {
+				writeWorkerReport({ workerId: args.worker, workerDir: args.workerDir }, windowRunner);
+			}
+			runner = windowRunner;
+		}
 
 		if (!plan && !runner.didFail) {
 			break;

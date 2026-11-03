@@ -6,6 +6,7 @@
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { structuralEquals } from '../../../../base/common/equals.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Disposable, DisposableMap, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, observableSignal, observableValue } from '../../../../base/common/observable.js';
@@ -13,7 +14,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { getArtifactDetailsDescription, getArtifactDetailsItemLabel, getArtifactThemeIcon } from '../../../../platform/artifactIntegrations/browser/artifactDetailsList.js';
-import { ArtifactActionView, ArtifactAvailability, ArtifactContributionSnapshot, ArtifactDetails, ArtifactDetailsItem, ArtifactItemActionDescriptor, ArtifactRun, ArtifactSnapshot, artifactBindingId, getArtifactMainContribution, IArtifactDetailsModel, isArtifactRunSettled } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactActionView, ArtifactAvailability, ArtifactContributionSnapshot, ArtifactDetails, ArtifactDetailsItem, ArtifactItemActionDescriptor, ArtifactItemActionInput, ArtifactRun, ArtifactSnapshot, artifactBindingId, getArtifactMainContribution, IArtifactDetailsModel, isArtifactRunSettled } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { getChatPillEntryToolbarActions } from '../../../../workbench/browser/chatPills.js';
@@ -22,9 +23,12 @@ import { ArtifactAutopilotModel } from './artifactAutopilotModel.js';
 import { artifactViewKey as key, IArtifactActionViewData, IArtifactDetailsViewData, IArtifactListViewData, IArtifactSectionTarget } from './artifactDetailsView.js';
 import { ArtifactIntegrationPresentation } from './artifactIntegrationPresentation.js';
 
+/**
+ * Only lasting conditions are described. Loading and stale states are transient (a stale resource keeps showing its last
+ * known state while it refreshes, such as after every action or Autopilot change), so describing them would flicker.
+ */
 function availabilityText(availability: ArtifactAvailability | undefined): string {
-	return !availability || availability.kind === 'loading' ? localize('artifactDetailsLoading', "Loading details...")
-		: availability.kind === 'available' ? '' : availability.reason;
+	return !availability || availability.kind === 'loading' || availability.kind === 'stale' || availability.kind === 'available' ? '' : availability.reason;
 }
 
 function requiresAuthentication(contribution: ArtifactContributionSnapshot): boolean {
@@ -130,8 +134,10 @@ export class ArtifactDetailsModel extends Disposable {
 		const contribution = getArtifactMainContribution(snapshot);
 		const main = contribution?.view.main;
 		const mainDetails = main && contribution ? details.get(key(contribution.integrationId, main.detailsId)) : undefined;
+		const loading = snapshot.contributions.some(contribution => contribution.view.availability.kind === 'loading')
+			|| !!(main && contribution && !requiresAuthentication(contribution) && (!mainDetails || mainDetails.availability.kind === 'loading'));
 		const title = mainDetails?.title || snapshot.artifact.label;
-		const description = (mainDetails ? getArtifactDetailsDescription(mainDetails) : '') || (mainDetails?.availability.kind === 'available' ? localize('artifactNoDescription', "No description provided.") : '');
+		const description = mainDetails ? getArtifactDetailsDescription(mainDetails) : '';
 		const message = [...new Set([
 			...snapshot.contributions.map(contribution => availabilityText(contribution.view.availability)),
 			...(main && contribution && !requiresAuthentication(contribution) ? [availabilityText(mainDetails?.availability)] : []),
@@ -154,9 +160,10 @@ export class ArtifactDetailsModel extends Disposable {
 				const detailKey = key(contribution.integrationId, reference.detailsId);
 				const value = details.get(detailKey);
 				const lease = this.leases.get(detailKey);
+				const loading = !value || value.availability.kind === 'loading';
 				const items = value?.items ?? [];
 				const itemActions = new Map(items.flatMap(item => {
-					const actions = this.itemActionButtons(detailKey, value?.itemActions ?? [], item);
+					const actions = this.itemActionButtons(snapshot, contribution, reference.detailsId, value?.itemActions ?? [], item);
 					return actions.length ? [[item.id, actions] as const] : [];
 				}));
 				listTargets.set(detailKey, id);
@@ -164,9 +171,9 @@ export class ArtifactDetailsModel extends Disposable {
 					id, title: value?.title || reference.label,
 					icon: getArtifactThemeIcon(reference.icon ?? contribution.view.sections.find(section => section.detailsId === reference.detailsId)?.icon ?? Codicon.listFlat),
 					description: value ? getArtifactDetailsDescription(value) : '',
-					message: availabilityText(value?.availability) || (!items.length ? value?.completeness === 'partial'
+					message: availabilityText(value?.availability) || (!loading && !items.length ? value?.completeness === 'partial'
 						? localize('artifactListIncomplete', "This list is incomplete.") : localize('artifactListEmpty', "No items.") : ''),
-					loading: !value || value.availability.kind === 'loading', items, itemActions,
+					loading, items, itemActions,
 					more: value?.completeness === 'partial' ? {
 						id: key(id, 'loadMore'), label: localize('artifactLoadMore', "Load More"), enabled: lease?.canLoadMore === true,
 						description: lease?.canLoadMore ? undefined : localize('artifactPartialList', "This list is incomplete. Open the resource to see all items."),
@@ -232,7 +239,7 @@ export class ArtifactDetailsModel extends Disposable {
 		const selectedList = lists.some(list => list.id === this.presentation.viewState.selectedList) ? this.presentation.viewState.selectedList : undefined;
 		return {
 			title, resource: snapshot.artifact.resource, icon: main ? getArtifactThemeIcon(main.icon) : entry?.icon,
-			titleDescription: main?.description ?? '', description, message, lists, selectedList, stateActions, generalActions, autopilot, activities, sections,
+			titleDescription: main?.description ?? '', description, message, loading, lists, selectedList, stateActions, generalActions, autopilot, activities, sections,
 			openResource: () => {
 				void this.presentation.run(async () => {
 					const entry = this.presentation.baseEntry;
@@ -264,26 +271,48 @@ export class ArtifactDetailsModel extends Disposable {
 	}
 
 	/** Row actions for one details item, in the order the item lists them. */
-	private itemActionButtons(detailKey: string, descriptors: readonly ArtifactItemActionDescriptor[], item: ArtifactDetailsItem): IArtifactActionViewData[] {
+	private itemActionButtons(snapshot: ArtifactSnapshot, contribution: ArtifactContributionSnapshot, detailsId: string, descriptors: readonly ArtifactItemActionDescriptor[], item: ArtifactDetailsItem): IArtifactActionViewData[] {
+		const detailKey = key(contribution.integrationId, detailsId);
+		const input: ArtifactItemActionInput = { detailsId, itemId: item.id };
+		const authority = contribution.authority ?? snapshot.authority;
+		const bindingId = artifactBindingId(authority.id, snapshot.session, snapshot.artifact.id, contribution.integrationId);
 		return (item.actions ?? []).flatMap(actionId => {
 			const action = descriptors.find(action => action.id === actionId);
 			if (!action) {
 				return [];
 			}
+			// A registered action runs for the item only while the integration offers it.
+			const registered = action.actionId === undefined ? undefined : contribution.actions.find(candidate => candidate.id === action.actionId);
+			const offered = registered && [...contribution.view.stateActions, ...contribution.view.generalActions].find(view => view.id === registered.id);
+			if (action.actionId !== undefined && !offered) {
+				return [];
+			}
 			const id = JSON.stringify([detailKey, item.id, action.id]);
-			const pending = this.pendingItemActions.has(id);
+			// A registered action stays busy for this item until its run settles, so the item cannot request it twice.
+			const pending = this.pendingItemActions.has(id) || (!!registered && snapshot.runs.some(run => run.bindingId === bindingId
+				&& run.actionId === registered.id && !isArtifactRunSettled(run) && structuralEquals(run.input, input)));
+			const unavailable = offered && !offered.enabled
+				? offered.disabledReason ?? localize('artifactActionUnavailable', "This action is not available in the current resource state.")
+				: undefined;
 			return [{
-				id, label: action.label, enabled: !pending,
-				description: pending ? localize('artifactItemActionRunning', "Running") : undefined,
+				id, label: action.label, enabled: !pending && !unavailable,
+				description: pending ? localize('artifactItemActionRunning', "Running") : unavailable,
 				icon: pending ? ThemeIcon.modify(Codicon.loading, 'spin') : getArtifactThemeIcon({ id: action.iconId }),
 				run: () => {
 					if (this.pendingItemActions.has(id)) {
 						return;
 					}
+					if (registered?.kind === 'code') {
+						this.dismiss();
+					}
 					this.pendingItemActions.add(id);
 					this.changed.trigger(undefined);
 					void this.presentation.run(async () => {
 						try {
+							if (registered) {
+								await this.presentation.invoke(contribution.integrationId, registered.id, input);
+								return;
+							}
 							const lease = this.leases.get(detailKey);
 							if (!lease) {
 								throw new Error(localize('artifactListUnavailable', "This artifact list is no longer available."));

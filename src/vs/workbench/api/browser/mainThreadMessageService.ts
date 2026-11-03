@@ -93,7 +93,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			}
 
 			const messageHandle = this._notificationService.notify({
-				telemetry: extensionNotificationTelemetry(options.source?.identifier.value, 'message'),
+				telemetry: extensionNotificationTelemetry(options.source?.identifier.value, 'message', options.notificationId),
 				severity,
 				message,
 				legacyExtensionLinkParsing,

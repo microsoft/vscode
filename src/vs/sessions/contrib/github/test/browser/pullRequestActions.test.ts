@@ -189,7 +189,7 @@ suite('Pull Request Actions', () => {
 		});
 	});
 
-	test('Open Pull Request and Copy Pull Request URL are contributed to a dedicated context menu group', () => {
+	test('Open Pull Request joins the open actions and Copy Pull Request URL the copy actions', () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === 'workbench.agentSessions.action.openPullRequest' || item.command.id === 'workbench.agentSessions.action.copyPullRequestUrl');
@@ -199,9 +199,9 @@ suite('Pull Request Actions', () => {
 			group: item.group,
 			order: item.order,
 			hasPullRequestGate: (item.when?.serialize() ?? '').includes(SessionHasPullRequestContext.key),
-		})).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)), [
-			{ id: 'workbench.agentSessions.action.openPullRequest', group: '2_pullRequest', order: 0, hasPullRequestGate: true },
-			{ id: 'workbench.agentSessions.action.copyPullRequestUrl', group: '2_pullRequest', order: 1, hasPullRequestGate: true },
+		})).sort((a, b) => a.id.localeCompare(b.id)), [
+			{ id: 'workbench.agentSessions.action.copyPullRequestUrl', group: '3_copy', order: 2, hasPullRequestGate: true },
+			{ id: 'workbench.agentSessions.action.openPullRequest', group: 'navigation', order: 4, hasPullRequestGate: true },
 		]);
 	});
 

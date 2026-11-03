@@ -19,6 +19,7 @@ import { GitHubRecentUserWorkFetcher, IGitHubRecentIssue, IGitHubRecentPullReque
 import { GitHubPullRequestsFetcher } from './fetchers/githubPullRequestsFetcher.js';
 import { GitHubPullRequestContextFetcher } from './fetchers/githubPullRequestContextFetcher.js';
 import { GitHubRepositoryFetcher } from './fetchers/githubRepositoryFetcher.js';
+import { PullRequestChecksSource } from './fetchers/githubPRChecksSource.js';
 import { getPullRequestKey } from '../common/utils.js';
 import { derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
@@ -165,7 +166,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 		this._pullRequestReferences = instantiationService.createInstance(GitHubPullRequestModelReferenceCollection, apiClient);
 		this._pullRequestReviewThreadsReferences = instantiationService.createInstance(GitHubPullRequestReviewThreadsModelReferenceCollection, apiClient);
-		this._pullRequestCIReferences = instantiationService.createInstance(GitHubPullRequestCIModelReferenceCollection, apiClient);
+		this._pullRequestCIReferences = instantiationService.createInstance(GitHubPullRequestCIModelReferenceCollection, apiClient, instantiationService.createInstance(PullRequestChecksSource));
 		this._issueReferences = this._register(instantiationService.createInstance(GitHubIssueModelReferenceCollection, apiClient));
 		this._register(apiClient.onDidChange(() => this._findPRByBranchCache.clear()));
 
