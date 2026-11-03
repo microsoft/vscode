@@ -346,8 +346,14 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			// Open
 			handle = await this.open(resource, { create: true, append: opts.append, unlock: opts.unlock }, disableWriteLock);
 
-			// Write content at once
-			await this.write(handle, 0, content, 0, content.byteLength);
+			let offset = 0;
+			while (offset < content.byteLength) {
+				const bytesWritten = await this.write(handle, offset, content, offset, content.byteLength - offset);
+				if (bytesWritten === 0) {
+					throw new Error(localize('writeNoBytes', "Unable to write file '{0}': no bytes were written.", filePath));
+				}
+				offset += bytesWritten;
+			}
 		} catch (error) {
 			throw await this.toFileSystemProviderWriteError(resource, error);
 		} finally {

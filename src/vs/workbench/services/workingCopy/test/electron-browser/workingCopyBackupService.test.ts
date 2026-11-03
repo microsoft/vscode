@@ -34,6 +34,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { UserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { WORKING_COPY_BACKUP_TEMP_FILE_SUFFIX } from '../../../../../platform/backup/common/backup.js';
 
 const homeDir = URI.file('home').with({ scheme: Schemas.inMemory });
 const tmpDir = URI.file('tmp').with({ scheme: Schemas.inMemory });
@@ -1247,9 +1248,11 @@ suite('WorkingCopyBackupService', () => {
 			const fooBackupPath = joinPath(workspaceBackupPath, fooFile.scheme, hashIdentifier(toUntypedWorkingCopyId(fooFile)));
 			await fileService.createFolder(dirname(fooBackupPath));
 			await fileService.writeFile(fooBackupPath, VSBuffer.fromString('foo'));
+			const temporaryBackupPath = fooBackupPath.with({ path: `${fooBackupPath.path}${WORKING_COPY_BACKUP_TEMP_FILE_SUFFIX}` });
+			await fileService.writeFile(temporaryBackupPath, VSBuffer.fromString('partial'));
 			const model = await WorkingCopyBackupsModel.create(workspaceBackupPath, service.testGetFileService());
 
-			assert.strictEqual(model.has(fooBackupPath), true);
+			assert.deepStrictEqual(model.get(), [fooBackupPath]);
 		});
 
 		test('get', async () => {

@@ -20,6 +20,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { hash } from '../../../../base/common/hash.js';
 import { isEmptyObject } from '../../../../base/common/types.js';
 import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier, NO_TYPE_ID } from './workingCopy.js';
+import { WORKING_COPY_BACKUP_TEMP_FILE_SUFFIX } from '../../../../platform/backup/common/backup.js';
 
 export class WorkingCopyBackupsModel {
 
@@ -56,7 +57,7 @@ export class WorkingCopyBackupsModel {
 						// additional `update` calls.
 						if (backupSchemaFolderStat.children) {
 							for (const backupForSchema of backupSchemaFolderStat.children) {
-								if (!backupForSchema.isDirectory) {
+								if (!backupForSchema.isDirectory && !backupForSchema.name.endsWith(WORKING_COPY_BACKUP_TEMP_FILE_SUFFIX)) {
 									this.add(backupForSchema.resource);
 								}
 							}
@@ -276,10 +277,18 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 				backupBuffer = VSBuffer.concat([preambleBuffer, VSBuffer.fromString('')]);
 			}
 
-			const atomic = this.fileService.hasCapability(backupResource, FileSystemProviderCapabilities.FileAtomicWrite)
-				? { postfix: '.vsctmp' }
-				: false;
-			await this.fileService.writeFile(backupResource, backupBuffer, { atomic });
+			if (this.fileService.hasCapability(backupResource, FileSystemProviderCapabilities.FileAtomicWrite)) {
+				const temporaryBackupResource = backupResource.with({ path: `${backupResource.path}${WORKING_COPY_BACKUP_TEMP_FILE_SUFFIX}` });
+				try {
+					await this.fileService.writeFile(temporaryBackupResource, backupBuffer);
+					await this.fileService.move(temporaryBackupResource, backupResource, true, { atomic: true });
+				} catch (error) {
+					await this.deleteIgnoreFileNotFound(temporaryBackupResource).catch(() => { });
+					throw error;
+				}
+			} else {
+				await this.fileService.writeFile(backupResource, backupBuffer);
+			}
 
 			//
 			// Update model

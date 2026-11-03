@@ -54,6 +54,8 @@ function toLineByLineReadable(content: string): VSBufferReadable {
 export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 
 	totalBytesRead: number = 0;
+	writeByteLimit: number | undefined;
+	failRename: boolean = false;
 
 	private invalidStatSize: boolean = false;
 	private smallStatSize: boolean = false;
@@ -86,6 +88,17 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 
 	override set capabilities(capabilities: FileSystemProviderCapabilities) {
 		this._testCapabilities = capabilities;
+	}
+
+	override async write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+		return super.write(fd, pos, data, offset, this.writeByteLimit ? Math.min(length, this.writeByteLimit) : length);
+	}
+
+	override async rename(from: URI, to: URI, options: { overwrite: boolean }): Promise<void> {
+		if (this.failRename) {
+			throw new Error('rename failed');
+		}
+		return super.rename(from, to, options);
 	}
 
 	setInvalidStatSize(enabled: boolean): void {
@@ -674,6 +687,21 @@ flakySuite('Disk File Service', function () {
 
 		assert.strictEqual(sourceContents.byteLength, targetContents.byteLength);
 		assert.strictEqual(sourceContents.toString(), targetContents.toString());
+	});
+
+	test('move - atomic preserves target when rename fails', async () => {
+		const source = URI.file(join(testDir, 'atomic-move-source.txt'));
+		const target = URI.file(join(testDir, 'atomic-move-target.txt'));
+		await service.writeFile(source, VSBuffer.fromString('new'));
+		await service.writeFile(target, VSBuffer.fromString('old'));
+		fileProvider.failRename = true;
+		try {
+			await assert.rejects(service.move(source, target, true, { atomic: true }), /rename failed/);
+		} finally {
+			fileProvider.failRename = false;
+		}
+
+		assert.deepStrictEqual({ source: readFileSync(source.fsPath).toString(), target: readFileSync(target.fsPath).toString() }, { source: 'new', target: 'old' });
 	});
 
 	test('move - across providers (buffered => buffered)', async () => {
@@ -1853,6 +1881,16 @@ flakySuite('Disk File Service', function () {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.FileAtomicWrite);
 
 		return testWriteFile(true);
+	});
+
+	test('writeFile - retries short unbuffered writes', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.FileAtomicWrite);
+		fileProvider.writeByteLimit = 1;
+		try {
+			await testWriteFile(true);
+		} finally {
+			fileProvider.writeByteLimit = undefined;
+		}
 	});
 
 	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('writeFile - atomic writing does not break symlinks', async () => {

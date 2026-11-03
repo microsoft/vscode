@@ -789,12 +789,12 @@ export class FileService extends Disposable implements IFileService {
 		return true;
 	}
 
-	async move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+	async move(source: URI, target: URI, overwrite?: boolean, options?: { atomic?: boolean }): Promise<IFileStatWithMetadata> {
 		const sourceProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(source), source);
 		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(target), target);
 
 		// move
-		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'move', !!overwrite);
+		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'move', !!overwrite, options?.atomic);
 
 		// resolve and send events
 		const fileStat = await this.resolve(target, { resolveMetadata: true });
@@ -817,16 +817,20 @@ export class FileService extends Disposable implements IFileService {
 		return fileStat;
 	}
 
-	private async doMoveCopy(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI, mode: 'move' | 'copy', overwrite: boolean): Promise<'move' | 'copy'> {
+	private async doMoveCopy(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI, mode: 'move' | 'copy', overwrite: boolean, atomic = false): Promise<'move' | 'copy'> {
 		if (source.toString() === target.toString()) {
 			return mode; // simulate node.js behaviour here and do a no-op if paths match
+		}
+
+		if (atomic && sourceProvider !== targetProvider) {
+			throw new Error(localize('atomicMoveProvider', "Atomic moves are only supported within the same file system provider."));
 		}
 
 		// validation
 		const { exists, isSameResourceWithDifferentPathCase } = await this.doValidateMoveCopy(sourceProvider, source, targetProvider, target, mode, overwrite);
 
 		// delete as needed (unless target is same resurce with different path case)
-		if (exists && !isSameResourceWithDifferentPathCase && overwrite) {
+		if (exists && !isSameResourceWithDifferentPathCase && overwrite && !(atomic && sourceProvider === targetProvider)) {
 			await this.del(target, { recursive: true });
 		}
 
@@ -1377,6 +1381,9 @@ export class FileService extends Disposable implements IFileService {
 
 			// Write through the provider
 			const bytesWritten = await provider.write(handle, posInFile + totalBytesWritten, buffer.buffer, posInBuffer + totalBytesWritten, length - totalBytesWritten);
+			if (bytesWritten <= 0) {
+				throw new Error(localize('writeNoBytes', "Unable to write file: no bytes were written."));
+			}
 			totalBytesWritten += bytesWritten;
 		}
 	}
