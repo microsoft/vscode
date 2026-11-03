@@ -15,8 +15,9 @@ import { IConnectionDiagnosticEvent, traceConnectionOperation } from '../../../.
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../../../../../platform/agentHost/common/state/protocol/errors.js';
 import { ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryData, TelemetryLevel } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryService } from '../../../../../../platform/telemetry/common/telemetryService.js';
+import { CapturingTelemetryService } from '../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import {
 	CloudSandboxConnectionHealthClassification,
 	CloudSandboxConnectionOutcomeClassification,
@@ -30,11 +31,6 @@ import {
 	type ICloudSandboxDiscoveryTelemetryData,
 } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 
-interface ICapturedEvent {
-	readonly eventName: string;
-	readonly data: ITelemetryData | undefined;
-}
-
 const connectionDetails = {
 	environmentOperation: 'resume', provisioningMs: 0, reservationWaitMs: 0, readinessMs: 0,
 	preparationMs: 0, connectionMs: 0,
@@ -46,26 +42,17 @@ const connectionDetails = {
 	credentialFailures: 0, relayFailures: 0, protocolFailures: 0, authenticationFailures: 0, restorationFailures: 0,
 };
 
-class TestTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
-
-	readonly telemetryLevel = TelemetryLevel.USAGE;
-	readonly sendErrorTelemetry = true;
-	readonly sessionId = 'sessionId';
-	readonly machineId = 'machineId';
-	readonly sqmId = 'sqmId';
-	readonly devDeviceId = 'devDeviceId';
-	readonly firstSessionDate = 'firstSessionDate';
-	readonly events: ICapturedEvent[] = [];
-
-	publicLog(): void { }
-	publicLogError(): void { }
-	publicLog2(eventName: string, data?: ITelemetryData): void {
-		this.events.push({ eventName, data });
+class TestTelemetryService extends CapturingTelemetryService<ITelemetryData | undefined> {
+	constructor() {
+		super({
+			sendErrorTelemetry: true,
+			sessionId: 'sessionId',
+			machineId: 'machineId',
+			sqmId: 'sqmId',
+			devDeviceId: 'devDeviceId',
+			firstSessionDate: 'firstSessionDate',
+		});
 	}
-	publicLogError2(): void { }
-	setExperimentProperty(): void { }
-	setCommonProperty(): void { }
 }
 
 suite('cloudSandbox telemetry', () => {
