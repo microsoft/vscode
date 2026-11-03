@@ -745,6 +745,13 @@ class MockCopilotSession {
 			delete: async () => { /* no-op */ },
 		},
 		history: {
+			truncate: async ({ eventId }: Parameters<CopilotSession['rpc']['history']['truncate']>[0]) => {
+				const index = this.messages.findIndex(event => event.id === eventId);
+				if (index < 0) {
+					throw new Error('Unknown truncation event');
+				}
+				return { eventsRemoved: this.messages.splice(index).length };
+			},
 			compact: async (params?: unknown) => {
 				this.compactCalls.push(params ?? null);
 				this.onCompact?.();
@@ -2092,7 +2099,13 @@ suite('CopilotAgentSession', () => {
 				type: 'user.message' as const, id: `user-${index}`, data: { content: `Question ${index}` },
 			})));
 			rig.mockSession.eventLogReadRequests.length = 0;
-			return { ...rig, invoke: (input: Parameters<ICopilotSessionRuntime['handlePreToolUse']>[0] = hook) => capturedRuntime.current!.handlePreToolUse(input) };
+			rig.session.resetTurnState('nudge-turn');
+			let response = 0;
+			const nextResponse = () => rig.mockSession.fire('assistant.message', {
+				messageId: `response-${++response}`, content: '', model: 'gpt-5',
+			});
+			nextResponse();
+			return { ...rig, nextResponse, invoke: (input: Parameters<ICopilotSessionRuntime['handlePreToolUse']>[0] = hook) => capturedRuntime.current!.handlePreToolUse(input) };
 		}
 
 		for (const messages of [1, 2, 3]) {
@@ -2119,6 +2132,7 @@ suite('CopilotAgentSession', () => {
 			assert.ok(first);
 			assert.ok(first.additionalContext?.includes(JSON.stringify(searchTool)));
 			assert.ok(first.additionalContext?.includes('has NOT run'));
+			rig.nextResponse();
 			assert.deepStrictEqual([
 				first.permissionDecision,
 				await rig.invoke({ ...hook, toolArgs: { path: '.', pattern: 'needle' } }),
@@ -2149,7 +2163,11 @@ suite('CopilotAgentSession', () => {
 		test('keeps parallel calls and distinct arguments independent', async () => {
 			const rig = await setupNudge();
 			const results = await Promise.all([rig.invoke(), rig.invoke(), rig.invoke({ ...hook, toolArgs: { pattern: 'different', path: '.' } })]);
-			assert.deepStrictEqual(results.map(result => result?.permissionDecision), ['deny', undefined, 'deny']);
+			rig.nextResponse();
+			assert.deepStrictEqual({
+				parallel: results.map(result => result?.permissionDecision),
+				retry: await rig.invoke(),
+			}, { parallel: ['deny', 'deny', 'deny'], retry: undefined });
 			assert.strictEqual(rig.mockSession.eventLogReadRequests.length, 1);
 		});
 
@@ -2198,6 +2216,7 @@ suite('CopilotAgentSession', () => {
 			const rig = await setupNudge();
 			await rig.invoke();
 			rig.mockSession.fire('user.message', { content: 'Question 0' }, { id: 'user-0' });
+			rig.nextResponse();
 			const retry = await rig.invoke();
 			rig.mockSession.fire('user.message', { content: 'Question 1' }, { id: 'user-1' });
 			const second = await rig.invoke();
@@ -2254,6 +2273,132 @@ suite('CopilotAgentSession', () => {
 				results, historyReads: rig.mockSession.eventLogReadRequests.length, metadataReads: rig.mockSession.currentToolMetadataReads,
 			}, { results: [undefined, undefined, undefined], historyReads: 1, metadataReads: 0 });
 		});
+
+		test('rebuilds eligibility after successful truncation but not a failed truncation', async () => {
+			const rig = await setupNudge(true, 3);
+			await rig.invoke();
+			await assert.rejects(() => rig.session.truncateAtEventId('missing'), /Unknown truncation event/);
+			const failed = await rig.invoke();
+			await rig.session.truncateAtEventId('user-1');
+			rig.nextResponse();
+			const shortened = await rig.invoke();
+			assert.deepStrictEqual({
+				failed, shortened: shortened?.permissionDecision, reads: rig.mockSession.eventLogReadRequests.length,
+			}, { failed: undefined, shortened: 'deny', reads: 2 });
+		});
+
+		test('snapshot rewind clears pending retries and cached history', async () => {
+			const rig = await setupNudge();
+			await rig.invoke();
+			rig.mockSession.fire('session.snapshot_rewind', { upToEventId: 'user-0', eventsRemoved: 1 });
+			rig.nextResponse();
+			assert.strictEqual((await rig.invoke())?.permissionDecision, 'deny');
+			assert.strictEqual(rig.mockSession.eventLogReadRequests.length, 2);
+		});
+
+		test('a stale history snapshot cannot repopulate the cache after truncation', async () => {
+			const rig = await setupNudge(true, 3);
+			const gate = new DeferredPromise<void>();
+			const read = rig.mockSession.rpc.eventLog.read;
+			const stale = await read({ max: 100 });
+			rig.mockSession.rpc.eventLog.read = async () => { await gate.p; return stale; };
+			const earlier = rig.invoke();
+			await rig.session.truncateAtEventId('user-1');
+			rig.nextResponse();
+			rig.mockSession.rpc.eventLog.read = read;
+			const current = await rig.invoke();
+			await gate.complete();
+			assert.deepStrictEqual({
+				earlier: await earlier, current: current?.permissionDecision, sameResponse: (await rig.invoke())?.permissionDecision,
+			}, { earlier: undefined, current: 'deny', sameResponse: 'deny' });
+		});
+
+		for (const lookup of ['history', 'metadata'] as const) {
+			test(`a new user message invalidates an evaluation awaiting ${lookup}`, async () => {
+				const rig = await setupNudge();
+				const gate = new DeferredPromise<void>();
+				const started = new DeferredPromise<void>();
+				const readHistory = rig.mockSession.rpc.eventLog.read;
+				const readMetadata = rig.mockSession.rpc.tools.getCurrentMetadata;
+				if (lookup === 'history') {
+					rig.mockSession.rpc.eventLog.read = async params => { await started.complete(); await gate.p; return readHistory(params); };
+				} else {
+					rig.mockSession.rpc.tools.getCurrentMetadata = async () => { await started.complete(); await gate.p; return readMetadata(); };
+				}
+				const earlier = rig.invoke();
+				await started.p;
+				rig.mockSession.fire('user.message', { content: 'Question 1' }, { id: 'user-1' });
+				rig.nextResponse();
+				await gate.complete();
+				const stale = await earlier;
+				rig.mockSession.rpc.eventLog.read = readHistory;
+				rig.mockSession.rpc.tools.getCurrentMetadata = readMetadata;
+				assert.deepStrictEqual({ stale, current: (await rig.invoke())?.permissionDecision }, { stale: undefined, current: 'deny' });
+			});
+
+			test(`bounds a stalled ${lookup} RPC and ignores its late result`, () => runWithFakedTimers({}, async () => {
+				const rig = await setupNudge();
+				const gate = new DeferredPromise<void>();
+				const readHistory = rig.mockSession.rpc.eventLog.read;
+				const readMetadata = rig.mockSession.rpc.tools.getCurrentMetadata;
+				if (lookup === 'history') {
+					rig.mockSession.eventLogReadGate = gate.p;
+				} else {
+					rig.mockSession.rpc.tools.getCurrentMetadata = async () => { await gate.p; return readMetadata(); };
+				}
+				const start = Date.now();
+				const result = await rig.invoke();
+				assert.deepStrictEqual({ result, elapsed: Date.now() - start }, { result: undefined, elapsed: 500 });
+				rig.mockSession.eventLogReadGate = undefined;
+				rig.mockSession.rpc.eventLog.read = readHistory;
+				rig.mockSession.rpc.tools.getCurrentMetadata = readMetadata;
+				await gate.complete();
+				assert.strictEqual((await rig.invoke())?.permissionDecision, 'deny');
+			}));
+
+			test(`cancels a stalled ${lookup} RPC when the session is disposed`, async () => {
+				const rig = await setupNudge();
+				const gate = new DeferredPromise<void>();
+				const started = new DeferredPromise<void>();
+				const readHistory = rig.mockSession.rpc.eventLog.read;
+				const readMetadata = rig.mockSession.rpc.tools.getCurrentMetadata;
+				if (lookup === 'history') {
+					rig.mockSession.rpc.eventLog.read = async params => { await started.complete(); await gate.p; return readHistory(params); };
+				} else {
+					rig.mockSession.rpc.tools.getCurrentMetadata = async () => { await started.complete(); await gate.p; return readMetadata(); };
+				}
+				const pending = rig.invoke();
+				const rejected = assert.rejects(pending, /Canceled/);
+				await started.p;
+				rig.session.dispose();
+				await rejected;
+				await gate.complete();
+			});
+		}
+
+		test('caps synthetic history at three pages and skips subsequent lookups', async () => {
+			const rig = await setupNudge();
+			rig.mockSession.messages.push(...toSessionEvents(Array.from({ length: 301 }, (_, index) => ({
+				type: 'user.message' as const, id: `synthetic-${index}`, data: { content: 'Injected instruction', source: 'system' },
+			}))));
+			assert.deepStrictEqual({
+				first: await rig.invoke(), next: await rig.invoke(),
+				pageSizes: rig.mockSession.eventLogReadRequests.map(request => request.max),
+				metadataReads: rig.mockSession.currentToolMetadataReads,
+			}, { first: undefined, next: undefined, pageSizes: [100, 100, 100], metadataReads: 0 });
+		});
+
+		test('shares one timeout budget across history and metadata', () => runWithFakedTimers({}, async () => {
+			const rig = await setupNudge();
+			const readHistory = rig.mockSession.rpc.eventLog.read;
+			const gate = new DeferredPromise<void>();
+			rig.mockSession.rpc.eventLog.read = async params => { await timeout(300); return readHistory(params); };
+			rig.mockSession.rpc.tools.getCurrentMetadata = async () => { await gate.p; return { tools: [searchTool] }; };
+			const start = Date.now();
+			const result = await rig.invoke();
+			assert.deepStrictEqual({ result, elapsed: Date.now() - start }, { result: undefined, elapsed: 500 });
+			await gate.complete();
+		}));
 
 		test('logs failed advisory lookups and leaves normal grep checks intact', async () => {
 			const warnings: unknown[][] = [];

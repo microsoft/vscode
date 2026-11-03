@@ -50,7 +50,7 @@ suite('Agent Host Provider Integration - Copilot grep search nudge', function ()
 					definition: {
 						type: 'multi-turn',
 						turns: [
-							{ kind: 'tool-calls', toolCalls: [grep] },
+							{ kind: 'tool-calls', toolCalls: [grep, grep] },
 							{
 								kind: 'tool-calls',
 								toolCalls: [retryGrep ? grep : {
@@ -89,6 +89,10 @@ suite('Agent Host Provider Integration - Copilot grep search nudge', function ()
 			assert.ok(requests.includes('input_schema'), 'The nudge must include the live search tool schema');
 			if (retryGrep) {
 				assert.ok(requests.includes('NATIVE_GREP_MATCH_PROOF'), 'The retry must execute native grep and return real file contents');
+				const completions = connection.receivedNotifications(notification => isActionNotification(notification, ActionType.ChatToolCallComplete))
+					.map(notification => getActionEnvelope(notification).action)
+					.filter(action => action.type === ActionType.ChatToolCallComplete);
+				assert.deepStrictEqual(completions.map(action => action.result.success), [false, false, true], 'Both original calls must be deferred; only the next model response may retry');
 			} else {
 				const starts = connection.receivedNotifications(notification => isActionNotification(notification, ActionType.ChatToolCallStart)).map(notification => getActionEnvelope(notification).action);
 				const search = starts.find(action => action.type === ActionType.ChatToolCallStart && action.toolName === 'search_code_subagent');

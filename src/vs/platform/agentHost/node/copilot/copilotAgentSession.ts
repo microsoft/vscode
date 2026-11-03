@@ -10171,6 +10171,7 @@ export class CopilotAgentSession extends Disposable {
 			// Main agent only: `_appliedSnapshot.tools` is the session's tool set, which does not
 			// describe a subagent's model call, so subagent messages (mapped or dropped) are skipped.
 			if (!e.agentId && isModelResponse) {
+				this._grepSearchNudge.recordModelResponse(modelCallId);
 				const clientType = this._currentTurn.value?.clientType ?? AgentHostClientType.Unknown;
 				void this._telemetryReporter.assistantMessageReceived(this.resourceUri.toString(), this._chatChannelUri.toString(), clientType, e.data.clientRequestId, this._appliedSnapshot.tools, wrapper.sessionId).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
 				// Restricted `conversation.messageText` (source=model): the model's raw response text.
@@ -13221,6 +13222,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		store.add(wrapper.onSessionSnapshotRewind(e => {
+			this._grepSearchNudge.resetHistory();
 			this._logService.trace(`[Copilot:${sessionId}] Snapshot rewind: upTo=${e.data.upToEventId}, eventsRemoved=${e.data.eventsRemoved}`);
 		}));
 
@@ -13571,6 +13573,7 @@ export class CopilotAgentSession extends Disposable {
 	async truncateAtEventId(eventId: string, keepTurnId?: string): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Truncating via SDK RPC at eventId=${eventId}`);
 		const result = await this._awaitControlPlaneRpc('rpc.history.truncate', this._wrapper.session.rpc.history.truncate({ eventId }));
+		this._grepSearchNudge.resetHistory();
 		this._logService.info(`[Copilot:${this.sessionId}] SDK truncation removed ${result.eventsRemoved} events`);
 
 		// Clean up stale turns from our DB so getNextTurnEventId doesn't
