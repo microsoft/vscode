@@ -77,7 +77,7 @@ suite('SessionWorktreeCleanupService', () => {
 		inventory = [{ ...eligible, branch: 'component-explorer-1' }];
 		const refreshed = await service.refreshPendingCleanup(initial.map(getWorktreeCleanupId), 0);
 		const foreign: ISessionWorktree = { unlinkedWorktree: excluded[0], sizeBytes: undefined, worktreeCount: 1, cleanupState: 'unlinked', worktreeExists: true, cleanupStatus: { state: 'failed' } };
-		await assert.rejects(service.cleanupWorktrees([foreign]), /branches starting with 'agents\/'/);
+		await assert.rejects(service.cleanupWorktrees([foreign]), /agent-managed branches/);
 		await assert.rejects(service.forceCleanupWorktrees([foreign]), /cannot be forcibly removed/);
 		assert.deepStrictEqual({
 			initial: initial.map(getWorktreeCleanupId), refreshed: refreshed.map(getWorktreeCleanupId),
@@ -96,6 +96,64 @@ suite('SessionWorktreeCleanupService', () => {
 		const service = disposables.add(createService([foreign], true, session => { measured.push(session.sessionId); return 1; }));
 		assert.deepStrictEqual({ worktrees: await service.getWorktrees(0), measured }, { worktrees: [], measured: [] });
 	});
+
+	test('includes and schedules prefixed linked worktrees after the configured prefix changes', async () => {
+		const original = createSession('prefixed', oldDate());
+		const workspace = original.workspace.get()!;
+		const session: ISession = {
+			...original,
+			workspace: constObservable({
+				...workspace,
+				folders: workspace.folders.map(folder => ({
+					...folder,
+					gitRepository: { ...folder.gitRepository!, uri: URI.file('/repo'), branchName: 'old-prefix/agents/prefixed-0' },
+				})),
+			}),
+		};
+		const configuration = new TestConfigurationService({ git: { branchPrefix: 'old-prefix/' } });
+		const measured: string[] = [];
+		const archived: string[] = [];
+		const service = disposables.add(createService([session], true, session => { measured.push(session.sessionId); return 1; },
+			undefined, undefined, undefined, undefined, undefined, configuration, undefined, {
+			onArchive: async session => { archived.push(session.sessionId); },
+			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+		}));
+		const initial = await service.getWorktrees(0);
+		await configuration.setUserConfiguration('git.branchPrefix', 'new-prefix/');
+		const refreshed = await service.getWorktrees(0, undefined, undefined, true);
+		await service.cleanupWorktrees(refreshed, () => { });
+		assert.deepStrictEqual({
+			rows: [initial, refreshed].map(rows => rows.map(getWorktreeCleanupId)),
+			measured, archived,
+		}, { rows: [['prefixed'], ['prefixed']], measured: ['prefixed', 'prefixed'], archived: ['prefixed'] });
+	});
+
+	for (const prefix of ['user/', 'team/user/', 'user-']) {
+		test(`includes, refreshes, and forcibly removes an unlinked ${prefix} prefixed worktree`, async () => {
+			const unlinked = { ...managedWorktree(), branch: `${prefix}agents/unlinked` };
+			const cleaned: { branch: string; force: boolean | undefined }[] = [];
+			const service = disposables.add(createService([], true, () => undefined,
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+				listManagedWorktrees: async () => [unlinked],
+				canForceWorktreeCleanup: () => true,
+				cleanupManagedWorktree: async (worktree, force) => { cleaned.push({ branch: worktree.branch, force }); },
+				dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+			}));
+			const initial = await service.getWorktrees(0);
+			const refreshed = await service.refreshPendingCleanup(initial.map(getWorktreeCleanupId), 0);
+			const failed: ISessionWorktree = { ...refreshed[0], worktreeExists: true, cleanupStatus: { state: 'failed' } };
+			await service.cleanupWorktrees(refreshed, () => { });
+			await service.forceCleanupWorktrees([failed], () => { });
+			assert.deepStrictEqual({
+				rows: [initial, refreshed].map(rows => rows.map(getWorktreeCleanupId)),
+				forceEligible: service.canForceCleanup(failed), cleaned,
+			}, {
+				rows: [[`managed:test:${unlinked.worktree}`], [`managed:test:${unlinked.worktree}`]],
+				forceEligible: true,
+				cleaned: [{ branch: unlinked.branch, force: undefined }, { branch: unlinked.branch, force: true }],
+			});
+		});
+	}
 
 	test('cleans up an unlinked row explicitly without archiving a fabricated session and verifies removal', async () => {
 		const unlinked = managedWorktree();

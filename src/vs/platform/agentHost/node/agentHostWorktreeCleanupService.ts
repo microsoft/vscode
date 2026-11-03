@@ -14,7 +14,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agent.js';
 import { type IAgentHostManagedWorktree, type IAgentHostWorktreeCleanupStatus } from '../common/agentHostWorktreeCleanup.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
-import { AGENT_BRANCH_PREFIX, getWorktreesRoot, isWorktreeUnderRepository } from '../common/worktreePaths.js';
+import { getWorktreesRoot, isAgentWorktreeBranch, isWorktreeUnderRepository } from '../common/worktreePaths.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import { coOwnedWorktreeRemovalOwner, type IPendingWorktreeRemoval, type IWorktreeCoOwner, type IWorktreeCoOwnerState, type IWorktreeRemovalRequest, type WorktreeRemovalMode } from './agentHostWorktreeRemovalDatabase.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, parseSessionAdditionalWorktrees } from './shared/sessionAdditionalWorktrees.js';
@@ -152,7 +152,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 				}
 				seen.add(primary.toString());
 				await Promise.all(entries.slice(1).map(({ path: worktree, branchName: branch }) => limiter.queue(async () => {
-					if (!branch?.startsWith(AGENT_BRANCH_PREFIX) || !await this._isManagedWorktree(primary, worktree)) {
+					if (!branch || !isAgentWorktreeBranch(branch, worktree, primary) || !await this._isManagedWorktree(primary, worktree)) {
 						return;
 					}
 					const pending = await this._database.readPendingWorktreeRemoval('detached', this._managedRemovalOwner(worktree));
@@ -212,8 +212,9 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		}
 		const registered = entries.slice(1).find(entry => isEqual(entry.path, worktree));
 		const currentBranch = allowBranchChange && registered ? registered.branchName : branch;
-		if (!currentBranch?.startsWith(AGENT_BRANCH_PREFIX) || (registered && !registered.branchName?.startsWith(AGENT_BRANCH_PREFIX))) {
-			throw new Error(`Only worktrees on branches starting with '${AGENT_BRANCH_PREFIX}' can be cleaned up.`);
+		if (!currentBranch || !isAgentWorktreeBranch(currentBranch, worktree, repository)
+			|| (registered && (!registered.branchName || !isAgentWorktreeBranch(registered.branchName, worktree, repository)))) {
+			throw new Error('Only worktrees on agent-managed branches can be cleaned up.');
 		}
 		if (allowMissing) {
 			try {
