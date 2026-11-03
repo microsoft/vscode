@@ -78,6 +78,6 @@ describe('ToolSearchTool', () => {
 		const result = await tool.invoke({ input: { query }, toolInvocationToken: undefined } as vscode.LanguageModelToolInvocationOptions<any>, CancellationToken.None);
 
 		expect(searchToolsByQuery.mock.calls[0][1].map(tool => tool.name)).toEqual(['deferred-extension-tool']);
-		expect(result.toolResultMessage?.value).toBe('Found 1 tool for `` `[unsafe](command:run)` ``');
+		expect(result.toolResultMessage).toMatchObject({ value: 'Found 1 tool for `` `[unsafe](command:run)` ``' });
 	});
 });
