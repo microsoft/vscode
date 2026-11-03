@@ -33,6 +33,35 @@ suite('HookSchema', () => {
 		});
 	});
 
+	test('only the Local hook format is deprecated', () => {
+		assert.deepStrictEqual({
+			shared: hookFileSchema.properties?.hooks.deprecationMessage,
+			local: hookFileSchema.else?.properties?.hooks.deprecationMessage,
+			cli: hookFileSchema.then?.properties?.hooks.deprecationMessage,
+		}, {
+			shared: undefined,
+			local: 'The Local hook format is deprecated. Use the Copilot CLI format with "version": 1, camelCase event names, and "timeoutSec" instead of "timeout". Migration may require script changes: CLI hooks use different JSON input/output shapes (for example, "toolName" instead of "tool_name" and top-level "permissionDecision" instead of "hookSpecificOutput.permissionDecision"). Renaming configuration fields alone may change behavior.',
+			cli: undefined,
+		});
+	});
+
+	test('default hook snippet uses the Copilot CLI format', () => {
+		assert.deepStrictEqual(hookFileSchema.defaultSnippets?.[0].body, {
+			version: 1,
+			hooks: {
+				sessionStart: [{
+					type: 'command',
+					command: '${1:echo "Session started" >> session.log}',
+				}],
+				preToolUse: [{
+					type: 'command',
+					command: '${2:./scripts/validate.sh}',
+					timeoutSec: 15,
+				}],
+			},
+		});
+	});
+
 	suite('resolveHookCommand', () => {
 		const workspaceRoot = URI.file('/workspace');
 		const userHome = '/home/user';

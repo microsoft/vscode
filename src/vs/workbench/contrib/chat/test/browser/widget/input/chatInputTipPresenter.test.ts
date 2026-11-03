@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -21,9 +22,10 @@ suite('ChatInputTipPresenter', () => {
 
 	const TIP: IChatTip = { id: 'tip.test', content: { value: 'A tip' } } as IChatTip;
 
-	function createPresenter(store: DisposableStore, noticeHost: ChatInputNoticeHost, options?: { isEligible?: () => boolean }) {
+	function createPresenter(store: DisposableStore, noticeHost: ChatInputNoticeHost, options?: { isEligible?: () => boolean; tip?: IChatTip }) {
 		let welcomeTipCalls = 0;
-		let tip = TIP;
+		let focusInputCalls = 0;
+		let tip = options?.tip ?? TIP;
 		const onDidChangeTip = store.add(new Emitter<void>());
 		const instantiationService = workbenchInstantiationService(undefined, store) as TestInstantiationService;
 		instantiationService.stub(IChatTipService, {
@@ -42,7 +44,7 @@ suite('ChatInputTipPresenter', () => {
 
 		const presenter = instantiationService.createInstance(
 			ChatInputTipPresenter,
-			{ container, isEligible: options?.isEligible ?? (() => true), focusInput: () => { } },
+			{ container, isEligible: options?.isEligible ?? (() => true), focusInput: () => { focusInputCalls++; } },
 			noticeHost,
 		);
 		return {
@@ -53,6 +55,7 @@ suite('ChatInputTipPresenter', () => {
 			// stack knows whose corners to square without inspecting descendants.
 			docked: () => container.classList.contains('chat-input-stack-docked'),
 			welcomeTipCalls: () => welcomeTipCalls,
+			focusInputCalls: () => focusInputCalls,
 			setTip(value: IChatTip) {
 				tip = value;
 				onDidChangeTip.fire();
@@ -115,6 +118,33 @@ suite('ChatInputTipPresenter', () => {
 			icon: '<img class="chat-tip-icon" src="https://example.com/linear.png" alt="" aria-hidden="true">',
 			welcomeTipCalls: 2,
 			focusable: true,
+		});
+	});
+
+	test('preserves focus when replacing a focused contextual tip', () => {
+		const store = disposables.add(new DisposableStore());
+		const noticeHost = store.add(new ChatInputNoticeHost(() => { }));
+		const fixture = createPresenter(store, noticeHost, {
+			tip: { id: 'tip.enable', content: new MarkdownString('[Enable](https://example.com/enable)') },
+		});
+		store.add(fixture.presenter);
+		const enableLink = fixture.container.querySelector<HTMLAnchorElement>('a');
+		assert.ok(enableLink);
+		enableLink.focus();
+
+		fixture.setTip({
+			id: 'tip.enabled',
+			content: new MarkdownString('[Manage Shortcut](https://example.com/manage)'),
+		});
+
+		assert.deepStrictEqual({
+			text: fixture.container.textContent,
+			tipHasFocus: fixture.presenter.current?.hasFocus(),
+			focusInputCalls: fixture.focusInputCalls(),
+		}, {
+			text: 'Manage Shortcut',
+			tipHasFocus: true,
+			focusInputCalls: 0,
 		});
 	});
 

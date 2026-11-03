@@ -192,6 +192,7 @@ import { SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js'
 import { WorkspacePickerActionItem } from './workspacePickerActionItem.js';
 import { ChatContextUsageWidget } from '../../widgetHosts/viewPane/chatContextUsageWidget.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
+import { resolveAgentModelPreference, resolveAgentReasoningEffort } from '../../../common/promptSyntax/languageProviders/promptModelResolver.js';
 import { matchesSessionType } from '../../../common/promptSyntax/service/promptsService.js';
 import { ConfigureToolsAction } from '../../actions/chatToolActions.js';
 import { InlineCompletionsController } from '../../../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
@@ -1211,7 +1212,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			subscribeToModelChanges: listener => this.languageModelsService.onDidChangeLanguageModels(listener),
 			getBoundConversationKey: () => this._inputModelSessionResource?.toString(),
 			getIntentHolder: () => this._intentHolder,
-			restoreModelConfiguration: (modelId, configuration) => this.restoreModelConfiguration(modelId, configuration),
+			restoreModelConfiguration: (modelId, configuration, persist) => this.restoreModelConfiguration(modelId, configuration, persist),
 			applyModel: () => {
 				if (this.cachedWidth) {
 					this.layout(this.cachedWidth);
@@ -1473,9 +1474,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return;
 			}
 			const models = mode.model?.read(r);
-			if (models) {
-				this.switchModelByQualifiedName(models);
-			}
+			const effort = mode.reasoningEffort?.read(r);
+			this.applyModeModelPreference(models, effort);
 		}));
 
 		this.registerChatModeValidation();
@@ -1555,17 +1555,33 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return false;
 	}
 
-	public switchModelByQualifiedName(qualifiedModelNames: readonly string[]): boolean {
-		const models = this.getModels();
-		for (const qualifiedModelName of qualifiedModelNames) {
-			const model = models.find(m => ILanguageModelChatMetadata.matchesQualifiedName(qualifiedModelName, m.metadata));
+	public switchModelByQualifiedName(qualifiedModelNames: readonly string[], reasoningEffort?: string): boolean {
+		const model = resolveAgentModelPreference(qualifiedModelNames, this.getModels());
+		if (model) {
+			this.applyAgentReasoningEffort(model, reasoningEffort);
+			this._applyProgrammaticLanguageModel(model);
+			return true;
+		}
+		this.logService.warn(`[chat] None of the models "${qualifiedModelNames.join(', ')}" found. Use a model ID or "<name> (<vendor>)", e.g. "GPT-4o (copilot)".`);
+		return false;
+	}
+
+	private applyModeModelPreference(models: readonly string[] | undefined, effort: string | undefined): void {
+		if (models) {
+			this.switchModelByQualifiedName(models, effort);
+		} else if (effort) {
+			const model = this._currentLanguageModel.read(undefined);
 			if (model) {
-				this._applyProgrammaticLanguageModel(model);
-				return true;
+				this.applyAgentReasoningEffort(model, effort);
 			}
 		}
-		this.logService.warn(`[chat] Node of the models "${qualifiedModelNames.join(', ')}" not found. Use format "<name> (<vendor>)", e.g. "GPT-4o (copilot)".`);
-		return false;
+	}
+
+	private applyAgentReasoningEffort(model: ILanguageModelChatMetadataAndIdentifier, effort: string | undefined): void {
+		const configuration = resolveAgentReasoningEffort(effort, model.metadata);
+		if (configuration) {
+			this.restoreModelConfiguration(model.identifier, configuration, false);
+		}
 	}
 
 	public requestModelByIdentifier(identifier: string, configuration?: IStringDictionary<unknown>): Promise<boolean> {
@@ -1574,10 +1590,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	public requestModelByQualifiedName(qualifiedModelNames: readonly string[]): Promise<boolean> {
-		return this._requestProgrammaticLanguageModel(() => {
-			const models = this.getModels();
-			return qualifiedModelNames.map(name => models.find(model => ILanguageModelChatMetadata.matchesQualifiedName(name, model.metadata))).find(isDefined);
-		});
+		return this._requestProgrammaticLanguageModel(() => resolveAgentModelPreference(qualifiedModelNames, this.getModels()));
 	}
 
 	get hasPendingProgrammaticModelSelection(): boolean {
@@ -2089,7 +2102,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Sync selected model - validate it belongs to the current session's model pool
 			if (state?.selectedModel) {
 				const sessionType = getChatSessionType(forSessionResource);
-				this._modelSelectionController.syncFromConversationState(state.selectedModel, state.modelConfiguration, sessionType, forSessionResource.toString(), state.origin === ChatInputStateOrigin.Remote, this._restoreReasonFor(state.selectedModel));
+				this._modelSelectionController.syncFromConversationState(state.selectedModel, state.modelConfiguration, sessionType, forSessionResource.toString(), state.origin === ChatInputStateOrigin.Remote, this._restoreReasonFor(state.selectedModel), state.modelConfigurationIsTransient);
 			} else if (state) {
 				// state exists but state.selectedModel is undefined - sync is a NO-OP,
 				// but record it so we can see when a session's persisted state lost its model.
@@ -2507,6 +2520,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			},
 			selectedModel,
 			modelConfiguration: selectedModel ? this._modelConfigStore.getModelConfiguration(selectedModel.identifier) : undefined,
+			modelConfigurationIsTransient: selectedModel ? this._modelConfigStore.isModelConfigurationTransient(selectedModel.identifier) : undefined,
 			selectedModelReason: selectedModel ? this._modelSelectionController.selectionReason : undefined,
 			selections: this._inputEditor?.getSelections() || [],
 			permissionLevel: this._currentPermissionLevel.get(),

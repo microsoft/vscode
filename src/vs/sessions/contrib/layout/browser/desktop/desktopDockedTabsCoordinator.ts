@@ -535,6 +535,7 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 			editor: editorToReplace,
 			replacement: this._instantiationService.createInstance(SessionChangesEditorInput, activeChangesResource),
 			options: wasActive ? CHANGES_TAB_ACTIVE_OPTIONS : CHANGES_TAB_OPTIONS,
+			forceReplaceDirty: true,
 		}]);
 		if (isCancelled()) {
 			return;

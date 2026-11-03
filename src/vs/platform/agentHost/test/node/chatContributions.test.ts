@@ -20,7 +20,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
@@ -225,27 +225,6 @@ function readEventDataString(data: unknown, key: string): string | undefined {
 	}
 	const record: Record<string, unknown> = { ...data };
 	return typeof record[key] === 'string' ? record[key] : undefined;
-}
-
-class RecordingTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
-	readonly telemetryLevel = TelemetryLevel.USAGE;
-	readonly sessionId = 'test-session';
-	readonly machineId = 'test-machine';
-	readonly sqmId = 'test-sqm';
-	readonly devDeviceId = 'test-device';
-	readonly firstSessionDate = '2025-01-01';
-	readonly sendErrorTelemetry = false;
-	readonly events: { readonly eventName: string; readonly data: unknown }[] = [];
-
-	publicLog(): void { }
-	publicLog2(eventName: string, data?: unknown): void {
-		this.events.push({ eventName, data });
-	}
-	publicLogError(): void { }
-	publicLogError2(): void { }
-	setExperimentProperty(): void { }
-	setCommonProperty(): void { }
 }
 
 class FirstMementoContribution extends TestContribution {
@@ -853,7 +832,7 @@ function createSessionTitleContributions(disposables: ReturnType<typeof ensureNo
 	const database = new TestSessionDatabase();
 	const sessionDataService = createSessionDataService(database);
 	const titleController = new RecordingTitleController(undefined, undefined);
-	const telemetryService = new RecordingTelemetryService();
+	const telemetryService = new CapturingTelemetryService();
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentHostStateManager, stateManager],
@@ -1008,7 +987,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	services.set(IAgentHostArtifactEventService, disposables.add(new AgentHostArtifactEventService()));
 	const artifactIntegrationDirectory = disposables.add(new AgentHostArtifactIntegrationDirectory(disposables.add(new ArtifactIntegrationRegistry())));
 	services.set(IAgentHostArtifactIntegrationDirectory, artifactIntegrationDirectory);
-	const telemetryReporter = new AgentHostTelemetryReporter(new RecordingTelemetryService());
+	const telemetryReporter = new AgentHostTelemetryReporter(new CapturingTelemetryService());
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
 	services.set(IAgentHostTurnTracker, disposables.add(instantiationService.createInstance(AgentHostTurnTracker)));
 	services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
@@ -1106,7 +1085,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	services.set(IAgentHostChatContributions, service);
 	const titleController = new RecordingTitleController(undefined, undefined);
 	services.set(IAgentHostSessionTitleController, titleController);
-	const telemetryService = new RecordingTelemetryService();
+	const telemetryService = new CapturingTelemetryService();
 	const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
 	const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
