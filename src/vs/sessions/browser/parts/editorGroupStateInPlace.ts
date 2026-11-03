@@ -9,7 +9,8 @@ import { dispose } from '../../../base/common/lifecycle.js';
 import { IEditorOptions } from '../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IEditorPartUIState } from '../../../workbench/browser/parts/editor/editorPart.js';
-import { EditorsOrder } from '../../../workbench/common/editor.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry } from '../../../workbench/common/editor.js';
 import { EditorGroupModel, ISerializedEditorGroupModel, isSerializedEditorGroupModel } from '../../../workbench/common/editor/editorGroupModel.js';
 import { IEditorGroup } from '../../../workbench/services/editor/common/editorGroupsService.js';
 
@@ -22,13 +23,17 @@ import { IEditorGroup } from '../../../workbench/services/editor/common/editorGr
  *
  * Returns `false` without changing `group` when the state cannot be applied in
  * place: it has several groups or a different group, its lock state differs, it
- * has no editors, or an open editor would need a close confirmation. These checks
- * run before deserializing, so the state's editors are only created once.
+ * has no editors, an open editor would need a close confirmation, either side has
+ * sticky editors, or the saved preview editor is open pinned (a group cannot unpin
+ * it in place). These checks run before deserializing, so the state's editors are
+ * only created once.
  */
 export async function applySingleGroupEditorStateInPlace(group: IEditorGroup, state: IEditorPartUIState, instantiationService: IInstantiationService): Promise<boolean> {
 	const serializedGroup = getSingleSerializedGroup(state.serializedGrid.root);
 	if (!serializedGroup || serializedGroup.id !== group.id || !!serializedGroup.locked !== group.isLocked || serializedGroup.editors.length === 0
-		|| group.editors.some(editor => editor.closeHandler || editor.isDirty())) {
+		|| group.editors.some(editor => editor.closeHandler || editor.isDirty())
+		|| group.stickyCount > 0 || typeof serializedGroup.sticky === 'number'
+		|| isSavedPreviewOpenPinned(group, serializedGroup)) {
 		return false;
 	}
 
@@ -39,7 +44,6 @@ export async function applySingleGroupEditorStateInPlace(group: IEditorGroup, st
 	const outgoing = group.editors.filter(editor => !editors.includes(editor));
 	const editorOptions = incoming.map((editor, index): IEditorOptions => ({
 		pinned: model.isPinned(index),
-		sticky: model.isSticky(index),
 		inactive: editor !== incomingActive,
 		preserveFocus: true,
 	}));
@@ -55,11 +59,6 @@ export async function applySingleGroupEditorStateInPlace(group: IEditorGroup, st
 		}
 		if (editorOptions[index].pinned && !group.isPinned(editor)) {
 			group.pinEditor(editor);
-		}
-		if (editorOptions[index].sticky && !group.isSticky(editor)) {
-			group.stickEditor(editor);
-		} else if (!editorOptions[index].sticky && group.isSticky(editor)) {
-			group.unstickEditor(editor);
 		}
 	});
 
@@ -91,6 +90,21 @@ export async function applySingleGroupEditorStateInPlace(group: IEditorGroup, st
 	}
 
 	return true;
+}
+
+function isSavedPreviewOpenPinned(group: IEditorGroup, serializedGroup: ISerializedEditorGroupModel): boolean {
+	const preview = typeof serializedGroup.preview === 'number' ? serializedGroup.editors[serializedGroup.preview] : undefined;
+	if (!preview) {
+		return false;
+	}
+	const registry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
+	return group.editors.some(editor => {
+		if (editor.typeId !== preview.id || !group.isPinned(editor)) {
+			return false;
+		}
+		const serializer = registry.getEditorSerializer(editor);
+		return !!serializer?.canSerialize(editor) && serializer.serialize(editor) === preview.value;
+	});
 }
 
 function getSingleSerializedGroup(node: ISerializedNode): ISerializedEditorGroupModel | undefined {

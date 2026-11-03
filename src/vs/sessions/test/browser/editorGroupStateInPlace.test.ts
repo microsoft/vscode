@@ -189,6 +189,31 @@ suite('Sessions - Apply editor group state in place', () => {
 		assert.deepStrictEqual({ applied, tabRows: recording.tabRows }, { applied: true, tabRows: [['Changes', 'Files'], ['Files']] });
 	});
 
+	test('leaves the group untouched when the saved preview editor is open pinned or either side has sticky editors', async () => {
+		const part = await createPart();
+		const group = part.activeGroup;
+		await group.openEditor(input('/b/Changes'), { pinned: true });
+		await group.openEditor(input('/shared/foo.ts'), { pinned: false });
+		const previewState = part.createState();
+		await group.closeAllEditors();
+		await group.openEditor(input('/b/Changes'), { pinned: true, sticky: true });
+		const stickyState = part.createState();
+		await group.closeAllEditors();
+
+		await group.openEditor(input('/shared/foo.ts'), { pinned: true });
+		const pinnedSharedPreview = { applied: await applySingleGroupEditorStateInPlace(group, previewState, instantiationService!), editors: paths(group.editors) };
+		const incomingSticky = { applied: await applySingleGroupEditorStateInPlace(group, stickyState, instantiationService!), editors: paths(group.editors) };
+		await group.closeAllEditors();
+		await group.openEditor(input('/a/Changes'), { pinned: true, sticky: true });
+		const outgoingSticky = { applied: await applySingleGroupEditorStateInPlace(group, previewState, instantiationService!), editors: paths(group.editors) };
+
+		assert.deepStrictEqual({ pinnedSharedPreview, incomingSticky, outgoingSticky }, {
+			pinnedSharedPreview: { applied: false, editors: ['/shared/foo.ts'] },
+			incomingSticky: { applied: false, editors: ['/shared/foo.ts'] },
+			outgoingSticky: { applied: false, editors: ['/a/Changes'] },
+		});
+	});
+
 	test('leaves the group untouched when an outgoing editor needs a close confirmation', async () => {
 		const part = await createPart();
 		const incomingChanges = input('/b/Changes');

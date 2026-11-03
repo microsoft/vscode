@@ -77,6 +77,11 @@ const CHANGES_DIFF_EDITOR_OPTIONS: IDiffEditorOptions = {
 
 const CHANGES_LIST_BOTTOM_PADDING_PX = 24;
 
+interface IOutgoingChangesContent extends IDisposable {
+	readonly input: SessionChangesEditorInput;
+	readonly retention: IDisposable;
+}
+
 /** How long a replaced input's diffs stay on screen while the incoming session's changes load. */
 const INCOMING_CHANGES_LOAD_WAIT_MS = 1000;
 class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
@@ -221,7 +226,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	 * Keeps the cleared input's diffs on screen until the next input is shown. Editor panes
 	 * clear the input right before setting the next one; if none follows, the diffs are dropped.
 	 */
-	private readonly _outgoingContent = this._register(new MutableDisposable());
+	private readonly _outgoingContent = this._register(new MutableDisposable<IOutgoingChangesContent>());
 
 	private readonly _logger: MultiDiffEditorLogger;
 
@@ -368,6 +373,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	}
 
 	override async setInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		this._adoptOutgoingContent(input);
 		await super.setInput(input, options, context, token);
 		if (token.isCancellationRequested) {
 			return;
@@ -573,10 +579,15 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		this.viewModel = undefined;
 		if (input instanceof SessionChangesEditorInput) {
 			if (inputShown) {
-				const outgoing = new DisposableStore();
-				outgoing.add(input.retainViewModel());
-				outgoing.add(toDisposable(() => input.clear()));
-				this._outgoingContent.value = outgoing;
+				const retention = input.retainViewModel();
+				this._outgoingContent.value = {
+					input,
+					retention,
+					dispose: () => {
+						retention.dispose();
+						input.clear();
+					},
+				};
 			} else {
 				input.clear();
 			}
@@ -590,6 +601,16 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 				this._releaseOutgoingContent(true);
 			}
 		});
+	}
+
+	/** Takes over the outgoing content's view model when the same input is set again (e.g. a forced reload) instead of releasing it. */
+	private _adoptOutgoingContent(input: SessionChangesEditorInput): void {
+		const outgoing = this._outgoingContent.value;
+		if (outgoing?.input !== input) {
+			return;
+		}
+		this._outgoingContent.clearAndLeak();
+		outgoing.retention.dispose();
 	}
 
 	private _releaseOutgoingContent(clearWidget: boolean): void {

@@ -474,11 +474,16 @@ suite('SessionChangesEditorInput', () => {
 			await switched;
 			const afterLoading = { shown: String(shownViewModel.get()), disposed: [...disposedViewModels] };
 			editor.clearInput();
+			await editor.setInput(incoming, { forceReload: true }, {}, CancellationToken.None);
+			await timeout(0);
+			const afterReload = { shown: String(shownViewModel.get()), disposed: [...disposedViewModels] };
+			editor.clearInput();
 			await timeout(0);
 
-			assert.deepStrictEqual({ whileLoading, afterLoading, afterClear: { shown: String(shownViewModel.get()), disposed: disposedViewModels } }, {
+			assert.deepStrictEqual({ whileLoading, afterLoading, afterReload, afterClear: { shown: String(shownViewModel.get()), disposed: disposedViewModels } }, {
 				whileLoading: { shown: 'outgoing', disposed: [] },
 				afterLoading: { shown: 'incoming', disposed: ['outgoing'] },
+				afterReload: { shown: 'incoming', disposed: ['outgoing'] },
 				afterClear: { shown: 'undefined', disposed: ['outgoing', 'incoming'] },
 			});
 		}));
