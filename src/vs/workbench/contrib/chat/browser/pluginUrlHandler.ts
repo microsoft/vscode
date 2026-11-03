@@ -9,14 +9,16 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../platform/agentHost/common/agent.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IURLHandler, IURLService } from '../../../../platform/url/common/url.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -26,17 +28,19 @@ import { AICustomizationManagementCommands } from '../common/aiCustomizationWork
 import { IChatSessionsService, INewSessionInAgentsWindowOptions, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID, SessionType } from '../common/chatSessionsService.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { ICustomizationHarnessService } from '../common/customizationHarnessService.js';
-import { isUntitledChatSession } from '../common/model/chatUri.js';
-import { MarketplaceReferenceKind, parseMarketplaceReference, parseProviderMarketplaceReference } from '../common/plugins/marketplaceReference.js';
-import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
+import { isUntitledChatSession, LocalChatSessionUri } from '../common/model/chatUri.js';
+import { IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, parseProviderMarketplaceReference } from '../common/plugins/marketplaceReference.js';
+import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { IAgentHostNewSessionFolderService } from './agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { getProviderMarketplaceSourceId } from './aiCustomization/customizationMarketplaceWorkbenchService.js';
 
-/**
- * Handles confirmed Copilot Agent Host marketplace links: `/add-marketplace?ref=owner/repo`
- * and `/install?source=owner/repo&plugin=name` under `vscode://chat-plugin`.
- */
+type PluginLinkTarget = IQuickPickItem & (
+	| { readonly id: 'vscode' }
+	| { readonly id: 'copilot'; readonly resource: URI }
+);
+
+/** Handles confirmed marketplace links for an explicitly selected installation owner on this machine. */
 export class PluginUrlHandler extends Disposable implements IWorkbenchContribution, IURLHandler {
 
 	static readonly ID = 'workbench.contrib.pluginUrlHandler';
@@ -44,7 +48,6 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 	constructor(
 		@IURLService urlService: IURLService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
-		@IAgentSessionsService private readonly sessionsService: IAgentSessionsService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IAgentHostUntitledProvisionalSessionService private readonly provisionalSessionService: IAgentHostUntitledProvisionalSessionService,
 		@IAgentHostNewSessionFolderService private readonly newSessionFolderService: IAgentHostNewSessionFolderService,
@@ -56,6 +59,8 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
 	) {
 		super();
 		this._register(urlService.registerHandler(this));
@@ -67,10 +72,7 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 		}
 
 		try {
-			if (this.entitlementService.sentiment.hidden || this.entitlementService.sentiment.disabledInWorkspace ||
-				this.configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled) !== true) {
-				throw new Error(localize('pluginLinksDisabled', "Plugin links are unavailable because chat or plugins are disabled."));
-			}
+			this.checkEnabled();
 
 			const params = new URLSearchParams(uri.query);
 			const sourceKey = uri.path === '/install' ? 'source' : 'ref';
@@ -85,14 +87,21 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 			}
 
 			await this.hostService.focus(mainWindow);
+			if (isWeb || this.environmentService.remoteAuthority) {
+				throw new Error(localize('pluginLinkLocalOnly', "Plugin links can only change installations on this machine. Open the link in a local VS Code window."));
+			}
+			const target = await this.selectTarget();
+			if (!target) {
+				return true;
+			}
 			const { confirmed } = await this.dialogService.confirm({
 				type: 'warning',
 				message: pluginName
-					? localize('confirmAddMarketplaceAndPlugin', "Add Marketplace '{0}' and Install Plugin '{1}'?", ref.displayLabel, pluginName)
-					: localize('confirmAddMarketplace', "Add Plugin Marketplace '{0}'?", ref.displayLabel),
+					? localize('confirmAddMarketplaceAndPlugin', "Install Plugin '{0}' for {1} on This Machine?", pluginName, target.label)
+					: localize('confirmAddMarketplace', "Add Plugin Marketplace for {0} on This Machine?", target.label),
 				detail: pluginName
-					? localize('confirmMarketplacePluginLinkDetail', "An external application wants to add this marketplace and install a plugin. Plugins can run code on your machine. Continue only if you initiated this request and trust this source.\n\nSource: {0}", ref.rawValue)
-					: localize('confirmMarketplaceLinkDetail', "An external application wants to add this plugin marketplace. Continue only if you initiated this request and trust this source.\n\nSource: {0}", ref.rawValue),
+					? localize('confirmMarketplacePluginLinkDetail', "An external application wants to add this marketplace and install a plugin. Plugins can run code on your machine. Continue only if you initiated this request and trust this source.\n\nSource: {0}\n\nInstallation owner: {1}\n{2}", ref.rawValue, target.label, target.detail ?? '')
+					: localize('confirmMarketplaceLinkDetail', "An external application wants to add this plugin marketplace. Continue only if you initiated this request and trust this source.\n\nSource: {0}\n\nInstallation owner: {1}\n{2}", ref.rawValue, target.label, target.detail ?? ''),
 				primaryButton: pluginName
 					? localize('addMarketplaceAndInstallButton', "&&Add Marketplace and Install")
 					: localize('addMarketplaceButton', "&&Add Marketplace"),
@@ -101,8 +110,13 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 			if (!confirmed) {
 				return true;
 			}
+			this.checkEnabled();
+			if (target.id === 'vscode') {
+				await this.installForVSCode(ref, pluginName ?? undefined);
+				return true;
+			}
 
-			const session = await this.resolveSession();
+			const session = await this.resolveSession(target.resource);
 			if (!session) {
 				return true;
 			}
@@ -113,8 +127,10 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 				throw new Error(localize('pluginLinkHarnessUnavailable', "The selected Copilot Agent Host session does not support marketplace management or plugin installation."));
 			}
 
+			this.checkEnabled();
 			const marketplaces = await managementProvider.list(session.backendResource);
 			const existingMarketplace = marketplaces.find(marketplace => parseProviderMarketplaceReference(marketplace.source)?.canonicalId === ref.canonicalId);
+			this.checkEnabled();
 			const marketplace = existingMarketplace ?? await managementProvider.add(session.backendResource, ref.rawValue);
 			if (pluginName && installProvider) {
 				let cursor: string | undefined;
@@ -123,6 +139,7 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 					const page = await managementProvider.queryMarketplace(session.backendResource, marketplace, { query: pluginName, cursor }, CancellationToken.None);
 					const plugin = page.items.find(item => item.installation?.kind === 'providerPlugin' && item.installation.name === pluginName);
 					if (plugin) {
+						this.checkEnabled();
 						await installProvider.install(session.backendResource, {
 							...plugin,
 							sourceId: getProviderMarketplaceSourceId(marketplace.name),
@@ -151,8 +168,69 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 		return true;
 	}
 
-	private async resolveSession(): Promise<{ resource: URI; backendResource: URI } | undefined> {
-		let resource = this.harnessService.activeSessionResource.get();
+	private checkEnabled(): void {
+		if (this.entitlementService.sentiment.hidden || this.entitlementService.sentiment.disabledInWorkspace ||
+			this.configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled) !== true) {
+			throw new Error(localize('pluginLinksDisabled', "Plugin links are unavailable because chat or plugins are disabled."));
+		}
+	}
+
+	private async selectTarget(): Promise<PluginLinkTarget | undefined> {
+		const resource = this.harnessService.activeSessionResource.get();
+		const targets: PluginLinkTarget[] = [{
+			id: 'vscode',
+			label: localize('pluginLinkVSCode', "VS Code"),
+			description: localize('pluginLinkThisMachine', "This machine"),
+			detail: localize('pluginLinkVSCodeDetail', "VS Code-managed shared plugins. Availability depends on each harness; this is not a native Claude or Codex installation."),
+		}];
+		if (await this.chatSessionsService.canResolveChatSession(SessionType.AgentHostCopilot)) {
+			targets.push({
+				id: 'copilot',
+				label: localize('pluginLinkCopilot', "Copilot"),
+				description: localize('pluginLinkThisMachine', "This machine"),
+				detail: localize('pluginLinkCopilotDetail', "Copilot-managed user installation. This does not install the plugin for other harnesses."),
+				resource,
+			});
+		}
+		return this.quickInputService.pick(targets, {
+			title: localize('pluginLinkSelectTarget', "Choose Plugin Installation Target"),
+			placeHolder: localize('pluginLinkSelectTargetPlaceholder', "Choose which installation on this machine to change"),
+			matchOnDetail: true,
+			activeItem: resource.scheme === SessionType.AgentHostCopilot ? targets.find(target => target.id === 'copilot') : targets[0],
+		});
+	}
+
+	private async installForVSCode(reference: IMarketplaceReference, pluginName: string | undefined): Promise<void> {
+		if (pluginName) {
+			const result = await this.pluginInstallService.installPluginFromSource(reference.rawValue, { plugin: pluginName });
+			if (!result.success) {
+				if (result.message) {
+					throw new Error(result.message);
+				}
+				return;
+			}
+		} else {
+			if (!await this.pluginInstallService.ensureMarketplaceTrusted(reference)) {
+				return;
+			}
+			this.checkEnabled();
+			const configured = this.configurationService.inspect<readonly (string | object)[]>(ChatConfiguration.PluginMarketplaces).userValue ?? [];
+			if (!parseMarketplaceReferences(configured).some(value => value.canonicalId === reference.canonicalId)) {
+				await this.configurationService.updateValue(ChatConfiguration.PluginMarketplaces, [...configured, reference.rawValue], ConfigurationTarget.USER);
+			}
+		}
+		if (this.environmentService.isSessionsWindow) {
+			this.notificationService.info(localize('pluginLinkVSCodeComplete', "The plugin link was completed for VS Code-managed shared plugins on this machine, not a harness-native installation."));
+		} else {
+			await this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, {
+				showDiscover: true,
+				sessionResource: LocalChatSessionUri.getNewSessionUri(),
+				searchQuery: pluginName ?? '',
+			});
+		}
+	}
+
+	private async resolveSession(resource: URI): Promise<{ resource: URI; backendResource: URI } | undefined> {
 		if (resource.scheme === SessionType.AgentHostCopilot) {
 			const provisional = this.provisionalSessionService.get(resource);
 			if (provisional) {
@@ -163,19 +241,10 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 			}
 		}
 
-		if (!await this.chatSessionsService.canResolveChatSession(SessionType.AgentHostCopilot)) {
-			throw new Error(localize('pluginLinkCopilotUnavailable', "Plugin links require Copilot on the Agent Host."));
-		}
-		await this.sessionsService.model.resolve(SessionType.AgentHostCopilot, error => { throw error; });
-		const existing = this.sessionsService.model.sessions.find(session => session.providerType === SessionType.AgentHostCopilot && !session.isArchived());
-		if (existing) {
-			return { resource: existing.resource, backendResource: existing.resource };
-		}
-
 		const { confirmed } = await this.dialogService.confirm({
 			type: 'question',
 			message: localize('createPluginLinkSession', "Create a Copilot Agent Host Session for This Link?"),
-			detail: localize('createPluginLinkSessionDetail', "Adding a marketplace requires a Copilot Agent Host session. No existing session is available."),
+			detail: localize('createPluginLinkSessionDetail', "The selected installation target requires a local Copilot Agent Host session. No active Copilot session is available."),
 			primaryButton: localize('createPluginLinkSessionButton', "&&Create Session"),
 		});
 		if (!confirmed) {
