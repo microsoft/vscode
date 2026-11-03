@@ -615,15 +615,17 @@ export class ClaudeSdkPipeline extends Disposable {
 				this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] rebind-after-dispose: warm dispose failed: ${err}`));
 			throw new CancellationError();
 		}
-		// Abort issued while we were awaiting the rematerializer landed on
-		// the placeholder. Discard the freshly-built pair and surface a
-		// cancellation to the in-flight `send`.
-		if (placeholder.signal.aborted) {
+		// Cancellation starts before the old query acknowledges interruption and aborts the placeholder.
+		const pendingAbort = this._abortPromise;
+		if (placeholder.signal.aborted || pendingAbort) {
 			built.abortController.abort();
 			void Promise.resolve(built.warm[Symbol.asyncDispose]()).catch((err: unknown) =>
 				this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] rebind-aborted: warm dispose failed: ${err}`));
-			void Promise.resolve(oldWarm[Symbol.asyncDispose]()).catch((err: unknown) =>
-				this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] previous WarmQuery dispose failed during aborted rebind: ${err}`));
+			// A pending abort owns old-runtime teardown after its interrupt completes.
+			if (!pendingAbort) {
+				void Promise.resolve(oldWarm[Symbol.asyncDispose]()).catch((err: unknown) =>
+					this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] previous WarmQuery dispose failed during aborted rebind: ${err}`));
+			}
 			this._queue.failAll(new CancellationError());
 			this._needsRebind = true;
 			throw new CancellationError();

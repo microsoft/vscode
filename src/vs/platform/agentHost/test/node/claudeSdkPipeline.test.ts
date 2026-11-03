@@ -7,7 +7,7 @@ import type { Query, SDKControlInterruptResponse, SDKMessage, SDKUserMessage, Wa
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { AsyncIterableSource, DeferredPromise } from '../../../../base/common/async.js';
+import { AsyncIterableSource, DeferredPromise, Promises } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -399,6 +399,82 @@ suite('ClaudeSdkPipeline', () => {
 				activeTurn: pipeline.hasActiveTurn,
 			}, { transportClosed: true, disposals: 1, activeTurn: false });
 		});
+
+		for (const first of ['rebuild', 'interrupt'] as const) {
+			test(`cancellation discards a late runtime when ${first} completes first`, async () => {
+				const warm = new FakeWarmQuery();
+				const query: Query = new ImmediatelyDoneQuery();
+				const messages = new AsyncIterableSource<SDKMessage>();
+				disposables.add(toDisposable(() => messages.resolve()));
+				const iterator = messages.asyncIterable[Symbol.asyncIterator]();
+				const prompts = new DeferredPromise<AsyncIterator<SDKUserMessage>>();
+				sinon.stub(query, 'next').callsFake(() => iterator.next());
+				sinon.stub(warm, 'query').callsFake(prompt => {
+					assert.ok(typeof prompt !== 'string');
+					prompts.complete(prompt[Symbol.asyncIterator]());
+					return query;
+				});
+				const interrupted = new DeferredPromise<SDKControlInterruptResponse | undefined>();
+				sinon.stub(query, 'interrupt').returns(interrupted.p);
+				let closedBeforeInterrupt = false;
+				sinon.stub(warm, Symbol.asyncDispose).callsFake(async () => {
+					closedBeforeInterrupt ||= !interrupted.isResolved;
+					warm.asyncDisposeCount++;
+					messages.resolve();
+				});
+				const queryReturn = sinon.stub(query, 'return').callsFake(async () => {
+					messages.resolve();
+					return { done: true, value: undefined };
+				});
+				const { pipeline } = createPipeline(disposables, warm);
+				const seed = pipeline.send(makePrompt('seed'), 'turn-seed');
+				await (await prompts.p).next();
+				messages.emitOne(makeResultSuccess('sess-1'));
+				await seed;
+
+				const enteredRebuild = new DeferredPromise<void>();
+				const releaseRebuild = new DeferredPromise<{ warm: FakeWarmQuery; abortController: AbortController }>();
+				pipeline.attachRematerializer({
+					async rematerialize() {
+						enteredRebuild.complete();
+						return releaseRebuild.p;
+					},
+				});
+				const cancelled = assert.rejects(pipeline.rebindForRestart(), isCancellationError);
+				await enteredRebuild.p;
+				const abort = pipeline.abort();
+				const fresh = { warm: new FakeWarmQuery(), abortController: new AbortController() };
+				try {
+					if (first === 'rebuild') {
+						releaseRebuild.complete(fresh);
+						await cancelled;
+					} else {
+						interrupted.complete(undefined);
+						await abort;
+					}
+				} finally {
+					interrupted.complete(undefined);
+					releaseRebuild.complete(fresh);
+					await Promises.settled([abort, cancelled]);
+				}
+
+				assert.deepStrictEqual({
+					closedBeforeInterrupt,
+					queryReturns: queryReturn.callCount,
+					freshAborted: fresh.abortController.signal.aborted,
+					freshDisposals: fresh.warm.asyncDisposeCount,
+					freshQueries: fresh.warm.queryCallCount,
+					aborted: pipeline.isAborted,
+				}, {
+					closedBeforeInterrupt: false,
+					queryReturns: 1,
+					freshAborted: true,
+					freshDisposals: 1,
+					freshQueries: 0,
+					aborted: true,
+				});
+			});
+		}
 
 		test('flips the controller signal and isAborted', () => {
 			const { pipeline, controller } = createPipeline(disposables);
