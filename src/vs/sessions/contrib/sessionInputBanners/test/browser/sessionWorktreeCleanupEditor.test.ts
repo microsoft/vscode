@@ -106,6 +106,26 @@ suite('SessionWorktreeCleanupEditor', () => {
 		return [...row.querySelectorAll<HTMLElement>('.actions .action-label')].find(action => action.textContent === label)!;
 	}
 
+	test('shows ownership once for idle worktrees and preserves cleanup failure and progress details', async () => {
+		const { container } = await openEditor([
+			createWorktree('ready', '/repos/app'),
+			createUnlinkedWorktree('unlinked'),
+			{ ...createWorktree('failed', '/repos/app', 'archived'), cleanupStatus: { state: 'failed', message: 'locked directory' } },
+			{ ...createUnlinkedWorktree('failed-unlinked'), cleanupStatus: { state: 'failed', message: 'locked directory' } },
+			{ ...createWorktree('pending', '/repos/app', 'archived'), cleanupStatus: { state: 'pending' } },
+		]);
+		assert.deepStrictEqual(Object.fromEntries([...container.querySelectorAll('.session-worktree-cleanup-row')].map(row => [
+			row.querySelector('.session-worktree-cleanup-session-link')?.textContent,
+			row.querySelector('.status')?.textContent,
+		])), {
+			ready: 'Has session',
+			'agents/unlinked': 'No matching session',
+			failed: 'Has session: Cleanup failed; retry scheduled: locked directory',
+			'agents/failed-unlinked': 'No matching session: Cleanup failed; retry scheduled: locked directory',
+			pending: 'Has session: Cleanup scheduled…',
+		});
+	});
+
 	test('row Clean Up submits only its worktree and preserves other checkbox choices', async () => {
 		const worktrees = [createWorktree('selected', '/repos/app'), createWorktree('unchecked', '/repos/app'), createWorktree('active', '/repos/app', 'active')];
 		const { container, cleaned } = await openEditor(worktrees);
@@ -608,7 +628,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 			status: rowStatus(container),
 			available: container.querySelector('.session-worktree-cleanup-list .session-worktree-cleanup-session-link')?.textContent,
 			checked: container.querySelector('.session-worktree-cleanup-list [role="checkbox"]')?.getAttribute('aria-checked'),
-		}, { measuring: 'measuring', scans: 1, status: 'Ready', available: 'measuring', checked: 'true' });
+		}, { measuring: 'measuring', scans: 1, status: 'Has session', available: 'measuring', checked: 'true' });
 	});
 
 	test('supports keyboard force removal and moves failed attempts back to needs attention', async () => {
@@ -1596,7 +1616,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 			queued: {
 				requests: 1,
 				disabled: 'true',
-				reasons: ['Queued for cleanup…', 'Queued for cleanup…', 'Ready'],
+				reasons: ['Queued for cleanup…', 'Queued for cleanup…', 'Has session'],
 				summary: 'Cleanup: 0 of 3 worktrees removed, 3 pending, 0 failed, 0 need attention.',
 			},
 			afterScheduling: { sameRemainingRow: true, checked: 'false' },
@@ -2457,7 +2477,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		}, {
 			ages: [0],
 			rows: [
-				{ title: 'recent', workspace: 'app', disabled: null, reason: 'Ready', storage: '100B' },
+				{ title: 'recent', workspace: 'app', disabled: null, reason: 'Has session', storage: '100B' },
 				{ title: 'active', workspace: 'app', disabled: null, reason: 'Active session', storage: '100B' },
 				{ title: 'running', workspace: 'other', disabled: undefined, reason: 'Running', storage: '100B' },
 				{ title: 'unmeasured', workspace: 'other', disabled: undefined, reason: 'Couldn\'t measure storage', storage: 'Not measured' },

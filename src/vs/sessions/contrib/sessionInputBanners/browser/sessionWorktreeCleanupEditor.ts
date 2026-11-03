@@ -1018,8 +1018,8 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 					}
 				} else if (column === 'status') {
 					const ownership = worktree.session ? localize('sessionWorktreeCleanup.hasSession', "Has session") : localize('sessionWorktreeCleanup.noMatchingSession', "No matching session");
-					const state = this.getWorktreeCleanupLabel(worktree, this.isWorktreeCleaning(worktree)) ?? localize('sessionWorktreeCleanup.ready', "Ready");
-					container.textContent = localize('sessionWorktreeCleanup.ownershipAndState', "{0}: {1}", ownership, state);
+					const state = this.getWorktreeCleanupLabel(worktree, this.isWorktreeCleaning(worktree));
+					container.textContent = state && state !== ownership ? localize('sessionWorktreeCleanup.ownershipAndState', "{0}: {1}", ownership, state) : ownership;
 					dynamicDisposables.add(this.hoverService.setupDelayedHoverAtMouse(container, { content: container.textContent }, this.cellHoverOptions));
 				} else {
 					const storage = this.getWorktreeStorageLabel(worktree);
