@@ -33,6 +33,16 @@ suite('Mime', () => {
 		}
 	});
 
+	test('normalize preserves invalid MIME types with line terminators', () => {
+		for (const lineTerminator of ['\n', '\r', '\u2028', '\u2029']) {
+			const mimeType = `Text${lineTerminator}/PLAIN`;
+			assert.deepStrictEqual([
+				normalizeMimeType(mimeType),
+				normalizeMimeType(mimeType, true),
+			], [mimeType, undefined]);
+		}
+	});
+
 	test('getExtensionForMimeType', () => {
 		// Note: for MIME types with multiple extensions (e.g., image/jpg -> .jpe, .jpeg, .jpg),
 		// the function returns the first matching extension in iteration order

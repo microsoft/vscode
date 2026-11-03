@@ -114,7 +114,7 @@ export function getExtensionForMimeType(mimeType: string): string | undefined {
 	return undefined;
 }
 
-const _simplePattern = /^([^/]+)\/(.+?)(;.+)?$/;
+const _simplePattern = /^(.+?)\/(.+?)(;.+)?$/;
 
 export function normalizeMimeType(mimeType: string): string;
 export function normalizeMimeType(mimeType: string, strict: true): string | undefined;
