@@ -1094,8 +1094,8 @@ suite('GitHubResourceDetails', () => {
 			text: element?.textContent,
 		}, {
 			acquisitions: 2,
-			failedText: 'Details unavailableOpen Issue #1',
-			failedAction: { href: resource.toString(true), tabbable: ['Open Issue #1'], opened: 1 },
+			failedText: resource.toString(true),
+			failedAction: { href: undefined, tabbable: [], opened: 0 },
 			retry: { text: 'Issue #1', busy: 'true' },
 			busy: 'false',
 			className: 'chat-pill-hover-content sessions-issue-hover compact',

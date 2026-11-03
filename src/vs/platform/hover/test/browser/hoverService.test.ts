@@ -112,6 +112,23 @@ suite('HoverService', () => {
 		interactive.dispose();
 	});
 
+	test('hidden previews suspend outside-click dismissal until restored', () => {
+		const hover = showHover('Preview', undefined, { persistence: { sticky: true } });
+		const editor = document.createElement('div');
+		const toolbarButton = document.createElement('button');
+		fixture.append(editor, toolbarButton);
+		hover.setVisible?.(false);
+		editor.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		const afterEditorClick = hover.isDisposed;
+		toolbarButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		const afterToolbarClick = hover.isDisposed;
+		hover.setVisible?.(true);
+		editor.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		assert.deepStrictEqual({ afterEditorClick, afterToolbarClick, afterRestoredClick: hover.isDisposed }, {
+			afterEditorClick: false, afterToolbarClick: false, afterRestoredClick: true,
+		});
+	});
+
 	function createTarget(): HTMLElement {
 		const target = document.createElement('div');
 		target.style.width = '100px';

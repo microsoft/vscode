@@ -344,7 +344,7 @@ export class HoverService extends Disposable implements IHoverService {
 		}
 
 		hoverDisposables.add(addDisposableListener(getWindow(options.container).document, EventType.MOUSE_DOWN, e => {
-			if (!isAncestor(e.target as HTMLElement, hover.domNode)) {
+			if (hover.isVisible && !isAncestor(e.target as HTMLElement, hover.domNode)) {
 				this._hideHoverAndDescendants(hover);
 			}
 		}));

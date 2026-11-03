@@ -1313,6 +1313,7 @@ export class ChatInlineAttachments extends Disposable {
 		target.setAttribute('aria-controls', content.element.id);
 		ChatInlineAttachments._previewOwners.set(content.element, this);
 		store.add(toDisposable(() => {
+			const hadFocus = dom.isAncestorOfActiveElement(content.element.closest('.monaco-hover') ?? content.element);
 			ChatInlineAttachments._previewOwners.delete(content.element);
 			this._activePillHoverContent = undefined;
 			this._activePillHoverWidget = undefined;
@@ -1324,13 +1325,17 @@ export class ChatInlineAttachments extends Disposable {
 				this._needsRender = true;
 				this._scheduleReconcile();
 			}
+			if (hadFocus) {
+				this._editor.focus();
+			}
 		}));
+		const isInteractive = () => content.tabbableElements.some(element => element.tabIndex >= 0);
 		const hover = this._hoverService.showInstantHover({
 			content: content.element,
 			target,
 			style: HoverStyle.Pointer,
-			accessibility: { role: 'dialog', label: localize('chat.inlineAttachment.preview', "Reference preview") },
-			trapFocus: true,
+			accessibility: isInteractive() ? { role: 'dialog', label: localize('chat.inlineAttachment.preview', "Reference preview") } : undefined,
+			trapFocus: false,
 			persistence: { sticky: true, hideOnHover: false },
 			onDidHide: () => this._activePillHover.clear(),
 		});
@@ -1339,34 +1344,16 @@ export class ChatInlineAttachments extends Disposable {
 			return;
 		}
 		this._activePillHoverWidget = store.add(hover);
-		const clearLoadingSemantics = () => {
-			content.element.removeAttribute('role');
-			content.element.removeAttribute('aria-label');
-			content.element.removeAttribute('tabindex');
-		};
 		const focusTarget = content.tabbableElements.find(element => element.isConnected && element.tabIndex >= 0);
-		if (focusTarget) {
-			clearLoadingSemantics();
-			focusTarget.focus();
-		} else {
-			content.element.tabIndex = -1;
-			content.element.setAttribute('role', 'group');
-			content.element.setAttribute('aria-label', content.element.getAttribute('aria-busy') === 'true'
-				? localize('chat.inlineAttachment.previewLoading', "Reference details loading")
-				: localize('chat.inlineAttachment.preview', "Reference preview"));
-			content.element.focus();
-		}
+		focusTarget?.focus();
 		const loadingObserver = new MutationObserver(() => {
 			if (content.element.getAttribute('aria-busy') === 'false') {
-				const focusTarget = content.tabbableElements.find(element => element.isConnected && element.tabIndex >= 0);
-				if (focusTarget) {
-					const ownsFocus = dom.getActiveElement() === content.element;
-					clearLoadingSemantics();
-					if (ownsFocus) {
-						focusTarget.focus();
-					}
+				const container = content.element.closest('.monaco-hover');
+				container?.setAttribute('role', isInteractive() ? 'dialog' : 'tooltip');
+				if (isInteractive()) {
+					container?.setAttribute('aria-label', localize('chat.inlineAttachment.preview', "Reference preview"));
 				} else {
-					content.element.setAttribute('aria-label', localize('chat.inlineAttachment.preview', "Reference preview"));
+					container?.removeAttribute('aria-label');
 				}
 			}
 		});
@@ -1391,16 +1378,19 @@ export class ChatInlineAttachments extends Disposable {
 
 	getAccessiblePreviewProvider(type: AccessibleViewType): AccessibleContentProvider | undefined {
 		const content = this._activePillHoverContent;
-		if (!content || this._activePillHoverWidget?.isDisposed) {
+		if (!content || this._activePillHoverWidget?.isDisposed || !content.tabbableElements.some(element => element.isConnected && element.tabIndex >= 0)) {
 			return undefined;
 		}
 		const focused = dom.getActiveElement();
-		const help = localize('chat.inlineAttachment.previewHelp', "You are in a reference preview. Press Tab or Shift+Tab to move through its links and copy-branch buttons. Activate the issue or pull request number to open the referenced item. If details are unavailable, use the Open link. While details are loading and no links are available, Tab or Shift+Tab returns to the composer. Shift+Tab from the first link, Tab from the last control, and Escape dismiss the preview and return to the composer. Open Accessible View{0} to read the preview as text.", '<keybinding:editor.action.accessibleView>');
+		const help = localize('chat.inlineAttachment.previewHelp', "You are in a reference preview. Press Tab or Shift+Tab to move through its links and copy-branch buttons. Activate the issue or pull request number to open the referenced item. Unresolved or unavailable details are plain, noninteractive hover text. Shift+Tab from the first link, Tab from the last control, and Escape dismiss the preview and return to the composer. Open Accessible View{0} to read the preview as text.", '<keybinding:editor.action.accessibleView>');
 		const changed = new Emitter<void>();
-		let accessibleText = content.element.innerText;
+		const readPreviewText = () => this._previewInAccessibleView
+			? [...content.element.children].map(element => element.textContent ?? '').join('\n') || content.element.textContent || ''
+			: content.element.innerText;
+		let accessibleText = readPreviewText();
 		const readText = () => {
 			if (!this._previewInAccessibleView) {
-				accessibleText = content.element.innerText;
+				accessibleText = readPreviewText();
 			}
 			return accessibleText;
 		};
@@ -1417,19 +1407,17 @@ export class ChatInlineAttachments extends Disposable {
 					: currentContent?.tabbableElements.find(element => element.isConnected && element.tabIndex >= 0);
 				if (focusTarget) {
 					focusTarget.focus();
-				} else if (currentContent?.element.isConnected) {
-					currentContent.element.tabIndex = -1;
-					currentContent.element.focus();
 				} else {
 					this._editor.focus();
 				}
 			},
 			AccessibilityVerbositySettingId.Hover,
 			() => {
+				accessibleText = readPreviewText();
 				this._previewInAccessibleView = true;
 				this._activePillHoverWidget?.setVisible?.(false);
 				const observer = new MutationObserver(() => {
-					accessibleText = [...content.element.children].map(element => element.textContent ?? '').join('\n') || content.element.textContent || '';
+					accessibleText = readPreviewText();
 					changed.fire();
 				});
 				observer.observe(content.element, { childList: true, subtree: true, characterData: true });
@@ -1459,8 +1447,8 @@ export class ChatInlineAttachments extends Disposable {
 			if (target) {
 				target.focus();
 			} else {
-				content.element.tabIndex = -1;
-				content.element.focus();
+				this._activePillHover.clear();
+				this._editor.focus();
 			}
 		} else if (e.key === 'Tab' && e.shiftKey) {
 			this._activePillHover.clear();

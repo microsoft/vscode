@@ -137,6 +137,27 @@ suite('ChatAttachmentsContentPart', () => {
 			});
 		}
 
+		for (const resource of [
+			'https://github.com/microsoft/vscode/pull/not-a-number',
+			'https://github.com/microsoft/vscode/discussions/123',
+			'https://example.com/microsoft/vscode/pull/123',
+			'https://example.com/artifact/123',
+		]) {
+			test(`does not preview an unsupported reference: ${resource}`, () => {
+				const createHover = sinon.stub(GitHubResourceDetailsResolver.prototype, 'createHover');
+				const labels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+				const widget = disposables.add(instantiationService.createInstance(DefaultChatAttachmentWidget,
+					undefined, undefined, { kind: 'generic', id: `github-context:${resource}`, name: 'Reference', value: resource }, undefined, undefined,
+					{ shouldFocusClearButton: false, supportsDeletion: true }, dom.$('.chat-inline-attachment'), labels));
+				assert.deepStrictEqual({
+					supportsPreview: widget.supportsPreview,
+					preview: widget.getPreviewHoverContent(),
+					popup: widget.element.getAttribute('aria-haspopup'),
+					requested: createHover.callCount,
+				}, { supportsPreview: false, preview: undefined, popup: null, requested: 0 });
+			});
+		}
+
 		test('invalidates old-account content and reacquires the preview on reopening', () => {
 			const changed = disposables.add(new Emitter<void>());
 			instantiationService.stub(IWorkbenchGitHubService, upcastPartial<IWorkbenchGitHubService>({ onDidChangeDefaultClient: changed.event }));

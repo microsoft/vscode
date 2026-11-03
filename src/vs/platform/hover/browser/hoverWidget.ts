@@ -64,6 +64,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	private _x: number = 0;
 	private _y: number = 0;
 	private _isLocked: boolean = false;
+	private _isVisible: boolean = true;
 	private _enableFocusTraps: boolean = false;
 	private _addedFocusTrap: boolean = false;
 	private _maxHeightRatioRelativeToWindow: number = 0.5;
@@ -78,9 +79,11 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 	get isDisposed(): boolean { return this._isDisposed; }
 	get isMouseIn(): boolean { return this._lockMouseTracker.isMouseIn; }
+	get isVisible(): boolean { return this._isVisible; }
 	get domNode(): HTMLElement { return this._hover.containerDomNode; }
 
 	setVisible(visible: boolean): void {
+		this._isVisible = visible;
 		this._hoverContainer.style.visibility = visible ? '' : 'hidden';
 		this._hoverContainer.setAttribute('aria-hidden', String(!visible));
 	}

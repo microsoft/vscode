@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IManagedHoverTooltipHTMLElement } from '../../../../base/browser/ui/hover/hover.js';
-import { $, append } from '../../../../base/browser/dom.js';
 import { DeferredPromise, Limiter, raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
@@ -20,7 +19,7 @@ import { getRequiredPullRequestChecksStatus } from '../../../../platform/github/
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchGitHubService } from '../../../services/github/common/githubService.js';
 import type { IActionListItemHover } from '../../../../platform/actionWidget/browser/actionList.js';
-import { createChatPillHover, createChatPillHoverElement } from '../../../browser/chatPillHover.js';
+import { createChatPillHover } from '../../../browser/chatPillHover.js';
 import { getChatReferencePillPresentation, type ChatReferenceKind } from '../../../browser/chatPills.js';
 import { createIssueResourceHover, createPullRequestResourceHover, getPullRequestResourceStatus, type GitHubChecksStatus, type IGitHubIssueHoverModel, type IGitHubPullRequestHoverModel, type IGitHubResourceHover } from './githubResourceHover.js';
 import { computeIssueIcon } from '../../../common/chatIssue.js';
@@ -465,19 +464,6 @@ export function createGitHubResourceDetailsHover(options: IGitHubResourceDetails
 		...createChatPillHover({
 			fallback: getCanonicalLabel(options.kind, options.target.number),
 			failedFallback: options.resource.toString(true),
-			createFailedContent: density => {
-				const element = createChatPillHoverElement(options.kind === 'issue' ? 'sessions-issue-hover' : 'sessions-pr-hover', density);
-				append(element, $('div', undefined, localize('githubReference.unavailable', "Details unavailable")));
-				const label = options.kind === 'issue'
-					? localize('githubReference.openIssue', "Open Issue #{0}", options.target.number)
-					: localize('githubReference.openPullRequest', "Open Pull Request #{0}", options.target.number);
-				const reference = append(element, $('a', { href: options.resource.toString(true) }, label));
-				reference.onclick = event => {
-					event.preventDefault();
-					options.onDidClickReference();
-				};
-				return { element, tabbableElements: [reference] };
-			},
 			createContent: density => createResolvedHover(options, density),
 			isFresh: () => options.resolver.isFresh(options.kind, options.target),
 			resolve: async () => {
