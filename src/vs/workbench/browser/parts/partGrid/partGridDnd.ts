@@ -389,9 +389,8 @@ export function registerPartTitleDrag(cell: HTMLElement, grid: object, cellId: s
 
 	// Before the group's title sees the drag, so that the group does not drag
 	disposables.add(addDisposableListener(cell, EventType.DRAG_START, e => {
-		const title = getEmptyTitleSpace(e.target);
-		const group = title?.parentElement;
-		if (!title || !group?.classList.contains('editor-group-container') || !cell.contains(group) || !canDragPart(group)) {
+		const title = getPartTitleDragSource(e.target, cell, canDragPart);
+		if (!title) {
 			return;
 		}
 
@@ -414,17 +413,23 @@ export function registerPartTitleDrag(cell: HTMLElement, grid: object, cellId: s
 }
 
 /**
- * The title of an editor group, if a target is its empty space, which drags
- * the group: the space beside its tabs, or its title itself.
+ * The title of an editor group in a cell, if a target is its empty space,
+ * which drags the group (the space beside its tabs, or its title itself),
+ * and the group is one whose title drags the part, as `canDragPart` says.
+ * What starts a drag of the part, whatever the events, decides with it.
  */
-function getEmptyTitleSpace(target: EventTarget | null): HTMLElement | undefined {
+export function getPartTitleDragSource(target: EventTarget | null, cell: HTMLElement, canDragPart: (group: HTMLElement) => boolean): HTMLElement | undefined {
 	if (!isHTMLElement(target)) {
 		return undefined;
 	}
 
 	const title = target.classList.contains('tabs-container') ? target.closest<HTMLElement>('.title') : target.classList.contains('title') ? target : null;
+	const group = title?.parentElement;
+	if (!title || !group?.classList.contains('editor-group-container') || !cell.contains(group) || !canDragPart(group)) {
+		return undefined;
+	}
 
-	return title ?? undefined;
+	return title;
 }
 
 function startPartDrag(e: DragEvent, element: HTMLElement, grid: object, cellId: string, label: string): void {
