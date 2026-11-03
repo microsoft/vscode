@@ -9,7 +9,8 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { ActionRunner, IAction } from '../../../../../base/common/actions.js';
 import { KeyCodeChord } from '../../../../../base/common/keybindings.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -23,12 +24,13 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { ActiveEditorContext, IsSessionsWindowContext, LayoutModeContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, IsSessionsWindowContext, LayoutModeContext, ResourceContextKey } from '../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { bindWindowLayoutContext, bindWindowTerminalsContext } from '../../../../../workbench/contrib/chatWindow/browser/chatWindowContextKeys.js';
 import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { terminalEditorId } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
+import { MoveTerminalEditorToPanelWhen } from '../../../../../workbench/contrib/terminal/browser/terminalMenus.js';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IContentPart, IEditorGroup, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -86,6 +88,20 @@ suite('Chat window terminal actions', () => {
 			scoped: true,
 			skipShell: true,
 		});
+	});
+
+	test('a terminal in a chat window does not offer to move into the panel, which is the main window\'s; a terminal in the main window does', () => {
+		const mainWindowContext = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const chatWindowContext = disposables.add(mainWindowContext.createScoped(mainWindow.document.createElement('div')));
+		disposables.add(bindWindowLayoutContext(chatWindowContext, { layoutMode: constObservable(ChatWindowLayoutMode.SideBySide), splitLayout: constObservable<ChatWindowSplitLayout>(ChatWindowLayoutMode.SideBySide) }));
+		// The context of the tab of a terminal editor, in a part of each window.
+		const offersMove = (windowContext: ContextKeyService | ReturnType<ContextKeyService['createScoped']>) => {
+			const tab = disposables.add(windowContext.createScoped(mainWindow.document.createElement('div')));
+			ResourceContextKey.Scheme.bindTo(tab).set(Schemas.vscodeTerminal);
+			return tab.contextMatchesRules(MoveTerminalEditorToPanelWhen);
+		};
+
+		assert.deepStrictEqual({ mainWindow: offersMove(mainWindowContext), chatWindow: offersMove(chatWindowContext) }, { mainWindow: true, chatWindow: false });
 	});
 
 	test('the panel key in a chat window, with or without its terminals and wherever the focus is in the window, toggles its terminals, never the main window\'s panel', () => {
