@@ -16,11 +16,12 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { GITHUB_ENVIRONMENTS_DOCS_URL } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Link } from '../../../../../platform/opener/browser/link.js';
-import { getDevTunnelsDetail, getGitHubEnvironmentsDetail, getOffDetail, GitHubEnvironmentsAvailability, RemoteConnectionsMethod, RemoteConnectionsSharing, RemoteConnectionsState, TUNNEL_ACCESS_DOCS_URL } from '../../../../../workbench/contrib/chat/electron-browser/remoteConnectionsSharing.js';
+import { getDevTunnelsDetail, getGitHubEnvironmentsDetail, getOffDetail, GitHubEnvironmentsAvailability, RemoteConnectionsMethod, RemoteConnectionsSharing, RemoteConnectionsState } from '../../../../../workbench/contrib/chat/electron-browser/remoteConnectionsSharing.js';
 import { TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID } from '../../../../common/sessionCommands.js';
 
 function getMethodLabel(method: Exclude<RemoteConnectionsMethod, 'off'>): string {
@@ -43,7 +44,7 @@ export class ThisComputerSection extends Disposable {
 	private readonly rename: Action;
 	private readonly radio: Radio;
 	private readonly status: HTMLElement;
-	private readonly description: HTMLElement;
+	private readonly descriptionText = localize('thisComputer.description', "Local sessions run directly here. Sharing lets other clients access agents and folders on this computer.");
 	private methods: readonly RemoteConnectionsMethod[] = [];
 	private itemsKey: string | undefined;
 	/** The method the user chose while it is being applied, so the control does not snap back meanwhile. */
@@ -85,11 +86,10 @@ export class ThisComputerSection extends Disposable {
 		this._register(this.radio.onDidSelect(index => this.select(this.methods[index])));
 
 		this.status = dom.append(this.domNode, dom.$('p.remotes-this-computer-status', { role: 'status' }));
-		this.description = dom.append(this.domNode, dom.$('p.remotes-this-computer-description', undefined,
-			localize('thisComputer.description', "Local sessions run directly here. Sharing lets other clients access agents and folders on this computer.")));
-		this._register(instantiationService.createInstance(Link, dom.append(this.domNode, dom.$('.remotes-this-computer-learn-more')), {
-			label: localize('thisComputer.learnMore', "Learn About Sharing"),
-			href: TUNNEL_ACCESS_DOCS_URL,
+		const description = dom.append(this.domNode, dom.$('p.remotes-this-computer-description', undefined, `${this.descriptionText} `));
+		this._register(instantiationService.createInstance(Link, description, {
+			label: localize('thisComputer.learnMore', "Learn More"),
+			href: GITHUB_ENVIRONMENTS_DOCS_URL,
 		}, {}));
 
 		this._register(this.sharing.onDidChange(() => this.update()));
@@ -102,7 +102,8 @@ export class ThisComputerSection extends Disposable {
 			localize('thisComputer.title', "This Computer"),
 			...(name ? [localize('thisComputer.accessibleName', "Sharing name: {0}", name)] : []),
 			this.status.textContent ?? '',
-			this.description.textContent ?? '',
+			this.descriptionText,
+			localize('thisComputer.accessibleLearnMore', "Learn More: {0}", GITHUB_ENVIRONMENTS_DOCS_URL),
 		].join('\n');
 	}
 

@@ -91,7 +91,3 @@
 .remotes-this-computer-description {
 	color: var(--vscode-descriptionForeground);
 }
-
-.remotes-this-computer-learn-more {
-	font-size: var(--vscode-fontSize-body2);
-}
