@@ -2013,7 +2013,6 @@
     "markdown-it": "^14.2.0",
     "morphdom": "^2.7.7",
     "picomatch": "^2.3.2",
-    "punycode": "^2.3.1",
     "vscode-languageclient": "^9.0.1",
     "vscode-languageserver-textdocument": "^1.0.11",
     "vscode-markdown-languageserver": "0.5.0",
@@ -2022,7 +2021,6 @@
   },
   "devDependencies": {
     "@vscode/hubrpc": "0.0.2-20",
-    "@types/dompurify": "^3.0.5",
     "@types/lodash.throttle": "^4.1.9",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "24.x",
