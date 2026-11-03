@@ -10,7 +10,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { SessionDatabase, runMigrations, sessionDatabaseMigrations, type ISessionDatabaseMigration } from '../../node/sessionDatabase.js';
-import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, FileEditKind, MessageKind } from '../../common/state/sessionState.js';
+import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, FileEditKind, MessageKind, ResponsePartKind, type ReasoningResponsePart } from '../../common/state/sessionState.js';
 import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IReviewedFileRecord, type ISessionCatalogSyncPendingSnapshot, type IToolResultResource } from '../../common/sessionDataService.js';
 import type { Database } from '@vscode/sqlite3';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -49,6 +49,26 @@ suite('SessionDatabase', () => {
 				} finally {
 					await database.close();
 				}
+			} finally {
+				await fs.rm(tempRoot, { recursive: true, force: true });
+			}
+		}).timeout(10_000);
+
+		test('stores a database file in write-ahead log mode', async () => {
+			const tempRoot = await fs.mkdtemp(join(tmpdir(), 'session-db-wal-' + generateUuid()));
+			try {
+				const databasePath = join(tempRoot, 'session.db');
+				const database = await SessionDatabase.open(databasePath);
+				let writeAheadLogWhileOpen: boolean;
+				try {
+					await database.setMetadata('key', 'value');
+					writeAheadLogWhileOpen = await fs.stat(`${databasePath}-wal`).then(() => true, () => false);
+				} finally {
+					await database.close();
+				}
+
+				// SQLite's file format version (header offset 18) is 2 for a database in write-ahead log mode.
+				assert.deepStrictEqual({ writeAheadLogWhileOpen, fileFormat: (await fs.readFile(databasePath)).readUInt8(18) }, { writeAheadLogWhileOpen: true, fileFormat: 2 });
 			} finally {
 				await fs.rm(tempRoot, { recursive: true, force: true });
 			}
@@ -627,6 +647,24 @@ suite('SessionDatabase', () => {
 			});
 		});
 
+		test('looks up output sizes for more tool calls than SQLite can bind as parameters', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.storeTerminalOutput('turn-1', 'tool-1', new Uint8Array([1, 2, 3]));
+			await db.storeTerminalOutput('turn-1', 'tool-2', new Uint8Array([4]));
+			const missing = Array.from({ length: 40_000 }, (_, index) => `missing-${index}`);
+
+			assert.deepStrictEqual({
+				sizes: await db.getTerminalOutputSizes(['tool-1', ...missing, 'tool-2', 'tool-1']),
+				none: await db.getTerminalOutputSizes([]),
+				onlyMissing: await db.getTerminalOutputSizes(missing.slice(0, 3)),
+			}, {
+				sizes: new Map([['tool-1', 3], ['tool-2', 1]]),
+				none: new Map(),
+				onlyMissing: new Map(),
+			});
+		});
+
 		test('repeated writes replace output without creating duplicate records', async () => {
 			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
 			db = database;
@@ -998,7 +1036,7 @@ suite('SessionDatabase', () => {
 				tables: await db.getAllTables(),
 				records: await db.getPersistedTurns(),
 			}, {
-				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				tables: ['assistant_response_parts', 'catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reasoning_timing', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
 				records: [{ kind: 'local', turnId: 'local-1', chatUri: 'chat', anchorTurnId: undefined, seq: 1, payload: '{"id":"local-1"}' }],
 			});
 		});
@@ -1099,6 +1137,54 @@ suite('SessionDatabase', () => {
 			await db.setTurnEventId('turn-1', 'evt-1');
 
 			assert.strictEqual(await db.getNextTurnEventId('does-not-exist'), undefined);
+		});
+	});
+
+	suite('reasoning response parts', () => {
+		test('reads submitted writes and preserves a recorded zero', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const part: ReasoningResponsePart = { kind: ResponsePartKind.Reasoning, id: 'run', content: 'Reasoning', startedAt: '1970-01-01T00:00:01.000Z', duration: 45_000 };
+			const write = db.setAssistantResponseParts('turn-1', 'response-1', [part]);
+			const first = [...await db.getAssistantResponseParts()];
+			await write;
+			await db.setAssistantResponseParts('turn-1', 'response-1', [{ ...part, duration: 0 }]);
+
+			assert.deepStrictEqual({ first, updated: [...await db.getAssistantResponseParts()] }, {
+				first: [['response-1', [part]]],
+				updated: [['response-1', [{ ...part, duration: 0 }]]],
+			});
+		});
+
+		test('fork remapping preserves timing and pruning removes it', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const part: ReasoningResponsePart = { kind: ResponsePartKind.Reasoning, id: 'run', content: 'Reasoning', startedAt: '1970-01-01T00:00:01.000Z', duration: 45_000 };
+			await db.setAssistantResponseParts('old-1', 'response-1', [part]);
+			await db.setAssistantResponseParts('old-2', 'response-2', [part]);
+			await db.remapTurnIds(new Map([['old-1', 'new-1']]));
+			const forked = [...await db.getAssistantResponseParts()];
+			await db.deleteTurn('new-1');
+
+			assert.deepStrictEqual({ forked, pruned: [...await db.getAssistantResponseParts()] }, {
+				forked: [['response-1', [part]]], pruned: [],
+			});
+		});
+
+		test('rejects invalid reasoning timing', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await assert.rejects(db.setAssistantResponseParts('turn', 'response', [{ kind: ResponsePartKind.Reasoning, id: 'run', content: 'Reasoning', startedAt: 'invalid', duration: 1 }]), /Invalid assistant response parts/);
+			await assert.rejects(db.setAssistantResponseParts('turn', 'response', [{ kind: ResponsePartKind.Reasoning, id: 'run', content: 'Reasoning', duration: -1 }]), /Invalid assistant response parts/);
+		});
+
+		test('upgrades the aggregate timing schema without pretending its totals describe individual runs', async () => {
+			const legacy = await TestableSessionDatabase.open(':memory:', sessionDatabaseMigrations.filter(migration => migration.version <= 17));
+			await legacy.createTurn('turn');
+			await legacy.setTurnEventId('turn', 'native-turn');
+			await legacy.runRaw(`INSERT INTO reasoning_timing VALUES ('response', 'turn', '1970-01-01T00:00:01.000Z', 17000)`);
+			db = disposables.add(await TestableSessionDatabase.fromDb(await legacy.ejectDb()));
+
+			assert.deepStrictEqual({ parts: [...await db.getAssistantResponseParts()], nativeTurn: await db.getTurnEventId('turn') }, {
+				parts: [], nativeTurn: 'native-turn',
+			});
 		});
 	});
 
@@ -1977,7 +2063,7 @@ suite('SessionDatabase', () => {
 				title: await db.getMetadata('customTitle'),
 				snapshot: await db.getCatalogSyncSnapshot(),
 			}, {
-				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				tables: ['assistant_response_parts', 'catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reasoning_timing', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
 				title: 'After upgrade',
 				snapshot: snapshot(1),
 			});
@@ -2004,7 +2090,7 @@ suite('SessionDatabase', () => {
 				tables: await upgraded.getAllTables(),
 				snapshot: await upgraded.getCatalogSyncSnapshot(),
 			}, {
-				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				tables: ['assistant_response_parts', 'catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reasoning_timing', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
 				snapshot: snapshot(1),
 			});
 		});

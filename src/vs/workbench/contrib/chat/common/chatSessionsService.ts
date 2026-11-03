@@ -279,6 +279,8 @@ export interface IChatSessionItem {
 		readonly deletions: number;
 	} | readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[];
 	readonly archived?: boolean;
+	/** Whether a child chat supports archiving independently of its parent. */
+	readonly canArchive?: boolean;
 	/**
 	 * Authoritative read state, set by controllers that own it (see
 	 * {@link IChatSessionItemController.setChatSessionItemRead}). Otherwise
@@ -404,6 +406,8 @@ export interface IChatSessionServerRequest {
 	readonly isTerminalRequest?: boolean;
 	/** Reopen the existing request with this id instead of adding another request. */
 	readonly resume?: boolean;
+	/** An earlier request that the provider removed and this request replaces; it is removed when this request is added. */
+	readonly replacesRequestId?: string;
 	readonly origin?: IChatRequestOrigin;
 }
 
@@ -859,13 +863,16 @@ export interface IChatSessionItemsDelta {
 	readonly removed?: readonly URI[];
 }
 
+/** Automatic refreshes may reuse fresh data instead of starting another fetch. */
+export type ChatSessionRefreshReason = 'initial' | 'automatic' | 'manual';
+
 export interface IChatSessionItemController {
 
 	readonly onDidChangeChatSessionItems: Event<IChatSessionItemsDelta>;
 
 	get items(): readonly IChatSessionItem[];
 
-	refresh(token: CancellationToken): Promise<void>;
+	refresh(token: CancellationToken, reason?: ChatSessionRefreshReason): Promise<void>;
 
 	newChatSessionItem?(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
 
@@ -1031,10 +1038,10 @@ export interface IChatSessionsService {
 	getChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken, onError?: (error: unknown) => void): AsyncIterable<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }>;
 
 	/**
-	 * Forces the controllers to refresh their session items, optionally filtered by provider type.
+	 * Refreshes the controllers' session items, optionally filtered by provider type; automatic refreshes may reuse fresh data.
 	 * The optional callback observes provider errors without changing failure isolation.
 	 */
-	refreshChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken, onError?: (error: unknown) => void): Promise<void>;
+	refreshChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken, onError?: (error: unknown) => void, reason?: ChatSessionRefreshReason): Promise<void>;
 
 	/** @deprecated Use `getChatSessionItems` */
 	getInProgress(): { chatSessionType: string; count: number }[];

@@ -73,6 +73,8 @@ export interface IChatTipProvider {
 	readonly onDidChange: Event<void>;
 	provideTip(): IChatTip | undefined;
 	dismissTip(tipId: string): void;
+	resetSession?(): void;
+	clearDismissedTips?(): void;
 	hasMultipleTips?(): boolean;
 	navigateTip?(direction: 1 | -1): IChatTip | undefined;
 }
@@ -372,6 +374,9 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	}
 
 	resetSession(): void {
+		for (const provider of this._tipProviders) {
+			provider.resetSession?.();
+		}
 		this._shownTip = undefined;
 		this._tipRequestId = undefined;
 		this._contextKeyService = undefined;
@@ -412,6 +417,9 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		this._tipRequestId = undefined;
 		this._contextKeyService = undefined;
 		this._tipsHiddenForSession = false;
+		for (const provider of this._tipProviders) {
+			provider.clearDismissedTips?.();
+		}
 		this._onDidDismissTip.fire();
 	}
 

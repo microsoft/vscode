@@ -10,7 +10,6 @@ import { autorun, observableSignalFromEvent } from '../../../../base/common/obse
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IEditorContribution, ScrollType } from '../../../../editor/common/editorCommon.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -300,5 +299,3 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 		super.dispose();
 	}
 }
-
-registerEditorContribution(AgentFeedbackEditorWidgetContribution.ID, AgentFeedbackEditorWidgetContribution, EditorContributionInstantiation.Eventually);

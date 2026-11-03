@@ -12,6 +12,7 @@ import { Delayer, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, observableSignal } from '../../../../../../base/common/observable.js';
@@ -32,7 +33,7 @@ import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../..
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { CLOUD_SANDBOX_AGENT_PROVIDER } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { filterSessionConfigValues, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, isChatConfigProperty, getSessionConfigPresentationKey, getSessionModeProperty, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionApprovalLevel, SessionApprovalLevel, validateChatPickerConfigWrite, writeSessionApprovalLevel } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { filterSessionConfigValues, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, isChatConfigProperty, getSessionConfigPresentationKey, getSessionModeProperty, getSessionWorkspaceProperties, isHiddenSessionConfigProperty, isSessionConfigWritable, readSessionApprovalLevel, SessionApprovalLevel, validateChatPickerConfigWrite, writeSessionApprovalLevel } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { readSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
@@ -54,7 +55,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import type { IChatWidget } from '../../chat.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
-import { disableGlobalAutoApproveForPermissionSelection, isApprovalLevelDisabledByKnownPolicy, isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
+import { disableGlobalAutoApproveForPermissionSelection, getOrganizationDefaultApprovalLevel, isApprovalLevelDisabledByKnownPolicy, isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { withChatInputPickerMotion } from '../../widget/input/chatInputPickerActionItem.js';
@@ -66,7 +67,7 @@ import { isCopilotCliSessionType } from './agentHostToolSetEnablementService.js'
 import { BRANCH_PICKER_MAX_VISIBLE_ITEMS, ensureSelectedBranchPickerItem, filterBranchPickerItems } from './agentHostBranchPicker.js';
 import { AgentHostInitialSessionConfig, retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
 import { getCompactCodicon } from '../../chatIcons.js';
-import { dispatchAgentHostConfigChange, getAgentHostBackendChat, getAgentHostChatConfig, getAgentHostChatConfigChain, readAgentHostChatSandboxState } from './applyAgentHostSessionConfig.js';
+import { dispatchAgentHostConfigChange, getAgentHostBackendChat, getAgentHostChatConfig, hostPublishesCompleteChatConfig, getAgentHostChatConfigChain, readAgentHostChatSandboxState } from './applyAgentHostSessionConfig.js';
 import { IChatPhoneInputPresenter } from '../../widget/input/chatPhoneInputPresenter.js';
 import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, getPermissionLevelBadge, getPermissionLevelUnavailablePresentation, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, MODE_SECTION_ID, PERMISSIONS_SECTION_ID, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
@@ -162,7 +163,7 @@ function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon 
 	return undefined;
 }
 
-function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted = false, sandboxToggle?: IActionListItemInlineToggle, query?: string): IActionListItem<IConfigPickerItem>[] {
+function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted = false, sandboxToggle?: IActionListItemInlineToggle, query?: string, organizationDefault?: ChatPermissionLevel): IActionListItem<IConfigPickerItem>[] {
 	const pickerItems: readonly IConfigPickerItem[] = property === SessionConfigKey.Branch
 		? ensureSelectedBranchPickerItem(items, currentValue, query)
 		: items;
@@ -174,7 +175,7 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 		return {
 			kind: ActionListItemKind.Action,
 			label: item.label,
-			...(property === SessionConfigKey.AutoApprove ? getPermissionLevelBadge(item.value, disabled) : {}),
+			...(property === SessionConfigKey.AutoApprove ? getPermissionLevelBadge(item.value, disabled, organizationDefault) : {}),
 			...(unavailable ? { description: unavailable.description, ariaDescription: unavailable.ariaDescription } : { detail: disabled && typeof hover === 'string' ? hover : item.description }),
 			group: { title: '', icon: getConfigIcon(property, item.value) },
 			disabled,
@@ -403,7 +404,8 @@ export function isClaimedByDedicatedPicker(property: string, schema: SessionConf
 }
 
 export function isGenericConfigPickerProperty(property: string, schema: SessionConfigPropertySchema, isStartedSession: boolean, configSchema?: SessionConfigSchema): boolean {
-	return !isClaimedByDedicatedPicker(property, schema, configSchema)
+	return !isHiddenSessionConfigProperty(property)
+		&& !isClaimedByDedicatedPicker(property, schema, configSchema)
 		&& (!isStartedSession || schema.sessionMutable === true)
 		&& (schema.type === 'boolean' || (schema.type === 'string' && (!!schema.enumDynamic || !!schema.enum?.length)));
 }
@@ -681,7 +683,10 @@ export class AgentHostChatInputPicker extends Disposable {
 		const localBackend = toAgentHostBackendSessionUri(sessionResource, this._connectionsService);
 		if (localBackend && localProvider && isUntitledChatSession(sessionResource) && !provisionalBackend) {
 			this._subRef.clear();
-			if (!this._initialResolved || this._initialResolved.sessionResource.toString() !== sessionResource.toString()) {
+			const prepared = this._provisional.getResolvedConfig(sessionResource) ?? this._provisional.getPreparedSessionConfig(sessionResource);
+			if (prepared) {
+				this._initialResolved = { sessionResource, result: prepared };
+			} else if (!this._initialResolved || this._initialResolved.sessionResource.toString() !== sessionResource.toString()) {
 				this._initialResolved = undefined;
 				void this._refreshInitialResolved(sessionResource, localProvider, resolution);
 			}
@@ -705,7 +710,15 @@ export class AgentHostChatInputPicker extends Disposable {
 			return;
 		}
 
-		this._initialResolved = undefined;
+		if (!localProvider || !isUntitledChatSession(sessionResource) || !isEqual(this._initialResolved?.sessionResource, sessionResource) || resolution.connection !== this._connectionsService.ambientConnection) {
+			this._initialResolved = undefined;
+		}
+		if (localProvider && isUntitledChatSession(sessionResource) && resolution.connection === this._connectionsService.ambientConnection) {
+			const prepared = this._provisional.getPreparedSessionConfig(sessionResource);
+			if (prepared) {
+				this._initialResolved = { sessionResource, result: prepared };
+			}
+		}
 		this._cancelInitialResolve();
 		const ref = resolution.connection.getSubscription(StateComponents.Session, resolution.backendSession, 'AgentHostChatInputPicker');
 		const sub = ref.object;
@@ -739,7 +752,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		};
 		syncChat();
 		let availableApprovalModes = sub.value && !(sub.value instanceof Error) ? sub.value.config?.values.availableApprovalModes : undefined;
-		const listener = sub.onDidChange(() => {
+		const listener = Event.any(sub.onDidChange, sub.onDidError ?? Event.None)(() => {
 			syncChat();
 			const available = sub.value && !(sub.value instanceof Error) ? sub.value.config?.values.availableApprovalModes : undefined;
 			if (!equals(availableApprovalModes, available)) {
@@ -766,7 +779,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private async _refreshInitialResolved(sessionResource: URI, provider: string, resolution: IAgentHostSessionResolution): Promise<void> {
-		const result = await this._initialConfig.resolve(sessionResource, provider, resolution, this._readWorkingDirectory());
+		const result = await this._initialConfig.resolve(sessionResource, provider, resolution, this._readWorkingDirectory(), this._provisional.getInitialSessionConfig());
 		if (result && result === this._initialConfig.value && isEqual(this._widget.viewModel?.sessionResource, sessionResource) && this._initialConfig.isCurrent(sessionResource, resolution)) {
 			this._initialResolved = { sessionResource, result };
 			this._renderChip();
@@ -848,6 +861,9 @@ export class AgentHostChatInputPicker extends Disposable {
 			return model.hasActiveRequest.get() || model.isInputBlocked.get();
 		}
 		const target = this._subRef.value;
+		if (target && target.sub.value === undefined) {
+			return true;
+		}
 		if (!target || !isChatConfigProperty(context.configSchema, context.key)) {
 			return false;
 		}
@@ -1011,7 +1027,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			return bound ? { sessionResource, generation: this._sessionGeneration, connection: undefined, backendSession: undefined, provider: CLOUD_SANDBOX_AGENT_PROVIDER, ...bound } : undefined;
 		}
 
-		if (this._subRef.value) {
+		if (this._subRef.value && this._subRef.value.sub.value !== undefined) {
 			const state = this._subRef.value.sub.value;
 			if (!state || state instanceof Error) {
 				return undefined;
@@ -1033,7 +1049,9 @@ export class AgentHostChatInputPicker extends Disposable {
 				values[key] = resolveConfigChipValue(isUntitledChatSession(sessionResource) && !hostOwnedAvailability, hostValues?.[key], overlay?.values[key], schemaSource.properties[key].default);
 			}
 			const bound = this._bindContext(property, schemaSource, values);
-			return bound ? { ...this._subRef.value, provider: state.provider, ...bound } : undefined;
+			if (!bound || !this._isChatConfigResolving(bound) || !isEqual(this._initialResolved?.sessionResource, sessionResource)) {
+				return bound ? { ...this._subRef.value, provider: state.provider, ...bound } : undefined;
+			}
 		}
 
 		if (this._initialResolved && this._initialResolved.sessionResource.toString() === sessionResource.toString()) {
@@ -1041,11 +1059,13 @@ export class AgentHostChatInputPicker extends Disposable {
 			if (!bound) {
 				return undefined;
 			}
-			const backendSession = toAgentHostBackendSessionUri(sessionResource, this._connectionsService);
-			if (!backendSession) {
+			const target = this._subRef.value;
+			const backendSession = target?.backendSession ?? toAgentHostBackendSessionUri(sessionResource, this._connectionsService);
+			const provider = getLocalAgentHostSessionProvider(sessionResource);
+			if (!backendSession || !provider) {
 				return undefined;
 			}
-			return { sessionResource, backendSession, connection: this._connectionsService.ambientConnection, generation: this._sessionGeneration, provider: backendSession.scheme, ...bound };
+			return { sessionResource, backendSession, connection: target?.connection ?? this._connectionsService.ambientConnection, generation: this._sessionGeneration, provider, ...bound };
 		}
 
 		return undefined;
@@ -1069,7 +1089,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			const disabled = !available.some(value => readSessionApprovalLevel(approval, value) === item.value);
 			return { ...item, disabled, disabledByPolicy: disabled && useLocalPolicy && isApprovalLevelDisabledByKnownPolicy(item.value, this._configurationService, this._managedSettingsService) };
 		}) : items;
-		const actionItems = toActionItems(this._generic ? '' : property, choices, value, policyRestricted, this._generic ? undefined : this._getSandboxStandaloneToggle(property));
+		const actionItems = toActionItems(this._generic ? '' : property, choices, value, policyRestricted, this._generic ? undefined : this._getSandboxStandaloneToggle(property), undefined, getOrganizationDefaultApprovalLevel(this._configurationService));
 		const permissionsLearnMoreUrl = this._generic ? undefined : getPermissionsLearnMoreUrl(property);
 		if (permissionsLearnMoreUrl) {
 			const learnMoreLabel = localize('agentHostChatInputPicker.learnMorePermissions', "Learn more about permissions");
@@ -1367,7 +1387,8 @@ export class AgentHostChatInputPicker extends Disposable {
 	/** The effective config of this picker's chat: its session's, with the chat's own values applied. */
 	private _readChatConfig(state: SessionState): SessionConfigState | undefined {
 		const chat = this._subRef.value?.getChat();
-		return getAgentHostChatConfig(state, chat?.resource, member => chat?.chain.get(member)?.value);
+		const connection = this._subRef.value?.connection;
+		return getAgentHostChatConfig(state, chat?.resource, member => chat?.chain.get(member)?.value, hostPublishesCompleteChatConfig(connection?.rootState?.value));
 	}
 
 	/** Confirms an elevated approval selection before writing through its host binding. */
@@ -1464,7 +1485,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		}
 
 		const state = this._subRef.value?.sub.value;
-		dispatchAgentHostConfigChange(connection, backendSession, this._subRef.value?.getChat()?.resource, state && !(state instanceof Error) ? state : undefined, partial);
+		dispatchAgentHostConfigChange(connection, backendSession, this._subRef.value?.getChat()?.resource, state && !(state instanceof Error) ? state : undefined, partial, state && !(state instanceof Error) ? this._readChatConfig(state) : undefined);
 		if (this._isCurrentTarget(context)) {
 			await this._provisional.refreshResolvedConfig(
 				sessionResource,

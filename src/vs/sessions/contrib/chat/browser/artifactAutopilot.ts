@@ -103,6 +103,7 @@ class ArtifactAutopilotGroup extends ArtifactDetailsCard {
 		this.element.classList.add('artifact-autopilot-group');
 		this.toggle = this._register(new Switch({ ariaLabel: data.toggleLabel }));
 		append(this.heading, this.toggle.domNode, this.summary);
+		this.addHeadingControl(this.toggle.domNode);
 		this._register(hoverService.setupDelayedHover(this.toggle.domNode, () => ({ content: this.data.description, style: HoverStyle.Pointer }), this.hoverLifecycleOptions));
 		this._register(this.toggle.onChange(enabled => {
 			const focused = getActiveElement() === this.toggle.domNode;

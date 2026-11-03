@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { resolve } from '../../../../../base/common/path.js';
 import { env } from '../../../../../base/common/process.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -19,28 +20,27 @@ suite('WorkbenchCopilotHomeService', () => {
 	for (const override of [undefined, '/configured/copilot']) {
 		test(`resolves the ${override ? 'configured' : 'default'} local Copilot home`, () => {
 			const previous = env.COPILOT_HOME;
-			try {
-				if (override === undefined) {
-					delete env.COPILOT_HOME;
-				} else {
-					env.COPILOT_HOME = override;
-				}
-				const userHome = URI.file('/local/user');
-				const instantiationService = store.add(new TestInstantiationService());
-				instantiationService.stub(IPathService, new TestPathService(userHome));
-				const service = instantiationService.createInstance(WorkbenchCopilotHomeService);
-
-				assert.deepStrictEqual({ home: service.home, source: service.source }, {
-					home: URI.file(resolve(override ?? URI.joinPath(userHome, '.copilot').fsPath)),
-					source: override ? 'environment' : 'userHome',
-				});
-			} finally {
+			store.add(toDisposable(() => {
 				if (previous === undefined) {
 					delete env.COPILOT_HOME;
 				} else {
 					env.COPILOT_HOME = previous;
 				}
+			}));
+			if (override === undefined) {
+				delete env.COPILOT_HOME;
+			} else {
+				env.COPILOT_HOME = override;
 			}
+			const userHome = URI.file('/local/user');
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(IPathService, new TestPathService(userHome));
+			const service = instantiationService.createInstance(WorkbenchCopilotHomeService);
+
+			assert.deepStrictEqual({ home: service.home, source: service.source }, {
+				home: URI.file(resolve(override ?? URI.joinPath(userHome, '.copilot').fsPath)),
+				source: override ? 'environment' : 'userHome',
+			});
 		});
 	}
 });

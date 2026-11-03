@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, IReference, ReferenceCollection } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IReference, markAsDisposed, ReferenceCollection } from '../../../../../base/common/lifecycle.js';
 import { IObservable, ObservableMap } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -230,6 +230,7 @@ export class ChatModelStore extends Disposable {
 				}
 
 				isDisposed = true;
+				markAsDisposed(wrapped);
 				const owners = this._referenceOwners.get(key);
 				owners?.delete(ownerId);
 				if (owners?.size === 0) {

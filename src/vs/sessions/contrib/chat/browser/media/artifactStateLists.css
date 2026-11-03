@@ -15,6 +15,10 @@
 	border: 0;
 }
 
+.artifact-tabbed-state-widget.has-lists.lists-collapsed {
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-dropdown-border, var(--vscode-widget-border)));
+}
+
 .artifact-tabbed-header,
 .artifact-list-tab-item {
 	background: var(--vscode-editorWidget-background);
@@ -36,6 +40,19 @@
 	border-top: 0;
 	border-radius: 0 0 var(--vscode-cornerRadius-medium) var(--vscode-cornerRadius-medium);
 	overflow: hidden;
+}
+
+.artifact-tabbed-state-widget.has-lists.lists-collapsed .artifact-tabbed-content {
+	border: 0;
+	border-radius: 0;
+}
+
+.artifact-tabbed-state-widget.lists-collapsed .artifact-list-tab-item {
+	border-bottom-color: transparent;
+}
+
+.artifact-tabbed-state-widget.lists-collapsed .artifact-list-tab-item + .artifact-list-tab-item {
+	border-left-color: var(--vscode-contrastBorder, var(--vscode-dropdown-border, var(--vscode-widget-border)));
 }
 
 .artifact-list-tabs-scrollable {

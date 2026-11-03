@@ -27,6 +27,12 @@ export interface GitHubResponseMetadata {
 	readonly serverDate?: string;
 	readonly requestId?: string;
 	readonly retryAfterSeconds?: number;
+	/**
+	 * The GitHub page where the user authorizes the credential of a refused
+	 * request for an organization that enforces SAML single sign-on, from the
+	 * `X-GitHub-SSO` header. GitHub expires it after an hour.
+	 */
+	readonly ssoAuthorizationUrl?: string;
 }
 
 /** GitHub transport error preserving the service's established error and GraphQL payload contract. */

@@ -68,6 +68,8 @@ suite('Mission Control inventory', () => {
 		let environment: Promise<ICloudSandboxEnvironment> = Promise.resolve({ id: 'remote', status: 'online' });
 		let connecting: Promise<void> = Promise.resolve();
 		let recovering: Promise<void> = Promise.resolve();
+		let deleting: Promise<void> = Promise.resolve();
+		const deletions: { id: string; account: string; token: CancellationToken }[] = [];
 		let connectionStatus: RemoteAgentHostConnectionStatus | undefined;
 		instantiation.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
 			override async waitForConnection(address: string) {
@@ -91,6 +93,10 @@ suite('Mission Control inventory', () => {
 			override async getAccountKey() { return account; }
 			override async listEnvironments(token: CancellationToken) { discoveryToken = token; calls.lists++; void listed.complete(); return list; }
 			override async getEnvironment(id: string) { calls.lookups.push(id); return environment; }
+			override async deleteEnvironment(id: string, token: CancellationToken, account: string) {
+				deletions.push({ id, account, token });
+				await deleting;
+			}
 		}());
 		instantiation.stub(ICloudSandboxAgentHostService, new class extends mock<ICloudSandboxAgentHostService>() {
 			override async connect(options: ICloudSandboxConnectOptions, token: CancellationToken) {
@@ -119,12 +125,13 @@ suite('Mission Control inventory', () => {
 		}());
 		const service = store.add(instantiation.createInstance(MissionControlEnvironmentService));
 		return {
-			service, storage, calls, configuration, authenticationChanged, events, availability,
+			service, storage, calls, configuration, authenticationChanged, events, availability, deletions,
 			get discoveryToken() { return discoveryToken; },
 			setList: (result: Promise<readonly IMissionControlEnvironment[]>) => { list = result; listed = new DeferredPromise<void>(); return listed.p; },
 			setEnvironment: (result: Promise<ICloudSandboxEnvironment>) => { environment = result; },
 			setConnecting: (result: Promise<void>) => { connecting = result; },
 			setRecovering: (result: Promise<void>) => { recovering = result; },
+			setDeleting: (result: Promise<void>) => { deleting = result; },
 			changeAccount: (value: string | undefined) => { account = value; accountChanged.fire(value); },
 			disableAI: () => { hidden = true; sentimentChanged.fire(); },
 			setOwn: (id: string) => { own = id; },
@@ -161,6 +168,92 @@ suite('Mission Control inventory', () => {
 			hosts: [{ ...host('remote'), displayName: undefined }],
 			calls: { lists: 1, lookups: [], connects: [], disconnects: [], waits: [] },
 		});
+	});
+
+	for (const status of ['online', 'offline']) {
+		test(`deletes ${status} user-local registrations, withdraws connections and persists removal`, async () => {
+			const context = fixture();
+			context.setList(Promise.resolve([host('remote', 'Machine', status), host('retained')]));
+			await context.service.refresh(CancellationToken.None);
+			await context.service.delete('remote', CancellationToken.None);
+			const restored = fixture(context.storage);
+			await restored.service.initialize();
+			assert.deepStrictEqual({
+				deletions: context.deletions.map(({ id, account }) => ({ id, account })),
+				hosts: context.service.hosts.get().map(host => host.id),
+				restored: restored.service.hosts.get().map(host => host.id),
+				disconnects: context.calls.disconnects,
+			}, { deletions: [{ id: 'remote', account: firstAccount }], hosts: ['retained'], restored: ['retained'], disconnects: ['remote'] });
+		});
+	}
+
+	test('retains the registration and connection when deletion fails', async () => {
+		const context = fixture();
+		await context.service.refresh(CancellationToken.None);
+		const before = context.service.hosts.get();
+		const response = new DeferredPromise<void>();
+		context.setDeleting(response.p);
+		const deletion = context.service.delete('remote', CancellationToken.None);
+		const rejected = assert.rejects(deletion, /delete failed/);
+		await response.error(new Error('delete failed'));
+		await rejected;
+		assert.deepStrictEqual({ hosts: context.service.hosts.get(), disconnects: context.calls.disconnects }, { hosts: before, disconnects: [] });
+	});
+
+	for (const kind of ['managed-sandbox', 'managed-cca', 'user-codespace', 'future-kind']) {
+		test(`rejects deletion of ${kind} even if present in the inventory`, async () => {
+			const context = fixture();
+			await context.service.refresh(CancellationToken.None);
+			context.service.hosts.set([{ ...host('remote'), kind }], undefined);
+			await assert.rejects(context.service.delete('remote', CancellationToken.None), /Only user-shared/);
+			assert.deepStrictEqual(context.deletions, []);
+		});
+	}
+
+	test('a refresh already in flight cannot resurrect a deleted environment', async () => {
+		const context = fixture();
+		await context.service.refresh(CancellationToken.None);
+		const response = new DeferredPromise<readonly IMissionControlEnvironment[]>();
+		const listed = context.setList(response.p);
+		const refresh = context.service.refresh(CancellationToken.None);
+		const rejected = assert.rejects(refresh, CancellationError);
+		await listed;
+		await context.service.delete('remote', CancellationToken.None);
+		await response.complete([host('remote')]);
+		await rejected;
+		assert.deepStrictEqual(context.service.hosts.get(), []);
+	});
+
+	test('account changes cancel deletion and late completion cannot remove the new inventory', async () => {
+		const context = fixture();
+		await context.service.refresh(CancellationToken.None);
+		const response = new DeferredPromise<void>();
+		context.setDeleting(response.p);
+		const deletion = context.service.delete('remote', CancellationToken.None);
+		const rejected = assert.rejects(deletion, CancellationError);
+		context.setList(Promise.resolve([host('remote', 'Other account')]));
+		context.changeAccount(secondAccount);
+		await context.service.refresh(CancellationToken.None);
+		await response.complete();
+		await rejected;
+		assert.deepStrictEqual({
+			account: context.service.accountKey,
+			names: context.service.hosts.get().map(host => host.name),
+			deletions: context.deletions.map(({ account, token }) => ({ account, cancelled: token.isCancellationRequested })),
+		}, { account: secondAccount, names: ['Other account'], deletions: [{ account: firstAccount, cancelled: true }] });
+	});
+
+	test('deleted inventory cancels a pending connection', async () => {
+		const context = fixture();
+		await context.service.refresh(CancellationToken.None);
+		const response = new DeferredPromise<ICloudSandboxEnvironment>();
+		context.setEnvironment(response.p);
+		const connection = context.service.connect('remote', CancellationToken.None);
+		const rejected = assert.rejects(connection, CancellationError);
+		await context.service.delete('remote', CancellationToken.None);
+		await rejected;
+		await response.complete({ id: 'remote', status: 'online' });
+		assert.deepStrictEqual({ hosts: context.service.hosts.get(), connects: context.calls.connects }, { hosts: [], connects: [] });
 	});
 
 	for (const gate of ['setting', 'experiment', 'disposal'] as const) {

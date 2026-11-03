@@ -13,9 +13,6 @@
 		"types": [
 			"vscode-webview"
 		],
-		"typeRoots": [
-			"../node_modules/@types"
-		],
 		"skipLibCheck": true
 	},
 	"typeAcquisition": {

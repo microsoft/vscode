@@ -18,12 +18,12 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
-import { getFailedChecks, buildFixCIPrompt, submitFixCIChecks } from '../../changes/browser/checksActions.js';
+import { buildFixCIPrompt, countRequiredChecks, submitFixCIChecks } from '../../changes/browser/checksActions.js';
 import { whenChatWidgetForSession } from '../../chat/browser/chatWidgetUtils.js';
 import type { ISessionChatPillsDebugData } from '../../chat/browser/sessionChatInputToolbarDebug.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
-import { GitHubCheckStatus, GitHubPullRequestState, OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
+import { GitHubPullRequestState, OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { getGitHubPullRequestRefs, IGitHubPullRequestRef, SessionStatus } from '../../../services/sessions/common/session.js';
@@ -159,11 +159,9 @@ export class SessionInputBanners extends Disposable {
 			if (!legacyCIDismissed && !(agentMerge?.enabled && agentMerge.actions.fixCI) && livePullRequest && livePullRequest.state === GitHubPullRequestState.Open) {
 				const ciModelRef = reader.store.add(this.gitHubService.createPullRequestCIModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number, livePullRequest.headSha));
 				const ciModel = ciModelRef.object;
-				if (!ciModel.fixRequested.read(reader)) {
-					const checks = ciModel.checks.read(reader);
-					failed = getFailedChecks(checks).length;
-					completed = checks.filter(check => check.status === GitHubCheckStatus.Completed).length;
-					pending = checks.length - completed;
+				const required = ciModel.fixRequested.read(reader) ? undefined : ciModel.requiredChecks.read(reader);
+				if (required) {
+					({ failed, completed, pending } = countRequiredChecks(required));
 				}
 			}
 

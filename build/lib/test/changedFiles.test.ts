@@ -76,9 +76,9 @@ suite('changedFiles', () => {
 				modified('.eslint-plugin-local/code-no-any-casts.ts'),
 				modified('extensions/copilot/.eslintplugin/index.ts'),
 				modified('package.json'),
-				deleted('package-lock.json'),
+				deleted('pnpm-lock.yaml'),
 				modified('extensions/copilot/package.json'),
-				modified('extensions/copilot/package-lock.json'),
+				modified('extensions/copilot/pnpm-lock.yaml'),
 				modified('build/lib/i18n.resources.json'),
 				modified('src/vs/base/common/arrays.ts', 'build/filters.ts'),
 			].map(changes => getEslintScope(changes, noFiles)), [
@@ -89,9 +89,9 @@ suite('changedFiles', () => {
 				{ kind: 'full', reason: '.eslint-plugin-local/code-no-any-casts.ts changed' },
 				{ kind: 'full', reason: 'extensions/copilot/.eslintplugin/index.ts changed' },
 				{ kind: 'full', reason: 'package.json changed' },
-				{ kind: 'full', reason: 'package-lock.json changed' },
+				{ kind: 'full', reason: 'pnpm-lock.yaml changed' },
 				{ kind: 'full', reason: 'extensions/copilot/package.json changed' },
-				{ kind: 'full', reason: 'extensions/copilot/package-lock.json changed' },
+				{ kind: 'full', reason: 'extensions/copilot/pnpm-lock.yaml changed' },
 				{ kind: 'full', reason: 'build/lib/i18n.resources.json changed' },
 				{ kind: 'full', reason: 'build/filters.ts changed' },
 			]);
@@ -154,13 +154,13 @@ suite('changedFiles', () => {
 				modified('build/lib/stylelint/vscode-known-variables.json'),
 				modified('tsfmt.json'),
 				modified('extensions/copilot/tsfmt.json'),
-				deleted('package-lock.json'),
+				deleted('pnpm-lock.yaml'),
 			].map(changes => getHygieneScope(changes)), [
 				{ kind: 'full', reason: 'build/hygiene.ts changed' },
 				{ kind: 'full', reason: 'build/lib/stylelint/vscode-known-variables.json changed' },
 				{ kind: 'full', reason: 'tsfmt.json changed' },
 				{ kind: 'full', reason: 'extensions/copilot/tsfmt.json changed' },
-				{ kind: 'full', reason: 'package-lock.json changed' },
+				{ kind: 'full', reason: 'pnpm-lock.yaml changed' },
 			]);
 		});
 	});

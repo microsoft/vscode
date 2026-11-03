@@ -77,6 +77,13 @@ export interface ISessionSectionOrderService {
 	 * that are still ordered stay where they are.
 	 */
 	restorePositions(positions: ISessionSectionPositions): void;
+
+	/**
+	 * Give `id` the manual position of `formerId`, right after it, unless `id` has a manual
+	 * position of its own, and promote `id` when `formerId` is promoted. `formerId` keeps its
+	 * own, as another grouping mode may still show it. For a section whose identity changed.
+	 */
+	adoptPosition(formerId: string, id: string): void;
 }
 
 /** Manual positions captured by {@link ISessionSectionOrderService.capturePositions}. */
@@ -167,6 +174,23 @@ export class SessionSectionOrderService extends Disposable implements ISessionSe
 		}
 		this._order = order;
 		for (const id of promotedRestored) {
+			this._promoted.add(id);
+		}
+		this.save();
+		this._onDidChange.fire();
+	}
+
+	adoptPosition(formerId: string, id: string): void {
+		const formerIndex = this._order.indexOf(formerId);
+		const adoptsPosition = formerIndex !== -1 && !this._order.includes(id);
+		const adoptsPromotion = this._promoted.has(formerId) && !this._promoted.has(id);
+		if (!adoptsPosition && !adoptsPromotion) {
+			return;
+		}
+		if (adoptsPosition) {
+			this._order = [...this._order.slice(0, formerIndex + 1), id, ...this._order.slice(formerIndex + 1)];
+		}
+		if (adoptsPromotion) {
 			this._promoted.add(id);
 		}
 		this.save();

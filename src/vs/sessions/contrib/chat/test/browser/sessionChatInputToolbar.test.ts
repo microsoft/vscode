@@ -27,7 +27,9 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../../..
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -38,7 +40,7 @@ import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/b
 import type { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { IChatImageCarouselService } from '../../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
+import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility, type IChatBackgroundShell } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { TestEditorInput, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
@@ -1025,7 +1027,7 @@ suite('SessionChatInputToolbar', () => {
 		const clipboardService = upcastPartial<IClipboardService>({});
 		const openerService = upcastPartial<IOpenerService>({});
 		const sessionsService = upcastPartial<ISessionsService>({});
-		const actions: ISessionArtifactActions = { recordOpen() { }, openExternal() { }, openResource() { }, openImages() { }, async downloadImage() { }, copy() { } };
+		const actions: ISessionArtifactActions = { recordOpen() { }, openExternal() { }, openResource() { }, openImages() { }, async downloadImage() { }, copy() { }, openPullRequestChanges() { } };
 		const rowPresentation = (entry: IChatPillEntry) => ({
 			label: entry.label, badge: entry.badge, leading: entry.badgeBeforeLabel,
 			pillLabel: entry.pillLabel, className: entry.className,
@@ -1812,12 +1814,56 @@ suite('SessionChatInputToolbar', () => {
 			entry.select();
 		}
 
-		assert.deepStrictEqual({ singleLabels, multipleLabels, opened }, {
+		assert.deepStrictEqual({
+			singleLabels, multipleLabels, opened,
+			transcriptSections: toolbar.backgroundActivityPillSections.subagents?.get().map(section => ({ title: section.title, entries: section.entries.map(entry => entry.label) })),
+		}, {
 			singleLabels: ['1 Subagent'],
 			multipleLabels: ['3 Subagents'],
 			opened: [subagents[0], ...subagents].map(subagent => [
 				session, subagent.resource, { referenceChatResource: chat.resource },
 			]),
+			transcriptSections: [
+				{ title: 'Subagents: In Progress', entries: ['Waiting', 'Running'] },
+			],
+		});
+	});
+
+	test('shares live background shells with the transcript and clears them when switching chats', () => {
+		const { instantiationService } = createServices();
+		const shells = observableValue<readonly IChatBackgroundShell[]>('shells', [{
+			id: 'tests', description: 'Running tests', command: 'npm test', startedAt: new Date(0).toISOString(),
+		}]);
+		const workspace = constObservable(upcastPartial<ISessionWorkspace>({ folders: [] }));
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('chat:parent'),
+			title: constObservable('Parent'),
+			status: constObservable(SessionStatus.InProgress),
+			workspace,
+			changes: constObservable([]),
+			changesets: constObservable([]),
+			backgroundShells: shells,
+		});
+		const session = upcastPartial<IActiveSession>({
+			loading: constObservable(false),
+			sessionId: 'provider:session',
+			resource: URI.parse('session:1'),
+			capabilities: constObservable({ supportsMultipleChats: true }),
+			chats: constObservable([chat]),
+			workspace,
+		});
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		toolbar.setSession(session, chat);
+		const labels = () => toolbar.backgroundActivityPillSections.backgroundShells?.get().map(shell => shell.description);
+		const running = labels();
+		const initialShells = shells.get();
+		shells.set([], undefined);
+		const finished = labels();
+		shells.set(initialShells, undefined);
+		const resumed = labels();
+		toolbar.setSession(undefined, undefined);
+		assert.deepStrictEqual({ running, finished, resumed, switched: labels() }, {
+			running: ['Running tests'], finished: [], resumed: ['Running tests'], switched: [],
 		});
 	});
 
@@ -2492,7 +2538,7 @@ suite('SessionChatInputToolbar', () => {
 		}
 	}
 
-	test('promotes every matched artifact and reference, keeps unmatched entries grouped, and scopes removal to the clicked pill', async () => {
+	test('promotes matched artifacts and references, groups artifacts sharing an integration, keeps unmatched entries grouped, and scopes removal to the clicked pill', async () => {
 		const { instantiationService, configuration } = createServices();
 		const setEnabled = async (enabled: boolean) => {
 			await configuration.setUserConfiguration(ArtifactIntegrationsSettingId, enabled);
@@ -2558,31 +2604,37 @@ suite('SessionChatInputToolbar', () => {
 					integrationId: 'experiments', label: 'Experiments', actions: [], options: [],
 					configuration: { revision: 0, values: {}, generations: {}, disablements: {} },
 					view: {
-						availability: { kind: 'available' }, main: { icon: { id: 'beaker' }, label: id, detailsId: 'main' },
+						availability: { kind: 'available' }, main: { icon: { id: 'beaker' }, label: id, detailsId: 'main' }, groupId: 'experiments',
 						sections: [], stateActions: [], generalActions: [], automationAvailability: [],
 					},
 				}],
 			}, undefined);
 		}
 		const integrated = [...toolbar.element.querySelectorAll<HTMLElement>('.artifact-integration-pill')];
+		const group = toolbar.element.querySelector<HTMLElement>('.artifact-integration-group-pill')!;
 		const promoted = {
 			labels: integrated.map(pill => pill.querySelector('.chat-pill-label')?.textContent),
+			// Artifacts sharing an integration share one pill; the reference keeps its own.
+			group: group.querySelector('.chat-pill-label')?.textContent,
 			referencesGrouped: !!toolbar.element.querySelector('[aria-label="Show 1 reference"]'),
 			artifactsGrouped: !!toolbar.element.querySelector('[aria-label="Show 3 artifacts"]'),
 		};
-		integrated[1].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+		group.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+		const groupRemovalIds = menu.filter(action => action.id.startsWith('sessions.artifacts.remove.')).map(action => action.id);
+		integrated[0].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
 		const removalIds = menu.filter(action => action.id.startsWith('sessions.artifacts.remove.')).map(action => action.id);
-		integrated[2].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
 		await menu.find(action => action.id === 'sessions.artifacts.remove.reference')!.run();
 		snapshots.get('two')!.set({ ...snapshots.get('two')!.get(), contributions: [], mainIntegrationId: undefined }, undefined);
 		assert.deepStrictEqual({
-			initial, promoted, removalIds, removed,
-			remaining: toolbar.element.querySelectorAll('.artifact-integration-pill').length,
+			initial, promoted, groupRemovalIds, removalIds, removed,
+			remaining: [...toolbar.element.querySelectorAll('.artifact-integration-pill .chat-pill-label')].map(label => label.textContent),
+			groupRemaining: !!toolbar.element.querySelector('.artifact-integration-group-pill'),
 			regrouped: !!toolbar.element.querySelector('[aria-label="Show 2 artifacts"]'),
 		}, {
 			initial: { integrated: 0, grouped: true, acquired: 0 },
-			promoted: { labels: ['one', 'two', 'reference'], referencesGrouped: false, artifactsGrouped: false },
-			removalIds: ['sessions.artifacts.remove.two'], removed: ['reference'], remaining: 1, regrouped: true,
+			promoted: { labels: ['reference'], group: 'Experiments (2)', referencesGrouped: false, artifactsGrouped: false },
+			groupRemovalIds: [], removalIds: ['sessions.artifacts.remove.reference'], removed: ['reference'],
+			remaining: ['one'], groupRemaining: false, regrouped: true,
 		});
 		await setEnabled(false);
 		const disabled = {
@@ -2595,13 +2647,91 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
+	test('pins an artifact out of its integration group from the dropdown and unpins it back from its own pill', async () => {
+		const { instantiationService } = createServices(true);
+		const host = mainWindow.document.body.appendChild(document.createElement('div'));
+		host.classList.add('monaco-workbench');
+		host.style.cssText = 'position:fixed;top:0;left:0;width:720px;height:600px;';
+		store.add(toDisposable(() => host.remove()));
+		instantiationService.stub(ILayoutService, upcastPartial<ILayoutService>({
+			mainContainer: host, activeContainer: host, onDidLayoutContainer: Event.None, getContainer: () => host,
+			get mainContainerDimension() { return { width: 720, height: 600 }; },
+		}));
+		instantiationService.stub(IContextViewService, store.add(instantiationService.createInstance(ContextViewService)));
+		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
+		const records: readonly ISessionArtifact[] = ['one', 'two', 'three'].map(id => ({
+			id, kind: SessionArtifactKind.Website, label: `Recorded ${id}`, isArtifact: true, link: URI.parse(`https://experiments.test/${id}`),
+		}));
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'quick-chat', providerId: 'provider', resource: URI.parse('session:quick-chat'), artifacts: constObservable(records),
+			loading: constObservable(false),
+			capabilities: constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true, supportsArtifactIntegrations: true }),
+			chats: constObservable([chat]), workspace: constObservable(undefined),
+		});
+		const priorities: Record<string, number> = { one: 1, two: 3, three: 2 };
+		let menu: readonly IAction[] = [];
+		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({}));
+		instantiationService.stub(IContextMenuService, {
+			showContextMenu: delegate => {
+				assert.ok(delegate.getActions);
+				menu = delegate.getActions();
+			},
+		});
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			onDidChangeSessions: Event.None,
+			acquireArtifactIntegration: async (_session, id) => new ImmortalReference(upcastPartial<IArtifactModel>({
+				snapshot: constObservable<ArtifactSnapshot>({
+					authority: { id: 'client', targetHost: 'vendor', location: 'client' }, session: 'vendor-session://opaque',
+					artifact: { id, label: `Recorded ${id}`, resource: `https://experiments.test/${id}`, isArtifact: true },
+					mainIntegrationId: 'experiments', runs: [],
+					contributions: [{
+						integrationId: 'experiments', label: 'Experiment', groupLabel: 'Experiments', actions: [], options: [],
+						configuration: { revision: 0, values: {}, generations: {}, disablements: {} },
+						view: {
+							availability: { kind: 'available' }, main: { icon: { id: 'beaker' }, label: id, detailsId: 'main' }, groupId: 'experiments',
+							group: { icon: { id: priorities[id] === 3 ? 'error' : 'beaker' }, priority: priorities[id] },
+							sections: [], stateActions: [], generalActions: [], automationAvailability: [],
+						},
+					}],
+				}),
+			})),
+		}));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		host.appendChild(toolbar.element);
+		toolbar.setSession(session, chat);
+		await timeout(0);
+		const describe = () => ({
+			group: toolbar.element.querySelector('.artifact-integration-group-pill .chat-pill-label')?.textContent,
+			groupIcon: toolbar.element.querySelector('.artifact-integration-group-pill .codicon')?.classList.contains('codicon-error'),
+			singles: [...toolbar.element.querySelectorAll<HTMLElement>('.artifact-integration-pill')].map(pill => ({
+				label: pill.querySelector('.chat-pill-label')?.textContent,
+				unpin: pill.classList.contains('has-promoted-action') ? pill.querySelector('.chat-pill-promoted-action')?.getAttribute('aria-label') : undefined,
+			})),
+		});
+		const grouped = describe();
+		toolbar.element.querySelector<HTMLElement>('.artifact-integration-group-pill > .chat-pill-button')!.click();
+		const rows = [...host.querySelectorAll<HTMLElement>('.artifact-group-row')];
+		const pin = [...rows[1].querySelectorAll<HTMLElement>('.artifact-group-row-action')].find(action => action.getAttribute('aria-label') === 'Pin Recorded two')!;
+		pin.click();
+		await timeout(0);
+		const pinned = { ...describe(), dropdownRows: [...host.querySelectorAll('.artifact-group-row .artifact-group-row-label')].map(label => label.textContent) };
+		toolbar.element.querySelector<HTMLElement>('.artifact-integration-pill.has-promoted-action')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+		await menu.find(action => action.id.startsWith('chatInputPills.artifacts.unpin.'))!.run();
+		await timeout(0);
+		assert.deepStrictEqual({ grouped, pinned, unpinned: describe() }, {
+			grouped: { group: '3 Experiments', groupIcon: true, singles: [] },
+			pinned: { group: '2 Experiments', groupIcon: false, singles: [{ label: 'two', unpin: 'Unpin Recorded two' }], dropdownRows: ['one', 'three'] },
+			unpinned: { group: '3 Experiments', groupIcon: true, singles: [] },
+		});
+	});
+
 	test('decorates a promoted PR as a details disclosure and leaves reference links plain', async () => {
 		const { instantiationService } = createServices(true);
 		const link = URI.parse('https://github.com/microsoft/vscode/pull/42');
 		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
 		const artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', [
 			{ id: 'recorded', kind: SessionArtifactKind.PullRequest, label: 'Recorded title', isArtifact: true, isGitHub: true, link },
-			{ id: 'reference', kind: SessionArtifactKind.PullRequest, label: 'Reference title', isArtifact: false, isGitHub: true, link },
+			{ id: 'reference', kind: SessionArtifactKind.PullRequest, label: 'Reference title', isArtifact: false, isGitHub: true, link: URI.parse('https://github.com/microsoft/vscode/pull/43') },
 		]);
 		const session = upcastPartial<IActiveSession>({
 			sessionId: 'quick-chat', resource: URI.parse('session:quick-chat'), artifacts,
@@ -2619,6 +2749,7 @@ suite('SessionChatInputToolbar', () => {
 				view: {
 					availability: { kind: 'available' },
 					main: { icon: { id: 'git-pull-request' }, label: '#42', detailsId: 'main' },
+					groupId: 'github.pullRequest',
 					sections: [
 						{ id: 'checks', icon: { id: 'pending' }, label: '3/5', detailsId: 'checks' },
 						{ id: 'comments', icon: { id: 'comment-discussion' }, label: '2', detailsId: 'comments' },
@@ -2654,6 +2785,129 @@ suite('SessionChatInputToolbar', () => {
 			initial, updated: labels(), integratedPills: toolbar.element.querySelectorAll('.artifact-integration-pill').length, opened,
 			referencesPresent: !!toolbar.element.querySelector('.chat-dropdown-pill-button[aria-label="Show 1 reference"]'),
 		}, { initial: ['#42', '3/5', '2'], updated: ['#42', '3/5'], integratedPills: 1, opened: 1, referencesPresent: true });
+	});
+
+	test('lists integrated artifacts without a group ID in the Artifacts pill with their integration\'s icon, opening details on select, the resource from Open, and pinning with Unpin', async () => {
+		const { instantiationService } = createServices(true);
+		const host = mainWindow.document.body.appendChild(document.createElement('div'));
+		host.classList.add('monaco-workbench');
+		host.style.cssText = 'position:fixed;top:0;left:0;width:720px;height:600px;';
+		store.add(toDisposable(() => host.remove()));
+		instantiationService.stub(ILayoutService, upcastPartial<ILayoutService>({
+			mainContainer: host, activeContainer: host, onDidLayoutContainer: Event.None, getContainer: () => host,
+			get mainContainerDimension() { return { width: 720, height: 600 }; },
+		}));
+		instantiationService.stub(IContextViewService, store.add(instantiationService.createInstance(ContextViewService)));
+		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
+		const records: readonly ISessionArtifact[] = [
+			{ id: 'experiment', kind: SessionArtifactKind.Website, label: 'Recorded experiment', isArtifact: true, link: URI.parse('https://experiments.test/7') },
+			{ id: 'plain', kind: SessionArtifactKind.Website, label: 'Plain', isArtifact: true, link: URI.parse('https://example.test/plain') },
+			{ id: 'report', kind: SessionArtifactKind.File, label: 'report.md', isArtifact: true, uri: URI.file('/repo/report.md') },
+		];
+		const artifacts = observableValue('artifacts', records);
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'quick-chat', providerId: 'provider', resource: URI.parse('session:quick-chat'), artifacts,
+			loading: constObservable(false),
+			capabilities: constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true, supportsArtifactIntegrations: true }),
+			chats: constObservable([chat]), workspace: constObservable(undefined),
+		});
+		const integrated: ArtifactSnapshot = {
+			authority: { id: 'client', targetHost: 'vendor', location: 'client' }, session: 'vendor-session://opaque',
+			artifact: { id: 'experiment', label: 'Recorded experiment', resource: 'https://experiments.test/7', isArtifact: true },
+			mainIntegrationId: 'experiments', runs: [],
+			contributions: [{
+				integrationId: 'experiments', label: 'Experiment', groupLabel: 'Experiments', actions: [], options: [],
+				configuration: { revision: 0, values: {}, generations: {}, disablements: {} },
+				view: {
+					availability: { kind: 'available' }, main: { icon: { id: 'beaker' }, label: 'Experiment 7', description: 'Experiment 7 is running', detailsId: 'main' },
+					sections: [], stateActions: [], generalActions: [], automationAvailability: [],
+				},
+			}],
+		};
+		const report: ArtifactSnapshot = {
+			...integrated, artifact: { id: 'report', label: 'report.md', resource: 'file:///repo/report.md', isArtifact: true },
+			contributions: integrated.contributions.map(contribution => ({ ...contribution, view: { ...contribution.view, main: { icon: { id: 'graph' }, label: 'Report', detailsId: 'main' } } })),
+		};
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			onDidChangeSessions: Event.None,
+			acquireArtifactIntegration: async (_session, id) => new ImmortalReference(upcastPartial<IArtifactModel>({
+				snapshot: constObservable(id === 'experiment' ? integrated : id === 'report' ? report : { ...integrated, artifact: { id, label: 'Plain', resource: 'https://example.test/plain' }, contributions: [], mainIntegrationId: undefined }),
+				acquireDetails: async () => ({ details: constObservable({ title: 'Experiment 7', availability: { kind: 'available' as const }, items: [], links: [], completeness: 'complete' as const }), dispose: () => { } }),
+			})),
+		}));
+		let rows: { label: string | undefined; icon: string | undefined; fileIcon: boolean; ariaLabel: string | undefined; actions: readonly IAction[]; select(): void }[] = [];
+		let hideDropdown: (() => void) | undefined;
+		instantiationService.stub(IActionWidgetService, {
+			isVisible: false,
+			show: (_id, _preview, items, delegate, _anchor, _container, _actions, accessibility) => {
+				rows = items.flatMap(item => {
+					const ariaLabel = accessibility?.getAriaLabel?.(item);
+					return item.item ? [{
+						label: item.label,
+						icon: item.group?.icon?.id,
+						fileIcon: !!item.iconClasses?.length,
+						ariaLabel: typeof ariaLabel === 'string' ? ariaLabel : undefined,
+						actions: item.toolbarActions ?? [],
+						select: () => delegate.onSelect(item.item!),
+					}] : [];
+				});
+				hideDropdown = () => delegate.onHide?.();
+			},
+			updateItems: () => { },
+			hide: () => hideDropdown?.(),
+		});
+		const opened: string[] = [];
+		instantiationService.stub(IOpenerService, upcastPartial<IOpenerService>({ open: async resource => { opened.push(resource.toString()); return true; } }));
+		artifacts.set([records[0]], undefined);
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		host.appendChild(toolbar.element);
+		toolbar.setSession(session, chat);
+		await timeout(0);
+		// As the Artifacts pill's only entry, the integrated artifact renders as its own pill.
+		const alone = toolbar.element.querySelector('.artifact-integration-pill .chat-pill-label')?.textContent;
+		artifacts.set(records, undefined);
+		await timeout(0);
+		const listed = {
+			integrationPills: toolbar.element.querySelectorAll('.artifact-integration-pill, .artifact-integration-group-pill').length,
+			artifactsPill: !!toolbar.element.querySelector('[aria-label="Show 3 artifacts"]'),
+		};
+		toolbar.element.querySelector<HTMLElement>('[aria-label="Show 3 artifacts"]')!.click();
+		const experiment = rows.find(row => row.label === 'Experiment 7')!;
+		const dropdown = rows.map(row => ({ label: row.label, icon: row.icon, fileIcon: row.fileIcon }));
+		// File rows add platform-specific actions and locations, so only the website rows' controls are compared.
+		const controls = rows.filter(row => row.label !== 'Report').map(row => ({ label: row.label, ariaLabel: row.ariaLabel, actions: row.actions.map(action => action.label) }));
+		await experiment.actions[0].run();
+		experiment.select();
+		const details = host.querySelector('.artifact-details-context-view')?.isConnected;
+		// A pinned artifact keeps its integration pill, which offers Unpin as its trailing button.
+		await experiment.actions.find(action => action.label === 'Pin Experiment 7')!.run();
+		await timeout(0);
+		const pinned = toolbar.element.querySelector<HTMLElement>('.artifact-integration-pill');
+		const unpin = pinned?.classList.contains('has-promoted-action') ? pinned.querySelector<HTMLElement>('.chat-pill-promoted-action') : undefined;
+		const pin = { label: pinned?.querySelector('.chat-pill-label')?.textContent, unpin: unpin?.getAttribute('aria-label') };
+		unpin?.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			alone, listed, dropdown, controls, opened, details, pin,
+			unpinned: toolbar.element.querySelectorAll('.artifact-integration-pill').length,
+		}, {
+			alone: 'Experiment 7',
+			listed: { integrationPills: 0, artifactsPill: true },
+			dropdown: [
+				{ label: 'Experiment 7', icon: 'beaker', fileIcon: false },
+				{ label: 'Plain', icon: 'globe', fileIcon: false },
+				// The integration's icon, rather than the file's.
+				{ label: 'Report', icon: 'graph', fileIcon: false },
+			],
+			controls: [
+				{ label: 'Experiment 7', ariaLabel: 'Show artifact details: Experiment 7 is running, https://experiments.test/7', actions: ['Open Recorded experiment', 'Copy Website URL', 'Pin Experiment 7', 'Remove Artifact Recorded experiment from Session'] },
+				{ label: 'Plain', ariaLabel: 'Open Plain, https://example.test/plain', actions: ['Copy Website URL', 'Pin Plain', 'Remove Artifact Plain from Session'] },
+			],
+			opened: ['https://experiments.test/7'],
+			details: true,
+			pin: { label: 'Experiment 7', unpin: 'Unpin Experiment 7' },
+			unpinned: 0,
+		});
 	});
 	for (const providerId of [LOCAL_AGENT_HOST_PROVIDER_ID, `${REMOTE_AGENT_HOST_PROVIDER_PREFIX}custom-host`]) {
 		test(`renders the explicitly selected PR above the main input with automatic association disabled on ${providerId}`, () => {

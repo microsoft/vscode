@@ -5,6 +5,7 @@
 
 import { stringDiff } from '../../../base/common/diff/diff.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import { isHighSurrogate } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { IWebWorkerServerRequestHandler } from '../../../base/common/worker/webWorker.js';
 import { Position } from '../core/position.js';
@@ -23,6 +24,7 @@ import { ILinesDiffComputer, ILinesDiffComputerOptions } from '../diff/linesDiff
 import { DetailedLineRangeMapping } from '../diff/rangeMapping.js';
 import { linesDiffComputers } from '../diff/linesDiffComputers.js';
 import { IDocumentDiffProviderOptions } from '../diff/documentDiffProvider.js';
+import { verifyLinesDiff } from '../diff/verifyLinesDiff.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { computeDefaultDocumentColors } from '../languages/defaultDocumentColorsComputer.js';
 import { FindSectionHeaderOptions, SectionHeader, findSectionHeaders } from './findSectionHeaders.js';
@@ -121,7 +123,7 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 
 	// ---- BEGIN diff --------------------------------------------------------------------------
 
-	public async $computeDiff(originalUrl: string, modifiedUrl: string, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDiffComputationResult | null> {
+	public async $computeDiff(originalUrl: string, modifiedUrl: string, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName, verify: boolean = false): Promise<IDiffComputationResult | null> {
 		const original = this._getModel(originalUrl);
 		const modified = this._getModel(modifiedUrl);
 		if (!original || !modified) {
@@ -129,16 +131,17 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 		}
 
 		const diffAlgorithm = await resolveLinesDiffComputer(algorithm);
-		const result = EditorWorker.computeDiff(original, modified, options, diffAlgorithm);
+		const result = EditorWorker.computeDiff(original, modified, options, diffAlgorithm, verify);
 		return result;
 	}
 
-	private static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, options: IDocumentDiffProviderOptions, diffAlgorithm: ILinesDiffComputer): IDiffComputationResult {
+	private static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, options: IDocumentDiffProviderOptions, diffAlgorithm: ILinesDiffComputer, verify: boolean): IDiffComputationResult {
 
 		const originalLines = originalTextModel.getLinesContent();
 		const modifiedLines = modifiedTextModel.getLinesContent();
 
 		const result = diffAlgorithm.computeDiff(originalLines, modifiedLines, options);
+		const validity = verify ? verifyLinesDiff(result, originalLines, modifiedLines, options.ignoreTrimWhitespace) : undefined;
 
 		const identical = (result.changes.length > 0 ? false : this._modelsAreIdentical(originalTextModel, modifiedTextModel));
 
@@ -158,6 +161,7 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 		return {
 			identical,
 			quitEarly: result.hitTimeout,
+			validity,
 			changes: getLineChanges(result.changes),
 			moves: result.moves.map(m => ([
 				m.lineRangeMapping.original.startLineNumber,
@@ -276,18 +280,36 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 			// compute diff between original and edit.text
 			const changes = stringDiff(original, text, pretty);
 			const editOffset = model.offsetAt(Range.lift(range).getStartPosition());
+			const newEdits: TextEdit[] = [];
+			let useOriginalEdit = false;
 
 			for (const change of changes) {
+				const originalEnd = change.originalStart + change.originalLength;
 				const start = model.positionAt(editOffset + change.originalStart);
-				const end = model.positionAt(editOffset + change.originalStart + change.originalLength);
+				const end = model.positionAt(editOffset + originalEnd);
+				const startLineContent = model.getLineContent(start.lineNumber);
+				const endLineContent = model.getLineContent(end.lineNumber);
+				const startFollowsHighSurrogate = start.column > 1 && isHighSurrogate(startLineContent.charCodeAt(start.column - 2));
+				const endFollowsHighSurrogate = end.column > 1 && end.column <= endLineContent.length && isHighSurrogate(endLineContent.charCodeAt(end.column - 2));
+				if (startFollowsHighSurrogate || endFollowsHighSurrogate) {
+					useOriginalEdit = true;
+					break;
+				}
+
 				const newEdit: TextEdit = {
-					text: text.substr(change.modifiedStart, change.modifiedLength),
+					text: text.slice(change.modifiedStart, change.modifiedStart + change.modifiedLength),
 					range: { startLineNumber: start.lineNumber, startColumn: start.column, endLineNumber: end.lineNumber, endColumn: end.column }
 				};
 
 				if (model.getValueInRange(newEdit.range) !== newEdit.text) {
-					result.push(newEdit);
+					newEdits.push(newEdit);
 				}
+			}
+
+			if (useOriginalEdit) {
+				result.push({ range, text });
+			} else {
+				result.push(...newEdits);
 			}
 		}
 

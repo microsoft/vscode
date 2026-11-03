@@ -28,6 +28,10 @@ export interface ICanvas {
 	readonly title: string;
 	readonly status?: string;
 	readonly source: URI | undefined;
+	/** Owning extension identifier, when the host reports it. */
+	readonly extensionId?: string;
+	/** Provider-local canvas type identifier, when the host reports it. */
+	readonly canvasId?: string;
 }
 
 /** Where a registered canvas definition was contributed from. */
@@ -87,6 +91,7 @@ export interface ICanvasContext {
 export interface ICanvasOpenRequest {
 	readonly id: string;
 	readonly succeeded: boolean;
+	readonly pending?: boolean;
 }
 
 export interface ICanvasModelResolution {
@@ -120,7 +125,7 @@ export interface ICanvasWorkingSetState {
 export interface ICanvasWorkingSets {
 	readonly state: IObservable<ICanvasWorkingSetState>;
 	/** Keeps a live canvas alive while a presentation-only layout change hides the editor area. */
-	registerEditorToRetain(input: CanvasInput): IDisposable;
+	registerEditorToRetain(input: EditorInput): IDisposable;
 	/** Prevents reopening a canvas that a restore could not reconstruct from revealing a hidden editor area. */
 	suppressEditorPartAutoVisibility(): IDisposable;
 }
@@ -140,6 +145,21 @@ export interface ICanvasContextService {
 	 * `undefined` means the owner is outside this window's live scope.
 	 */
 	getContext(owner: ICanvasOwner, reader?: IReader): ICanvasContext | undefined;
+	/**
+	 * Resolves one canvas that this window keeps live outside its owner's membership,
+	 * such as a canvas pinned to a sidebar. `undefined` means it is not tracked that way.
+	 */
+	getTrackedCanvas?(reference: ICanvasReference, reader?: IReader): ICanvas | undefined;
+	/**
+	 * Whether this window keeps the canvas live outside its owner's membership, such as a
+	 * pinned canvas, even while its live state is temporarily unavailable.
+	 */
+	isCanvasTracked?(reference: ICanvasReference, reader?: IReader): boolean;
+	/**
+	 * Whether a surface other than the owner's editor working set currently presents
+	 * this canvas, such as a full-page view of a pinned canvas.
+	 */
+	isPresentedElsewhere?(reference: ICanvasReference, reader?: IReader): boolean;
 	/** Resolves the frontend chat-session resource that owns this opaque Canvas context. */
 	getFrontendSessionResource(owner: ICanvasOwner, reader?: IReader): URI | undefined;
 	/**
@@ -156,7 +176,13 @@ export interface ICanvasService {
 	readonly _serviceBrand: undefined;
 	readonly enabled: IObservable<boolean>;
 	readonly reopenableCanvases: IObservable<readonly ICanvasReopenTarget[]>;
+	/** Whether the canvas may be revealed as an editor beside its owner, which must be visible. */
 	isOwnerPresentable(reference: ICanvasReference, reader?: IReader): boolean;
+	/**
+	 * Whether a canvas view may attach the canvas: its owner is visible, or another
+	 * surface such as a pinned canvas page presents it. Never opens an editor.
+	 */
+	isPresentable(reference: ICanvasReference, reader?: IReader): boolean;
 	revealCanvas(reference: ICanvasReference): Promise<void>;
 	reopenCanvas(reference: ICanvasReference): Promise<void>;
 	/** Restores a canvas admitted by this live service instance from its opaque working-set identifier. */
@@ -289,9 +315,12 @@ export function compareCanvasDefinitions(first: ICanvasDefinition, second: ICanv
 		|| first.canvasId.localeCompare(second.canvasId);
 }
 
-function createInputResource(reference: ICanvasReference): URI {
+export const CANVAS_INPUT_SCHEME = 'session-canvas';
+
+/** Returns the resource of the editor input that presents `reference`. */
+export function getCanvasInputResource(reference: ICanvasReference): URI {
 	return URI.from({
-		scheme: 'session-canvas',
+		scheme: CANVAS_INPUT_SCHEME,
 		path: '/canvas',
 		query: encodeURIComponent(JSON.stringify({
 			providerId: reference.providerId,
@@ -319,7 +348,7 @@ export class CanvasInput extends EditorInput {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
-		this.resource = createInputResource(reference);
+		this.resource = getCanvasInputResource(reference);
 		this.canvas.set(canvas, undefined);
 	}
 
@@ -327,14 +356,19 @@ export class CanvasInput extends EditorInput {
 	override get editorId(): string { return CanvasInput.EDITOR_ID; }
 	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.ForceReveal; }
 	override getName(): string { return this.canvas.get()?.title ?? localize('canvas.editorName', "Canvas"); }
-	override getDescription(): string {
+	override getDescription(): undefined { return undefined; }
+	override getIcon(): ThemeIcon { return Codicon.preview; }
+	override getTitle(verbosity?: Verbosity): string {
+		const name = this.getName();
+		return verbosity === Verbosity.LONG ? `${name} - ${this.getReopenInstructions()}` : name;
+	}
+
+	private getReopenInstructions(): string {
 		// Only the Agents window offers an Add Tab menu.
 		return this.environmentService.isSessionsWindow
 			? localize('canvas.editorDescription', "Closing this tab hides the canvas. Reopen it from the Canvas submenu in Add Tab, use its canvas pill, or ask the agent to open it again.")
 			: localize('canvas.editorDescriptionEditorWindow', "Closing this tab hides the canvas. Reopen it from its canvas pill or ask the agent to open it again.");
 	}
-	override getIcon(): ThemeIcon { return Codicon.preview; }
-	override getTitle(_verbosity?: Verbosity): string { return this.getName(); }
 	override canReopen(): boolean { return false; }
 
 	override canMove(_sourceGroup: GroupIdentifier, targetGroup: GroupIdentifier): true | string {

@@ -619,6 +619,7 @@ export interface ISyntaxHighlightingResultDto {
 
 export interface MainThreadMessageOptions {
 	source?: { identifier: ExtensionIdentifier; label: string };
+	notificationId?: string;
 	modal?: boolean;
 	detail?: string;
 	useCustom?: boolean;
@@ -639,6 +640,7 @@ export interface MainThreadOutputServiceShape extends IDisposable {
 export interface IProgressOptionsDto extends Omit<IProgressOptions, 'title' | 'legacyExtensionLinkParsing' | 'telemetry'> {
 	readonly title?: string;
 	readonly telemetryId?: NotificationTelemetryId;
+	readonly notificationId?: string;
 }
 
 export interface IProgressStepDto extends Omit<IProgressStep, 'message'> {
@@ -1276,10 +1278,19 @@ export interface ExtHostManagedSocketsShape {
 }
 
 export interface MainThreadBrowserTunnelProxyShape extends IDisposable {
+	/** Opens a TCP connection on the network of the agent host with the given connection authority. */
+	$openNetworkConnection(authority: string, host: string, port: number): Promise<number>;
+	/** Resolves the next chunk, or `undefined` at EOF. At most one read is pending per connection. */
+	$readNetworkConnection(id: number): Promise<VSBuffer | undefined>;
+	/** Resolves once the agent host connection has accepted the data. */
+	$writeNetworkConnection(id: number, data: VSBuffer): Promise<void>;
+	/** Half-closes the connection once previously written data has been delivered. */
+	$endNetworkConnection(id: number): Promise<void>;
+	$closeNetworkConnection(id: number): void;
 }
 
 export interface ExtHostBrowserTunnelProxyShape {
-	/** Starts (or returns the running) proxy whose connections use the remote network with this authority. */
+	/** Starts (or returns the running) proxy whose connections use the network with this authority: the window's remote or an agent host. */
 	$acquireNetworkProxy(authority: string): Promise<ITunnelProxyInfo>;
 	$releaseNetworkProxy(authority: string): void;
 }
@@ -2405,8 +2416,16 @@ export type ChatArtifactActionResultDto =
 	| Omit<Extract<ArtifactCodeResult, { readonly kind: 'completed' }>, 'result'>
 	| Extract<ArtifactCodeResult, { readonly kind: 'skipped' }>;
 
+export interface ChatArtifactIntegrationProviderMetadataDto {
+	readonly label: string;
+	readonly description?: string;
+	readonly groupLabel?: string;
+	readonly automationOptions: readonly ArtifactAutomationOption[];
+	readonly canSignIn: boolean;
+}
+
 export interface MainThreadChatArtifactIntegrationsShape extends IDisposable {
-	$registerProvider(handle: number, id: string, label: string, options: readonly ArtifactAutomationOption[], canSignIn: boolean, description?: string): void;
+	$registerProvider(handle: number, id: string, metadata: ChatArtifactIntegrationProviderMetadataDto): void;
 	$unregisterProvider(handle: number): void;
 	$onDidChangeProvider(handle: number): void;
 	$onDidChangeIntegration(handle: number, state: ChatArtifactIntegrationStateDto): void;
@@ -2424,6 +2443,7 @@ export interface ExtHostChatArtifactIntegrationsShape {
 	$disposeIntegration(handle: number): void;
 	$acquireDetails(resourceHandle: number, detailsHandle: number, detailsId: string): Promise<{ readonly details: ArtifactDetails; readonly canLoadMore: boolean }>;
 	$loadMoreDetails(detailsHandle: number, token: CancellationToken): Promise<void>;
+	$runItemAction(detailsHandle: number, itemId: string, actionId: string, token: CancellationToken): Promise<void>;
 	$disposeDetails(detailsHandle: number): void;
 	$prepareAction(handle: number, actionId: string, context: ChatArtifactActionContextDto, token: CancellationToken): Promise<{ readonly kind: 'ready' } | { readonly kind: 'skip'; readonly reason: string }>;
 	$runAction(handle: number, actionId: string, context: ChatArtifactActionContextDto, token: CancellationToken): Promise<ChatArtifactActionResultDto | undefined>;
@@ -3328,10 +3348,11 @@ export interface ExtHostShareShape {
 export interface ExtHostTaskShape {
 	$provideTasks(handle: number, validTypes: { [key: string]: boolean }): Promise<tasks.ITaskSetDTO>;
 	$resolveTask(handle: number, taskDTO: tasks.ITaskDTO): Promise<tasks.ITaskDTO | undefined>;
-	$onDidStartTask(execution: tasks.ITaskExecutionDTO, terminalId: number, resolvedDefinition: tasks.ITaskDefinitionDTO): void;
+	$onWillStartTask(taskId: string, startId?: string): void;
+	$onDidStartTask(execution: tasks.ITaskExecutionDTO, terminalId: number, resolvedDefinition: tasks.ITaskDefinitionDTO, startId?: string): void;
 	$onDidStartTaskProcess(value: tasks.ITaskProcessStartedDTO): void;
 	$onDidEndTaskProcess(value: tasks.ITaskProcessEndedDTO): void;
-	$OnDidEndTask(execution: tasks.ITaskExecutionDTO): void;
+	$OnDidEndTask(execution: tasks.ITaskExecutionDTO, startId?: string): void;
 	$onDidStartTaskProblemMatchers(status: tasks.ITaskProblemMatcherStartedDto): void;
 	$onDidEndTaskProblemMatchers(status: tasks.ITaskProblemMatcherEndedDto): void;
 	$resolveVariables(workspaceFolder: UriComponents, toResolve: { process?: { name: string; cwd?: string }; variables: string[] }): Promise<{ process?: string; variables: { [key: string]: string } }>;
@@ -3462,6 +3483,51 @@ export interface ExtHostWindowShape {
 	$onDidChangeWindowFocus(value: boolean): void;
 	$onDidChangeWindowActive(value: boolean): void;
 	$onDidChangeActiveNativeWindowHandle(handle: string | undefined): void;
+}
+
+/** Public error category of the proposed GitHub API; cancellation is reported separately. */
+export type GitHubErrorCodeDto = 'authentication' | 'authorization' | 'notFound' | 'validation' | 'rateLimit' | 'network' | 'timeout' | 'server' | 'invalidResponse' | 'disposed' | 'unknown';
+
+export interface IGitHubErrorDto {
+	readonly code: GitHubErrorCodeDto;
+	readonly message: string;
+	readonly status?: number;
+}
+
+/** Operation result; failures are values so their code and status survive RPC without response bodies. */
+export type GitHubResultDto<T> =
+	| { readonly kind: 'ok'; readonly value: T }
+	| { readonly kind: 'error'; readonly error: IGitHubErrorDto }
+	| { readonly kind: 'canceled' };
+
+export interface IGitHubGistFileDto {
+	readonly content: string;
+	readonly isBinary: boolean;
+	readonly truncated: boolean;
+}
+
+export interface IGitHubGistDto {
+	readonly id: string;
+	readonly htmlUrl: string;
+	readonly files: readonly IGitHubGistFileDto[];
+}
+
+export interface IGitHubCreateGistDto {
+	readonly public?: boolean;
+	readonly files: { readonly [fileName: string]: { readonly content: string } };
+}
+
+/**
+ * Client leases are identified by extension-host-generated handles so that a release can be sent for an
+ * acquisition whose reply was lost or cancelled. Releasing an unknown or already released handle is a no-op.
+ */
+export interface MainThreadGitHubShape extends IDisposable {
+	/** Binds a session of the `github` authentication provider (GitHub.com). */
+	$getClient(handle: number, extensionId: string, sessionId: string, token: CancellationToken): Promise<GitHubResultDto<void>>;
+	$getAnonymousClient(handle: number, extensionId: string, token: CancellationToken): Promise<GitHubResultDto<void>>;
+	$releaseClient(handle: number): void;
+	$getGist(handle: number, gistId: string, token: CancellationToken): Promise<GitHubResultDto<IGitHubGistDto>>;
+	$createGist(handle: number, gist: IGitHubCreateGistDto, token: CancellationToken): Promise<GitHubResultDto<IGitHubGistDto>>;
 }
 
 export type PowerSystemIdleState = 'active' | 'idle' | 'locked' | 'unknown';
@@ -4219,6 +4285,7 @@ export const MainContext = {
 	MainThreadTask: createProxyIdentifier<MainThreadTaskShape>('MainThreadTask'),
 	MainThreadWindow: createProxyIdentifier<MainThreadWindowShape>('MainThreadWindow'),
 	MainThreadPower: createProxyIdentifier<MainThreadPowerShape>('MainThreadPower'),
+	MainThreadGitHub: createProxyIdentifier<MainThreadGitHubShape>('MainThreadGitHub'),
 	MainThreadLabelService: createProxyIdentifier<MainThreadLabelServiceShape>('MainThreadLabelService'),
 	MainThreadNotebook: createProxyIdentifier<MainThreadNotebookShape>('MainThreadNotebook'),
 	MainThreadNotebookDocuments: createProxyIdentifier<MainThreadNotebookDocumentsShape>('MainThreadNotebookDocumentsShape'),

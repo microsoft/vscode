@@ -164,6 +164,56 @@ suite('PromptTimelineGutterRail', () => {
 		});
 	});
 
+	test('preserves unchanged row content and focus while updating another prompt', () => {
+		const stat = { added: 3, removed: 1, fileCount: 1 };
+		const ticks = [tick(0, stat), tick(1, stat)];
+		const rail = createRail(ticks);
+		const rows = rowParts(rail);
+		const label = rows[0].jump.firstChild!.firstChild;
+		const added = rows[0].diff.querySelector('.added');
+		rows[0].diff.focus();
+
+		rail.setTicks(ticks.map(item => ({ ...item, allRequestIds: [...item.allRequestIds], stat: { ...stat } })));
+		const unchanged = { label: rows[0].jump.firstChild!.firstChild === label, stat: rows[0].diff.querySelector('.added') === added };
+		const updated = { ...ticks[1], text: 'Updated', ariaLabel: 'Updated prompt', stat: { added: 7, removed: 2, fileCount: 2 } };
+		rail.setTicks([ticks[0], updated]);
+		rail.setActive(ticks[1].requestId);
+
+		assert.deepStrictEqual({
+			unchanged,
+			firstLabelPreserved: rows[0].jump.firstChild!.firstChild === label,
+			firstStatPreserved: rows[0].diff.querySelector('.added') === added,
+			focused: document.activeElement === rows[0].diff,
+			tabbable: rows.flatMap(row => [row.jump, row.diff]).filter(button => button.tabIndex === 0).length,
+			label: rows[1].jump.textContent,
+			ariaLabel: rows[1].jump.getAttribute('aria-label'),
+			stat: rows[1].diff.textContent,
+			active: rows[1].jump.getAttribute('aria-current'),
+		}, {
+			unchanged: { label: true, stat: true },
+			firstLabelPreserved: true,
+			firstStatPreserved: true,
+			focused: true,
+			tabbable: 1,
+			label: 'Updated',
+			ariaLabel: 'Updated prompt',
+			stat: '+7\u22122',
+			active: 'location',
+		});
+	});
+
+	test('keeps review metadata current when only bucket membership or timestamp changes', () => {
+		const original = tick(0, { added: 3, removed: 1, fileCount: 1 });
+		const rail = createRail([original]);
+		const reviewed: PromptTick[] = [];
+		store.add(rail.onDidReview(value => reviewed.push(value)));
+		const updated = { ...original, allRequestIds: ['0', '1'], count: 2, timestamp: 42 };
+		rail.setTicks([updated]);
+		rowParts(rail)[0].diff.click();
+
+		assert.deepStrictEqual(reviewed, [updated]);
+	});
+
 	test('keeps the flyout above sticky scroll and the transcript scrollbar', () => {
 		const host = document.createElement('div');
 		host.classList.add('prompt-timeline-host');

@@ -138,7 +138,12 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 			if (!configProvider || this._providerListeners.has(provider.id)) {
 				continue;
 			}
-			this._providerListeners.set(provider.id, configProvider.onDidChangeSessionConfig(() => this._updateTrigger()));
+			// Updating the trigger replaces its label, so ignore other sessions to keep clicks from being lost.
+			this._providerListeners.set(provider.id, configProvider.onDidChangeSessionConfig(sessionId => {
+				if (sessionId === this._session.get()?.sessionId) {
+					this._updateTrigger();
+				}
+			}));
 		}
 	}
 

@@ -68,6 +68,10 @@ export function createChatOwnerRef(stateManager: AgentHostStateManager, chat: UR
 	return {
 		get: getOwner,
 		getSubagentChatUriFormat: () => chatUriFormatOf(stateManager.getDefaultChat(getOwner().toString())),
+		isDefaultChat: () => {
+			const defaultChat = stateManager.getDefaultChat(getOwner().toString());
+			return defaultChat === undefined ? undefined : defaultChat === chatKey;
+		},
 		onDidChange: Event.any(
 			Event.map(Event.filter(stateManager.onDidChangeChatOwner, change => change.chat === chatKey), change => ({ previous: URI.parse(change.previous), current: URI.parse(change.current) })),
 			// A chat that leaves the registry and registers again under another session changed owner too.
@@ -166,6 +170,7 @@ function buildAgentChatContext(stateManager: AgentHostStateManager, authenticati
 		? isChatPrimaryFolderWorkspaceless(stateManager, creationWorkingDirectories[0], sessionState, sessionSettings?.workspaceless === true)
 		: isChatWorkspaceless(stateManager, chatKey, sessionState, sessionSettings?.workspaceless === true);
 	const isToolChat = typeof origin === 'object' && origin !== null && !Array.isArray(origin) && origin.kind === ChatOriginKind.Tool;
+	const chatSurface = stateManager.getSessionSurfaceMeta(sessionKey)?.surface;
 	return {
 		resource: storageResource === sessionKey ? sessionUri : storageResource === chatKey ? toUri(chat) : URI.parse(storageResource),
 		owner: createChatOwnerRef(stateManager, chat, session),
@@ -175,6 +180,7 @@ function buildAgentChatContext(stateManager: AgentHostStateManager, authenticati
 		...(origin ? { origin } : {}),
 		...(customizations ? { customizations } : {}),
 		...(credentials ? { credentials } : {}),
+		...(chatSurface ? { chatSurface } : {}),
 	};
 }
 

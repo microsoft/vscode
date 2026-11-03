@@ -362,6 +362,10 @@ export class ModelPickerWidget extends Disposable {
 		const runnable = this._getRunnablePredicate(models);
 		const fusion = models.find(candidate => candidate.metadata.autoModelFusion && runnable(candidate));
 		const tier = fusion && getModelConfigProperty(fusion, scopedConfiguration, MODEL_CONFIG_GROUP_EFFORT);
+		// Where Fusion offers no effort level, as in inline chat, Fusion stands in for the HydraFusion levels it would offer.
+		if (fusion && !tier && getFusionTierLabel(fusion.metadata, model.metadata.id)) {
+			return fusion;
+		}
 		const index = tier ? tier.schema.enum?.indexOf(model.metadata.id) ?? -1 : -1;
 		if (!fusion || !tier || index < 0 || tier.schema.enumItemDisabled?.[index] || tier.schema.readOnly) {
 			return undefined;
@@ -718,6 +722,10 @@ export class ModelPickerWidget extends Disposable {
 	show(anchor?: HTMLElement, showDetails = false, focusConfiguration = false, trigger: IModelPickerOpenTrigger = { entryPoint: 'command', inputMethod: 'unknown' }, options?: IModelPickerOpenOptions): void {
 		const anchorElement = anchor ?? this._domNode;
 		if (!anchorElement || this._domNode?.classList.contains('disabled')) {
+			return;
+		}
+		if (!options && this._delegate.showPicker && !this.isRestrictedMode() && !this.isSetupRequired()
+			&& this._delegate.showPicker((showDetails ? this._configButton : this._nameButton) ?? anchorElement, showDetails)) {
 			return;
 		}
 		if (this._tabbedPicker.value?.isVisible) {

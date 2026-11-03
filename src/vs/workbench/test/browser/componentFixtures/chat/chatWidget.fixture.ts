@@ -29,6 +29,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { ChatMcpServersStarting, ChatRequestQueueKind, ElicitationState, IChatExternalEdit, IChatGeneratedImageData, IChatQuestion, IChatQuestionAnswers, IChatSearchToolInvocationData, IChatService, IChatSimpleToolInvocationData, IChatSystemNotificationPart, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { IChatSideChatService } from '../../../../contrib/chat/common/chatSideChatService.js';
 import { ChatElicitationRequestPart } from '../../../../contrib/chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatQuestionCarouselData } from '../../../../contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../../../contrib/chat/common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -95,7 +96,7 @@ export interface IFixtureMessage {
 		| { kind: 'mcpStarting'; servers: readonly string[]; local?: boolean; blocking?: boolean; background?: boolean }
 		| { kind: 'terminal'; command: string; output?: string; intention?: string; complete?: boolean; exitCode?: number; background?: boolean }
 		| { kind: 'subagent'; id: string; description: string; complete?: boolean }
-		| { kind: 'terminalConfirmation'; command: string; title?: string; disclaimer?: string; requestUnsandboxedExecution?: boolean; requestUnsandboxedExecutionReason?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string } }
+		| { kind: 'terminalConfirmation'; command: string; title?: string; message?: string; disclaimer?: string; requestUnsandboxedExecution?: boolean; requestUnsandboxedExecutionReason?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string } }
 		| { kind: 'elicitation'; title: string; message: string; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string }; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean }
 	>;
 	readonly details?: string;
@@ -150,6 +151,8 @@ export interface IChatWidgetFixtureOptions {
 	 * Markdown previews under the response.
 	 */
 	readonly agentHostSession?: boolean;
+	/** Lets the conversation start side chats, e.g. to offer Explain on terminal confirmations. */
+	readonly sideChatSupported?: boolean;
 	readonly linkPresentationService?: ILinkPresentationService;
 	readonly menuItems?: ReadonlyArray<{ readonly menuId: MenuId; readonly item: IMenuItem }>;
 	/** Registers fixture-specific services after the shared chat service graph. */
@@ -159,6 +162,7 @@ export interface IChatWidgetFixtureOptions {
 	readonly hostLayoutMode?: 'none' | 'listOnly' | 'stackedFull' | 'stackedTargeted';
 	/** Mirrors `IChatWidgetViewOptions.persistentContentHeight` for content mounted by {@link IChatWidgetFixtureOptions.decorateInputPart}. */
 	readonly persistentContentHeight?: number;
+	readonly stickyProgress?: boolean;
 	/** Enables or disables both settings required by the real tree-based sticky-scroll path. */
 	readonly stickyScroll?: boolean;
 	/** Enables the response-level persistent progress indicator. */
@@ -174,6 +178,10 @@ export interface IChatWidgetFixtureOptions {
 	readonly realTerminalOutput?: boolean;
 	readonly thinkingPhrases?: readonly string[];
 	readonly editingSession?: IChatEditingSession;
+	/** Shows attachments as pills inline with the request text, see `chat.inlineAttachments.enabled`. */
+	readonly inlineAttachments?: boolean;
+	/** Mirrors the `chat.fontSize` and `chat.fontFamily` settings, which `ChatWidget` applies to its container. */
+	readonly chatFont?: { readonly size?: number; readonly family?: string };
 }
 
 export interface IChatWidgetFixtureHandle {
@@ -342,6 +350,15 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		},
 	});
 
+	if (options.sideChatSupported) {
+		disposableStore.add(instantiationService.get(IChatSideChatService).registerProvider({
+			canAskInSideChat: () => true,
+			askInSideChat: async () => { },
+			observeSideChatOrigin: () => constObservable(undefined),
+			revealSideChatSource: async () => { },
+		}));
+	}
+
 	if (options.menuItems?.length) {
 		const menuService = instantiationService.get(IMenuService);
 		if (!(menuService instanceof FixtureMenuService)) {
@@ -393,6 +410,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	}
 	if (options.verbose !== undefined) {
 		configService.setUserConfiguration(ChatConfiguration.Verbose, options.verbose);
+	}
+	if (options.inlineAttachments !== undefined) {
+		configService.setUserConfiguration(ChatConfiguration.InlineAttachmentsEnabled, options.inlineAttachments);
 	}
 	if (options.stickyScroll !== undefined) {
 		configService.setUserConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled, options.stickyScroll);
@@ -614,7 +634,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 						{
 							invocationMessage: new MarkdownString(`Running \`${part.command}\``),
 							pastTenseMessage: message.responseComplete === false ? undefined : new MarkdownString(`Ran \`${part.command}\``),
-							confirmationMessages: confirmation ? { title, message: new MarkdownString(`\`${part.command}\``), disclaimer: confirmation.disclaimer ? new MarkdownString(confirmation.disclaimer, { supportThemeIcons: true }) : undefined } : undefined,
+							confirmationMessages: confirmation ? { title, message: confirmation.message ?? new MarkdownString(`\`${part.command}\``), disclaimer: confirmation.disclaimer ? new MarkdownString(confirmation.disclaimer, { supportThemeIcons: true }) : undefined } : undefined,
 							toolSpecificData,
 						},
 						fixtureToolData,
@@ -673,6 +693,12 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 
 	const session = dom.$('.interactive-session');
 	session.style.setProperty('--vscode-chat-list-background', listBackground);
+	if (options.chatFont?.size) {
+		session.style.fontSize = `${options.chatFont.size}px`;
+	}
+	if (options.chatFont?.family) {
+		session.style.setProperty('--vscode-chat-font-family', options.chatFont.family);
+	}
 	if (options.persistentContentHeight) {
 		// Same switch `ChatWidget.render` flips.
 		session.classList.add(chatFloatingPersistentContentClass);
@@ -753,6 +779,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			},
 			location: ChatAgentLocation.Chat,
 			paddingBottom: options.persistentContentHeight,
+			stickyProgress: options.stickyProgress,
 			rendererOptions: {
 				contentHorizontalPadding: options.contentHorizontalPadding,
 				progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
@@ -760,6 +787,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		},
 	));
 
+	if (options.stickyProgress) {
+		listWidget.setStickyProgressContainer(inputPart.persistentContentContainerElement);
+	}
 	listWidget.setViewModel(viewModel);
 	listWidget.setVisible(true);
 	disposableStore.add(Event.runAndSubscribe(Event.accumulate(viewModel.onDidChange), () => listWidget.refresh()));
@@ -979,6 +1009,26 @@ const PENDING_TOOL_APPROVAL: IFixtureMessage[] = [
 	},
 ];
 
+const PENDING_TERMINAL_APPROVAL_WITH_INTENTION: IFixtureMessage[] = [
+	{
+		user: 'Find where promptText is produced',
+		assistant: [
+			{
+				kind: 'terminalConfirmation',
+				command: 'grep -rn "promptText" src/vs/sessions src/vs/workbench/contrib/chat/browser --include=*.ts | grep -v test | head -50',
+				// Agent Host shell confirmations name the command's intention in the title and also send it as the message.
+				title: 'Run in terminal: Search for promptText producers and GitHub link pills',
+				message: 'Search for promptText producers and GitHub link pills',
+				riskAssessment: {
+					risk: ToolRiskLevel.Green,
+					explanation: 'Reads workspace files. No changes are made.',
+				},
+			},
+		],
+		responseComplete: false,
+	},
+];
+
 // https://github.com/microsoft/vscode/issues/309796
 const ISSUE_309796_MISSING_BACKSLASH: IFixtureMessage[] = [
 	{
@@ -1108,6 +1158,7 @@ const PERSISTENT_PROGRESS_TERMINAL_CONFIRMATION: IFixtureMessage[] = [{
 		kind: 'terminalConfirmation',
 		command: 'npm install',
 		title: 'Run `npm install`?',
+		message: 'Review dependency installation before running this command.',
 	}],
 	responseComplete: false,
 }];
@@ -2019,7 +2070,7 @@ function defineToolChainScenarios(progressAnimation = ChatProgressAnimation.Draw
 			{ kind: 'markdown', text: '### What I found\n\nThe existing progress is rendered by several content parts:\n\n- Tool calls keep their own details.\n- Reasoning remains independently collapsible.\n- The response owns a single working indicator.' },
 			{ kind: 'thinking', text: '**Checking the implementation**\nVerify that the setting still restores the original rendering.' },
 			tool('read_file', 'Read `src/progress.test.ts`', true),
-			{ kind: 'markdown', text: 'Persistent progress defaults to Draw in Insiders and Off in Stable. Experiments can override either default. Select Draw with Compact tool previews explicitly:\n\n```json\n{\n  "chat.experimental.persistentProgress": "draw",\n  "chat.experimental.persistentProgressVerbosity": "compact"\n}\n```\n\nI am checking the remaining rendering scenarios now.' },
+			{ kind: 'markdown', text: 'Persistent progress defaults to Draw in all versions of VS Code. Experiments can override the default. Select Draw with Compact tool previews explicitly:\n\n```json\n{\n  "chat.persistentProgress": "draw",\n  "chat.persistentProgressVerbosity": "compact"\n}\n```\n\nI am checking the remaining rendering scenarios now.' },
 		])),
 		StreamingToolCall: scenario(PERSISTENT_PROGRESS_STREAMING_TOOL),
 		StandaloneMcpTool: scenario(tools([...before, { kind: 'tool', toolId: 'mcp_documentation_lookup', displayName: 'Documentation', invocationMessage: 'Looking up the progress API...', source: mcpSource }]), { activityRowSpacing: true }),
@@ -2478,6 +2529,50 @@ const CODE_BLOCK_IN_LIST: IFixtureMessage[] = [
 	},
 ];
 
+/**
+ * A request whose pasted image and file are shown as pills inline with its
+ * text, see `chat.inlineAttachments.enabled`, optionally in a custom chat font.
+ */
+async function renderInlineAttachmentPills(context: ComponentFixtureContext, chatFont?: IChatWidgetFixtureOptions['chatFont']): Promise<void> {
+	const canvas = dom.$<HTMLCanvasElement>('canvas');
+	canvas.width = 48;
+	canvas.height = 32;
+	const canvasContext = canvas.getContext('2d');
+	if (!canvasContext) {
+		throw new Error('Could not draw the pasted image');
+	}
+	canvasContext.fillStyle = '#f3f3f3';
+	canvasContext.fillRect(0, 0, canvas.width, canvas.height);
+	canvasContext.fillStyle = '#3794ff';
+	canvasContext.fillRect(6, 6, 24, 4);
+	canvasContext.fillRect(6, 14, 36, 4);
+	canvasContext.fillRect(6, 22, 18, 4);
+	const imageBytes = Uint8Array.from(atob(canvas.toDataURL('image/png').split(',')[1]), character => character.charCodeAt(0));
+
+	await renderChatWidget(context, {
+		messages: [{
+			user: 'Why does #file:index.ts look different from Pasted Image?',
+			variables: [
+				{ kind: 'file', id: 'file:///repo/src/index.ts', name: 'index.ts', value: URI.file('/repo/src/index.ts') },
+				{ kind: 'image', id: 'pasted-image', name: 'Pasted Image', value: imageBytes, mimeType: 'image/png', isPasted: true },
+			],
+			assistant: [{ kind: 'markdown', text: 'Both pills should center their label vertically.' }],
+		}],
+		height: 200,
+		listHeight: 200,
+		inputVisible: false,
+		inlineAttachments: true,
+		chatFont,
+	});
+
+	const request = context.container.querySelector<HTMLElement>('.interactive-request');
+	if (!request) {
+		throw new Error('The request did not render');
+	}
+	await waitForFixtureDomCondition(request, () => request.querySelectorAll('.chat-request-inline-attachment').length === 2 && !!request.querySelector('.chat-request-inline-attachment img.chat-attached-context-pill-image'), context.disposableStore);
+	await request.querySelector<HTMLImageElement>('.chat-request-inline-attachment img.chat-attached-context-pill-image')!.decode();
+}
+
 async function renderResizeObserverLoopHarness(context: ComponentFixtureContext, hostLayoutMode: IChatWidgetFixtureOptions['hostLayoutMode']): Promise<void> {
 	const targetWindow = dom.getWindow(context.container);
 
@@ -2710,6 +2805,7 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	ScrollToBottomAction: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: renderScrollToBottomAction }),
 	Streaming: defineComponentFixture({ labels: { kind: 'animated' }, render: ctx => renderChatWidget(ctx, { messages: STREAMING }) }),
 	PendingToolApproval: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
+	PendingTerminalApprovalWithIntention: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TERMINAL_APPROVAL_WITH_INTENTION, sideChatSupported: true }) }),
 	PendingMessages: defineThemedFixtureGroup({
 		Queued: defineComponentFixture({
 			labels: { kind: 'screenshot', blocksCi: true },
@@ -2939,6 +3035,14 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 		render: renderDisabledPetResizeObserverProbe,
 	}),
 	CodeBlockInList: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: CODE_BLOCK_IN_LIST }) }),
+	InlineAttachmentPills: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: ctx => renderInlineAttachmentPills(ctx),
+	}),
+	InlineAttachmentPillsLargeFont: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: ctx => renderInlineAttachmentPills(ctx, { size: 16 }),
+	}),
 	bugs: defineThemedFixtureGroup({
 		'issue-309796-missing-backslash': defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: ISSUE_309796_MISSING_BACKSLASH }) }),
 	}),

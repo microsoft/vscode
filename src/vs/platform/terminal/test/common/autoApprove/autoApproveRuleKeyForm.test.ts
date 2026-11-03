@@ -1,0 +1,31 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { getTerminalAutoApproveRuleKeyForms } from '../../../common/autoApprove/autoApproveRuleKeyForm.js';
+
+suite('getTerminalAutoApproveRuleKeyForms', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('classifies rule keys without exposing rule text', () => {
+		assert.deepStrictEqual([
+			getTerminalAutoApproveRuleKeyForms([]),
+			getTerminalAutoApproveRuleKeyForms(['git status']),
+			getTerminalAutoApproveRuleKeyForms(['./scripts/build.sh']),
+			getTerminalAutoApproveRuleKeyForms(['.\\scripts\\build.ps1']),
+			getTerminalAutoApproveRuleKeyForms(['/^git (status|log)\\b/i']),
+			getTerminalAutoApproveRuleKeyForms(['/^npm test$/', 'ls', 'git status', '/usr/bin/env']),
+		], [
+			undefined,
+			'plain',
+			'path',
+			'path',
+			'regex',
+			'path,plain,regex',
+		]);
+	});
+});

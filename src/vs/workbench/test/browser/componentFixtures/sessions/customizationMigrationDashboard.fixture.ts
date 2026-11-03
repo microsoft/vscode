@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CustomizationMigrationCategoryId } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
+import { CustomizationMigrationCategoryId, customizationMigrationGuidance } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
 import {
 	CustomizationMigrationDashboard,
 	ICustomizationMigrationDashboardOverview,
 } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationDashboard.js';
 import { PromptsStorage } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
@@ -87,6 +88,18 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot' },
 		render: ctx => renderDashboard(ctx, 360, 'overview'),
 	}),
+	MigrationsGuidance: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['MCP migration retains its checkbox and Migrate action. Chat Participants and Tool Sets have Learn More links and Ignore actions, with read-only rows showing extension or user source information and no checkboxes or row menus.'],
+		render: ctx => renderDashboard(ctx, 860, 'guidance'),
+	}),
+	MigrationsGuidanceOnly: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['A narrow migrations dashboard shows only Chat Participants and Tool Sets, with Learn More and Ignore actions and read-only rows. There is no Migrate with Agent action and no completed-state message.'],
+		render: ctx => renderDashboard(ctx, 360, 'guidanceOnly'),
+	}),
 	MigrationsTooltip: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The prompt migration Migrate button shows its action tooltip.'],
@@ -99,6 +112,26 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	MigrationsDisabled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderDashboard(ctx, 860, 'disabled'),
+	}),
+	MigrationsPending: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderDashboard(ctx, 860, 'pending'),
+	}),
+	MigrationsActive: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The workspace prompt migration group shows a disabled Migrating button while the page is marked busy. Other migration groups remain visible but unavailable until the active migration finishes.'],
+		render: ctx => renderDashboard(ctx, 860, 'active'),
+	}),
+	MigrationsMarketplaceActive: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The Plugin Marketplaces user group shows four selected marketplaces and a disabled Migrating button while the page is marked busy.'],
+		render: ctx => renderDashboard(ctx, 860, 'marketplaceActive'),
+	}),
+	MigrationsMarketplaceActiveNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderDashboard(ctx, 360, 'marketplaceActive'),
 	}),
 	MigrationsIgnored: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -139,7 +172,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 });
 
-async function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'overview' | 'tooltip' | 'partial' | 'disabled' | 'ignored' | 'loading' | 'error' | 'zero' | 'marketplaceError' | 'mcpWarnings'): Promise<void> {
+async function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'overview' | 'tooltip' | 'partial' | 'disabled' | 'pending' | 'active' | 'marketplaceActive' | 'ignored' | 'loading' | 'error' | 'zero' | 'marketplaceError' | 'mcpWarnings' | 'guidance' | 'guidanceOnly'): Promise<void> {
 	const { container, disposableStore, theme } = ctx;
 	container.classList.add('ai-customization-management-editor');
 	const dashboardContainer = state === 'tooltip' ? DOM.append(container, DOM.$('.customization-migration-dashboard-fixture')) : container;
@@ -174,6 +207,74 @@ async function renderDashboard(ctx: ComponentFixtureContext, width: number, stat
 		},
 	});
 	let model = overview();
+	if (state === 'guidance' || state === 'guidanceOnly') {
+		const toolSetGuidance = customizationMigrationGuidance.find(category => category.id === CustomizationMigrationCategoryId.ToolSets)!;
+		const participantGuidance = customizationMigrationGuidance.find(category => category.id === CustomizationMigrationCategoryId.ChatParticipants)!;
+		model = {
+			...model,
+			manualReviewItems: [],
+			scopes: [
+				{
+					storage: PromptsStorage.user,
+					label: 'Your profile',
+					count: 1,
+					hasConfigurableDestinations: false,
+					categories: [{
+						...toolSetGuidance,
+						count: 1,
+						countLabel: '1 customization',
+						items: [{
+							id: 'tool-set',
+							label: 'review-tools',
+							scopeLabel: 'User',
+							sourceLabel: '~/.config/Code/User/prompts/review.toolsets.jsonc',
+							resource: URI.file('/profile/prompts/review.toolsets.jsonc'),
+						}],
+					}],
+				},
+				{
+					storage: PromptsStorage.extension,
+					label: 'Extensions',
+					count: 2,
+					hasConfigurableDestinations: false,
+					categories: [
+						{
+							...participantGuidance,
+							count: 1,
+							countLabel: '1 customization',
+							items: [{
+								id: 'participant',
+								label: '@code-review',
+								scopeLabel: 'Extension',
+								sourceLabel: 'Code Review Extension',
+								extensionId: 'example.code-review',
+							}],
+						},
+						{
+							...toolSetGuidance,
+							count: 1,
+							countLabel: '1 customization',
+							items: [{
+								id: 'extension-tool-set',
+								label: 'deployment-tools',
+								scopeLabel: 'Extension',
+								sourceLabel: 'Deployment Extension',
+								extensionId: 'example.deployment',
+							}],
+						},
+					],
+				},
+				...(state === 'guidance' ? model.scopes
+					.filter(scope => scope.storage === PromptsStorage.local)
+					.map(scope => ({
+						...scope,
+						categories: scope.categories.filter(category => category.id === CustomizationMigrationCategoryId.McpServers),
+						count: scope.categories.filter(category => category.id === CustomizationMigrationCategoryId.McpServers).reduce((total, category) => total + category.count, 0),
+						hasConfigurableDestinations: false,
+					})) : []),
+			],
+		};
+	}
 	if (state === 'zero') {
 		model = { ...model, scopes: model.scopes.map(scope => ({ ...scope, count: 0, categories: [] })), manualReviewItems: [] };
 	} else if (state === 'partial') {
@@ -200,6 +301,52 @@ async function renderDashboard(ctx: ComponentFixtureContext, width: number, stat
 					items: category.items.map(item => ({ ...item, selected: false })),
 				} : category),
 			} : scope),
+		};
+	} else if (state === 'pending' || state === 'active') {
+		model = {
+			...model,
+			migrationInProgress: state === 'active',
+			scopes: model.scopes.map(scope => scope.storage === PromptsStorage.local ? {
+				...scope,
+				categories: scope.categories.map(category => category.id === CustomizationMigrationCategoryId.PromptFiles ? {
+					...category,
+					...(state === 'active' ? { actionLabel: 'Migrating...', migrationInProgress: true } : {}),
+					migrateDisabled: true,
+				} : { ...category, migrateDisabled: true }),
+			} : {
+				...scope,
+				categories: scope.categories.map(category => ({ ...category, migrateDisabled: true })),
+			}),
+		};
+	} else if (state === 'marketplaceActive') {
+		model = {
+			...model,
+			migrationInProgress: true,
+			manualReviewItems: [],
+			scopes: [{
+				storage: PromptsStorage.user,
+				label: 'Your profile',
+				count: 4,
+				hasConfigurableDestinations: false,
+				categories: [{
+					id: CustomizationMigrationCategoryId.PluginMarketplaces,
+					label: 'Plugin Marketplaces',
+					description: 'Migrate plugin marketplaces to Copilot settings while keeping them available to the Local agent.',
+					actionLabel: 'Migrating...',
+					count: 4,
+					selectedCount: 4,
+					countLabel: '4 marketplaces',
+					migrationInProgress: true,
+					migrateDisabled: true,
+					destinationLabel: '~/.copilot/settings.json',
+					items: [
+						{ id: 'marketplace-team-kit', label: 'microsoft/vscode-team-kit', scopeLabel: 'User', sourceLabel: 'Configured in VS Code settings' },
+						{ id: 'marketplace-engineering', label: 'contoso/engineering-plugins', scopeLabel: 'User', sourceLabel: 'Configured in VS Code settings' },
+						{ id: 'marketplace-data', label: 'contoso/data-agents', scopeLabel: 'User', sourceLabel: 'Configured in VS Code settings' },
+						{ id: 'marketplace-security', label: 'contoso/security-tools', scopeLabel: 'User', sourceLabel: 'Configured in VS Code settings' },
+					],
+				}],
+			}],
 		};
 	} else if (state === 'ignored') {
 		model = {
@@ -262,6 +409,7 @@ async function renderDashboard(ctx: ComponentFixtureContext, width: number, stat
 		deleteAgentMigrationRecovery: () => { },
 		retryCategory: () => { },
 		openCustomization: () => { },
+		openGuidanceSource: () => { },
 	}));
 	if (state === 'loading') {
 		dashboard.showLoading('Migrations', 'Loading migrations');
@@ -277,7 +425,7 @@ async function renderDashboard(ctx: ComponentFixtureContext, width: number, stat
 	dashboard.layout(height);
 	if (state === 'tooltip') {
 		const migrateButton = [...dashboardContainer.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
-			.find(element => element.textContent === 'Migrate');
+			.find(element => element.textContent === 'Migrate...');
 		if (!migrateButton) {
 			throw new Error('Prompt migration button was not rendered');
 		}

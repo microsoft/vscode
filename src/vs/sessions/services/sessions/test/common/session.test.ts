@@ -9,9 +9,51 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { getSessionOwnedGitHubPullRequestRefs, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionTurnFileChange, ISessionWorkspace, sessionFileChangesEqual, sessionTurnFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
+import { getChatHarness, getSessionFolderGitHubRepository, getSessionOwnedGitHubPullRequestRefs, hasMixedChatHarnesses, IChat, ISession, getSessionPresentationWorkspace, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionFolder, ISessionTurnFileChange, ISessionWorkspace, sessionFileChangesEqual, sessionTurnFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
+
+suite('getSessionFolderGitHubRepository', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function repositoryOf(root: string, gitHubInfo?: { readonly owner: string; readonly repo: string }) {
+		const uri = URI.parse(root);
+		const folder: ISessionFolder = {
+			root: uri,
+			workingDirectory: uri,
+			name: 'folder',
+			description: undefined,
+			gitRepository: gitHubInfo && { uri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(gitHubInfo) },
+		};
+		return getSessionFolderGitHubRepository(folder);
+	}
+
+	test('reads a cloud folder, then Git metadata, then a github.com repository URL', () => {
+		const fork = { owner: 'someone', repo: 'fork' };
+		assert.deepStrictEqual({
+			remoteFile: repositoryOf('github-remote-file://github/microsoft/vscode/HEAD', fork),
+			gitHubInfo: repositoryOf('file:///src/vscode', fork),
+			gitHubInfoOverUrl: repositoryOf('https://github.com/microsoft/vscode', fork),
+			url: repositoryOf('https://github.com/microsoft/vscode'),
+			gitUrl: repositoryOf('https://github.com/Microsoft/VSCode.git'),
+			pullRequestUrl: repositoryOf('https://github.com/microsoft/vscode/pull/1'),
+			otherHost: repositoryOf('https://ghe.example.com/microsoft/vscode'),
+			localFolder: repositoryOf('file:///src/scratch'),
+			noFolder: getSessionFolderGitHubRepository(undefined),
+		}, {
+			remoteFile: { owner: 'microsoft', repo: 'vscode' },
+			gitHubInfo: fork,
+			gitHubInfoOverUrl: fork,
+			url: { owner: 'microsoft', repo: 'vscode' },
+			gitUrl: { owner: 'Microsoft', repo: 'VSCode' },
+			pullRequestUrl: undefined,
+			otherHost: undefined,
+			localFolder: undefined,
+			noFolder: undefined,
+		});
+	});
+});
 
 suite('getSessionOwnedGitHubPullRequestRefs', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -310,6 +352,54 @@ suite('getSessionWorkspaceKind', () => {
 	});
 });
 
+suite('getSessionPresentationWorkspace', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function folder(path: string, repositoryRoot?: string): ISessionFolder {
+		const workingDirectory = URI.file(path);
+		const root = repositoryRoot ? URI.file(repositoryRoot) : workingDirectory;
+		return {
+			root,
+			workingDirectory,
+			name: path,
+			description: undefined,
+			gitRepository: { uri: root, workTreeUri: repositoryRoot ? workingDirectory : undefined, baseBranchName: 'main', gitHubInfo: constObservable(undefined) },
+		};
+	}
+
+	function workspace(...folders: ISessionFolder[]): ISessionWorkspace {
+		return { uri: folders[0].root, label: folders[0].name, icon: Codicon.repo, folders, requiresWorkspaceTrust: true, isVirtualWorkspace: false };
+	}
+
+	function presentationOf(sessionWorkspace: ISessionWorkspace | undefined, mainChatWorkspace: ISessionWorkspace | undefined): string | undefined {
+		const session = upcastPartial<ISession>({
+			workspace: constObservable(sessionWorkspace),
+			mainChat: constObservable(upcastPartial<IChat>({ workspace: constObservable(mainChatWorkspace) })),
+		});
+		return getSessionPresentationWorkspace(session, undefined)?.folders.map(folder => folder.workingDirectory.path).join(', ');
+	}
+
+	test('describes the main chat of a multi-folder session', () => {
+		const repo = folder('/repo');
+		const peerWorktree = folder('/repo.worktrees/peer', '/repo');
+		const mainWorktree = folder('/repo.worktrees/main', '/repo');
+		assert.deepStrictEqual({
+			singleFolder: presentationOf(workspace(repo), workspace(mainWorktree)),
+			mainChatMovedToWorktree: presentationOf(workspace(repo, peerWorktree, mainWorktree), workspace(mainWorktree)),
+			mainChatInSessionFolder: presentationOf(workspace(repo, peerWorktree), workspace(repo)),
+			mainChatWorkspaceUnavailable: presentationOf(workspace(repo, mainWorktree), undefined),
+			noSessionWorkspace: presentationOf(undefined, workspace(repo)),
+		}, {
+			singleFolder: '/repo',
+			mainChatMovedToWorktree: '/repo.worktrees/main',
+			mainChatInSessionFolder: '/repo',
+			mainChatWorkspaceUnavailable: '/repo, /repo.worktrees/main',
+			noSessionWorkspace: undefined,
+		});
+	});
+});
+
 suite('getUntitledSessionTitle', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -320,5 +410,21 @@ suite('getUntitledSessionTitle', () => {
 
 	test('returns "New Session" for a non-quick-chat session', () => {
 		assert.strictEqual(getUntitledSessionTitle(false), 'New Session');
+	});
+});
+
+suite('hasMixedChatHarnesses', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('compares every chat with the main chat\'s harness, reading an absent harness as the session\'s', () => {
+		const chat = (harness?: string) => upcastPartial<IChat>({ resource: URI.parse(`test:///${harness ?? 'none'}`), ...(harness ? { harness } : {}) });
+		const session = (main: IChat, chats: IChat[]) => upcastPartial<ISession>({ harness: 'copilot', mainChat: constObservable(main), chats: constObservable([main, ...chats]) });
+		assert.deepStrictEqual([
+			hasMixedChatHarnesses(session(chat(), [chat(), chat('copilot')]), undefined),
+			hasMixedChatHarnesses(session(chat('copilot'), [chat('claude')]), undefined),
+			hasMixedChatHarnesses(session(chat('claude'), [chat('claude')]), undefined),
+			getChatHarness({ harness: 'copilot' }, {}),
+		], [false, true, false, 'copilot']);
 	});
 });

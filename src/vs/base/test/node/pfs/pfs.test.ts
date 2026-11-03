@@ -11,7 +11,7 @@ import { VSBuffer } from '../../../common/buffer.js';
 import { randomPath } from '../../../common/extpath.js';
 import { FileAccess } from '../../../common/network.js';
 import { basename, dirname, join, sep } from '../../../common/path.js';
-import { isWindows } from '../../../common/platform.js';
+import { isCI, isWindows } from '../../../common/platform.js';
 import { configureFlushOnWrite, Promises, realcase, realpathSync, RimRafMode, SymlinkSupport, writeFileSync } from '../../../node/pfs.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../common/utils.js';
 import { flakySuite, getRandomTestPath } from '../testUtils.js';
@@ -480,13 +480,19 @@ flakySuite('PFS', function () {
 
 		// assume case insensitive file system
 		if (process.platform === 'win32' || process.platform === 'darwin') {
-			const upper = testDir.toUpperCase();
+			// realcase cannot resolve 8.3 short names, such as `RUNNER~1` in a temp folder
+			// `C:\Users\RUNNER~1\AppData\Local\Temp` on Windows: start from the long path
+			const dir = await fs.promises.realpath(testDir);
+			const upper = dir.toUpperCase();
 			const real = await realcase(upper);
 
-			if (real) { // can be null in case of permission errors
+			// can be null in case of permission errors, but not on CI machines, where
+			// the test would otherwise pass without asserting anything
+			assert.ok(real || !isCI, `realcase returned null for ${upper}`);
+			if (real) {
 				assert.notStrictEqual(real, upper);
 				assert.strictEqual(real.toUpperCase(), upper);
-				assert.strictEqual(real, testDir);
+				assert.strictEqual(real, dir);
 			}
 		}
 

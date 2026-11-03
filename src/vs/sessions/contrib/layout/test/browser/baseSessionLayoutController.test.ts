@@ -57,7 +57,7 @@ suite('BaseLayoutController', () => {
 	}
 
 	teardown(() => store.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function describeWorkingSetRestore() {
 		const { owner, restoring, applying } = harness.editorWorkingSetService.restoreState.get();
@@ -65,43 +65,39 @@ suite('BaseLayoutController', () => {
 	}
 
 	test('shows the side panel toggle at the top of the session activity bar only while it can show there', () => {
-		const registration = BaseLayoutController.registerSidePaneToggleAction();
-		try {
-			const find = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem).filter(item => item.command.id === 'workbench.action.agentToggleSidePanel');
-			const titleBar = find(Menus.TitleBarSessionMenu)[0];
-			const activityBar = find(Menus.SessionActivityBar)[0];
-			const appearance = find(MenuId.MenubarAppearanceMenu)[0];
-			// Where the toggle shows in each layout, for a hidden panel and a closed welcome view in the main window.
-			const base: Record<string, ContextKeyValue> = { agentSessionsDesktopLayout: true, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: true, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: true };
-			const scenarios: Record<string, Record<string, ContextKeyValue>> = {
-				layoutActions: base,
-				layoutActionsOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: false },
-				activityBarOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: false },
-				// The activity bar is hidden with the Sessions part while the editor is maximized, and in the phone layout.
-				editorMaximized: { ...base, editorMaximized: true },
-				phoneLayout: { ...base, sessionsIsPhoneLayout: true },
-			};
-			const shows = (item: IMenuItem | undefined, values: Record<string, ContextKeyValue>) => !!item && item.when?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext) !== false;
-			const placement = Object.fromEntries(Object.entries(scenarios).map(([name, values]) => [name, [
-				...(shows(titleBar, values) ? ['titleBar'] : []),
-				...(shows(activityBar, values) ? ['activityBar'] : []),
-			]]));
+		disposables.add(BaseLayoutController.registerSidePaneToggleAction());
+		const find = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem).filter(item => item.command.id === 'workbench.action.agentToggleSidePanel');
+		const titleBar = find(Menus.TitleBarSessionMenu)[0];
+		const activityBar = find(Menus.SessionActivityBar)[0];
+		const appearance = find(MenuId.MenubarAppearanceMenu)[0];
+		// Where the toggle shows in each layout, for a hidden panel and a closed welcome view in the main window.
+		const base: Record<string, ContextKeyValue> = { agentSessionsDesktopLayout: true, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: true, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: true };
+		const scenarios: Record<string, Record<string, ContextKeyValue>> = {
+			layoutActions: base,
+			layoutActionsOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: false },
+			activityBarOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: false },
+			// The activity bar is hidden with the Sessions part while the editor is maximized, and in the phone layout.
+			editorMaximized: { ...base, editorMaximized: true },
+			phoneLayout: { ...base, sessionsIsPhoneLayout: true },
+		};
+		const shows = (item: IMenuItem | undefined, values: Record<string, ContextKeyValue>) => !!item && item.when?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext) !== false;
+		const placement = Object.fromEntries(Object.entries(scenarios).map(([name, values]) => [name, [
+			...(shows(titleBar, values) ? ['titleBar'] : []),
+			...(shows(activityBar, values) ? ['activityBar'] : []),
+		]]));
 
-			assert.deepStrictEqual({ titleBar: { group: titleBar?.group, order: titleBar?.order }, activityBar: { group: activityBar?.group, order: activityBar?.order }, appearance: { group: appearance?.group, order: appearance?.order }, placement }, {
-				titleBar: { group: 'navigation', order: 11 },
-				activityBar: { group: '1_sidePanel', order: 0 },
-				appearance: { group: '2_workbench_layout', order: 2 },
-				placement: {
-					layoutActions: ['activityBar'],
-					layoutActionsOff: ['titleBar'],
-					activityBarOff: ['titleBar'],
-					editorMaximized: ['titleBar'],
-					phoneLayout: ['titleBar'],
-				},
-			});
-		} finally {
-			registration.dispose();
-		}
+		assert.deepStrictEqual({ titleBar: { group: titleBar?.group, order: titleBar?.order }, activityBar: { group: activityBar?.group, order: activityBar?.order }, appearance: { group: appearance?.group, order: appearance?.order }, placement }, {
+			titleBar: { group: 'navigation', order: 11 },
+			activityBar: { group: '1_sidePanel', order: 0 },
+			appearance: { group: '2_workbench_layout', order: 2 },
+			placement: {
+				layoutActions: ['activityBar'],
+				layoutActionsOff: ['titleBar'],
+				activityBarOff: ['titleBar'],
+				editorMaximized: ['titleBar'],
+				phoneLayout: ['titleBar'],
+			},
+		});
 	});
 
 	// --- [B1] Panel visibility ---
@@ -354,6 +350,80 @@ suite('BaseLayoutController', () => {
 		harness.onDidReplaceSession.fire({ from: draft, to: committed });
 
 		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.a', location: ViewContainerLocation.Panel }]);
+	});
+
+	test('[B2] switching away discards an empty untitled editor bound to a file path instead of saving it into the working set', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		const untitled = URI.from({ scheme: 'untitled', path: '/REPORT.md.' });
+		const regular = URI.file('/repo/a.ts');
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		harness.untitledWithPath = [{ resource: untitled, content: '' }];
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(untitled, { dirty: true })), store.add(new TestStubEditorInput(regular))];
+		harness.visibleEditorsList = [{}, {}];
+
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.revertedUntitledResources.map(r => r.toString()), [untitled.toString()]);
+		assert.deepStrictEqual(harness.saveWorkingSetCalls, [`session-working-set:${sessionA.resource.toString()}`]);
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.activeGroupEditors.map(e => e.resource?.toString()), [regular.toString()]);
+	});
+
+	test('[B2] switching away keeps an untitled editor bound to a file path that has content and restores it on return', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		const untitled = URI.from({ scheme: 'untitled', path: '/REPORT.md.' });
+		const regular = URI.file('/repo/a.ts');
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		harness.untitledWithPath = [{ resource: untitled, content: 'hello' }];
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(untitled, { dirty: true })), store.add(new TestStubEditorInput(regular))];
+		harness.visibleEditorsList = [{}, {}];
+
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.revertedUntitledResources, []);
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.activeGroupEditors.map(e => e.resource?.toString()), [untitled.toString(), regular.toString()]);
+	});
+
+	test('[B2] a state flush keeps an empty untitled editor bound to a file path open in the active session', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const untitled = URI.from({ scheme: 'untitled', path: '/REPORT.md.' });
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		harness.untitledWithPath = [{ resource: untitled, content: '' }];
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(untitled, { dirty: true }))];
+		harness.visibleEditorsList = [{}];
+
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+
+		assert.deepStrictEqual(harness.revertedUntitledResources, []);
 	});
 
 	test('[B6] a same-resource draft promotion does not block the committed session\'s next outgoing working-set save', async () => {

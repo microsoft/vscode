@@ -28,6 +28,7 @@ registerOpenAgentsWindowCommand();
 // Per-session layout controller (desktop / web desktop layout).
 import './contrib/layout/browser/sessions.layout.contribution.js';
 import './contrib/canvases/electron-browser/sessionCanvases.contribution.js';
+import './contrib/inboxOne/electron-browser/inboxCanvasHost.js';
 import './contrib/sessionInputBanners/electron-browser/sessionDiskSpace.contribution.js';
 
 //#endregion
@@ -244,6 +245,7 @@ import '../workbench/contrib/chat/electron-browser/agentSessions/computerUseHelp
 
 import './electron-browser/sessions.desktop.contribution.js';
 import './contrib/openAgentsWindow/electron-browser/openAgentsWindow.contribution.js';
+import './contrib/openAgentsWindow/electron-browser/openAgentsWindowKeybindingTip.js';
 
 // Remote Agent Host
 import '../workbench/services/agentHost/electron-browser/agentHostService.js';

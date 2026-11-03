@@ -8,7 +8,7 @@ import { isCancellationError } from '../../../../../base/common/errors.js';
 import { CheckRun } from '../../../../../platform/github/common/core/checks.js';
 import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHubCICheck } from '../../common/types.js';
+import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../common/types.js';
 import { GitHubApiClient } from '../githubApiClient.js';
 
 export class GitHubPRCIFetcher {
@@ -104,31 +104,4 @@ function mapCheckConclusion(conclusion: string): GitHubCheckConclusion {
 		case 'stale': return GitHubCheckConclusion.Stale;
 		default: return GitHubCheckConclusion.Neutral;
 	}
-}
-
-/** Computes an overall CI status from check runs. */
-export function computeOverallCIStatus(checks: readonly IGitHubCICheck[]): GitHubCIOverallStatus {
-	if (checks.length === 0) {
-		return GitHubCIOverallStatus.Neutral;
-	}
-	let hasFailure = false;
-	let hasPending = false;
-	for (const check of checks) {
-		if (check.status !== GitHubCheckStatus.Completed) {
-			hasPending = true;
-			continue;
-		}
-		if (check.conclusion === GitHubCheckConclusion.Failure ||
-			check.conclusion === GitHubCheckConclusion.TimedOut ||
-			check.conclusion === GitHubCheckConclusion.ActionRequired) {
-			hasFailure = true;
-		}
-	}
-	if (hasFailure) {
-		return GitHubCIOverallStatus.Failure;
-	}
-	if (hasPending) {
-		return GitHubCIOverallStatus.Pending;
-	}
-	return GitHubCIOverallStatus.Success;
 }
