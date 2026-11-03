@@ -16,6 +16,7 @@ export function getEditorMarkdownSanitizerConfig(editor: ICodeEditor): MarkdownS
 		return undefined;
 	}
 	return {
-		remoteImageIsAllowed: uri => isMarkdownImageAllowed(options, uri.toString(true)),
+		// Keep the URL encoded: decoding it can change its authority (`%2F` becomes `/`) and thus its origin.
+		remoteImageIsAllowed: uri => isMarkdownImageAllowed(options, uri.toString()),
 	};
 }

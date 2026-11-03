@@ -64,4 +64,25 @@ suite('Editor Markdown images', () => {
 			assert.deepStrictEqual(editor.getOption(EditorOption.markdownImages), { allowedOrigins: true });
 		});
 	});
+
+	function renderHtmlMediaSources(value: string, allowedOrigins: string[]): (string | null)[] {
+		const result: (string | null)[] = [];
+		withTestCodeEditor('', { markdownImages: { allowedOrigins } }, editor => {
+			const rendered = renderMarkdown({ value, supportHtml: true }, { sanitizerConfig: getEditorMarkdownSanitizerConfig(editor) });
+			for (const el of rendered.element.querySelectorAll('img, video')) {
+				result.push(el.getAttribute(el.tagName === 'VIDEO' ? 'poster' : 'src'));
+			}
+			rendered.dispose();
+		});
+		return result;
+	}
+
+	test('checks the origin the browser requests, not a decoded form of it', () => {
+		const value = [
+			'<img src="https://trusted.example%2F@attacker.example/x.png">',
+			'<video poster="https://trusted.example%2F@attacker.example/poster.png"></video>',
+			'<img src="https://trusted.example/ok.png">',
+		].join('\n');
+		assert.deepStrictEqual(renderHtmlMediaSources(value, ['https://trusted.example']), [null, null, 'https://trusted.example/ok.png']);
+	});
 });
