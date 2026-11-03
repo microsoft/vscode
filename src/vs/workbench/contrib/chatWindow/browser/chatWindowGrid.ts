@@ -206,6 +206,7 @@ export class ChatWindowGrid extends Disposable {
 	private _sizes: ChatWindowPartSizes = {};
 	/** The arrangement of the part grid as the window arranged it: sizes are remembered for it only while the grid still shows it. */
 	private _arranged: string | undefined;
+	private _createdPartsChanging = false;
 	/** The height the terminals take once the cells of the arrangement they moved in show. */
 	private _pendingTerminalsHeight: number | undefined;
 
@@ -248,9 +249,11 @@ export class ChatWindowGrid extends Disposable {
 			createPart: () => {
 				const created = partFactory.createPart();
 				this._created.set(created.id, created.part);
+				this._willChangeCreatedParts();
 				this._createdListeners.set(created.id, created.part.onWillClose(() => {
 					this._created.delete(created.id);
 					this._createdListeners.deleteAndDispose(created.id);
+					this._willChangeCreatedParts();
 				}));
 				return created;
 			}
@@ -324,7 +327,19 @@ export class ChatWindowGrid extends Disposable {
 		grid.resizeCell(ChatWindowGridCell.Terminals, { width: grid.getCellSize(ChatWindowGridCell.Terminals).width, height });
 	}
 
+	/**
+	 * A part the grid creates or closes, such as for an editor dropped on an edge of the window, is part of the window's
+	 * arrangement, which the window then still arranged, unless something else changed it, such as a part the user moved.
+	 */
+	private _willChangeCreatedParts(): void {
+		this._createdPartsChanging ||= !!this._grid.value && this._grid.value.describe() === this._arranged;
+	}
+
 	private _updateFromGrid(): void {
+		if (this._createdPartsChanging) {
+			this._createdPartsChanging = false;
+			this._arranged = this._grid.value?.describe();
+		}
 		const grid = this._grid.value;
 		transaction(tx => {
 			this._terminalsVisible.set(!!grid?.isCellVisible(ChatWindowGridCell.Terminals), tx);

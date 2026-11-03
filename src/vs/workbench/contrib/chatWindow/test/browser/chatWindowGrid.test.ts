@@ -710,7 +710,7 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual(leads, { sideBySide: true, movedRight: false, movedBack: true, stacked: false, editorOnly: false });
 	});
 
-	test('a part created for an editor dropped on an edge of the window stays when the layout mode changes, until it closes', () => {
+	test('a part created for an editor dropped on an edge of the window stays when the layout mode changes, until it closes, and the sizes of the arrangement with it or without it are remembered', () => {
 		const onWillClose = new Emitter<void>();
 		const created = new class extends mock<IContentPart>() {
 			override readonly element = $('.created');
@@ -739,17 +739,26 @@ suite('Chat window grid', () => {
 		}();
 		grid.partGrid!.moveEditorsIntoNewPart([{ editor, groupId: 1 }], { edge: Direction.Right });
 		const added = grid.partGrid!.describe();
+		// The window still arranged it: the size the user gives the chat is remembered for the arrangement
+		grid.partGrid!.resizeCell(ChatWindowGridCell.Chat, { width: 300, height: 770 });
 		mode.set(ChatWindowLayoutMode.Stacked, undefined);
 		const afterModeChange = grid.partGrid!.describe();
-		onWillClose.fire();
 		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
+		const chatWidthBack = grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width;
+		onWillClose.fire();
 		const afterClose = grid.partGrid!.describe();
+		grid.partGrid!.resizeCell(ChatWindowGridCell.Chat, { width: 400, height: 770 });
+		mode.set(ChatWindowLayoutMode.Stacked, undefined);
+		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
+		const chatWidthAfterClose = grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width;
 		onWillClose.dispose();
 
-		assert.deepStrictEqual({ added, afterModeChange, afterClose }, {
+		assert.deepStrictEqual({ added, afterModeChange, chatWidthBack, afterClose, chatWidthAfterClose }, {
 			added: 'column(titleRow, row(chat, main, created))',
 			afterModeChange: 'column(titleRow, row(column(main, chat), strip, created))',
-			afterClose: 'column(titleRow, row(chat, main))'
+			chatWidthBack: 300,
+			afterClose: 'column(titleRow, row(chat, main))',
+			chatWidthAfterClose: 400
 		});
 	});
 });
