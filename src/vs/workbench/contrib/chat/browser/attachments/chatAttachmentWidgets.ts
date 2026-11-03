@@ -961,6 +961,9 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 
 	private readonly _tooltipHover: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private _hoverContent: (() => IChatPillHoverContent) | undefined;
+	get supportsPreview(): boolean {
+		return !!this._hoverContent && !!this.element.closest('.chat-inline-attachment');
+	}
 	private readonly _onDidChangePreview = this._register(new event.Emitter<void>());
 	readonly onDidChangePreview = this._onDidChangePreview.event;
 
@@ -1082,12 +1085,18 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 					currentContent = undefined;
 				}));
 				const getHoverContent = this._hoverContent;
-				this._tooltipHover.value = this.hoverService.setupDelayedHover(this.element, () => ({
-					...commonHoverOptions,
-					accessibility: { role: 'dialog', label: localize('chat.attachment.referencePreview', "Reference preview") },
-					content: getHoverContent().element,
-					persistence: { hideOnHover: false },
-				}), commonHoverLifecycleOptions);
+				if (!this.supportsPreview) {
+					this._tooltipHover.value = this.hoverService.setupDelayedHover(this.element, () => ({
+						...commonHoverOptions,
+						accessibility: { role: 'dialog', label: localize('chat.attachment.referencePreview', "Reference preview") },
+						content: getHoverContent().element,
+						persistence: { hideOnHover: false },
+					}), commonHoverLifecycleOptions);
+				} else {
+					this.element.setAttribute('aria-haspopup', 'dialog');
+					this.element.setAttribute('aria-expanded', 'false');
+					this.element.ariaLabel = this.appendDeletionHint(localize('chat.attachment.previewLabel', "Preview reference, {0}", attachment.name));
+				}
 			}
 		}
 

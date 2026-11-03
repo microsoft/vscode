@@ -57,6 +57,7 @@ suite('ChatInlineAttachments', () => {
 		isActive(): boolean;
 		/** The prompt that the input stands for, and the ids of its attachments. */
 		state(): { prompt: string; attachments: string[] };
+		readonly attachmentElements: HTMLElement[];
 	}
 
 	/**
@@ -110,12 +111,15 @@ suite('ChatInlineAttachments', () => {
 			}
 			override refreshParsedInput(): void { }
 		};
+		const attachmentElements: HTMLElement[] = [];
 		const controller = disposables.add(instantiationService.createInstance(ChatInlineAttachments, editor, attachments, {
 			widget: showsPills ? widget : undefined,
 			createAttachmentWidget: (attachment: IChatRequestVariableEntry, container: HTMLElement) => {
 				const element = dom.append(container, dom.$('span.chat-attached-context-attachment', undefined, attachment.name));
+				attachmentElements.push(element);
 				return {
 					element, onDidDelete: Event.None, onDidOpen: Event.None,
+					supportsPreview: !!hoverContent,
 					getPreviewHoverContent: () => hoverContent ? {
 						element: hoverContent,
 						get tabbableElements() { return [...hoverContent.querySelectorAll<HTMLElement>('a[href], button:not([disabled])')]; },
@@ -131,6 +135,7 @@ suite('ChatInlineAttachments', () => {
 			attachments,
 			controller,
 			instantiationService,
+			attachmentElements,
 			addReference: reference => dynamicVariableModel.addReference(reference),
 			isActive: () => !!editor.invokeWithinContext(accessor => accessor.get(IContextKeyService).getContextKeyValue<boolean>(ChatContextKeys.inputInlineAttachmentActive.key)),
 			state: () => ({
@@ -140,7 +145,7 @@ suite('ChatInlineAttachments', () => {
 		};
 	}
 
-	test('opens the active pill preview and transfers Tab into its links without editing the draft', async () => {
+	test('explicit activation previews details without changing the draft and restores Accessible View focus', async () => {
 		const preview = dom.$('div');
 		const link = dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode' }, 'Repository'));
 		let shown = 0;
@@ -176,6 +181,8 @@ suite('ChatInlineAttachments', () => {
 
 		input.editor.setPosition(new Position(1, 8), 'keyboard');
 		input.editor.setPosition(new Position(1, 9), 'keyboard');
+		assert.strictEqual(shown, 0, 'Arrow navigation must not open details');
+		input.controller.openActivePill();
 		const before = input.state();
 		const press = (key: string, shiftKey = false) => {
 			const event = new KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true });
@@ -183,7 +190,6 @@ suite('ChatInlineAttachments', () => {
 			return event.defaultPrevented;
 		};
 		const opened = shown;
-		const tabConsumed = press('Tab');
 		const linkFocused = dom.getActiveElement() === link;
 		const provider = store.add(input.controller.getAccessiblePreviewProvider(AccessibleViewType.View)!);
 		assert.strictEqual(ChatInlineAttachments.getPreviewOwner(link), input.controller);
@@ -202,18 +208,19 @@ suite('ChatInlineAttachments', () => {
 		provider.dispose();
 		const backTabConsumed = press('Tab', true);
 		const inputFocused = input.editor.hasTextFocus();
-		press('Escape');
 		const escaped = disposed;
 		input.controller.refresh();
 		await settle();
 		assert.strictEqual(shown, 1, 'Rerender must not reopen an Escape-dismissed preview');
 		input.editor.setPosition(new Position(1, 8), 'keyboard');
 		input.editor.setPosition(new Position(1, 9), 'keyboard');
+		input.controller.openActivePill();
 		input.controller.refresh();
 		await settle();
 		assert.strictEqual(shown, 3, 'Rerender must reopen a previously visible preview');
 		input.editor.setPosition(new Position(1, 10), 'keyboard');
 		input.editor.setPosition(new Position(1, 9), 'keyboard');
+		input.controller.openActivePill();
 		const outside = dom.append(dom.getActiveDocument().body, dom.$('button'));
 		store.add(toDisposable(() => outside.remove()));
 		outside.focus();
@@ -223,19 +230,21 @@ suite('ChatInlineAttachments', () => {
 		input.editor.focus();
 		input.editor.setPosition(new Position(1, 8), 'keyboard');
 		input.editor.setPosition(new Position(1, 9), 'keyboard');
+		input.controller.openActivePill();
 		input.editor.setSelection(new Selection(1, 8, 1, 9), 'keyboard');
 
 		assert.deepStrictEqual({
-			opened, tabConsumed, linkFocused, backTabConsumed, inputFocused, escaped,
+			opened, linkFocused, backTabConsumed, inputFocused, escaped,
 			closedOnBlur, shown, disposed, unchanged: input.state(),
 		}, {
-			opened: 1, tabConsumed: true, linkFocused: true, backTabConsumed: true, inputFocused: true, escaped: 1,
+			opened: 1, linkFocused: true, backTabConsumed: true, inputFocused: true, escaped: 1,
 			closedOnBlur: 4, shown: 5, disposed: 5, unchanged: before,
 		});
 	});
 
 	test('Tab during loading focuses the preview and leaves late-arriving links reachable', async () => {
 		const preview = dom.$('div');
+		preview.setAttribute('aria-busy', 'true');
 		const input = createInput('review ', true, preview, {
 			...NullHoverService,
 			showInstantHover: () => {
@@ -252,13 +261,85 @@ suite('ChatInlineAttachments', () => {
 		await settle();
 		input.editor.setPosition(new Position(1, 8), 'keyboard');
 		input.editor.setPosition(new Position(1, 9), 'keyboard');
-		const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
-		dom.getActiveElement()!.dispatchEvent(event);
-		assert.deepStrictEqual({ focused: dom.getActiveElement() === preview, consumed: event.defaultPrevented }, { focused: true, consumed: true });
-		dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode' }, 'Repository'));
+		assert.notStrictEqual(dom.getActiveElement(), preview);
+		input.controller.openActivePill();
+		assert.strictEqual(dom.getActiveElement(), preview);
+		const link = dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode' }, 'Repository'));
+		preview.setAttribute('aria-busy', 'false');
+		await settle();
+		assert.deepStrictEqual({
+			focused: dom.getActiveElement() === link,
+			role: preview.getAttribute('role'),
+			label: preview.getAttribute('aria-label'),
+		}, { focused: true, role: null, label: null });
 		input.attachments.delete('file:a.ts');
 		await settle();
 		assert.strictEqual(preview.isConnected, false);
+	});
+
+	for (const shiftKey of [false, true]) {
+		test(`${shiftKey ? 'Shift+Tab' : 'Tab'} leaves a preview with no interactive controls`, async () => {
+			const preview = dom.$('div');
+			const input = createInput('review ', true, preview, {
+				...NullHoverService,
+				showInstantHover: () => {
+					dom.getActiveDocument().body.appendChild(preview);
+					return { isDisposed: false, dispose: () => preview.remove() };
+				},
+			});
+			const host = input.editor.getContainerDomNode();
+			dom.getActiveDocument().body.appendChild(host);
+			store.add(toDisposable(() => host.remove()));
+			input.editor.focus();
+			input.editor.setPosition(new Position(1, 8));
+			input.attachments.addContext(file('a.ts'));
+			await settle();
+			input.editor.setPosition(new Position(1, 9), 'keyboard');
+			const draft = input.editor.getValue();
+			input.controller.openActivePill();
+			const event = new KeyboardEvent('keydown', { key: 'Tab', shiftKey, bubbles: true, cancelable: true });
+			preview.dispatchEvent(event);
+			assert.deepStrictEqual({
+				dismissed: !preview.isConnected,
+				editorFocused: input.editor.hasTextFocus(),
+				consumed: event.defaultPrevented,
+				draftUnchanged: input.editor.getValue() === draft,
+			}, { dismissed: true, editorFocused: true, consumed: true, draftUnchanged: true });
+		});
+	}
+
+	test('mouse activation previews the attachment while preserving the composer caret', async () => {
+		const preview = dom.$('div');
+		const link = dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode' }, 'Repository'));
+		let shown = 0;
+		const input = createInput('review ', true, preview, {
+			...NullHoverService,
+			showInstantHover: () => {
+				shown++;
+				dom.getActiveDocument().body.appendChild(preview);
+				return { isDisposed: false, dispose: () => preview.remove() };
+			},
+		});
+		const host = input.editor.getContainerDomNode();
+		dom.getActiveDocument().body.appendChild(host);
+		store.add(toDisposable(() => host.remove()));
+		input.editor.focus();
+		input.editor.setPosition(new Position(1, 8));
+		input.attachments.addContext(file('a.ts'));
+		await settle();
+		input.editor.setPosition(new Position(1, 2), 'keyboard');
+		const before = input.state();
+		const position = input.editor.getPosition();
+		let outsideMouseDown = 0;
+		store.add(dom.addDisposableListener(dom.getActiveDocument(), dom.EventType.MOUSE_DOWN, () => outsideMouseDown++));
+		input.attachmentElements[0].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		input.attachmentElements[0].click();
+		assert.deepStrictEqual({ shown, focused: dom.getActiveElement() === link, position: input.editor.getPosition(), state: input.state(), outsideMouseDown },
+			{ shown: 1, focused: true, position, state: before, outsideMouseDown: 0 });
+		input.attachmentElements[0].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		input.attachmentElements[0].click();
+		assert.deepStrictEqual({ shown, dismissed: !preview.isConnected, focused: input.editor.hasTextFocus(), outsideMouseDown },
+			{ shown: 1, dismissed: true, focused: true, outsideMouseDown: 0 });
 	});
 
 	function file(name: string): IChatRequestVariableEntry {

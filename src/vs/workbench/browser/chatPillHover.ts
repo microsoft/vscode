@@ -30,6 +30,7 @@ export interface IChatPillHoverContentProvider {
 	readonly resolve?: () => Promise<void>;
 	readonly isFresh?: () => boolean;
 	readonly failedFallback?: string;
+	readonly createFailedContent?: (density: 'default' | 'compact') => IChatPillHoverContent;
 }
 
 type CreateHover = IChatPillHoverContentProvider['createContent'];
@@ -173,13 +174,11 @@ class CachedChatPillHover {
 						this._updateView(renderedView, content);
 					}
 				} else {
-					renderedView.element.textContent = provider.failedFallback ?? provider.fallback;
-					renderedView.tabbableElements = [];
-					renderedView.resolved = false;
+					this._updateFailedView(renderedView, provider, density);
 				}
 			}, () => {
 				if (!renderedView.resolved) {
-					renderedView.element.textContent = provider.failedFallback ?? provider.fallback;
+					this._updateFailedView(renderedView, provider, density);
 				}
 			}).finally(() => {
 				renderedView.element.setAttribute('aria-busy', 'false');
@@ -189,6 +188,19 @@ class CachedChatPillHover {
 			view.element.setAttribute('aria-busy', 'false');
 		}
 		return view.element;
+	}
+
+	private _updateFailedView(view: { element: HTMLElement; tabbableElements: readonly HTMLElement[]; liveElements?: readonly HTMLElement[]; resolved: boolean }, provider: IChatPillHoverContentProvider, density: 'default' | 'compact'): void {
+		const content = provider.createFailedContent?.(density);
+		if (content) {
+			this._updateView(view, content);
+		} else {
+			view.element.textContent = provider.failedFallback ?? provider.fallback;
+			view.tabbableElements = [];
+			view.liveElements = undefined;
+		}
+		// Keep the fallback replaceable when a retry resolves.
+		view.resolved = false;
 	}
 
 	private _updateLiveElements(view: { liveElements?: readonly HTMLElement[] }, content: IChatPillHoverContent): void {

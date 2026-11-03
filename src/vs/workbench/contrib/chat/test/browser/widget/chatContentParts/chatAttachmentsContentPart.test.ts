@@ -24,6 +24,7 @@ import { GitHubResourceDetailsResolver } from '../../../../../github/browser/git
 import { IWorkbenchGitHubService } from '../../../../../../services/github/common/githubService.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { IClipboardService } from '../../../../../../../platform/clipboard/common/clipboardService.js';
+import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { ChatAttachmentsContentPart } from '../../../../browser/widget/chatContentParts/chatAttachmentsContentPart.js';
 import { AgentHostCompletionReferenceKind, IChatRequestVariableEntry, OmittedState, toAgentHostCompletionVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../common/languageModels.js';
@@ -104,14 +105,25 @@ suite('ChatAttachmentsContentPart', () => {
 				widget.dispose();
 				assert.strictEqual(hoverDisposed, true);
 				const copied: string[] = [];
+				const opened: { resource: string; options: Parameters<IOpenerService['open']>[1] }[] = [];
 				instantiationService.stub(IClipboardService, upcastPartial<IClipboardService>({ writeText: async text => { copied.push(text); } }));
+				instantiationService.stub(IOpenerService, upcastPartial<IOpenerService>({
+					open: async (resource, options) => {
+						opened.push({ resource: resource.toString(), options });
+						return true;
+					},
+				}));
 				const copyWidget = disposables.add(instantiationService.createInstance(DefaultChatAttachmentWidget,
 					undefined, undefined, attachment, undefined, undefined,
 					{ shouldFocusClearButton: false, supportsDeletion: true }, dom.$('div'), labels));
 				copyWidget.getPreviewHoverContent();
 				createHover.lastCall.args[1].onDidClickBaseBranch('main');
 				createHover.lastCall.args[1].onDidClickHeadBranch('feature/preview');
-				assert.deepStrictEqual(copied, ['main', 'feature/preview']);
+				createHover.lastCall.args[1].onDidClickReference();
+				assert.deepStrictEqual({ copied, opened }, {
+					copied: ['main', 'feature/preview'],
+					opened: [{ resource: `https://github.com/microsoft/vscode/${path}/123`, options: { openExternal: true } }],
+				});
 				copyWidget.dispose();
 			});
 		}

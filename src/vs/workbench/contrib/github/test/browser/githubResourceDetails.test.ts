@@ -1056,13 +1056,14 @@ suite('GitHubResourceDetails', () => {
 			},
 		}), new NullLogService()));
 		const resource = URI.parse('https://github.com/microsoft/vscode/issues/1');
+		let opened = 0;
 		const hover = createGitHubResourceDetailsHover({
 			kind: 'issue',
 			target: parseGitHubReferenceTarget(resource, 'issue')!,
 			resource,
 			resolver,
 			onDidClickRepository: () => { },
-			onDidClickReference: () => { },
+			onDidClickReference: () => { opened++; },
 			onDidClickBaseBranch: () => { },
 			onDidClickHeadBranch: () => { },
 		});
@@ -1070,6 +1071,13 @@ suite('GitHubResourceDetails', () => {
 		const element = typeof content === 'function' ? content() : undefined;
 		await timeout(0);
 		const failedText = element?.textContent;
+		const failedLink = element?.querySelector('a');
+		failedLink?.click();
+		const failedAction = {
+			href: failedLink?.getAttribute('href'),
+			tabbable: hover.hover.getTabbableElements?.().map(element => element.textContent),
+			opened,
+		};
 		if (typeof content === 'function') {
 			content();
 		}
@@ -1079,13 +1087,15 @@ suite('GitHubResourceDetails', () => {
 		assert.deepStrictEqual({
 			acquisitions,
 			failedText,
+			failedAction,
 			retry,
 			busy: element?.getAttribute('aria-busy'),
 			className: element?.className,
 			text: element?.textContent,
 		}, {
 			acquisitions: 2,
-			failedText: resource.toString(true),
+			failedText: 'Details unavailableOpen Issue #1',
+			failedAction: { href: resource.toString(true), tabbable: ['Open Issue #1'], opened: 1 },
 			retry: { text: 'Issue #1', busy: 'true' },
 			busy: 'false',
 			className: 'chat-pill-hover-content sessions-issue-hover compact',
