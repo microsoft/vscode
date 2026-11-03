@@ -240,6 +240,13 @@ suite('Sessions chat window provider', () => {
 		assert.deepStrictEqual({ column: SESSION_ACTIVITY_BAR_COLUMN_WIDTH, insets }, { column: 34, insets: ['20: 7px', '22: 6px', '0: none'] });
 	});
 
+	test('the cards keep the main window\'s gaps: between them and to the edges of the window but its top, where the title row is', () => {
+		const store = disposables.add(new DisposableStore());
+		const { provider } = createProvider(store, []);
+
+		assert.deepStrictEqual({ gap: provider.look.gap.get(), outerInsets: provider.look.outerInsets?.get() }, { gap: 4, outerInsets: { top: 0, right: 4, bottom: 4, left: 4 } });
+	});
+
 	test('the title rows are as tall as the row of tabs of the main part, its card\'s frame included, in every layout: no measuring, so from the first frame', () => {
 		assert.deepStrictEqual({
 			cards: getChatWindowTitleHeight(false, true),

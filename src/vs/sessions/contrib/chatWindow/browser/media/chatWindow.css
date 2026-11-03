@@ -32,8 +32,8 @@
 	border: 0;
 }
 
-/* The session view draws the frame of the chat, as in the main window: the chat's card leaves its frame to it, but while the chat shows its own title row, the frame around both. */
-.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .agents-chat-window:not(.title-row-hidden) .part-grid-cell[data-part-grid-cell="chat"] > .part-grid-card {
+/* The chat draws its frame, as in the main window: the chat's card leaves its frame to it, the session view's, or, while the chat shows its own title row, the frame around both. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .agents-chat-window .part-grid-cell[data-part-grid-cell="chat"] > .part-grid-card {
 	--part-grid-card-frame-owner: content;
 	--part-grid-card-border-color: transparent;
 	/* The room for the frame shows the window, as around the main window's session view. */
@@ -69,11 +69,33 @@
 	background-color: transparent !important;
 }
 
-/* Over the frame of the card and the gap beside it, from the top left of the window, as the title row of the window is: its window controls, title and actions line up with those of the other title rows. */
+/* From the top left of the window, over the frame of the card and the gaps beside it, as the title row of the window is: its window controls, title and actions line up with those of the other title rows. */
 .monaco-workbench .agents-chat-window .session-chat-view-editor.shows-title > .part.titlebar {
-	margin: calc(-1 * var(--part-grid-card-border-width, 0px)) calc(-1 * var(--part-grid-card-border-width, 0px)) var(--part-grid-card-border-width, 0px);
+	/* Moved rather than given a negative top margin, which would move the view with it. */
+	top: calc(-1 * var(--part-grid-card-border-width, 0px));
+	margin-left: calc(-1 * (var(--part-grid-card-border-width, 0px) + var(--part-grid-card-inset-left, 0px) + var(--chat-window-outer-inset-left, 0px)));
 	/* Over the inline width of the title bar. */
-	width: calc(100% + 2 * var(--part-grid-card-border-width, 0px) + var(--part-grid-card-inset-right, 0px)) !important;
+	width: calc(100% + 2 * var(--part-grid-card-border-width, 0px) + var(--part-grid-card-inset-left, 0px) + var(--part-grid-card-inset-right, 0px) + var(--chat-window-outer-inset-left, 0px)) !important;
+	/* Below the frame around it: what it shows above its own content stays inside it. */
+	z-index: 0;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .agents-chat-window .session-chat-view-editor.shows-title {
+	position: relative;
+	border-radius: max(0px, calc(var(--agents-part-corner-radius, var(--vscode-cornerRadius-large)) - var(--vscode-strokeThickness)));
+}
+
+/* The frame of the session view, around the title row too. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .agents-chat-window .session-chat-view-editor.shows-title::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border, var(--part-border-color, transparent));
+	border-width: var(--agents-part-frame-border-width, var(--vscode-strokeThickness));
+	border-radius: inherit;
+	box-sizing: border-box;
+	pointer-events: none;
+	z-index: 10;
 }
 
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .agents-chat-window .session-chat-view-editor.shows-title .session-view::after {

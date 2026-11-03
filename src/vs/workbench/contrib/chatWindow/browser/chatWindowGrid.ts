@@ -258,10 +258,7 @@ export class ChatWindowGrid extends Disposable {
 		grid.setCellVisible(ChatWindowGridCell.Chat, mode !== ChatWindowLayoutMode.EditorOnly);
 		grid.setCellVisible(ChatWindowGridCell.Main, mode !== ChatWindowLayoutMode.ChatOnly);
 		if (this._titleRow) {
-			const titleRowVisible = !!this._cells.titleRow?.visible.get();
-			// For the look of the cells below, such as the chat's card, which heads itself while the title row is hidden.
-			this._container.classList.toggle('title-row-hidden', !titleRowVisible);
-			grid.setCellVisible(ChatWindowGridCell.TitleRow, titleRowVisible);
+			grid.setCellVisible(ChatWindowGridCell.TitleRow, !!this._cells.titleRow?.visible.get());
 		}
 		if (this._strip && (mode === ChatWindowLayoutMode.Stacked || mode === ChatWindowLayoutMode.EditorOnly)) {
 			grid.setCellVisible(ChatWindowGridCell.Strip, !!this._cells.strip?.visible.get());
@@ -349,6 +346,8 @@ export class ChatWindowGrid extends Disposable {
 	/** The room the grid keeps to the edges of the window, such as the main window's outer insets. */
 	setOuterInsets(insets: IGridEdgeInsets): void {
 		this._outerInsets = insets;
+		// For what reaches to the edge of the window, such as a title row in a card at its edge.
+		this._container.style.setProperty('--chat-window-outer-inset-left', `${insets.left}px`);
 		this._grid.value?.setOuterInsets(insets);
 	}
 
