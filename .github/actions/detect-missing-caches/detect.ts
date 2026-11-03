@@ -28,6 +28,7 @@ interface IGitHub {
 interface IContext {
 	readonly repo: { readonly owner: string; readonly repo: string };
 	readonly ref: string;
+	readonly payload?: { readonly repository?: { readonly default_branch?: string } };
 }
 
 interface ICore {
@@ -186,17 +187,22 @@ function createCheckoutReaders(): Readonly<Record<LineEndings, ReadRepositoryFil
 }
 
 /**
- * Returns the versions of the caches on the current branch with the given key.
+ * Returns the versions of the caches with the given key that the current branch can restore: its
+ * own and, on another branch than the default branch, those of the default branch. A job that
+ * restores a cache of the default branch doesn't save a copy on its own branch, so only listing the
+ * current branch would run the job on every push to a release branch.
  */
 async function listCacheVersions(github: IGitHub, context: IContext, key: string): Promise<(string | undefined)[]> {
+	const defaultRef = `refs/heads/${context.payload?.repository?.default_branch ?? 'main'}`;
+	const refs = context.ref === defaultRef ? [context.ref] : [context.ref, defaultRef];
 	// The key parameter matches key prefixes.
-	const { data } = await github.rest.actions.getActionsCacheList({ ...context.repo, ref: context.ref, key, per_page: 100 });
-	return (data.actions_caches ?? []).filter(cache => cache.key === key).map(cache => cache.version);
+	const lists = await Promise.all(refs.map(ref => github.rest.actions.getActionsCacheList({ ...context.repo, ref, key, per_page: 100 })));
+	return lists.flatMap(({ data }) => (data.actions_caches ?? []).filter(cache => cache.key === key).map(cache => cache.version));
 }
 
 /**
- * Sets an output for each cache warming job: 'true' when one of its caches is missing on the
- * current branch, otherwise 'false'. A cache with the right key but another version is missing,
+ * Sets an output for each cache warming job: 'true' when the current branch can't restore one of
+ * its caches, otherwise 'false'. A cache with the right key but another version is missing,
  * because the job could not restore it. Jobs whose caches cannot be checked run.
  */
 export async function detectMissingCaches(github: IGitHub, context: IContext, core: ICore, readers: Readonly<Record<LineEndings, ReadRepositoryFile>> = createCheckoutReaders()): Promise<void> {
