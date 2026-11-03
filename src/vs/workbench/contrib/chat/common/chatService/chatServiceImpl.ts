@@ -2634,7 +2634,18 @@ export class ChatService extends Disposable implements IChatService {
 		request.response?.complete();
 	}
 
-	async cancelCurrentRequestForSession(sessionResource: URI, source?: string): Promise<void> {
+	cancelCurrentRequestForSession(sessionResource: URI, source?: string): Promise<void> {
+		return this.cancelCurrentRequest(sessionResource, source, true);
+	}
+
+	/**
+	 * @param dropQueuedSystemNotifications Whether to remove the system notifications waiting in the queue,
+	 * such as a background terminal command that completed while the request ran. A request that was stopped
+	 * does not send the queue when it ends, and run_in_terminal drops the notifications that arrive once the
+	 * user stopped the agent. The ones queued before the stop would otherwise stay pending, and the user's next
+	 * message would first ask whether to keep them.
+	 */
+	private async cancelCurrentRequest(sessionResource: URI, source: string | undefined, dropQueuedSystemNotifications: boolean): Promise<void> {
 		this.trace('cancelCurrentRequestForSession', `session: ${sessionResource}`);
 		const pendingRequest = this._pendingRequests.get(sessionResource);
 		if (!pendingRequest) {
@@ -2663,6 +2674,17 @@ export class ChatService extends Disposable implements IChatService {
 		const requestId = pendingRequest.requestId ?? (activeRequest?.response?.isInProgress ? activeRequest.id : undefined);
 		const sessionTelemetry = getChatSessionTelemetryIds(sessionResource, this.agentHostConnectionsService);
 		pendingRequest.cancel();
+
+		// Drop the queued system notifications while the stopped request is still the session's in-flight
+		// request: a streamed session sends queued steering as soon as its queue changes with no request in
+		// flight, which would send the user's remaining steering message right after the stop.
+		const sessionModel = this._sessionModels.get(sessionResource);
+		if (dropQueuedSystemNotifications && sessionModel && !this._isServerManagedQueue(sessionResource)) {
+			for (const pending of sessionModel.getPendingRequests().filter(p => p.request.isSystemInitiated)) {
+				this.removePendingRequest(sessionResource, pending.request.id);
+			}
+		}
+
 		this._pendingRequests.deleteAndDispose(sessionResource);
 		this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: source ?? 'cancelRequest', requestId, ...sessionTelemetry });
 
@@ -2857,12 +2879,14 @@ export class ChatService extends Disposable implements IChatService {
 
 		// Local sessions: move the target to the front (keeping its kind),
 		// cancel the in-flight request, and let the queue processor send it.
+		// The agent keeps going with the target, so the queued system
+		// notifications still follow it.
 		const reordered = [
 			{ requestId: target.request.id, kind: target.kind },
 			...pendingRequests.filter(r => r.request.id !== requestId).map(r => ({ requestId: r.request.id, kind: r.kind })),
 		];
 		this.setPendingRequests(sessionResource, reordered);
-		await this.cancelCurrentRequestForSession(sessionResource, 'queueRunNext');
+		await this.cancelCurrentRequest(sessionResource, 'queueRunNext', false);
 		this.processPendingRequests(sessionResource);
 	}
 
