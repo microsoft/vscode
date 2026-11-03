@@ -2659,7 +2659,7 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
-	test('a removal reports what it did, asks its guard last, and prunes a folder that is already gone in every mode', async () => {
+	test('a removal guards commits and removal, and prunes a folder that is already gone in every mode', async () => {
 		const isolation = createIsolation(disposables);
 		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
 		assert.ok(worktree);
@@ -2681,7 +2681,6 @@ suite('WorktreeIsolation', () => {
 		assert.deepStrictEqual({
 			outcomes,
 			stillExists,
-			// The commit before the guard runs, so the folder's changes are kept either way.
 			commitCalls: commitCalls.length,
 			removeCalls: removeCalls.map(call => ({ worktree: call.worktree.toString(), force: call.force })),
 		}, {
@@ -2693,9 +2692,25 @@ suite('WorktreeIsolation', () => {
 				'commit, folder gone': 'removed',
 			},
 			stillExists: true,
-			commitCalls: 1,
+			commitCalls: 0,
 			removeCalls: [{ worktree: worktree.toString(), force: true }, { worktree: worktree.toString(), force: true }],
 		});
+	});
+
+	test('rechecks the removal guard after checking for uncommitted changes and before committing', async () => {
+		let canRemove = true;
+		const gitService = createGitService();
+		gitService.hasUncommittedChanges = async () => {
+			canRemove = false;
+			return true;
+		};
+		const isolation = createIsolation(disposables, { gitService });
+		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+		assert.ok(worktree);
+		const outcome = await isolation.removeRecordedWorktree(sessionId, { worktree, repositoryRoot: repoRoot, branchName }, 'commit', async () => canRemove);
+		assert.deepStrictEqual({
+			outcome, commits: commitCalls.length, removals: removeCalls.length, exists: existsSync(worktree.fsPath),
+		}, { outcome: 'inUse', commits: 0, removals: 0, exists: true });
 	});
 
 	test('removeSessionWorktree force-removes a worktree for explicit session deletion', async () => {

@@ -28,7 +28,6 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { getSessionWorkspaceProperties } from '../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { deriveGitHubEndpoints } from '../../../../platform/github/common/githubEndpoints.js';
@@ -1761,7 +1760,10 @@ export class NewChatWidget extends Disposable {
 		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
 		const matchesSelectedFolder = !selectedFolderUri || !!session?.workspace.get()?.folders.some(folder => isEqual(folder.root, selectedFolderUri));
 		if (session && provider && isAgentHostProvider(provider) && matchesSelectedFolder) {
-			const branch = provider.getCreateSessionConfig(session.sessionId)?.[SessionConfigKey.Branch];
+			const values = provider.getCreateSessionConfig(session.sessionId);
+			const config = values && provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+			const branchProperty = config && getSessionWorkspaceProperties(config.schema).baseBranch;
+			const branch = branchProperty && values?.[branchProperty.key];
 			if (typeof branch === 'string' && branch.trim()) {
 				return branch;
 			}
