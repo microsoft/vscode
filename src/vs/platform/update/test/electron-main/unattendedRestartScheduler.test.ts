@@ -26,7 +26,7 @@ import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/tel
 import { IUserDataProfile } from '../../../userDataProfile/common/userDataProfile.js';
 import { INativeWindowConfiguration } from '../../../window/common/window.js';
 import { ICodeWindow, WindowMode } from '../../../window/electron-main/window.js';
-import { IExactRestoreOptions, IWindowsMainService } from '../../../windows/electron-main/windows.js';
+import { IWindowsMainService } from '../../../windows/electron-main/windows.js';
 import { IQuitAndInstallOptions, IUpdateService, State, UpdateType } from '../../common/update.js';
 import { getWindowBlockers, hasArgumentsLostOnRelaunch, IUnattendedRestartHost, UNATTENDED_RESTART_LOCKED_DURATION, UnattendedRestartScheduler } from '../../electron-main/unattendedRestartScheduler.js';
 
@@ -55,9 +55,6 @@ suite('UnattendedRestartScheduler', () => {
 		readonly isMinimized?: boolean;
 		readonly isVisible?: boolean;
 		readonly isFullScreen?: boolean;
-		/** Restored in the background, it enters fullscreen once it gets focus. */
-		readonly isFullScreenPending?: boolean;
-		readonly hasPendingMode?: boolean;
 		readonly launchedFromCli?: boolean;
 		readonly display?: number;
 	}
@@ -72,8 +69,7 @@ suite('UnattendedRestartScheduler', () => {
 			isExtensionDevelopmentHost: options.isExtensionDevelopmentHost ?? false,
 			isExtensionTestHost: false,
 			isFullScreen: options.isFullScreen ?? false,
-			hasPendingMode: options.hasPendingMode ?? false,
-			serializeWindowState: () => ({ mode: options.isFullScreen || options.isFullScreenPending ? WindowMode.Fullscreen : WindowMode.Normal, display: options.display ?? 1 }),
+			serializeWindowState: () => ({ mode: options.isFullScreen ? WindowMode.Fullscreen : WindowMode.Normal, display: options.display ?? 1 }),
 			win: upcastPartial<NonNullable<ICodeWindow['win']>>({
 				isMinimized: () => options.isMinimized ?? false,
 				isVisible: () => options.isVisible ?? true,
@@ -174,10 +170,10 @@ suite('UnattendedRestartScheduler', () => {
 		});
 
 		const window = createWindow({ isReady: options.isWindowReady });
-		const exactRestores: (IExactRestoreOptions | undefined)[] = [];
+		const exactRestores: boolean[] = [];
 		const windowsMainService = upcastPartial<IWindowsMainService>({
 			getWindows: () => [window],
-			restoreExactlyOnNextStartup: exactRestoreOptions => { exactRestores.push(exactRestoreOptions); },
+			restoreExactlyOnNextStartup: restore => { exactRestores.push(restore); },
 		});
 
 		let isLocked = false;
@@ -299,7 +295,7 @@ suite('UnattendedRestartScheduler', () => {
 		assert.deepStrictEqual({ beforeThreshold, afterThreshold: fixture.log, exactRestores: fixture.exactRestores, restart: fixture.shutdown() }, {
 			beforeThreshold: ['keepAwake'],
 			afterThreshold: ['keepAwake', 'quitAndInstall(foreground)'],
-			exactRestores: [{ inBackground: false }],
+			exactRestores: [true],
 			restart: pendingRestart(2, 1),
 		});
 	}));
@@ -332,7 +328,7 @@ suite('UnattendedRestartScheduler', () => {
 
 		assert.deepStrictEqual({ log: fixture.log, exactRestores: fixture.exactRestores, restart: fixture.shutdown() }, {
 			log: ['keepAwake', 'quitAndInstall(background)'],
-			exactRestores: [{ inBackground: true }],
+			exactRestores: [true],
 			restart: pendingRestart(2, 1, true),
 		});
 	}));
@@ -459,7 +455,7 @@ suite('UnattendedRestartScheduler', () => {
 
 		assert.deepStrictEqual({ log: fixture.log, exactRestores: fixture.exactRestores, restart: fixture.shutdown() }, {
 			log: ['keepAwake', 'quitAndInstall(foreground)', 'allowSleep', 'cancelled'],
-			exactRestores: [{ inBackground: false }, undefined],
+			exactRestores: [true, false],
 			restart: undefined,
 		});
 	}));
@@ -476,7 +472,7 @@ suite('UnattendedRestartScheduler', () => {
 		assert.deepStrictEqual({ whilePostponed, log: fixture.log, exactRestores: fixture.exactRestores, restart: fixture.shutdown() }, {
 			whilePostponed: ['keepAwake', 'quitAndInstall(foreground)', 'allowSleep'],
 			log: ['keepAwake', 'quitAndInstall(foreground)', 'allowSleep', 'quitAndInstall(foreground)'],
-			exactRestores: [{ inBackground: false }, undefined, { inBackground: false }],
+			exactRestores: [true, false, true],
 			restart: pendingRestart(3, 1),
 		});
 	}));
@@ -561,7 +557,7 @@ suite('UnattendedRestartScheduler', () => {
 
 		assert.deepStrictEqual({ log: fixture.log, exactRestores: fixture.exactRestores, restart: fixture.shutdown() }, {
 			log: ['keepAwake', 'quitAndInstall(foreground)', 'allowSleep', 'quitAndInstall(foreground)'],
-			exactRestores: [{ inBackground: false }, undefined, { inBackground: false }],
+			exactRestores: [true, false, true],
 			restart: pendingRestart(3, 2),
 		});
 	}));
@@ -705,30 +701,22 @@ suite('UnattendedRestartScheduler', () => {
 		];
 		const savedFloatingWindows = [createWindow(), createWindow({ isFullScreen: true })];
 
-		const pendingFullScreenWindows = [createWindow({ isFullScreenPending: true, display: 2 }), createWindow({ isFullScreen: true, display: 2 })];
-
 		assert.deepStrictEqual({
-			noWindows: getWindowBlockers([], [], OperatingSystem.Macintosh, true),
-			inBackground: getWindowBlockers(savedWindows, savedFloatingWindows, OperatingSystem.Macintosh, true),
-			inForeground: getWindowBlockers(savedWindows, savedFloatingWindows, OperatingSystem.Macintosh, false),
-			inForegroundOnWindows: getWindowBlockers(savedWindows, [], OperatingSystem.Windows, false),
-			pendingFullScreenInForeground: getWindowBlockers(pendingFullScreenWindows, [], OperatingSystem.Macintosh, false),
-			pendingFloatingWindowMode: getWindowBlockers([createWindow()], [createWindow({ hasPendingMode: true })], OperatingSystem.Macintosh, true),
-			openedFromTerminal: getWindowBlockers([createWindow({ launchedFromCli: true })], [], OperatingSystem.Macintosh, true),
+			noWindows: getWindowBlockers([], [], OperatingSystem.Macintosh),
+			onMacOS: getWindowBlockers(savedWindows, savedFloatingWindows, OperatingSystem.Macintosh),
+			onWindows: getWindowBlockers(savedWindows, [], OperatingSystem.Windows),
+			openedFromTerminal: getWindowBlockers([createWindow({ launchedFromCli: true })], [], OperatingSystem.Macintosh),
 			notRestorable: getWindowBlockers([
 				createWindow({ isReady: false }),
 				createWindow({ remoteAuthority: 'ssh-remote+host' }),
 				createWindow({ isExtensionDevelopmentHost: true }),
 				createWindow({ isTemporaryProfile: true }),
 				createWindow({ disableExtensions: true }),
-			], [createWindow({ isMinimized: true, isVisible: false })], OperatingSystem.Macintosh, true),
+			], [createWindow({ isMinimized: true, isVisible: false })], OperatingSystem.Macintosh),
 		}, {
 			noWindows: ['window.none'],
-			inBackground: [],
-			inForeground: ['window.fullScreenSameDisplay', 'window.auxiliaryFullScreen'], // macOS restores one native fullscreen window per display at once
-			inForegroundOnWindows: [],
-			pendingFullScreenInForeground: ['window.fullScreenSameDisplay'],
-			pendingFloatingWindowMode: ['window.auxiliaryPendingMode'],
+			onMacOS: ['window.fullScreenSameDisplay', 'window.auxiliaryFullScreen'], // macOS restores one native fullscreen window per display at once
+			onWindows: [],
 			openedFromTerminal: ['window.launchedFromCli'],
 			notRestorable: ['window.notReady', 'window.remote', 'window.extensionDevelopment', 'window.temporaryProfile', 'window.launchArguments', 'window.auxiliaryMinimized'],
 		});

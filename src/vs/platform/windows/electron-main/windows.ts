@@ -18,7 +18,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { AgentsWindowOpenSource, IAgentsWindowDraft, IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, TitlebarStyle, WindowMinimumSize, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from '../../window/common/window.js';
-import { IBackgroundShowOptions, ICodeWindow, IWindowState, WindowMode, defaultWindowState } from '../../window/electron-main/window.js';
+import { ICodeWindow, IWindowState, WindowMode, defaultWindowState } from '../../window/electron-main/window.js';
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
 
@@ -59,23 +59,9 @@ export interface IWindowsMainService {
 	/**
 	 * Restores the windows exactly as they are, for example minimized, when the
 	 * application starts the next time. Only applies if the application quits
-	 * without veto. Pass `undefined` to cancel.
+	 * without veto.
 	 */
-	restoreExactlyOnNextStartup(options: IExactRestoreOptions | undefined): void;
-
-	/**
-	 * How to show windows while they are restored without taking focus after the
-	 * application restarted, until the user activates the application.
-	 */
-	getBackgroundRestore(): IBackgroundShowOptions | undefined;
-}
-
-export interface IExactRestoreOptions {
-
-	/**
-	 * Show the windows without taking focus from the active application.
-	 */
-	readonly inBackground: boolean;
+	restoreExactlyOnNextStartup(restore: boolean): void;
 }
 
 export interface IWindowsCountChangedEvent {

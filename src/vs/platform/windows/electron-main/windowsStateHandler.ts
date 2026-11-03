@@ -57,11 +57,6 @@ interface ISerializedWindowState {
 export interface IExactRestoreState {
 
 	/**
-	 * Show the windows without taking focus from the active application.
-	 */
-	readonly inBackground: boolean;
-
-	/**
 	 * macOS: hide the application again after showing its windows.
 	 */
 	readonly hideApplication: boolean;
@@ -69,7 +64,7 @@ export interface IExactRestoreState {
 
 function isExactRestoreState(value: unknown): value is IExactRestoreState {
 	const candidate = value as Partial<IExactRestoreState> | undefined;
-	return !!candidate && typeof candidate === 'object' && typeof candidate.inBackground === 'boolean' && typeof candidate.hideApplication === 'boolean';
+	return !!candidate && typeof candidate === 'object' && typeof candidate.hideApplication === 'boolean';
 }
 
 export class WindowsStateHandler extends Disposable {
@@ -117,7 +112,7 @@ export class WindowsStateHandler extends Disposable {
 			return undefined;
 		}
 
-		this.logService.info(`[WindowsStateHandler] restoring windows exactly${exactRestore.inBackground ? ' in the background' : ''}`);
+		this.logService.info('[WindowsStateHandler] restoring windows exactly');
 
 		return exactRestore;
 	}
@@ -209,11 +204,9 @@ export class WindowsStateHandler extends Disposable {
 
 		// TODO@electron workaround for Electron not being able to restore
 		// multiple (native) fullscreen windows on the same display at once
-		// on macOS. Not needed when restoring in the background, where each
-		// window only enters fullscreen once it gets focus.
+		// on macOS.
 		// https://github.com/electron/electron/issues/34367
 		const displaysWithFullScreenWindow = new Set<number | undefined>();
-		const restoresFullScreenOnFocus = !!this.nextExactRestore?.inBackground;
 		const exact = !!this.nextExactRestore;
 
 		const currentWindowsState: IWindowsState = {
@@ -265,7 +258,7 @@ export class WindowsStateHandler extends Disposable {
 
 				if (windowState.uiState.mode === WindowMode.Fullscreen) {
 					if (displaysWithFullScreenWindow.has(windowState.uiState.display)) {
-						if (isMacintosh && !restoresFullScreenOnFocus && windowState.windowId !== currentWindowsState.lastActiveWindow?.windowId && !window.win?.isSimpleFullScreen()) {
+						if (isMacintosh && windowState.windowId !== currentWindowsState.lastActiveWindow?.windowId && !window.win?.isSimpleFullScreen()) {
 							windowState.uiState.mode = WindowMode.Normal;
 						}
 					} else {

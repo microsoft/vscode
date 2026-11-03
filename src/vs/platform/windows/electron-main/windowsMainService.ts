@@ -39,7 +39,7 @@ import { getRemoteAuthority } from '../../remote/common/remoteHosts.js';
 import { IStateService } from '../../state/node/state.js';
 import { AgentsWindowOpenSource, IAgentsWindowDraft, IAddRemoveFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings } from '../../window/common/window.js';
 import { CodeWindow } from './windowImpl.js';
-import { IExactRestoreOptions, IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from './windows.js';
+import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from './windows.js';
 import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnWorkspaceOrFolder } from './windowsFinder.js';
 import { IWindowState, WindowsStateHandler } from './windowsStateHandler.js';
 import { IRecent } from '../../workspaces/common/workspaces.js';
@@ -47,7 +47,7 @@ import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, ISingleFolderWorksp
 import { createEmptyWorkspaceIdentifier, getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from '../../workspaces/node/workspaces.js';
 import { IWorkspacesHistoryMainService } from '../../workspaces/electron-main/workspacesHistoryMainService.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
-import { IBackgroundShowOptions, ICodeWindow, UnloadReason } from '../../window/electron-main/window.js';
+import { ICodeWindow, UnloadReason } from '../../window/electron-main/window.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { IEditorOptions, ITextEditorOptions } from '../../editor/common/editor.js';
 import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
@@ -132,14 +132,6 @@ interface IFilesToOpen {
 	filesToWait?: IPathsToWaitFor;
 }
 
-/**
- * Whether opening these windows must not take focus, because the application
- * restores its windows in the background after restarting while the user was away.
- */
-function isInitialOpenInBackground(options: { readonly initialStartup?: boolean }, backgroundRestore: IBackgroundShowOptions | undefined): backgroundRestore is IBackgroundShowOptions {
-	return !!options.initialStartup && !!backgroundRestore;
-}
-
 interface IPathToOpen<T = IEditorOptions> extends IPath<T> {
 
 	/**
@@ -222,9 +214,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private readonly windowsStateHandler: WindowsStateHandler;
 
-	private backgroundRestore: IBackgroundShowOptions | undefined;
-	private readonly windowsRestoredMinimized = new WeakSet<ICodeWindow>();
-
 	constructor(
 		private readonly machineId: string,
 		private readonly sqmId: string,
@@ -252,15 +241,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		super();
 
 		this.windowsStateHandler = this._register(new WindowsStateHandler(this, stateService, this.lifecycleMainService, this.logService, this.configurationService));
-
-		const exactRestore = this.windowsStateHandler.exactRestore;
-		if (exactRestore?.inBackground) {
-			this.backgroundRestore = { hideApplication: exactRestore.hideApplication };
-			this._register(Event.once(Event.any(
-				Event.fromNodeEventEmitter<void>(app, 'browser-window-focus'),
-				Event.fromNodeEventEmitter<void>(app, 'did-become-active')
-			))(() => this.backgroundRestore = undefined)); // until the user activates the application
-		}
 
 		this.registerListeners();
 	}
@@ -443,7 +423,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		this.logService.trace(`windowsManager#open used window count ${usedWindows.length} (workspacesToOpen: ${workspacesToOpen.length}, foldersToOpen: ${foldersToOpen.length}, emptyToRestore: ${emptyWindowsWithBackupsToRestore.length}, maybeOpenEmptyWindow: ${maybeOpenEmptyWindow})`);
 
 		// Make sure to pass focus to the most relevant of the windows if we open multiple
-		if (usedWindows.length > 1 && !isInitialOpenInBackground(openConfig, this.backgroundRestore)) {
+		if (usedWindows.length > 1) {
 
 			// 1.) focus window we opened files in always with highest priority
 			if (filesOpenedInWindow) {
@@ -490,23 +470,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		}
 
-		// macOS: windows that open in the background are ordered behind other applications in the order they open,
-		// and activating the application focuses its frontmost window, so move the last active one in front
-		else if (usedWindows.length > 1 && isMacintosh && isInitialOpenInBackground(openConfig, this.backgroundRestore)) {
-			const lastActiveWindowState = this.windowsStateHandler.state.lastActiveWindow;
-			const lastActiveWindow = lastActiveWindowState && usedWindows.find(window => window.backupPath === lastActiveWindowState.backupPath);
-			const frontmostWindow = usedWindows.find(window => !this.windowsRestoredMinimized.has(window)); // ordering a window that is being minimized restores it
-			if (lastActiveWindow && frontmostWindow && lastActiveWindow !== frontmostWindow && !this.windowsRestoredMinimized.has(lastActiveWindow) && frontmostWindow.win) {
-				try {
-					lastActiveWindow.win?.moveAbove(frontmostWindow.win.getMediaSourceId());
-				} catch (error) {
-					this.logService.error('windowsManager#open: failed to order the last active window in front', error);
-				}
-
-				if (this.backgroundRestore.hideApplication) {
-					app.hide();
-				}
-			}
+		if (isMacintosh && openConfig.initialStartup && this.windowsStateHandler.exactRestore?.hideApplication) {
+			app.hide();
 		}
 
 		// Remember in recent document list (unless this opens for extension development)
@@ -1559,7 +1524,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		let window: ICodeWindow | undefined;
 		if (!options.forceNewWindow && !options.forceNewTabbedWindow) {
 			window = options.windowToUse || (lastActiveWindow?.config?.isSessionsWindow ? undefined : lastActiveWindow);
-			if (window && !isInitialOpenInBackground(options, this.backgroundRestore)) {
+			if (window) {
 				window.focus();
 			}
 		}
@@ -1650,14 +1615,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
 				isExtensionTestHost: !!configuration.extensionTestsPath,
 				isSessionsWindow: configuration.isSessionsWindow,
-				showInBackground: isInitialOpenInBackground(options, this.backgroundRestore) ? this.backgroundRestore : undefined,
 				minimized
 			});
 			mark('code/didCreateCodeWindow');
-
-			if (minimized) {
-				this.windowsRestoredMinimized.add(createdWindow);
-			}
 
 			// Add as window tab if configured (macOS only)
 			if (options.forceNewTabbedWindow) {
@@ -1887,14 +1847,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return window?.matches(webContents) ? window : undefined;
 	}
 
-	restoreExactlyOnNextStartup(options: IExactRestoreOptions | undefined): void {
-		this.windowsStateHandler.setNextExactRestore(options && {
-			inBackground: options.inBackground,
-			hideApplication: isMacintosh && options.inBackground && app.isHidden()
-		});
-	}
-
-	getBackgroundRestore(): IBackgroundShowOptions | undefined {
-		return this.backgroundRestore;
+	restoreExactlyOnNextStartup(restore: boolean): void {
+		this.windowsStateHandler.setNextExactRestore(restore ? {
+			hideApplication: isMacintosh && app.isHidden()
+		} : undefined);
 	}
 }

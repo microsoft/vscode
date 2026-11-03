@@ -23,7 +23,7 @@ import { SystemIdleState, ThermalState } from '../../native/common/native.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IStateService } from '../../state/node/state.js';
 import { ITelemetryService, TelemetryLevel } from '../../telemetry/common/telemetry.js';
-import { IBaseWindow, ICodeWindow, WindowMode } from '../../window/electron-main/window.js';
+import { IBaseWindow, ICodeWindow } from '../../window/electron-main/window.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { isUnattendedRestartSupported, IUpdateService, RESTART_WHEN_IDLE_SETTING, StateType } from '../common/update.js';
 import { getRelaunchArguments } from './updateRelaunchArguments.js';
@@ -161,11 +161,9 @@ export function hasArgumentsLostOnRelaunch(args: NativeParsedArgs, argv: readonl
 }
 
 /**
- * Returns the reasons why the windows could not be restored exactly as they are. In the
- * background, windows are shown without taking focus and enter fullscreen once they get
- * focus, in the foreground they are restored like after any update restart.
+ * Returns the reasons why the windows could not be restored exactly as they are.
  */
-export function getWindowBlockers(windows: readonly ICodeWindow[], auxiliaryWindows: readonly IBaseWindow[], os: OperatingSystem, inBackground: boolean): string[] {
+export function getWindowBlockers(windows: readonly ICodeWindow[], auxiliaryWindows: readonly IBaseWindow[], os: OperatingSystem): string[] {
 	if (windows.length === 0) {
 		return ['window.none']; // the relaunch would open a new window
 	}
@@ -192,30 +190,23 @@ export function getWindowBlockers(windows: readonly ICodeWindow[], auxiliaryWind
 			blockers.add('window.launchedFromCli'); // opened from a terminal, whose environment the restored window would not get
 		}
 
-		// macOS can only restore one native fullscreen window per display at once. A window restored in the
-		// background enters fullscreen once it gets focus, until then only its saved mode is fullscreen.
-		if (os === OperatingSystem.Macintosh && !inBackground && !window.win?.isSimpleFullScreen()) {
-			const { mode, display } = window.serializeWindowState();
-			if (mode === WindowMode.Fullscreen) {
-				if (displaysWithFullScreenWindow.has(display)) {
-					blockers.add('window.fullScreenSameDisplay');
-				}
-				displaysWithFullScreenWindow.add(display);
+		// macOS can only restore one native fullscreen window per display at once
+		if (os === OperatingSystem.Macintosh && window.isFullScreen && !window.win?.isSimpleFullScreen()) {
+			const { display } = window.serializeWindowState();
+			if (displaysWithFullScreenWindow.has(display)) {
+				blockers.add('window.fullScreenSameDisplay');
 			}
+			displaysWithFullScreenWindow.add(display);
 		}
 	}
 
-	// Floating windows do not remember being minimized, restore fullscreen as maximized, and save
-	// their mode without the mode they wait to enter once they get focus after a background restore
+	// Floating windows do not remember being minimized and restore fullscreen as maximized
 	for (const window of auxiliaryWindows) {
 		if (window.win?.isMinimized()) {
 			blockers.add('window.auxiliaryMinimized');
 		}
-		if (!inBackground && window.isFullScreen) {
+		if (window.isFullScreen) {
 			blockers.add('window.auxiliaryFullScreen');
-		}
-		if (window.hasPendingMode) {
-			blockers.add('window.auxiliaryPendingMode');
 		}
 	}
 
@@ -336,9 +327,13 @@ export class UnattendedRestartScheduler extends Disposable {
 		this._register(this.host.onDidUnlockScreen(() => this.onDidUnlockScreen()));
 		this._register(this.host.onDidSuspend(() => this.onDidSuspend()));
 		this._register(this.host.onDidResume(() => this.onDidResume()));
-		this._register(this.host.onDidSwitchToBattery(() => this.allowSleep('the machine runs on battery')));
+		this._register(this.host.onDidSwitchToBattery(() => {
+			this.restartCancellation?.cancel();
+			this.allowSleep('the machine runs on battery');
+		}));
 		this._register(this.host.onDidChangeThermalState(state => {
 			if (isUnderThermalPressure(state)) {
+				this.restartCancellation?.cancel();
 				this.allowSleep('the machine is under thermal pressure');
 			}
 		}));
@@ -421,7 +416,7 @@ export class UnattendedRestartScheduler extends Disposable {
 
 	private cancelRestart(): void {
 		this.pendingRestart = undefined;
-		this.windowsMainService.restoreExactlyOnNextStartup(undefined);
+		this.windowsMainService.restoreExactlyOnNextStartup(false);
 	}
 
 	private onDidLockScreen(): void {
@@ -455,6 +450,7 @@ export class UnattendedRestartScheduler extends Disposable {
 
 	private onDidSuspend(): void {
 		this.evaluation.cancel();
+		this.restartCancellation?.cancel();
 		if (this.lockedSince !== undefined) {
 			this.sleptWhileLocked = true;
 		}
@@ -517,7 +513,7 @@ export class UnattendedRestartScheduler extends Disposable {
 			this.hasCheckedSinceLock = true;
 			this.hasBeenDue ||= isDue;
 			const inBackground = !this.activeWhenLocked;
-			const { blockers, details, enabled } = await this.getBlockers(inBackground, isDue);
+			const { blockers, details, enabled } = await this.getBlockers(isDue);
 			if (this.lockedSince !== lockedSince || !this.hasUpdateState(StateType.Ready)) {
 				// Unlocked or update changed while checking. A lock or resume in the meantime skipped its own check.
 				this.scheduleEvaluation(0);
@@ -553,7 +549,7 @@ export class UnattendedRestartScheduler extends Disposable {
 			this.logService.info(`update#unattendedRestart - restarting ${inBackground ? 'in the background' : 'in the foreground'} to apply the update while the screen is locked`);
 			const toVersion = this.updateService.state.type === StateType.Ready ? this.updateService.state.update.version : undefined;
 			this.pendingRestart = { fromCommit: this.productService.commit, toVersion, inBackground, attempts: this.attempts, lockedMinutes: this.getLockedMinutes() };
-			this.windowsMainService.restoreExactlyOnNextStartup({ inBackground });
+			this.windowsMainService.restoreExactlyOnNextStartup(true);
 			const cancellation = this.restartCancellation = new CancellationTokenSource();
 			try {
 				await this.updateService.quitAndInstall({ unattended: true, relaunchInBackground: inBackground, token: cancellation.token });
@@ -584,7 +580,7 @@ export class UnattendedRestartScheduler extends Disposable {
 		return this.configurationService.getValue<boolean>(RESTART_WHEN_IDLE_SETTING) === true;
 	}
 
-	private async getBlockers(inBackground: boolean, isDue: boolean): Promise<{ readonly blockers: string[]; readonly details: ReadonlyMap<string, string>; readonly enabled: boolean }> {
+	private async getBlockers(isDue: boolean): Promise<{ readonly blockers: string[]; readonly details: ReadonlyMap<string, string>; readonly enabled: boolean }> {
 		const windows = this.windowsMainService.getWindows();
 
 		// Ask the windows even when something else blocks already, so that the outcome tells everything
@@ -607,7 +603,7 @@ export class UnattendedRestartScheduler extends Disposable {
 		}
 
 		// Checked once the windows answered, which can take a while, so that the result is current
-		for (const blocker of getWindowBlockers(windows, this.auxiliaryWindowsMainService.getWindows(), this.os, inBackground)) {
+		for (const blocker of getWindowBlockers(windows, this.auxiliaryWindowsMainService.getWindows(), this.os)) {
 			blockers.add(blocker);
 		}
 		if (this.dialogMainService.hasOpenDialogs()) {

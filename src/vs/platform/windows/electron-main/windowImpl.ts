@@ -37,7 +37,7 @@ import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindo
 import { defaultBrowserWindowOptions, getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext, WindowStateValidator } from './windows.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
-import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow, IBackgroundShowOptions } from '../../window/electron-main/window.js';
+import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from '../../window/electron-main/window.js';
 import { IPolicyService } from '../../policy/common/policy.js';
 import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
 import { IStateService } from '../../state/node/state.js';
@@ -54,12 +54,6 @@ export interface IWindowCreationOptions {
 	readonly extensionDevelopmentPath?: string[];
 	readonly isExtensionTestHost?: boolean;
 	readonly isSessionsWindow?: boolean;
-
-	/**
-	 * Show the window without activating the application and, on macOS,
-	 * behind the windows of the active application.
-	 */
-	readonly showInBackground?: IBackgroundShowOptions;
 
 	/**
 	 * Minimize the window, as it was when the application quit.
@@ -194,16 +188,6 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	 */
 	protected maximized = false;
 
-	/**
-	 * Restored window modes that wait for the window to get focus (see {@link applyState}).
-	 */
-	protected pendingMaximize = false;
-	protected pendingFullScreen = false;
-
-	get hasPendingMode(): boolean {
-		return this.pendingMaximize || this.pendingFullScreen;
-	}
-
 	private hasWindowControlOverlay = false;
 
 	protected _win: electron.BrowserWindow | null = null;
@@ -247,8 +231,6 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			this.clearNotifyFocus();
 
 			this._lastFocusTime = Date.now();
-
-			this.applyPendingWindowMode();
 		}));
 		this._register(Event.fromNodeEventEmitter(this._win, 'enter-full-screen')(() => this._onDidEnterFullScreen.fire()));
 		this._register(Event.fromNodeEventEmitter(this._win, 'leave-full-screen')(() => this._onDidLeaveFullScreen.fire()));
@@ -342,7 +324,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}));
 	}
 
-	protected applyState(state: IWindowState, hasMultipleDisplays = electron.screen.getAllDisplays().length > 0, showInBackground?: IBackgroundShowOptions, minimized = false): void {
+	protected applyState(state: IWindowState, hasMultipleDisplays = electron.screen.getAllDisplays().length > 0, minimized = false): void {
 
 		// TODO@electron (Electron 4 regression): when running on multiple displays where the target display
 		// to open the window has a larger resolution than the primary display, the window will not size
@@ -367,13 +349,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			}
 		}
 
-		// In the background, maximizing a hidden window would activate it on Windows and entering
-		// fullscreen would switch to a new space on macOS, so both wait for the window to get focus
-		const isMaximizedMode = state.mode === WindowMode.Maximized || state.mode === WindowMode.Fullscreen;
-		this.pendingMaximize = !!showInBackground && !isMacintosh && isMaximizedMode;
-		this.pendingFullScreen = !!showInBackground && state.mode === WindowMode.Fullscreen;
-
-		if (isMaximizedMode && !this.pendingMaximize) {
+		if (state.mode === WindowMode.Maximized || state.mode === WindowMode.Fullscreen) {
 
 			// this call may or may not show the window, depends
 			// on the platform: currently on Windows and Linux will
@@ -381,57 +357,22 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			// we show the window at the end of this block.
 			this._win?.maximize();
 
-			if (state.mode === WindowMode.Fullscreen && !this.pendingFullScreen) {
+			if (state.mode === WindowMode.Fullscreen) {
 				this.setFullScreen(true, true);
 			}
 
 			// to reduce flicker from the default window size
 			// to maximize or fullscreen, we only show after
-			if (!showInBackground && !minimized) {
+			if (!minimized) {
 				this._win?.show();
 			}
 		}
 
-		if (showInBackground) {
-			this.showInBackground();
-		} else if (minimized && !this._win?.isVisible()) {
-			this._win?.showInactive(); // a window that is about to be minimized must not take focus
-		}
-
 		if (minimized) {
+			if (!this._win?.isVisible()) {
+				this._win?.showInactive(); // a window that is about to be minimized must not take focus
+			}
 			this._win?.minimize();
-		}
-
-		if (isMacintosh && showInBackground?.hideApplication) {
-			electron.app.hide(); // showing a window un-hides the application
-		}
-	}
-
-	private showInBackground(): void {
-		const win = this._win;
-		if (!win) {
-			return;
-		}
-
-		if (!win.isVisible()) {
-			win.showInactive();
-		}
-
-		// macOS: order the window behind the windows of the active application
-		if (isMacintosh) {
-			win.blur();
-		}
-	}
-
-	private applyPendingWindowMode(): void {
-		if (this.pendingMaximize) {
-			this.pendingMaximize = false;
-			this._win?.maximize();
-		}
-
-		if (this.pendingFullScreen) {
-			this.pendingFullScreen = false;
-			this.setFullScreen(true, true);
 		}
 	}
 
@@ -876,7 +817,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			}
 
 			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, webPreferences);
-			if (config.showInBackground || config.minimized) {
+			if (config.minimized) {
 				options.show = false; // a window that is created visible takes focus
 			}
 			const iconPath = config.isSessionsWindow && isWindows ? join(this.environmentMainService.appRoot, 'resources/win32/sessions.ico') : undefined;
@@ -894,7 +835,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this.setWin(this._win, options);
 
 			// Apply some state after window creation
-			this.applyState(this.windowState, hasMultipleDisplays, config.showInBackground, config.minimized);
+			this.applyState(this.windowState, hasMultipleDisplays, config.minimized);
 
 			this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 		}
@@ -1411,7 +1352,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		// Only do this when running out of sources and not when running tests
 		if (!this.environmentMainService.isBuilt && !this.environmentMainService.extensionTestsLocationURI) {
 			this._register(new RunOnceScheduler(() => {
-				if (this._win && !this._win.isVisible() && !this._win.isMinimized() && !this.windowsMainService.getBackgroundRestore()) {
+				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
 					this._win.show();
 					this.focus({ mode: FocusMode.Force });
 					this._win.webContents.openDevTools();
@@ -1557,7 +1498,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		const minimized = !!options?.exact && this._win.isMinimized();
 
 		// fullscreen gets special treatment
-		if (this.isFullScreen || this.pendingFullScreen) {
+		if (this.isFullScreen) {
 			let display: electron.Display | undefined;
 			try {
 				display = electron.screen.getDisplayMatching(this.getBounds());
@@ -1591,7 +1532,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		let mode: WindowMode;
 
 		// get window mode (Windows reports a minimized window as not maximized, which only exact restores correct)
-		if (!isMacintosh && (this.pendingMaximize || (minimized ? this.maximized : this._win.isMaximized()))) {
+		if (!isMacintosh && (minimized ? this.maximized : this._win.isMaximized())) {
 			mode = WindowMode.Maximized;
 		} else {
 			mode = WindowMode.Normal;
