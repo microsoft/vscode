@@ -10874,6 +10874,90 @@ suite('LocalAgentHostSessionsProvider', () => {
 			return session!;
 		}
 
+		test('agent effort and explicit model configuration stay scoped to each running chat', async () => {
+			const modelId = 'agent-host-copilotcli:sonnet';
+			const agent: AgentCustomization = {
+				type: CustomizationType.Agent, id: 'review', uri: 'other-host:/review', name: 'Review', model: 'sonnet',
+				_meta: { 'vscode.reasoningEffort': 'low' },
+			};
+			const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+			const sent: object[] = [];
+			const inputs = new Map<string, IInputModel>();
+			const provider = createProvider(disposables, agentHost, undefined, {
+				activeSession,
+				languageModelIds: [modelId],
+				lookupLanguageModel: () => ({
+					...createTestLanguageModel('sonnet'), targetChatSessionType: 'agent-host-copilotcli',
+					configurationSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', enum: ['low', 'medium', 'high'], default: 'medium' } } },
+				}),
+				acquireOrLoadSession: async resource => {
+					let input = inputs.get(resource.toString());
+					if (!input) {
+						input = new class extends mock<IInputModel>() {
+							override readonly state = observableValue<IChatModelInputState>('input', {
+								selectedModel: undefined, attachments: [], mode: { id: 'agent', kind: ChatModeKind.Agent },
+								inputText: '', selections: [], contrib: {},
+							});
+							override setState(update: Partial<IChatModelInputState>): void {
+								this.state.set({ ...this.state.get(), ...update }, undefined);
+							}
+						}();
+						inputs.set(resource.toString(), input);
+					}
+					const inputModel = input;
+					return new ImmortalReference(new class extends mock<IChatModel>() {
+						override readonly inputModel = inputModel;
+					}());
+				},
+				sendRequest: async (resource, _message, options) => {
+					sent.push({ chat: resource.fragment, configuration: options?.userSelectedModelConfiguration });
+					return { kind: 'sent' as const, data: {} as IChatSendRequestData };
+				},
+			});
+			const session = setupMultiChatSession(provider, 'chat-local-effort');
+			const backend = AgentSession.uri('copilotcli', 'chat-local-effort').toString();
+			agentHost.setSessionState('chat-local-effort', 'copilotcli', {
+				...makeState([makeChatSummary(buildDefaultChatUri(backend), ''), makeChatSummary(buildChatUri(backend, 'peer'), 'Peer')]),
+				customizations: [{
+					type: CustomizationType.Plugin, id: 'plugin://review', uri: 'plugin://review', name: 'Review',
+					load: { kind: CustomizationLoadStatus.Loaded }, children: [agent],
+				}],
+			});
+			const main = session.mainChat.get();
+			const peer = session.chats.get().find(chat => chat.resource.fragment === 'peer')!;
+			provider.setModel(session.sessionId, main.resource, modelId, ChatModelSource.Chosen);
+			provider.setModel(session.sessionId, peer.resource, modelId, ChatModelSource.Chosen);
+			activeSession.set(upcastPartial<IActiveSession>({ ...session, activeChat: constObservable(main) }), undefined);
+			const mainConfiguration = provider.getAutomationModelConfiguration(session.sessionId)!;
+			await mainConfiguration.setModelConfiguration(modelId, { reasoningEffort: 'high' });
+			activeSession.set(upcastPartial<IActiveSession>({ ...session, activeChat: constObservable(peer) }), undefined);
+			provider.setAgent(session.sessionId, { uri: agent.uri, name: agent.name });
+			const peerConfiguration = provider.getAutomationModelConfiguration(session.sessionId)!;
+			await provider.sendRequest(session.sessionId, main.resource, { query: 'main' });
+			await provider.sendRequest(session.sessionId, peer.resource, { query: 'peer' });
+			await peerConfiguration.setModelConfiguration(modelId, { reasoningEffort: 'medium' });
+			activeSession.set(upcastPartial<IActiveSession>({ ...session, activeChat: constObservable(main) }), undefined);
+			await provider.sendRequest(session.sessionId, main.resource, { query: 'main again' });
+			await provider.sendRequest(session.sessionId, peer.resource, { query: 'peer again' });
+			assert.deepStrictEqual({
+				separateConfigurations: mainConfiguration !== peerConfiguration,
+				main: mainConfiguration.getModelConfigurationForRequest(modelId),
+				peer: peerConfiguration.getModelConfigurationForRequest(modelId),
+				inputs: [main, peer].map(chat => inputs.get(chat.resource.toString())?.state.get()?.modelConfiguration),
+				sent,
+			}, {
+				separateConfigurations: true,
+				main: { reasoningEffort: 'high' }, peer: { reasoningEffort: 'medium' },
+				inputs: [{ reasoningEffort: 'high' }, { reasoningEffort: 'medium' }],
+				sent: [
+					{ chat: '', configuration: { reasoningEffort: 'high' } },
+					{ chat: 'peer', configuration: { reasoningEffort: 'low' } },
+					{ chat: '', configuration: { reasoningEffort: 'high' } },
+					{ chat: 'peer', configuration: { reasoningEffort: 'medium' } },
+				],
+			});
+		});
+
 		test('resolves exact chat modified times lazily while single-chat sessions use the aggregate time', async () => {
 			const singleModifiedTime = 10_000;
 			agentHost.addSession(createSession('single-chat-time', { summary: 'Single', modifiedTime: singleModifiedTime }));

@@ -1205,7 +1205,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			subscribeToModelChanges: listener => this.languageModelsService.onDidChangeLanguageModels(listener),
 			getBoundConversationKey: () => this._inputModelSessionResource?.toString(),
 			getIntentHolder: () => this._intentHolder,
-			restoreModelConfiguration: (modelId, configuration) => this.restoreModelConfiguration(modelId, configuration),
+			restoreModelConfiguration: (modelId, configuration, persist) => this.restoreModelConfiguration(modelId, configuration, persist),
 			applyModel: () => {
 				if (this.cachedWidth) {
 					this.layout(this.cachedWidth);
@@ -1471,12 +1471,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 			const models = mode.model?.read(r);
 			const effort = mode.reasoningEffort?.read(r);
-			if (models || effort) {
-				const preferences = models ?? [this._currentLanguageModel.read(undefined)?.metadata.id].filter(isDefined);
-				if (preferences.length > 0) {
-					this.switchModelByQualifiedName(preferences, effort);
-				}
-			}
+			this.applyModeModelPreference(models, effort);
 		}));
 
 		this.registerChatModeValidation();
@@ -1559,15 +1554,30 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	public switchModelByQualifiedName(qualifiedModelNames: readonly string[], reasoningEffort?: string): boolean {
 		const model = resolveAgentModelPreference(qualifiedModelNames, this.getModels());
 		if (model) {
-			const configuration = resolveAgentReasoningEffort(reasoningEffort, model.metadata);
-			if (configuration) {
-				this.restoreModelConfiguration(model.identifier, { ...this.getModelConfiguration(model.identifier), ...configuration }, false);
-			}
+			this.applyAgentReasoningEffort(model, reasoningEffort);
 			this._applyProgrammaticLanguageModel(model);
 			return true;
 		}
 		this.logService.warn(`[chat] None of the models "${qualifiedModelNames.join(', ')}" found. Use a model ID or "<name> (<vendor>)", e.g. "GPT-4o (copilot)".`);
 		return false;
+	}
+
+	private applyModeModelPreference(models: readonly string[] | undefined, effort: string | undefined): void {
+		if (models) {
+			this.switchModelByQualifiedName(models, effort);
+		} else if (effort) {
+			const model = this._currentLanguageModel.read(undefined);
+			if (model) {
+				this.applyAgentReasoningEffort(model, effort);
+			}
+		}
+	}
+
+	private applyAgentReasoningEffort(model: ILanguageModelChatMetadataAndIdentifier, effort: string | undefined): void {
+		const configuration = resolveAgentReasoningEffort(effort, model.metadata);
+		if (configuration) {
+			this.restoreModelConfiguration(model.identifier, configuration, false);
+		}
 	}
 
 	public requestModelByIdentifier(identifier: string, configuration?: IStringDictionary<unknown>): Promise<boolean> {
@@ -2088,7 +2098,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Sync selected model - validate it belongs to the current session's model pool
 			if (state?.selectedModel) {
 				const sessionType = getChatSessionType(forSessionResource);
-				this._modelSelectionController.syncFromConversationState(state.selectedModel, state.modelConfiguration, sessionType, forSessionResource.toString(), state.origin === ChatInputStateOrigin.Remote, this._restoreReasonFor(state.selectedModel));
+				this._modelSelectionController.syncFromConversationState(state.selectedModel, state.modelConfiguration, sessionType, forSessionResource.toString(), state.origin === ChatInputStateOrigin.Remote, this._restoreReasonFor(state.selectedModel), state.modelConfigurationIsTransient);
 			} else if (state) {
 				// state exists but state.selectedModel is undefined - sync is a NO-OP,
 				// but record it so we can see when a session's persisted state lost its model.
@@ -2506,6 +2516,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			},
 			selectedModel,
 			modelConfiguration: selectedModel ? this._modelConfigStore.getModelConfiguration(selectedModel.identifier) : undefined,
+			modelConfigurationIsTransient: selectedModel ? this._modelConfigStore.isModelConfigurationTransient(selectedModel.identifier) : undefined,
 			selectedModelReason: selectedModel ? this._modelSelectionController.selectionReason : undefined,
 			selections: this._inputEditor?.getSelections() || [],
 			permissionLevel: this._currentPermissionLevel.get(),

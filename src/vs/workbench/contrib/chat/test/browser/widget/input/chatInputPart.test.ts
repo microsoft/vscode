@@ -332,7 +332,7 @@ suite('ChatInputPart', () => {
 		assert.deepStrictEqual({ selected, applied, configurations, warningCount: warnings.length }, {
 			selected: [true, true, false],
 			applied: [model.identifier, model.identifier],
-			configurations: [{ id: model.identifier, configuration: { contextSize: 200000, reasoningEffort: 'low' }, persist: false }],
+			configurations: [{ id: model.identifier, configuration: { reasoningEffort: 'low' }, persist: false }],
 			warningCount: 1,
 		});
 	});

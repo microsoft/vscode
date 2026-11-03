@@ -4738,7 +4738,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/** Backend chats active in a visible session, whose config subscriptions are held without an idle timer. */
 	private readonly _pinnedChatConfigs = new Set<string>();
 	private readonly _runningSessionConfigResolveSeq = new Map<string, number>();
-	private readonly _runningModelConfigurations = this._register(new DisposableMap<string, AutomationModelConfiguration>());
+	private readonly _runningModelConfigurations = this._register(new DisposableMap<string, DisposableMap<string, AutomationModelConfiguration>>());
 	/**
 	 * Model configuration a side chat inherited from its source chat's turn, keyed by chat
 	 * resource. Per chat rather than per session so it cannot change the session's other chats;
@@ -6228,10 +6228,25 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return draft.modelConfiguration;
 		}
 		const rawId = this._sessionKeyFromChatId(sessionId);
-		if (!this._runningModelConfigurations.has(sessionId) && rawId && this._sessionCache.has(rawId)) {
-			this._runningModelConfigurations.set(sessionId, new AutomationModelConfiguration(this._languageModelsService));
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!cached) {
+			return undefined;
 		}
-		return this._runningModelConfigurations.get(sessionId);
+		const configurations = this._getRunningModelConfigurations(cached.sessionId);
+		const key = this._activeChatResource(cached).toString();
+		if (!configurations.has(key)) {
+			configurations.set(key, new AutomationModelConfiguration(this._languageModelsService));
+		}
+		return configurations.get(key);
+	}
+
+	private _getRunningModelConfigurations(sessionId: string): DisposableMap<string, AutomationModelConfiguration> {
+		let configurations = this._runningModelConfigurations.get(sessionId);
+		if (!configurations) {
+			configurations = new DisposableMap<string, AutomationModelConfiguration>();
+			this._runningModelConfigurations.set(sessionId, configurations);
+		}
+		return configurations;
 	}
 
 	async getAutomationSessionConfiguration(sessionId: string): Promise<IAutomationSessionConfiguration | undefined> {
@@ -8255,6 +8270,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// `cached.chats`.
 		this._keepSessionStateAlive(cached.sessionId);
 		await connection.disposeChat(ahpChatUri);
+		this._runningModelConfigurations.get(cached.sessionId)?.deleteAndDispose(chatUri.toString());
 		return true;
 	}
 
@@ -8686,7 +8702,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._carriedOverChatModelConfigurations.delete(chatResource.toString());
 		const selectedModelConfiguration = carriedOverConfiguration && carriedOverConfiguration.modelId === selectedModelId
 			? carriedOverConfiguration.configuration
-			: this._runningModelConfigurations.get(cached.sessionId)?.getModelConfigurationForRequest(selectedModelId);
+			: this._runningModelConfigurations.get(cached.sessionId)?.get(chatResource.toString())?.getModelConfigurationForRequest(selectedModelId);
 		const selectedAgentUri = cached.getChatMode(chatResource)?.id;
 
 		const sendOptions: IChatSendRequestOptions = {
@@ -9026,7 +9042,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		modelConfiguration: IAutomationSessionTemplate['modelConfiguration'],
 	): void {
 		if (modelConfiguration !== undefined) {
-			this._runningModelConfigurations.set(committedAdapter.sessionId, new AutomationModelConfiguration(this._languageModelsService, {
+			this._getRunningModelConfigurations(committedAdapter.sessionId).set(committedAdapter.resource.toString(), new AutomationModelConfiguration(this._languageModelsService, {
 				modelId,
 				modelConfiguration,
 			}, true));
@@ -9446,7 +9462,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				if (model) {
 					if (model.config !== undefined) {
 						const modelId = `${cached.resource.scheme}:${model.id}`;
-						this._runningModelConfigurations.set(cached.sessionId, new AutomationModelConfiguration(this._languageModelsService, {
+						this._getRunningModelConfigurations(cached.sessionId).set(cached.resource.toString(), new AutomationModelConfiguration(this._languageModelsService, {
 							modelId,
 							modelConfiguration: model.config,
 						}, true));
