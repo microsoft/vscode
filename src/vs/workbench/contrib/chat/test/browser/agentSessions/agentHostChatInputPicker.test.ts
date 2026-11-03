@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { stub } from 'sinon';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { isMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { constObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -13,9 +16,12 @@ import { IActionWidgetService } from '../../../../../../platform/actionWidget/br
 import { ActionListItemKind, ActionListWidget, IActionListDelegate, IActionListItem, IActionListItemInlineToggle, IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
+import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { IAction } from '../../../../../../base/common/actions.js';
+import { MenuId, MenuRegistry, isIMenuItem } from '../../../../../../platform/actions/common/actions.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentConnection, IAgentHostNetworkDiagnosticsInfo, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -26,6 +32,7 @@ import { ChatOriginKind, SessionStatus, type ChatState, type ChatSummary } from 
 import { getLocalAgentHostSessionProvider, toAgentHostBackendSessionUri } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
+import { Context } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -37,14 +44,16 @@ import { MockKeybindingService } from '../../../../../../platform/keybinding/tes
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { NullOpenerService } from '../../../../../../platform/opener/test/common/nullOpenerService.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, IManagedSettingsService, ManagedSettingsData } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, IManagedSettingsService, ManagedSettingsData, NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
-import { IChatWidget } from '../../../browser/chat.js';
+import { IChatAcceptInputOptions, IChatWidget } from '../../../browser/chat.js';
+import { IChatRequestModel } from '../../../common/model/chatModel.js';
 import { IChatViewModel } from '../../../common/model/chatViewModel.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -60,10 +69,11 @@ import type { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionCo
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { AgentHostChatInputPicker, getAgentHostSandboxSettingId, getConfigPickerAccessibleTriggerLabel, getConfigPickerItemHover, getConfigPickerListOptions, getConfigPickerTriggerHover, getConfigPickerTriggerLabel, isGenericConfigPickerProperty, resolveConfigChipValue } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
-import { SessionType } from '../../../common/chatSessionsService.js';
+import { IChatSessionOptionsChangeEvent, IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { getAgentHostPickerProperty, OpenAgentHostAutoApprovePickerAction, OpenAgentHostCodexApprovalsPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { isAutoApproveValuePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatPhoneInputPresenter } from '../../../browser/widget/input/chatPhoneInputPresenter.js';
 import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerPermissionsItems, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, renderModePickerPermissions, renderModePickerTrigger, shouldCombineModeAndPermissions } from '../../../browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { resetShownWarnings } from '../../../common/chatPermissionWarnings.js';
@@ -129,9 +139,18 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			},
 			values: { mode: 'interactive', autoApprove: 'assisted' },
 		};
+		const submissions: { query: string | undefined; options: IChatAcceptInputOptions | undefined }[] = [];
 		const widget = new class extends mock<IChatWidget>() {
 			override readonly onDidChangeViewModel = Event.None;
 			override viewModel: IChatViewModel | undefined;
+			override async acceptInput(query?: string, options?: IChatAcceptInputOptions) { submissions.push({ query, options }); return undefined; }
+		}();
+		const hasActiveRequest = observableValue('hasActiveRequest', false);
+		const isInputBlocked = observableValue('isInputBlocked', false);
+		const model = new class extends mock<IChatViewModel['model']>() {
+			override readonly hasActiveRequest = hasActiveRequest;
+			override readonly isInputBlocked = isInputBlocked;
+			override lastRequest: IChatRequestModel | undefined;
 		}();
 		const onDidShow = store.add(new Emitter<void>());
 		const branchCompletionQueries: (string | undefined)[] = [];
@@ -167,6 +186,17 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			override updateItems<T>(items: readonly IActionListItem<T>[]): void {
 				this.items = items;
 			}
+			focused: string[] = [];
+			override focusItemById(itemId: string): void {
+				this.focused.push(itemId);
+			}
+			sections: string[] = [];
+			override collapseSection(): void {
+				this.sections.push('collapse');
+			}
+			override expandSection(): void {
+				this.sections.push('expand');
+			}
 			override hide(): void {
 				this.isVisible = false;
 				const onHide = this.onHide;
@@ -178,7 +208,24 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		const configChannels: { channel: string; type: string }[] = [];
 		const settingsRequests: IOpenSettingsOptions[] = [];
 		const hoverTargets: HTMLElement[] = [];
+		const hoverOptions = new Map<HTMLElement, Parameters<IHoverService['setupDelayedHover']>[1]>();
 		const instantiationService = store.add(new TestInstantiationService());
+		const sessionOptions = new Map<string, Map<string, string>>();
+		const sessionOptionsChanged = store.add(new Emitter<IChatSessionOptionsChangeEvent>());
+		const chatSessionsService = instantiationService.stub(IChatSessionsService, {
+			onDidChangeSessionOptions: sessionOptionsChanged.event,
+			getSessionOptions: resource => sessionOptions.get(resource.toString()),
+			getSessionOption: (resource, key) => sessionOptions.get(resource.toString())?.get(key),
+			setSessionOption: (resource, key, value) => {
+				const options = sessionOptions.get(resource.toString());
+				if (!options) {
+					return false;
+				}
+				options.set(key, typeof value === 'string' ? value : value.id);
+				sessionOptionsChanged.fire({ sessionResource: resource, updates: new Map([[key, value]]) });
+				return true;
+			},
+		});
 		const onAgentHostStart = store.add(new Emitter<void>());
 		let diagnosticsRequests = 0;
 		const logErrors: (string | Error)[] = [];
@@ -186,6 +233,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			override error(message: string | Error): void { logErrors.push(message); }
 		}()));
 		const connection = instantiationService.stub(IAgentHostService, {
+			initializeResult: constObservable(undefined),
 			onAgentHostStart: onAgentHostStart.event,
 			onAgentHostExit: Event.None,
 			getNetworkDiagnosticsInfo: () => {
@@ -228,9 +276,10 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		instantiationService.set(IActionWidgetService, actionWidget);
 		instantiationService.set(IConfigurationService, configuration);
 		instantiationService.stub(IHoverService, {
-			setupDelayedHover: target => {
+			setupDelayedHover: (target, options) => {
 				hoverTargets.push(target);
-				return { dispose: () => { } };
+				hoverOptions.set(target, options);
+				return toDisposable(() => hoverOptions.delete(target));
 			},
 		});
 		instantiationService.set(IOpenerService, NullOpenerService);
@@ -251,13 +300,23 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		const managedSandboxEnforced = observableValue('managedSandboxEnforced', false);
 		const managedSandboxAllowsBypass = observableValue('managedSandboxAllowsBypass', false);
 		instantiationService.stub(IAgentHostEnablementService, { managedSandboxEnforced, managedSandboxAllowsBypass });
+		instantiationService.set(IManagedSettingsService, new NullManagedSettingsService());
 		instantiationService.stub(IChatPhoneInputPresenter, { enabled: constObservable(false) });
 		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority });
-		const modePicker = store.add(instantiationService.createInstance(AgentHostChatInputPicker, widget, SessionConfigKey.Mode));
-		const permissionPicker = store.add(instantiationService.createInstance(AgentHostChatInputPicker, widget, SessionConfigKey.AutoApprove));
+		const menu = dom.$('div');
+		instantiationService.stub(IContextViewService, { getContextViewElement: () => menu });
+		const pickers: AgentHostChatInputPicker[] = [];
+		const createPicker = (property: string) => {
+			const picker = store.add(instantiationService.createInstance(AgentHostChatInputPicker, widget, property));
+			pickers.push(picker);
+			return picker;
+		};
+		const modePicker = createPicker(SessionConfigKey.Mode);
+		const permissionPicker = createPicker(SessionConfigKey.AutoApprove);
 		const sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/test-session' });
 		widget.viewModel = new class extends mock<IChatViewModel>() {
 			override readonly sessionResource = sessionResource;
+			override readonly model = model;
 		}();
 		modePicker['_initialResolved'] = permissionPicker['_initialResolved'] = { sessionResource, result: config };
 		const modeContainer = dom.$('div');
@@ -271,6 +330,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			sessionResolutions.set(sessionResource.toString(), { connection: host, backendSession, connectionAuthority: 'test-host' });
 			widget.viewModel = new class extends mock<IChatViewModel>() {
 				override readonly sessionResource = sessionResource;
+				override readonly model = model;
 			}();
 			const state = new class extends mock<SessionState>() {
 				override readonly provider = provider;
@@ -282,7 +342,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				override get value() { return member.state; }
 			}();
 			const getChat = () => chat && { resource: chat.resource, chain: new Map([chat, ...chat.spawnedBy ?? []].map(member => [member.resource, subscription(member)])) };
-			for (const picker of [modePicker, permissionPicker]) {
+			for (const picker of pickers) {
 				const sub = new class extends mock<IAgentSubscription<SessionState>>() {
 					override readonly value = state;
 				}();
@@ -293,7 +353,288 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			}
 			return state;
 		};
-		return { modePicker, permissionPicker, modeContainer, permissionContainer, configuration, config, actionWidget, widget, instantiationService, branchCompletionQueries, branchCompletionProperties, branchCompletionItems, dispatches, configChannels, resolvedRefreshes, connection, settingsRequests, hoverTargets, onDidShow: onDidShow.event, sandboxReady, setSession, managedSandboxEnforced, managedSandboxAllowsBypass, logErrors, diagnosticsRequests: () => diagnosticsRequests, fireHostStart: () => onAgentHostStart.fire() };
+		return { modePicker, permissionPicker, createPicker, submissions, model, hasActiveRequest, isInputBlocked, sessionOptions, chatSessionsService, modeContainer, permissionContainer, configuration, config, actionWidget, menu, widget, instantiationService, branchCompletionQueries, branchCompletionProperties, branchCompletionItems, dispatches, configChannels, resolvedRefreshes, connection, settingsRequests, hoverTargets, hoverOptions, onDidShow: onDidShow.event, sandboxReady, setSession, managedSandboxEnforced, managedSandboxAllowsBypass, logErrors, diagnosticsRequests: () => diagnosticsRequests, fireHostStart: () => onAgentHostStart.fire() };
+	}
+
+	function setupCloudDraft(combined = true) {
+		const rig = setup(combined);
+		const resource = URI.from({ scheme: SessionType.CloudSandbox, path: '/untitled-draft' });
+		rig.sessionOptions.set(resource.toString(), new Map([['mode', 'interactive'], ['approvalMode', 'manual']]));
+		rig.widget.viewModel = new class extends mock<IChatViewModel>() {
+			override readonly sessionResource = resource;
+			override readonly model = rig.model;
+		}();
+		rig.modePicker['_reattach']();
+		rig.permissionPicker['_reattach']();
+		const fireConfigurationChange = (key: string) => rig.configuration.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: candidate => candidate === key,
+			affectedKeys: new Set([key]),
+			source: ConfigurationTarget.USER,
+			change: { keys: [key], overrides: [] },
+		});
+		return { ...rig, resource, fireConfigurationChange };
+	}
+
+	test('cloud drafts contribute the shared controls only in the editor with AI enabled', () => {
+		const actions = MenuRegistry.getMenuItems(MenuId.ChatInputSecondary).filter(isIMenuItem)
+			.filter(item => item.command.id === OpenAgentHostModePickerAction.ID || item.command.id === OpenAgentHostAutoApprovePickerAction.ID);
+		const visible = (enabled: boolean, sessionsWindow: boolean, type: string) => {
+			const context = new Context(0, null);
+			context.setValue(ChatContextKeys.enabled.key, enabled);
+			context.setValue(IsSessionsWindowContext.key, sessionsWindow);
+			context.setValue(ChatContextKeys.chatSessionType.key, type);
+			return actions.filter(action => action.when?.evaluate(context)).map(action => action.command.id);
+		};
+		assert.deepStrictEqual({
+			cloud: visible(true, false, SessionType.CloudSandbox),
+			sessions: visible(true, true, SessionType.CloudSandbox),
+			disabled: visible(false, false, SessionType.CloudSandbox),
+			local: visible(true, false, SessionType.Local),
+		}, { cloud: [OpenAgentHostModePickerAction.ID, OpenAgentHostAutoApprovePickerAction.ID], sessions: [], disabled: [], local: [] });
+	});
+
+	test('cloud drafts reuse the combined picker without an agent host connection', async () => {
+		const rig = setupCloudDraft();
+		await rig.modePicker['_showPicker'](rig.modePicker.triggerElement!, true);
+		const presentation = {
+			combined: rig.modePicker.combinesPermissions,
+			aria: rig.modePicker.triggerElement?.ariaLabel,
+			separatePermissions: rig.permissionContainer.style.display,
+			rows: rig.actionWidget.items.map(item => item.label || item.kind),
+			permissions: rig.actionWidget.items.filter(item => permissionPresentations.some(permission => permission.label === item.label))
+				.map(item => ({ label: item.label, detail: item.detail, icon: item.group?.icon?.id, badge: item.badge })),
+		};
+		await rig.actionWidget.select('Assisted permissions');
+		await rig.modePicker['_showPicker'](rig.modePicker.triggerElement!);
+		await rig.actionWidget.select('Plan');
+		assert.deepStrictEqual({
+			presentation,
+			options: Object.fromEntries(rig.sessionOptions.get(rig.resource.toString())!),
+			dispatches: rig.dispatches,
+			refreshes: rig.resolvedRefreshes,
+		}, {
+			presentation: {
+				combined: true,
+				aria: 'Pick Mode and Permissions, Interactive, Manual permissions',
+				separatePermissions: 'none',
+				rows: ['Agent mode', 'Interactive', 'Plan', 'Autopilot', ActionListItemKind.Separator, 'Permissions', 'Manual permissions', 'Assisted permissions', 'Allow all', ActionListItemKind.Separator, 'Learn more about permissions'],
+				permissions: [
+					{ label: 'Manual permissions', detail: 'Asks when approval settings don\'t apply', icon: 'key', badge: undefined },
+					{ label: 'Assisted permissions', detail: 'Evaluates risk before running tools', icon: 'sparkle', badge: 'New' },
+					{ label: 'Allow all', detail: 'Runs tool calls without asking', icon: 'warning', badge: undefined },
+				],
+			},
+			options: { mode: 'plan', approvalMode: 'assisted' },
+			dispatches: [],
+			refreshes: [],
+		});
+	});
+
+	test('cloud permissions open from the keyboard and restore focus when closed', async () => {
+		const rig = setupCloudDraft();
+		dom.append(document.body, rig.modeContainer);
+		store.add(toDisposable(() => rig.modeContainer.remove()));
+		const button = rig.modeContainer.querySelector<HTMLElement>('.agent-host-permissions-button')!;
+		const shown = Event.toPromise(rig.onDidShow);
+		button.focus();
+		button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		await shown;
+		const opened = { expanded: button.ariaExpanded, initialFocus: rig.actionWidget.options?.initialFocusItemId };
+		rig.actionWidget.hide();
+		assert.deepStrictEqual({ opened, closed: button.ariaExpanded, focusRestored: document.activeElement === button }, {
+			opened: { expanded: 'true', initialFocus: 'agentHostPermissions.default' },
+			closed: 'false', focusRestored: true,
+		});
+	});
+
+	test('cloud draft pickers reflect option changes and the combined-picker setting', async () => {
+		const rig = setupCloudDraft();
+		dom.append(document.body, rig.modeContainer, rig.permissionContainer);
+		store.add(toDisposable(() => {
+			rig.modeContainer.remove();
+			rig.permissionContainer.remove();
+		}));
+		rig.chatSessionsService.setSessionOption(rig.resource, 'approvalMode', 'allow-all');
+		const combinedLabel = rig.modeContainer.querySelector('.agent-host-mode-permission-summary')?.textContent;
+		await rig.configuration.setUserConfiguration(ChatConfiguration.ExperimentalModePermissionsPicker, false);
+		rig.fireConfigurationChange(ChatConfiguration.ExperimentalModePermissionsPicker);
+		const separate = {
+			combined: rig.modePicker.combinesPermissions,
+			visible: rig.permissionContainer.style.display,
+			label: rig.permissionContainer.querySelector('.agent-host-chat-input-picker-label')?.textContent,
+		};
+		const permissionTrigger = rig.permissionPicker.triggerElement!;
+		const modeTrigger = rig.modePicker.triggerElement!;
+		await rig.permissionPicker['_showPicker'](permissionTrigger);
+		await rig.actionWidget.select('Manual permissions');
+		const permissionFocusRestored = document.activeElement === permissionTrigger && permissionTrigger === rig.permissionPicker.triggerElement;
+		await rig.modePicker['_showPicker'](modeTrigger);
+		await rig.actionWidget.select('Plan');
+		const hover = rig.hoverOptions.get(permissionTrigger)!;
+		assert.deepStrictEqual({
+			combinedLabel, separate, permissionFocusRestored,
+			permissionHover: (typeof hover === 'function' ? hover() : hover).content,
+			modeFocusRestored: document.activeElement === modeTrigger && modeTrigger === rig.modePicker.triggerElement,
+			selected: Object.fromEntries(rig.sessionOptions.get(rig.resource.toString())!),
+		}, {
+			combinedLabel: 'Allow all',
+			separate: { combined: false, visible: '', label: 'Allow all' },
+			permissionFocusRestored: true, modeFocusRestored: true,
+			permissionHover: 'Copilot asks before running tools unless your configured settings allow the tool.',
+			selected: { mode: 'plan', approvalMode: 'manual' },
+		});
+	});
+
+	for (const combined of [true, false]) {
+		test(`cloud draft policy refresh explains unavailable choices and rejects stale selections (${combined ? 'combined' : 'separate'})`, async () => {
+			const rig = setupCloudDraft(combined);
+			const picker = combined ? rig.modePicker : rig.permissionPicker;
+			const container = combined ? rig.modeContainer : rig.permissionContainer;
+			dom.append(document.body, container);
+			store.add(toDisposable(() => container.remove()));
+			const trigger = combined ? container.querySelector<HTMLElement>('.agent-host-permissions-button')! : picker.triggerElement!;
+			await picker['_showPicker'](trigger, true);
+			const selectStale = rig.actionWidget.select;
+			rig.configuration.policyRestricted = true;
+			rig.fireConfigurationChange(ChatConfiguration.GlobalAutoApprove);
+			const closed = !rig.actionWidget.isVisible;
+			const focusRestored = document.activeElement === trigger && container.contains(trigger);
+			await assert.rejects(selectStale('Allow all'), /does not offer/);
+			await picker['_showPicker'](trigger, true);
+			const restrictedChoices = rig.actionWidget.items.filter(item => permissionPresentations.some(permission => permission.label === item.label)).map(item => ({
+				label: item.label, disabled: item.disabled, badge: item.badge,
+				description: isMarkdownString(item.description) ? item.description.value : item.description,
+				ariaDescription: item.ariaDescription,
+			}));
+			for (const label of ['Assisted permissions', 'Allow all']) {
+				await assert.rejects(rig.actionWidget.select(label), /does not offer/);
+			}
+			const allowedValues = picker['_readContext'](SessionConfigKey.AutoApprove)?.propertySchema.enum;
+			rig.configuration.policyRestricted = false;
+			rig.fireConfigurationChange(ChatConfiguration.GlobalAutoApprove);
+			await picker['_showPicker'](trigger, true);
+			assert.deepStrictEqual({
+				closed, focusRestored, restrictedChoices, allowedValues,
+				restoredChoices: rig.actionWidget.items.filter(item => permissionPresentations.some(permission => permission.label === item.label)).map(item => ({ label: item.label, disabled: item.disabled })),
+				selected: rig.chatSessionsService.getSessionOption(rig.resource, 'approvalMode'),
+				dispatches: rig.dispatches,
+			}, {
+				closed: true, focusRestored: true, allowedValues: ['manual'],
+				restrictedChoices: [
+					{ label: 'Manual permissions', disabled: false, badge: undefined, description: undefined, ariaDescription: undefined },
+					...['Assisted permissions', 'Allow all'].map(label => ({
+						label, disabled: true, badge: undefined, description: '$(briefcase) Disabled by your organization',
+						ariaDescription: 'Disabled by your organization. Contact your administrator.',
+					})),
+				],
+				restoredChoices: permissionPresentations.map(permission => ({ label: permission.label, disabled: false })),
+				selected: 'manual', dispatches: [],
+			});
+		});
+	}
+
+	for (const blockedBy of ['hasActiveRequest', 'isInputBlocked'] as const) {
+		test(`cloud draft choices are locked during ${blockedBy}`, async () => {
+			const rig = setupCloudDraft();
+			await rig.modePicker['_showPicker'](rig.modePicker.triggerElement!, true);
+			const selectStale = rig.actionWidget.select;
+			rig[blockedBy].set(true, undefined);
+			await assert.rejects(selectStale('Assisted permissions'), isCancellationError);
+			await rig.modePicker['_showPicker'](rig.modePicker.triggerElement!);
+			const blocked = { visible: rig.actionWidget.isVisible, busy: rig.modePicker.triggerElement?.getAttribute('aria-busy') };
+			rig[blockedBy].set(false, undefined);
+			await rig.modePicker['_showPicker'](rig.modePicker.triggerElement!);
+			assert.deepStrictEqual({ blocked, reopened: rig.actionWidget.isVisible, options: Object.fromEntries(rig.sessionOptions.get(rig.resource.toString())!) }, {
+				blocked: { visible: false, busy: 'true' }, reopened: true, options: { mode: 'interactive', approvalMode: 'manual' },
+			});
+		});
+	}
+
+	for (const invalidatedBy of ['session switch', 'disposal', 'removed draft'] as const) {
+		test(`cloud draft permissions are not written after ${invalidatedBy} during confirmation`, async () => {
+			const rig = setupCloudDraft();
+			const decision = new DeferredPromise<void>();
+			const dialog = new TestDialogService();
+			const prompt = stub(dialog, 'prompt').callsFake(async options => {
+				await decision.p;
+				return { result: await options.buttons?.[0]?.run({}) };
+			});
+			store.add(toDisposable(() => prompt.restore()));
+			rig.instantiationService.set(IDialogService, dialog);
+			const picker = rig.createPicker(SessionConfigKey.Mode);
+			await picker['_showPicker'](dom.$('div'), true);
+			const selecting = rig.actionWidget.select('Allow all');
+			await timeout(0);
+			switch (invalidatedBy) {
+				case 'session switch': rig.widget.viewModel = undefined; break;
+				case 'disposal': picker.dispose(); break;
+				case 'removed draft': rig.sessionOptions.delete(rig.resource.toString()); break;
+			}
+			await decision.complete();
+			await assert.rejects(selecting, error => invalidatedBy === 'removed draft' ? error instanceof Error && /not saved/.test(error.message) : isCancellationError(error));
+			assert.deepStrictEqual({ prompts: prompt.callCount, dispatches: rig.dispatches }, { prompts: 1, dispatches: [] });
+		});
+	}
+
+	async function setupCodexPermissions(initial: string, running = true) {
+		const rig = setup(false);
+		const permissionDialog: { apply: boolean; decision?: Promise<void> } = { apply: false };
+		const dialogService = new TestDialogService();
+		const permissionPrompt = stub(dialogService, 'prompt').callsFake(async options => {
+			await permissionDialog.decision;
+			return { result: permissionDialog.apply ? await options.buttons?.[0]?.run({}) : undefined };
+		});
+		store.add(toDisposable(() => permissionPrompt.restore()));
+		rig.instantiationService.set(IDialogService, dialogService);
+		const property = CodexSessionConfigKey.PermissionsPreset;
+		rig.config.schema.properties[property] = { title: 'Approvals', type: 'string', enum: ['default', 'auto-review', 'full-access'], sessionMutable: true };
+		rig.config.values[property] = initial;
+		rig.widget.viewModel = undefined;
+		const picker = rig.createPicker(property);
+		rig.setSession(URI.from({ scheme: remoteAgentHostSessionTypeId('test-host', 'codex'), path: '/display-session' }), URI.parse('ahp-session:/opaque-session'), rig.connection, 'codex');
+		rig.hasActiveRequest.set(running, undefined);
+		const container = dom.$('div');
+		picker.render(container);
+		await picker['_showPicker'](container.querySelector<HTMLElement>('.action-label')!);
+		return { ...rig, picker, property, permissionDialog, permissionPrompt };
+	}
+
+	for (const [initial, selected, running, prompts] of [
+		['default', 'full-access', true, 1],
+		['full-access', 'default', true, 1],
+		['default', 'auto-review', true, 0],
+		['auto-review', 'default', true, 0],
+		['full-access', 'full-access', true, 0],
+		['default', 'full-access', false, 0],
+	] as const) {
+		test(`Codex permissions notice for ${initial} to ${selected} while running=${running}`, async () => {
+			const rig = await setupCodexPermissions(initial, running);
+			await rig.actionWidget.select(selected);
+			assert.deepStrictEqual({ prompts: rig.permissionPrompt.callCount, submissions: rig.submissions }, { prompts, submissions: [] });
+		});
+	}
+
+	for (const change of ['none', 'chat', 'request', 'permissions', 'dispose'] as const) {
+		test(`Apply Now in the editor after ${change} changes while the dialog is open`, async () => {
+			const rig = await setupCodexPermissions('default');
+			const decision = new DeferredPromise<void>();
+			rig.permissionDialog.apply = true;
+			rig.permissionDialog.decision = decision.p;
+			const selecting = rig.actionWidget.select('full-access');
+			await timeout(0);
+			assert.strictEqual(rig.permissionPrompt.callCount, 1);
+			rig.config.values[rig.property] = 'full-access';
+			switch (change) {
+				case 'chat': rig.widget.viewModel = undefined; break;
+				case 'request': rig.model.lastRequest = new class extends mock<IChatRequestModel>() { override readonly id = 'replacement-request'; }(); break;
+				case 'permissions': rig.config.values[rig.property] = 'auto-review'; break;
+				case 'dispose': rig.picker.dispose(); break;
+				case 'none': break;
+			}
+			await decision.complete();
+			await selecting;
+			assert.deepStrictEqual(rig.submissions, change === 'none' ? [{ query: 'Continue (I changed permissions from Default Permissions to Full Access)', options: { cancelCurrentRequest: true, preserveInput: true } }] : []);
+		});
 	}
 
 	test('reads its chat\'s own values and sends a property the chat may set to that chat', async () => {
@@ -426,6 +767,18 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		]);
 	});
 
+	test('hides CLI bootstrap controls without hiding other boolean or enum options', () => {
+		const schemas: SessionConfigPropertySchema[] = [
+			{ type: 'boolean', title: 'Toggle', sessionMutable: true },
+			{ type: 'string', title: 'Choice', enum: ['off', 'export', 'on'], sessionMutable: true },
+		];
+		assert.deepStrictEqual(schemas.flatMap(schema => [false, true].map(isStartedSession =>
+			['remoteSession', 'enableManagedSettings', 'enableSessionStore', 'imageGeneration', 'allowTranscriptRecovery', 'customOption'].map(property =>
+				isGenericConfigPickerProperty(property, schema, isStartedSession)
+			)
+		)), Array.from({ length: 4 }, () => [false, false, false, false, false, true]));
+	});
+
 	test('never exposes the pull request URL as a generic config chip', () => {
 		const property = { type: 'string' as const, title: 'Pull Request', readOnly: true, sessionMutable: true };
 		const schemas = [
@@ -550,6 +903,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 
 	function createRemoteConnection(getHostInfo: () => Promise<IAgentHostNetworkDiagnosticsInfo>) {
 		return new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
 			diagnosticsRequests = 0;
 			readonly writes: { channel: string; action: Parameters<IAgentConnection['dispatch']>[1] }[] = [];
 			override getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
@@ -1119,7 +1473,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			});
 		});
 
-		test(`offers experimental Assisted permissions without an opt-in setting (${combined ? 'combined' : 'separate'} picker)`, async () => {
+		test(`labels Assisted permissions as new without requiring an opt-in setting (${combined ? 'combined' : 'separate'} picker)`, async () => {
 			const { modePicker, permissionPicker, configuration, config, actionWidget, dispatches } = setup(combined);
 			await configuration.setUserConfiguration('chat.assistedPermissions.enabled', false);
 			config.values.autoApprove = 'default';
@@ -1133,7 +1487,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			assert.deepStrictEqual({ levels, beforeSelection, dispatches }, {
 				levels: [
 					{ label: 'Manual permissions', disabled: false, badge: undefined },
-					{ label: 'Assisted permissions', disabled: false, badge: 'Experimental' },
+					{ label: 'Assisted permissions', disabled: false, badge: 'New' },
 					{ label: 'Allow all', disabled: false, badge: undefined },
 				],
 				beforeSelection: [],
@@ -1143,20 +1497,39 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 
 		test(`renders host approval restrictions as disabled rows (${combined ? 'combined' : 'separate'} picker)`, async () => {
 			const { modePicker, permissionPicker, configuration, config, actionWidget, dispatches } = setup(combined);
+			config.schema.properties.availableApprovalModes = { type: 'array', title: 'Available', readOnly: true };
+			config.values.availableApprovalModes = ['default'];
+			await (combined ? modePicker : permissionPicker)['_showPicker'](document.createElement('div'));
+			const unattributed = actionWidget.items.filter(item => item.disabled).map(item => isMarkdownString(item.description) ? item.description.value : item.description);
+			actionWidget.hide();
 			configuration.policyRestricted = true;
 			config.schema.properties.availableApprovalModes = { type: 'array', title: 'Available', readOnly: true };
 			config.values.availableApprovalModes = ['default'];
 			const picker = combined ? modePicker : permissionPicker;
 			await picker['_showPicker'](document.createElement('div'));
 			const levels = actionWidget.items.filter(item => ['Manual permissions', 'Assisted permissions', 'Allow all'].includes(item.label ?? ''))
-				.map(item => ({ label: item.label, disabled: item.disabled, badge: item.badge }));
+				.map(item => ({
+					label: item.label, disabled: item.disabled, badge: item.badge, detail: item.detail, ariaDescription: item.ariaDescription,
+					description: typeof item.description === 'object' ? item.description.value : item.description,
+					hover: isMarkdownString(item.hover?.content) ? item.hover?.content.value : item.hover?.content,
+				}));
 			await assert.rejects(actionWidget.select('Assisted permissions'), /does not offer/);
+			const policy = isWeb ? {
+				ariaDescription: 'Unavailable. The agent host doesn\'t allow this permission level for this session.',
+				description: 'Unavailable',
+				hover: 'The agent host doesn\'t allow this permission level for this session.',
+			} : {
+				ariaDescription: 'Disabled by your organization. Contact your administrator.',
+				description: '$(briefcase) Disabled by your organization',
+				hover: 'Your organization doesn\'t allow this permission level. Contact your administrator.',
+			};
 
-			assert.deepStrictEqual({ levels, dispatches }, {
+			assert.deepStrictEqual({ unattributed, levels, dispatches }, {
+				unattributed: ['Unavailable', 'Unavailable'],
 				levels: [
-					{ label: 'Manual permissions', disabled: false, badge: undefined },
-					{ label: 'Assisted permissions', disabled: true, badge: 'Experimental' },
-					{ label: 'Allow all', disabled: true, badge: undefined },
+					{ label: 'Manual permissions', disabled: false, badge: undefined, detail: undefined, ariaDescription: undefined, description: undefined, hover: 'Copilot asks before running tools unless your configured settings allow the tool.' },
+					{ label: 'Assisted permissions', disabled: true, badge: undefined, detail: undefined, ...policy },
+					{ label: 'Allow all', disabled: true, badge: undefined, detail: undefined, ...policy },
 				],
 				dispatches: [],
 			});
@@ -1175,6 +1548,18 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			});
 
 			assert.strictEqual(actionWidget.isVisible, false);
+		});
+
+		test(`does not attribute a remote host's withheld modes to desktop policy (${combined ? 'combined' : 'separate'} picker)`, async () => {
+			const { modePicker, permissionPicker, configuration, config, actionWidget } = setup(combined, undefined, 'ssh-remote+test');
+			configuration.policyRestricted = true;
+			config.schema.properties.availableApprovalModes = { type: 'array', title: 'Available', readOnly: true };
+			config.values.availableApprovalModes = ['default'];
+			await (combined ? modePicker : permissionPicker)['_showPicker'](document.createElement('div'));
+			assert.deepStrictEqual(actionWidget.items.filter(item => item.disabled).map(item => isMarkdownString(item.description) ? item.description.value : item.description), [
+				'Unavailable',
+				'Unavailable',
+			]);
 		});
 	}
 
@@ -1277,6 +1662,53 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			{ anchorMatches: true, above: true, initialFocusItem: 'agentHostPermissions.assisted', collapsed: ['agentHostModePicker.mode'], expanded: 'true', rowOpen: 'true', rowClosed: true },
 		]);
 	});
+
+	test('showSection opens a section, moves the open menu between sections, and hands off between separate pickers', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { modePicker, actionWidget, menu } = setup();
+		const closedMenu = modePicker.menuElement;
+		await modePicker.showSection('mode', CancellationToken.None);
+		const opened = { showCount: actionWidget.showCount, collapsed: [...actionWidget.options?.collapsedByDefault ?? []], menu: modePicker.menuElement === menu };
+		await modePicker.showSection('permissions', CancellationToken.None);
+		await modePicker.showSection('mode', CancellationToken.Cancelled);
+		const separate = setup(false);
+		await separate.modePicker.showSection('mode', CancellationToken.None);
+		await separate.permissionPicker.showSection('permissions', CancellationToken.None);
+
+		assert.deepStrictEqual({ closedMenu, opened, showCount: actionWidget.showCount, focused: actionWidget.focused, sections: actionWidget.sections, separate: { showCount: separate.actionWidget.showCount, open: separate.permissionPicker.menuElement === separate.menu } }, {
+			closedMenu: undefined,
+			opened: { showCount: 1, collapsed: ['agentHostModePicker.permissions'], menu: true },
+			showCount: 1,
+			focused: ['agentHostModePicker.mode', 'agentHostModePicker.mode', 'agentHostModePicker.permissions'],
+			sections: ['collapse', 'expand'],
+			separate: { showCount: 2, open: true },
+		});
+	}));
+
+	test('showSection does not open the menu once the step is cancelled', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { modePicker, permissionPicker, actionWidget } = setup(false);
+		const whileLoading = new CancellationTokenSource();
+		const cancelledWhileLoading = modePicker.showSection('mode', whileLoading.token);
+		whileLoading.cancel();
+		await cancelledWhileLoading;
+		const showCountAfterLoading = actionWidget.showCount;
+
+		await modePicker.showSection('mode', CancellationToken.None);
+		// The mode menu stays visible while it animates closed.
+		const hide = actionWidget.hide.bind(actionWidget);
+		actionWidget.hide = () => {
+			hide();
+			actionWidget.isVisible = true;
+		};
+		const whileClosing = new CancellationTokenSource();
+		const cancelledWhileClosing = permissionPicker.showSection('permissions', whileClosing.token);
+		whileClosing.cancel();
+		actionWidget.isVisible = false;
+		await cancelledWhileClosing;
+		whileLoading.dispose();
+		whileClosing.dispose();
+
+		assert.deepStrictEqual({ showCountAfterLoading, showCount: actionWidget.showCount, menu: permissionPicker.menuElement }, { showCountAfterLoading: 0, showCount: 1, menu: undefined });
+	}));
 
 	test('does not handle touch taps on the non-interactive combined group', async () => {
 		const { modeContainer, actionWidget } = setup();
@@ -1426,22 +1858,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		});
 	});
 
-	test('settings filter includes defaults, approvals, risk assessment, and sandbox controls', () => {
-		assert.deepStrictEqual(AGENT_HOST_PERMISSIONS_SETTINGS_QUERY.slice('@id:'.length).split(','), [
-			'chat.defaultConfiguration',
-			'chat.permissions.default',
-			'chat.tools.global.autoApprove',
-			'chat.tools.edits.autoApprove',
-			'chat.tools.urls.autoApprove',
-			'chat.tools.eligibleForAutoApproval',
-			'chat.tools.riskAssessment.*',
-			'chat.tools.terminal.enableAutoApprove',
-			'chat.tools.terminal.autoApprove',
-			'chat.tools.terminal.autoApproveWorkspaceNpmScripts',
-			'chat.tools.terminal.ignoreDefaultAutoApproveRules',
-			'chat.tools.terminal.blockDetectedFileWrites',
-			'chat.agent.sandbox.*',
-		]);
+	test('settings filter uses the chat permissions tag', () => {
+		assert.strictEqual(AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, '@tag:chatPermissions');
 	});
 
 	test('gate only combines usable Copilot schemas', () => {
@@ -1588,6 +2006,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			override viewModel: IChatViewModel | undefined;
 		}();
 		const connection = new class extends mock<IAgentHostService>() {
+			override readonly initializeResult = constObservable(undefined);
 			override readonly onAgentHostStart = Event.None;
 			override readonly onAgentHostExit = Event.None;
 			override async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
@@ -1639,6 +2058,9 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			new class extends mock<IWorkbenchEnvironmentService>() {
 				override readonly remoteAuthority = undefined;
 			}(),
+			new class extends mock<IContextViewService>() { }(),
+			managedSettingsService,
+			new class extends mock<IChatSessionsService>() { }(),
 		));
 		widget.viewModel = new class extends mock<IChatViewModel>() {
 			override readonly sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/test-session' });
@@ -1693,7 +2115,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 						disabled,
 						title: managed
 							? disabled ? 'Sandboxing is required by your organization' : 'Your organization allows you to turn sandboxing off for this session. Changes are subject to runtime approval.'
-							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.',
+							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against your organization\'s current requirements when restored.',
 						writes: disabled ? [] : (managed || configured === AgentSandboxEnabledValue.On ? ['off', 'on'] : ['on']).map(value => ({
 							channel: 'copilotcli:/test-session', action: { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.SandboxEnabled]: value } },
 						})),
@@ -1740,7 +2162,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 		assert.deepStrictEqual(visibleStates, [
 			{ disabled: true, title: 'Sandboxing is required by your organization' },
 			{ disabled: false, title: 'Your organization allows you to turn sandboxing off for this session. Changes are subject to runtime approval.' },
-			{ disabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.' },
+			{ disabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against your organization\'s current requirements when restored.' },
 			{ disabled: false, title: 'Your organization allows you to turn sandboxing off for this session. Changes are subject to runtime approval.' },
 			{ disabled: true, title: 'Sandboxing is required by your organization' },
 		]);
@@ -1963,11 +2385,15 @@ suite('AgentHostChatInputPicker - resolveConfigChipValue', () => {
 			});
 		});
 
-		test('directs users to their administrator when approvals are disabled by policy', () => {
-			assert.strictEqual(
-				getConfigPickerItemHover(SessionConfigKey.AutoApprove, { value: 'assisted', label: 'Assisted permissions' }, true),
-				'Disabled by your organization. Contact your administrator.'
-			);
+		test('attributes unavailable approvals to policy only when policy is known', () => {
+			const text = (hover: ReturnType<typeof getConfigPickerItemHover>) => isMarkdownString(hover) ? hover.value : hover;
+			assert.deepStrictEqual({
+				policy: text(getConfigPickerItemHover(SessionConfigKey.AutoApprove, { value: 'assisted', label: 'Assisted permissions', disabledByPolicy: true }, true)),
+				unattributed: text(getConfigPickerItemHover(SessionConfigKey.AutoApprove, { value: 'assisted', label: 'Assisted permissions' }, true)),
+			}, {
+				policy: 'Your organization doesn\'t allow this permission level. Contact your administrator.',
+				unattributed: 'The agent host doesn\'t allow this permission level for this session.',
+			});
 		});
 
 		test('explains the selected Codex permissions preset on the trigger hover', () => {

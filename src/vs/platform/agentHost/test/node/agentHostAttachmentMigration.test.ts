@@ -5,14 +5,12 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FileService } from '../../../files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { buildChatUri, buildDefaultChatUri, ChatOriginKind, MessageAttachmentKind, MessageKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
@@ -23,16 +21,13 @@ import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 suite('AgentHostAttachmentMigration', () => {
-	const disposables = new DisposableStore();
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const sessionDataService = createNullSessionDataService();
 	const attachmentsOf = (resource: string) => joinPath(sessionDataService.getSessionDataDir(URI.parse(resource)), SESSION_ATTACHMENTS_DIRNAME);
 
 	function setup(recorded: ReadonlyMap<string, IAgentHostChatAttachmentCopy> = new Map(), deleted: ReadonlySet<string> = new Set(), onRecord?: (chat: string) => void) {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const chatOwnership = createTestChatOwnershipService(stateManager);
 		const records = new Map(recorded);

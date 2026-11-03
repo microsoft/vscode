@@ -35,6 +35,7 @@ interface IStoredMcpRoutingCache {
 
 export interface ICopilotMcpRoutingServer {
 	readonly serverName: string;
+	readonly displayName?: string;
 	readonly configuration: unknown;
 }
 
@@ -105,7 +106,7 @@ export function getMcpRoutingProxyName(server: ICopilotMcpRoutingServer): string
 	const hash = getMcpRoutingCacheKey(server).slice(0, MCP_ROUTING_PROXY_NAME_HASH_LENGTH);
 	const suffix = `_${hash}`;
 	const maxServerNameLength = MCP_ROUTING_PROXY_NAME_MAX_LENGTH - MCP_ROUTING_PROXY_NAME_PREFIX.length - suffix.length;
-	const sanitizedServerName = server.serverName.toLowerCase().replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'server';
+	const sanitizedServerName = (server.displayName ?? server.serverName).toLowerCase().replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'server';
 	const serverName = sanitizedServerName.slice(0, maxServerNameLength).replace(/_+$/g, '');
 	return `${MCP_ROUTING_PROXY_NAME_PREFIX}${serverName}${suffix}`;
 }

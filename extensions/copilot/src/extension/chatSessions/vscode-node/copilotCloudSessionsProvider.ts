@@ -23,6 +23,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { emitCloudSessionInvokeEvent } from '../../../platform/otel/common/genAiEvents';
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
 import { IOTelService } from '../../../platform/otel/common/otelService';
+import { PromptFileParser } from '../../../platform/promptFiles/common/promptsService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { IntervalTimer, Limiter, RunOnceScheduler, timeout } from '../../../util/vs/base/common/async';
@@ -1109,7 +1110,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	 * Scans local .github/agents/ directory and categorizes agent files.
 	 * Returns two groups:
 	 * - matches: local files that correlate with remote agents (name exists in both)
-	 * - localOnly: local files that don't have a corresponding remote agent
+	 * - localOnly: user-invocable local files that don't have a corresponding remote agent
 	 */
 	private async getLocalCustomAgentFiles(remoteAgents: { name: string }[]): Promise<{
 		matches: Set<string>;
@@ -1150,11 +1151,19 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 					// This local file matches a remote agent
 					matches.add(agentName.toLowerCase());
 				} else {
-					// This local file has no corresponding remote agent
-					localOnly.push({
-						name: agentName,
-						path: vscode.workspace.asRelativePath(fileUri)
-					});
+					try {
+						const content = await this._fileSystemService.readFile(fileUri);
+						const agent = new PromptFileParser().parse(fileUri, new TextDecoder().decode(content));
+						if (agent.header?.userInvocable === false) {
+							continue;
+						}
+						localOnly.push({
+							name: agentName,
+							path: vscode.workspace.asRelativePath(fileUri)
+						});
+					} catch (error) {
+						this.logService.warn(`Error reading local agent ${fileUri.toString()}: ${error}`);
+					}
 				}
 			}
 		} catch (error) {
@@ -1243,12 +1252,12 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				});
 			}
 
-			// Find local agent files and categorize them
-			const { matches, localOnly } = await this.getLocalCustomAgentFiles(
-				customAgents.status === 'fulfilled' ? customAgents.value : []
-			);
+			// Match all remote names so hidden agents cannot reappear as local-only entries.
+			const remoteAgents = customAgents.status === 'fulfilled' ? customAgents.value : [];
+			const { matches, localOnly } = await this.getLocalCustomAgentFiles(remoteAgents);
+			const userInvocableAgents = remoteAgents.filter(agent => agent.user_invocable !== false);
 
-			if ((customAgents.status === 'fulfilled' && customAgents.value.length > 0) || (repoIds?.length === 1 && localOnly.length > 0)) {
+			if (userInvocableAgents.length > 0 || (repoIds?.length === 1 && localOnly.length > 0)) {
 				const agentItems: vscode.ChatSessionProviderOptionItem[] = [
 					{
 						id: DEFAULT_CUSTOM_AGENT_ID,
@@ -1256,11 +1265,11 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 						name: vscode.l10n.t('Agent'),
 						icon: new vscode.ThemeIcon('agent')
 					},
-					...(customAgents.status === 'fulfilled' ? customAgents.value.map(agent => ({
+					...userInvocableAgents.map(agent => ({
 						id: agent.name,
 						name: agent.display_name || agent.name,
 						...(matches.has(agent.name.toLowerCase()) && { description: `${agent.name}.md` })
-					})) : []),
+					})),
 					// Add local-only agents as disabled items with "push to remote" hint
 					...localOnly.map(localAgent => ({
 						id: localAgent.name,
@@ -1599,6 +1608,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		const metadata = {
 			...getCloudSessionItemMetadata(entry.repo, entry.diffRefs, pr),
 			event_type: entry.eventType || this._ownership.getApplication(entry.taskId) || (external ? 'github/autopilot' : 'vscode'),
+			...(entry.application ? { application: entry.application } : {}),
 			...(entry.automationId ? { isAutomation: true } : {}),
 			...(external ? { external: true } : {}),
 		};

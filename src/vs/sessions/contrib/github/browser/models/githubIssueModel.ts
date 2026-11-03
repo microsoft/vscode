@@ -11,6 +11,8 @@ import { Disposable, DisposableSet, DisposableStore, IDisposable, ReferenceColle
 import { LRUCache } from '../../../../../base/common/map.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
+import { compareRequestPriority, RequestPriority } from '../../../../../platform/github/common/types.js';
 import { IGitHubIssue } from '../../common/types.js';
 import { GitHubIssueFetcher } from '../fetchers/githubIssueFetcher.js';
 import { GitHubApiClient } from '../githubApiClient.js';
@@ -89,6 +91,8 @@ export class GitHubIssueModel extends Disposable {
 	readonly issue: IObservable<IGitHubIssue | undefined> = this._issue;
 
 	private _refreshPromise: Promise<void> | undefined;
+	private _refreshPriority: RequestPriority = 'interactive';
+	private _refreshVersion = 0;
 	/** When the last successful refresh completed. */
 	private _refreshedAt: number | undefined;
 
@@ -111,7 +115,7 @@ export class GitHubIssueModel extends Disposable {
 			this._refreshedAt = undefined;
 			this._issue.set(undefined, undefined);
 			if (shouldRefresh) {
-				void this.refresh();
+				void this.refresh({ priority: 'background' });
 			}
 		}));
 	}
@@ -135,12 +139,12 @@ export class GitHubIssueModel extends Disposable {
 	 * Revalidates the issue, unless the last request completed less than
 	 * {@link MIN_REFRESH_INTERVAL_MS} ago.
 	 */
-	refresh(): Promise<void> {
+	refresh(options?: ApiRequestOptions): Promise<void> {
 		if (this._refreshedAt !== undefined && Date.now() - this._refreshedAt < MIN_REFRESH_INTERVAL_MS) {
 			return Promise.resolve();
 		}
 
-		return this._refreshNow();
+		return this._refreshNow(options);
 	}
 
 	startPolling(intervalMs: number = DEFAULT_POLL_INTERVAL_MS): IDisposable {
@@ -160,30 +164,36 @@ export class GitHubIssueModel extends Disposable {
 		return disposable;
 	}
 
-	private _refreshNow(): Promise<void> {
-		const pending = this._refreshPromise ??= this._refresh().finally(() => {
-			if (this._refreshPromise === pending) {
-				this._refreshPromise = undefined;
-			}
-		});
-		return pending;
+	private _refreshNow(options?: ApiRequestOptions): Promise<void> {
+		const priority = options?.priority ?? 'interactive';
+		if (!this._refreshPromise || compareRequestPriority(priority, this._refreshPriority) < 0) {
+			this._refreshPriority = priority;
+			const pending = this._refresh(options).finally(() => {
+				if (this._refreshPromise === pending) {
+					this._refreshPromise = undefined;
+				}
+			});
+			this._refreshPromise = pending;
+		}
+		return this._refreshPromise;
 	}
 
 	private async _poll(): Promise<void> {
 		// Poll ticks always revalidate; the on-demand debounce would otherwise
 		// swallow a tick that lands inside the debounce window.
-		await this._refreshNow();
+		await this._refreshNow({ priority: 'background' });
 		// Re-schedule for the next poll cycle (RunOnceScheduler is one-shot).
 		if (!this._store.isDisposed && this._pollingDisposables.size > 0) {
 			this._pollScheduler.schedule();
 		}
 	}
 
-	private async _refresh(): Promise<void> {
+	private async _refresh(options?: ApiRequestOptions): Promise<void> {
 		const generation = this._fetcher.client.generation;
+		const version = ++this._refreshVersion;
 		try {
-			const issue = await this._fetcher.getIssue(this.owner, this.repo, this.issueNumber, this._token);
-			if (this._store.isDisposed || generation !== this._fetcher.client.generation) {
+			const issue = await this._fetcher.getIssue(this.owner, this.repo, this.issueNumber, this._token, options);
+			if (this._store.isDisposed || generation !== this._fetcher.client.generation || version !== this._refreshVersion) {
 				return;
 			}
 			this._refreshedAt = Date.now();

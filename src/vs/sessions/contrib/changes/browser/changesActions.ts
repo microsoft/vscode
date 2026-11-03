@@ -447,7 +447,7 @@ class CommitActionViewItem extends MenuEntryActionViewItem {
 }
 
 /**
- * Contributes changeset operations to the Changes editor header toolbar.
+ * Contributes changeset operations to the Changes tab's editor actions toolbar.
  *
  * For a new (untitled) session this is every changeset-scoped operation of the
  * uncommitted changes changeset (except Sync and Checkout). For an existing
@@ -465,7 +465,7 @@ export class ChangesHeaderChangesetOperationsActionContribution extends Disposab
 	) {
 		super();
 
-		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderLayout, `${CHANGES_HEADER_CHANGESET_OPERATION_ACTION_PREFIX}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`, (action, options, instantiationService) => {
+		this._register(actionViewItemService.register(Menus.SessionsEditorTitle, `${CHANGES_HEADER_CHANGESET_OPERATION_ACTION_PREFIX}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`, (action, options, instantiationService) => {
 			return action instanceof MenuItemAction
 				? instantiationService.createInstance(CommitActionViewItem, action, options)
 				: undefined;
@@ -515,7 +515,7 @@ export class ChangesHeaderChangesetOperationsActionContribution extends Disposab
 							precondition,
 							f1: false,
 							menu: {
-								id: Menus.SessionsEditorHeaderLayout,
+								id: Menus.SessionsEditorTitle,
 								group: 'navigation',
 								order: index,
 								when: ActiveEditorContext.isEqualTo(SessionChangesEditor.ID),

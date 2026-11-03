@@ -12,7 +12,7 @@ import type { ILogService } from '../../../../../log/common/log.js';
 import { LocalModelLlamaServerPathSettingId, type ILocalModelErrorV1, type ILocalModelRuntimeV1, type LocalModelErrorAction } from '../../../../common/localModel.js';
 import { dropCredentialEntries, reportDroppedStorageEntries } from '../../../../common/logRedaction.js';
 import type { IAgentHostStorageService } from '../../../agentHostStorageService.js';
-import { DFLASH_SPEC_TYPE, LLAMA_API_KEY_ENV, LLAMA_ARCHITECTURE_NAME_MAX_LENGTH, LLAMA_SERVER_HELP_OUTPUT_CAP_BYTES, LLAMA_SERVER_PROBE_OUTPUT_CAP_BYTES, LLAMA_SERVER_PROBE_TIMEOUT_MS, OPTIONAL_SPEC_FLAGS, REQUIRED_DRAFT_LLAMA_SERVER_FLAGS, REQUIRED_LLAMA_SERVER_FLAGS, UNPACKAGED_LLAMA_ARCHITECTURES } from './constants.js';
+import { DFLASH_SPEC_TYPE, LLAMA_API_KEY_ENV, LLAMA_ARCHITECTURE_FIRST_BUILDS, LLAMA_ARCHITECTURE_NAME_MAX_LENGTH, LLAMA_SERVER_HELP_OUTPUT_CAP_BYTES, LLAMA_SERVER_PROBE_OUTPUT_CAP_BYTES, LLAMA_SERVER_PROBE_TIMEOUT_MS, OPTIONAL_SPEC_FLAGS, REQUIRED_DRAFT_LLAMA_SERVER_FLAGS, REQUIRED_LLAMA_SERVER_FLAGS } from './constants.js';
 import { toTelemetryArchitecture } from './downloader.js';
 import { buildSyntheticGguf } from './gguf.js';
 import type { ILlamaServerFlagSupport } from './llamaPreset.js';
@@ -249,21 +249,22 @@ export function classifyArchitectureProbe(result: IProcessRunResult): LlamaArchi
 	return /error loading model (?:hyperparameters|vocabulary)|key not found in model|missing tensor|wrong number of tensors/i.test(output) ? 'supported' : 'unknown';
 }
 
-/** The change a llama.cpp build needs to run `architecture` when no release supports it yet ({@link UNPACKAGED_LLAMA_ARCHITECTURES}). Pure. */
-export function unpackagedLlamaArchitectureChange(architecture: string | undefined): string | undefined {
+/** The first llama.cpp release build that runs `architecture` when only recent releases do ({@link LLAMA_ARCHITECTURE_FIRST_BUILDS}). Pure. */
+export function llamaArchitectureFirstBuild(architecture: string | undefined): number | undefined {
 	const name = architecture?.toLowerCase();
-	return name !== undefined && Object.prototype.hasOwnProperty.call(UNPACKAGED_LLAMA_ARCHITECTURES, name) ? UNPACKAGED_LLAMA_ARCHITECTURES[name] : undefined;
+	return name !== undefined && Object.prototype.hasOwnProperty.call(LLAMA_ARCHITECTURE_FIRST_BUILDS, name) ? LLAMA_ARCHITECTURE_FIRST_BUILDS[name] : undefined;
 }
 
 /** `runtimeUnsupportedModel`: the llama.cpp can't load the model's architecture; says how to get a build that can and where to point VS Code at it. */
 export function createRuntimeUnsupportedModelError(version: string | undefined, displayName: string, architecture?: string): ILocalModelErrorV1 {
-	const change = unpackagedLlamaArchitectureChange(architecture);
+	const firstBuild = llamaArchitectureFirstBuild(architecture);
 	const setting = serverPathSettingLabel();
 	let message: string;
-	if (change) {
+	if (firstBuild !== undefined) {
+		const release = `b${firstBuild}`;
 		message = version
-			? localize('localModel.runtimeUnpackagedModel', "This llama.cpp build ({0}) can't run {1}. Install a llama.cpp build that includes {2}, then set {3} to its llama-server and select Retry.", version, displayName, change, setting)
-			: localize('localModel.runtimeUnpackagedModelNoVersion', "This llama.cpp build can't run {0}. Install a llama.cpp build that includes {1}, then set {2} to its llama-server and select Retry.", displayName, change, setting);
+			? localize('localModel.runtimeModelNeedsRelease', "This llama.cpp build ({0}) can't run {1}. Install llama.cpp {2} or later, then set {3} to its llama-server and select Retry.", version, displayName, release, setting)
+			: localize('localModel.runtimeModelNeedsReleaseNoVersion', "This llama.cpp build can't run {0}. Install llama.cpp {1} or later, then set {2} to its llama-server and select Retry.", displayName, release, setting);
 	} else {
 		message = version
 			? localize('localModel.runtimeUnsupportedModel', "This llama.cpp build ({0}) can't run {1}. Install a llama.cpp build that supports it, then set {2} to its llama-server and select Retry.", version, displayName, setting)

@@ -23,7 +23,7 @@ import { ROOT_STATE_URI } from './state/sessionState.js';
  * filesystems (server→client) satisfy this contract.
  */
 export interface IRemoteFilesystemConnection {
-	/** Fires when the same logical connection finishes reconnecting. */
+	/** Fires when the same logical connection recovers its transport or expired relay authorization. */
 	readonly onDidReconnect?: Event<void>;
 	resourceList(uri: URI): Promise<ResourceListResult>;
 	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult>;
@@ -659,6 +659,9 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	 * via {@link requestResourceAccess}.
 	 */
 	private _mapError(err: unknown, defaultCode: FileSystemProviderErrorCode): Error {
+		if (err instanceof ProtocolError && err.code === AhpErrorCodes.AuthRequired) {
+			return createFileSystemProviderError(err.message, FileSystemProviderErrorCode.Unavailable);
+		}
 		if (err instanceof ProtocolError && err.code === AhpErrorCodes.PermissionDenied) {
 			return createFileSystemProviderError(err.message, FileSystemProviderErrorCode.NoPermissions);
 		}

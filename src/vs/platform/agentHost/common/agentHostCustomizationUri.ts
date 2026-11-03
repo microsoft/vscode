@@ -11,6 +11,9 @@ import { fromAgentHostUri } from './agentHostUri.js';
  */
 export const AGENT_BUILTIN_CUSTOMIZATION_SCHEME = 'agent-builtin';
 
+/** Discovery records whose provider has not reported readable source content. */
+export const AGENT_DISCOVERY_CUSTOMIZATION_SCHEME = 'agent-discovery';
+
 /**
  * Checks raw host URIs and client-wrapped Agent Host URIs for the built-in customization scheme.
  */
@@ -19,5 +22,6 @@ export function isAgentBuiltinCustomizationUri(resource: URI): boolean {
 }
 
 export function hasReadableCustomizationContent(resource: URI): boolean {
-	return !isAgentBuiltinCustomizationUri(resource);
+	const scheme = fromAgentHostUri(resource).scheme;
+	return scheme !== AGENT_BUILTIN_CUSTOMIZATION_SCHEME && scheme !== AGENT_DISCOVERY_CUSTOMIZATION_SCHEME;
 }

@@ -2,10 +2,7 @@
 
 ## Scope
 
-This document explains how GitHub's official install script decides whether to
-offer a `PATH` update, why the legacy extension shim and an earlier Rust shim
-got different results from it, and what the Rust shim does now, during and
-after an install through that script.
+This document explains how GitHub's official install script decides whether to offer a `PATH` update, why the legacy extension shim and an earlier Rust shim got different results from it, and the current platform-specific Rust behaviour. Linux preserves the installer's original `PATH`; macOS retains shim-directory filtering. Both use verified discovery after installation.
 
 It is based on:
 
@@ -100,6 +97,14 @@ terminal or the shim.
 
 ## Current Rust shim behavior
 
+### macOS workbench install-only flow
+
+The [macOS Shell Command action](./REQUIREMENTS.md#macos-shell-command-installation) uses the shim's [interactive install-only mode](./REQUIREMENTS.md#install) after collecting consent. When initial discovery finds an existing CLI, this mode writes `GitHub Copilot CLI is already installed.` followed by `Location: <discovered absolute candidate.path>` to stderr; when installation and rediscovery find one, it instead writes `GitHub Copilot CLI installed successfully.` followed by the same location form. The location is the unchanged discovery path from the existing executable-file and shim-exclusion checks, not a canonicalized path or runtime verification; the mode exits without launching the CLI.
+
+This route does not repeat the shim's first-use prompt. Normal `copilot` invocation retains its own prompt, installation, rediscovery, and final CLI launch behavior. The dedicated VS Code terminal, not the Rust shim, prints its localized `Press any key to close this terminal.` `waitOnExit` message after success, failure, or handled cancellation using standard product-message formatting; the Rust shim neither prints that hint nor waits for a key. Linux install-only behavior and Windows setup/result-file statuses are unchanged.
+
+Neither the macOS workbench action nor the shim creates a `/usr/local/bin/copilot` link or otherwise owns Copilot CLI files, PATH entries, updates, or uninstallation. The installer may offer its own profile edit: accepting it can require a new terminal before the profile takes effect, while declining it leaves the existing PATH unchanged and can require the CLI's absolute path or manual PATH configuration.
+
 ### Running the official script
 
 On macOS (after Homebrew, when it's available) and on GNU Linux x64 and arm64,
@@ -107,8 +112,15 @@ the Rust shim downloads the official script to a temporary file with curl or
 wget and runs `bash <file>` attached to the terminal, so the script's prompts
 work. It never pipes the script into `bash`.
 
-The `bash` command, and only that command, gets a filtered `PATH`
-([`installer_path`](./src/candidate.rs)):
+#### Linux: inherited PATH
+
+The Linux `bash` process inherits the original `PATH`, including its order, duplicates, and shim-containing directories. This matters when `/usr/bin/copilot` points to a VS Code shim: removing `/usr/bin`, or its merged-`/usr` alias `/bin`, would also hide utilities that the installer needs.
+
+The upstream script installs the CLI before checking `command -v copilot`. A visible shim can satisfy that check and suppress the profile prompt, but the shim independently finds the real CLI through its installation-directory fallback. This preserves access to installer utilities without returning to the historical repeat-install behaviour.
+
+#### macOS: filtered PATH
+
+On macOS, the `bash` command, and only that command, gets a filtered `PATH` ([`installer_path`](./src/candidate.rs)):
 
 1. The shim runs discovery and collects the directory of every candidate it
    rejected as the running shim (including links to it), another copy of the
@@ -124,15 +136,11 @@ The `bash` command, and only that command, gets a filtered `PATH`
 the Windows MSI install, PowerShell probes, and the final CLI keep the
 unchanged environment, and the shim's own environment isn't modified.
 
-The script's `command -v copilot` now fails unless a real Copilot CLI is on
-`PATH`, so it shows the missing-`PATH` notice and offers to update the profile.
-Declining the profile change doesn't cancel the install.
+With macOS filtering, the script's `command -v copilot` fails unless a real Copilot CLI is on `PATH`, so it shows the missing-`PATH` notice and offers to update the profile. Declining the profile change doesn't cancel the install. Linux does not rely on this prompt being shown or accepted.
 
 ### Finding the CLI after the install
 
-The shim doesn't add the install directory to that `PATH`; the script decides
-whether the CLI is reachable. Instead, after a successful install through the
-script, the shim runs discovery again:
+Neither platform adds the predicted install directory to the script's `PATH`. After a successful script installation, the shim independently runs discovery again:
 
 1. `PATH`, as before; an eligible CLI there always wins.
 2. Then the script's install directory
@@ -142,9 +150,9 @@ script, the shim runs discovery again:
    directory. The candidate gets the same checks as one on `PATH`: a regular,
    executable file that isn't a shim.
 
-So the CLI launches right away, with the original arguments, although the
-terminal's `PATH` hasn't changed. Later invocations use the same fallback before
-offering to install, so a terminal with a stale `PATH` doesn't install again.
+For ordinary shim invocation, the CLI launches right away with the original arguments, although the terminal's `PATH` hasn't changed. The macOS workbench install-only route instead reports the verified availability path and exits without launching the CLI. Later invocations use the same fallback before offering to install, so a terminal with a stale `PATH` doesn't install again.
+
+On Linux, removing VS Code can remove the system-shim route without removing the real CLI. If the installer skipped its profile update, the real CLI may then need its own `PATH` entry. A custom `PREFIX` must remain available through the appropriate environment or the CLI's own `PATH` entry on later invocations.
 
 If neither finds the CLI, the shim prints, even without verbose mode:
 
@@ -172,9 +180,9 @@ always searches `%LOCALAPPDATA%\GitHubCopilotCLI` after `PATH`; see
 | Linux install order | npm, Homebrew if present, curl, wget | curl, then wget |
 | Running the official script | `curl ... \| bash` or `wget ... \| bash` | Download to a temporary file, then `bash <file>` |
 | Script's stdin | The pipe; prompts read `/dev/tty` | The terminal |
-| Script's `PATH` | Its own directory removed | Every rejected shim's directory removed |
-| Script's `command -v copilot` | Fails unless a real CLI is on `PATH` | Fails unless a real CLI is on `PATH` |
-| Missing-`PATH` notice and profile prompt | Shown | Shown |
+| Script's `PATH` | Its own directory removed | Linux: inherited unchanged; macOS: every rejected shim's directory removed |
+| Script's `command -v copilot` | Fails unless a real CLI is on `PATH` | Linux: a shim can satisfy the check; macOS: fails unless a real CLI is on `PATH` |
+| Missing-`PATH` notice and profile prompt | Shown | Linux: may be skipped; macOS: shown when no real CLI is on `PATH` |
 | After the install | Checks `copilot --version` again with the same `PATH` | Searches `PATH`, then the script's install directory, and launches the CLI |
 
 ## Legacy shims in existing terminals
@@ -183,14 +191,11 @@ The legacy extension put its `copilotCli` directory at the front of the
 integrated terminal `PATH`. The current extension replaces that contribution
 (see [`REQUIREMENTS.md`](./REQUIREMENTS.md)), but a terminal restored from
 before the update keeps its old `PATH` until it's restarted, which is how the
-observed terminal still ran the legacy shim. The Rust shim rejects legacy shims
-both as candidates and in the script's `PATH`, so they don't affect it.
+observed terminal still ran the legacy shim. The Rust shim rejects legacy shims as CLI candidates on both platforms. macOS also excludes their directories from the installer's `PATH`; Linux keeps the original environment and does not rely on the installer's profile prompt.
 
 ## Upstream
 
-The filtered `PATH` works around the script accepting any `copilot`. If the
-script checked that `command -v copilot` resolves to the CLI it just installed,
-the filtering would no longer be needed.
+macOS filtering works around the script accepting any `copilot`. Linux instead preserves access to system utilities and relies on the shim's real-CLI discovery/fallback. Neither platform patches the upstream script. If its accessibility check changes, re-evaluate the platform-specific assumptions against the new script rather than assuming this historical behaviour remains fixed.
 
 ## Not established by the transcript
 

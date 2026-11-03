@@ -16,11 +16,11 @@ import { SyncDescriptor } from '../../../../../platform/instantiation/common/des
 import { AbstractCustomView } from '../../../customView/browser/customView.js';
 import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
 import { IActiveSession, ICreateNewSessionOptions, IProviderSessionType, IRecentlyOpenedSessions, ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { ChatInteractivity, IChat, ISession, ISessionCanvasDefinition, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../common/session.js';
 import { SessionsNavigation } from '../../browser/sessionNavigation.js';
 import { getRecencyEntryKey, SessionsRecencyHistory } from '../../browser/sessionsRecencyHistory.js';
 import { Event } from '../../../../../base/common/event.js';
-import { ISendRequestOptions } from '../../common/sessionsProvider.js';
+import { INestedChatWorkspace, ISendRequestOptions } from '../../common/sessionsProvider.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -112,6 +112,7 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly onDidRenameSession = Event.None;
 	readonly onDidReplaceSession = Event.None;
 	readonly onDidMoveChat = Event.None;
+	readonly onDidInvokeChangesetOperation = Event.None;
 	readonly onDidDiscardNewSession = Event.None;
 	readonly onDidReplaceNewDraftSession = Event.None;
 	readonly onDidToggleSessionStickiness = Event.None;
@@ -198,8 +199,10 @@ class MockSessionStore implements ISessionsManagementService {
 	getSessionTypesForFolder(_folderUri: URI): IProviderSessionType[] { return []; }
 	getQuickChatSessionTypes(): IProviderSessionType[] { return []; }
 	isNewSessionTargetAvailable(_folderUri: URI, _options?: ICreateNewSessionOptions): boolean { return false; }
+	getNewSessionTarget() { return undefined; }
 	isQuickChatTargetAvailable(_options?: ICreateNewSessionOptions): boolean { return false; }
 	resolveWorkspace(_folderUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined { return undefined; }
+	getRemoteHostLabel(): string | undefined { return undefined; }
 
 	async openSession(sessionResource: URI): Promise<void> {
 		this._openedResource = sessionResource;
@@ -245,6 +248,7 @@ class MockSessionStore implements ISessionsManagementService {
 	usesCombinedNewSessionConfigPicker(): boolean { return false; }
 	createQuickChat(_options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	createNewChatInSession(_session: ISession): Promise<IChat | undefined> { throw new Error('not implemented'); }
+	applyNestedChatWorkspace(_session: ISession, _chat: IChat, _workspace: INestedChatWorkspace, _prompt: string): Promise<void> { throw new Error('not implemented'); }
 	forkChatInSession(_session: ISession, _sourceChat: URI, _turnId: string): Promise<IChat> { throw new Error('not implemented'); }
 	createSideChatInSession(_session: ISession, _sourceChat: URI, _turnId: string, _selection?: ISideChatSelection): Promise<IChat> { throw new Error('not implemented'); }
 	discardNewSession(): void { throw new Error('not implemented'); }
@@ -270,6 +274,7 @@ class MockSessionStore implements ISessionsManagementService {
 	unarchiveChat(_session: ISession, _chat: IChat): Promise<void> { throw new Error('not implemented'); }
 	setSessionReadState(_session: ISession, _isRead: boolean): Promise<void> { throw new Error('not implemented'); }
 	markChatRead(_session: ISession, _chat: IChat): Promise<void> { throw new Error('not implemented'); }
+	markChatUnread(_session: ISession, _chat: IChat): Promise<void> { throw new Error('not implemented'); }
 	markChatsRead(_session: ISession, _chats: readonly IChat[]): Promise<void> { throw new Error('not implemented'); }
 	markRead(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	markUnread(_session: ISession): Promise<void> { throw new Error('not implemented'); }
@@ -279,9 +284,18 @@ class MockSessionStore implements ISessionsManagementService {
 	deleteChat(_session: ISession, _chatUri: URI): Promise<boolean> { throw new Error('not implemented'); }
 	renameChat(_session: ISession, _chatUri: URI, _title: string): Promise<void> { throw new Error('not implemented'); }
 	renameSession(_session: ISession, _title: string): Promise<void> { throw new Error('not implemented'); }
+	canMoveChat(_session: ISession, _chat: IChat): boolean { return false; }
+	moveChat(): Promise<void> { throw new Error('not implemented'); }
+	canMoveSessionUnder(_session: ISession): boolean { return false; }
+	moveSessionUnder(): Promise<void> { throw new Error('not implemented'); }
 	removeSessionArtifact(_session: ISession, _artifactId: string): Promise<void> { throw new Error('not implemented'); }
+	async acquireArtifactIntegration() { return undefined; }
 	listCanvases(_session: ISession, _chat: IChat): Promise<readonly ISessionCanvasDefinition[]> { throw new Error('not implemented'); }
 	openCanvas(_session: ISession, _chat: IChat, _canvas: ISessionCanvasDefinition, _instanceId: string): Promise<void> { throw new Error('not implemented'); }
+	closeCanvas(_session: ISession, _chat: IChat, _canvas: ISessionCanvas): Promise<void> { throw new Error('not implemented'); }
+	readonly onDidCloseCanvas = Event.None;
+	observeCanvas(): undefined { return undefined; }
+	observeChatCanvases(): undefined { return undefined; }
 }
 
 suite('SessionsNavigation', () => {
@@ -323,9 +337,10 @@ suite('SessionsNavigation', () => {
 		return contextKeyService.getContextKeyValue('sessionsCanGoForward') ?? false;
 	}
 
-	function registerCustomView(id: string) {
+	function registerCustomView(id: string, acceptsState?: (state: string) => boolean) {
 		return ds.add(customViewService.registerCustomView({
 			id,
+			acceptsState,
 			ctor: new SyncDescriptor(class extends AbstractCustomView {
 				readonly title = constObservable('Custom View');
 				render(_container: HTMLElement): void { }
@@ -549,6 +564,38 @@ suite('SessionsNavigation', () => {
 			canGoFurtherBack: false,
 			forward: ['s1', 's2', 'other', 'automations'],
 			canGoForward: false,
+		});
+	});
+
+	test('back and forward return a custom view to the item each opening showed, skipping items it can no longer show', async () => {
+		const s1 = stubSession('s1');
+		store.addSession(s1);
+		const shownItems = new Set(['plan', 'preview', 'removed']);
+		// Like the pinned canvas page, the view declines an opening for an item it can no longer show.
+		registerCustomView('canvas', state => shownItems.has(state));
+		const destinations = async (direction: 'back' | 'forward', count: number) => {
+			const shown: string[] = [];
+			for (let i = 0; i < count; i++) {
+				await (direction === 'back' ? nav.goBack() : nav.goForward());
+				const open = customViewService.activeCustomViewOpen.get();
+				shown.push(open ? `${open.descriptor.id}:${open.state}` : store.activeSession.get()?.sessionId ?? 'newSession');
+			}
+			return shown;
+		};
+
+		await store.openSession(s1.resource);
+		customViewService.showCustomView('canvas', { state: 'removed' });
+		customViewService.showCustomView('canvas', { state: 'plan' });
+		customViewService.showCustomView('canvas', { state: 'preview' });
+		shownItems.delete('removed');
+
+		const back = await destinations('back', 2);
+		const forward = await destinations('forward', 1);
+
+		assert.deepStrictEqual({ back, forward, canGoForward: canGoForward() }, {
+			back: ['canvas:plan', 's1'],
+			forward: ['canvas:plan'],
+			canGoForward: true,
 		});
 	});
 

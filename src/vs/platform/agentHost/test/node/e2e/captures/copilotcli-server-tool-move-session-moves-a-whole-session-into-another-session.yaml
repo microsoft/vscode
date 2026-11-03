@@ -1,0 +1,48 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "MOVE_LONE_READY".
+    response:
+      content: MOVE_LONE_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call move_session exactly once with session "agent-host-session://copilotcli/e2e-server-tools-move-session-lone" and into "agent-host-session://copilotcli/e2e-server-tools-move-session", then reply exactly "moved".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: move_session
+          input:
+            session: agent-host-session://copilotcli/e2e-server-tools-move-session-lone
+            into: agent-host-session://copilotcli/e2e-server-tools-move-session
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call move_session exactly once with session "agent-host-session://copilotcli/e2e-server-tools-move-session-lone" and into "agent-host-session://copilotcli/e2e-server-tools-move-session", then reply exactly "moved".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: move_session
+              input:
+                session: agent-host-session://copilotcli/e2e-server-tools-move-session-lone
+                into: agent-host-session://copilotcli/e2e-server-tools-move-session
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Session moved into agent-host-session://copilotcli/e2e-server-tools-move-session as a nested session (agent-host-session://copilotcli/e2e-server-tools-move-session?chat=${uuid_0}).
+    response:
+      content: moved
+      stopReason: end_turn

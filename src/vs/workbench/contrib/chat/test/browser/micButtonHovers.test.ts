@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { DEFAULT_LOCAL_TRANSCRIPTION_MODEL } from '../../../../../platform/localTranscription/common/localTranscription.js';
 import { DICTATION_MAI_MODEL_ID, DICTATION_MODEL_SETTING } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { getDictationDownloadHoverMarkdown } from '../../browser/speechToText/dictationDownloadRing.js';
-import { getDictationHoverMarkdown } from '../../browser/speechToText/micButtonHovers.js';
+import { getDictationHoverMarkdown, getVoiceModeHoverContent } from '../../browser/speechToText/micButtonHovers.js';
 
 suite('MicButtonHovers', () => {
 
@@ -33,5 +34,20 @@ suite('MicButtonHovers', () => {
 
 	test('describes the model download while dictation is preparing', () => {
 		assert.strictEqual(getDictationDownloadHoverMarkdown({ currentBackend: 'nemo' }).value, '**Downloading local model**\n\nThis happens only the first time you dictate. Click to cancel.');
+	});
+
+	test('identifies GPT Live in the voice hover only when it is in use', () => {
+		assert.deepStrictEqual(
+			[false, true, false].map(isUsingGptLive => getVoiceModeHoverContent('Voice Mode', isUsingGptLive)),
+			[false, true, false].map(isUsingGptLive => {
+				const description = isUsingGptLive
+					? 'Talk with the agent and hear it reply. Uses OpenAI GPT Live for real-time voice.'
+					: 'Talk with the agent and hear it reply. Uses the online real-time voice model.';
+				return {
+					markdown: new MarkdownString(`**Voice Mode**\n\n${description}`, { supportThemeIcons: true }),
+					markdownNotSupportedFallback: `Voice Mode\n${description}`,
+				};
+			}),
+		);
 	});
 });

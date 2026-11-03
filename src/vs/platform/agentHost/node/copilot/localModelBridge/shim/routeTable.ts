@@ -11,7 +11,7 @@ import type { ILocalModelClock, IServingIdentity } from './servingAccess.js';
 
 /** What `/auto` patching records for one session token. */
 export interface IRouteRecordInit {
-	/** The chat-capable cloud fallback `F`. */
+	/** The cloud fallback `F`. */
 	readonly fallback: ILocalModelFallbackModel;
 	/** Serving identity captured at injection; the route is never served by another one. */
 	readonly serving: IServingIdentity;

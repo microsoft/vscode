@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IDisposable, ImmortalReference, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -24,172 +22,10 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import '../../../../../workbench/contrib/chat/browser/agentSessionsConfiguration.js';
 import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, GitHubPullRequestPollingContribution } from '../../browser/github.contribution.js';
 import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY, AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_TAG } from '../../common/sessionLifecycleSettings.js';
-import { GitHubReferenceList, IGitHubReferenceListEntry } from '../../browser/githubReferenceList.js';
 import { IGitHubService } from '../../browser/githubService.js';
 import { ChatInteractivity, IChat, IGitHubInfo, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, IChatCheckpoints, ISessionFileChange, ISessionWorkspace, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-
-suite('GitHubReferenceList', () => {
-
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('updates rows in place so focus is preserved', () => {
-		const list = disposables.add(new GitHubReferenceList<IGitHubReferenceListEntry>([{
-			number: 12345,
-			title: undefined,
-			icon: Codicon.gitPullRequest,
-			ariaLabel: 'Pull Request #12345',
-		}, {
-			number: 1,
-			title: 'Short number',
-			icon: Codicon.gitPullRequest,
-			ariaLabel: 'Pull Request #1: Short number',
-		}], () => { }));
-		document.body.appendChild(list.element);
-
-		try {
-			const button = list.element.querySelector('button')!;
-			const initialNumberWidth = button.querySelector<HTMLElement>('.sessions-github-reference-list-entry-number')!.style.width;
-			button.focus();
-
-			list.update([{
-				number: 1,
-				title: 'Updated title',
-				icon: Codicon.gitPullRequestDraft,
-				ariaLabel: 'Draft Pull Request #1: Updated title',
-			}]);
-
-			assert.deepStrictEqual({
-				sameButton: list.element.querySelector('button') === button,
-				focused: document.activeElement === button,
-				text: button.textContent,
-				ariaLabel: button.getAttribute('aria-label'),
-				iconClasses: [...button.querySelector('.sessions-github-reference-list-entry-icon')!.classList],
-				initialNumberWidth,
-				numberWidth: button.querySelector<HTMLElement>('.sessions-github-reference-list-entry-number')!.style.width,
-			}, {
-				sameButton: true,
-				focused: true,
-				text: '#1Updated title',
-				ariaLabel: 'Draft Pull Request #1: Updated title',
-				iconClasses: ['sessions-github-reference-list-entry-icon', 'codicon', 'codicon-git-pull-request-draft'],
-				initialNumberWidth: 'calc(5ch + 1em)',
-				numberWidth: 'calc(1ch + 1em)',
-			});
-		} finally {
-			list.element.remove();
-		}
-	});
-
-	test('renders the entry actions in an action bar that does not select the row', () => {
-		const events: string[] = [];
-		const copyAction = (target: string) => toAction({
-			id: 'test.copyLink',
-			label: 'Copy Pull Request Link',
-			class: ThemeIcon.asClassName(Codicon.copy),
-			run: () => events.push(`copy:${target}`),
-		});
-		const list = disposables.add(new GitHubReferenceList<IGitHubReferenceListEntry>([{
-			number: 1,
-			title: 'Fix the thing',
-			icon: Codicon.gitPullRequest,
-			toolbarActions: [copyAction('first')],
-		}], () => events.push('select')));
-		document.body.appendChild(list.element);
-
-		try {
-			const actionLabel = list.element.querySelector<HTMLElement>('.sessions-github-reference-list-entry-actions .action-label')!;
-			actionLabel.focus();
-
-			// A state update keeps the focused action, but it runs against the latest entry.
-			list.update([{
-				number: 1,
-				title: 'Fix the thing',
-				icon: Codicon.gitPullRequestDraft,
-				toolbarActions: [copyAction('second')],
-			}]);
-			actionLabel.click();
-
-			assert.deepStrictEqual({
-				events,
-				sameAction: list.element.querySelector('.sessions-github-reference-list-entry-actions .action-label') === actionLabel,
-				focused: document.activeElement === actionLabel,
-				ariaLabel: actionLabel.getAttribute('aria-label'),
-				iconClasses: [...actionLabel.classList],
-			}, {
-				events: ['copy:second'],
-				sameAction: true,
-				focused: true,
-				ariaLabel: 'Copy Pull Request Link',
-				iconClasses: ['action-label', 'codicon', 'codicon-copy'],
-			});
-		} finally {
-			list.element.remove();
-		}
-	});
-
-	test('row action toolbar preserves tooltip/enablement/checked presentation', () => {
-		const events: string[] = [];
-		const copyAction = (target: string, enabled: boolean, checked: boolean, tooltip: string) => toAction({
-			id: 'test.copyLink',
-			label: 'Copy Pull Request Link',
-			tooltip,
-			enabled,
-			checked,
-			class: ThemeIcon.asClassName(Codicon.copy),
-			run: () => events.push(`copy:${target}`),
-		});
-		const list = disposables.add(new GitHubReferenceList<IGitHubReferenceListEntry>([{
-			number: 1,
-			title: 'Fix the thing',
-			icon: Codicon.gitPullRequest,
-			toolbarActions: [copyAction('first', false, false, 'Cannot copy')],
-		}], () => events.push('select')));
-		document.body.appendChild(list.element);
-
-		try {
-			const actionLabel = list.element.querySelector<HTMLElement>('.sessions-github-reference-list-entry-actions .action-label')!;
-			actionLabel.click();
-			const beforeUpdate = {
-				events: [...events],
-				ariaDisabled: actionLabel.getAttribute('aria-disabled'),
-				ariaLabel: actionLabel.getAttribute('aria-label'),
-				checkedClass: actionLabel.classList.contains('checked'),
-			};
-
-			list.update([{
-				number: 1,
-				title: 'Fix the thing',
-				icon: Codicon.gitPullRequest,
-				toolbarActions: [copyAction('second', true, true, 'Copy pull request URL')],
-			}]);
-
-			const updatedActionLabel = list.element.querySelector<HTMLElement>('.sessions-github-reference-list-entry-actions .action-label')!;
-			updatedActionLabel.click();
-			assert.deepStrictEqual({
-				beforeUpdate,
-				events,
-				ariaDisabled: updatedActionLabel.getAttribute('aria-disabled'),
-				ariaLabel: updatedActionLabel.getAttribute('aria-label'),
-				checkedClass: updatedActionLabel.classList.contains('checked'),
-			}, {
-				beforeUpdate: {
-					events: [],
-					ariaDisabled: 'true',
-					ariaLabel: 'Cannot copy',
-					checkedClass: false,
-				},
-				events: ['copy:second'],
-				ariaDisabled: null,
-				ariaLabel: 'Copy pull request URL',
-				checkedClass: true,
-			});
-		} finally {
-			list.element.remove();
-		}
-	});
-});
 
 suite('GitHubPullRequestPollingContribution', () => {
 

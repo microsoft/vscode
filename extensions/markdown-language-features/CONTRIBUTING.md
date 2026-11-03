@@ -36,54 +36,63 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 
 3. **Point the extension at your local package**
 
-   **A. Use a `file:` dependency for a durable local setup**
+   **A. Override the webview build without changing installed dependencies**
+
+   Set `VSCODE_MARKDOWN_EDITOR_PATH` to the built local package directory in the shell running extension build/watch and manifest-generation commands:
+
+   ```powershell
+   $env:VSCODE_MARKDOWN_EDITOR_PATH = 'D:\src\vscode-packages\vscode-team-tools\packages\markdown-editor'
+   pnpm run watch-markdown-editor
+   ```
+
+   This overrides esbuild resolution for the package and all its exported subpaths, including CSS. Command contribution generation uses the same package selection. The watcher follows the selected package directory, including built output and source assets, but excludes its `node_modules` and `.git` directories. The build prints the selected real directory as `Markdown editor package override: ...`; `node_modules` still contains the installed dependency. No symlink, dependency-manifest edit, or lockfile edit is needed. Relative paths resolve against the build process's working directory. Invalid overrides fail explicitly instead of falling back to the installed package. Unset the variable to use the installed dependency (`Remove-Item Env:VSCODE_MARKDOWN_EDITOR_PATH` in PowerShell).
+
+   This is a build-time override: standalone TypeScript checks and other tools still resolve types from the installed dependency. Use a dependency link instead if those tools must also consume unpublished local type changes. Generated command contributions may still update tracked manifests when the package's commands change.
+
+   Run the override regression tests with `node --test ./scripts/markdownEditorPackage.test.mts` from this extension directory.
+
+   **B. Use a `link:` dependency for a durable local setup**
 
    Set the dependency in `extensions/markdown-language-features/package.json` to:
 
    ```json
-   "@vscode/markdown-editor": "file:../../../vscode-packages/vscode-team-tools/packages/markdown-editor"
+   "@vscode/markdown-editor": "link:../../../vscode-packages/vscode-team-tools/packages/markdown-editor"
    ```
 
-   Then run `npm install` in `extensions/markdown-language-features`. This updates `package.json` and `package-lock.json`, creates a local link, and survives later `npm install` runs. This is development-only; restore the dependency to a published version before submitting changes that should consume a release.
+   Then run `pnpm install`. This updates `package.json` and `pnpm-lock.yaml`, creates a symlink to the local package, and survives later `pnpm install` runs. Use `link:` rather than `file:`: pnpm installs a `file:` directory as a copy, so later package builds would not reach VS Code. This is development-only; restore the dependency to a published version before submitting changes that should consume a release.
 
-   **B. Use `npm link` for a temporary setup**
-
-   In `vscode-packages/vscode-team-tools/packages/markdown-editor`, run:
-
-   ```bash
-   npm link
-   ```
+   **C. Use `pnpm link` for a temporary setup**
 
    In `vscode\extensions\markdown-language-features`, run:
 
    ```bash
-   npm link @vscode/markdown-editor
+   pnpm link ../../../vscode-packages/vscode-team-tools/packages/markdown-editor
    ```
 
-   This leaves `package.json` and `package-lock.json` unchanged, but any later `npm install` in the extension replaces the link. If that happens, run `npm link @vscode/markdown-editor` again.
+   This leaves `package.json` unchanged, but adds a `link:` override to the root `pnpm-workspace.yaml` and updates `pnpm-lock.yaml`. Don't commit those changes; run `pnpm unlink @vscode/markdown-editor` to remove the link again.
 
    Verify the resolved package from `extensions/markdown-language-features`:
 
    ```bash
-   node -e "console.log(require('node:fs').realpathSync('node_modules/@vscode/markdown-editor'))"
+   pnpm list @vscode/markdown-editor
    ```
 
-   The output should be the local `vscode-packages/vscode-team-tools/packages/markdown-editor` directory.
+   The output should show a `link:` to the local `vscode-packages/vscode-team-tools/packages/markdown-editor` directory.
 
 4. **Rebuild and run VS Code**
 
-   Source-built VS Code does not load `@vscode/markdown-editor` dynamically from `node_modules`. `esbuild.markdownEditor.mts` bundles it into `markdown-editor-out`, so keep both the package `pnpm dev` watcher and VS Code's **Ext - Build** task running. For a one-time build, run `npm run build-markdown-editor` in `extensions/markdown-language-features` after the package build completes.
+   Source-built VS Code does not load `@vscode/markdown-editor` dynamically from `node_modules`. `esbuild.markdownEditor.mts` bundles it into `markdown-editor-out`, so keep both the package `pnpm dev` watcher and VS Code's **Ext - Build** task running. For a one-time build, run `pnpm run build-markdown-editor` in `extensions/markdown-language-features` after the package build completes.
 
    Launch VS Code with the **Run VS Code** task. After the Markdown editor bundle is rebuilt, reload the development window or close and reopen the Markdown custom editor.
 
 5. **Update editor commands**
 
-   Markdown editor commands and their default keybindings are defined in `vscode-packages/vscode-team-tools/packages/markdown-editor/src/editorCommands.ts`. Do not manually edit entries marked with `"$generated": true` in this extension's `package.json` or their titles in `package.nls.json`: `npm run build-markdown-editor` and `npm run watch-markdown-editor` regenerate them while preserving manual entries. Run `npm run check-markdown-editor-package-json` to verify that the checked-in manifests are current without modifying them.
+   Markdown editor commands and their default keybindings are defined in `vscode-packages/vscode-team-tools/packages/markdown-editor/src/editorCommands.ts`. Do not manually edit entries marked with `"$generated": true` in this extension's `package.json` or their titles in `package.nls.json`: `pnpm run build-markdown-editor` and `pnpm run watch-markdown-editor` regenerate them while preserving manual entries. Run `pnpm run check-markdown-editor-package-json` to verify that the checked-in manifests are current without modifying them.
 
 ### Embedded code-block editor presentation
 
 `markdown.codeBlockEditorProviders` contributions and export-API resolve results
-accept optional `presentation: { resizable, fullWidth, fullView, minHeight }`.
+accept optional `presentation: { resizable, fullWidth, fullView, minHeight, maxAutomaticHeight }`.
 The Markdown editor owns these controls, including for static/uncooperative
 pages. Resolve-result properties override contribution defaults; explicit
 provider properties override guest-advertised preferences. Keep the contribution
@@ -91,6 +100,10 @@ schema, descriptor validation, RPC schema, equality checks, and static/export-AP
 paths in sync when extending this contract.
 
 Undefined resolve-result properties inherit the contribution defaults; explicit `false` still overrides them. The extension consumes the published `@vscode/markdown-editor` package, which implements the controls and mode notifications.
+
+An export-API provider can expose an optional `onDidChange` event. When it
+fires, open Markdown editors resolve that provider's code blocks again, for
+example to apply a changed setting.
 
 The implementation and interaction fixtures live in the local Markdown editor
 package. See its README's **Embedded editor presentation** section for the
@@ -102,6 +115,24 @@ optional mode-notification messages and sizing precedence.
 background and glow, and defaults to enabled. Resource-specific changes are sent
 to the renderer without reloading the document or changing source-marker visibility.
 The webview reserves symmetric scrollbar gutters so the document remains centered.
+
+### Whitespace indicators
+
+`markdown.editor.renderWhitespace` controls the space and tab indicators shown
+where Markdown syntax is revealed, and defaults to disabled. Like active block
+highlighting, changes are sent to the renderer without reloading the document.
+
+### Mermaid
+
+The `mermaid-markdown-features` extension contributes the Mermaid code block
+editor through `markdown.codeBlockEditorProviders`, sharing its theme and
+settings with the Markdown preview. This extension has no Mermaid renderer of
+its own. Like all contributed code block editors, it is not loaded in Restricted
+Mode, where Mermaid blocks show as code.
+
+### Rich editor diagnostics
+
+Built-in Markdown pull diagnostics use the language client's custom-editor tab tracking (provided by `vscode-languageclient` 9.0.1). A Markdown document opened only in the rich editor must receive diagnostics without a companion text-editor tab. Keep `diagnosticPullOptions.onTabs` and `onChange` enabled. When validating client upgrades, enable `markdown.validate.enabled`, open a broken link only in the rich editor, and verify that fixing it clears the diagnostic. The renderer continues to consume the existing VS Code diagnostic collections; no separate diagnostic provider is needed.
 
 ### Outline and breadcrumbs
 
@@ -144,15 +175,15 @@ This extension depends on `vscode-markdown-languageserver` and connects to it fr
    npm install vscode-markdown-languageservice@latest
    ```
 
-2. Bump the server dependency in this extension to the newly published version:
+2. Bump the server dependency in this extension (`extensions/markdown-language-features`) to the newly published version:
 
    ```bash
-   npm install vscode-markdown-languageserver@latest
+   pnpm add vscode-markdown-languageserver@latest
    ```
 
 ### Testing unpublished versions locally
 
-You can use `npm link` to test local changes to the language service/server without publishing:
+You can link local checkouts to test changes to the language service/server without publishing. The two upstream repositories use npm:
 
 ```bash
 # First, in your vscode-markdown-languageservice checkout
@@ -165,9 +196,10 @@ npm link vscode-markdown-languageservice
 npm run compile
 
 
-# And finally in vscode, link in the service
+# And finally in vscode, link in the server (this adds a `link:` override to
+# pnpm-workspace.yaml; undo it with `pnpm unlink vscode-markdown-languageserver`)
 cd extensions/markdown-language-features
-npm link vscode-markdown-languageserver
+pnpm link <path to your vscode-markdown-languageserver checkout>
 ```
 
 ## Related Code

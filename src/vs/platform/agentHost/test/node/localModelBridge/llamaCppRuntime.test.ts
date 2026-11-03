@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as path from '../../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import { buildArchitectureProbeArgs, buildProbeEnvironment, classifyArchitectureProbe, classifyLlamaProbeFailure, createLlamaRuntimeMissingError, createRuntimeUnsupportedModelError, LlamaCppRuntime, parseLlamaServerHelp, parseLlamaServerVersion, qualifyLlamaServerHelp, sanitizeLlamaArchitecture, unpackagedLlamaArchitectureChange } from '../../../node/copilot/localModelBridge/shim/llamaCppRuntime.js';
+import { buildArchitectureProbeArgs, buildProbeEnvironment, classifyArchitectureProbe, classifyLlamaProbeFailure, createLlamaRuntimeMissingError, createRuntimeUnsupportedModelError, LlamaCppRuntime, llamaArchitectureFirstBuild, parseLlamaServerHelp, parseLlamaServerVersion, qualifyLlamaServerHelp, sanitizeLlamaArchitecture } from '../../../node/copilot/localModelBridge/shim/llamaCppRuntime.js';
 import { buildSyntheticGguf } from '../../../node/copilot/localModelBridge/shim/gguf.js';
 import type { IProcessRunner, IProcessRunOptions, IProcessRunResult } from '../../../node/copilot/localModelBridge/shim/processRunner.js';
 
@@ -387,10 +387,10 @@ suite('localModel llamaCppRuntime', () => {
 			error: createRuntimeUnsupportedModelError('0.6.0-dev (b11459)', 'Example Flash 1.0'),
 			errorWithoutVersion: createRuntimeUnsupportedModelError(undefined, 'Example Flash 1.0').message,
 			packagedArchitecture: createRuntimeUnsupportedModelError('0.6.0-dev (b11459)', 'Some Coder', 'qwen3').actions,
-			unpackaged: createRuntimeUnsupportedModelError('0.6.0-dev (b11459)', 'MAI Code 1.1 Flash', 'maion-coder'),
-			unpackagedWithoutVersion: createRuntimeUnsupportedModelError(undefined, 'MAI Code 1.1 Flash', 'MAION-CODER').message,
+			newArchitecture: createRuntimeUnsupportedModelError('0.6.0-dev (b11459)', 'MAI Code 1.1 Flash', 'maion-coder'),
+			newArchitectureWithoutVersion: createRuntimeUnsupportedModelError(undefined, 'MAI Code 1.1 Flash', 'MAION-CODER').message,
 			missing: createLlamaRuntimeMissingError('MAI Code 1.1 Flash'),
-			changes: ['maion-coder', 'qwen3', undefined, '__proto__'].map(unpackagedLlamaArchitectureChange),
+			firstBuilds: ['maion-coder', 'qwen3', undefined, '__proto__'].map(llamaArchitectureFirstBuild),
 		}, {
 			unsupported: 'unsupported',
 			supported: 'supported',
@@ -412,19 +412,19 @@ suite('localModel llamaCppRuntime', () => {
 			},
 			errorWithoutVersion: `This llama.cpp build can't run Example Flash 1.0. Install a llama.cpp build that supports it, then set ${SERVER_PATH_SETTING} to its llama-server and select Retry.`,
 			packagedArchitecture: ['getLlamaCpp', 'openSettings', 'retry'],
-			// No llama.cpp release runs MAI yet (ggml-org/llama.cpp#29778): the directions name the change a build needs.
-			unpackaged: {
+			// MAI's architecture needs llama.cpp b11658 or later (ggml-org/llama.cpp#29778): the directions name that release.
+			newArchitecture: {
 				code: 'runtimeUnsupportedModel',
-				message: `This llama.cpp build (0.6.0-dev (b11459)) can't run MAI Code 1.1 Flash. Install a llama.cpp build that includes ggml-org/llama.cpp#29778, then set ${SERVER_PATH_SETTING} to its llama-server and select Retry.`,
+				message: `This llama.cpp build (0.6.0-dev (b11459)) can't run MAI Code 1.1 Flash. Install llama.cpp b11658 or later, then set ${SERVER_PATH_SETTING} to its llama-server and select Retry.`,
 				actions: ['getLlamaCpp', 'openSettings', 'retry'],
 			},
-			unpackagedWithoutVersion: `This llama.cpp build can't run MAI Code 1.1 Flash. Install a llama.cpp build that includes ggml-org/llama.cpp#29778, then set ${SERVER_PATH_SETTING} to its llama-server and select Retry.`,
+			newArchitectureWithoutVersion: `This llama.cpp build can't run MAI Code 1.1 Flash. Install llama.cpp b11658 or later, then set ${SERVER_PATH_SETTING} to its llama-server and select Retry.`,
 			missing: {
 				code: 'runtimeNotFound',
 				message: `MAI Code 1.1 Flash needs llama.cpp to run. Install a llama.cpp build that supports it, then set ${SERVER_PATH_SETTING} to its llama-server and select Retry.`,
 				actions: ['getLlamaCpp', 'openSettings', 'retry'],
 			},
-			changes: ['ggml-org/llama.cpp#29778', undefined, undefined, undefined],
+			firstBuilds: [11658, undefined, undefined, undefined],
 		});
 	});
 

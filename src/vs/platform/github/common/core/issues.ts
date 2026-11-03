@@ -150,8 +150,8 @@ export interface UpdateIssueRequest {
 export interface CreateLabelRequest {
 	/** Label name. */
 	readonly name: string;
-	/** Six-digit hexadecimal color, without a leading hash. */
-	readonly color: string;
+	/** Six-digit hexadecimal color without a leading hash; omission uses GitHub's default. */
+	readonly color?: string;
 	/** Optional label description. */
 	readonly description?: string;
 }

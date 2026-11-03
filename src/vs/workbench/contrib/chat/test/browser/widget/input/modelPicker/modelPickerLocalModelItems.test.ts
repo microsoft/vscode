@@ -35,7 +35,7 @@ import { TestChatEntitlementService, TestWorkspaceTrustManagementService } from 
 import { ITerminalService } from '../../../../../../terminal/browser/terminal.js';
 import { buildLocalModelPickerItems, formatLocalModelContextTokens, getLocalModelDirectModelPresentation, getLocalModelRunningAction, getLocalModelStateLabel, ILocalModelPickerHost, matchesLocalModelRowId, ModelPickerLocalModels } from '../../../../../browser/widget/input/modelPicker/modelPickerLocalModelItems.js';
 import { IModelConfigPropertySchema, IModelConfigurationAccess } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
-import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../../browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
+import { ITabbedModelPickerContext, ITabbedModelPickerHideEvent, TabbedModelPicker } from '../../../../../browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
 import { ModelPickerWidget } from '../../../../../browser/widget/input/modelPicker/modelPickerWidget.js';
 import { SessionType } from '../../../../../common/chatSessionsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../common/languageModels.js';
@@ -723,14 +723,14 @@ suite('ModelPickerLocalModelItems', () => {
 
 			const instantiationService = store.add(new TestInstantiationService());
 			// The widget only opens the tabbed picker; record the context it is given.
-			const onDidHide = store.add(new Emitter<void>());
+			const onDidHide = store.add(new Emitter<ITabbedModelPickerHideEvent>());
 			instantiationService.stubInstance(TabbedModelPicker, {
 				onDidHide: onDidHide.event,
 				get isVisible() { return !!shown; },
 				show: (_anchor: HTMLElement, context: ITabbedModelPickerContext, detailsModelId?: string) => { shown = { context, detailsModelId }; },
 				hide: () => {
 					shown = undefined;
-					onDidHide.fire();
+					onDidHide.fire({ finishedComparison: false });
 				},
 				setSelectedModel: (modelId: string | undefined) => { pickerSelections.push(modelId); },
 				setLocalModels: () => { },

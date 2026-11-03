@@ -178,6 +178,7 @@ export class SessionGridLayout extends Disposable {
 	private gridLaidOut = false;
 	private readonly leaves = new Map<string, SessionGridLeaf>();
 	private readonly placements = new Map<string, ISessionGridPlacement | undefined>();
+	private entryOrder: readonly string[] = [];
 	private readonly _onDidChangeMaximized = this._register(new Emitter<void>());
 	readonly onDidChangeMaximized = this._onDidChangeMaximized.event;
 	private dimensions: { width: number; height: number; top: number; left: number } | undefined;
@@ -203,9 +204,16 @@ export class SessionGridLayout extends Disposable {
 			throw new Error('A Sessions grid must have at least one leaf');
 		}
 		this.preserveFocus(() => {
-			const order = this.order;
-			const structureChanged = order.length !== entries.length || entries.some((entry, index) =>
-				entry.id !== order[index] || (entry.placement && entry.placement !== this.placements.get(entry.id)));
+			const orderChanged = this.entryOrder.length !== entries.length || entries.some((entry, index) => entry.id !== this.entryOrder[index]);
+			const placementChanged = entries.some(entry => entry.placement && entry.placement !== this.placements.get(entry.id));
+			const retainedOrder = entries.filter(entry => this.leaves.has(entry.id)).map(entry => entry.id);
+			const retainedIds = new Set(retainedOrder);
+			const previousOrder = this.entryOrder.filter(id => retainedIds.has(id));
+			const retainedOrderChanged = retainedOrder.some((id, index) => id !== previousOrder[index]);
+			const reorder = orderChanged && !placementChanged && (retainedOrderChanged
+				|| entries.some(entry => !this.leaves.has(entry.id)) && entries.every(entry => !entry.placement));
+			const structureChanged = orderChanged || placementChanged;
+			this.entryOrder = entries.map(entry => entry.id);
 			if (structureChanged || (this.active !== active && this.maximized !== active)) {
 				this.setMaximized(undefined);
 			}
@@ -243,11 +251,13 @@ export class SessionGridLayout extends Disposable {
 				}
 				this.placements.set(entry.id, entry.placement);
 			}
-			// A pure order change swaps leaves, not their live session bindings.
-			for (let i = 0; i < entries.length; i++) {
-				const current = this.orderedLeaves()[i];
-				if (current.id !== entries[i].id) {
-					this.grid.value!.swapViews(current, this.leaves.get(entries[i].id)!);
+			// Explicit placement owns topology; only a separate order request may swap leaves.
+			if (reorder) {
+				for (let i = 0; i < entries.length; i++) {
+					const current = this.orderedLeaves()[i];
+					if (current.id !== entries[i].id) {
+						this.grid.value!.swapViews(current, this.leaves.get(entries[i].id)!);
+					}
 				}
 			}
 			this.active = active;

@@ -16,7 +16,7 @@ use crate::install::{
 	discover_tools, installer_plan, run_installer, HostTarget, InstallerAttempt,
 	InstallerAttemptResult, InstallerPlanError, InstallerResult, InstallerRoute, UnsupportedTarget,
 };
-use crate::invocation::{self, Invocation};
+use crate::invocation::{self, InstallMode, Invocation};
 use crate::model::{
 	Candidate, ProcessError, ProcessOutcome, ProcessTermination, ResolvedCandidate,
 	SupervisionMode, SystemError,
@@ -59,8 +59,14 @@ pub(super) enum ApplicationExit {
 
 #[derive(Debug, Eq, PartialEq)]
 enum WorkflowAction {
-	Launch(Candidate),
+	Launch(Candidate, DiscoveryCycle),
 	Exit(i32),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum InstallConsent {
+	Prompt,
+	AlreadyCollected,
 }
 
 impl ApplicationExit {
@@ -291,11 +297,12 @@ fn prepare_workflow<R: Runtime>(
 	runtime: &R,
 	target: Option<HostTarget>,
 	interpreters: &mut Interpreters,
+	consent: InstallConsent,
 ) -> Result<WorkflowAction, ApplicationExit> {
 	let mut cycle = DiscoveryCycle::Initial;
 	loop {
 		if let Some(candidate) = select_candidate(runtime, interpreters, None)? {
-			return Ok(WorkflowAction::Launch(candidate));
+			return Ok(WorkflowAction::Launch(candidate, cycle));
 		}
 		#[cfg(unix)]
 		if matches!(
@@ -311,13 +318,13 @@ fn prepare_workflow<R: Runtime>(
 			if let Some(directory) = directory {
 				if let Some(candidate) = select_candidate(runtime, interpreters, Some(&directory))?
 				{
-					return Ok(WorkflowAction::Launch(candidate));
+					return Ok(WorkflowAction::Launch(candidate, cycle));
 				}
 			}
 		}
 		match cycle {
 			DiscoveryCycle::Initial => {
-				match request_install(runtime, target)? {
+				match request_install(runtime, target, consent)? {
 					None => return Ok(WorkflowAction::Exit(0)),
 					// Discovery searches the MSI install folder after PATH, so it finds a Copilot CLI that was just
 					// installed even though this terminal's PATH doesn't include it yet.
@@ -350,6 +357,36 @@ pub(crate) fn run<R: Runtime>(
 		Ok(Invocation::Launch { clear, arguments }) => (clear, arguments),
 		// Commands for VS Code report and exit; they never launch the Copilot CLI.
 		Ok(Invocation::Probe(options)) => return setup::probe(runtime, target, &options),
+		Ok(Invocation::Policy) => return report_policy(runtime),
+		Ok(Invocation::Install(options))
+			if matches!(options.mode, InstallMode::Interactive)
+				&& matches!(target, Some(HostTarget::MacosX64 | HostTarget::MacosArm64)) =>
+		{
+			let mut interpreters = Interpreters::default();
+			return prepare_workflow(
+				runtime,
+				target,
+				&mut interpreters,
+				InstallConsent::AlreadyCollected,
+			)
+			.map(|action| match action {
+				WorkflowAction::Launch(candidate, cycle) => {
+					let message = match cycle {
+						DiscoveryCycle::Initial => "GitHub Copilot CLI is already installed.",
+						DiscoveryCycle::AfterInstall(_) => {
+							"GitHub Copilot CLI installed successfully."
+						}
+					};
+					runtime.write_message(&format!(
+						"{message}\nLocation: {}",
+						candidate.path.display()
+					));
+					ApplicationExit::Code(0)
+				}
+				WorkflowAction::Exit(code) => ApplicationExit::Code(code),
+			})
+			.map_or_else(ApplicationExit::code, ApplicationExit::code);
+		}
 		Ok(Invocation::Install(options)) => return setup::install(runtime, target, &options),
 		Err(error) => {
 			runtime.write_diagnostic(&error.to_string());
@@ -364,11 +401,29 @@ pub(crate) fn run<R: Runtime>(
 	}
 
 	let mut interpreters = Interpreters::default();
-	let result = prepare_workflow(runtime, target, &mut interpreters).map(|action| match action {
-		WorkflowAction::Launch(candidate) => launch_candidate(runtime, candidate, arguments),
-		WorkflowAction::Exit(code) => ApplicationExit::Code(code),
-	});
+	let result = prepare_workflow(runtime, target, &mut interpreters, InstallConsent::Prompt).map(
+		|action| match action {
+			WorkflowAction::Launch(candidate, _) => launch_candidate(runtime, candidate, arguments),
+			WorkflowAction::Exit(code) => ApplicationExit::Code(code),
+		},
+	);
 	result.map_or_else(ApplicationExit::code, ApplicationExit::code)
+}
+
+/// Exits with `0` when the `CopilotCliCommand` policy allows the command and with the policy install status when it
+/// turns it off, so package install scripts can query the policy without parsing it themselves.
+fn report_policy<R: Runtime>(runtime: &R) -> i32 {
+	let disabled = runtime.copilot_cli_command_disabled();
+	runtime.write_diagnostic(&format!(
+		"the {} policy is {}",
+		setup::COPILOT_CLI_COMMAND_POLICY,
+		if disabled { "disabled" } else { "allowed" }
+	));
+	if disabled {
+		setup::InstallStatus::Policy.exit_code()
+	} else {
+		0
+	}
 }
 
 fn launch_candidate<R: Runtime>(
@@ -413,6 +468,7 @@ fn launch_candidate<R: Runtime>(
 fn request_install<R: Runtime>(
 	runtime: &R,
 	target: Option<HostTarget>,
+	consent: InstallConsent,
 ) -> Result<Option<InstallerRoute>, ApplicationExit> {
 	if runtime.copilot_cli_command_disabled() {
 		runtime.write_message(&format!(
@@ -424,9 +480,15 @@ fn request_install<R: Runtime>(
 		));
 	}
 	if !runtime.can_prompt() {
-		runtime.write_message(&format!(
-			"GitHub Copilot CLI was not found. Run copilot in a terminal to install it, or see {INSTALL_DOCUMENTATION_URL}"
-		));
+		let message = match consent {
+			InstallConsent::Prompt => format!(
+				"GitHub Copilot CLI was not found. Run copilot in a terminal to install it, or see {INSTALL_DOCUMENTATION_URL}"
+			),
+			InstallConsent::AlreadyCollected => format!(
+				"GitHub Copilot CLI was not found. The install-only command requires an interactive terminal to install it; run it in a terminal, or see {INSTALL_DOCUMENTATION_URL}"
+			),
+		};
+		runtime.write_message(&message);
 		return Err(ApplicationExit::Code(NOT_INSTALLED_EXIT_CODE));
 	}
 	let Some(target) = target else {
@@ -438,14 +500,16 @@ fn request_install<R: Runtime>(
 		return Err(ApplicationExit::InternalFailure);
 	}
 
-	let response = runtime.prompt().map_err(|error| {
-		runtime.write_message(&format!(
-			"Could not read the answer to the install prompt: {error}"
-		));
-		ApplicationExit::InternalFailure
-	})?;
-	if response == PromptResponse::Declined {
-		return Ok(None);
+	if consent == InstallConsent::Prompt {
+		let response = runtime.prompt().map_err(|error| {
+			runtime.write_message(&format!(
+				"Could not read the answer to the install prompt: {error}"
+			));
+			ApplicationExit::InternalFailure
+		})?;
+		if response == PromptResponse::Declined {
+			return Ok(None);
+		}
 	}
 
 	let tools = discover_tools(runtime, target);
@@ -623,6 +687,7 @@ mod tests {
 		messages: RefCell<Vec<String>>,
 		diagnostics_enabled: Cell<bool>,
 		policy_disabled: Cell<bool>,
+		policy_reads: Cell<usize>,
 		no_terminal: Cell<bool>,
 	}
 
@@ -657,6 +722,7 @@ mod tests {
 				messages: RefCell::new(Vec::new()),
 				diagnostics_enabled: Cell::new(true),
 				policy_disabled: Cell::new(false),
+				policy_reads: Cell::new(0),
 				no_terminal: Cell::new(false),
 			}
 		}
@@ -811,6 +877,7 @@ mod tests {
 
 	impl PolicyEffects for FakeRuntime {
 		fn copilot_cli_command_disabled(&self) -> bool {
+			self.policy_reads.set(self.policy_reads.get() + 1);
 			self.policy_disabled.get()
 		}
 	}
@@ -908,6 +975,7 @@ mod tests {
 				)],
 			)
 		);
+		assert!(runtime.messages.borrow().is_empty());
 	}
 
 	#[test]
@@ -1129,6 +1197,7 @@ mod tests {
 			&install,
 			Some(HostTarget::LinuxGnuX64),
 			&mut Interpreters::default(),
+			InstallConsent::Prompt,
 		)
 		.expect("prepare installed CLI");
 
@@ -1160,6 +1229,7 @@ mod tests {
 			&invisible,
 			Some(HostTarget::LinuxGnuX64),
 			&mut Interpreters::default(),
+			InstallConsent::Prompt,
 		);
 
 		assert_eq!(
@@ -1228,11 +1298,20 @@ mod tests {
 					PathBuf::from("/home/test/.local/bin/copilot"),
 					PathBuf::from("/home/test/.local/bin/copilot")
 				],
-				vec![None, Some(OsString::from("/tools")), None, None],
+				vec![
+					None,
+					#[cfg(target_os = "linux")]
+					None,
+					#[cfg(not(target_os = "linux"))]
+					Some(OsString::from("/tools")),
+					None,
+					None,
+				],
 				Some(CommandArguments::Native(arguments)),
 				Some(OsString::from("/tools")),
 			)
 		);
+		assert!(runtime.messages.borrow().is_empty());
 	}
 
 	#[cfg(unix)]
@@ -1266,6 +1345,7 @@ mod tests {
 					&runtime,
 					Some(HostTarget::LinuxGnuX64),
 					&mut Interpreters::default(),
+					InstallConsent::Prompt,
 				)
 				.map(action_path),
 				runtime.prompts.borrow().len(),
@@ -1294,6 +1374,7 @@ mod tests {
 			&failed,
 			Some(HostTarget::LinuxGnuX64),
 			&mut Interpreters::default(),
+			InstallConsent::Prompt,
 		);
 
 		let cancelled = FakeRuntime::default();
@@ -1309,6 +1390,7 @@ mod tests {
 			&cancelled,
 			Some(HostTarget::LinuxGnuX64),
 			&mut Interpreters::default(),
+			InstallConsent::Prompt,
 		);
 
 		let unsupported = FakeRuntime::default();
@@ -1316,6 +1398,7 @@ mod tests {
 			&unsupported,
 			Some(HostTarget::LinuxGnuArmhf),
 			&mut Interpreters::default(),
+			InstallConsent::Prompt,
 		);
 
 		assert_eq!(
@@ -1396,6 +1479,7 @@ mod tests {
 			&tools,
 			Some(HostTarget::LinuxGnuX64),
 			&mut Interpreters::default(),
+			InstallConsent::Prompt,
 		);
 
 		assert_eq!(
@@ -1438,8 +1522,278 @@ mod tests {
 		);
 	}
 
+	#[cfg(unix)]
 	#[test]
-	fn policy_blocks_install_but_launches_an_installed_cli() {
+	fn macos_interactive_install_only_reuses_installation_without_prompting_or_launching() {
+		let invocation = || {
+			vec![
+				OsString::from("--vscode-shim"),
+				OsString::from("install"),
+				OsString::from("--interactive"),
+			]
+		};
+		let mut existing = Vec::new();
+		for target in [HostTarget::MacosX64, HostTarget::MacosArm64] {
+			let runtime = FakeRuntime::default();
+			runtime.add_program(Path::new("/cli/copilot"));
+			runtime.set_path(&[Path::new("/cli")]);
+			existing.push((
+				run(&runtime, invocation(), Some(target)),
+				runtime.prompts.borrow().len(),
+				runtime.commands.borrow().len(),
+				runtime.messages.borrow().clone(),
+			));
+		}
+
+		let installed = FakeRuntime::default();
+		configure_script_installer(&installed);
+		installed.add_program(Path::new("/tools/brew"));
+		installed.set_path(&[Path::new("/tools")]);
+		installed.push_process_result(Ok(interactive_exit(9)));
+		installed.push_process_result(Ok(interactive_exit(0)));
+		installed.process_steps.borrow_mut().push_back(ProcessStep {
+			result: Ok(interactive_exit(0)),
+			replacement_path: None,
+			installed_program: Some(PathBuf::from("/home/test/.local/bin/copilot")),
+		});
+		let installed_exit = run(&installed, invocation(), Some(HostTarget::MacosX64));
+
+		let no_terminal = FakeRuntime::default();
+		no_terminal.no_terminal.set(true);
+		no_terminal.set_path(&[Path::new("/empty")]);
+		let no_terminal_exit = run(&no_terminal, invocation(), Some(HostTarget::MacosArm64));
+
+		assert_eq!(
+			(
+				existing,
+				installed_exit,
+				installed.prompts.borrow().len(),
+				programs(&installed),
+				installed.messages.borrow().clone(),
+				no_terminal_exit,
+				no_terminal.prompts.borrow().len(),
+				no_terminal.commands.borrow().len(),
+				no_terminal.messages.borrow().clone(),
+			),
+			(
+				vec![
+					(
+						0,
+						0,
+						0,
+						vec![String::from(
+							"GitHub Copilot CLI is already installed.\nLocation: /cli/copilot"
+						)],
+					),
+					(
+						0,
+						0,
+						0,
+						vec![String::from(
+							"GitHub Copilot CLI is already installed.\nLocation: /cli/copilot"
+						)],
+					),
+				],
+				0,
+				0,
+				vec![
+					PathBuf::from("/tools/brew"),
+					PathBuf::from("/tools/curl"),
+					PathBuf::from("/tools/bash"),
+				],
+				vec![String::from(
+					"GitHub Copilot CLI installed successfully.\nLocation: /home/test/.local/bin/copilot"
+				)],
+				127,
+				0,
+				0,
+				vec![format!(
+					"GitHub Copilot CLI was not found. The install-only command requires an interactive terminal to install it; run it in a terminal, or see {INSTALL_DOCUMENTATION_URL}"
+				)],
+			)
+		);
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn macos_install_only_reports_success_after_homebrew_or_script_installation() {
+		let invocation = || {
+			vec![
+				OsString::from("--vscode-shim"),
+				OsString::from("install"),
+				OsString::from("--interactive"),
+			]
+		};
+		let homebrew = FakeRuntime::default();
+		configure_script_installer(&homebrew);
+		homebrew.add_program(Path::new("/tools/brew"));
+		homebrew.set_path(&[Path::new("/tools")]);
+		homebrew.process_steps.borrow_mut().push_back(ProcessStep {
+			result: Ok(interactive_exit(0)),
+			replacement_path: None,
+			installed_program: Some(PathBuf::from("/tools/copilot")),
+		});
+
+		let script = FakeRuntime::default();
+		configure_script_installer(&script);
+		script.set_path(&[Path::new("/tools")]);
+		script.push_process_result(Ok(interactive_exit(0)));
+		script.process_steps.borrow_mut().push_back(ProcessStep {
+			result: Ok(interactive_exit(0)),
+			replacement_path: None,
+			installed_program: Some(PathBuf::from("/home/test/.local/bin/copilot")),
+		});
+
+		assert_eq!(
+			(
+				run(&homebrew, invocation(), Some(HostTarget::MacosX64)),
+				programs(&homebrew),
+				homebrew.messages.borrow().clone(),
+				run(&script, invocation(), Some(HostTarget::MacosArm64)),
+				programs(&script),
+				script.messages.borrow().clone(),
+			),
+			(
+				0,
+				vec![PathBuf::from("/tools/brew")],
+				vec![String::from(
+					"GitHub Copilot CLI installed successfully.\nLocation: /tools/copilot"
+				)],
+				0,
+				vec![PathBuf::from("/tools/curl"), PathBuf::from("/tools/bash")],
+				vec![String::from(
+					"GitHub Copilot CLI installed successfully.\nLocation: /home/test/.local/bin/copilot"
+				)],
+			)
+		);
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn macos_install_only_cancellation_and_missing_cli_are_terminal() {
+		let arguments = vec![
+			OsString::from("--vscode-shim"),
+			OsString::from("install"),
+			OsString::from("--interactive"),
+		];
+		let failed = FakeRuntime::default();
+		configure_script_installer(&failed);
+		failed.set_path(&[Path::new("/tools")]);
+		failed.push_process_result(Ok(interactive_exit(9)));
+		let failed_exit = run(&failed, arguments.clone(), Some(HostTarget::MacosX64));
+
+		let cancelled = FakeRuntime::default();
+		configure_script_installer(&cancelled);
+		cancelled.set_path(&[Path::new("/tools")]);
+		cancelled.push_process_result(Ok(ProcessOutcome {
+			termination: ProcessTermination::HandledCancellation,
+			captured_output: None,
+		}));
+		let cancelled_exit = run(&cancelled, arguments.clone(), Some(HostTarget::MacosX64));
+
+		let missing = FakeRuntime::default();
+		configure_script_installer(&missing);
+		missing.set_path(&[Path::new("/tools")]);
+		missing.push_process_result(Ok(interactive_exit(0)));
+		missing.push_process_result(Ok(interactive_exit(0)));
+		let missing_exit = run(&missing, arguments, Some(HostTarget::MacosArm64));
+
+		assert_eq!(
+			(
+				failed_exit,
+				failed.prompts.borrow().len(),
+				programs(&failed),
+				failed.messages.borrow().clone(),
+				cancelled_exit,
+				cancelled.prompts.borrow().len(),
+				programs(&cancelled),
+				missing_exit,
+				missing.prompts.borrow().len(),
+				programs(&missing),
+				missing.messages.borrow().clone(),
+			),
+			(
+				1,
+				0,
+				vec![PathBuf::from("/tools/curl")],
+				vec![format!(
+					"GitHub Copilot CLI couldn't be installed. To install it manually, see {INSTALL_DOCUMENTATION_URL}"
+				), String::from(VERBOSE_HINT)],
+				130,
+				0,
+				vec![PathBuf::from("/tools/curl")],
+				1,
+				0,
+				vec![PathBuf::from("/tools/curl"), PathBuf::from("/tools/bash")],
+				vec![String::from(
+					"The installation completed, but no usable GitHub Copilot CLI was found on PATH or in the expected installation location. Source your shell profile, restart the terminal, or update PATH and retry."
+				)],
+			)
+		);
+		assert!(cancelled.messages.borrow().is_empty());
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn install_only_preserves_fallback_tty_policy_tools_and_nonmacos_dispatch() {
+		let arguments = || {
+			vec![
+				OsString::from("--vscode-shim"),
+				OsString::from("install"),
+				OsString::from("--interactive"),
+			]
+		};
+
+		let fallback_without_terminal = FakeRuntime::default();
+		fallback_without_terminal.no_terminal.set(true);
+		fallback_without_terminal.set_path(&[Path::new("/empty")]);
+		fallback_without_terminal.add_program(Path::new("/home/test/.local/bin/copilot"));
+		let fallback_exit = run(
+			&fallback_without_terminal,
+			arguments(),
+			Some(HostTarget::MacosX64),
+		);
+
+		let policy = FakeRuntime::default();
+		policy.policy_disabled.set(true);
+		policy.set_path(&[Path::new("/empty")]);
+		let policy_exit = run(&policy, arguments(), Some(HostTarget::MacosArm64));
+
+		let missing_tools = FakeRuntime::default();
+		missing_tools.set_path(&[Path::new("/empty")]);
+		let missing_tools_exit = run(&missing_tools, arguments(), Some(HostTarget::MacosX64));
+
+		let linux = FakeRuntime::default();
+		linux.set_path(&[Path::new("/empty")]);
+		let linux_exit = run(&linux, arguments(), Some(HostTarget::LinuxGnuX64));
+
+		assert_eq!(
+			(
+				fallback_exit,
+				fallback_without_terminal.prompts.borrow().len(),
+				fallback_without_terminal.commands.borrow().len(),
+				policy_exit,
+				policy.prompts.borrow().len(),
+				policy.commands.borrow().len(),
+				missing_tools_exit,
+				missing_tools.prompts.borrow().len(),
+				missing_tools.commands.borrow().len(),
+				linux_exit,
+				linux.prompts.borrow().len(),
+				linux.commands.borrow().len(),
+			),
+			(0, 0, 0, 10, 0, 0, 1, 0, 0, 1, 0, 0)
+		);
+		assert_eq!(
+			fallback_without_terminal.messages.borrow().clone(),
+			vec![String::from(
+				"GitHub Copilot CLI is already installed.\nLocation: /home/test/.local/bin/copilot"
+			)]
+		);
+	}
+
+	#[test]
+	fn policy_blocks_install_after_cli_discovery() {
 		let policy_runtime = |directory: &str| {
 			let runtime = FakeRuntime::default();
 			runtime.policy_disabled.set(true);
@@ -1464,8 +1818,10 @@ mod tests {
 				missing_exit,
 				missing.prompts.borrow().len(),
 				missing.messages.borrow().clone(),
+				missing.policy_reads.get(),
 				installed_exit,
 				programs(&installed),
+				installed.policy_reads.get(),
 			),
 			(
 				10,
@@ -1473,8 +1829,165 @@ mod tests {
 				vec![String::from(
 					"GitHub Copilot CLI was not found. Installing it from VS Code is turned off by the CopilotCliCommand policy; contact your administrator."
 				)],
+				1,
 				7,
 				vec![cli_path("/cli")],
+				0,
+			)
+		);
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn policy_is_not_read_before_fallback_cli_discovery() {
+		let runtime = FakeRuntime::default();
+		runtime.policy_disabled.set(true);
+		runtime.set_path(&[Path::new("/empty")]);
+		let fallback = PathBuf::from("/home/test/.local/bin/copilot");
+		runtime.add_program(&fallback);
+		runtime.push_process_result(Ok(interactive_exit(8)));
+
+		let exit = run(
+			&runtime,
+			vec![OsString::from("--resume")],
+			Some(HostTarget::LinuxGnuX64),
+		);
+
+		assert_eq!(
+			(
+				exit,
+				runtime.policy_reads.get(),
+				runtime.prompts.borrow().clone(),
+				programs(&runtime),
+			),
+			(8, 0, Vec::<String>::new(), vec![fallback])
+		);
+	}
+
+	#[test]
+	fn disabled_policy_suppresses_probe_network_check() {
+		let runtime = FakeRuntime::default();
+		runtime.policy_disabled.set(true);
+		runtime.set_path(&[Path::new("/empty")]);
+		let directory = tempfile::tempdir().expect("create probe result directory");
+		let result_file = directory.path().join("probe.ini");
+
+		let exit = run(
+			&runtime,
+			vec![
+				OsString::from("--vscode-shim"),
+				OsString::from("probe"),
+				OsString::from("--result-file"),
+				result_file.as_os_str().to_os_string(),
+			],
+			Some(HostTarget::LinuxGnuX64),
+		);
+
+		let bytes = std::fs::read(result_file).expect("read probe result");
+		let result = String::from_utf16(
+			&bytes
+				.as_chunks::<2>()
+				.0
+				.iter()
+				.map(|bytes| u16::from_le_bytes(*bytes))
+				.collect::<Vec<_>>(),
+		)
+		.expect("decode UTF-16 probe result");
+		assert_eq!(
+			(
+				exit,
+				runtime.policy_reads.get(),
+				runtime.commands.borrow().len()
+			),
+			(0, 1, 0)
+		);
+		assert!(result.contains("policy=disabled\r\n"), "{result}");
+		assert!(
+			result.contains("reason=the CopilotCliCommand policy is disabled\r\n"),
+			"{result}"
+		);
+		assert!(!result.contains("download:"), "{result}");
+		assert!(!result.contains("unsupported"), "{result}");
+	}
+
+	#[test]
+	fn policy_command_reports_the_policy_through_the_exit_code() {
+		let report = |disabled: bool| {
+			let runtime = FakeRuntime::default();
+			runtime.policy_disabled.set(disabled);
+			let exit = run(
+				&runtime,
+				vec![
+					OsString::from("--vscode-shim"),
+					OsString::from("verbose"),
+					OsString::from("--vscode-shim"),
+					OsString::from("policy"),
+				],
+				Some(HostTarget::LinuxGnuX64),
+			);
+			let report = (
+				exit,
+				runtime.policy_reads.get(),
+				runtime.commands.borrow().len(),
+				runtime.prompts.borrow().len(),
+				runtime.messages.borrow().len(),
+				runtime.diagnostics.borrow().clone(),
+			);
+			report
+		};
+
+		assert_eq!(
+			[report(false), report(true)],
+			[
+				(
+					0,
+					1,
+					0,
+					0,
+					0,
+					vec![String::from("the CopilotCliCommand policy is allowed")]
+				),
+				(
+					10,
+					1,
+					0,
+					0,
+					0,
+					vec![String::from("the CopilotCliCommand policy is disabled")]
+				),
+			]
+		);
+	}
+
+	#[test]
+	fn disabled_policy_blocks_interactive_setup_install() {
+		let runtime = FakeRuntime::default();
+		runtime.policy_disabled.set(true);
+
+		let exit = run(
+			&runtime,
+			vec![
+				OsString::from("--vscode-shim"),
+				OsString::from("install"),
+				OsString::from("--interactive"),
+			],
+			Some(HostTarget::LinuxGnuX64),
+		);
+
+		assert_eq!(
+			(
+				exit,
+				runtime.policy_reads.get(),
+				runtime.commands.borrow().len(),
+				runtime.messages.borrow().clone(),
+			),
+			(
+				10,
+				1,
+				0,
+				vec![String::from(
+					"GitHub Copilot CLI couldn't be installed: installing GitHub Copilot CLI from VS Code is turned off by the CopilotCliCommand policy"
+				)],
 			)
 		);
 	}
@@ -1482,7 +1995,7 @@ mod tests {
 	#[cfg(not(windows))]
 	fn action_path(action: WorkflowAction) -> Option<PathBuf> {
 		match action {
-			WorkflowAction::Launch(candidate) => Some(candidate.path),
+			WorkflowAction::Launch(candidate, _) => Some(candidate.path),
 			WorkflowAction::Exit(_) => None,
 		}
 	}

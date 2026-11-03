@@ -70,8 +70,8 @@
     ]
   },
   "scripts": {
-    "compile": "npx gulp compile-extension:php-language-features",
-    "watch": "npx gulp watch-extension:php-language-features"
+    "compile": "pnpm exec gulp compile-extension:php-language-features",
+    "watch": "pnpm exec gulp watch-extension:php-language-features"
   },
   "dependencies": {
     "which": "^2.0.2"

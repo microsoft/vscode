@@ -4,12 +4,112 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, append } from '../../../../../base/browser/dom.js';
+import { $, append, Dimension } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
+import { MultiDiffEditorWidget } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
+import { DiffEditorViewMode } from '../../../../../editor/common/config/editorOptions.js';
+import { IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../platform/actions/common/menuService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { IDiffEditorOptionsService, SessionsWordWrap } from '../../../editor/common/diffEditorOptionsService.js';
+import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
+import { ISessionChangesService } from '../../browser/sessionChangesService.js';
+import { IChangesViewService } from '../../common/changesViewService.js';
 import '../../../../../editor/browser/widget/multiDiffEditor/style.css';
 import '../../browser/media/sessionChangesEditor.css';
+
+suite('SessionChangesEditor empty state layout', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('centers before resize observers run after initial layout, resizing, and restoring empty content', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IContextKeyService, new class extends MockContextKeyService {
+			override contextMatchesRules(): boolean { return true; }
+		});
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
+		}());
+		instantiationService.stub(IAgentWorkbenchLayoutService, {
+			agentWorkbenchLayout: AgentWorkbenchLayout.Desktop,
+		});
+		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() { }());
+		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
+			override readonly viewMode = constObservable<DiffEditorViewMode>('automatic');
+			override readonly diffEditorWordWrap = constObservable<SessionsWordWrap>('off');
+		}());
+		const loading = observableValue('loading', false);
+		const model = new class extends mock<MultiDiffEditorViewModel>() {
+			override readonly isLoading = loading;
+			override readonly items = constObservable([]);
+		}();
+		const viewModel = observableValue<MultiDiffEditorViewModel | undefined>('viewModel', model);
+		instantiationService.stubInstance(MultiDiffEditorWidget, {
+			viewModel,
+			onDidChangeActiveControl: Event.None,
+			setPaddingBottom() { },
+			setVariant() { },
+			setDiffLayoutOptions() { },
+			layout() { },
+			dispose() { },
+		});
+		const group = append(mainWindow.document.body, $('.editor-group-container'));
+		group.style.cssText = 'height: 0; width: 400px; --vscode-spacing-size160: 16px; --vscode-spacing-size240: 24px; --vscode-spacing-size280: 28px;';
+		store.add(toDisposable(() => group.remove()));
+		const header = append(group, $('div'));
+		header.style.height = '35px';
+		const parent = append(group, $('.editor-instance'));
+		parent.style.height = '365px';
+		const editor = store.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
+		editor.create(parent);
+		const container = parent.querySelector<HTMLElement>('.session-changes-editor-empty-state')!;
+		const content = container.querySelector<HTMLElement>('.sessions-empty-state-content')!;
+		const actions = container.querySelector<HTMLElement>('.changes-empty-state-actions')!;
+		const status = container.querySelector<HTMLElement>('.sessions-empty-state-description')!;
+		const initialTranslate = content.style.translate;
+		const results = [];
+		for (const height of [400, 640, 260, 400]) {
+			for (const headerHeight of [35, 28]) {
+				group.style.height = `${height}px`;
+				header.style.height = `${headerHeight}px`;
+				parent.style.height = `${height - headerHeight}px`;
+				editor.layout(new Dimension(400, height - headerHeight));
+				for (const restored of [false, true]) {
+					if (restored) {
+						loading.set(true, undefined);
+						group.style.height = `${height + 100}px`;
+						parent.style.height = `${height + 100 - headerHeight}px`;
+						loading.set(false, undefined);
+					}
+					const bounds = group.getBoundingClientRect();
+					results.push({
+						height, headerHeight, restored,
+						visible: !container.hidden,
+						aligned: Math.abs(actions.getBoundingClientRect().top - (bounds.top + bounds.bottom) / 2 + 42) < 1,
+						statusAboveActions: status.getBoundingClientRect().bottom < actions.getBoundingClientRect().top,
+						insideEditor: content.getBoundingClientRect().top >= container.getBoundingClientRect().top
+							&& content.getBoundingClientRect().bottom <= container.getBoundingClientRect().bottom,
+					});
+				}
+			}
+		}
+		assert.deepStrictEqual({ initialTranslate, results }, {
+			initialTranslate: '',
+			results: results.map(result => ({
+				...result, visible: true, aligned: true, statusAboveActions: true, insideEditor: true,
+			})),
+		});
+	});
+});
 
 suite('SessionChangesEditor spacing', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

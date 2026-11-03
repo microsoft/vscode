@@ -53,6 +53,8 @@ export interface IToolData {
 	readonly legacyToolReferenceFullNames?: readonly string[];
 	readonly icon?: { dark: URI; light?: URI } | ThemeIcon;
 	readonly when?: ContextKeyExpression;
+	/** Hides the tool from general discovery and requires a matching explicit `toolSessionResource` for execution. */
+	readonly sessionResource?: URI;
 	readonly tags?: readonly string[];
 	readonly displayName: string;
 	readonly userDescription?: string;
@@ -181,6 +183,8 @@ export interface IExternalPreToolUseHookResult {
 export interface IToolInvocation {
 	callId: string;
 	toolId: string;
+	/** Explicitly authorizes scoped tools for this logical session, independently of the presentation context. */
+	toolSessionResource?: URI;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	parameters: Record<string, any>;
 	tokenBudget?: number;
@@ -539,13 +543,27 @@ export class ToolSet implements IToolSet {
 	}
 
 	addToolSet(toolSet: IToolSet, tx?: ITransaction): IDisposable {
-		if (toolSet === this) {
+		if (toolSet === this || (toolSet instanceof ToolSet && toolSet._containsToolSet(this))) {
 			return Disposable.None;
 		}
 		this._toolSets.add(toolSet, tx);
 		return toDisposable(() => {
 			this._toolSets.delete(toolSet);
 		});
+	}
+
+	/** Whether `target` is nested anywhere below this tool set. */
+	private _containsToolSet(target: IToolSet, visited = new Set<IToolSet>()): boolean {
+		visited.add(this);
+		for (const child of this._toolSets) {
+			if (child === target) {
+				return true;
+			}
+			if (child instanceof ToolSet && !visited.has(child) && child._containsToolSet(target, visited)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	getTools(r?: IReader): Iterable<IToolData> {
@@ -608,6 +626,8 @@ export class ToolSetForModel {
 export interface IBeginToolCallOptions {
 	toolCallId: string;
 	toolId: string;
+	/** Explicitly authorizes scoped tools for this logical session, independently of the presentation session. */
+	toolSessionResource?: URI;
 	chatRequestId?: string;
 	sessionResource?: URI;
 	subagentInvocationId?: string;
@@ -645,13 +665,13 @@ export interface ILanguageModelToolsService {
 	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable;
 
 	/**
-	 * Get all tools currently enabled (matching `when` clauses and model).
+	 * Get all tools currently enabled (matching `when` clauses and model), excluding session-scoped tools.
 	 * @param model The language model metadata to filter tools by. If undefined, model-specific filtering is skipped.
 	 */
 	getTools(model: ILanguageModelChatMetadata | undefined): Iterable<IToolData>;
 
 	/**
-	 * Creats an observable of enabled tools in the context. Note the observable
+	 * Creates an observable of enabled tools in the context, excluding session-scoped tools. Note the observable
 	 * should be created and reused, not created per reader, for example:
 	 *
 	 * ```
@@ -666,13 +686,13 @@ export interface ILanguageModelToolsService {
 	observeTools(model: ILanguageModelChatMetadata | undefined): IObservable<readonly IToolData[]>;
 
 	/**
-	 * Get all registered tools regardless of enablement state.
+	 * Get all registered tools regardless of enablement state, excluding session-scoped tools.
 	 * Use this for configuration UIs, completions, etc. where all tools should be visible.
 	 */
 	getAllToolsIncludingDisabled(): Iterable<IToolData>;
 
 	/**
-	 * Get a tool by its ID. Does not check when clauses.
+	 * Get a tool by its ID, including session-scoped tools. Does not check when clauses.
 	 */
 	getTool(id: string): IToolData | undefined;
 

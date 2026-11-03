@@ -67,7 +67,6 @@ export class ChatQueryTitlePart extends Disposable {
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 	private readonly _renderedTitle = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private readonly _fileWidgetStore = this._register(new DisposableStore());
-	private options: IChatQueryTitlePartOptions | undefined;
 
 	public get title() {
 		return this._title;
@@ -92,6 +91,7 @@ export class ChatQueryTitlePart extends Disposable {
 		private readonly element: HTMLElement,
 		private _title: IMarkdownString | string,
 		subtitle: string | IMarkdownString | undefined,
+		private readonly options: IChatQueryTitlePartOptions | undefined,
 		@IMarkdownRendererService private readonly _renderer: IMarkdownRendererService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatMarkdownAnchorService private readonly _chatMarkdownAnchorService: IChatMarkdownAnchorService,
@@ -119,14 +119,18 @@ export class ChatQueryTitlePart extends Disposable {
 		}
 	}
 
-	setOptions(options: IChatQueryTitlePartOptions): void {
-		this.options = options;
-		this.title = this._title;
-	}
-
 	private renderTitle(value: IMarkdownString | string): IRenderedMarkdown {
-		const renderedTitle = this._renderer.render(this.toMdString(value), this.getRenderOptions());
 		this._fileWidgetStore.clear();
+		const markdown = this.toMdString(value);
+		// Literal titles need no parsing, except for Markdown's automatic links and paragraph breaks.
+		if (typeof value === 'string' && markdown.value.length <= 100_000 && !/(?:[a-z][a-z0-9+.-]*:\/\/|www\.|@|[\r\n&])/i.test(value)) {
+			const element = dom.$('div.rendered-markdown');
+			if (value) {
+				element.appendChild(dom.$('p', undefined, value.replace(/[ \t]/g, '\u00a0')));
+			}
+			return { element, dispose: () => { } };
+		}
+		const renderedTitle = this._renderer.render(markdown, this.getRenderOptions());
 		if (this.options?.renderFileWidgets) {
 			renderFileWidgets(renderedTitle.element, this._instantiationService, this._chatMarkdownAnchorService, this._fileWidgetStore);
 		}
@@ -190,6 +194,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 			elements.title,
 			title,
 			subtitle,
+			undefined,
 		));
 
 		this.messageElement = elements.message;
@@ -387,6 +392,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 			elements.title,
 			new MarkdownString(icon ? `$(${icon.id}) ${typeof title === 'string' ? title : title.value}` : typeof title === 'string' ? title : title.value),
 			subtitle,
+			undefined,
 		));
 
 		this.messageElement = elements.message;

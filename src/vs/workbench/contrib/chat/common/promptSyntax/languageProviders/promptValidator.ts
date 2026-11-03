@@ -11,9 +11,9 @@ import { IMarkerData, MarkerSeverity, MarkerTag } from '../../../../../../platfo
 import { ChatMode, IChatMode, IChatModeService } from '../../chatModes.js';
 import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
-import { ILanguageModelToolsService, SpecedToolAliases } from '../../tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, isToolSet, SpecedToolAliases } from '../../tools/languageModelToolsService.js';
 import { PromptsType, Target } from '../promptTypes.js';
-import { ISequenceValue, IHeaderAttribute, IScalarValue, isPromptFileTildePath, parseCommaSeparatedList, ParsedPromptFile, PromptHeader, IValue, PromptHeaderAttributes } from '../promptFileParser.js';
+import { IMapValue, ISequenceValue, IHeaderAttribute, IScalarValue, isPromptFileTildePath, parseCommaSeparatedList, ParsedPromptFile, PromptHeader, IValue, PromptHeaderAttributes } from '../promptFileParser.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IPromptsService } from '../service/promptsService.js';
@@ -23,10 +23,14 @@ import { Lazy } from '../../../../../../base/common/lazy.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { dirname } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { HOOKS_BY_TARGET } from '../hookTypes.js';
-import { GithubPromptHeaderAttributes } from './promptFileAttributes.js';
+import { getCanonicalAgentHookName, getValidAgentHookNames } from '../hookTypes.js';
+import { claudeAgentAttributes as promptClaudeAgentAttributes, getAttributeDefinition, GithubPromptHeaderAttributes, githubCopilotAgentAttributes, githubCopilotBodyPlaceholders } from './promptFileAttributes.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
+import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
+import { getAgentFileModelReasoningEfforts, resolveAgentFileModelIdentifier, resolveAgentFileModelIdentifiers, resolveAgentFileModels } from './promptModelResolver.js';
+import { getEffectiveAgentFileToolAvailability, resolveAgentFileToolIdentifiers, resolveAgentFileTools } from './promptToolResolver.js';
+import { getEffectiveAgentFileSkillAvailability, resolveAgentFileSkillIdentifiers, resolveAgentFileSkills } from './promptSkillResolver.js';
 
 export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -49,11 +53,13 @@ export class PromptValidator {
 		@ILogService private readonly logger: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IPathService private readonly pathService: IPathService,
+		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
+		@ILogService private readonly logService: ILogService,
 	) { }
 
 	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
 		promptAST.header?.errors.forEach(error => report(toMarker(error.message, error.range, MarkerSeverity.Error)));
-		const target = getTarget(promptType, promptAST.header ?? promptAST.uri);
+		const target = getTarget(promptType, promptAST.header ?? promptAST.uri, this.customizationHarnessService.getActiveDescriptor().customAgentTarget);
 		await this.validateHeader(promptAST, promptType, target, report);
 		await this.validateBody(promptAST, target, report);
 		await this.validateFileName(promptAST, promptType, report);
@@ -169,6 +175,10 @@ export class PromptValidator {
 		const fileReferenceChecks: Promise<void>[] = [];
 		let userHome: URI | undefined;
 		for (const ref of body.fileReferences) {
+			if (target === Target.GitHubCopilot && !ref.isMarkdownLink) {
+				report(toMarker(localize('promptValidator.copilotFileReferenceUnsupported', "Local '#file:' references are not expanded by the GitHub Copilot harness."), ref.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
+				continue;
+			}
 			if (isPromptFileTildePath(ref.content)) {
 				userHome ??= await this.pathService.userHome();
 			}
@@ -190,6 +200,21 @@ export class PromptValidator {
 						this.logger.warn(`Error checking existence of file reference '${ref.content}' resolved to '${resolved.toString()}' in prompt file '${promptAST.uri.toString()}': ${e.message}`);
 					}
 				})());
+			}
+		}
+
+		if (target === Target.GitHubCopilot) {
+			for (const placeholder of body.placeholderReferences) {
+				if (!Object.hasOwn(githubCopilotBodyPlaceholders, placeholder.name)) {
+					report(toMarker(localize('promptValidator.unknownCopilotPlaceholder', "Unknown GitHub Copilot placeholder '{{{0}}}'.", placeholder.name), placeholder.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
+				}
+			}
+			for (const variable of body.variableReferences) {
+				const tool = this.languageModelToolsService.getToolByFullReferenceName(variable.name);
+				const message = tool && isToolSet(tool)
+					? localize('promptValidator.copilotToolSetReferenceUnsupported', "Tool set '{0}' is not supported by the GitHub Copilot harness. List individual tools in the 'tools' frontmatter attribute.", variable.name)
+					: localize('promptValidator.copilotToolReferenceUnsupported', "Local '#tool:' reference '{0}' is not expanded by the GitHub Copilot harness.", variable.name);
+				report(toMarker(message, variable.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
 			}
 		}
 
@@ -246,9 +271,20 @@ export class PromptValidator {
 		const attributes = header.attributes;
 		this.checkForInvalidArguments(attributes, promptType, target, report);
 
-		this.validateName(attributes, report);
-		this.validateDescription(attributes, report);
-		this.validateArgumentHint(attributes, report);
+		const isGithubCopilotAgent = promptType === PromptsType.agent && target === Target.GitHubCopilot;
+		if (isGithubCopilotAgent) {
+			this.validateAttributesFromSchema(header, promptType, target, report);
+			if (header.getAttribute(PromptHeaderAttributes.name)?.value.type === 'scalar') {
+				this.validateName(attributes, report);
+			}
+			if (header.getAttribute(PromptHeaderAttributes.description)?.value.type === 'scalar') {
+				this.validateDescription(attributes, report);
+			}
+		} else {
+			this.validateName(attributes, report);
+			this.validateDescription(attributes, report);
+			this.validateArgumentHint(attributes, report);
+		}
 		switch (promptType) {
 			case PromptsType.prompt: {
 				const agent = await this.validateAgent(attributes, report);
@@ -266,6 +302,10 @@ export class PromptValidator {
 				break;
 
 			case PromptsType.agent: {
+				if (isGithubCopilotAgent) {
+					await this.validateCopilotAgent(attributes, target, report);
+					break;
+				}
 				this.validateTarget(attributes, report);
 				this.validateInfer(attributes, report);
 				this.validateUserInvocable(attributes, report);
@@ -280,7 +320,7 @@ export class PromptValidator {
 				} else if (target === Target.Claude) {
 					this.validateClaudeAttributes(attributes, report);
 				} else if (target === Target.GitHubCopilot) {
-					this.validateGithubPermissions(attributes, report);
+					this.validateGithubPermissions(attributes, report, false);
 				}
 				break;
 			}
@@ -289,6 +329,241 @@ export class PromptValidator {
 				this.validateUserInvocable(attributes, report);
 				this.validateDisableModelInvocation(attributes, report);
 				break;
+		}
+	}
+
+	private validateAttributesFromSchema(header: PromptHeader, promptType: PromptsType, target: Target, report: (markers: IMarkerData) => void): void {
+		const definitions = getValidAttributeNames(promptType, true, target)
+			.map(name => [name, getAttributeDefinition(name, promptType, target)] as const)
+			.filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== undefined);
+
+		for (const [name, definition] of definitions) {
+			if (definition.required && !header.getAttribute(name)) {
+				report(toMarker(localize('promptValidator.requiredAttributeMissing', "The '{0}' attribute is required.", name), header.range, MarkerSeverity.Error));
+			}
+		}
+
+		for (const attribute of header.attributes) {
+			const definition = getAttributeDefinition(attribute.key, promptType, target);
+			if (!definition) {
+				continue;
+			}
+			const name = attribute.key;
+			if (definition.allowNull && attribute.value.type === 'scalar' && attribute.value.value === 'null' && attribute.value.format === 'none') {
+				continue;
+			}
+
+			const acceptedTypes = typeof definition.type === 'string' ? [definition.type] : definition.type;
+			if (!acceptedTypes.includes(attribute.value.type)) {
+				report(toMarker(
+					localize('promptValidator.attributeTypeMismatch', "The '{0}' attribute must be {1}.", name, formatAttributeTypes(acceptedTypes, definition.allowNull)),
+					attribute.value.range,
+					MarkerSeverity.Error
+				));
+				continue;
+			}
+
+			if (definition.scalarType === 'boolean' && !isTrueOrFalse(attribute.value)) {
+				report(toMarker(localize('promptValidator.attributeMustBeBoolean', "The '{0}' attribute must be true or false.", name), attribute.value.range, MarkerSeverity.Error));
+				continue;
+			}
+
+			if (definition.enums && attribute.value.type === 'scalar') {
+				const value = attribute.value.value;
+				if (!definition.enums.some(entry => entry.name === value)) {
+					report(toMarker(
+						localize('promptValidator.attributeInvalidValue', "The '{0}' attribute must be one of: {1}.", name, definition.enums.map(entry => entry.name).join(', ')),
+						attribute.value.range,
+						MarkerSeverity.Error
+					));
+				}
+			}
+
+			if (definition.itemType && attribute.value.type === 'sequence') {
+				for (const item of attribute.value.items) {
+					if (item.type !== definition.itemType) {
+						report(toMarker(
+							localize('promptValidator.attributeItemTypeMismatch', "Each item in the '{0}' attribute must be {1}.", name, formatAttributeTypes([definition.itemType])),
+							item.range,
+							MarkerSeverity.Error
+						));
+					}
+				}
+			}
+		}
+	}
+
+	private async validateCopilotAgent(attributes: IHeaderAttribute[], target: Target, report: (markers: IMarkerData) => void): Promise<void> {
+		this.validateCopilotModel(attributes, target, report);
+		this.validateCopilotReasoningEffort(attributes, target, report);
+		this.validateCopilotModelPolicy(attributes, report);
+		this.validateCopilotInfer(attributes, report);
+		this.validateHooks(attributes, target, report);
+		this.validateGithubPermissions(attributes, report, false);
+		this.validateCopilotMcpServers(attributes, report);
+		await this.validateCopilotTools(attributes, target, report);
+		await this.validateCopilotSkills(attributes, target, report);
+	}
+
+	private async validateCopilotTools(attributes: IHeaderAttribute[], target: Target, report: (markers: IMarkerData) => void): Promise<void> {
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.tools);
+		if (!attribute || attribute.value.type !== 'sequence') {
+			return;
+		}
+		const catalogue = await resolveAgentFileTools(target, this.customizationHarnessService, this.logService, CancellationToken.None);
+		for (const item of attribute.value.items) {
+			if (item.type !== 'scalar') {
+				continue;
+			}
+			if (!catalogue.isResolved) {
+				continue;
+			}
+			const matches = resolveAgentFileToolIdentifiers(item.value, catalogue.tools);
+			const availability = getEffectiveAgentFileToolAvailability(matches);
+			if (!availability) {
+				const localTool = this.languageModelToolsService.getToolByFullReferenceName(item.value);
+				report(localTool && isToolSet(localTool)
+					? toMarker(
+						localize('promptValidator.copilotToolSetUnsupported', "Tool set '{0}' is not supported by the GitHub Copilot harness. List individual tools instead.", item.value),
+						item.range,
+						MarkerSeverity.Hint,
+						[MarkerTag.Unnecessary],
+					)
+					: toMarker(
+						localize('promptValidator.copilotToolUnknown', "Tool '{0}' is not recognized by the matching GitHub Copilot harness.", item.value),
+						item.range,
+						MarkerSeverity.Hint,
+						[MarkerTag.Unnecessary],
+					));
+			} else if (availability === 'disabled') {
+				report(toMarker(
+					localize('promptValidator.copilotToolDisabled', "Tool '{0}' is recognized but disabled for the matching GitHub Copilot harness.", item.value),
+					item.range,
+					MarkerSeverity.Hint,
+					[MarkerTag.Unnecessary],
+				));
+			} else if (availability === 'unavailable') {
+				report(toMarker(
+					localize('promptValidator.copilotToolUnavailable', "Tool '{0}' is recognized but currently unavailable for the matching GitHub Copilot harness.", item.value),
+					item.range,
+					MarkerSeverity.Hint,
+					[MarkerTag.Unnecessary],
+				));
+			}
+		}
+	}
+
+	private async validateCopilotSkills(attributes: IHeaderAttribute[], target: Target, report: (markers: IMarkerData) => void): Promise<void> {
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.skills);
+		if (!attribute || attribute.value.type !== 'sequence') {
+			return;
+		}
+		const catalogue = await resolveAgentFileSkills(target, this.customizationHarnessService, this.logService, CancellationToken.None);
+		if (!catalogue.isResolved) {
+			return;
+		}
+		for (const item of attribute.value.items) {
+			if (item.type !== 'scalar') {
+				continue;
+			}
+			const availability = getEffectiveAgentFileSkillAvailability(resolveAgentFileSkillIdentifiers(item.value, catalogue.skills));
+			if (!availability) {
+				report(toMarker(
+					localize('promptValidator.copilotSkillUnknown', "Skill '{0}' is not recognized by the matching GitHub Copilot harness.", item.value),
+					item.range,
+					MarkerSeverity.Hint,
+					[MarkerTag.Unnecessary],
+				));
+			} else if (availability === 'disabled') {
+				report(toMarker(
+					localize('promptValidator.copilotSkillDisabled', "Skill '{0}' is recognized but disabled for the matching GitHub Copilot harness.", item.value),
+					item.range,
+					MarkerSeverity.Hint,
+					[MarkerTag.Unnecessary],
+				));
+			} else if (availability === 'unavailable') {
+				report(toMarker(
+					localize('promptValidator.copilotSkillUnavailable', "Skill '{0}' is recognized but currently unavailable for the matching GitHub Copilot harness.", item.value),
+					item.range,
+					MarkerSeverity.Hint,
+					[MarkerTag.Unnecessary],
+				));
+			}
+		}
+	}
+
+	private validateCopilotModel(attributes: IHeaderAttribute[], target: Target, report: (markers: IMarkerData) => void): void {
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.model);
+		if (!attribute) {
+			return;
+		}
+		const modelValues: IScalarValue[] = [];
+		if (attribute.value.type === 'scalar') {
+			if (attribute.value.value.trim().length === 0) {
+				report(toMarker(localize('promptValidator.modelMustBeNonEmpty', "The 'model' attribute must be a non-empty string."), attribute.value.range, MarkerSeverity.Error));
+			} else {
+				modelValues.push(attribute.value);
+			}
+		} else if (attribute.value.type !== 'sequence') {
+			return;
+		} else if (attribute.value.items.length === 0) {
+			report(toMarker(localize('promptValidator.modelArrayMustNotBeEmpty', "The 'model' array must not be empty."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		} else {
+			for (const item of attribute.value.items) {
+				if (item.type === 'scalar' && item.value.trim().length === 0) {
+					report(toMarker(localize('promptValidator.modelArrayItemMustBeNonEmpty', "Model names in the array must be non-empty strings."), item.range, MarkerSeverity.Error));
+				} else if (item.type === 'scalar') {
+					modelValues.push(item);
+				}
+			}
+		}
+
+		const catalogue = resolveAgentFileModels(target, this.customizationHarnessService, this.languageModelsService);
+		if (!catalogue.isResolved) {
+			return;
+		}
+		for (const model of modelValues) {
+			if (!resolveAgentFileModelIdentifier(model.value, catalogue.models)) {
+				report(toMarker(localize('promptValidator.copilotModelUnavailable', "Model '{0}' is not available for the GitHub Copilot harness.", model.value), model.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
+			}
+		}
+	}
+
+	private validateCopilotReasoningEffort(attributes: IHeaderAttribute[], target: Target, report: (markers: IMarkerData) => void): void {
+		const effort = attributes.find(attribute => attribute.key === PromptHeaderAttributes.reasoningEffort);
+		const modelAttribute = attributes.find(attribute => attribute.key === PromptHeaderAttributes.model);
+		if (effort?.value.type !== 'scalar' || !modelAttribute) {
+			return;
+		}
+		const selectedModelValues = modelAttribute.value.type === 'scalar'
+			? [modelAttribute.value.value]
+			: modelAttribute.value.type === 'sequence'
+				? modelAttribute.value.items.filter((item): item is IScalarValue => item.type === 'scalar').map(item => item.value)
+				: [];
+		const catalogue = resolveAgentFileModels(target, this.customizationHarnessService, this.languageModelsService);
+		if (!catalogue.isResolved) {
+			return;
+		}
+		const selectedModels = selectedModelValues
+			.flatMap(model => resolveAgentFileModelIdentifiers(model, catalogue.models));
+		const allowedEfforts = new Set(selectedModels.flatMap(model => getAgentFileModelReasoningEfforts(model)));
+		if (allowedEfforts.size > 0 && !allowedEfforts.has(effort.value.value)) {
+			report(toMarker(localize('promptValidator.copilotReasoningEffortUnavailable', "Reasoning effort '{0}' is not supported by the selected model.", effort.value.value), effort.value.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
+		}
+	}
+
+	private validateCopilotModelPolicy(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {
+		const policy = attributes.find(attr => attr.key === PromptHeaderAttributes.modelPolicy);
+		if (policy?.value.type === 'scalar' && policy.value.value === 'required' && !attributes.some(attr => attr.key === PromptHeaderAttributes.model)) {
+			report(toMarker(localize('promptValidator.requiredModelPolicyNeedsModel', "The 'model-policy' attribute has no effect when 'model' is not specified."), policy.value.range, MarkerSeverity.Warning));
+		}
+	}
+
+	private validateCopilotInfer(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {
+		const infer = attributes.find(attr => attr.key === PromptHeaderAttributes.infer);
+		if (infer) {
+			report(toMarker(localize('promptValidator.copilotInferLegacy', "The 'infer' attribute is legacy. Use 'disable-model-invocation' instead."), infer.value.range, MarkerSeverity.Warning, [MarkerTag.Deprecated]));
 		}
 	}
 
@@ -435,8 +710,8 @@ export class PromptValidator {
 
 	private validateClaudeAttributes(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {
 		// vaidate all claude-specific attributes that have enum values
-		for (const claudeAttributeName in claudeAgentAttributes) {
-			const claudeAttribute = claudeAgentAttributes[claudeAttributeName];
+		for (const claudeAttributeName in promptClaudeAgentAttributes) {
+			const claudeAttribute = promptClaudeAgentAttributes[claudeAttributeName];
 			const enumValues = claudeAttribute.enums;
 			if (enumValues) {
 				const attribute = attributes.find(attr => attr.key === claudeAttributeName);
@@ -738,24 +1013,30 @@ export class PromptValidator {
 			report(toMarker(localize('promptValidator.hooksMustBeMap', "The 'hooks' attribute must be a map of hook event types to command arrays."), attribute.value.range, MarkerSeverity.Error));
 			return;
 		}
-		const validHookNames = new Set(Object.keys(HOOKS_BY_TARGET[target] ?? HOOKS_BY_TARGET[Target.Undefined]));
+		const canonicalHookNames = getValidAgentHookNames(target, false);
+		const validHookNames = new Set(getValidAgentHookNames(target, true));
 		for (const prop of attribute.value.properties) {
 			if (!validHookNames.has(prop.key.value)) {
-				report(toMarker(localize('promptValidator.unknownHookType', "Unknown hook event type '{0}'. Supported: {1}.", prop.key.value, Array.from(validHookNames).join(', ')), prop.key.range, MarkerSeverity.Warning));
+				report(toMarker(localize('promptValidator.unknownHookType', "Unknown hook event type '{0}'. Supported: {1}.", prop.key.value, canonicalHookNames.join(', ')), prop.key.range, MarkerSeverity.Warning));
 			}
 			if (prop.value.type !== 'sequence') {
 				report(toMarker(localize('promptValidator.hookValueMustBeArray', "Hook event '{0}' must have an array of command objects as its value.", prop.key.value), prop.value.range, MarkerSeverity.Error));
 				continue;
 			}
 			for (const item of prop.value.items) {
-				this.validateHookCommand(item, target, report);
+				this.validateHookCommand(item, target, prop.key.value, report);
 			}
 		}
 	}
 
-	private validateHookCommand(item: IValue, target: Target, report: (markers: IMarkerData) => void): void {
+	private validateHookCommand(item: IValue, target: Target, eventName: string, report: (markers: IMarkerData) => void): void {
 		if (item.type !== 'map') {
 			report(toMarker(localize('promptValidator.hookCommandMustBeObject', "Each hook command must be an object."), item.range, MarkerSeverity.Error));
+			return;
+		}
+
+		if (target === Target.GitHubCopilot) {
+			this.validateCopilotHookAction(item, eventName, report);
 			return;
 		}
 
@@ -773,21 +1054,14 @@ export class PromptValidator {
 				return;
 			}
 			for (const nestedItem of hooksProperty.value.items) {
-				this.validateHookCommand(nestedItem, target, report);
+				this.validateHookCommand(nestedItem, target, eventName, report);
 			}
 			return;
 		}
 
-		const isCopilotCli = target === Target.GitHubCopilot;
-
 		// Determine valid and command-providing properties based on target
-		const validCommandFields = isCopilotCli
-			? new Set(['bash', 'powershell'])
-			: new Set(['command', 'windows', 'linux', 'osx', 'bash', 'powershell']);
-
-		const validProperties = isCopilotCli
-			? new Set(['type', 'bash', 'powershell', 'cwd', 'env', 'timeoutSec'])
-			: new Set(['type', 'command', 'windows', 'linux', 'osx', 'bash', 'powershell', 'cwd', 'env', 'timeout']);
+		const validCommandFields = new Set(['command', 'windows', 'linux', 'osx', 'bash', 'powershell']);
+		const validProperties = new Set(['type', 'command', 'windows', 'linux', 'osx', 'bash', 'powershell', 'cwd', 'env', 'timeout']);
 
 		let hasType = false;
 		let hasCommandField = false;
@@ -834,11 +1108,153 @@ export class PromptValidator {
 			report(toMarker(localize('promptValidator.hookMissingType', "Hook command is missing required property 'type'."), item.range, MarkerSeverity.Error));
 		}
 		if (!hasCommandField) {
-			if (isCopilotCli) {
-				report(toMarker(localize('promptValidator.hookMissingCopilotCommand', "Hook command must specify at least one of 'bash' or 'powershell'."), item.range, MarkerSeverity.Error));
-			} else {
-				report(toMarker(localize('promptValidator.hookMissingCommand', "Hook command must specify at least one of 'command', 'windows', 'linux', or 'osx'."), item.range, MarkerSeverity.Error));
+			report(toMarker(localize('promptValidator.hookMissingCommand', "Hook command must specify at least one of 'command', 'windows', 'linux', or 'osx'."), item.range, MarkerSeverity.Error));
+		}
+	}
+
+	private validateCopilotHookAction(item: IMapValue, eventName: string, report: (markers: IMarkerData) => void): void {
+		const properties = new Map(item.properties.map(property => [property.key.value, property]));
+		const typeProperty = properties.get('type');
+		if (typeProperty && typeProperty.value.type !== 'scalar') {
+			report(toMarker(localize('promptValidator.hookActionTypeMustBeString', "The 'type' property in a hook action must be a string."), typeProperty.value.range, MarkerSeverity.Error));
+			return;
+		}
+		const actionType = typeProperty?.value.type === 'scalar' ? typeProperty.value.value : 'command';
+		switch (actionType) {
+			case 'command':
+				this.validateCopilotCommandHook(item, report);
+				break;
+			case 'http':
+				this.validateCopilotHttpHook(item, report);
+				break;
+			case 'prompt':
+				this.validateCopilotPromptHook(item, eventName, report);
+				break;
+			default:
+				report(toMarker(localize('promptValidator.unknownHookActionType', "Unknown hook action type '{0}'. Supported: command, http, prompt.", actionType), typeProperty?.value.range ?? item.range, MarkerSeverity.Error));
+		}
+	}
+
+	private validateCopilotCommandHook(item: IMapValue, report: (markers: IMarkerData) => void): void {
+		const shellFields = new Set(['bash', 'powershell', 'command', 'windows', 'linux', 'osx']);
+		const validProperties = new Set(['type', ...shellFields, 'exec', 'args', 'cwd', 'env', 'timeoutSec', 'timeout', 'matcher']);
+		let hasShellCommand = false;
+		let hasExec = false;
+		for (const property of item.properties) {
+			const name = property.key.value;
+			if (!validProperties.has(name)) {
+				report(toMarker(localize('promptValidator.unknownHookProperty', "Unknown property '{0}' in hook command.", name), property.key.range, MarkerSeverity.Warning));
+				continue;
 			}
+			if (shellFields.has(name)) {
+				hasShellCommand = true;
+				this.validateNonEmptyHookString(name, property.value, report);
+			} else if (name === 'exec') {
+				hasExec = true;
+				this.validateNonEmptyHookString(name, property.value, report);
+			} else if (name === 'args') {
+				this.validateHookStringArray(name, property.value, report);
+			} else if (name === 'cwd' || name === 'matcher') {
+				this.validateHookString(name, property.value, report);
+			} else if (name === 'env') {
+				this.validateHookStringMap(name, property.value, report);
+			} else if (name === 'timeout' || name === 'timeoutSec') {
+				this.validateHookTimeout(name, property.value, report);
+			}
+		}
+		if (hasShellCommand === hasExec) {
+			report(toMarker(localize('promptValidator.hookCommandOrExec', "Hook command must specify either a shell command or 'exec', but not both."), item.range, MarkerSeverity.Error));
+		}
+		if (item.properties.some(property => property.key.value === 'args') && !hasExec) {
+			report(toMarker(localize('promptValidator.hookArgsRequireExec', "The 'args' property requires 'exec'."), item.range, MarkerSeverity.Error));
+		}
+	}
+
+	private validateCopilotHttpHook(item: IMapValue, report: (markers: IMarkerData) => void): void {
+		const validProperties = new Set(['type', 'url', 'headers', 'allowedEnvVars', 'timeoutSec', 'timeout', 'matcher']);
+		const url = item.properties.find(property => property.key.value === 'url');
+		if (!url) {
+			report(toMarker(localize('promptValidator.httpHookUrlRequired', "HTTP hook action requires the 'url' property."), item.range, MarkerSeverity.Error));
+		}
+		for (const property of item.properties) {
+			const name = property.key.value;
+			if (!validProperties.has(name)) {
+				report(toMarker(localize('promptValidator.unknownHttpHookProperty', "Unknown property '{0}' in HTTP hook action.", name), property.key.range, MarkerSeverity.Warning));
+				continue;
+			}
+			if (name === 'url') {
+				if (property.value.type !== 'scalar' || !/^https?:\/\//i.test(property.value.value)) {
+					report(toMarker(localize('promptValidator.httpHookUrlInvalid', "The 'url' property in an HTTP hook action must be an HTTP or HTTPS URL."), property.value.range, MarkerSeverity.Error));
+				}
+			} else if (name === 'headers') {
+				this.validateHookStringMap(name, property.value, report);
+			} else if (name === 'allowedEnvVars') {
+				this.validateHookStringArray(name, property.value, report);
+			} else if (name === 'matcher') {
+				this.validateHookString(name, property.value, report);
+			} else if (name === 'timeout' || name === 'timeoutSec') {
+				this.validateHookTimeout(name, property.value, report);
+			}
+		}
+	}
+
+	private validateCopilotPromptHook(item: IMapValue, eventName: string, report: (markers: IMarkerData) => void): void {
+		if (getCanonicalAgentHookName(Target.GitHubCopilot, eventName) !== 'sessionStart') {
+			report(toMarker(localize('promptValidator.promptHookOnlySessionStart', "Prompt hook actions are only supported for 'sessionStart'."), item.range, MarkerSeverity.Error));
+		}
+		const prompt = item.properties.find(property => property.key.value === 'prompt');
+		if (!prompt) {
+			report(toMarker(localize('promptValidator.promptHookValueRequired', "Prompt hook action requires the 'prompt' property."), item.range, MarkerSeverity.Error));
+		}
+		for (const property of item.properties) {
+			if (property.key.value !== 'type' && property.key.value !== 'prompt') {
+				report(toMarker(localize('promptValidator.unknownPromptHookProperty', "Unknown property '{0}' in prompt hook action.", property.key.value), property.key.range, MarkerSeverity.Warning));
+			}
+		}
+		if (prompt) {
+			this.validateNonEmptyHookString('prompt', prompt.value, report);
+		}
+	}
+
+	private validateNonEmptyHookString(name: string, value: IValue, report: (markers: IMarkerData) => void): void {
+		if (value.type !== 'scalar' || value.value.trim().length === 0) {
+			report(toMarker(localize('promptValidator.hookPropertyMustBeNonEmptyString', "The '{0}' property in a hook action must be a non-empty string.", name), value.range, MarkerSeverity.Error));
+		}
+	}
+
+	private validateHookString(name: string, value: IValue, report: (markers: IMarkerData) => void): void {
+		if (value.type !== 'scalar') {
+			report(toMarker(localize('promptValidator.hookPropertyMustBeString', "The '{0}' property in a hook action must be a string.", name), value.range, MarkerSeverity.Error));
+		}
+	}
+
+	private validateHookStringArray(name: string, value: IValue, report: (markers: IMarkerData) => void): void {
+		if (value.type !== 'sequence') {
+			report(toMarker(localize('promptValidator.hookPropertyMustBeStringArray', "The '{0}' property in a hook action must be an array of strings.", name), value.range, MarkerSeverity.Error));
+			return;
+		}
+		for (const item of value.items) {
+			if (item.type !== 'scalar') {
+				report(toMarker(localize('promptValidator.hookPropertyItemMustBeString', "Each item in the '{0}' property must be a string.", name), item.range, MarkerSeverity.Error));
+			}
+		}
+	}
+
+	private validateHookStringMap(name: string, value: IValue, report: (markers: IMarkerData) => void): void {
+		if (value.type !== 'map') {
+			report(toMarker(localize('promptValidator.hookPropertyMustBeStringMap', "The '{0}' property in a hook action must be an object with string values.", name), value.range, MarkerSeverity.Error));
+			return;
+		}
+		for (const property of value.properties) {
+			if (property.value.type !== 'scalar') {
+				report(toMarker(localize('promptValidator.hookPropertyValueMustBeString', "Each value in the '{0}' property must be a string.", name), property.value.range, MarkerSeverity.Error));
+			}
+		}
+	}
+
+	private validateHookTimeout(name: string, value: IValue, report: (markers: IMarkerData) => void): void {
+		if (value.type !== 'scalar' || value.format !== 'none' || !Number.isFinite(Number(value.value)) || Number(value.value) <= 0) {
+			report(toMarker(localize('promptValidator.hookTimeoutMustBePositiveNumber', "The '{0}' property in a hook action must be a positive number.", name), value.range, MarkerSeverity.Error));
 		}
 	}
 
@@ -1003,18 +1419,32 @@ export class PromptValidator {
 		}
 	}
 
-	private validateGithubPermissions(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {
+	private validateGithubPermissions(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void, validateAttributeType = true): void {
 		const attribute = attributes.find(attr => attr.key === GithubPromptHeaderAttributes.github);
 		if (!attribute) {
 			return;
 		}
 		if (attribute.value.type !== 'map') {
-			report(toMarker(localize('promptValidator.githubMustBeMap', "The 'github' attribute must be an object."), attribute.value.range, MarkerSeverity.Error));
+			if (validateAttributeType) {
+				report(toMarker(localize('promptValidator.githubMustBeMap', "The 'github' attribute must be an object."), attribute.value.range, MarkerSeverity.Error));
+			}
 			return;
 		}
 		for (const prop of attribute.value.properties) {
+			if (prop.key.value === 'toolsets') {
+				if (prop.value.type !== 'sequence') {
+					report(toMarker(localize('promptValidator.githubToolsetsMustBeArray', "The 'toolsets' property must be an array of strings."), prop.value.range, MarkerSeverity.Error));
+					continue;
+				}
+				for (const item of prop.value.items) {
+					if (item.type !== 'scalar') {
+						report(toMarker(localize('promptValidator.githubToolsetMustBeString', "Each GitHub toolset must be a string."), item.range, MarkerSeverity.Error));
+					}
+				}
+				continue;
+			}
 			if (prop.key.value !== 'permissions') {
-				report(toMarker(localize('promptValidator.unknownGithubProperty', "Unknown property '{0}' in 'github' object. Supported: 'permissions'.", prop.key.value), prop.key.range, MarkerSeverity.Warning));
+				report(toMarker(localize('promptValidator.unknownGithubProperty', "Unknown property '{0}' in 'github' object. Supported: 'permissions', 'toolsets'.", prop.key.value), prop.key.range, MarkerSeverity.Warning));
 				continue;
 			}
 			if (prop.value.type !== 'map') {
@@ -1040,6 +1470,102 @@ export class PromptValidator {
 			}
 		}
 	}
+
+	private validateCopilotMcpServers(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {
+		const attribute = attributes.find(attr => attr.key === GithubPromptHeaderAttributes.mcpServers);
+		if (!attribute || isNullScalar(attribute.value) || attribute.value.type !== 'map') {
+			return;
+		}
+		for (const server of attribute.value.properties) {
+			if (server.value.type !== 'map') {
+				report(toMarker(localize('promptValidator.mcpServerMustBeObject', "MCP server '{0}' must be an object.", server.key.value), server.value.range, MarkerSeverity.Error));
+				continue;
+			}
+			this.validateCopilotMcpServer(server.key.value, server.value, report);
+		}
+	}
+
+	private validateCopilotMcpServer(name: string, server: IMapValue, report: (markers: IMarkerData) => void): void {
+		const properties = new Map(server.properties.map(property => [property.key.value, property]));
+		const type = properties.get('type')?.value;
+		const typeValue = type?.type === 'scalar' ? type.value : undefined;
+		const isRemote = properties.has('url') || typeValue === 'http' || typeValue === 'sse';
+		const required = isRemote ? ['type', 'url', 'tools'] : ['command', 'args', 'tools'];
+		for (const property of required) {
+			if (!properties.has(property)) {
+				report(toMarker(localize('promptValidator.mcpServerPropertyRequired', "MCP server '{0}' requires the '{1}' property.", name, property), server.range, MarkerSeverity.Error));
+			}
+		}
+
+		const allowed = new Set(isRemote
+			? ['type', 'url', 'tools', 'headers', 'timeout', 'deferTools']
+			: ['type', 'command', 'args', 'tools', 'cwd', 'env', 'timeout', 'deferTools']);
+		for (const property of server.properties) {
+			const propertyName = property.key.value;
+			if (!allowed.has(propertyName)) {
+				report(toMarker(localize('promptValidator.unknownMcpServerProperty', "Unknown property '{0}' in MCP server '{1}'.", propertyName, name), property.key.range, MarkerSeverity.Warning));
+				continue;
+			}
+			switch (propertyName) {
+				case 'type': {
+					const validTypes = isRemote ? ['http', 'sse'] : ['local', 'stdio'];
+					if (property.value.type !== 'scalar' || !validTypes.includes(property.value.value)) {
+						report(toMarker(localize('promptValidator.invalidMcpServerType', "The 'type' property for MCP server '{0}' must be one of: {1}.", name, validTypes.join(', ')), property.value.range, MarkerSeverity.Error));
+					}
+					break;
+				}
+				case 'command':
+				case 'cwd':
+				case 'url':
+					if (property.value.type !== 'scalar') {
+						report(toMarker(localize('promptValidator.mcpServerPropertyMustBeString', "The '{0}' property for MCP server '{1}' must be a string.", propertyName, name), property.value.range, MarkerSeverity.Error));
+					}
+					break;
+				case 'args':
+				case 'tools':
+					this.validateStringArray(propertyName, name, property.value, report);
+					break;
+				case 'env':
+				case 'headers':
+					this.validateStringMap(propertyName, name, property.value, report);
+					break;
+				case 'timeout':
+					if (property.value.type !== 'scalar' || !/^[1-9]\d*$/.test(property.value.value) || property.value.format !== 'none') {
+						report(toMarker(localize('promptValidator.mcpServerTimeoutMustBePositiveInteger', "The 'timeout' property for MCP server '{0}' must be a positive integer.", name), property.value.range, MarkerSeverity.Error));
+					}
+					break;
+				case 'deferTools':
+					if (property.value.type !== 'scalar' || (property.value.value !== 'auto' && property.value.value !== 'never')) {
+						report(toMarker(localize('promptValidator.mcpServerDeferToolsInvalid', "The 'deferTools' property for MCP server '{0}' must be 'auto' or 'never'.", name), property.value.range, MarkerSeverity.Error));
+					}
+					break;
+			}
+		}
+	}
+
+	private validateStringArray(propertyName: string, serverName: string, value: IValue, report: (markers: IMarkerData) => void): void {
+		if (value.type !== 'sequence') {
+			report(toMarker(localize('promptValidator.mcpServerPropertyMustBeStringArray', "The '{0}' property for MCP server '{1}' must be an array of strings.", propertyName, serverName), value.range, MarkerSeverity.Error));
+			return;
+		}
+		for (const item of value.items) {
+			if (item.type !== 'scalar') {
+				report(toMarker(localize('promptValidator.mcpServerPropertyItemMustBeString', "Each item in the '{0}' property for MCP server '{1}' must be a string.", propertyName, serverName), item.range, MarkerSeverity.Error));
+			}
+		}
+	}
+
+	private validateStringMap(propertyName: string, serverName: string, value: IValue, report: (markers: IMarkerData) => void): void {
+		if (value.type !== 'map') {
+			report(toMarker(localize('promptValidator.mcpServerPropertyMustBeStringMap', "The '{0}' property for MCP server '{1}' must be an object with string values.", propertyName, serverName), value.range, MarkerSeverity.Error));
+			return;
+		}
+		for (const property of value.properties) {
+			if (property.value.type !== 'scalar') {
+				report(toMarker(localize('promptValidator.mcpServerPropertyValueMustBeString', "Each value in the '{0}' property for MCP server '{1}' must be a string.", propertyName, serverName), property.value.range, MarkerSeverity.Error));
+			}
+		}
+	}
 }
 
 export const githubPermissionScopes: Record<string, { allowedValues: string[]; description: string }> = {
@@ -1061,6 +1587,24 @@ function isTrueOrFalse(value: IValue): boolean {
 	return false;
 }
 
+function isNullScalar(value: IValue): boolean {
+	return value.type === 'scalar' && value.value === 'null' && value.format === 'none';
+}
+
+function formatAttributeTypes(types: readonly IValue['type'][], allowNull = false): string {
+	const labels: string[] = types.map(type => {
+		switch (type) {
+			case 'scalar': return localize('promptValidator.scalarValueType', "a scalar value");
+			case 'sequence': return localize('promptValidator.sequenceValueType', "an array");
+			case 'map': return localize('promptValidator.mapValueType', "an object");
+		}
+	});
+	if (allowNull) {
+		labels.push(localize('promptValidator.nullValueType', "null"));
+	}
+	return labels.length === 1 ? labels[0] : `${labels.slice(0, -1).join(', ')} or ${labels.at(-1)}`;
+}
+
 const allAttributeNames: Record<PromptsType, string[]> = {
 	[PromptsType.prompt]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.mode, PromptHeaderAttributes.agent, PromptHeaderAttributes.argumentHint],
 	[PromptsType.instructions]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.applyTo, PromptHeaderAttributes.excludeAgent],
@@ -1068,7 +1612,7 @@ const allAttributeNames: Record<PromptsType, string[]> = {
 	[PromptsType.skill]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.license, PromptHeaderAttributes.compatibility, PromptHeaderAttributes.metadata, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.disableModelInvocation, PromptHeaderAttributes.context],
 	[PromptsType.hook]: [], // hooks are JSON files, not markdown with YAML frontmatter
 };
-const githubCopilotAgentAttributeNames = [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.tools, PromptHeaderAttributes.target, PromptHeaderAttributes.model, PromptHeaderAttributes.reasoningEffort, GithubPromptHeaderAttributes.mcpServers, GithubPromptHeaderAttributes.github, PromptHeaderAttributes.infer];
+const githubCopilotAgentAttributeNames = Object.keys(githubCopilotAgentAttributes);
 const recommendedAttributeNames: Record<PromptsType, string[]> = {
 	[PromptsType.prompt]: allAttributeNames[PromptsType.prompt].filter(name => !isNonRecommendedAttribute(name)),
 	[PromptsType.instructions]: allAttributeNames[PromptsType.instructions].filter(name => !isNonRecommendedAttribute(name)),
@@ -1179,15 +1723,6 @@ export function getAttributeDescription(attributeName: string, promptType: Promp
 	}
 	return undefined;
 }
-
-// The list of tools known to be used by GitHub Copilot custom agents
-export const knownGithubCopilotTools = [
-	{ name: SpecedToolAliases.execute, description: localize('githubCopilot.execute', 'Execute commands') },
-	{ name: SpecedToolAliases.read, description: localize('githubCopilot.read', 'Read files') },
-	{ name: SpecedToolAliases.edit, description: localize('githubCopilot.edit', 'Edit files') },
-	{ name: SpecedToolAliases.search, description: localize('githubCopilot.search', 'Search files') },
-	{ name: SpecedToolAliases.agent, description: localize('githubCopilot.agent', 'Use subagents') },
-];
 
 export interface IValueEntry {
 	readonly name: string;
@@ -1326,7 +1861,7 @@ export function isVSCodeOrDefaultTarget(target: Target): boolean {
 	return target === Target.VSCode || target === Target.Undefined;
 }
 
-export function getTarget(promptType: PromptsType, header: PromptHeader | URI): Target {
+export function getTarget(promptType: PromptsType, header: PromptHeader | URI, defaultTarget = Target.Undefined): Target {
 	const uri = header instanceof URI ? header : header.uri;
 	if (promptType === PromptsType.agent) {
 		const parentDir = dirname(uri);
@@ -1339,7 +1874,7 @@ export function getTarget(promptType: PromptsType, header: PromptHeader | URI): 
 				return target;
 			}
 		}
-		return Target.Undefined;
+		return defaultTarget;
 	} else if (promptType === PromptsType.instructions) {
 		if (isInClaudeRulesFolder(uri)) {
 			return Target.Claude;

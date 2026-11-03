@@ -141,4 +141,29 @@ suite('CommandLineAutoApproveAnalyzer', () => {
 		strictEqual(result.customActions, undefined);
 		deepStrictEqual(prepareLogs.map(e => (e as { autoApproveResult: string }).autoApproveResult), ['manual']);
 	});
+
+	test('should log the deciding rule key forms without rule text', async () => {
+		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
+		setConfig(TerminalChatAgentToolsSettingId.AutoApprove, {
+			'git status': true,
+			'/^make (all|test)$/': true,
+			'./scripts/clean.sh': false,
+		});
+
+		parseResult = { subCommands: ['git status', 'make all'], hasUnanalyzableSyntax: false };
+		await analyzer.analyze(createOptions({ commandLine: 'git status && make all' }));
+		parseResult = { subCommands: ['./scripts/clean.sh'], hasUnanalyzableSyntax: false };
+		await analyzer.analyze(createOptions({ commandLine: './scripts/clean.sh' }));
+		parseResult = { subCommands: ['unknown-command'], hasUnanalyzableSyntax: false };
+		await analyzer.analyze(createOptions({ commandLine: 'unknown-command' }));
+
+		deepStrictEqual(prepareLogs.map(e => {
+			const { autoApproveResult, autoApproveRuleKeyForm } = e as { autoApproveResult: string; autoApproveRuleKeyForm: string | undefined };
+			return { autoApproveResult, autoApproveRuleKeyForm };
+		}), [
+			{ autoApproveResult: 'approved', autoApproveRuleKeyForm: 'plain,regex' },
+			{ autoApproveResult: 'denied', autoApproveRuleKeyForm: 'path' },
+			{ autoApproveResult: 'manual', autoApproveRuleKeyForm: undefined },
+		]);
+	});
 });

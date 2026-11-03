@@ -1,0 +1,52 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "MOVE_LONE_READY".
+    response:
+      content: MOVE_LONE_READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call move_session exactly once with session "agent-host-session://codex/${uuid_0}" and into "agent-host-session://codex/${uuid_1}", then reply exactly "moved".
+    response:
+      content:
+        - type: text
+          text: Got it — moving that session now.
+        - type: tool_use
+          id: toolcall_0
+          name: move_session
+          input:
+            session: agent-host-session://codex/${uuid_0}
+            into: agent-host-session://codex/${uuid_1}
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call move_session exactly once with session "agent-host-session://codex/${uuid_0}" and into "agent-host-session://codex/${uuid_1}", then reply exactly "moved".
+        - role: assistant
+          content: Got it — moving that session now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: move_session
+              input:
+                session: agent-host-session://codex/${uuid_0}
+                into: agent-host-session://codex/${uuid_1}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Session moved into agent-host-session://codex/${uuid_1} as a nested session (agent-host-session://codex/${uuid_1}?chat=${uuid_2}).
+    response:
+      content: moved
+      stopReason: end_turn

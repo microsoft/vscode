@@ -18,6 +18,7 @@ export class ActionsClient implements IActionsClient {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
+				domain: 'actions',
 				method: 'GET',
 				path: withQuery(`${repositoryPath(repository)}/actions/runs`, { ...query }),
 				authentication: 'optional',
@@ -36,6 +37,7 @@ export class ActionsClient implements IActionsClient {
 	async getRun(repository: RepositoryRef, runId: number, signal: AbortSignal, options?: GetWorkflowRunOptions): Promise<WorkflowRun> {
 		const { attempt, ...requestOptions } = options ?? {};
 		return this._client.request({
+			domain: 'actions',
 			method: 'GET',
 			path: attempt === undefined ? runPath(repository, runId) : `${runPath(repository, runId)}/attempts/${numberSegment(attempt)}`,
 			authentication: 'optional',
@@ -48,6 +50,7 @@ export class ActionsClient implements IActionsClient {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
+				domain: 'actions',
 				method: 'GET',
 				path: withQuery(`${runPath(repository, runId)}/jobs`, { ...query }),
 				authentication: 'optional',
@@ -67,6 +70,7 @@ export class ActionsClient implements IActionsClient {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
+				domain: 'actions',
 				method: 'GET',
 				path: withQuery(`${runPath(repository, runId)}/attempts/${numberSegment(attempt)}/jobs`, { ...query }),
 				authentication: 'optional',
@@ -84,6 +88,7 @@ export class ActionsClient implements IActionsClient {
 
 	async getJob(repository: RepositoryRef, jobId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<WorkflowJob> {
 		return this._client.request({
+			domain: 'actions',
 			method: 'GET',
 			path: `${repositoryPath(repository)}/actions/jobs/${numberSegment(jobId)}`,
 			authentication: 'optional',
@@ -95,6 +100,7 @@ export class ActionsClient implements IActionsClient {
 	/** Unsupported by browser Fetch, which hides the status and headers of manual redirects. */
 	async getJobLogRedirect(repository: RepositoryRef, jobId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<DownloadRedirect> {
 		const url = await this._client.request({
+			domain: 'actions',
 			method: 'GET',
 			path: `${repositoryPath(repository)}/actions/jobs/${numberSegment(jobId)}/logs`,
 			authentication: 'required',
@@ -109,6 +115,7 @@ export class ActionsClient implements IActionsClient {
 	/** Unsupported by browser Fetch, which hides the status and headers of manual redirects. */
 	async getRunLogRedirect(repository: RepositoryRef, runId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<DownloadRedirect> {
 		const url = await this._client.request({
+			domain: 'actions',
 			method: 'GET',
 			path: `${runPath(repository, runId)}/logs`,
 			authentication: 'required',
@@ -123,6 +130,7 @@ export class ActionsClient implements IActionsClient {
 	async rerun(repository: RepositoryRef, runId: number, signal: AbortSignal, options?: RerunOptions): Promise<void> {
 		const { enableDebugLogging, ...requestOptions } = options ?? {};
 		return this._client.request({
+			domain: 'actions',
 			method: 'POST',
 			path: `${runPath(repository, runId)}/rerun`,
 			body: { enable_debug_logging: enableDebugLogging },
@@ -136,6 +144,7 @@ export class ActionsClient implements IActionsClient {
 	async rerunFailedJobs(repository: RepositoryRef, runId: number, signal: AbortSignal, options?: RerunOptions): Promise<void> {
 		const { enableDebugLogging, ...requestOptions } = options ?? {};
 		return this._client.request({
+			domain: 'actions',
 			method: 'POST',
 			path: `${runPath(repository, runId)}/rerun-failed-jobs`,
 			body: { enable_debug_logging: enableDebugLogging },
@@ -149,6 +158,7 @@ export class ActionsClient implements IActionsClient {
 	async rerunJob(repository: RepositoryRef, jobId: number, signal: AbortSignal, options?: RerunOptions): Promise<void> {
 		const { enableDebugLogging, ...requestOptions } = options ?? {};
 		return this._client.request({
+			domain: 'actions',
 			method: 'POST',
 			path: `${repositoryPath(repository)}/actions/jobs/${numberSegment(jobId)}/rerun`,
 			body: { enable_debug_logging: enableDebugLogging },
@@ -161,6 +171,7 @@ export class ActionsClient implements IActionsClient {
 
 	async cancel(repository: RepositoryRef, runId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<void> {
 		return this._client.request({
+			domain: 'actions',
 			method: 'POST',
 			path: `${runPath(repository, runId)}/cancel`,
 			authentication: 'required',
@@ -216,13 +227,13 @@ const parseJob = parse.object<WorkflowJob>({
 	conclusion: parse.nullable(parseCheckConclusion),
 	html_url: parse.nullable(parse.string),
 	check_run_url: parse.nonEmptyString,
-	started_at: parse.dateTime,
+	started_at: parse.nullable(parse.dateTime),
 	completed_at: parse.nullable(parse.dateTime),
-	labels: parse.strings,
+	labels: parse.optional(parse.strings),
 	steps: parse.optional(parse.arrayOf(parse.object({
 		name: parse.string,
 		number: parse.integer,
-		status: parse.oneOf('queued', 'in_progress', 'completed'),
+		status: parseCheckStatus,
 		conclusion: parse.nullable(parse.string),
 		started_at: parse.optional(parse.nullable(parse.dateTime)),
 		completed_at: parse.optional(parse.nullable(parse.dateTime)),

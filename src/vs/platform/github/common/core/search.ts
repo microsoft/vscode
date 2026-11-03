@@ -19,7 +19,9 @@ export interface SearchPage<T> {
 }
 
 /** Repository metadata returned with a search match. */
-export interface RepositorySearchItem extends RepositoryIdentity {
+export interface RepositorySearchItem extends Omit<RepositoryIdentity, 'owner'> {
+	/** Repository owner, or null when unavailable. */
+	readonly owner: Account | null;
 	/** Default branch name. */
 	readonly default_branch: string;
 	/** Primary language, or null. */

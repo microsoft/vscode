@@ -284,6 +284,21 @@ Outcomes are `success`, `error`, `unavailable`, `deferred`, `partial`, and `canc
 
 The implementation is in [`node/agentHostStartupPerformance.ts`](node/agentHostStartupPerformance.ts). Bootstrap records named milestones and publishes them only after composition has applied the host telemetry configuration. Providers report at their existing enumeration and processed-result boundaries; the orchestrator reports at its existing listing, migration and discovery registration boundaries. Startup telemetry does not use chat lifecycle contributions, since no turn or hydration hook owns these operations.
 
+## Copilot account discovery
+
+`agentHost.copilotAccountDiscovery` reports one completed `/copilot_internal/user` HTTP lookup from `CopilotApiService`, not cache reads or individual model calls. It uses the existing usage-telemetry transport and consent controls. Local endpoint overrides that skip discovery do not emit it.
+
+| Field | Meaning |
+| --- | --- |
+| `trigger` | `initial`, `cacheRefresh`, or `entitlementChange`. |
+| `outcome` | `published` when the result updated the discovery cache; `superseded` when a newer revalidation or invalidation prevented publication; `failed` for transport, HTTP, or response-processing failure. |
+| `copilotSku`, `copilotTrackingId` | SKU and analytics ID returned by this lookup, when available. These are not copied from the client's entitlement hint or a process-wide common property. |
+| `previousSku`, `cacheAgeMs` | Prior cached SKU and its age when lookup was requested. Age is derived from the cache entry's creation/expiry time, not a model request's entitlement age. Both can be absent on initial discovery. |
+| `httpStatus`, `gitHubRequestId` | HTTP status and validated `x-github-request-id` header, when a response supplied them. The request ID belongs to discovery, not model inference. |
+| `durationMs` | Time from starting HTTP discovery through completion/failure, including response-body consumption. |
+
+Superseded successful responses retain their returned metadata in this event even though they did not update the cache. Coalesced callers share a single lookup/event; failed attempts do not include response bodies, error messages, credentials, login names, or endpoint URLs. Events are not emitted after service disposal, and transport/consent gaps can leave missing observations. No discovery snapshot ID or additional fields on turn/tool/SDK response events are introduced. Account/time comparisons can reveal inconsistent responses but cannot prove which discovery snapshot or backend authorization decision served an individual model request.
+
 ## Canvas rollout and load telemetry
 
 Canvas product telemetry uses existing usage consent, independently of OTel.
