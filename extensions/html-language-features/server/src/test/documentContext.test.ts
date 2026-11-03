@@ -29,6 +29,9 @@ suite('HTML Document Context', () => {
 			context.resolveReference('page.html', 'https://example.com/docs/index.html'),
 			context.resolveReference('page.html', 'http://example.com/docs/'),
 			context.resolveReference('page.html', 'file:///users/test/other/'),
+			context.resolveReference('page.html', 'HTTPS://example.com/docs/'),
+			context.resolveReference('page.html', 'Http://example.com/docs/'),
+			context.resolveReference('page.html', 'FILE:///users/test/other/'),
 		], [
 			undefined,
 			undefined,
@@ -36,9 +39,13 @@ suite('HTML Document Context', () => {
 			'https://example.com/docs/page.html',
 			'http://example.com/docs/page.html',
 			'file:///users/test/other/page.html',
+			'https://example.com/docs/page.html',
+			'http://example.com/docs/page.html',
+			'file:///users/test/other/page.html',
 		]);
 
 		const untitledContext = getDocumentContext('untitled:Untitled-1', []);
 		assert.strictEqual(untitledContext.resolveReference('page.html', 'untitled:Untitled-1'), 'untitled:page.html');
+		assert.strictEqual(untitledContext.resolveReference('page.html', 'UNTITLED:Untitled-1'), 'untitled:page.html');
 	});
 });

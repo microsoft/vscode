@@ -34,7 +34,9 @@ export function getDocumentContext(documentUri: string, workspaceFolders: Worksp
 					return folderUri + ref.substr(1);
 				}
 			}
-			const baseUri = URI.parse(base);
+			const parsedBase = URI.parse(base);
+			// URI schemes are case-insensitive, but `URI.parse` preserves their case
+			const baseUri = parsedBase.with({ scheme: parsedBase.scheme.toLowerCase() });
 			if (!isHierarchicalBase(baseUri, documentUri)) {
 				// A `<base href>` with another scheme, for example `command:`, cannot be used to
 				// resolve relative references. Doing so would give them that scheme and its query.
@@ -49,5 +51,5 @@ export function getDocumentContext(documentUri: string, workspaceFolders: Worksp
 const hierarchicalSchemes = new Set(['http', 'https', 'file']);
 
 function isHierarchicalBase(baseUri: URI, documentUri: string): boolean {
-	return hierarchicalSchemes.has(baseUri.scheme) || baseUri.scheme === URI.parse(documentUri).scheme;
+	return hierarchicalSchemes.has(baseUri.scheme) || baseUri.scheme === URI.parse(documentUri).scheme.toLowerCase();
 }
