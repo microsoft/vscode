@@ -575,6 +575,33 @@ suite('Part Grid', () => {
 		assert.deepStrictEqual({ movePart, newPart }, { movePart: 'The parts of this window do not move', newPart: 'Editors do not go into new parts in this window' });
 	});
 
+	test('Move Part keeps the sizes of the other parts, the moved part takes the rest, and moving it back restores the layout', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		const [chat, main, terminals] = [createPart(parts), createPart(parts), createPart(parts)];
+		await Promise.all([openEditor(chat, '/chat.txt'), openEditor(terminals, '/terminals.txt')]);
+		// As a chat window in Chat Only with the terminals across the window: the main part has no editors and hides
+		grid.addPart('chat', chat);
+		grid.addPart('main', main, { reference: 'chat', direction: Direction.Right });
+		grid.addPart('terminals', terminals, { edge: Direction.Down });
+		grid.addView('title', createView(), { edge: Direction.Up });
+		grid.resizeCell('terminals', { width: 1000, height: 72 });
+		const heights = () => ({ shape: grid.describe(), chat: grid.getCellSize('chat').height, terminals: grid.getCellSize('terminals').height });
+		const before = heights();
+
+		const down = grid.moveCellInDirection('chat', Direction.Down);
+		const movedDown = heights();
+		const up = grid.moveCellInDirection('chat', Direction.Up);
+
+		assert.deepStrictEqual({ before, down, movedDown, up, movedUp: heights() }, {
+			before: { shape: 'column(title, row(chat, main), terminals)', chat: 698, terminals: 72 },
+			down: true,
+			movedDown: { shape: 'column(title, main, terminals, chat)', chat: 698, terminals: 72 },
+			up: true,
+			movedUp: { shape: 'column(title, main, chat, terminals)', chat: 698, terminals: 72 }
+		});
+	});
+
 	test('Move Part to the edge a part is at already leaves the parts as they are, sizes included', async () => {
 		const parts = await createParts();
 		const grid = createGrid();

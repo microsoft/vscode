@@ -735,6 +735,7 @@ export class PartGrid extends Disposable {
 		}
 
 		const before = this.describe();
+		const sizes = this.getVisibleCellSizes(id);
 		const neighbor = this.dimension ? this.grid.getNeighborViews(cell, direction).find(candidate => candidate.part && this.isCellVisible(candidate.id)) : undefined;
 		if (neighbor) {
 			this.grid.moveView(cell, Sizing.Distribute, neighbor, direction);
@@ -754,7 +755,18 @@ export class PartGrid extends Disposable {
 			}
 		}
 
+		// The other cells keep their sizes, and the moved part takes the rest, so that moving it back restores them
+		for (const [otherId, size] of sizes) {
+			this.resizeCell(otherId, size);
+		}
+
 		return this.describe() !== before;
+	}
+
+	private getVisibleCellSizes(excludedId: string): [string, IViewSize][] {
+		return Array.from(this.cells.keys())
+			.filter(id => id !== excludedId && this.isCellVisible(id))
+			.map(id => [id, this.getCellSize(id)]);
 	}
 
 	/**
