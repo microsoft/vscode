@@ -112,6 +112,22 @@
 	content: none;
 }
 
+/*
+ * A part split into groups is one card, as editor groups are one editor area in VS Code: its card frames all its groups
+ * once, and the part divides them; its groups, and the chat in one of them, draw no frames of their own.
+ */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):not(.modern-ui-compact) .agents-chat-window .part-grid-cell[data-part-grid-split]:is([data-part-grid-cell]) > .part-grid-card {
+	--part-grid-card-frame-owner: card;
+	--part-grid-card-border-color: var(--vscode-agentsCard-border, var(--vscode-agentsPanel-border, transparent));
+	background-clip: border-box;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):not(.modern-ui-compact) .agents-chat-window .part-grid-cell[data-part-grid-split] .part.editor:not(.modal-editor-part) > .content .editor-group-container::after,
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):not(.modern-ui-compact) .agents-chat-window .part-grid-cell[data-part-grid-split] .session-chat-view-editor.shows-title::after,
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):not(.modern-ui-compact) .agents-chat-window .part-grid-cell[data-part-grid-split] .session-view::after {
+	content: none;
+}
+
 /* The title row of the window starts at the edge of the window, as the main window's title bar does: its window controls take the room of the window's inset there, so that its title and actions line up with those of the other title rows. */
 .monaco-workbench .agents-chat-window .chat-window-title-row > .part.titlebar .titlebar-left > .window-controls-container {
 	margin-left: calc(-1 * var(--chat-window-outer-inset-left, 0px));
